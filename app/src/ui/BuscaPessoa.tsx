@@ -42,7 +42,7 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
   }, [aberta]);
 
   if (escolhida) return <label>{rotulo}
-    <span className="escolhida"><span>{escolhida.nome}</span>
+    <span className="escolhida"><span title={escolhida.nome}>{escolhida.nome}</span>
       <button type="button" className="mini" onClick={() => { aoEscolher(null); setTermo(''); setAchados(null); setTimeout(() => campo.current?.focus(), 0); }}>Trocar</button>
     </span>
   </label>;

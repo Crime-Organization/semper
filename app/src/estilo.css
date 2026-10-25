@@ -350,7 +350,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }
 .achados button:disabled { cursor: not-allowed; opacity: .6 }
 .achados small { color: var(--muted) }
-.escolhida { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 4px 6px 4px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-tint); font-size: 14px; font-weight: 700; color: var(--ink) }
+/* A pessoa escolhida tem a altura dos campos ao lado (44px), numa linha só: nome longo termina em "…" e aparece inteiro na dica. */
+.escolhida { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 44px; padding: 0 5px 0 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-tint); font-size: 14px; font-weight: 700; color: var(--ink) }
+.escolhida > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.escolhida > .mini { flex-shrink: 0 }
 .qualificacao { background: var(--soft); border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: anywhere }
 .dados { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 0; margin: 0; font-size: 14px }
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
