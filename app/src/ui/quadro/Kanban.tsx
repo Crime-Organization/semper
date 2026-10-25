@@ -110,6 +110,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const { item, de } = a;
     const kDe = chave(de), kPara = chave(para);
     const antesId = alvoRef.current?.k === kPara ? alvoRef.current.antes : null;
+    // O arrastar termina aqui: ao mudar de coluna, o cartão de origem sai da tela e o aviso de fim
+    // do navegador (dragend) não chega mais; sem isto, o cartão ficaria marcado como "arrastando".
+    arrasto.current = null;
+    setArrastando(null);
     setAlvo(null);
     const origem = listasRef.current[kDe], destino = listasRef.current[kPara];
     if (!origem || !destino) return;
@@ -228,6 +232,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         if (!c) return;
         e.preventDefault();
         const antes = antesDeColRef.current;
+        colArrasto.current = null;
+        setColArrastada(null);
         setAntesDeCol(null);
         quadro.posicionar(c, antes && antes !== 'fim' ? quadro.colunas.find(x => x.id === antes) || null : null);
       }}>
