@@ -1,8 +1,8 @@
-// Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, dados, informações
-// sigilosas e histórico de alterações.
+// Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, vínculos, dados,
+// informações sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo } from '../dados';
+import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
 import { CAMPOS, qualificacao, TIPOS, valorLegivel } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -13,6 +13,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
+import { VinculosPessoa } from './VinculosPessoa';
 
 interface Props {
   id: string;
@@ -20,9 +21,11 @@ interface Props {
   /** Avisa a lista de que algo mudou (para recarregar a tabela ou o quadro). */
   aoMudar: () => void;
   aoFechar: () => void;
+  /** Abre o cartão de outra pessoa (pelos vínculos). */
+  aoAbrirPessoa: (id: string) => void;
 }
 
-export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
+export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: Props) {
   const ctx = useCtx();
   const eu = ctx.perfil.id;
   const [p, setP] = useState<Pessoa | null | undefined>(undefined);   // undefined: carregando; null: não existe
@@ -34,9 +37,14 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const carregar = useCallback(() => SD.pessoaObter(id).then(x => { setP(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { carregar(); }, [carregar]);
+  // Os vínculos carregam com a pessoa, para a quantidade aparecer mesmo com a seção fechada.
+  const [vinculos, setVinculos] = useState<Vinculo[] | string | null>(null);
+  const carregarVinculos = useCallback(() => SD.vinculosListar(id).then(setVinculos).catch(e => setVinculos((e as Error).message)), [id]);
+  useEffect(() => { carregarVinculos(); }, [carregarVinculos]);
   // Depois de desfazer: mostra a pessoa como ficou.
   useMudancas(d => {
     carregar();
+    carregarVinculos();
     setVersaoHist(v => v + 1);
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
@@ -126,6 +134,12 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
       <div className="qualificacao" ref={qual}>{textoQual}</div>
       <p className="nota">Gerada a partir do cadastro. Fica só no SEMPER.</p>
     </section>}
+
+    <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
+      {vinculos === null ? <p className="carregando">Carregando…</p>
+        : typeof vinculos === 'string' ? <div className="aviso erro">{vinculos}</div>
+        : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { carregarVinculos(); setVersaoHist(v => v + 1); }} />}
+    </Recolhivel>
 
     <Recolhivel titulo="Dados do cadastro" preferencia="pessoas.cartao.dados">
       <Grupo titulo="Identificação" linhas={[['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')],

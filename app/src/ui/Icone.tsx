@@ -24,7 +24,8 @@ const ICONES = {
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   pontos: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   check: '<path d="M5 12l5 5L20 7"/>',
-  abaixo: '<path d="M6 9l6 6 6-6"/>'
+  abaixo: '<path d="M6 9l6 6 6-6"/>',
+  vinculo: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1.1 1.1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1.1-1.1"/>'
 };
 export type NomeIcone = keyof typeof ICONES;
 

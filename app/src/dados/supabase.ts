@@ -43,6 +43,8 @@ function traduzir(e: unknown): Error {
     if (/pessoas_documento_unico/.test(msg)) return t('Já existe um cadastro com este CPF/CNPJ.');
     if (/quadro_colunas_nome_unico/.test(msg)) return t('Já existe uma coluna com esse nome neste quadro.');
     if (/convites_email_pendente/.test(msg)) return t('Este e-mail já tem um convite pendente.');
+    if (/pessoa_vinculos_unico/.test(msg)) return t('Essas duas pessoas já têm esse vínculo.');
+    if (/vinculo_tipos_unico/.test(msg)) return t('Esse tipo de vínculo já existe.');
     return t('Esse registro já existe.');
   }
   if (cod === '23503' && /perfis_pessoa_fkey/.test(msg)) return t('Esta pessoa é usuária do sistema e não pode ser excluída.');
@@ -256,6 +258,32 @@ export const SD: Dados = {
   sigiloApagar: id => rpc('sigilo_apagar', { p_id: id }),
   sigiloAcessos: pessoaId => rpc('sigilo_acessos', { p_pessoa: pessoaId }),
   sigiloConceder: (pessoaId, perfilId, conceder = true) => rpc('sigilo_conceder', { p_pessoa: pessoaId, p_perfil: perfilId, p_conceder: conceder }),
+
+  // ---------- vínculos entre pessoas ----------
+  async vinculoTiposListar() {
+    const { data } = await rodar(sb.from('vinculo_tipos').select('id, escritorio_id, nome, inverso, ordem').order('ordem').order('nome'));
+    return data;
+  },
+  async vinculoTipoCriar(nome, inverso) {
+    const { data } = await rodar(sb.from('vinculo_tipos').insert({ nome: nome.trim(), inverso: (inverso || nome).trim(), criado_por: uid() })
+      .select('id, escritorio_id, nome, inverso, ordem').single());
+    return data;
+  },
+  async vinculosListar(pessoaId) {
+    const pessoa = 'id, codigo, nome, tipo, arquivado_em';
+    const { data } = await rodar(sb.from('pessoa_vinculos')
+      .select(`id, pessoa_de, pessoa_para, tipo_id, descricao, criado_por, criado_em,
+        de:pessoas!pessoa_vinculos_pessoa_de_fkey(${pessoa}), para:pessoas!pessoa_vinculos_pessoa_para_fkey(${pessoa}),
+        tipo:vinculo_tipos!pessoa_vinculos_tipo_id_fkey(id, nome, inverso)`)
+      .or(`pessoa_de.eq.${pessoaId},pessoa_para.eq.${pessoaId}`).order('criado_em'));
+    return data;
+  },
+  async vinculoCriar(de, para, tipoId, descricao = null) {
+    const { data } = await rodar(sb.from('pessoa_vinculos')
+      .insert({ pessoa_de: de, pessoa_para: para, tipo_id: tipoId, descricao: descricao?.trim() || null, criado_por: uid() }).select('id').single());
+    return data.id;
+  },
+  async vinculoApagar(id) { await rodar(sb.from('pessoa_vinculos').delete().eq('id', id)); },
 
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {

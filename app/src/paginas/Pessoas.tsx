@@ -156,7 +156,7 @@ export default function Pessoas() {
           aoSelecionar={setSelecionadas} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
-      <CartaoPessoa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} />
+      <CartaoPessoa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} aoAbrirPessoa={abrir} />
     </PainelCartao>}
   </>;
 }

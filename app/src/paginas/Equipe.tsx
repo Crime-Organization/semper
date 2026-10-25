@@ -2,14 +2,15 @@
 // desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, Navigate } from 'react-router';
+import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
-import { emailValido, fmtDocumento, TIPOS } from '../regras/pessoa';
+import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { useSessao } from '../ui/sessao';
-import { copiarTexto, dataHora, PAPEIS, relativo, useAtrasado, useTitulo } from '../ui/util';
+import { copiarTexto, dataHora, PAPEIS, relativo, useTitulo } from '../ui/util';
 import './Equipe.css';
 
 export default function Equipe() {
@@ -21,7 +22,8 @@ export default function Equipe() {
 
 const TABELAS: Record<string, string> = {
   pessoas: 'cadastro de pessoa', pessoa_responsaveis: 'responsáveis de', pessoa_sigilos: 'informação sigilosa de',
-  pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite'
+  pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
+  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo'
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu' };
 const linkAcesso = () => location.origin + '/?primeiro-acesso';
@@ -163,31 +165,19 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   const { ctx } = useSessao();
   const papeis: Papel[] = ctx.ehMaster ? ['usuario', 'admin'] : ['usuario'];
   const [escolhida, setEscolhida] = useState<PessoaLista | null>(null);
-  const [termo, setTermo] = useState('');
-  const buscado = useAtrasado(termo, 300);
-  const [achados, setAchados] = useState<PessoaLista[] | null>(null);
   const [email, setEmail] = useState('');
   const [papel, setPapel] = useState<Papel>('usuario');
   const [ocupado, setOcupado] = useState(false);
   const [criado, setCriado] = useState<Convite | null>(null);
   const campoEmail = useRef<HTMLInputElement>(null);
-  const campoBusca = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const t = buscado.trim();
-    if (t.length < 2) { setAchados(null); return; }
-    let vivo = true;
-    SD.pessoasListar({ termo: t, porPagina: 8 }).then(r => { if (vivo) setAchados(r.linhas); }).catch(falha);
-    return () => { vivo = false; };
-  }, [buscado]);
 
   const ja = new Set([...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)].filter(Boolean));
-  const escolher = (p: PessoaLista) => {
+  const escolher = (p: PessoaLista | null) => {
     setEscolhida(p);
+    if (!p) return;
     if (!email && p.emails?.[0]) setEmail(p.emails[0]);
     setTimeout(() => campoEmail.current?.focus(), 0);
   };
-  const trocar = () => { setEscolhida(null); setTermo(''); setAchados(null); setTimeout(() => campoBusca.current?.focus(), 0); };
 
   async function liberar(e: FormEvent) {
     e.preventDefault();
@@ -199,7 +189,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
       const c = await SD.conviteCriar(escolhida.id, em, papel);
       setCriado(c);
       feito(`Acesso liberado para ${c.nome}.`, 'liberação de acesso', async () => { await SD.conviteCancelar(c.id); setCriado(null); });
-      setEscolhida(null); setTermo(''); setAchados(null); setEmail('');
+      setEscolhida(null); setEmail('');
       aoLiberar();
     } catch (err) { falha(err); }
     setOcupado(false);
@@ -210,21 +200,8 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
     <div className="cartao campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <p className="nota">Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e cria a própria senha em "Primeiro acesso".</p>
       <form className="form-convite" noValidate onSubmit={liberar}>
-        <div>
-          {escolhida
-            ? <label>Pessoa<span className="escolhida"><span>{escolhida.nome}</span><button type="button" className="mini" onClick={trocar}>Trocar</button></span></label>
-            : <>
-              <label>Pessoa<input ref={campoBusca} placeholder="Busque pelo nome ou CPF" autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} /></label>
-              {achados && <ul className="achados">
-                {achados.length ? achados.map(p => <li key={p.id}>
-                  <button type="button" disabled={ja.has(p.id)} onClick={() => escolher(p)}>
-                    <b>{p.nome}</b><small>{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''}{ja.has(p.id) ? ' · já tem acesso ou convite' : ''}</small>
-                  </button>
-                </li>)
-                  : <li className="nota" style={{ padding: '10px 12px' }}>Nenhuma pessoa encontrada. <Link className="link" to="/pessoas/nova/">Cadastrar</Link></li>}
-              </ul>}
-            </>}
-        </div>
+        <div><BuscaPessoa rotulo="Pessoa" escolhida={escolhida} aoEscolher={escolher} placeholder="Busque pelo nome ou CPF"
+          desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
         <label>E-mail de acesso<input ref={campoEmail} type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Papel<select value={papel} onChange={e => setPapel(e.target.value as Papel)}>{papeis.map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}</select></label>
         <button className="btn pri" type="submit" disabled={ocupado}>Liberar acesso</button>

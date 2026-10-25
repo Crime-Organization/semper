@@ -80,7 +80,7 @@ export const CAMPOS: Record<string, string> = {
   abertura: 'Data de abertura', representantes: 'Representante(s) legal(is)', documento: 'CPF/CNPJ', cep: 'CEP',
   logradouro: 'Logradouro', numero: 'Número', complemento: 'Complemento', bairro: 'Bairro', municipio: 'Município',
   uf: 'UF', telefones: 'Telefones', emails: 'E-mails', lgpd_base: 'Base legal (LGPD)',
-  lgpd_consentimento: 'Data do consentimento', etapa: 'Etapa do atendimento', arquivado_em: 'Arquivamento'
+  lgpd_consentimento: 'Data do consentimento', etapa: 'Etapa do atendimento', arquivado_em: 'Arquivamento', vinculo: 'Vínculo'
 };
 
 // ---------- formatos ----------

@@ -124,6 +124,14 @@ export interface ResumoPessoas { total: number; minhas: number; mes: number; arq
 export interface Sigilo { id: string; texto: string; criado_por: string | null; autor: string | null; criado_em: string; atualizado_em: string; pode_editar: boolean }
 export interface AcessoSigilo { perfil_id: string; nome: string; concedido_em: string; pode_conceder: boolean }
 
+/** Tipo de vínculo entre pessoas: "nome" aparece em quem faz o vínculo, "inverso" na outra pessoa. */
+export interface VinculoTipo { id: string; escritorio_id: string | null; nome: string; inverso: string; ordem: number }
+/** Vínculo entre duas pessoas, com as duas pontas (de, para) e o tipo. */
+export interface Vinculo {
+  id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string | null; criado_em: string;
+  de: PessoaResumida; para: PessoaResumida; tipo: Pick<VinculoTipo, 'id' | 'nome' | 'inverso'>;
+}
+
 export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean }
 
 export interface Usuario {
@@ -174,6 +182,13 @@ export interface Dados {
   sigiloApagar(id: string): Promise<void>;
   sigiloAcessos(pessoaId: string): Promise<AcessoSigilo[]>;
   sigiloConceder(pessoaId: string, perfilId: string, conceder?: boolean): Promise<void>;
+
+  // vínculos entre pessoas
+  vinculoTiposListar(): Promise<VinculoTipo[]>;
+  vinculoTipoCriar(nome: string, inverso: string): Promise<VinculoTipo>;
+  vinculosListar(pessoaId: string): Promise<Vinculo[]>;
+  vinculoCriar(de: string, para: string, tipoId: string, descricao?: string | null): Promise<string>;
+  vinculoApagar(id: string): Promise<void>;
 
   // quadros (kanban)
   colunasListar(modulo: Modulo): Promise<Coluna[]>;

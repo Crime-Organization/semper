@@ -2,7 +2,7 @@
 // Usada só em "npm run teste". Segue o mesmo contrato de dados/supabase.ts.
 // Para recomeçar do zero, rode no console: SEMPER_FALSO.reiniciar()
 import type {
-  AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Ordem, Papel, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -36,6 +36,8 @@ interface Banco {
   auditoria: RegistroAuditoria[];
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
   logado: boolean;
+  tiposVinculo?: VinculoTipo[];
+  vinculos?: { id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string; criado_em: string }[];
 }
 
 function semente(): Banco {
@@ -80,8 +82,14 @@ function semente(): Banco {
   return { pessoas, colunas, ocultas: [], historico: [], sigilos: [], acessos: [], convites: [], auditoria: [], perfil: { preferencias: {} }, logado: true };
 }
 
+const TIPOS_VINCULO: [string, string][] = [['Cônjuge', 'Cônjuge'], ['Companheiro(a)', 'Companheiro(a)'], ['Pai/mãe de', 'Filho(a) de'],
+  ['Irmão(ã) de', 'Irmão(ã) de'], ['Sócio(a) de', 'Tem como sócio(a)'], ['Representante legal de', 'Representado(a) por'],
+  ['Procurador(a) de', 'Tem como procurador(a)'], ['Funcionário(a) de', 'Empregador(a) de'], ['Contador(a) de', 'Tem como contador(a)'],
+  ['Indicou', 'Indicado(a) por'], ['Outro', 'Outro']];
 let bd: Banco;
 try { bd = JSON.parse(sessionStorage.getItem(CHAVE) || 'null') || semente(); } catch { bd = semente(); }
+bd.tiposVinculo ??= TIPOS_VINCULO.map(([nome, inverso], i) => ({ id: 'tv' + (i + 1), escritorio_id: null, nome, inverso, ordem: i === TIPOS_VINCULO.length - 1 ? 1000 : (i + 1) * 10 }));
+bd.vinculos ??= [];
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -117,6 +125,14 @@ const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
   recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
 };
 const erro = (t: string) => Promise.reject(new Error(t));
+// Como no banco: o vínculo incluído ou retirado entra no histórico das duas pessoas.
+function historicoVinculo(v: NonNullable<Banco['vinculos']>[number], incluido: boolean) {
+  const t = bd.tiposVinculo!.find(x => x.id === v.tipo_id)!, obs = v.descricao ? ` (${v.descricao})` : '';
+  const nome = (id: string) => bd.pessoas.find(p => p.id === id)?.nome || 'pessoa excluída';
+  for (const [pessoa, texto] of [[v.pessoa_de, `${t.nome} ${nome(v.pessoa_para)}${obs}`], [v.pessoa_para, `${t.inverso} ${nome(v.pessoa_de)}${obs}`]]) {
+    bd.historico.unshift({ id: Date.now() + Math.random(), pessoa_id: pessoa, alteracoes: { vinculo: incluido ? { de: null, para: texto } : { de: texto, para: null } }, feito_por: eu, em: agora() });
+  }
+}
 const achar = (id: string) => {
   const p = bd.pessoas.find(x => x.id === id);
   if (!p) throw new Error('Cadastro não encontrado.');
@@ -203,6 +219,9 @@ export const SD: Dados = {
       if (!p || !p.arquivado_em) return;
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
+      const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
+      bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
+      ligados.forEach(v => historicoVinculo(v, false));
     });
     gravar(); return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo });
   },
@@ -241,6 +260,29 @@ export const SD: Dados = {
     bd.acessos = bd.acessos.filter(a => !(a.pessoa_id === pid && a.perfil_id === perfil));
     if (conceder) bd.acessos.push({ pessoa_id: pid, perfil_id: perfil, concedido_em: agora() });
     gravar();
+  },
+
+  vinculoTiposListar: () => espera(bd.tiposVinculo!.slice().sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome))),
+  async vinculoTipoCriar(nome, inverso) {
+    if (bd.tiposVinculo!.some(t => semAcento(t.nome) === semAcento(nome) && semAcento(t.inverso) === semAcento(inverso || nome))) return erro('Esse tipo de vínculo já existe.');
+    const t: VinculoTipo = { id: novoId(), escritorio_id: 'e1', nome: nome.trim(), inverso: (inverso || nome).trim(), ordem: 500 };
+    bd.tiposVinculo!.push(t); gravar(); return espera(t);
+  },
+  vinculosListar: pid => espera(bd.vinculos!.filter(v => v.pessoa_de === pid || v.pessoa_para === pid).map(v => {
+    const resumo = (id: string) => { const p = achar(id); return { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em }; };
+    const t = bd.tiposVinculo!.find(x => x.id === v.tipo_id)!;
+    return { ...v, de: resumo(v.pessoa_de), para: resumo(v.pessoa_para), tipo: { id: t.id, nome: t.nome, inverso: t.inverso } };
+  })),
+  async vinculoCriar(de, para, tipoId, descricao = null) {
+    if (de === para) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    const par = [de, para].sort().join();
+    if (bd.vinculos!.some(v => v.tipo_id === tipoId && [v.pessoa_de, v.pessoa_para].sort().join() === par)) return erro('Essas duas pessoas já têm esse vínculo.');
+    const v = { id: novoId(), pessoa_de: de, pessoa_para: para, tipo_id: tipoId, descricao: descricao?.trim() || null, criado_por: eu, criado_em: agora() };
+    bd.vinculos!.push(v); historicoVinculo(v, true); gravar(); return v.id;
+  },
+  async vinculoApagar(id) {
+    const v = bd.vinculos!.find(x => x.id === id); if (!v) return;
+    bd.vinculos = bd.vinculos!.filter(x => x.id !== id); historicoVinculo(v, false); gravar();
   },
 
   colunasListar: () => espera(bd.colunas.slice().sort((a, b) => a.ordem - b.ordem).map(c => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),

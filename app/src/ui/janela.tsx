@@ -4,8 +4,8 @@ import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 
 export interface AcaoJanela<T> {
   rotulo: string;
-  /** Valor devolvido; se for função, recebe a janela e devolve o resultado (ex.: ler um campo). */
-  valor: T | ((janela: HTMLElement) => T);
+  /** Valor devolvido (null = desistiu); se for função, recebe a janela e devolve o resultado (ex.: ler um campo). */
+  valor: T | null | ((janela: HTMLElement) => T | null);
   tipo?: 'pri' | 'perigo';
 }
 interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; resolver: (v: unknown) => void }
@@ -44,7 +44,7 @@ export function pedirTexto(titulo: string, valor = '', { multilinha = false, max
     corpo: multilinha
       ? <textarea className="campo" rows={6} defaultValue={valor} aria-label={titulo} />
       : <input className="campo" maxLength={maximo} defaultValue={valor} aria-label={titulo} />,
-    acoes: [{ rotulo: 'Cancelar', valor: null as unknown as string },
+    acoes: [{ rotulo: 'Cancelar', valor: null },
       { rotulo: 'Salvar', tipo: 'pri', valor: j => (j.querySelector('input, textarea') as HTMLInputElement).value.trim() }]
   });
 }

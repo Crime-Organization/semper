@@ -11,10 +11,12 @@ interface Props {
   /** Chave da preferência que guarda se a seção fica aberta. Sem ela, a seção sempre começa como "padrao". */
   preferencia?: string;
   padrao?: boolean;
+  /** Quantidade mostrada ao lado do título (ex.: quantos vínculos), visível mesmo com a seção fechada. */
+  contador?: number;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, padrao = false, children }: Props) {
+export function Recolhivel({ titulo, icone, preferencia, padrao = false, contador, children }: Props) {
   const [aberto, setAberto] = useState(() => preferencia ? lerPreferencia(preferencia, padrao) : padrao);
   const id = useId();
   const alternar = () => {
@@ -25,6 +27,7 @@ export function Recolhivel({ titulo, icone, preferencia, padrao = false, childre
     <h3>
       <button type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
         {icone && <Icone nome={icone} tam={14} />}{titulo}
+        {!!contador && <span className="recolher-contador">{contador}</span>}
         <span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span>
       </button>
     </h3>
