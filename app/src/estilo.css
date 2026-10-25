@@ -89,7 +89,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .btn.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 900 }
 .btn.pri:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover) }
 .btn.esc { background: var(--sel); border-color: var(--sel); color: var(--sel-txt) }
-.btn.esc:hover:not(:disabled) { filter: brightness(.88) }
+/* Cada variante repete o próprio fundo no hover: sem isso, o hover geral do .btn (fundo claro) apaga o texto. */
+.btn.esc:hover:not(:disabled) { background: var(--sel); filter: brightness(.88) }
 .btn.perigo { border-color: var(--erro-borda); color: var(--erro) }
 .btn.perigo:hover:not(:disabled) { background: var(--erro-bg) }
 .btn-sm { height: 36px; padding: 0 16px; font-size: 14px }
@@ -97,7 +98,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .mini { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; color: var(--ink) }
 .mini:hover:not(:disabled) { background: var(--soft) }
 .mini.perigo { border-color: var(--erro-borda); color: var(--erro) }
-.mini.perigo.confirmar, .btn.perigo.confirmar { background: var(--erro-forte); border-color: var(--erro-forte); color: #fff }
+.mini.perigo.confirmar, .btn.perigo.confirmar, .btn.perigo.confirmar:hover:not(:disabled) { background: var(--erro-forte); border-color: var(--erro-forte); color: #fff }
 .mini:disabled { opacity: .45; cursor: not-allowed }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
