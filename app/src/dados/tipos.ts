@@ -97,7 +97,10 @@ export type DadosPessoa = Partial<Omit<Pessoa, 'id' | 'codigo' | 'resp' | 'criad
 
 /** Linha das listagens (tabela, kanban, início). */
 export type PessoaLista = Pick<Pessoa, 'id' | 'codigo' | 'tipo' | 'nome' | 'nome_fantasia' | 'documento' | 'telefones' | 'emails'
-  | 'municipio' | 'uf' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'atualizado_em' | 'resp'>;
+  | 'municipio' | 'uf' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'resp'>;
+
+/** Ordem das listas de qualquer módulo: "manual" é a do quadro (arrastando os cartões); as outras valem para quadro e tabela. */
+export type Ordem = 'manual' | 'nome' | 'nome_desc' | 'novos' | 'antigos' | 'recentes';
 
 export interface PessoaResumida { id: string; codigo: string; nome: string; tipo: TipoPessoa; arquivado_em?: string | null }
 
@@ -106,7 +109,7 @@ export interface FiltroPessoas {
   tipo?: string;
   responsavel?: string;
   situacao?: 'ativas' | 'arquivadas';
-  ordem?: 'nome' | 'recentes';
+  ordem?: Ordem;
   pagina?: number;
   porPagina?: number;
 }

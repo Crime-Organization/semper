@@ -23,6 +23,9 @@ interface Props<T extends { id: string }> {
   aoMover: (item: T, m: Movimento) => Promise<void>;
   /** Botão "Adicionar" no pé de cada coluna. */
   aoAdicionar?: (colunaId: string | null) => void;
+  /** false quando a lista está em outra ordem (nome, data): o cartão ainda muda de coluna, mas entra no
+   *  lugar que essa ordem define, e não dá para mudar a posição dentro da mesma coluna. */
+  manual?: boolean;
 }
 
 interface Lista<T> { itens: T[]; total: number; erro?: string }
@@ -118,6 +121,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const origem = listasRef.current[kDe], destino = listasRef.current[kPara];
     if (!origem || !destino) return;
     const semItem = origem.itens.filter(x => x.id !== item.id);
+    if (p.current.manual === false) {
+      if (kDe === kPara) return;
+      // Vai para o fim da ordem manual; na tela, entra onde a ordem escolhida mandar (a coluna é relida).
+      const ordemAnterior = ordemDe(item), ordem = Date.now() / 1000;
+      ordens.current[item.id] = ordem;
+      setListas(l => ({ ...l, [kDe]: { ...l[kDe], itens: semItem, total: l[kDe].total - 1 }, [kPara]: { ...l[kPara], itens: [item, ...l[kPara].itens], total: l[kPara].total + 1 } }));
+      try { await p.current.aoMover(item, { de, para, ordem, ordemAnterior }); carregar(para); }
+      catch (e) { falha(e); carregar(de); carregar(para); }
+      return;
+    }
     const base = kDe === kPara ? semItem : destino.itens;
     const i = antesId ? base.findIndex(x => x.id === antesId) : -1;
     const lugar = i < 0 ? base.length : i;
@@ -160,7 +173,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const l = listas[k];
     const aqui = alvo?.k === k;
     const reordena = !!c && quadro.podeReordenar;
-    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (c && colArrastada === c.id ? ' arrastando-col' : '')} data-coluna={k}>
+    const marcador = aqui && props.manual !== false;
+    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && props.manual === false ? ' recebendo' : '')} data-coluna={k}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -179,8 +193,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       <div className="coluna-lista" role="list" aria-label={nome}
         onDragOver={e => {
           if (!arrasto.current) return;
+          if (props.manual === false && chave(arrasto.current.de) === k) return;
           e.preventDefault();
-          const antes = posicao(e.currentTarget, e.clientY);
+          const antes = props.manual === false ? null : posicao(e.currentTarget, e.clientY);
           if (alvoRef.current?.k !== k || alvoRef.current.antes !== antes) setAlvo({ k, antes });
           rolarBordas(e.clientX);
         }}
@@ -188,9 +203,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         onDrop={e => { e.preventDefault(); if (arrasto.current) soltar(id); }}>
         {!l ? <p className="coluna-vazia">Carregando…</p>
           : l.erro ? <p className="coluna-vazia erro">{l.erro}</p>
-          : !l.itens.length && !aqui ? <p className="coluna-vazia">Nenhum item.</p> : null}
+          : !l.itens.length && !marcador ? <p className="coluna-vazia">Nenhum item.</p> : null}
         {l?.itens.map(it => <Fragment key={it.id}>
-          {aqui && alvo.antes === it.id && <div className="kmarcador" />}
+          {marcador && alvo.antes === it.id && <div className="kmarcador" />}
           <article className={'kcartao' + (arrastando === it.id ? ' arrastando' : '')} role="listitem" tabIndex={0} draggable data-item={it.id}
             onClick={() => p.current.aoAbrir(it)}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.current.aoAbrir(it); } }}
@@ -204,7 +219,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
             {props.cartao(it)}
           </article>
         </Fragment>)}
-        {aqui && alvo.antes === null && <div className="kmarcador" />}
+        {marcador && alvo.antes === null && <div className="kmarcador" />}
       </div>
       <footer className="coluna-pe">
         {l && l.itens.length < l.total && <button type="button" className="coluna-carregar" onClick={() => carregar(id, true)}>

@@ -2,7 +2,7 @@
 // Usada só em "npm run teste". Segue o mesmo contrato de dados/supabase.ts.
 // Para recomeçar do zero, rode no console: SEMPER_FALSO.reiniciar()
 import type {
-  AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Papel, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Ordem, Papel, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -49,6 +49,7 @@ function semente(): Banco {
   const cpfs = ['52998224725', '11144477735', '39053344705', '74682489070', '12345678909', '98765432100', '04746201094', '61236758012'];
   const cnpjs = ['11625970000107', '11222333000181', '45723174000110'];
   const pessoas: Pessoa[] = [];
+  const dia = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
   const p = (dados: Partial<Pessoa>) => pessoas.push(Object.assign({
     id: novoId(), codigo: codigo(), tipo: 'pf', nome: '', genero: null, nacionalidade: null, profissao: null, estado_civil: null, rg: null, rg_expedicao: null,
     nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null, natureza: null, tipo_entidade: null,
@@ -59,7 +60,7 @@ function semente(): Banco {
   } as Pessoa, dados));
   EQUIPE.forEach(m => p({ id: m.pessoa_id, tipo: 'contato', nome: m.nome.toUpperCase(), emails: [m.email], telefones: ['(38) 3222-0000'], resp: [{ perfil_id: m.id }] }));
   nomes.forEach((nome, i) => p({
-    nome, genero: i % 2 ? 'f' : 'm', nacionalidade: 'brasileira', profissao: ['lavrador', 'professora', 'comerciante', 'aposentada'][i % 4],
+    nome, criado_em: dia(40 - i), atualizado_em: dia((i * 7) % 23), genero: i % 2 ? 'f' : 'm', nacionalidade: 'brasileira', profissao: ['lavrador', 'professora', 'comerciante', 'aposentada'][i % 4],
     estado_civil: ['solteiro', 'casado', 'viuvo', 'divorciado'][i % 4], documento: cpfs[i] || null, rg: `MG ${10 + i}.345.678 SSP/MG`,
     nome_mae: 'MÃE DE ' + nome.split(' ')[0], nascimento: `19${50 + i}-0${(i % 9) + 1}-1${i % 9}`, nascimento_municipio: 'Montes Claros', nascimento_uf: 'MG',
     cep: '39400121', logradouro: 'Rua das Flores', numero: String(10 + i), bairro: 'Centro', municipio: i % 3 ? 'Montes Claros' : 'Varzelândia', uf: 'MG',
@@ -69,7 +70,7 @@ function semente(): Banco {
     criado_por: i % 2 ? 'u-ana' : 'u-master', arquivado_em: i >= 18 ? agora() : null
   }));
   empresas.forEach((nome, i) => p({
-    tipo: 'pj', nome, natureza: i === 2 ? 'sem_fins' : i === 3 ? 'publica' : 'empresarial',
+    tipo: 'pj', criado_em: dia(15 - i * 2), atualizado_em: dia(i * 3 + 1), nome, natureza: i === 2 ? 'sem_fins' : i === 3 ? 'publica' : 'empresarial',
     tipo_entidade: i === 2 ? 'Associação Privada' : i === 3 ? 'Município' : 'Sociedade Empresária Limitada',
     porte: i < 2 ? 'me' : null, documento: cnpjs[i] || null, cep: '39400121', logradouro: 'Avenida Principal', numero: String(100 + i),
     bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG', telefones: ['(38) 3214-55' + (10 + i)], emails: [`contato${i}@empresa.exemplo`],
@@ -105,8 +106,16 @@ function filtrar(f: FiltroPessoas = {}) {
 const lista = (p: Pessoa): PessoaLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, nome: p.nome, nome_fantasia: p.nome_fantasia, documento: p.documento, telefones: p.telefones,
   emails: p.emails, municipio: p.municipio, uf: p.uf, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em,
-  criado_por: p.criado_por, atualizado_em: p.atualizado_em, resp: p.resp
+  criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em, resp: p.resp
 });
+const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
+  manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.nome.localeCompare(b.nome),
+  nome: (a, b) => a.nome.localeCompare(b.nome),
+  nome_desc: (a, b) => b.nome.localeCompare(a.nome),
+  novos: (a, b) => b.criado_em.localeCompare(a.criado_em),
+  antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
+  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
+};
 const erro = (t: string) => Promise.reject(new Error(t));
 const achar = (id: string) => {
   const p = bd.pessoas.find(x => x.id === id);
@@ -139,13 +148,13 @@ export const SD: Dados = {
 
   async pessoasListar(f = {}) {
     let r = filtrar(f);
-    r = f.ordem === 'recentes' ? r.sort((a, b) => b.atualizado_em.localeCompare(a.atualizado_em)) : r.sort((a, b) => a.nome.localeCompare(b.nome));
+    r = r.sort(ORDENS[f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome']);
     const por = f.porPagina || 50, de = (f.pagina || 0) * por;
     return espera({ linhas: r.slice(de, de + por).map(lista), total: r.length });
   },
   async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
     const r = filtrar(f).filter(p => (p.etapa_id || null) === (etapaId || null))
-      .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.nome.localeCompare(b.nome));
+      .sort(ORDENS[f.ordem || 'manual']);
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(lista), total: r.length });
   },
   pessoaObter: id => espera(bd.pessoas.find(p => p.id === id) || null),

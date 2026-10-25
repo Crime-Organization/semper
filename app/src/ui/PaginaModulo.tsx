@@ -1,10 +1,12 @@
 // Página de módulo: estrutura única de toda listagem (pessoas, contratos, demandas, tarefas, processos...):
-// cabeçalho com a ação principal na altura do título, barra de busca e filtros, troca Tabela/Kanban,
+// cabeçalho com a ação principal na altura do título, barra de busca, filtros e ordem, troca Tabela/Kanban,
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import type { Ordem } from '../dados';
 import { Icone } from './Icone';
+import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
 
 export type Visao = 'tabela' | 'kanban';
@@ -25,6 +27,8 @@ interface Props {
   /** Busca com espera enquanto digita: aoBuscar recebe o termo só quando a pessoa para de digitar. */
   busca?: { placeholder: string; aoBuscar: (termo: string) => void };
   filtros?: Filtro[];
+  /** Controle "Ordenar" (vem de useOrdem, em ui/ordem.ts): vale para o quadro e para a tabela. */
+  ordem?: Ordenacao;
   visoes?: Visao[];
   visao?: Visao;
   aoTrocarVisao?: (v: Visao) => void;
@@ -34,7 +38,7 @@ interface Props {
   children: ReactNode;
 }
 
-export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lead, lote, children }: Props) {
+export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lead, lote, children }: Props) {
   const [termo, setTermo] = useState('');
   const atrasado = useAtrasado(termo, 350);
   const aoBuscar = busca?.aoBuscar;
@@ -63,6 +67,9 @@ export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], visoes =
       {filtros.map(f => <select key={f.id} className="filtro" aria-label={f.rotulo} value={f.valor} onChange={e => f.aoMudar(e.target.value)}>
         {f.opcoes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
       </select>)}
+      {ordem && <select className="filtro" aria-label="Ordenar" title="Ordenar" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as Ordem)}>
+        {ordem.opcoes.map(o => <option key={o} value={o}>{ORDENS[o]}</option>)}
+      </select>}
       {visoes.length > 1 && <div className="abas" role="group" aria-label="Visualização">
         {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => aoTrocarVisao?.(v)}>
           <Icone nome={v} tam={15} />{VISOES[v]}

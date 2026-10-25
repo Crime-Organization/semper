@@ -2,7 +2,7 @@
 // e o cartão de cada pessoa. A estrutura da página vem de <PaginaModulo>.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type FiltroPessoas, type Pagina, type PessoaLista } from '../dados';
+import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { fmtDocumento, fmtTelefone, TIPOS } from '../regras/pessoa';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -14,7 +14,8 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
-import { numero, relativo, useTitulo } from '../ui/util';
+import { dataDaOrdem, useOrdem } from '../ui/ordem';
+import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoPessoa } from './CartaoPessoa';
 import './Pessoas.css';
 
@@ -37,6 +38,9 @@ export default function Pessoas() {
   });
   const [visao, setVisao] = useState<Visao>(() =>
     (params.get('visao') || lerPreferencia('pessoas.visao', 'tabela')) === 'kanban' && params.get('situacao') !== 'arquivadas' ? 'kanban' : 'tabela');
+  // Ordem escolhida (cada visualização tem a sua). Na tabela, mudar a ordem volta para a primeira página.
+  const ordem = useOrdem('pessoas', visao);
+  const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); if (visao === 'tabela') setF(atual => ({ ...atual, pagina: 0 })); } };
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -60,11 +64,11 @@ export default function Pessoas() {
   useEffect(() => {
     if (visao !== 'tabela') return;
     let vivo = true;
-    SD.pessoasListar({ ...f, porPagina: POR_PAGINA })
+    SD.pessoasListar({ ...f, ordem: ordem.valor, porPagina: POR_PAGINA })
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
-  }, [visao, f, recarga]);
+  }, [visao, f, ordem.valor, recarga]);
 
   const filtrado = !!(f.termo || f.tipo || f.responsavel);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); setSelecionadas(new Set()); };
@@ -115,7 +119,9 @@ export default function Pessoas() {
       </>}</span>
   </> : null;
 
-  const lead = visao === 'kanban' ? 'Acompanhamento do atendimento. Arraste os cartões entre as colunas.'
+  const lead = visao === 'kanban'
+    ? (ordem.valor === 'manual' ? 'Acompanhamento do atendimento. Arraste os cartões entre as colunas.'
+      : 'Acompanhamento do atendimento. Arraste os cartões entre as colunas; para mudar a posição dentro de uma coluna, use a ordem manual.')
     : tabela ? `${plural(tabela.total, f.situacao === 'arquivadas' ? 'pessoa arquivada' : 'pessoa ativa', f.situacao === 'arquivadas' ? 'pessoas arquivadas' : 'pessoas ativas')}${filtrado ? ' com os filtros escolhidos' : ''}.` : null;
 
   return <>
@@ -129,13 +135,15 @@ export default function Pessoas() {
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'situacao', rotulo: 'Situação', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
       ]}
+      ordem={ordenacao}
       visao={visao} aoTrocarVisao={trocarVisao} lead={lead} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.tipo, f.responsavel].join('|')}
-          carregar={(colunaId, deslocamento) => SD.pessoasDaEtapa(colunaId, { ...f, situacao: 'ativas' }, deslocamento, 30)}
+          recarga={[recarga, f.termo, f.tipo, f.responsavel, ordem.valor].join('|')}
+          manual={ordem.valor === 'manual'}
+          carregar={(colunaId, deslocamento) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordem.valor, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
-          cartao={p => <CartaoKanban p={p} />}
+          cartao={p => <CartaoKanban p={p} ordem={ordem.valor} />}
           aoAbrir={p => abrir(p.id)}
           aoMover={async (p, { de, para, ordem, ordemAnterior }) => {
             await SD.pessoaMover(p.id, para, ordem);
@@ -144,7 +152,7 @@ export default function Pessoas() {
             else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/pessoas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
-        : <Tabela pagina={tabela} erro={erroTabela} f={f} filtrado={filtrado} selecionadas={selecionadas} etapa={quadro.nomeDe}
+        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecionadas={selecionadas} etapa={quadro.nomeDe}
           aoSelecionar={setSelecionadas} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
@@ -153,14 +161,16 @@ export default function Pessoas() {
   </>;
 }
 
-function CartaoKanban({ p }: { p: PessoaLista }) {
+function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
   const ctx = useCtx();
+  const data = dataDaOrdem(ordem, p);
   return <>
     <div className="kt">{p.nome}</div>
     <div className="km">
       <span>{p.documento ? fmtDocumento(p.documento) : TIPOS[p.tipo]}</span>
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
       {p.municipio && <span>{p.municipio}{p.uf ? '/' + p.uf : ''}</span>}
+      {data && <span>{data}</span>}
     </div>
     <div className="kp"><span className="codigo">{p.codigo}</span><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} max={4} tam={24} /></div>
   </>;
@@ -170,6 +180,7 @@ interface PropsTabela {
   pagina: Pagina<PessoaLista> | null;
   erro: string;
   f: FiltroPessoas;
+  ordem: Ordem;
   filtrado: boolean;
   selecionadas: Set<string>;
   etapa: (id: string | null) => string;
@@ -178,7 +189,7 @@ interface PropsTabela {
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, filtrado, selecionadas, etapa, aoSelecionar, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelecionar, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <div className="aviso erro">{erro}</div>;
   if (!pagina) return <p className="carregando">Carregando…</p>;
@@ -189,6 +200,8 @@ function Tabela({ pagina, erro, f, filtrado, selecionadas, etapa, aoSelecionar, 
 
   const pg = f.pagina || 0, de = pg * POR_PAGINA + 1, ate = pg * POR_PAGINA + linhas.length;
   const todas = linhas.every(p => selecionadas.has(p.id));
+  // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
+  const porCadastro = ordem === 'novos' || ordem === 'antigos';
   const marcar = (ids: string[], sim: boolean) => {
     const s = new Set(selecionadas);
     ids.forEach(id => sim ? s.add(id) : s.delete(id));
@@ -199,7 +212,7 @@ function Tabela({ pagina, erro, f, filtrado, selecionadas, etapa, aoSelecionar, 
       <thead><tr>
         <th className="td-check"><input type="checkbox" aria-label="Selecionar todas desta página" checked={todas} onChange={e => marcar(linhas.map(p => p.id), e.target.checked)} /></th>
         <th scope="col">Pessoa</th><th scope="col">Telefone</th><th scope="col">Município</th>
-        <th scope="col">Etapa</th><th scope="col">Responsáveis</th><th scope="col">Atualizada</th>
+        <th scope="col">Etapa</th><th scope="col">Responsáveis</th><th scope="col">{porCadastro ? 'Cadastrada' : 'Atualizada'}</th>
       </tr></thead>
       <tbody>{linhas.map(p => <tr key={p.id} className={'clicavel' + (selecionadas.has(p.id) ? ' marcada' : '')}
         onClick={e => { if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) aoAbrir(p.id); }}>
@@ -209,7 +222,7 @@ function Tabela({ pagina, erro, f, filtrado, selecionadas, etapa, aoSelecionar, 
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>
         <td><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} /></td>
-        <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{relativo(p.atualizado_em)}</td>
+        <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(p.criado_em) : relativo(p.atualizado_em)}</td>
       </tr>)}</tbody>
     </table></div>
     <div className="paginacao" style={{ marginTop: 12 }}>

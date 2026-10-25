@@ -4,7 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
 import { telefoneNormal } from '../regras/pessoa';
-import type { Contexto, Dados, FiltroPessoas } from './tipos';
+import type { Contexto, Dados, FiltroPessoas, Ordem } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -73,7 +73,18 @@ async function rodar(promessa: PromiseLike<Resposta>): Promise<{ data: Livre; co
 const uid = () => ctx?.usuario?.id;
 
 // ---------- pessoas ----------
-const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, atualizado_em, resp:pessoa_responsaveis(perfil_id)';
+const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, resp:pessoa_responsaveis(perfil_id)';
+
+// Ordem das listas. O id no fim desempata, para a paginação não repetir nem pular ninguém.
+function ordenar(q: Livre, ordem: Ordem) {
+  if (ordem === 'manual') q = q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('nome');
+  else if (ordem === 'nome_desc') q = q.order('nome', { ascending: false });
+  else if (ordem === 'novos') q = q.order('criado_em', { ascending: false });
+  else if (ordem === 'antigos') q = q.order('criado_em', { ascending: true });
+  else if (ordem === 'recentes') q = q.order('atualizado_em', { ascending: false });
+  else q = q.order('nome');
+  return q.order('id');
+}
 
 // Texto de busca: só dígitos quando a pessoa digita CPF/telefone; sem acentos no resto.
 function termoBusca(texto?: string) {
@@ -157,7 +168,7 @@ export const SD: Dados = {
   async pessoasListar(f = {}) {
     const por = f.porPagina || 50, de = (f.pagina || 0) * por;
     let q = filtrar(sb.from('pessoas').select(selecao(f), { count: 'exact' }), f);
-    q = f.ordem === 'recentes' ? q.order('atualizado_em', { ascending: false }) : q.order('nome');
+    q = ordenar(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome');
     const { data, count } = await rodar(q.range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
@@ -166,7 +177,7 @@ export const SD: Dados = {
   async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
     let q = filtrar(sb.from('pessoas').select(selecao(f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
-    q = q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('nome');
+    q = ordenar(q, f.ordem || 'manual');
     const { data, count } = await rodar(q.range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
   },

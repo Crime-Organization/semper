@@ -277,6 +277,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .coluna-topo[draggable="true"] { cursor: grab }
 .coluna-topo[draggable="true"]:active { cursor: grabbing }
 .coluna.arrastando-col { opacity: .45 }
+/* Fora da ordem manual, a coluna de destino inteira fica marcada (o lugar do cartão vem da ordem escolhida). */
+.coluna.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px }
 .kmarcador-col { flex: 0 0 4px; align-self: stretch; border-radius: 4px; background: var(--accent) }
 .nova-coluna { background: transparent; border-style: dashed; border-color: var(--line2); padding: 14px; gap: 14px; overflow-y: auto }
 .nova-form { display: flex; flex-direction: column; gap: 8px }
