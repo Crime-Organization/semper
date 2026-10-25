@@ -1,7 +1,7 @@
 // Tema claro, escuro ou automático (segue o aparelho) e cor de destaque da marca.
 import { useSyncExternalStore } from 'react';
 import { MARCA } from '../marca';
-import { SD } from '../dados';
+import { salvarPreferencia } from './preferencias';
 
 export type Tema = 'auto' | 'claro' | 'escuro';
 export const TEMAS: Record<Tema, string> = { auto: 'Automático', claro: 'Claro', escuro: 'Escuro' };
@@ -31,7 +31,7 @@ export function aplicarTema(t: Tema) {
 /** Aplica e grava no perfil, para valer em qualquer aparelho. */
 export async function definirTema(t: Tema) {
   aplicarTema(t);
-  await SD.salvarPreferencia('tema', t);
+  await salvarPreferencia('tema', t);
 }
 export const useTema = () => useSyncExternalStore(assinar, temaAtual);
 

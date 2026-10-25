@@ -1,0 +1,20 @@
+// Preferências de cada usuário (tema, visualização escolhida, seções abertas do cartão...).
+// Ficam no perfil, valem em qualquer aparelho, e esta cópia em memória é a que as telas leem:
+// assim uma escolha feita agora já vale ao voltar para a tela, sem reler o banco.
+import { SD } from '../dados';
+
+let atuais: Record<string, unknown> = {};
+
+/** Chamado pela sessão sempre que o perfil é lido. */
+export function iniciarPreferencias(preferencias: Record<string, unknown> | null | undefined) {
+  atuais = { ...(preferencias || {}) };
+}
+
+export function lerPreferencia<T>(chave: string, padrao: T): T {
+  return chave in atuais ? atuais[chave] as T : padrao;
+}
+
+export function salvarPreferencia(chave: string, valor: unknown) {
+  atuais = { ...atuais, [chave]: valor };
+  return SD.salvarPreferencia(chave, valor);
+}

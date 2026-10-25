@@ -10,6 +10,7 @@ import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
+import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
@@ -24,19 +25,18 @@ export default function Pessoas() {
   useTitulo('Pessoas');
   const ctx = useCtx();
   const eu = ctx.perfil.id;
-  const pref = ctx.perfil.preferencias || {};
   const navegar = useNavigate();
   const [params, setParams] = useSearchParams();
   const quadro = useColunas('pessoas', ctx);
 
   // Estado inicial: da URL (atalhos do Início), senão das preferências do usuário.
   const [f, setF] = useState<FiltroPessoas>(() => {
-    let responsavel = params.get('responsavel') === 'eu' ? eu : String(pref['pessoas.responsavel'] || '');
+    let responsavel = params.get('responsavel') === 'eu' ? eu : lerPreferencia('pessoas.responsavel', '');
     if (responsavel && !ctx.equipe.some(m => m.id === responsavel)) responsavel = '';
     return { termo: '', tipo: '', responsavel, situacao: params.get('situacao') === 'arquivadas' ? 'arquivadas' : 'ativas', pagina: 0 };
   });
   const [visao, setVisao] = useState<Visao>(() =>
-    (params.get('visao') || pref['pessoas.visao']) === 'kanban' && params.get('situacao') !== 'arquivadas' ? 'kanban' : 'tabela');
+    (params.get('visao') || lerPreferencia('pessoas.visao', 'tabela')) === 'kanban' && params.get('situacao') !== 'arquivadas' ? 'kanban' : 'tabela');
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -75,7 +75,7 @@ export default function Pessoas() {
       avisar('O quadro mostra só as pessoas ativas.', 'ok');
     }
     setVisao(v);
-    SD.salvarPreferencia('pessoas.visao', v);
+    salvarPreferencia('pessoas.visao', v);
     setSelecionadas(new Set());
   }
   function mudarSituacao(valor: string) {
@@ -125,7 +125,7 @@ export default function Pessoas() {
         { id: 'tipo', rotulo: 'Tipo de cadastro', valor: f.tipo || '', aoMudar: tipo => mudarFiltro({ tipo }),
           opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente contato']] },
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',
-          aoMudar: responsavel => { mudarFiltro({ responsavel }); SD.salvarPreferencia('pessoas.responsavel', responsavel); },
+          aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('pessoas.responsavel', responsavel); },
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'situacao', rotulo: 'Situação', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
       ]}
