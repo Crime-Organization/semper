@@ -1,8 +1,8 @@
 # SEMPER
 
-Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://bragaferreira.adv.br/semper/.
+Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.bragaferreira.adv.br/.
 
-O repositório é o próprio site: tudo o que está aqui vai para `public_html/semper` na Hostinger, direto do GitHub. O `.htaccess` impede que arquivos `.md`, `.sql`, `.env`, `.json` e as pastas `banco/`, `dev/` e `referencia/` sejam servidos.
+O repositório é o próprio site: tudo o que está aqui vai para a raiz (`public_html`) do site `semper.bragaferreira.adv.br` na Hostinger, ligado a este repositório pela conexão com o GitHub (hPanel → Avançado → GIT), que publica sozinha a cada push no `main`. O endereço antigo, `bragaferreira.adv.br/semper/`, redireciona para o novo. O `.htaccess` impede que arquivos `.md`, `.sql`, `.env`, `.json` e as pastas `banco/`, `dev/` e `referencia/` sejam servidos.
 
 | Pasta / arquivo | Conteúdo |
 |---|---|
@@ -23,7 +23,7 @@ O repositório é o próprio site: tudo o que está aqui vai para `public_html/s
 Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: toda linha tem `escritorio_id` e as regras de acesso (RLS) só mostram o que pertence ao escritório de quem está logado. O cadastro de usuários é só por convite.
 
 Configuração no painel do Supabase (Authentication):
-- **URL Configuration**: Site URL `https://bragaferreira.adv.br/semper/`; Redirect URLs `https://bragaferreira.adv.br/semper/**` e `http://localhost:8090/**`.
+- **URL Configuration**: Site URL `https://semper.bragaferreira.adv.br/`; Redirect URLs `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
 - **Emails**: modelos em português, como os da Educação.
 - **SMTP**: o envio padrão do Supabase só entrega para membros da organização; para convidar a equipe, configure um SMTP próprio.
 

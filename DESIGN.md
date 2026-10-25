@@ -1,6 +1,6 @@
 ## Overview
 
-O SEMPER (bragaferreira.adv.br/semper) é a plataforma de gestão do escritório: contratos, demandas, tarefas, pessoas, compromissos, financeiro e o conteúdo do site. Ele herda o design da Braga Ferreira Educação, com uma diferença: **a cor de destaque é verde**, e não laranja.
+O SEMPER (semper.bragaferreira.adv.br) é a plataforma de gestão do escritório: contratos, demandas, tarefas, pessoas, compromissos, financeiro e o conteúdo do site. Ele herda o design da Braga Ferreira Educação, com uma diferença: **a cor de destaque é verde**, e não laranja.
 
 O design tem duas faces bem separadas. A **vitrine** (telas de acesso) é editorial e escura: foto do farol em preto e branco, tipografia Lato 900 em caixa alta e gigante ("SEMPER."), blocos sobre `{colors.dark}`. A **área de trabalho** (painel, módulos, kanban, administração) é clara e silenciosa: barra lateral fixa de 264px em `{colors.soft}`, conteúdo sobre `{colors.bg}` e cartões brancos com borda fina, para que os dados do contrato ou da demanda sejam a coisa mais visível da tela.
 
