@@ -180,9 +180,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .papel { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; background: var(--sel); color: var(--sel-txt) }
 .papel.comum { background: var(--line2); color: var(--text) }
 
-.conteudo { flex: 1; min-width: 0; padding: 48px clamp(16px, 5vw, 64px) 72px }
+.conteudo { flex: 1; min-width: 0; padding: 36px clamp(16px, 2vw, 32px) 64px }
 .miolo { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px }
-.miolo.largo { max-width: none }
+/* Cabeçalho de página de módulo: título à esquerda e ação principal à direita, na altura do título. */
+.cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 16px; flex-wrap: wrap }
+.cabeca > .btn { margin-top: 26px }
+.cabeca .lead { margin-top: 6px }
+.miolo.largo { max-width: none; gap: 20px }
 /* Páginas com quadro (kanban): o conteúdo vira uma coluna da altura da tela e o quadro ocupa o que sobra,
    qualquer que seja o tamanho do cabeçalho. Só as colunas rolam; a página não. */
 @media (min-width: 901px) {
@@ -211,8 +215,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 }
 
 /* ---------- barra de ferramentas e filtros ---------- */
-.barra-ferr { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center }
-.busca-campo { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted) }
+/* Barra de busca e filtros: tudo na mesma altura; a busca ocupa o que sobra e a troca de visualização fica na ponta. */
+.barra-ferr { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center }
+.barra-ferr > .filtro { flex: 0 1 auto; height: 42px }
+.barra-ferr > .abas { margin-left: auto; height: 42px; align-items: center }
+.barra-ferr > .abas button { height: 32px }
+.busca-campo { flex: 1 1 300px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted) }
 .busca-campo:focus-within { outline: 2px solid var(--accent); border-color: transparent }
 .busca-campo input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 15px; color: var(--ink); height: 100% }
 .filtro { height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); padding: 0 14px; font-size: 14px; color: var(--ink); max-width: 100% }
