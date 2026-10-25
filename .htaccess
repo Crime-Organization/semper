@@ -1,0 +1,20 @@
+# Páginas, scripts e estilos sempre atualizados: o navegador e o cache da hospedagem (CDN)
+# conferem a versão nova a cada acesso (resposta 304 rápida quando nada mudou).
+# Assim o site vai ao ar direto do repositório, sem empacotar nem versionar os arquivos.
+<IfModule mod_headers.c>
+  <FilesMatch "(^$|\.(html?|js|css)$)">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  <FilesMatch "\.(jpe?g|png|svg|webp|ico)$">
+    Header set Cache-Control "public, max-age=86400"
+  </FilesMatch>
+</IfModule>
+DirectoryIndex index.html
+
+# Documentação e scripts internos nunca são servidos.
+<FilesMatch "\.(md|py|bat|sql|env|json)$">
+  Require all denied
+</FilesMatch>
+
+# Material de referência e configurações locais também não.
+RedirectMatch 404 ^/semper/(referencia|\.claude|\.git)(/|$)
