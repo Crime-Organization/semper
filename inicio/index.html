@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Início · SEMPER</title>
 <meta name="robots" content="noindex, nofollow">
+<script>try{var t=localStorage.getItem('semper-tema');if(t==='claro'||t==='escuro')document.documentElement.dataset.tema=t}catch(e){}</script>
 <link rel="icon" href="../assets/img/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/estilo.css">
@@ -88,10 +89,14 @@
           <label>Usuário para menções <small>(@nome nas conversas)</small><input id="cUsuario" value="${esc(ctx.perfil.usuario)}" required></label>
           <div><button class="btn esc" type="submit">Salvar</button></div>
         </form>
+        <label style="max-width:320px">Aparência
+          <select id="cTema">${Object.entries(UI.TEMAS).map(([k, v]) => `<option value="${k}" ${UI.temaAtual() === k ? 'selected' : ''}>${v}${k === 'auto' ? ' (segue o aparelho)' : ''}</option>`).join('')}</select>
+        </label>
       </div>
     </section>`;
 
   miolo.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { location.href = url('pessoas/?id=' + tr.dataset.id); });
+  document.getElementById('cTema').onchange = e => UI.definirTema(e.target.value);
 
   document.getElementById('fConta').onsubmit = async e => {
     e.preventDefault();

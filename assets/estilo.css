@@ -1,6 +1,15 @@
 /* Estilo comum do SEMPER. Tokens e regras descritos em DESIGN.md.
-   Cor de destaque verde: o texto sobre --accent é sempre branco. */
+   Cor de destaque verde: o texto sobre --accent é sempre branco.
+   Tema: segue o aparelho; data-tema="claro" ou "escuro" no <html> força um dos dois. */
 :root {
+  color-scheme: light;
+  --superficie: #FFFFFF;          /* fundo de cartões, campos, listas e painéis */
+  --soft2: #F1F1ED;
+  --sel: #1A1916;                 /* aba ativa, selo e botão escuros */
+  --sel-txt: #FFFFFF;
+  --dark-borda: #1A1916;
+  --erro-forte: #B42318;          /* fundo de botão de exclusão confirmada */
+  --erro-borda: #F3C1BC;
   --accent: #377D22;
   --accent-hover: #2F6B1D;
   --accent-bright: #5FAE3E;
@@ -30,6 +39,28 @@
   --erro-bg: #FDECEA;
   --font: 'Lato', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
+
+/* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    color-scheme: dark;
+    --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
+    --erro-forte: #C2412D; --erro-borda: #6E2A22;
+    --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+    --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
+    --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
+    --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
+  }
+}
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
+  --erro-forte: #C2412D; --erro-borda: #6E2A22;
+  --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+  --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
+  --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
+  --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
+}
 * { box-sizing: border-box }
 [hidden] { display: none !important }
 html, body { margin: 0 }
@@ -57,22 +88,22 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .btn:hover:not(:disabled) { background: var(--soft) }
 .btn.pri { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 900 }
 .btn.pri:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover) }
-.btn.esc { background: var(--dark); border-color: var(--dark); color: #fff }
-.btn.esc:hover:not(:disabled) { background: #000 }
-.btn.perigo { border-color: #F3C1BC; color: var(--erro) }
+.btn.esc { background: var(--sel); border-color: var(--sel); color: var(--sel-txt) }
+.btn.esc:hover:not(:disabled) { filter: brightness(.88) }
+.btn.perigo { border-color: var(--erro-borda); color: var(--erro) }
 .btn.perigo:hover:not(:disabled) { background: var(--erro-bg) }
 .btn-sm { height: 36px; padding: 0 16px; font-size: 14px }
 .btn:disabled { opacity: .5; cursor: not-allowed }
-.mini { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; color: var(--ink) }
+.mini { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; color: var(--ink) }
 .mini:hover:not(:disabled) { background: var(--soft) }
-.mini.perigo { border-color: #F3C1BC; color: var(--erro) }
-.mini.perigo.confirmar, .btn.perigo.confirmar { background: var(--erro); border-color: var(--erro); color: #fff }
+.mini.perigo { border-color: var(--erro-borda); color: var(--erro) }
+.mini.perigo.confirmar, .btn.perigo.confirmar { background: var(--erro-forte); border-color: var(--erro-forte); color: #fff }
 .mini:disabled { opacity: .45; cursor: not-allowed }
-.icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: #fff; color: var(--text); cursor: pointer }
+.icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-.campo, .campos input, .campos select, .campos textarea { width: 100%; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: #fff; font-size: 15px; color: var(--ink) }
+.campo, .campos input, .campos select, .campos textarea { width: 100%; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
 .campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
 .campo:focus, .campos input:focus, .campos select:focus, .campos textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .campos label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text) }
@@ -85,7 +116,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .aviso.ok { background: var(--ok-bg); color: var(--ok-ink) }
 .aviso.info { background: var(--warn-bg); color: var(--warn-ink) }
 #avisos { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 90; display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; width: min(560px, calc(100vw - 32px)) }
-.toast { pointer-events: auto; background: var(--dark); color: #FBFBF9; padding: 12px 18px; border-radius: 10px; font-size: 14px; line-height: 1.45; box-shadow: 0 12px 36px rgba(0,0,0,.28); animation: sobe .25s ease-out; text-align: center }
+.toast { pointer-events: auto; background: var(--dark); color: #FBFBF9; border: 1px solid var(--dark-borda); padding: 12px 18px; border-radius: 10px; font-size: 14px; line-height: 1.45; box-shadow: 0 12px 36px rgba(0,0,0,.28); animation: sobe .25s ease-out; text-align: center }
 .toast.erro { background: #5C1610 }
 .toast-acao { margin-left: 14px; padding: 0; border: 0; background: none; color: var(--accent-bright); font: inherit; font-weight: 900; cursor: pointer; border-bottom: 1px solid currentColor }
 .toast-acao:hover { color: #fff }
@@ -99,9 +130,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .resumo .cartao { padding: 18px 20px }
 .resumo b { display: block; font-size: 32px; font-weight: 900; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums }
 .resumo span { font-size: 13px; font-weight: 700; color: var(--muted) }
-.tabela { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: #fff }
+.tabela { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
 .tabela table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 14px }
-.tabela th { padding: 12px 16px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; background: #fff; position: sticky; top: 0 }
+.tabela th { padding: 12px 16px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); white-space: nowrap; background: var(--superficie); position: sticky; top: 0 }
 .tabela td { padding: 12px 16px; border-bottom: 1px solid var(--soft); vertical-align: middle }
 .tabela tr:last-child td { border-bottom: 0 }
 .tabela tbody tr.clicavel { cursor: pointer }
@@ -109,12 +140,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .tabela tbody tr.marcada td { background: var(--accent-tint) }
 .tabela .nome { font-weight: 700; color: var(--ink) }
 .tabela .sub { font-size: 13px; color: var(--muted) }
-.tabela input[type="checkbox"], .marca { width: 18px; height: 18px; accent-color: var(--dark); cursor: pointer }
+.tabela input[type="checkbox"], .marca { width: 18px; height: 18px; accent-color: var(--sel); cursor: pointer }
 .selo { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; background: var(--soft); color: var(--text2) }
 .selo.ok { background: var(--ok-bg); color: var(--ok-ink) }
 .selo.pend { background: var(--warn-bg); color: var(--warn-ink) }
 .selo.erro { background: var(--erro-bg); color: var(--erro) }
-.selo.escuro { background: var(--dark); color: #fff }
+.selo.escuro { background: var(--sel); color: var(--sel-txt) }
 .selo.arq { background: var(--soft); color: var(--muted); border: 1px dashed var(--line2) }
 .codigo { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); font-variant-numeric: tabular-nums }
 
@@ -122,7 +153,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .avatar { width: var(--av, 28px); height: var(--av, 28px); border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; font-size: calc(var(--av, 28px) * .38); font-weight: 900; letter-spacing: .02em; line-height: 1; user-select: none }
 .avatar.mais { background: var(--line2); color: var(--text) }
 .avatares { display: inline-flex; align-items: center }
-.avatares .avatar { box-shadow: 0 0 0 2px #fff }
+.avatares .avatar { box-shadow: 0 0 0 2px var(--superficie) }
 .avatares .avatar + .avatar { margin-left: -6px }
 
 /* ---------- casca do aplicativo ---------- */
@@ -140,20 +171,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nav svg { flex-shrink: 0 }
 .nav-linha { display: flex; align-items: center; gap: 2px }
 .nav-linha > a:first-child { flex: 1; min-width: 0 }
-.nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: #fff; color: var(--accent-ink) }
+.nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
 .nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: #fff }
 .side-rodape { margin-top: auto; padding-top: 24px }
 .usuario { display: flex; gap: 10px; align-items: flex-start; padding: 10px; font-size: 13px; color: var(--muted); line-height: 1.4 }
 .usuario b { color: var(--ink); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .usuario .arroba { display: block; font-size: 12px }
-.papel { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; background: var(--dark); color: #fff }
+.papel { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; background: var(--sel); color: var(--sel-txt) }
 .papel.comum { background: var(--line2); color: var(--text) }
 
 .conteudo { flex: 1; min-width: 0; padding: 48px clamp(16px, 5vw, 64px) 72px }
 .miolo { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px }
 .miolo.largo { max-width: none }
 .secao-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; flex-wrap: wrap }
-.destaque { background: var(--dark); color: #FBFBF9; border-radius: 16px; padding: clamp(24px, 3vw, 40px); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px }
+.destaque { background: var(--dark); color: #FBFBF9; border: 1px solid var(--dark-borda); border-radius: 16px; padding: clamp(24px, 3vw, 40px); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px }
 .destaque h2 { margin: 0 0 14px; font-size: 12px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: var(--gray) }
 .destaque p { margin: 0; font-size: clamp(22px, 2.4vw, 30px); font-weight: 900; letter-spacing: -.02em; max-width: 620px }
 .destaque .acoes { display: flex; gap: 10px; flex-wrap: wrap }
@@ -172,38 +203,38 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 
 /* ---------- barra de ferramentas e filtros ---------- */
 .barra-ferr { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: center }
-.busca-campo { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; color: var(--muted) }
+.busca-campo { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted) }
 .busca-campo:focus-within { outline: 2px solid var(--accent); border-color: transparent }
 .busca-campo input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 15px; color: var(--ink); height: 100% }
-.filtro { height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; padding: 0 14px; font-size: 14px; color: var(--ink); max-width: 100% }
+.filtro { height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); padding: 0 14px; font-size: 14px; color: var(--ink); max-width: 100% }
 .abas { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
 .abas button { height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px }
-.abas button[aria-pressed="true"], .abas button[aria-selected="true"] { background: var(--dark); color: #fff }
-.lote { position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 14px 12px 22px; border-radius: 16px; background: var(--dark); color: #FBFBF9; box-shadow: 0 12px 36px rgba(0,0,0,.22) }
+.abas button[aria-pressed="true"], .abas button[aria-selected="true"] { background: var(--sel); color: var(--sel-txt) }
+.lote { border: 1px solid var(--dark-borda); position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 14px 12px 22px; border-radius: 16px; background: var(--dark); color: #FBFBF9; box-shadow: 0 12px 36px rgba(0,0,0,.22) }
 .lote b { font-size: 20px; font-weight: 900 }
 .lote .acoes-lote { display: flex; gap: 8px; flex-wrap: wrap }
 .lote .mini { background: #2C2A26; color: #FBFBF9; border-color: rgba(255,255,255,.25) }
 .lote .mini:hover:not(:disabled) { background: #3a3833 }
 .lote .mini.perigo { color: #FFB4AB; border-color: rgba(255,180,171,.5) }
-.lote .mini.perigo.confirmar { background: var(--erro); color: #fff; border-color: var(--erro) }
+.lote .mini.perigo.confirmar { background: var(--erro-forte); color: #fff; border-color: var(--erro-forte) }
 .paginacao { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted) }
 
 /* ---------- quadro kanban ---------- */
 .quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth }
 .coluna { flex: 0 0 284px; display: flex; flex-direction: column; max-height: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
-.coluna.sem-etapa { background: #F1F1ED }
+.coluna.sem-etapa { background: var(--soft2) }
 .coluna-topo { display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 14px; flex-shrink: 0 }
 .coluna-topo h3 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.coluna-n { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--line) }
+.coluna-n { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--line) }
 .coluna-menu { width: 28px; height: 28px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
 .coluna-menu:hover { background: var(--line) }
 .coluna-lista { flex: 1; min-height: 40px; overflow-y: auto; padding: 2px 8px 8px; display: flex; flex-direction: column; gap: 8px }
-.coluna-vazia { margin: 4px 6px; font-size: 13px; color: var(--faint) }
+.coluna-vazia { margin: 4px 6px; font-size: 13px; color: var(--muted) }
 .coluna-vazia.erro { color: var(--erro) }
 .coluna-pe { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 10px; flex-shrink: 0 }
 .coluna-pe button { height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--text2); font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 0 8px; text-align: left }
 .coluna-pe button:hover { background: var(--line) }
-.kcartao { background: #fff; border: 1px solid var(--line2); border-radius: 10px; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; transition: box-shadow .15s, border-color .15s }
+.kcartao { background: var(--superficie); border: 1px solid var(--line2); border-radius: 10px; padding: 12px 14px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; transition: box-shadow .15s, border-color .15s }
 .kcartao:hover { border-color: var(--faint) }
 .kcartao:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .kcartao.arrastando { opacity: .45; transform: rotate(1.5deg); box-shadow: 0 12px 36px rgba(0,0,0,.18) }
@@ -219,9 +250,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nova-form { display: flex; flex-direction: column; gap: 8px }
 .ocultas { display: flex; flex-wrap: wrap; gap: 6px }
 .ocultas .rotulo-caps { flex-basis: 100% }
-.chip-oculta { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; font-size: 13px; color: var(--text2); cursor: pointer }
+.chip-oculta { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px; color: var(--text2); cursor: pointer }
 .chip-oculta:hover { border-color: var(--faint) }
-.kmenu { position: absolute; z-index: 60; min-width: 220px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.2); display: flex; flex-direction: column }
+.kmenu { position: absolute; z-index: 60; min-width: 220px; padding: 6px; background: var(--superficie); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.2); display: flex; flex-direction: column }
 .kmenu button { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
 .kmenu button:hover, .kmenu button:focus-visible { background: var(--soft); outline: 0 }
 .kmenu button.perigo { color: var(--erro) }
@@ -231,9 +262,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .veu, .veu-janela { position: fixed; inset: 0; background: rgba(26,25,22,.45); z-index: 70 }
 .veu { opacity: 0; transition: opacity .2s }
 .veu.on { opacity: 1 }
-.cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: #fff; border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0 }
+.cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0 }
 .cartao-painel.on { transform: none; opacity: 1 }
-.cartao-fechar { position: sticky; top: 14px; float: right; margin: 14px 14px 0 0; z-index: 2; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
+.cartao-fechar { position: sticky; top: 14px; float: right; margin: 14px 14px 0 0; z-index: 2; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
 .cartao-fechar:hover { background: var(--soft) }
 .cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 44px }
@@ -253,14 +284,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .sigilo { background: var(--warn-bg); border-radius: 12px; padding: 14px 16px; font-size: 14px; line-height: 1.6; color: var(--ink); display: flex; flex-direction: column; gap: 8px }
 .sigilo .meta { font-size: 12px; color: var(--warn-ink); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: space-between }
 .responsaveis { display: flex; flex-wrap: wrap; gap: 8px }
-.resp-chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 4px; border-radius: 999px; border: 1px solid var(--line2); background: #fff; font-size: 13px }
+.resp-chip { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px 0 4px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px }
 .resp-chip button { width: 24px; height: 24px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
 .resp-chip button:hover { background: var(--soft); color: var(--erro) }
 .cartao-rodape { border-top: 1px solid var(--line); padding-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted) }
 
 /* ---------- janelas ---------- */
 .veu-janela { display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 80 }
-.janela { width: min(480px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 12px 36px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 16px }
+.janela { width: min(480px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--superficie); border-radius: 12px; padding: 24px; box-shadow: 0 12px 36px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 16px }
 .janela h2 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -.01em }
 .janela-corpo { font-size: 15px; line-height: 1.6; color: var(--text) }
 .janela-corpo p { margin: 0 0 8px }
@@ -280,7 +311,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink) }
 .pergunta .req { color: var(--erro); margin-left: 2px }
 .pergunta .dica { font-size: 13px; color: var(--muted); margin: -2px 0 2px; line-height: 1.5 }
-.pergunta input[type="text"], .pergunta input[type="email"], .pergunta input[type="tel"], .pergunta select, .pergunta textarea { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: #fff; font-size: 16px; color: var(--ink) }
+.pergunta input[type="text"], .pergunta input[type="email"], .pergunta input[type="tel"], .pergunta select, .pergunta textarea { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font-size: 16px; color: var(--ink) }
 .pergunta textarea { height: auto; min-height: 90px; padding: 12px 14px }
 .pergunta input:focus, .pergunta select:focus, .pergunta textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .pergunta.erro input, .pergunta.erro select { border-color: var(--erro); outline-color: var(--erro) }
@@ -291,13 +322,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .linha-campo > input { flex: 1; min-width: 0 }
 .escolhas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px }
 .escolhas.coluna-unica { grid-template-columns: 1fr }
-.escolhas label { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: #fff; cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
+.escolhas label { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: var(--superficie); cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
 .escolhas label:hover { border-color: var(--faint) }
 .escolhas input { position: absolute; opacity: 0; pointer-events: none }
-.escolhas label::before { content: ''; width: 18px; height: 18px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--line2); background: #fff; transition: .15s }
+.escolhas label::before { content: ''; width: 18px; height: 18px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--line2); background: var(--superficie); transition: .15s }
 .escolhas.multipla label::before { border-radius: 5px }
 .escolhas label:has(input:checked) { border-color: var(--accent); background: var(--accent-tint); font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent) }
-.escolhas label:has(input:checked)::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px #fff }
+.escolhas label:has(input:checked)::before { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px var(--superficie) }
 .escolhas.multipla label:has(input:checked)::before { box-shadow: none; background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5L20 7'/%3E%3C/svg%3E") center/12px no-repeat }
 .escolhas label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px }
 .lista-tel { display: flex; flex-direction: column; gap: 8px }

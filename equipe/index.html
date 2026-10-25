@@ -5,19 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Equipe e acessos · SEMPER</title>
 <meta name="robots" content="noindex, nofollow">
+<script>try{var t=localStorage.getItem('semper-tema');if(t==='claro'||t==='escuro')document.documentElement.dataset.tema=t}catch(e){}</script>
 <link rel="icon" href="../assets/img/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../assets/estilo.css">
 <style>
 .form-convite { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, .8fr) auto; gap: 12px; align-items: end }
 @media (max-width: 880px) { .form-convite { grid-template-columns: 1fr } }
-.achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: #fff; display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
+.achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie); display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
 .achados button { width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 2px }
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }
 .achados small { color: var(--muted) }
 .escolhida { display: flex; align-items: center; justify-content: space-between; gap: 10px; height: 44px; padding: 0 8px 0 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent-tint); font-size: 14px; font-weight: 700 }
 .link-convite { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px }
-.link-convite code { background: #fff; border: 1px solid var(--line2); border-radius: 8px; padding: 6px 10px; font-size: 13px; overflow-wrap: anywhere }
+.link-convite code { background: var(--superficie); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 10px; font-size: 13px; overflow-wrap: anywhere }
 .registro ol { list-style: none; margin: 0; padding: 0 }
 .registro li { padding: 10px 0; border-bottom: 1px solid var(--soft); font-size: 14px; line-height: 1.5 }
 .registro li:last-child { border-bottom: 0 }

@@ -20,7 +20,23 @@
     raiz.setProperty('--accent-deep', mudarTom(M.cores.destaque, .57));
     raiz.setProperty('--accent-bright', mudarTom(M.cores.destaque, 1.3));
   }
-  document.documentElement.style.setProperty('--dark', M.cores.escuro);
+  if (M.cores.escuro.toLowerCase() !== '#1a1916') document.documentElement.style.setProperty('--dark', M.cores.escuro);
+
+  // ---------- tema (claro, escuro ou automático, seguindo o aparelho) ----------
+  const TEMAS = { auto: 'Automático', claro: 'Claro', escuro: 'Escuro' };
+  const temaAtual = () => document.documentElement.dataset.tema || 'auto';
+  function aplicarTema(t) {
+    if (t === 'claro' || t === 'escuro') document.documentElement.dataset.tema = t;
+    else delete document.documentElement.dataset.tema;
+    try { if (t === 'claro' || t === 'escuro') localStorage.setItem('semper-tema', t); else localStorage.removeItem('semper-tema'); }
+    catch (e) { /* sem armazenamento: vale só nesta página */ }
+  }
+  // Grava no perfil para valer em qualquer aparelho.
+  async function definirTema(t) {
+    aplicarTema(t);
+    document.querySelectorAll('[data-tema-rotulo]').forEach(el => el.textContent = 'Tema: ' + TEMAS[temaAtual()]);
+    await SD.salvarPreferencia('tema', t);
+  }
 
   // ---------- datas ----------
   const dataCurta = iso => iso ? new Date(iso).toLocaleDateString('pt-BR') : '';
@@ -43,6 +59,7 @@
     equipe: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 16.5a4 4 0 017 0"/>',
     conta: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',
     sair: '<path d="M15 4h4a1 1 0 011 1v14a1 1 0 01-1 1h-4M10 17l-5-5 5-5M5 12h11"/>',
+    tema: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 010 17z" fill="currentColor"/>',
     buscar: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/>',
     fechar: '<path d="M6 6l12 12M18 6L6 18"/>',
     tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 10v10"/>',
@@ -271,10 +288,17 @@
           <span class="papel ${p.papel === 'usuario' ? 'comum' : ''}">${PAPEIS[p.papel]}</span></div></div>
         <nav class="nav" aria-label="Conta">
           ${item('conta', 'inicio/#conta', 'Minha conta')}
+          <button type="button" id="btnTema" title="Trocar entre automático, claro e escuro">${icone('tema')}<span data-tema-rotulo>Tema: ${TEMAS[temaAtual()]}</span></button>
           <button type="button" id="btnSair">${icone('sair')}<span>Sair</span></button>
         </nav>
       </div>`;
     document.getElementById('btnSair').onclick = async () => { await SD.sair(); location.href = url('./'); };
+    document.getElementById('btnTema').onclick = () => {
+      const ordem = ['auto', 'claro', 'escuro'];
+      const proximo = ordem[(ordem.indexOf(temaAtual()) + 1) % ordem.length];
+      definirTema(proximo);
+      avisar(`Tema: ${TEMAS[proximo]}${proximo === 'auto' ? ' (segue o aparelho)' : ''}.`);
+    };
     const topo = document.getElementById('topoCel');
     if (topo) {
       topo.innerHTML = `<button type="button" aria-label="Abrir menu" id="btnMenu">${icone('menu', 18)}</button>
@@ -301,6 +325,7 @@
       location.replace(url('./?desativado'));
       return new Promise(() => {});
     }
+    aplicarTema(c.perfil.preferencias?.tema || 'auto');
     setTimeout(retomarDesfazer, 0);
     return c;
   }
@@ -311,7 +336,7 @@
 
   window.UI = {
     RAIZ, url, esc, icone, avatar, avatares, corDe, iniciais, avisar, falha, janela, confirmar, botaoDuplo, ocupado,
-    feito, registrarDesfazer, desfazerUltimo, guardarDesfazer,
+    feito, registrarDesfazer, desfazerUltimo, guardarDesfazer, TEMAS, temaAtual, definirTema,
     Cartao, montarCasca, exigirLogin, titulo, parametro, atrasar, dataCurta, dataHora, relativo, PAPEIS
   };
 })();

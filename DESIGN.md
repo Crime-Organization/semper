@@ -71,6 +71,38 @@ Contrastes conferidos (WCAG):
 - **Erro / Perigo** (`{colors.erro}` — #B42318, fundo `{colors.erro-bg}` — #FDECEA): avisos de erro, prazos vencidos, botões de excluir (`.mini.perigo`).
 - **Arquivado** (fundo `{colors.soft}`, texto `{colors.muted}`, borda tracejada `{colors.line2}`): itens arquivados, que só então podem ser excluídos.
 
+### Superfícies que se invertem
+- **Superfície** (`{colors.superficie}` — #FFFFFF): fundo de cartões, campos, listas, cartões do kanban, painéis e janelas. Use sempre esta variável, nunca `#fff` direto.
+- **Selecionado** (`{colors.sel}` — #1A1916, texto `{colors.sel-txt}` — #FFFFFF): aba ativa, selo escuro, papel do usuário e botão escuro (`.btn.esc`). No modo escuro inverte para claro com texto escuro.
+- **Erro forte** (`{colors.erro-forte}` — #B42318) e **borda de erro** (`{colors.erro-borda}` — #F3C1BC): botão de exclusão confirmada e contorno dos botões de perigo.
+
+## Dark Mode
+
+O SEMPER segue o tema do aparelho (**Automático**). O usuário pode fixar **Claro** ou **Escuro** pelo botão "Tema" da barra lateral ou em Minha conta. A escolha fica no perfil e vale em qualquer aparelho. Tecnicamente: `@media (prefers-color-scheme: dark)` aplica a paleta escura, e `data-tema="claro"` ou `data-tema="escuro"` no `<html>` força um dos dois. A tela de login e os e-mails ficam sempre claros (o login já tem a metade escura fotográfica).
+
+| Token | Claro | Escuro |
+|---|---|---|
+| `{colors.bg}` | #FBFBF9 | #131210 |
+| `{colors.soft}` | #F5F5F2 | #1A1916 |
+| `{colors.superficie}` | #FFFFFF | #22211D |
+| `{colors.line}` / `{colors.line2}` | #EBEBE6 / #DCDCD4 | #2D2B27 / #3A3833 |
+| `{colors.ink}` | #1A1916 | #F1EFE9 |
+| `{colors.text}` / `{colors.text2}` | #3D3B36 / #57554F | #D8D6CE / #C2C0B7 |
+| `{colors.muted}` / `{colors.faint}` | #6B6A63 / #8A8981 | #A6A49B / #8A887F |
+| `{colors.dark}` (destaque, aviso, barra de lote) | #1A1916 | #262420, com borda #34322D |
+| `{colors.sel}` / `{colors.sel-txt}` | #1A1916 / #FFFFFF | #ECEAE3 / #1A1916 |
+| `{colors.accent}` (botão principal, texto branco) | #377D22 | #377D22 (igual) |
+| `{colors.accent-ink}` (links e textos verdes) | #2B6119 | #8BD06A |
+| `{colors.accent-tint}` | #EEF5EA | #1D2A17 |
+| `{colors.ok-bg}` / `{colors.ok-ink}` | #E8F4EC / #1F5C38 | #15281C / #86D3A2 |
+| `{colors.warn-bg}` / `{colors.warn-ink}` | #FFF4EA / #7A3E0C | #33240F / #F0B47E |
+| `{colors.erro}` / `{colors.erro-bg}` | #B42318 / #FDECEA | #F28B78 / #3A1713 |
+
+Regras:
+- Toda cor nova entra como variável nos dois blocos (claro e escuro) do `estilo.css`. Cores fixas só para texto branco sobre fundos coloridos (verde, vermelho, avatares).
+- Texto pequeno usa no mínimo `{colors.muted}`. `{colors.faint}` fica para bordas, estados desabilitados e textos grandes.
+- Contraste conferido em todas as telas nos dois temas com `dev/contraste.js` (mínimo 4,5:1; 3:1 para textos grandes).
+
 ## Typography
 
 ### Font Family
