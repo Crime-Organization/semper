@@ -230,6 +230,8 @@
       podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,
       aoRenomear: (c, nome) => SD.colunaRenomear(c.id, nome),
       podeExcluir: () => ctx.ehAdmin,
+      podeReordenar: () => ctx.ehAdmin,
+      aoReordenar: (c, ordem) => SD.colunaOrdenar(c.id, ordem),
       aoExcluir: async c => { await SD.colunaExcluir(c.id); colunas = colunas.filter(x => x.id !== c.id); },
       aoAdicionar: colunaId => { location.href = 'nova/' + (colunaId ? '?etapa=' + colunaId : ''); }
     });

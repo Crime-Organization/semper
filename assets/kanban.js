@@ -18,11 +18,13 @@
       aoOcultar: async (coluna, ocultar) => {},
       podeRenomear: coluna => bool, aoRenomear: async (coluna, nome) => {},
       podeExcluir: coluna => bool,  aoExcluir: async coluna => {},
+      podeReordenar: () => bool,    aoReordenar: async (coluna, ordem) => {},   // a ordem vale para todo o escritório
       aoAdicionar: colunaId => {}      // botão "Adicionar" no pé da coluna
     }
   */
   function montar(alvo, opcoes) {
-    const o = Object.assign({ rotuloSemEtapa: 'Sem etapa', sugestoes: [], podeRenomear: () => false, podeExcluir: () => false }, opcoes);
+    const o = Object.assign({ rotuloSemEtapa: 'Sem etapa', sugestoes: [], podeRenomear: () => false, podeExcluir: () => false,
+      podeReordenar: () => false }, opcoes);
     let colunas = o.colunas.slice().sort((a, b) => a.ordem - b.ordem);
     const estado = new Map();   // colunaId -> { itens, total }
     const chave = id => id || 'sem';
@@ -40,7 +42,7 @@
       const id = c ? c.id : null;
       const nome = c ? c.nome : o.rotuloSemEtapa;
       return `<section class="coluna${c ? '' : ' sem-etapa'}" data-coluna="${chave(id)}">
-        <header class="coluna-topo">
+        <header class="coluna-topo"${c && o.podeReordenar() ? ' draggable="true" title="Arraste para mudar a ordem das colunas"' : ''}>
           <h3 title="${esc(nome)}">${esc(nome)}</h3><span class="coluna-n">…</span>
           ${c ? `<button type="button" class="coluna-menu" aria-label="Opções da coluna ${esc(nome)}">${icone('pontos', 16)}</button>` : ''}
         </header>
@@ -146,10 +148,74 @@
         col.querySelector('.coluna-carregar').onclick = () => carregar(id, true);
         col.querySelector('.coluna-add')?.addEventListener('click', () => o.aoAdicionar(id));
         col.querySelector('.coluna-menu')?.addEventListener('click', e => { e.stopPropagation(); abrirMenu(colunas.find(c => c.id === id), e.currentTarget); });
+        const topo = col.querySelector('.coluna-topo[draggable]');
+        if (topo) {
+          topo.ondragstart = e => {
+            if (arrastando) return;
+            arrastandoColuna = colunas.find(c => c.id === id);
+            col.classList.add('arrastando-col');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', 'coluna:' + id);
+          };
+          topo.ondragend = () => { col.classList.remove('arrastando-col'); marcadorColuna.remove(); arrastandoColuna = null; };
+        }
       });
+      // Soltar uma coluna arrastada: a marca vertical mostra onde ela vai ficar.
+      quadro.ondragover = e => {
+        if (!arrastandoColuna) return;
+        e.preventDefault();
+        const antes = colunaDepoisDe(e.clientX);
+        quadro.insertBefore(marcadorColuna, antes || quadro.querySelector('.nova-coluna'));
+        rolarBordas(e.clientX);
+      };
+      quadro.ondrop = e => {
+        if (!arrastandoColuna) return;
+        e.preventDefault();
+        const seguinte = marcadorColuna.nextElementSibling;
+        marcadorColuna.remove();
+        const destino = seguinte?.dataset.coluna && seguinte.dataset.coluna !== 'sem' ? colunas.find(c => c.id === seguinte.dataset.coluna) : null;
+        posicionarColuna(arrastandoColuna, destino);
+      };
       const form = quadro.querySelector('.nova-form');
       form.onsubmit = e => { e.preventDefault(); criarColuna(form.querySelector('input')); };
       quadro.querySelectorAll('[data-mostrar]').forEach(b => b.onclick = () => mostrarDeNovo(colunas.find(c => c.id === b.dataset.mostrar)));
+    }
+
+    // ---------- ordem das colunas ----------
+    let arrastandoColuna = null;
+    const marcadorColuna = document.createElement('div');
+    marcadorColuna.className = 'kmarcador-col';
+
+    // Primeira coluna (das que podem ser movidas) cujo meio está à direita do ponteiro.
+    function colunaDepoisDe(x) {
+      const els = [...quadro.querySelectorAll('.coluna[data-coluna]:not(.sem-etapa):not(.arrastando-col)')];
+      return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; }) || null;
+    }
+
+    // Coloca a coluna antes de "antesDe" (ou no fim, se null), entre as colunas visíveis.
+    async function posicionarColuna(c, antesDe) {
+      if (!c || c === antesDe) return;
+      const visiveis = colunas.filter(x => !x.oculta && x !== c);
+      const lugar = antesDe ? visiveis.indexOf(antesDe) : visiveis.length;
+      const ant = visiveis[lugar - 1], prox = visiveis[lugar];
+      const atuais = colunas.filter(x => !x.oculta);
+      if (atuais[atuais.indexOf(c) - 1] === ant && atuais[atuais.indexOf(c) + 1] === prox) return;   // não mudou
+      const anterior = c.ordem;
+      c.ordem = ant && prox ? (ant.ordem + prox.ordem) / 2 : ant ? ant.ordem + 1 : prox ? prox.ordem - 1 : c.ordem;
+      colunas.sort((a, b) => a.ordem - b.ordem);
+      const el = quadro.querySelector(`[data-coluna="${c.id}"]`);
+      quadro.insertBefore(el, prox ? quadro.querySelector(`[data-coluna="${prox.id}"]`) : quadro.querySelector('.nova-coluna'));
+      try { await o.aoReordenar(c, c.ordem); }
+      catch (e) {
+        falha(e);
+        c.ordem = anterior; colunas.sort((a, b) => a.ordem - b.ordem); desenhar();
+      }
+    }
+    function moverColuna(c, passo) {
+      const visiveis = colunas.filter(x => !x.oculta);
+      const i = visiveis.indexOf(c);
+      if (passo < 0 && i > 0) posicionarColuna(c, visiveis[i - 1]);
+      if (passo > 0 && i < visiveis.length - 1) posicionarColuna(c, visiveis[i + 2] || null);
     }
 
     function rolarBordas(x) {
@@ -188,7 +254,10 @@
       const menu = document.createElement('div');
       menu.className = 'kmenu';
       menu.setAttribute('role', 'menu');
-      menu.innerHTML = `<button type="button" role="menuitem" data-a="ocultar">${icone('oculto', 15)} Ocultar para mim</button>
+      const visiveis = colunas.filter(x => !x.oculta), i = visiveis.indexOf(c);
+      menu.innerHTML = `${o.podeReordenar() && i > 0 ? `<button type="button" role="menuitem" data-a="esquerda">${icone('voltar', 15)} Mover para a esquerda</button>` : ''}
+        ${o.podeReordenar() && i < visiveis.length - 1 ? `<button type="button" role="menuitem" data-a="direita">${icone('seta', 15)} Mover para a direita</button>` : ''}
+        <button type="button" role="menuitem" data-a="ocultar">${icone('oculto', 15)} Ocultar para mim</button>
         ${o.podeRenomear(c) ? `<button type="button" role="menuitem" data-a="renomear">${icone('editar', 15)} Renomear</button>` : ''}
         ${o.podeExcluir(c) ? `<button type="button" role="menuitem" data-a="excluir" class="perigo">${icone('lixeira', 15)} Excluir coluna</button>` : ''}`;
       document.body.appendChild(menu);
@@ -201,6 +270,8 @@
       menu.querySelectorAll('[data-a]').forEach(b => b.onclick = async () => {
         fechar();
         try {
+          if (b.dataset.a === 'esquerda') moverColuna(c, -1);
+          if (b.dataset.a === 'direita') moverColuna(c, 1);
           if (b.dataset.a === 'ocultar') { await o.aoOcultar(c, true); c.oculta = true; desenhar(); }
           if (b.dataset.a === 'renomear') await renomear(c);
           if (b.dataset.a === 'excluir') await excluir(c);

@@ -24,7 +24,7 @@ Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: tod
 
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.bragaferreira.adv.br/`; Redirect URLs `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
-- **Emails**: modelos em português, como os da Educação.
+- **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
 - **SMTP**: o envio padrão do Supabase só entrega para membros da organização; para convidar a equipe, configure um SMTP próprio.
 
 ## Testar no computador

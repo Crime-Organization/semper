@@ -209,6 +209,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px }
 .kcartao .kp { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 26px }
 .kmarcador { height: 4px; border-radius: 4px; background: var(--accent); margin: 2px 4px; flex-shrink: 0 }
+.coluna-topo[draggable="true"] { cursor: grab }
+.coluna-topo[draggable="true"]:active { cursor: grabbing }
+.coluna.arrastando-col { opacity: .45 }
+.kmarcador-col { flex: 0 0 4px; align-self: stretch; border-radius: 4px; background: var(--accent) }
 .nova-coluna { background: transparent; border-style: dashed; border-color: var(--line2); padding: 14px; gap: 14px; overflow-y: auto }
 .nova-form { display: flex; flex-direction: column; gap: 8px }
 .ocultas { display: flex; flex-wrap: wrap; gap: 6px }
