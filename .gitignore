@@ -11,12 +11,10 @@ exportacoes/
 
 # ConfiguraÃ§Ã£o local do Claude Code
 .claude/settings.local.json
+.claude/launch.json
 
 # Sistema
 Thumbs.db
 .DS_Store
 node_modules/
 *.zip
-
-# Configuração de pré-visualização local (aponta para pasta temporária)
-.claude/launch.json
