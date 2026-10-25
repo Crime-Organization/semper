@@ -176,6 +176,12 @@ O kanban segue o modelo do Trello, **não** o do Notion:
 - Cartão: branco, borda `{colors.line2}`, `{rounded.md}`, título em `{typography.card-title}`, metadados (código do contrato, responsável, prazo, contagem de checklist) em `{typography.caption}`. Arrastando, o cartão ganha a sombra Floating e leve rotação (1–2°).
 - Coluna e cartão nunca são preenchidos de verde. O verde aparece só no foco e no botão principal.
 
+### Cartão (painel de detalhe de pessoa, contrato, demanda…)
+Abre à direita, com até 560px, sobre um véu. O "X" fica preso ao topo por cima do conteúdo, sem ocupar largura.
+- **Ações numa linha só**, logo abaixo do título: a principal em verde (ex.: "Atualizar cadastro") e as secundárias brancas. Quando o painel fica estreito (zoom, celular), as secundárias viram botões redondos só com o ícone, e o nome continua como dica. A medida é a largura do próprio painel (container queries), nunca uma conta em JavaScript.
+- **Exclusão fora da linha de ações:** só aparece em itens arquivados, num aviso tracejado logo abaixo das ações, com o botão sob o texto. Ao pedir confirmação, o botão cresce para a direita e o segundo clique cai no mesmo lugar.
+- **Seções longas recolhem** com `<Recolhivel>` (`app/src/ui/Recolhivel.tsx`): título clicável com a seta na ponta direita e uma linha fina acima. O conteúdo só é carregado quando a seção está aberta. Com `preferencia`, a escolha de cada usuário fica guardada (Dados do cadastro e Histórico). As informações sigilosas sempre começam fechadas: cada abertura fica registrada (LGPD) e o conteúdo não fica à vista de quem passa.
+
 ### Responsive Strategy
 
 | Name | Width | Key Changes |

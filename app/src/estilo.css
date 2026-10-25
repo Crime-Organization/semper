@@ -294,16 +294,38 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .veu, .veu-janela { position: fixed; inset: 0; background: rgba(26,25,22,.45); z-index: 70 }
 .veu { opacity: 0; transition: opacity .2s }
 .veu.on { opacity: 1 }
-.cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0 }
+.cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0; container-type: inline-size }
 .cartao-painel.on { transform: none; opacity: 1 }
-.cartao-fechar { position: sticky; top: 14px; float: right; margin: 14px 14px 0 0; z-index: 2; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
+/* O "X" fica preso ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
+.cartao-fechar { position: sticky; top: 14px; margin: 14px 14px -54px auto; z-index: 2; width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-fechar:hover { background: var(--soft) }
 .cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 44px }
-.cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
-.cartao-acoes { display: flex; flex-wrap: wrap; gap: 8px }
+.cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 44px }
+/* Ações do cartão numa linha só. Quando o painel fica estreito (zoom, celular), as ações secundárias
+   viram botões redondos só com o ícone, na ordem: primeiro Arquivar, depois Copiar. O nome continua como dica. */
+.cartao-acoes { display: flex; flex-wrap: wrap; gap: 6px }
+.cartao-acoes .btn-sm { padding: 0 14px; gap: 6px }
+@container (max-width: 520px) {
+  .cartao-acoes .acao-arquivar { width: 36px; padding: 0 }
+  .cartao-acoes .acao-arquivar .acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+}
+@container (max-width: 430px) {
+  .cartao-acoes .acao-copiar { width: 36px; padding: 0 }
+  .cartao-acoes .acao-copiar .acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+}
+/* Pessoa arquivada: aviso com a exclusão logo abaixo do texto. O botão cresce para a direita ao pedir
+   confirmação, então o segundo clique cai no mesmo lugar do primeiro. */
+.cartao-arquivada { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
 .bloco { display: flex; flex-direction: column; gap: 10px }
 .bloco > h3 { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--text2); display: flex; align-items: center; gap: 8px }
+/* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */
+.recolhivel { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
+.recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
+.recolher:hover { color: var(--ink) }
+.recolher-seta { margin-left: auto; display: inline-flex; transition: transform .2s }
+.recolher[aria-expanded="true"] .recolher-seta { transform: rotate(180deg) }
+.bloco-corpo { display: flex; flex-direction: column; gap: 10px }
 .qualificacao { background: var(--soft); border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: anywhere }
 .dados { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 0; margin: 0; font-size: 14px }
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }

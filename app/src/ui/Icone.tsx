@@ -23,7 +23,8 @@ const ICONES = {
   voltar: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   pontos: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
-  check: '<path d="M5 12l5 5L20 7"/>'
+  check: '<path d="M5 12l5 5L20 7"/>',
+  abaixo: '<path d="M6 9l6 6 6-6"/>'
 };
 export type NomeIcone = keyof typeof ICONES;
 

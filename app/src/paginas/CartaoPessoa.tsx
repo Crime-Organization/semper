@@ -9,6 +9,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { pedirTexto } from '../ui/janela';
+import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
@@ -90,13 +91,22 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
       {p.nome_fantasia && <p className="nota" style={{ marginTop: 4 }}>{p.nome_fantasia}</p>}
     </header>
 
+    {/* Ações numa linha só. Em espaço estreito, Copiar e Arquivar viram botões redondos só com o ícone (estilo.css, "cartao-acoes"). */}
     <div className="cartao-acoes">
       <Link className="btn pri btn-sm" to={'/pessoas/nova/?id=' + p.id}><Icone nome="editar" tam={15} /> Atualizar cadastro</Link>
-      {textoQual && <button type="button" className="btn btn-sm" onClick={copiar}><Icone nome="copiar" tam={15} /> Copiar qualificação</button>}
-      <Botao className="btn btn-sm" onClick={arquivar}><Icone nome="arquivo" tam={15} /> {p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</Botao>
-      {podeExcluir && <BotaoDuplo className="btn btn-sm perigo" confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
+      {textoQual && <button type="button" className="btn btn-sm acao-copiar" title="Copiar qualificação" aria-label="Copiar qualificação" onClick={copiar}>
+        <Icone nome="copiar" tam={15} /><span className="acao-rotulo">Copiar qualificação</span>
+      </button>}
+      <Botao className="btn btn-sm acao-arquivar" title={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
+        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
+      </Botao>
     </div>
-    {!podeExcluir && p.arquivado_em && <p className="nota">Só quem cadastrou esta pessoa ou um administrador pode excluí-la.</p>}
+    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {p.arquivado_em && <div className="cartao-arquivada">
+      <span>{podeExcluir ? 'Pessoa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
+        : 'Pessoa arquivada. Só quem cadastrou esta pessoa ou um administrador pode excluí-la.'}</span>
+      {podeExcluir && <BotaoDuplo className="btn btn-sm perigo" confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
+    </div>}
 
     <section className="bloco campos">
       <h3>Etapa do atendimento</h3>
@@ -117,8 +127,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
       <p className="nota">Gerada a partir do cadastro. Fica só no SEMPER.</p>
     </section>}
 
-    <section className="bloco">
-      <h3>Dados do cadastro</h3>
+    <Recolhivel titulo="Dados do cadastro" preferencia="pessoas.cartao.dados">
       <Grupo titulo="Identificação" linhas={[['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')],
         ['Nacionalidade', p.nacionalidade], ['Profissão', p.profissao], ['Estado civil', V('estado_civil')], ['RG', p.rg], ['Expedição do RG', V('rg_expedicao')]]} />
       <Grupo titulo="Filiação e nascimento" linhas={[['Mãe', p.nome_mae], ['Pai', p.nome_pai], ['Nascimento', V('nascimento')],
@@ -129,17 +138,16 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar }: Props) {
         ['Bairro', p.bairro], ['Município', local(p.municipio, p.uf)]]} />
       <Grupo titulo="Contato" linhas={[['Telefones', V('telefones')], ['E-mails', V('emails')]]} />
       <Grupo titulo="Proteção de dados (LGPD)" linhas={[['Base legal', V('lgpd_base')], ['Consentimento em', V('lgpd_consentimento')]]} />
-    </section>
+    </Recolhivel>
 
-    <section className="bloco">
-      <h3><Icone nome="cadeado" tam={14} /> Informações sigilosas</h3>
+    {/* Sempre começa fechada: cada abertura é uma leitura registrada (LGPD) e o conteúdo não fica à vista de quem passa. */}
+    <Recolhivel titulo="Informações sigilosas" icone="cadeado">
       <Sigilos p={p} versao={versaoSig} aoMudar={() => setVersaoSig(v => v + 1)} />
-    </section>
+    </Recolhivel>
 
-    <section className="bloco">
-      <h3><Icone nome="relogio" tam={14} /> Histórico de alterações</h3>
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.cartao.historico">
       <HistoricoPessoa id={p.id} versao={versaoHist} />
-    </section>
+    </Recolhivel>
 
     <footer className="cartao-rodape">
       <span>Cadastrada em {dataCurta(p.criado_em)}{p.criado_por ? ' por ' + nomeDe(p.criado_por) : ''}</span>
