@@ -343,6 +343,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .form-vinculo-acoes { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap }
 
 /* Busca de pessoa (<BuscaPessoa>): lista de achados e pessoa escolhida */
+.busca-pessoa { position: relative }
+.busca-pessoa .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
 .achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie); display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
 .achados button { width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 2px; color: var(--ink) }
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }

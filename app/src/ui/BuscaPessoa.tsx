@@ -1,4 +1,5 @@
-// Busca de uma pessoa do cadastro pelo nome, CPF/CNPJ, telefone ou código, com a lista de achados.
+// Busca de uma pessoa do cadastro pelo nome, CPF/CNPJ, telefone ou código. A lista de achados abre por cima
+// do que vem abaixo (não empurra o formulário) e fecha ao clicar fora ou com Esc.
 // Peça comum: vínculos entre pessoas, liberar acesso (Equipe) e, depois, partes de processos, contratos etc.
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
@@ -21,7 +22,9 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
   const [termo, setTermo] = useState('');
   const buscado = useAtrasado(termo, 300);
   const [achados, setAchados] = useState<PessoaLista[] | null>(null);
+  const [aberta, setAberta] = useState(false);
   const campo = useRef<HTMLInputElement>(null);
+  const raiz = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (focar) campo.current?.focus(); }, [focar]);
   useEffect(() => {
@@ -31,6 +34,12 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
     SD.pessoasListar({ termo: t, porPagina: 8 }).then(r => { if (vivo) setAchados(r.linhas); }).catch(falha);
     return () => { vivo = false; };
   }, [buscado]);
+  useEffect(() => {
+    if (!aberta) return;
+    const fora = (e: MouseEvent) => { if (!raiz.current?.contains(e.target as Node)) setAberta(false); };
+    document.addEventListener('mousedown', fora);
+    return () => document.removeEventListener('mousedown', fora);
+  }, [aberta]);
 
   if (escolhida) return <label>{rotulo}
     <span className="escolhida"><span>{escolhida.nome}</span>
@@ -38,16 +47,18 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
     </span>
   </label>;
 
-  return <div className="busca-pessoa">
-    <label>{rotulo}<input ref={campo} placeholder={placeholder} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)}
+  return <div className="busca-pessoa" ref={raiz}>
+    <label>{rotulo}<input ref={campo} placeholder={placeholder} autoComplete="off" value={termo} aria-expanded={aberta && !!achados}
+      onChange={e => { setTermo(e.target.value); setAberta(true); }} onFocus={() => setAberta(true)}
       onKeyDown={e => {
-        // Enter escolhe o primeiro achado (e não envia o formulário em volta).
+        // Esc fecha só a lista (sem fechar o cartão em volta); Enter escolhe o primeiro achado (e não envia o formulário).
+        if (e.key === 'Escape' && aberta && achados) { e.stopPropagation(); setAberta(false); return; }
         if (e.key !== 'Enter') return;
         e.preventDefault();
         const primeiro = achados?.find(p => !desativar?.(p));
         if (primeiro) aoEscolher(primeiro);
       }} /></label>
-    {achados && <ul className="achados">
+    {aberta && achados && <ul className="achados">
       {achados.length ? achados.map(p => {
         const motivo = desativar?.(p) || null;
         return <li key={p.id}>
