@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pessoas · SEMPER</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="../assets/img/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/estilo.css">
+<style>
+.cabeca { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap }
+.td-check { width: 44px }
+#visao .tabela td:nth-child(2) { min-width: 240px }
+.etapa-txt { font-size: 13px; color: var(--text2) }
+.grupo-dados + .grupo-dados { margin-top: 6px }
+.grupo-dados h4 { margin: 10px 0 2px; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--faint) }
+</style>
+</head>
+<body>
+<div class="topo-cel" id="topoCel"></div>
+<div class="app">
+  <aside class="side" id="side" aria-label="Menu"></aside>
+  <main class="conteudo">
+    <div class="miolo largo">
+      <header class="cabeca">
+        <div>
+          <p class="olho">Cadastro comum do escritório</p>
+          <h1 class="titulo">Pessoas<span class="ponto">.</span></h1>
+          <p class="lead" id="lead">&nbsp;</p>
+        </div>
+        <a class="btn pri" id="btnNova" href="nova/">Nova pessoa</a>
+      </header>
+
+      <div class="barra-ferr" role="search">
+        <label class="busca-campo"><span id="icoBusca"></span><span class="sr">Buscar</span>
+          <input id="busca" type="search" placeholder="Nome, CPF/CNPJ, telefone, e-mail ou código" autocomplete="off"></label>
+        <select class="filtro" id="fTipo" aria-label="Tipo de cadastro">
+          <option value="">Todos os tipos</option><option value="pf">Pessoa física</option>
+          <option value="pj">Pessoa jurídica</option><option value="contato">Somente contato</option>
+        </select>
+        <select class="filtro" id="fResp" aria-label="Responsável"></select>
+        <select class="filtro" id="fSituacao" aria-label="Situação">
+          <option value="ativas">Ativas</option><option value="arquivadas">Arquivadas</option>
+        </select>
+        <div class="abas" role="group" aria-label="Visualização">
+          <button type="button" data-visao="tabela" id="vTabela"></button>
+          <button type="button" data-visao="kanban" id="vKanban"></button>
+        </div>
+      </div>
+
+      <div id="visao"><p class="carregando">Carregando…</p></div>
+      <div class="lote" id="lote" hidden></div>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/marca.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../assets/dados.js"></script>
+<script src="../assets/pessoa.js"></script>
+<script src="../assets/comum.js"></script>
+<script src="../assets/kanban.js"></script>
+<script>
+(async function () {
+  const { esc, url, icone, avatar, avatares, montarCasca, exigirLogin, titulo, parametro, atrasar, relativo, dataCurta, dataHora,
+    avisar, falha, janela, confirmar, botaoDuplo, ocupado, Cartao } = window.UI;
+  const ctx = await exigirLogin();
+  montarCasca('pessoas', ctx);
+  titulo('Pessoas');
+  const eu = ctx.perfil.id;
+  const pref = ctx.perfil.preferencias || {};
+  const $ = id => document.getElementById(id);
+  const nomeDe = id => ctx.equipe.find(p => p.id === id)?.nome || 'Usuário removido';
+
+  $('icoBusca').innerHTML = icone('buscar', 18);
+  $('vTabela').innerHTML = icone('tabela', 15) + 'Tabela';
+  $('vKanban').innerHTML = icone('kanban', 15) + 'Kanban';
+  $('btnNova').innerHTML = icone('mais', 16) + 'Nova pessoa';
+  $('fResp').innerHTML = `<option value="">Todos os responsáveis</option><option value="${eu}">Sob minha responsabilidade</option>` +
+    ctx.equipe.filter(p => p.id !== eu).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('');
+
+  // Estado da página (da URL, senão das preferências do usuário)
+  const f = {
+    termo: '',
+    tipo: '',
+    responsavel: parametro('responsavel') === 'eu' ? eu : (pref['pessoas.responsavel'] || ''),
+    situacao: parametro('situacao') === 'arquivadas' ? 'arquivadas' : 'ativas',
+    pagina: 0
+  };
+  if (f.responsavel && !ctx.equipe.some(p => p.id === f.responsavel)) f.responsavel = '';
+  let visao = parametro('visao') || pref['pessoas.visao'] || 'tabela';
+  if (visao !== 'kanban' || f.situacao === 'arquivadas') visao = 'tabela';
+  $('fResp').value = f.responsavel;
+  $('fSituacao').value = f.situacao;
+
+  let colunas = [], sugestoes = [], quadro = null;
+  const selecionadas = new Set();
+  try { [colunas, sugestoes] = await Promise.all([SD.colunasListar('pessoas'), SD.sugestoesListar('pessoas')]); }
+  catch (e) { falha(e); }
+  const nomeEtapa = id => colunas.find(c => c.id === id)?.nome || '';
+
+  // ---------- visualização ----------
+  function marcarVisao() {
+    $('vTabela').setAttribute('aria-pressed', String(visao === 'tabela'));
+    $('vKanban').setAttribute('aria-pressed', String(visao === 'kanban'));
+  }
+  document.querySelectorAll('[data-visao]').forEach(b => b.onclick = () => {
+    if (b.dataset.visao === 'kanban' && f.situacao === 'arquivadas') {
+      f.situacao = 'ativas'; $('fSituacao').value = 'ativas';
+      avisar('O quadro mostra só as pessoas ativas.', 'ok');
+    }
+    visao = b.dataset.visao;
+    SD.salvarPreferencia('pessoas.visao', visao);
+    selecionadas.clear();
+    atualizar();
+  });
+
+  function atualizar() {
+    marcarVisao();
+    quadro?.destruir(); quadro = null;
+    if (visao === 'kanban') montarQuadro(); else carregarTabela();
+  }
+
+  // ---------- tabela ----------
+  async function carregarTabela() {
+    const alvo = $('visao');
+    try {
+      const { linhas, total } = await SD.pessoasListar({ ...f, porPagina: 50 });
+      $('lead').textContent = `${total.toLocaleString('pt-BR')} ${total === 1 ? 'pessoa' : 'pessoas'} ${f.situacao === 'arquivadas' ? 'arquivadas' : 'ativas'}${f.termo || f.tipo || f.responsavel ? ' com os filtros escolhidos' : ''}.`;
+      if (!linhas.length) {
+        alvo.innerHTML = `<div class="vazio">${f.termo || f.tipo || f.responsavel ? 'Nenhuma pessoa encontrada com esses filtros.' :
+          f.situacao === 'arquivadas' ? 'Nenhuma pessoa arquivada.' : `Nenhuma pessoa cadastrada ainda. <a class="link" href="nova/">Cadastrar a primeira</a>`}</div>`;
+        desenharLote();
+        return;
+      }
+      const de = f.pagina * 50 + 1, ate = f.pagina * 50 + linhas.length;
+      alvo.innerHTML = `<div class="tabela"><table>
+        <thead><tr>
+          <th class="td-check"><input type="checkbox" id="marcarTodas" aria-label="Selecionar todas desta página"></th>
+          <th scope="col">Pessoa</th><th scope="col">Telefone</th><th scope="col">Município</th>
+          <th scope="col">Etapa</th><th scope="col">Responsáveis</th><th scope="col">Atualizada</th>
+        </tr></thead>
+        <tbody>${linhas.map(p => `<tr class="clicavel ${selecionadas.has(p.id) ? 'marcada' : ''}" data-id="${p.id}">
+          <td class="td-check"><input type="checkbox" data-marca="${p.id}" ${selecionadas.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${esc(p.nome)}"></td>
+          <td><div class="nome">${esc(p.nome)}</div><div class="sub">${esc(PES.TIPOS[p.tipo])}${p.documento ? ' · ' + esc(PES.fmtDocumento(p.documento)) : ''} · <span class="codigo">${esc(p.codigo)}</span></div></td>
+          <td style="white-space:nowrap">${esc(PES.fmtTelefone(p.telefones?.[0] || ''))}${p.telefones?.length > 1 ? ` <span class="sub">+${p.telefones.length - 1}</span>` : ''}</td>
+          <td>${esc(p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : '')}</td>
+          <td><span class="etapa-txt">${esc(nomeEtapa(p.etapa_id))}</span></td>
+          <td>${avatares(p.resp.map(x => x.perfil_id), ctx.equipe)}</td>
+          <td style="white-space:nowrap;color:var(--muted)">${relativo(p.atualizado_em)}</td>
+        </tr>`).join('')}</tbody></table></div>
+        <div class="paginacao" style="margin-top:12px">
+          <span>Mostrando ${de.toLocaleString('pt-BR')}–${ate.toLocaleString('pt-BR')} de ${total.toLocaleString('pt-BR')}</span>
+          <span style="display:flex;gap:8px">
+            <button class="mini" id="pgAnt" ${f.pagina === 0 ? 'disabled' : ''}>Anterior</button>
+            <button class="mini" id="pgProx" ${ate >= total ? 'disabled' : ''}>Próxima</button>
+          </span>
+        </div>`;
+      alvo.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = e => {
+        if (e.target.closest('input[type="checkbox"]')) return;
+        abrirCartao(tr.dataset.id);
+      });
+      alvo.querySelectorAll('[data-marca]').forEach(cb => cb.onchange = () => {
+        cb.checked ? selecionadas.add(cb.dataset.marca) : selecionadas.delete(cb.dataset.marca);
+        cb.closest('tr').classList.toggle('marcada', cb.checked);
+        desenharLote();
+      });
+      const todas = $('marcarTodas');
+      todas.checked = linhas.every(p => selecionadas.has(p.id));
+      todas.onchange = () => { linhas.forEach(p => todas.checked ? selecionadas.add(p.id) : selecionadas.delete(p.id)); carregarTabela(); };
+      $('pgAnt').onclick = () => { f.pagina--; carregarTabela(); window.scrollTo({ top: 0 }); };
+      $('pgProx').onclick = () => { f.pagina++; carregarTabela(); window.scrollTo({ top: 0 }); };
+      desenharLote();
+    } catch (e) {
+      alvo.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`;
+    }
+  }
+
+  // Ações em lote: arquivar, desarquivar e excluir (só arquivadas).
+  function desenharLote() {
+    const lote = $('lote');
+    if (!selecionadas.size || visao !== 'tabela') { lote.hidden = true; return; }
+    const n = selecionadas.size;
+    lote.hidden = false;
+    lote.innerHTML = `<span><b>${n}</b> ${n === 1 ? 'selecionada' : 'selecionadas'} <button class="link" id="lLimpar" style="color:#DCDCD4;margin-left:8px">limpar</button></span>
+      <span class="acoes-lote">${f.situacao === 'ativas'
+        ? `<button class="mini" id="lArquivar">${icone('arquivo', 15)} Arquivar</button>`
+        : `<button class="mini" id="lDesarquivar">${icone('arquivo', 15)} Desarquivar</button>
+           <button class="mini perigo" id="lExcluir">${icone('lixeira', 15)} Excluir</button>`}</span>`;
+    $('lLimpar').onclick = () => { selecionadas.clear(); carregarTabela(); };
+    const ids = () => [...selecionadas];
+    $('lArquivar')?.addEventListener('click', async () => {
+      try { const q = await SD.pessoasArquivar(ids(), true); avisar(`${q} ${q === 1 ? 'pessoa arquivada' : 'pessoas arquivadas'}.`); selecionadas.clear(); carregarTabela(); }
+      catch (e) { falha(e); }
+    });
+    $('lDesarquivar')?.addEventListener('click', async () => {
+      try { const q = await SD.pessoasArquivar(ids(), false); avisar(`${q} ${q === 1 ? 'pessoa voltou' : 'pessoas voltaram'} para as ativas.`); selecionadas.clear(); carregarTabela(); }
+      catch (e) { falha(e); }
+    });
+    if ($('lExcluir')) botaoDuplo($('lExcluir'), `Confirmar exclusão de ${n}`, async () => {
+      try {
+        const r = await SD.pessoasExcluir(ids());
+        avisar(r.naoExcluidas ? `${r.excluidas} excluída(s). ${r.naoExcluidas} não pôde(puderam) ser excluída(s): ${r.motivo || 'só quem cadastrou ou um administrador exclui.'}` : `${r.excluidas} ${r.excluidas === 1 ? 'pessoa excluída' : 'pessoas excluídas'} definitivamente.`, r.naoExcluidas ? 'erro' : 'ok');
+        selecionadas.clear(); carregarTabela();
+      } catch (e) { falha(e); }
+    });
+  }
+
+  // ---------- kanban (CRM do atendimento) ----------
+  const cartaoKanban = p => `
+    <div class="kt">${esc(p.nome)}</div>
+    <div class="km">${p.documento ? `<span>${esc(PES.fmtDocumento(p.documento))}</span>` : `<span>${esc(PES.TIPOS[p.tipo])}</span>`}
+      ${p.telefones?.[0] ? `<span>${esc(PES.fmtTelefone(p.telefones[0]))}</span>` : ''}
+      ${p.municipio ? `<span>${esc(p.municipio)}${p.uf ? '/' + esc(p.uf) : ''}</span>` : ''}</div>
+    <div class="kp"><span class="codigo">${esc(p.codigo)}</span>${avatares(p.resp.map(x => x.perfil_id), ctx.equipe, 4, 24)}</div>`;
+
+  function montarQuadro() {
+    $('lead').textContent = 'Acompanhamento do atendimento. Arraste os cartões entre as colunas.';
+    $('lote').hidden = true;
+    quadro = Kanban.montar($('visao'), {
+      colunas, sugestoes,
+      carregar: (colunaId, deslocamento) => SD.pessoasDaEtapa(colunaId, { ...f, situacao: 'ativas' }, deslocamento, 30),
+      ordemDe: p => p.etapa_ordem,
+      cartao: cartaoKanban,
+      aoAbrir: p => abrirCartao(p.id),
+      aoMover: async (p, colunaId, ordem) => { await SD.pessoaMover(p.id, colunaId, ordem); p.etapa_id = colunaId; p.etapa_ordem = ordem; },
+      aoCriarColuna: async (nome, ordem) => { const c = await SD.colunaCriar('pessoas', nome, ordem); colunas.push(c); return c; },
+      aoOcultar: (c, ocultar) => SD.colunaOcultar(c.id, ocultar),
+      podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,
+      aoRenomear: (c, nome) => SD.colunaRenomear(c.id, nome),
+      podeExcluir: () => ctx.ehAdmin,
+      aoExcluir: async c => { await SD.colunaExcluir(c.id); colunas = colunas.filter(x => x.id !== c.id); },
+      aoAdicionar: colunaId => { location.href = 'nova/' + (colunaId ? '?etapa=' + colunaId : ''); }
+    });
+  }
+
+  // ---------- filtros ----------
+  const aplicar = () => { f.pagina = 0; selecionadas.clear(); visao === 'kanban' ? quadro?.recarregar() : carregarTabela(); };
+  $('busca').oninput = atrasar(() => { f.termo = $('busca').value; aplicar(); }, 350);
+  $('fTipo').onchange = () => { f.tipo = $('fTipo').value; aplicar(); };
+  $('fResp').onchange = () => { f.responsavel = $('fResp').value; SD.salvarPreferencia('pessoas.responsavel', f.responsavel); aplicar(); };
+  $('fSituacao').onchange = () => {
+    f.situacao = $('fSituacao').value;
+    if (f.situacao === 'arquivadas' && visao === 'kanban') { visao = 'tabela'; avisar('As arquivadas aparecem só na tabela.', 'ok'); atualizar(); return; }
+    aplicar();
+  };
+  const recarregarVisao = () => visao === 'kanban' ? quadro?.recarregar() : carregarTabela();
+
+  // ---------- cartão da pessoa ----------
+  async function abrirCartao(id) {
+    history.replaceState(null, '', '?id=' + id);
+    const corpo = Cartao.abrir({ aoFechar: () => history.replaceState(null, '', location.pathname) });
+    let p;
+    try { p = await SD.pessoaObter(id); }
+    catch (e) { corpo.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; return; }
+    if (!p) { corpo.innerHTML = '<div class="vazio">Esta pessoa não foi encontrada. Ela pode ter sido excluída.</div>'; return; }
+    desenharCartao(corpo, p);
+  }
+
+  function linhaDados(rotulo, valor) { return valor ? `<dt>${esc(rotulo)}</dt><dd>${esc(valor)}</dd>` : ''; }
+  function grupo(titulo, linhas) { const l = linhas.join(''); return l ? `<div class="grupo-dados"><h4>${esc(titulo)}</h4><dl class="dados">${l}</dl></div>` : ''; }
+
+  function desenharCartao(corpo, p) {
+    const V = (campo, v = p[campo]) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) ? '' : PES.valorLegivel(campo, v);
+    const qual = PES.qualificacao(p);
+    const resp = p.resp.map(r => r.perfil_id);
+    const podeExcluir = p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
+    const ehUsuario = ctx.equipe.some(m => m.pessoa_id === p.id);
+    corpo.innerHTML = `
+      <header class="cartao-cabeca">
+        <div class="linha"><span class="selo escuro">${esc(PES.TIPOS[p.tipo])}</span><span class="codigo">${esc(p.codigo)}</span>
+          ${p.arquivado_em ? '<span class="selo arq">Arquivada</span>' : ''}${ehUsuario ? '<span class="selo ok">Usuária do sistema</span>' : ''}</div>
+        <h2>${esc(p.nome)}</h2>
+        ${p.nome_fantasia ? `<p class="nota" style="margin-top:4px">${esc(p.nome_fantasia)}</p>` : ''}
+      </header>
+
+      <div class="cartao-acoes">
+        <a class="btn pri btn-sm" href="nova/?id=${p.id}">${icone('editar', 15)} Atualizar cadastro</a>
+        ${qual ? `<button class="btn btn-sm" id="cCopiar">${icone('copiar', 15)} Copiar qualificação</button>` : ''}
+        <button class="btn btn-sm" id="cArquivar">${icone('arquivo', 15)} ${p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</button>
+        ${podeExcluir ? `<button class="btn btn-sm perigo" id="cExcluir">${icone('lixeira', 15)} Excluir</button>` : ''}
+      </div>
+
+      <section class="bloco campos">
+        <h3>Etapa do atendimento</h3>
+        <select id="cEtapa" aria-label="Etapa do atendimento" ${p.arquivado_em ? 'disabled' : ''}>
+          <option value="">Sem etapa</option>
+          ${colunas.map(c => `<option value="${c.id}" ${c.id === p.etapa_id ? 'selected' : ''}>${esc(c.nome)}${c.oculta ? ' (oculta para você)' : ''}</option>`).join('')}
+        </select>
+      </section>
+
+      <section class="bloco">
+        <h3>Responsáveis</h3>
+        <div class="responsaveis" id="cResp"></div>
+      </section>
+
+      ${qual ? `<section class="bloco"><h3>Qualificação</h3><div class="qualificacao" id="cQual">${esc(qual)}</div>
+        <p class="nota">Gerada a partir do cadastro. Fica só no SEMPER.</p></section>` : ''}
+
+      <section class="bloco">
+        <h3>Dados do cadastro</h3>
+        ${grupo('Identificação', [linhaDados('Nome', p.nome), linhaDados(p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')),
+          linhaDados('Gênero', V('genero')), linhaDados('Nacionalidade', p.nacionalidade), linhaDados('Profissão', p.profissao),
+          linhaDados('Estado civil', V('estado_civil')), linhaDados('RG', p.rg), linhaDados('Expedição do RG', V('rg_expedicao'))])}
+        ${grupo('Filiação e nascimento', [linhaDados('Mãe', p.nome_mae), linhaDados('Pai', p.nome_pai), linhaDados('Nascimento', V('nascimento')),
+          linhaDados('Naturalidade', p.nascimento_municipio ? p.nascimento_municipio + (p.nascimento_uf ? '/' + p.nascimento_uf : '') : '')])}
+        ${grupo('Empresa', [linhaDados('Natureza jurídica', V('natureza')), linhaDados('Tipo de entidade', p.tipo_entidade),
+          linhaDados('Nome fantasia', p.nome_fantasia), linhaDados('Porte', V('porte')), linhaDados('Abertura', V('abertura')),
+          linhaDados('Representante(s)', p.representantes)])}
+        ${grupo('Endereço', [linhaDados('CEP', V('cep')), linhaDados('Logradouro', [p.logradouro, p.numero].filter(Boolean).join(', ')),
+          linhaDados('Complemento', p.complemento), linhaDados('Bairro', p.bairro), linhaDados('Município', p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : '')])}
+        ${grupo('Contato', [linhaDados('Telefones', V('telefones')), linhaDados('E-mails', V('emails'))])}
+        ${grupo('Proteção de dados (LGPD)', [linhaDados('Base legal', V('lgpd_base')), linhaDados('Consentimento em', V('lgpd_consentimento'))])}
+      </section>
+
+      <section class="bloco" id="cSigilo">
+        <h3>${icone('cadeado', 14)} Informações sigilosas</h3>
+        <p class="carregando">Carregando…</p>
+      </section>
+
+      <section class="bloco">
+        <h3>${icone('relogio', 14)} Histórico de alterações</h3>
+        <div id="cHist"><p class="carregando">Carregando…</p></div>
+      </section>
+
+      <footer class="cartao-rodape">
+        <span>Cadastrada em ${dataCurta(p.criado_em)}${p.criado_por ? ' por ' + esc(nomeDe(p.criado_por)) : ''}</span>
+        <span>Atualizada ${relativo(p.atualizado_em)}</span>
+      </footer>`;
+
+    if (!podeExcluir && p.arquivado_em) corpo.querySelector('.cartao-acoes').insertAdjacentHTML('afterend',
+      '<p class="nota">Só quem cadastrou esta pessoa ou um administrador pode excluí-la.</p>');
+
+    // ações
+    corpo.querySelector('#cCopiar')?.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(qual); avisar('Qualificação copiada.'); }
+      catch (e) { const r = document.createRange(); r.selectNodeContents(corpo.querySelector('#cQual')); getSelection().removeAllRanges(); getSelection().addRange(r); avisar('Selecionei o texto: use Ctrl+C para copiar.'); }
+    });
+    corpo.querySelector('#cArquivar').onclick = async e => {
+      ocupado(e.currentTarget, true);
+      try {
+        await SD.pessoasArquivar([p.id], !p.arquivado_em);
+        avisar(p.arquivado_em ? 'Pessoa desarquivada.' : 'Pessoa arquivada. Arquivadas podem ser excluídas depois.');
+        recarregarVisao(); abrirCartao(p.id);
+      } catch (err) { falha(err); ocupado(e.currentTarget, false); }
+    };
+    const bEx = corpo.querySelector('#cExcluir');
+    if (bEx) botaoDuplo(bEx, 'Confirmar exclusão definitiva', async () => {
+      const r = await SD.pessoasExcluir([p.id]);
+      if (r.excluidas) { avisar('Pessoa excluída definitivamente.'); Cartao.fechar(); recarregarVisao(); }
+      else falha(new Error(r.motivo || 'Não foi possível excluir.'));
+    });
+    corpo.querySelector('#cEtapa').onchange = async e => {
+      const etapa = e.target.value || null;
+      try { await SD.pessoaMover(p.id, etapa, Date.now() / 1000); p.etapa_id = etapa; avisar(etapa ? `Movida para "${nomeEtapa(etapa)}".` : 'Pessoa sem etapa.'); recarregarVisao(); carregarHistorico(p); }
+      catch (err) { falha(err); e.target.value = p.etapa_id || ''; }
+    };
+
+    desenharResponsaveis(p, resp);
+    carregarSigilos(p);
+    carregarHistorico(p);
+  }
+
+  function desenharResponsaveis(p, resp) {
+    const el = document.getElementById('cResp');
+    if (!el) return;
+    const fora = ctx.equipe.filter(m => m.ativo && !resp.includes(m.id));
+    el.innerHTML = resp.map(id => `<span class="resp-chip">${avatar(ctx.equipe.find(m => m.id === id) || { id, nome: 'Usuário removido' }, 26)}
+        ${esc(nomeDe(id))}<button type="button" data-tirar="${id}" aria-label="Tirar ${esc(nomeDe(id))} dos responsáveis">${icone('fechar', 13)}</button></span>`).join('')
+      + (fora.length ? `<select class="filtro" id="cAddResp" aria-label="Incluir responsável" style="height:34px"><option value="">+ Incluir responsável</option>
+          ${fora.map(m => `<option value="${m.id}">${esc(m.nome)}</option>`).join('')}</select>` : '')
+      + (resp.length ? '' : '<p class="nota" style="flex-basis:100%">Nenhum responsável ainda.</p>');
+    el.querySelectorAll('[data-tirar]').forEach(b => b.onclick = async () => {
+      try { await SD.responsavelRemover(p.id, b.dataset.tirar); resp = resp.filter(x => x !== b.dataset.tirar); p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao(); }
+      catch (e) { falha(e); }
+    });
+    el.querySelector('#cAddResp')?.addEventListener('change', async e => {
+      const id = e.target.value; if (!id) return;
+      try { await SD.responsavelIncluir(p.id, id); resp = [...resp, id]; p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao(); }
+      catch (err) { falha(err); }
+    });
+  }
+
+  async function carregarSigilos(p) {
+    const el = document.getElementById('cSigilo');
+    if (!el) return;
+    const cab = `<h3>${icone('cadeado', 14)} Informações sigilosas</h3>`;
+    let lista, acessos;
+    try { [lista, acessos] = await Promise.all([SD.sigilosListar(p.id), SD.sigiloAcessos(p.id)]); }
+    catch (e) { el.innerHTML = cab + `<div class="aviso erro">${esc(e.message)}</div>`; return; }
+    const veTodas = p.criado_por === eu || ctx.ehMaster || acessos.some(a => a.perfil_id === eu);
+    const podeConceder = acessos[0]?.pode_conceder ?? (p.criado_por === eu || ctx.ehMaster || lista.some(s => s.criado_por === eu));
+    const semAcesso = ctx.equipe.filter(m => m.ativo && m.id !== eu && m.id !== p.criado_por && !acessos.some(a => a.perfil_id === m.id));
+    el.innerHTML = cab + `
+      ${lista.length ? lista.map(s => `<div class="sigilo" data-sig="${s.id}">
+          <div class="sigilo-texto" style="white-space:pre-wrap">${esc(s.texto)}</div>
+          <div class="meta"><span>${esc(s.autor || 'Usuário removido')} · ${dataHora(s.atualizado_em)}</span>
+            ${s.pode_editar ? `<span style="display:flex;gap:6px"><button class="mini" data-editar="${s.id}">${icone('editar', 13)} Editar</button><button class="mini perigo" data-apagar="${s.id}">Apagar</button></span>` : ''}</div>
+        </div>`).join('')
+      : `<p class="nota">${veTodas ? 'Nenhuma informação sigilosa registrada.' : 'Você não tem acesso às informações sigilosas desta pessoa, se houver. Você pode registrar uma: ela ficará visível para você, para quem cadastrou a pessoa e para o master.'}</p>`}
+      <form class="campos" id="fSig" style="display:flex;flex-direction:column;gap:8px">
+        <label>Registrar informação sigilosa<textarea id="sigTexto" maxlength="5000" placeholder="Visível só para quem tem acesso"></textarea></label>
+        <div><button class="btn esc btn-sm" type="submit">Salvar informação</button></div>
+      </form>
+      ${podeConceder ? `<div class="campos" style="display:flex;flex-direction:column;gap:8px">
+          <p class="rotulo-caps">Quem mais vê</p>
+          <div class="responsaveis">${acessos.map(a => `<span class="resp-chip">${avatar(ctx.equipe.find(m => m.id === a.perfil_id), 26)} ${esc(a.nome)}
+            <button type="button" data-revogar="${a.perfil_id}" aria-label="Tirar o acesso de ${esc(a.nome)}">${icone('fechar', 13)}</button></span>`).join('') || '<p class="nota">Só quem cadastrou a pessoa, quem escreveu e o master.</p>'}
+            ${semAcesso.length ? `<select class="filtro" id="sigConceder" style="height:34px" aria-label="Conceder acesso"><option value="">+ Conceder acesso</option>
+              ${semAcesso.map(m => `<option value="${m.id}">${esc(m.nome)}</option>`).join('')}</select>` : ''}</div>
+        </div>` : ''}`;
+    el.querySelector('#fSig').onsubmit = async e => {
+      e.preventDefault();
+      const texto = el.querySelector('#sigTexto').value.trim();
+      if (!texto) return falha(new Error('Escreva a informação sigilosa.'));
+      try { await SD.sigiloSalvar(p.id, texto); avisar('Informação sigilosa registrada.'); carregarSigilos(p); }
+      catch (err) { falha(err); }
+    };
+    el.querySelectorAll('[data-editar]').forEach(b => b.onclick = async () => {
+      const s = lista.find(x => x.id === b.dataset.editar);
+      const novo = await janela({ titulo: 'Editar informação sigilosa', html: `<textarea class="campo" rows="6" aria-label="Texto">${esc(s.texto)}</textarea>`,
+        acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Salvar', tipo: 'pri', valor: j => j.querySelector('textarea').value.trim() }] });
+      if (!novo || novo === s.texto) return;
+      try { await SD.sigiloSalvar(p.id, novo, s.id); avisar('Informação atualizada.'); carregarSigilos(p); }
+      catch (err) { falha(err); }
+    });
+    el.querySelectorAll('[data-apagar]').forEach(b => botaoDuplo(b, 'Confirmar', async () => {
+      try { await SD.sigiloApagar(b.dataset.apagar); avisar('Informação apagada.'); carregarSigilos(p); }
+      catch (err) { falha(err); }
+    }));
+    el.querySelector('#sigConceder')?.addEventListener('change', async e => {
+      const id = e.target.value; if (!id) return;
+      try { await SD.sigiloConceder(p.id, id, true); avisar(`${nomeDe(id)} agora vê as informações sigilosas desta pessoa.`); carregarSigilos(p); }
+      catch (err) { falha(err); }
+    });
+    el.querySelectorAll('[data-revogar]').forEach(b => b.onclick = async () => {
+      try { await SD.sigiloConceder(p.id, b.dataset.revogar, false); carregarSigilos(p); }
+      catch (err) { falha(err); }
+    });
+  }
+
+  async function carregarHistorico(p) {
+    const el = document.getElementById('cHist');
+    if (!el) return;
+    try {
+      const hist = await SD.pessoaHistorico(p.id);
+      if (!hist.length) { el.innerHTML = '<p class="nota">Nenhuma alteração desde o cadastro.</p>'; return; }
+      el.innerHTML = `<ol class="hist">${hist.map(h => `<li>
+          <span class="quando">${dataHora(h.em)} · ${esc(h.feito_por ? nomeDe(h.feito_por) : 'Sistema')}</span>
+          ${Object.entries(h.alteracoes).map(([campo, v]) => {
+            if (campo === 'arquivado_em') return `<div>${v.para ? 'Arquivada' : 'Desarquivada'}</div>`;
+            const de = PES.valorLegivel(campo, v.de), para = PES.valorLegivel(campo, v.para);
+            return `<div><b>${esc(PES.CAMPOS[campo] || campo)}:</b> ${de !== '—' ? `<span class="de">${esc(de)}</span> → ` : ''}${esc(para)}</div>`;
+          }).join('')}
+        </li>`).join('')}</ol>`;
+    } catch (e) { el.innerHTML = `<div class="aviso erro">${esc(e.message)}</div>`; }
+  }
+
+  // ---------- início ----------
+  atualizar();
+  const abrir = parametro('id'), salvo = parametro('salvo');
+  if (salvo) avisar(salvo === 'novo' ? 'Pessoa cadastrada.' : 'Cadastro atualizado.');
+  if (abrir) abrirCartao(abrir);
+})();
+</script>
+</body>
+</html>

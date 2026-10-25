@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cadastro de pessoa · SEMPER</title>
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="../../assets/img/favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/estilo.css">
+<style>
+.aviso-tel { font-size: 13px; color: var(--warn-ink); background: var(--warn-bg); padding: 8px 12px; border-radius: 8px; line-height: 1.5 }
+.aviso-tel a { font-weight: 700; border-bottom: 1px solid currentColor }
+#faixa { margin: 0 }
+</style>
+</head>
+<body>
+<div class="topo-cel" id="topoCel"></div>
+<div class="app">
+  <aside class="side" id="side" aria-label="Menu"></aside>
+  <main class="conteudo">
+    <div class="passos">
+      <header>
+        <p class="olho"><a href="../" id="voltarLista">Pessoas</a></p>
+        <h1 class="titulo" id="titulo">Nova pessoa<span class="ponto">.</span></h1>
+      </header>
+      <div id="faixa" class="aviso info" hidden></div>
+      <div class="passos-topo"><span id="passoRot">Etapa 1</span><div class="progresso"><i id="passoBarra" style="width:0%"></i></div></div>
+
+      <form id="form" novalidate autocomplete="off">
+        <!-- 1. TIPO -->
+        <section class="etapa ativa" id="s-tipo">
+          <header><h2>Qual é o tipo de cadastro?</h2></header>
+          <div class="pergunta" data-campo="tipo">
+            <span class="rot">Selecione uma opção<span class="req">*</span></span>
+            <div class="escolhas">
+              <label><input type="radio" name="tipo" value="pf">Pessoa física</label>
+              <label><input type="radio" name="tipo" value="pj">Pessoa jurídica</label>
+              <label><input type="radio" name="tipo" value="contato">Somente informações de contato</label>
+            </div>
+            <span class="msg-erro">Selecione o tipo de cadastro.</span>
+          </div>
+        </section>
+
+        <!-- 2. IDENTIFICAÇÃO -->
+        <section class="etapa" id="s-ident">
+          <header><h2 id="identTitulo">Identificação</h2></header>
+          <div class="pergunta" data-campo="nome">
+            <label for="nome">Nome<span class="req">*</span></label>
+            <p class="dica" id="nomeDica">Nome completo, em letras maiúsculas.</p>
+            <input type="text" id="nome" class="caixa-alta" maxlength="200">
+            <span class="msg-erro">Informe o nome.</span>
+          </div>
+          <div class="pergunta so-pj" data-campo="cnpjBusca">
+            <label for="cnpjBusca">CNPJ<span class="req">*</span></label>
+            <p class="dica">Clique em Buscar para trazer os dados da Receita, ou siga e preencha manualmente.</p>
+            <div class="linha-campo">
+              <input type="text" id="cnpjBusca" inputmode="numeric" placeholder="00.000.000/0000-00" data-mascara="cnpj">
+              <button type="button" class="btn esc" id="btnCNPJ">Buscar</button>
+            </div>
+            <span class="msg-erro" id="cnpjBuscaErro">Informe um CNPJ válido.</span>
+            <div class="retorno" id="retornoCNPJ" hidden></div>
+          </div>
+          <div class="pergunta so-pj" data-campo="natureza">
+            <label for="natureza">Natureza jurídica</label>
+            <select id="natureza"><option value="">Selecione</option></select>
+          </div>
+        </section>
+
+        <!-- 3a. PESSOA FÍSICA -->
+        <section class="etapa" id="s-pf">
+          <header><h2>Pessoa física</h2><p>Dados pessoais para a qualificação.</p></header>
+          <div class="pergunta" data-campo="genero">
+            <span class="rot">Gênero<span class="req">*</span></span>
+            <div class="escolhas"><label><input type="radio" name="genero" value="m">Masculino</label><label><input type="radio" name="genero" value="f">Feminino</label></div>
+            <span class="msg-erro">Selecione o gênero (usado na concordância da qualificação).</span>
+          </div>
+          <div class="pergunta" data-campo="nacionalidade">
+            <span class="rot">Nacionalidade</span>
+            <div class="escolhas"><label><input type="radio" name="nac" value="brasileira">Brasileira</label><label><input type="radio" name="nac" value="outra">Outra</label></div>
+            <input type="text" id="nacOutra" placeholder="Ex.: portuguesa" hidden maxlength="60">
+          </div>
+          <div class="pergunta"><label for="profissao">Profissão</label><input type="text" id="profissao" maxlength="120"></div>
+          <div class="pergunta" data-campo="estado_civil">
+            <span class="rot">Estado civil</span>
+            <div class="escolhas" id="listaEC"></div>
+          </div>
+          <div class="pergunta" data-campo="cpf">
+            <label for="cpf">CPF<span class="req">*</span></label>
+            <input type="text" id="cpf" inputmode="numeric" placeholder="000.000.000-00" data-mascara="cpf">
+            <span class="msg-erro" id="cpfErro">Informe um CPF válido.</span>
+          </div>
+          <div class="grade-campos">
+            <div class="pergunta"><label for="rg">RG</label><p class="dica">Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG</p><input type="text" id="rg" maxlength="60"></div>
+            <div class="pergunta" data-campo="rgExp"><label for="rgExp">Data de expedição</label><p class="dica">DD/MM/AAAA</p><input type="text" id="rgExp" inputmode="numeric" data-mascara="data" placeholder="DD/MM/AAAA"><span class="msg-erro">Data inválida.</span></div>
+          </div>
+          <div class="pergunta"><label for="mae">Nome da mãe</label><input type="text" id="mae" class="caixa-alta" maxlength="200"></div>
+          <div class="pergunta"><label for="pai">Nome do pai</label><input type="text" id="pai" class="caixa-alta" maxlength="200"></div>
+          <div class="grade-campos">
+            <div class="pergunta" data-campo="nasc"><label for="nasc">Data de nascimento</label><input type="text" id="nasc" inputmode="numeric" data-mascara="data" placeholder="DD/MM/AAAA"><span class="msg-erro">Data inválida.</span></div>
+            <div class="pergunta"><label for="nascMun">Município de nascimento</label><input type="text" id="nascMun" maxlength="120"></div>
+            <div class="pergunta"><label for="nascUf">UF de nascimento</label><select id="nascUf" class="ufs"></select></div>
+          </div>
+        </section>
+
+        <!-- 3b. TIPO DE ENTIDADE -->
+        <section class="etapa" id="s-entidade">
+          <header><h2 id="entTitulo">Tipo de entidade</h2><p>Em qual tipo a pessoa jurídica se enquadra?</p></header>
+          <div class="pergunta"><div class="escolhas coluna-unica" id="listaEntidades"></div></div>
+        </section>
+
+        <!-- 3c. DADOS DA EMPRESA -->
+        <section class="etapa" id="s-empresa">
+          <header><h2>Pessoa jurídica</h2><p>Dados da empresa ou entidade.</p></header>
+          <div class="pergunta"><label for="fantasia">Nome fantasia</label><input type="text" id="fantasia" class="caixa-alta" maxlength="200"></div>
+          <div class="pergunta">
+            <span class="rot">Porte</span>
+            <p class="dica">Nos casos de MEI, não é preciso marcar.</p>
+            <div class="escolhas" id="listaPorte"></div>
+          </div>
+          <div class="grade-campos">
+            <div class="pergunta" data-campo="cnpj"><label for="cnpj">CNPJ<span class="req">*</span></label><input type="text" id="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" data-mascara="cnpj"><span class="msg-erro" id="cnpjErro">Informe um CNPJ válido.</span></div>
+            <div class="pergunta" data-campo="abertura"><label for="abertura">Data de abertura</label><input type="text" id="abertura" inputmode="numeric" data-mascara="data" placeholder="DD/MM/AAAA"><span class="msg-erro">Data inválida.</span></div>
+          </div>
+          <div class="pergunta"><label for="representantes">Representante(s) legal(is)</label>
+            <p class="dica">Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.</p>
+            <input type="text" id="representantes" class="caixa-alta" maxlength="400"></div>
+        </section>
+
+        <!-- 4. ENDEREÇO -->
+        <section class="etapa" id="s-endereco">
+          <header><h2>Endereço</h2></header>
+          <div class="pergunta" data-campo="cep">
+            <label for="cep">CEP</label>
+            <p class="dica">Clique em Buscar para preencher o endereço.</p>
+            <div class="linha-campo">
+              <input type="text" id="cep" inputmode="numeric" placeholder="00000-000" data-mascara="cep">
+              <button type="button" class="btn esc" id="btnCEP">Buscar</button>
+            </div>
+            <span class="msg-erro">O CEP tem 8 dígitos.</span>
+            <div class="retorno" id="retornoCEP" hidden></div>
+          </div>
+          <div class="pergunta"><label for="logradouro">Logradouro</label><p class="dica">Rua, avenida, fazenda etc.</p><input type="text" id="logradouro" maxlength="200"></div>
+          <div class="grade-campos">
+            <div class="pergunta"><label for="numero">Número</label><p class="dica">Sem número: S/N</p><input type="text" id="numero" maxlength="20"></div>
+            <div class="pergunta"><label for="complemento">Complemento</label><p class="dica">Apto, sala, bloco…</p><input type="text" id="complemento" maxlength="120"></div>
+          </div>
+          <div class="pergunta"><label for="bairro">Bairro</label><input type="text" id="bairro" maxlength="120"></div>
+          <div class="grade-campos">
+            <div class="pergunta"><label for="municipio">Município</label><input type="text" id="municipio" maxlength="120"></div>
+            <div class="pergunta"><label for="uf">UF</label><select id="uf" class="ufs"></select></div>
+          </div>
+        </section>
+
+        <!-- 5. CONTATO -->
+        <section class="etapa" id="s-contato">
+          <header><h2>Contato</h2></header>
+          <div class="pergunta" data-campo="telefones">
+            <span class="rot">Telefone<span class="req">*</span></span>
+            <p class="dica">Com DDD. Ex.: (38) 99999-0000</p>
+            <div class="lista-tel" id="listaTel"></div>
+            <div><button type="button" class="link" id="addTel">+ Adicionar outro telefone</button></div>
+            <span class="msg-erro">Informe pelo menos um telefone com DDD.</span>
+          </div>
+          <div class="pergunta" data-campo="emails">
+            <span class="rot">E-mail</span>
+            <div class="lista-tel" id="listaEmail"></div>
+            <div><button type="button" class="link" id="addEmail">+ Adicionar outro e-mail</button></div>
+            <span class="msg-erro">Confira o formato do e-mail.</span>
+          </div>
+          <div class="pergunta">
+            <span class="rot">Profissionais responsáveis</span>
+            <p class="dica">Eles aparecem no cartão da pessoa.</p>
+            <div class="escolhas multipla" id="listaResp"></div>
+          </div>
+          <div class="pergunta">
+            <label for="lgpdBase">Base legal para o tratamento dos dados (LGPD)</label>
+            <select id="lgpdBase"></select>
+          </div>
+          <div class="pergunta" data-campo="lgpdData" id="pLgpdData" hidden>
+            <label for="lgpdData">Data do consentimento</label>
+            <input type="text" id="lgpdData" inputmode="numeric" data-mascara="data" placeholder="DD/MM/AAAA">
+            <span class="msg-erro">Data inválida.</span>
+          </div>
+        </section>
+
+        <div class="navegar">
+          <button type="button" class="btn" id="btnVoltar">Voltar</button>
+          <button type="button" class="btn pri" id="btnAvancar">Próxima</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="../../assets/marca.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../../assets/dados.js"></script>
+<script src="../../assets/pessoa.js"></script>
+<script src="../../assets/comum.js"></script>
+<script>
+(async function () {
+  const { esc, url, icone, montarCasca, exigirLogin, titulo, parametro, avisar, falha, janela, ocupado } = window.UI;
+  const ctx = await exigirLogin();
+  montarCasca('pessoas', ctx);
+  titulo('Cadastro de pessoa');
+  const $ = id => document.getElementById(id);
+  const form = $('form');
+
+  // ---------- montagem das listas ----------
+  const ufs = '<option value="">—</option>' + PES.UFS.map(u => `<option>${u}</option>`).join('');
+  document.querySelectorAll('select.ufs').forEach(s => s.innerHTML = ufs);
+  $('natureza').innerHTML = '<option value="">Selecione</option>' + Object.entries(PES.NATUREZAS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('listaEC').innerHTML = Object.entries(PES.ESTADO_CIVIL).map(([k, v]) => `<label><input type="radio" name="ec" value="${k}">${v[2]}</label>`).join('');
+  $('listaPorte').innerHTML = Object.entries(PES.PORTES).map(([k, v]) => `<label><input type="radio" name="porte" value="${k}">${v}</label>`).join('');
+  $('lgpdBase').innerHTML = Object.entries(PES.LGPD).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('listaResp').innerHTML = ctx.equipe.filter(m => m.ativo).map(m => `<label><input type="checkbox" name="resp" value="${m.id}">${esc(m.nome)}</label>`).join('');
+  document.querySelector(`input[name="resp"][value="${ctx.perfil.id}"]`)?.setAttribute('checked', '');
+
+  function desenharEntidades(natureza, marcada) {
+    const lista = PES.ENTIDADES[natureza] || [];
+    $('entTitulo').textContent = PES.NATUREZAS[natureza] || 'Tipo de entidade';
+    $('listaEntidades').innerHTML = lista.map(t => `<label><input type="radio" name="entidade" value="${esc(t)}" ${t === marcada ? 'checked' : ''}>${esc(t)}</label>`).join('');
+  }
+
+  // Telefones e e-mails (listas que crescem)
+  function linhaLista(alvo, tipo, valor = '') {
+    const ehTel = tipo === 'tel';
+    const div = document.createElement('div');
+    div.className = 'item-lista';
+    div.innerHTML = `<div class="linha-campo">
+        <input type="${ehTel ? 'tel' : 'email'}" class="${ehTel ? 'tel' : 'email'}" ${ehTel ? 'inputmode="tel" data-mascara="telefone" placeholder="(00) 00000-0000"' : 'placeholder="email@exemplo.com"'} value="${esc(valor)}" aria-label="${ehTel ? 'Telefone' : 'E-mail'}">
+        ${alvo.children.length ? `<button type="button" class="icone-btn" aria-label="Remover">${icone('fechar', 15)}</button>` : ''}
+      </div>${ehTel ? '<div class="aviso-tel" hidden></div>' : ''}`;
+    div.querySelector('button')?.addEventListener('click', () => div.remove());
+    alvo.appendChild(div);
+    ligarMascaras(div);
+    if (ehTel) div.querySelector('input').addEventListener('blur', e => conferirTelefone(e.target));
+    return div.querySelector('input');
+  }
+  $('addTel').onclick = () => linhaLista($('listaTel'), 'tel').focus();
+  $('addEmail').onclick = () => linhaLista($('listaEmail'), 'email').focus();
+
+  // Máscaras
+  function ligarMascaras(raiz) {
+    raiz.querySelectorAll('[data-mascara]').forEach(inp => inp.addEventListener('input', () => {
+      const fim = inp.selectionStart === inp.value.length;
+      inp.value = PES.MASCARAS[inp.dataset.mascara](inp.value);
+      if (fim) inp.setSelectionRange(inp.value.length, inp.value.length);
+    }));
+  }
+  ligarMascaras(form);
+  form.querySelectorAll('input.caixa-alta').forEach(inp => inp.addEventListener('blur', () => { inp.value = inp.value.toUpperCase().replace(/\s+/g, ' ').trim(); }));
+
+  // ---------- estado ----------
+  let modo = 'novo';          // 'novo' ou 'atualizar'
+  let alvo = null;            // pessoa sendo atualizada
+  let passo = 0;
+  const etapaInicial = parametro('etapa');
+
+  const tipo = () => form.querySelector('input[name="tipo"]:checked')?.value || '';
+  const radio = nome => form.querySelector(`input[name="${nome}"]:checked`)?.value || '';
+  const marcarRadio = (nome, valor) => form.querySelectorAll(`input[name="${nome}"]`).forEach(r => r.checked = r.value === valor);
+
+  function fluxo() {
+    const t = tipo();
+    if (t === 'pf') return ['s-tipo', 's-ident', 's-pf', 's-endereco', 's-contato'];
+    if (t === 'pj') return ['s-tipo', 's-ident', ...($('natureza').value ? ['s-entidade'] : []), 's-empresa', 's-endereco', 's-contato'];
+    if (t === 'contato') return ['s-tipo', 's-ident', 's-contato'];
+    return ['s-tipo'];
+  }
+
+  function irPara(i) {
+    const f = fluxo();
+    passo = Math.max(0, Math.min(i, f.length - 1));
+    document.querySelectorAll('.etapa').forEach(s => s.classList.toggle('ativa', s.id === f[passo]));
+    rotularPasso();
+    if (f[passo] === 's-ident') ajustarIdent();
+    if (f[passo] === 's-entidade') desenharEntidades($('natureza').value, radio('entidade') || alvo?.tipo_entidade);
+    if (f[passo] === 's-contato' && !$('listaTel').children.length) linhaLista($('listaTel'), 'tel');
+    if (f[passo] === 's-contato' && !$('listaEmail').children.length) linhaLista($('listaEmail'), 'email');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => document.querySelector('.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select')?.focus({ preventScroll: true }), 50);
+  }
+
+  // Rótulo "Etapa X de N" e botão principal (o total muda com o tipo e a natureza jurídica).
+  function rotularPasso() {
+    const f = fluxo(), total = tipo() ? f.length : 5;
+    $('passoRot').textContent = `Etapa ${passo + 1} de ${total}`;
+    $('passoBarra').style.width = Math.round(100 * passo / Math.max(1, total - 1)) + '%';
+    $('btnVoltar').style.visibility = passo === 0 ? 'hidden' : 'visible';
+    const ultimo = passo === f.length - 1 && tipo();
+    $('btnAvancar').textContent = ultimo ? (modo === 'atualizar' ? 'Salvar alterações' : 'Salvar cadastro') : 'Próxima';
+  }
+
+  function ajustarIdent() {
+    const pj = tipo() === 'pj';
+    document.querySelectorAll('.so-pj').forEach(el => el.hidden = !pj);
+    $('identTitulo').textContent = pj ? 'Dados da empresa' : tipo() === 'pf' ? 'Dados pessoais' : 'Identificação';
+    $('nomeDica').textContent = pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.';
+  }
+
+  // ---------- validação ----------
+  function erro(campo, sim, texto) {
+    const p = form.querySelector(`[data-campo="${campo}"]`);
+    if (!p) return;
+    p.classList.toggle('erro', sim);
+    if (texto) { const m = p.querySelector('.msg-erro'); if (m) m.textContent = texto; }
+  }
+  function dataOk(id, campo) {
+    try { PES.lerData($(id).value); erro(campo, false); return true; }
+    catch (e) { erro(campo, true, e.message); return false; }
+  }
+
+  async function validar(etapa) {
+    let ok = true;
+    const marcar = (c, cond, txt) => { erro(c, !cond, txt); if (!cond) ok = false; };
+    if (etapa === 's-tipo') marcar('tipo', !!tipo());
+    if (etapa === 's-ident') {
+      $('nome').value = $('nome').value.toUpperCase().replace(/\s+/g, ' ').trim();
+      marcar('nome', !!$('nome').value);
+      if (tipo() === 'pj') {
+        const d = PES.dig($('cnpjBusca').value);
+        marcar('cnpjBusca', PES.cnpjValido(d), d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.');
+        if (ok) { if (!$('cnpj').value) $('cnpj').value = PES.fmtCNPJ(d); ok = await verificarDocumento(d); }
+      }
+    }
+    if (etapa === 's-pf') {
+      marcar('genero', !!radio('genero'));
+      const d = PES.dig($('cpf').value);
+      marcar('cpf', PES.cpfValido(d), d ? 'CPF inválido: confira os números.' : 'Informe o CPF.');
+      ok = dataOk('rgExp', 'rgExp') && ok;
+      ok = dataOk('nasc', 'nasc') && ok;
+      if (ok) ok = await verificarDocumento(d);
+    }
+    if (etapa === 's-empresa') {
+      const d = PES.dig($('cnpj').value);
+      marcar('cnpj', PES.cnpjValido(d), d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.');
+      ok = dataOk('abertura', 'abertura') && ok;
+      if (ok) ok = await verificarDocumento(d);
+    }
+    if (etapa === 's-endereco') {
+      const c = PES.dig($('cep').value);
+      marcar('cep', !c || c.length === 8);
+    }
+    if (etapa === 's-contato') {
+      const tels = [...document.querySelectorAll('#listaTel .tel')].map(i => PES.dig(i.value)).filter(Boolean);
+      marcar('telefones', tels.length > 0 && tels.every(t => t.length >= 10 && t.length <= 13), tels.length ? 'Confira os telefones: use DDD + número.' : 'Informe pelo menos um telefone com DDD.');
+      const emails = [...document.querySelectorAll('#listaEmail .email')].map(i => i.value.trim()).filter(Boolean);
+      marcar('emails', emails.every(PES.emailValido));
+      if ($('lgpdBase').value === 'consentimento') ok = dataOk('lgpdData', 'lgpdData') && ok;
+    }
+    if (!ok) document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return ok;
+  }
+  form.addEventListener('input', e => e.target.closest('.pergunta')?.classList.remove('erro'));
+  form.addEventListener('change', e => e.target.closest('.pergunta')?.classList.remove('erro'));
+
+  // ---------- duplicidade ----------
+  // A mesma verificação pode ser pedida ao sair do campo e ao avançar: uma só pergunta por documento.
+  let verificacao = { doc: null, promessa: null };
+  function verificarDocumento(doc) {
+    if (verificacao.doc === doc && verificacao.promessa) return verificacao.promessa;
+    const promessa = conferirDocumento(doc).then(ok => { if (!ok) verificacao = { doc: null, promessa: null }; return ok; });
+    verificacao = { doc, promessa };
+    return promessa;
+  }
+
+  // CPF/CNPJ já cadastrado: oferece atualizar o cadastro existente com os dados desta tela.
+  async function conferirDocumento(doc) {
+    if (!doc || (modo === 'atualizar' && alvo?.documento === doc)) return true;
+    let ex;
+    try { ex = await SD.pessoaPorDocumento(doc, alvo?.id); }
+    catch (e) { falha(e); return false; }
+    if (!ex) return true;
+    const rotulo = doc.length === 14 ? 'CNPJ' : 'CPF';
+    if (modo === 'atualizar') {
+      await janela({ titulo: `${rotulo} já cadastrado`, html: `<p>Já existe outro cadastro com este ${rotulo}: <b>${esc(ex.nome)}</b> (${esc(ex.codigo)}). Dois cadastros não podem ter o mesmo documento.</p>`,
+        acoes: [{ rotulo: 'Ver o outro cadastro', valor: 'ver' }, { rotulo: 'Corrigir', valor: null, tipo: 'pri' }] }).then(v => { if (v === 'ver') location.href = url('pessoas/?id=' + ex.id); });
+      return false;
+    }
+    const escolha = await janela({
+      titulo: 'Cadastro já existente',
+      html: `<p>Já existe um cadastro com este ${rotulo}: <b>${esc(ex.nome)}</b> (${esc(ex.codigo)})${ex.arquivado_em ? ', que está arquivado' : ''}.</p>
+             <p>Deseja atualizar as informações dessa pessoa com os dados desta tela? O que ela já tem e você não preencher aqui é mantido, e os dados anteriores ficam no histórico.${ex.arquivado_em ? ' O cadastro volta para as ativas.' : ''}</p>`,
+      acoes: [{ rotulo: 'Ver cadastro existente', valor: 'ver' }, { rotulo: 'Cancelar', valor: null }, { rotulo: 'Atualizar este cadastro', valor: 'atualizar', tipo: 'pri' }]
+    });
+    if (escolha === 'ver') { location.href = url('pessoas/?id=' + ex.id); return false; }
+    if (escolha !== 'atualizar') return false;
+    await entrarAtualizacao(ex.id, true);
+    return true;
+  }
+
+  // Telefone repetido: só avisa, sem impedir.
+  async function conferirTelefone(inp) {
+    const aviso = inp.closest('.item-lista').querySelector('.aviso-tel');
+    const t = PES.telefoneNormal(inp.value);
+    aviso.hidden = true;
+    if (t.length < 10) return;
+    try {
+      const achados = await SD.pessoasPorTelefones([t], alvo?.id);
+      if (!achados.length) return;
+      aviso.innerHTML = `Já existe cadastro com este telefone: ${achados.map(a => `<a href="${url('pessoas/?id=' + a.id)}" target="_blank" rel="noopener">${esc(a.nome)}</a>`).join(', ')}. Você pode seguir normalmente.`;
+      aviso.hidden = false;
+    } catch (e) { /* aviso não é essencial */ }
+  }
+
+  // ---------- consultas ----------
+  $('btnCNPJ').onclick = async () => {
+    const d = PES.dig($('cnpjBusca').value), ret = $('retornoCNPJ');
+    if (!PES.cnpjValido(d)) { erro('cnpjBusca', true, d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.'); return; }
+    if (!(await verificarDocumento(d))) return;
+    ocupado($('btnCNPJ'), true, 'Buscando…');
+    try {
+      const x = await PES.consultarCNPJ(d);
+      $('nome').value = x.nome || $('nome').value;
+      if (x.natureza) $('natureza').value = x.natureza;
+      $('cnpj').value = PES.fmtCNPJ(d);
+      if (x.nome_fantasia) $('fantasia').value = x.nome_fantasia;
+      if (x.porte) marcarRadio('porte', x.porte);
+      if (x.abertura) $('abertura').value = PES.fmtData(x.abertura);
+      if (x.representantes) $('representantes').value = x.representantes;
+      if (x.tipo_entidade) { desenharEntidades(x.natureza, x.tipo_entidade); }
+      if (x.cep) $('cep').value = PES.fmtCEP(x.cep);
+      ['logradouro', 'numero', 'complemento', 'bairro', 'municipio'].forEach(k => { if (x[k]) $(k).value = x[k]; });
+      if (x.uf) $('uf').value = x.uf;
+      if (x.telefones.length) { $('listaTel').innerHTML = ''; x.telefones.forEach(t => linhaLista($('listaTel'), 'tel', t)); }
+      if (x.emails.length) { $('listaEmail').innerHTML = ''; x.emails.forEach(t => linhaLista($('listaEmail'), 'email', t)); }
+      ret.className = 'retorno aviso ok';
+      ret.innerHTML = `Encontrado: <b>${esc(x.nome)}</b>${x.tipo_entidade ? ' · ' + esc(x.tipo_entidade) : ''}. Confira os dados nas próximas etapas.`;
+      rotularPasso();
+    } catch (e) {
+      ret.className = 'retorno aviso erro'; ret.textContent = e.message + ' Você pode preencher manualmente.';
+    }
+    ret.hidden = false;
+    ocupado($('btnCNPJ'), false);
+  };
+
+  $('btnCEP').onclick = async () => {
+    const ret = $('retornoCEP');
+    ocupado($('btnCEP'), true, 'Buscando…');
+    try {
+      const x = await PES.consultarCEP($('cep').value);
+      ['logradouro', 'bairro', 'municipio'].forEach(k => { if (x[k]) $(k).value = x[k]; });
+      if (x.uf) $('uf').value = x.uf;
+      ret.className = 'retorno aviso ok'; ret.textContent = 'Endereço preenchido. Informe o número e o complemento, se houver.';
+      $('numero').focus();
+    } catch (e) { ret.className = 'retorno aviso erro'; ret.textContent = e.message; }
+    ret.hidden = false;
+    ocupado($('btnCEP'), false);
+  };
+
+  form.querySelectorAll('input[name="nac"]').forEach(r => r.onchange = () => { $('nacOutra').hidden = radio('nac') !== 'outra'; if (!$('nacOutra').hidden) $('nacOutra').focus(); });
+  $('lgpdBase').onchange = () => { $('pLgpdData').hidden = $('lgpdBase').value !== 'consentimento'; };
+  $('natureza').onchange = () => {
+    if (form.querySelector('input[name="entidade"]:checked') && !PES.ENTIDADES[$('natureza').value]?.includes(radio('entidade'))) $('listaEntidades').innerHTML = '';
+    rotularPasso();
+  };
+  $('cpf').addEventListener('blur', () => { const d = PES.dig($('cpf').value); if (PES.cpfValido(d)) verificarDocumento(d); else if (d) erro('cpf', true, 'CPF inválido: confira os números.'); });
+  $('cnpj').addEventListener('blur', () => { const d = PES.dig($('cnpj').value); if (PES.cnpjValido(d)) verificarDocumento(d); else if (d) erro('cnpj', true, 'CNPJ inválido: confira os números.'); });
+
+  // ---------- preencher (atualização) ----------
+  function preencher(p, soVazios) {
+    const poe = (id, v) => { const el = $(id); if (!el || v === null || v === undefined || v === '') return; if (!soVazios || !el.value) el.value = v; };
+    const poeRadio = (nome, v) => { if (!v) return; if (!soVazios || !radio(nome)) marcarRadio(nome, v); };
+    if (!soVazios || !tipo()) marcarRadio('tipo', p.tipo);
+    poe('nome', p.nome);
+    if (p.tipo === 'pj' && p.documento) { poe('cnpjBusca', PES.fmtCNPJ(p.documento)); poe('cnpj', PES.fmtCNPJ(p.documento)); }
+    if (p.tipo === 'pf' && p.documento) poe('cpf', PES.fmtCPF(p.documento));
+    if (p.natureza && (!soVazios || !$('natureza').value)) $('natureza').value = p.natureza;
+    poeRadio('genero', p.genero);
+    if (p.nacionalidade) {
+      const bra = /^brasileir/i.test(p.nacionalidade);
+      if (!soVazios || !radio('nac')) { marcarRadio('nac', bra ? 'brasileira' : 'outra'); $('nacOutra').hidden = bra; if (!bra) $('nacOutra').value = p.nacionalidade; }
+    }
+    poe('profissao', p.profissao); poeRadio('ec', p.estado_civil); poe('rg', p.rg); poe('rgExp', PES.fmtData(p.rg_expedicao));
+    poe('mae', p.nome_mae); poe('pai', p.nome_pai); poe('nasc', PES.fmtData(p.nascimento)); poe('nascMun', p.nascimento_municipio); poe('nascUf', p.nascimento_uf);
+    poe('fantasia', p.nome_fantasia); poeRadio('porte', p.porte); poe('abertura', PES.fmtData(p.abertura)); poe('representantes', p.representantes);
+    if (p.tipo_entidade && p.natureza) desenharEntidades(p.natureza, soVazios && radio('entidade') ? radio('entidade') : p.tipo_entidade);
+    poe('cep', PES.fmtCEP(p.cep)); poe('logradouro', p.logradouro); poe('numero', p.numero); poe('complemento', p.complemento);
+    poe('bairro', p.bairro); poe('municipio', p.municipio); poe('uf', p.uf);
+    const juntar = (alvoEl, tipoL, novos) => {
+      const atuais = [...alvoEl.querySelectorAll('input')].map(i => i.value.trim()).filter(Boolean);
+      const chave = v => tipoL === 'tel' ? PES.telefoneNormal(v) : v.toLowerCase();
+      const todos = soVazios ? [...atuais] : [];
+      novos.forEach(v => { if (!todos.some(x => chave(x) === chave(v))) todos.push(tipoL === 'tel' ? PES.fmtTelefone(v) : v); });
+      alvoEl.innerHTML = '';
+      (todos.length ? todos : ['']).forEach(v => linhaLista(alvoEl, tipoL, v));
+    };
+    juntar($('listaTel'), 'tel', p.telefones || []);
+    juntar($('listaEmail'), 'email', p.emails || []);
+    if (p.lgpd_base && (!soVazios || $('lgpdBase').value === 'contrato')) $('lgpdBase').value = p.lgpd_base;
+    $('pLgpdData').hidden = $('lgpdBase').value !== 'consentimento';
+    poe('lgpdData', PES.fmtData(p.lgpd_consentimento));
+    const resp = new Set([...(soVazios ? [...form.querySelectorAll('input[name="resp"]:checked')].map(c => c.value) : []), ...(p.resp || []).map(r => r.perfil_id)]);
+    form.querySelectorAll('input[name="resp"]').forEach(c => c.checked = resp.has(c.value));
+  }
+
+  async function entrarAtualizacao(id, mesclar) {
+    const p = await SD.pessoaObter(id);
+    if (!p) throw new Error('Cadastro não encontrado.');
+    alvo = p; modo = 'atualizar';
+    preencher(p, mesclar);
+    $('titulo').innerHTML = 'Atualizar cadastro<span class="ponto">.</span>';
+    $('faixa').hidden = false;
+    $('faixa').innerHTML = `Você está atualizando o cadastro de <b>${esc(p.nome)}</b> (${esc(p.codigo)}). As informações anteriores ficam guardadas no histórico.`;
+    titulo('Atualizar cadastro');
+  }
+
+  // ---------- coleta e envio ----------
+  function coletar() {
+    const t = tipo(), v = id => $(id).value.trim() || null, maius = id => (v(id) || '').toUpperCase() || null;
+    const d = { tipo: t, nome: $('nome').value.toUpperCase().replace(/\s+/g, ' ').trim() };
+    const pf = { genero: null, nacionalidade: null, profissao: null, estado_civil: null, rg: null, rg_expedicao: null, nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null };
+    const pj = { natureza: null, tipo_entidade: null, nome_fantasia: null, porte: null, abertura: null, representantes: null };
+    if (t === 'pf') {
+      Object.assign(d, pj, {
+        genero: radio('genero') || null,
+        nacionalidade: radio('nac') === 'brasileira' ? 'brasileira' : radio('nac') === 'outra' ? (v('nacOutra') || null) : null,
+        profissao: v('profissao'), estado_civil: radio('ec') || null, rg: v('rg'), rg_expedicao: PES.lerData($('rgExp').value),
+        nome_mae: maius('mae'), nome_pai: maius('pai'), nascimento: PES.lerData($('nasc').value),
+        nascimento_municipio: v('nascMun'), nascimento_uf: v('nascUf'), documento: PES.dig($('cpf').value) || null
+      });
+    } else if (t === 'pj') {
+      const nat = $('natureza').value || null, ent = radio('entidade');
+      Object.assign(d, pf, {
+        natureza: nat, tipo_entidade: nat && PES.ENTIDADES[nat]?.includes(ent) ? ent : null,
+        nome_fantasia: maius('fantasia'), porte: radio('porte') || null, abertura: PES.lerData($('abertura').value),
+        representantes: maius('representantes'), documento: PES.dig($('cnpj').value) || PES.dig($('cnpjBusca').value) || null
+      });
+    }
+    if (t !== 'contato') Object.assign(d, {
+      cep: PES.dig($('cep').value) || null, logradouro: v('logradouro'), numero: v('numero'), complemento: v('complemento'),
+      bairro: v('bairro'), municipio: v('municipio'), uf: v('uf')
+    });
+    d.telefones = [...new Set([...document.querySelectorAll('#listaTel .tel')].map(i => PES.fmtTelefone(i.value)).filter(x => PES.dig(x)))];
+    d.emails = [...new Set([...document.querySelectorAll('#listaEmail .email')].map(i => i.value.trim().toLowerCase()).filter(Boolean))];
+    d.lgpd_base = $('lgpdBase').value || null;
+    d.lgpd_consentimento = d.lgpd_base === 'consentimento' ? PES.lerData($('lgpdData').value) : null;
+    return d;
+  }
+
+  async function salvar() {
+    const btn = $('btnAvancar');
+    let dados;
+    try { dados = coletar(); } catch (e) { falha(e); return; }
+    const resp = [...form.querySelectorAll('input[name="resp"]:checked')].map(c => c.value);
+    ocupado(btn, true, 'Salvando…');
+    try {
+      let r;
+      if (modo === 'atualizar') {
+        if (alvo.arquivado_em) { dados.arquivado_em = null; dados.arquivado_por = null; }
+        r = await SD.pessoaAtualizar(alvo.id, dados, resp);
+      } else {
+        if (etapaInicial) dados.etapa_id = etapaInicial, dados.etapa_ordem = Date.now() / 1000;
+        r = await SD.pessoaCriar(dados, resp);
+      }
+      location.href = url(`pessoas/?id=${r.id}&salvo=${modo === 'atualizar' ? 'atualizado' : 'novo'}`);
+    } catch (e) {
+      falha(e);
+      ocupado(btn, false);
+    }
+  }
+
+  $('btnAvancar').onclick = async () => {
+    const f = fluxo();
+    ocupado($('btnAvancar'), true);
+    const ok = await validar(f[passo]);
+    ocupado($('btnAvancar'), false);
+    if (!ok) return;
+    if (passo === fluxo().length - 1 && tipo()) return salvar();
+    irPara(passo + 1);
+  };
+  $('btnVoltar').onclick = () => irPara(passo - 1);
+  form.querySelectorAll('input[name="tipo"]').forEach(r => r.addEventListener('change', () => setTimeout(() => $('btnAvancar').click(), 200)));
+
+  // Enter: vai para o próximo campo da etapa ou para a próxima etapa.
+  form.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+    e.preventDefault();
+    if (e.target.id === 'cep') return $('btnCEP').click();
+    if (e.target.id === 'cnpjBusca') return $('btnCNPJ').click();
+    const campos = [...document.querySelectorAll('.etapa.ativa input:not([type="radio"]):not([type="checkbox"]):not([hidden]), .etapa.ativa select')]
+      .filter(el => el.offsetParent !== null);
+    const i = campos.indexOf(e.target);
+    if (i >= 0 && i < campos.length - 1) campos[i + 1].focus(); else $('btnAvancar').click();
+  });
+
+  // ---------- início ----------
+  const idAtualizar = parametro('id');
+  if (idAtualizar) {
+    try { await entrarAtualizacao(idAtualizar, false); }
+    catch (e) { falha(e); }
+  }
+  $('voltarLista').href = idAtualizar ? url('pessoas/?id=' + idAtualizar) : url('pessoas/');
+  irPara(0);
+})();
+</script>
+</body>
+</html>

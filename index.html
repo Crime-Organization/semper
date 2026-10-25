@@ -6,7 +6,7 @@
 <title>Entrar · Braga Ferreira SEMPER</title>
 <link rel="icon" href="assets/img/favicon.png">
 <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/estilo.css?v=202610231000">
+<link rel="stylesheet" href="assets/estilo.css">
 <style>
 .tela{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 .lado{position:relative;background:var(--dark);color:#FBFBF9;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:40px clamp(24px,4vw,56px)}
@@ -17,14 +17,15 @@
 .form-lado{display:flex;align-items:center;justify-content:center;padding:48px max(16px,env(safe-area-inset-right,0px)) 48px max(16px,env(safe-area-inset-left,0px))}
 .caixa{width:100%;max-width:420px;display:flex;flex-direction:column;gap:24px}
 .abas{display:flex;gap:4px;padding:4px;background:var(--soft);border:1px solid var(--line);border-radius:999px}
-.abas button{flex:1;height:40px;border:0;border-radius:999px;background:transparent;font-weight:700;font-size:14px;color:var(--muted);cursor:pointer}
+.abas button{flex:1;height:40px;border:0;border-radius:999px;background:transparent;font-weight:700;font-size:14px;color:var(--muted);cursor:pointer;justify-content:center}
 .abas button[aria-selected="true"]{background:var(--dark);color:#fff}
 form{display:flex;flex-direction:column;gap:16px}
 label{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:700;color:var(--text)}
 input{height:48px;padding:0 14px;border-radius:10px;border:1px solid var(--line2);background:#fff;font-size:16px;color:var(--ink)}
 input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 .btn.pri{height:48px}
-.link{background:none;border:0;padding:0;color:var(--accent-ink);font-weight:700;font-size:14px;cursor:pointer;align-self:flex-start;border-bottom:1px solid currentColor}
+.link{align-self:flex-start}
+.links{display:flex;flex-wrap:wrap;gap:10px 20px}
 .dica{font-size:13px;color:var(--muted);margin:0}
 @media (max-width:820px){.tela{grid-template-columns:1fr}.lado{min-height:260px}.lado p{display:none}}
 </style>
@@ -62,11 +63,25 @@ input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transp
         <label>E-mail<input id="eEmail" type="email" autocomplete="email" required></label>
         <label>Senha<input id="eSenha" type="password" autocomplete="current-password" required></label>
         <button class="btn pri" type="submit">Entrar</button>
-        <button class="link" type="button" data-ir="recuperar">Esqueci minha senha</button>
-        <p class="dica">Os acessos da equipe são criados pelo administrador do escritório.</p>
+        <div class="links">
+          <button class="link" type="button" data-ir="recuperar">Esqueci minha senha</button>
+          <button class="link" type="button" data-ir="primeiro">Primeiro acesso</button>
+        </div>
+        <p class="dica">Os acessos da equipe são liberados pelo administrador do escritório.</p>
       </form>
 
-      <!-- Cliente: entrar ou solicitar acesso -->
+      <!-- Primeiro acesso: só para quem recebeu convite -->
+      <form id="fPrimeiro" data-painel="primeiro" novalidate hidden>
+        <p class="dica" style="font-size:14px">Use o e-mail em que você recebeu o convite do escritório e crie sua senha.</p>
+        <label>E-mail do convite<input id="pEmail" type="email" autocomplete="email" required></label>
+        <label>Crie uma senha<input id="pSenha" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repita a senha<input id="pSenha2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <p class="dica">Use pelo menos 8 caracteres.</p>
+        <button class="btn pri" type="submit">Criar meu acesso</button>
+        <button class="link" type="button" data-ir="entrar">Voltar para entrar</button>
+      </form>
+
+      <!-- Cliente: portal em preparação -->
       <form id="fCliente" data-painel="cliente" novalidate hidden>
         <label>E-mail<input id="clEmail" type="email" autocomplete="email" required></label>
         <label>Senha<input id="clSenha" type="password" autocomplete="current-password" required></label>
@@ -74,7 +89,6 @@ input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transp
         <button class="link" type="button" data-ir="solicitar">Ainda não tenho acesso</button>
       </form>
 
-      <!-- Solicitar acesso (cliente já cadastrado pelo escritório) -->
       <form id="fSolicitar" data-painel="solicitar" novalidate hidden>
         <label>CPF ou CNPJ<input id="sDoc" inputmode="numeric" autocomplete="off" required></label>
         <label>E-mail<input id="sEmail" type="email" autocomplete="email" required></label>
@@ -90,49 +104,114 @@ input:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transp
         <button class="btn pri" type="submit">Enviar link</button>
         <button class="link" type="button" data-ir="entrar">Voltar para entrar</button>
       </form>
+
+      <!-- Nova senha (aberta pelo link do e-mail) -->
+      <form id="fNova" data-painel="nova" novalidate hidden>
+        <label>Nova senha<input id="nSenha" type="password" autocomplete="new-password" minlength="8" required></label>
+        <label>Repita a nova senha<input id="nSenha2" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="btn pri" type="submit">Salvar nova senha</button>
+      </form>
     </div>
   </div>
 </div>
 
-<script src="assets/marca.js?v=202610231000"></script>
+<script src="assets/marca.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="assets/dados.js"></script>
 <script>
 (function () {
   const M = window.MARCA;
-  document.getElementById('logo').src = 'assets/img/' + M.logoClaro;
-  document.getElementById('logo').alt = M.nome;
-  document.getElementById('marcaLink').href = M.site;
-  document.getElementById('sub').textContent = M.submarca;
-  document.getElementById('sub2').textContent = M.submarca;
+  const $ = id => document.getElementById(id);
+  $('logo').src = 'assets/img/' + M.logoClaro;
+  $('logo').alt = M.nome;
+  $('marcaLink').href = M.site;
+  $('sub').textContent = M.submarca;
+  $('sub2').textContent = M.submarca;
   document.title = `Entrar · ${M.nome} ${M.submarca}`;
-  document.documentElement.style.setProperty('--accent', M.cores.destaque);
 
-  const msg = document.getElementById('msg');
+  const aqui = new URL('./', location.href).href;            // endereço do SEMPER (para os links dos e-mails)
+  const params = new URLSearchParams(location.search);
+  const volta = params.get('volta');
+  const destino = volta && volta.startsWith('/') && !volta.startsWith('//') ? volta : 'inicio/';
+  const msg = $('msg');
   const avisar = (texto, tipo = 'erro') => { msg.textContent = texto; msg.className = 'aviso ' + tipo; msg.hidden = !texto; };
-  const titulos = { entrar: 'Entrar', cliente: 'Área do cliente', solicitar: 'Solicitar acesso', recuperar: 'Recuperar senha' };
-  const abaDe = { entrar: 'entrar', recuperar: 'entrar', cliente: 'cliente', solicitar: 'cliente' };
+  const titulos = { entrar: 'Entrar', primeiro: 'Primeiro acesso', cliente: 'Área do cliente', solicitar: 'Solicitar acesso', recuperar: 'Recuperar senha', nova: 'Nova senha' };
+  const abaDe = { entrar: 'entrar', primeiro: 'entrar', recuperar: 'entrar', cliente: 'cliente', solicitar: 'cliente' };
 
   function mostrar(painel) {
     document.querySelectorAll('form[data-painel]').forEach(f => f.hidden = f.dataset.painel !== painel);
     document.querySelectorAll('#abas button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.aba === abaDe[painel])));
-    document.getElementById('abas').hidden = !['entrar', 'cliente'].includes(painel);
-    document.getElementById('tit').textContent = titulos[painel];
+    $('abas').hidden = !abaDe[painel];
+    $('tit').textContent = titulos[painel];
     avisar('');
-    const primeiro = document.querySelector(`form[data-painel="${painel}"] input`);
-    if (primeiro) primeiro.focus();
+    document.querySelector(`form[data-painel="${painel}"] input`)?.focus();
   }
   document.querySelectorAll('#abas button').forEach(b => b.onclick = () => mostrar(b.dataset.aba));
   document.querySelectorAll('[data-ir]').forEach(b => b.onclick = () => mostrar(b.dataset.ir));
 
-  // A autenticação será ligada quando o banco de dados do SEMPER for criado.
-  document.querySelectorAll('form[data-painel]').forEach(f => f.onsubmit = e => {
-    e.preventDefault();
-    const vazio = [...f.querySelectorAll('input[required]')].find(i => !i.value.trim());
-    if (vazio) { vazio.focus(); return avisar('Preencha todos os campos.'); }
-    avisar('O acesso ao SEMPER ainda está em preparação.', 'info');
+  const ocupado = (form, sim) => form.querySelectorAll('button').forEach(b => b.disabled = sim);
+  const emailOk = v => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.trim());
+
+  $('fEntrar').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    if (!emailOk(eEmail.value) || !eSenha.value) return avisar('Informe o e-mail e a senha.');
+    ocupado(f, true);
+    try { await SD.entrar(eEmail.value, eSenha.value); location.href = destino; }
+    catch (err) { avisar(err.message); ocupado(f, false); }
+  };
+
+  $('fPrimeiro').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    if (!emailOk(pEmail.value)) return avisar('Informe o e-mail em que você recebeu o convite.');
+    if (pSenha.value.length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');
+    if (pSenha.value !== pSenha2.value) return avisar('As duas senhas não são iguais.');
+    ocupado(f, true);
+    try {
+      const { entrou } = await SD.primeiroAcesso(pEmail.value, pSenha.value, aqui);
+      if (entrou) { location.href = 'inicio/'; return; }
+      f.reset(); mostrar('entrar');
+      avisar('Acesso criado. Enviamos um e-mail de confirmação: clique no link para ativar e depois entre com sua senha.', 'ok');
+    } catch (err) { avisar(err.message); }
+    ocupado(f, false);
+  };
+
+  const portalEmBreve = e => { e.preventDefault(); avisar('O portal do cliente ainda está em preparação. Fale com o advogado responsável pelo seu atendimento.', 'info'); };
+  $('fCliente').onsubmit = portalEmBreve;
+  $('fSolicitar').onsubmit = portalEmBreve;
+
+  $('fRecuperar').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    if (!emailOk(rEmail.value)) return avisar('Informe o e-mail da sua conta.');
+    ocupado(f, true);
+    try {
+      await SD.recuperarSenha(rEmail.value, aqui + '?nova-senha');
+      avisar('Se houver uma conta com esse e-mail, o link para criar uma nova senha chegará em instantes.', 'ok');
+    } catch (err) { avisar(err.message); }
+    ocupado(f, false);
+  };
+
+  $('fNova').onsubmit = async e => {
+    e.preventDefault(); const f = e.target;
+    if (nSenha.value.length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');
+    if (nSenha.value !== nSenha2.value) return avisar('As duas senhas não são iguais.');
+    ocupado(f, true);
+    try { await SD.novaSenha(nSenha.value); location.href = 'inicio/'; }
+    catch (err) { avisar(err.message); ocupado(f, false); }
+  };
+
+  // Links dos e-mails: a confirmação de cadastro entra direto; o de nova senha abre o formulário.
+  const porRecuperacao = location.hash.includes('type=recovery') || params.has('nova-senha');
+  SD.aoMudarSessao(evento => {
+    if (evento === 'PASSWORD_RECOVERY') mostrar('nova');
+    else if (evento === 'SIGNED_IN' && !porRecuperacao && location.hash.includes('access_token')) location.replace('inicio/');
   });
 
-  const params = new URLSearchParams(location.search);
-  mostrar(params.has('cliente') ? 'cliente' : params.has('recuperar') ? 'recuperar' : 'entrar');
+  if (porRecuperacao) mostrar('nova');
+  else {
+    mostrar(params.has('primeiro-acesso') ? 'primeiro' : params.has('recuperar') ? 'recuperar' : params.has('cliente') ? 'cliente' : 'entrar');
+    if (params.has('desativado')) avisar('Seu acesso a este escritório está desativado. Fale com o administrador.', 'info');
+    SD.sessao().then(s => { if (s && !params.has('desativado')) location.replace(destino); });
+  }
 })();
 </script>
 </body>

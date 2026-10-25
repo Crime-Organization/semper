@@ -17,4 +17,4 @@ DirectoryIndex index.html
 </FilesMatch>
 
 # Material de referência e configurações locais também não.
-RedirectMatch 404 ^/semper/(referencia|\.claude|\.git)(/|$)
+RedirectMatch 404 ^/semper/(referencia|banco|dev|\.claude|\.git)(/|$)
