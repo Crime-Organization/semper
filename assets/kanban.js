@@ -29,14 +29,11 @@
     const estado = new Map();   // colunaId -> { itens, total }
     const chave = id => id || 'sem';
 
+    // A altura vem só do layout (estilo.css, "com-quadro"): o quadro preenche o que sobra da tela.
     alvo.innerHTML = '<div class="quadro" role="region" aria-label="Quadro"></div>';
+    alvo.classList.add('area-quadro');
+    document.body.classList.add('com-quadro');
     const quadro = alvo.querySelector('.quadro');
-
-    function ajustarAltura() {
-      const topo = quadro.getBoundingClientRect().top;
-      quadro.style.height = Math.max(360, window.innerHeight - topo - 16) + 'px';
-    }
-    window.addEventListener('resize', ajustarAltura);
 
     function htmlColuna(c) {
       const id = c ? c.id : null;
@@ -70,7 +67,6 @@
         </section>`;
       preencherSugestoes();
       ligarColunas();
-      ajustarAltura();
       carregarTodas();
     }
 
@@ -329,7 +325,7 @@
     desenhar();
     return {
       recarregar: carregarTodas,
-      destruir: () => window.removeEventListener('resize', ajustarAltura)
+      destruir: () => { alvo.classList.remove('area-quadro'); document.body.classList.remove('com-quadro'); }
     };
   }
 
