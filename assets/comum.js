@@ -86,16 +86,83 @@
   }
 
   // ---------- avisos rápidos ----------
-  function avisar(texto, tipo = 'ok') {
+  // acao (opcional): { rotulo, fn } vira um botão no aviso (ex.: "Desfazer").
+  function avisar(texto, tipo = 'ok', acao) {
     let caixa = document.getElementById('avisos');
     if (!caixa) { caixa = document.createElement('div'); caixa.id = 'avisos'; caixa.setAttribute('role', 'status'); document.body.appendChild(caixa); }
     const el = document.createElement('div');
     el.className = 'toast ' + tipo;
-    el.textContent = texto;
+    el.appendChild(document.createTextNode(texto));
+    if (acao) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'toast-acao'; b.textContent = acao.rotulo;
+      b.onclick = () => { el.remove(); acao.fn(); };
+      el.appendChild(b);
+    }
     caixa.appendChild(el);
-    setTimeout(() => { el.classList.add('sai'); setTimeout(() => el.remove(), 300); }, tipo === 'erro' ? 6000 : 3500);
+    setTimeout(() => { el.classList.add('sai'); setTimeout(() => el.remove(), 300); }, tipo === 'erro' ? 6000 : acao ? 8000 : 3500);
+    return el;
   }
   const falha = e => avisar(e?.message || 'Não foi possível concluir agora.', 'erro');
+
+  // ---------- desfazer (Ctrl+Z) ----------
+  // Cada ação que pode ser revertida registra como desfazê-la. Ctrl+Z (fora de campos de texto,
+  // onde vale o desfazer do navegador) ou o botão do aviso desfazem a mais recente.
+  const pilha = [];
+  function registrarDesfazer(descricao, acao) {
+    const item = { descricao, acao };
+    pilha.push(item);
+    if (pilha.length > 30) pilha.shift();
+    return item;
+  }
+  async function executarDesfazer(item) {
+    const i = pilha.indexOf(item);
+    if (i < 0) return;
+    pilha.splice(i, 1);
+    item.aviso?.remove();
+    try { await item.acao(); avisar(`Desfeito: ${item.descricao}.`); }
+    catch (e) { falha(e); }
+  }
+  function desfazerUltimo() {
+    if (pilha.length) executarDesfazer(pilha[pilha.length - 1]);
+    else avisar('Não há ação para desfazer nesta página.');
+  }
+  // Mostra o aviso da ação feita, com o botão "Desfazer".
+  function feito(texto, descricao, acao) {
+    const item = registrarDesfazer(descricao, acao);
+    item.aviso = avisar(texto, 'ok', { rotulo: 'Desfazer', fn: () => executarDesfazer(item) });
+  }
+  document.addEventListener('keydown', e => {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (e.target.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+    if (document.querySelector('.veu-janela')) return;
+    e.preventDefault();
+    desfazerUltimo();
+  });
+
+  // Ações salvas numa página e desfeitas em outra (ex.: salvar o cadastro e voltar à lista).
+  // Ao desfazer, avisa a página pelo evento "semper:dados-mudaram".
+  const CHAVE_DESFAZER = 'semper-desfazer';
+  const DESFAZER_GUARDADO = {
+    pessoaCriada: async r => {
+      await SD.pessoasArquivar([r.id], true);
+      const x = await SD.pessoasExcluir([r.id]);
+      if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
+    },
+    pessoaAtualizada: r => SD.pessoaAtualizar(r.id, r.antes, r.resp)
+  };
+  function guardarDesfazer(registro) {
+    try { sessionStorage.setItem(CHAVE_DESFAZER, JSON.stringify(registro)); } catch (e) { /* sem armazenamento: só não haverá desfazer */ }
+  }
+  function retomarDesfazer() {
+    let r;
+    try { r = JSON.parse(sessionStorage.getItem(CHAVE_DESFAZER)); sessionStorage.removeItem(CHAVE_DESFAZER); } catch (e) { return; }
+    if (!r || !DESFAZER_GUARDADO[r.tipo]) return;
+    feito(r.texto, r.descricao, async () => {
+      await DESFAZER_GUARDADO[r.tipo](r);
+      document.dispatchEvent(new CustomEvent('semper:dados-mudaram', { detail: r }));
+    });
+  }
 
   // ---------- janelas (confirmação, escolha) ----------
   // acoes: [{ rotulo, valor, tipo: 'pri' | 'perigo' | '' }]. Devolve o valor escolhido (null ao fechar).
@@ -234,6 +301,7 @@
       location.replace(url('./?desativado'));
       return new Promise(() => {});
     }
+    setTimeout(retomarDesfazer, 0);
     return c;
   }
 
@@ -243,6 +311,7 @@
 
   window.UI = {
     RAIZ, url, esc, icone, avatar, avatares, corDe, iniciais, avisar, falha, janela, confirmar, botaoDuplo, ocupado,
+    feito, registrarDesfazer, desfazerUltimo, guardarDesfazer,
     Cartao, montarCasca, exigirLogin, titulo, parametro, atrasar, dataCurta, dataHora, relativo, PAPEIS
   };
 })();

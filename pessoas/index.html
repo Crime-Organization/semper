@@ -64,7 +64,7 @@
 <script>
 (async function () {
   const { esc, url, icone, avatar, avatares, montarCasca, exigirLogin, titulo, parametro, atrasar, relativo, dataCurta, dataHora,
-    avisar, falha, janela, confirmar, botaoDuplo, ocupado, Cartao } = window.UI;
+    avisar, falha, janela, confirmar, botaoDuplo, ocupado, Cartao, feito, registrarDesfazer } = window.UI;
   const ctx = await exigirLogin();
   montarCasca('pessoas', ctx);
   titulo('Pessoas');
@@ -190,14 +190,18 @@
            <button class="mini perigo" id="lExcluir">${icone('lixeira', 15)} Excluir</button>`}</span>`;
     $('lLimpar').onclick = () => { selecionadas.clear(); carregarTabela(); };
     const ids = () => [...selecionadas];
-    $('lArquivar')?.addEventListener('click', async () => {
-      try { const q = await SD.pessoasArquivar(ids(), true); avisar(`${q} ${q === 1 ? 'pessoa arquivada' : 'pessoas arquivadas'}.`); selecionadas.clear(); carregarTabela(); }
-      catch (e) { falha(e); }
-    });
-    $('lDesarquivar')?.addEventListener('click', async () => {
-      try { const q = await SD.pessoasArquivar(ids(), false); avisar(`${q} ${q === 1 ? 'pessoa voltou' : 'pessoas voltaram'} para as ativas.`); selecionadas.clear(); carregarTabela(); }
-      catch (e) { falha(e); }
-    });
+    const arquivarLote = async arquivar => {
+      const lista = ids();
+      try {
+        const q = await SD.pessoasArquivar(lista, arquivar);
+        feito(arquivar ? `${q} ${q === 1 ? 'pessoa arquivada' : 'pessoas arquivadas'}.` : `${q} ${q === 1 ? 'pessoa voltou' : 'pessoas voltaram'} para as ativas.`,
+          arquivar ? `arquivamento de ${q === 1 ? '1 pessoa' : q + ' pessoas'}` : `desarquivamento de ${q === 1 ? '1 pessoa' : q + ' pessoas'}`,
+          async () => { await SD.pessoasArquivar(lista, !arquivar); carregarTabela(); });
+        selecionadas.clear(); carregarTabela();
+      } catch (e) { falha(e); }
+    };
+    $('lArquivar')?.addEventListener('click', () => arquivarLote(true));
+    $('lDesarquivar')?.addEventListener('click', () => arquivarLote(false));
     if ($('lExcluir')) botaoDuplo($('lExcluir'), `Confirmar exclusão de ${n}`, async () => {
       try {
         const r = await SD.pessoasExcluir(ids());
@@ -224,14 +228,39 @@
       ordemDe: p => p.etapa_ordem,
       cartao: cartaoKanban,
       aoAbrir: p => abrirCartao(p.id),
-      aoMover: async (p, colunaId, ordem) => { await SD.pessoaMover(p.id, colunaId, ordem); p.etapa_id = colunaId; p.etapa_ordem = ordem; },
-      aoCriarColuna: async (nome, ordem) => { const c = await SD.colunaCriar('pessoas', nome, ordem); colunas.push(c); return c; },
-      aoOcultar: (c, ocultar) => SD.colunaOcultar(c.id, ocultar),
+      aoMover: async (p, colunaId, ordem) => {
+        const de = p.etapa_id, ordemDe = p.etapa_ordem;
+        await SD.pessoaMover(p.id, colunaId, ordem); p.etapa_id = colunaId; p.etapa_ordem = ordem;
+        const voltar = async () => { await SD.pessoaMover(p.id, de, ordemDe); p.etapa_id = de; p.etapa_ordem = ordemDe; quadro?.recarregar(); };
+        if (de !== colunaId) feito(`${p.nome} foi para "${nomeEtapa(colunaId) || 'Sem etapa'}".`, 'movimentação do cartão', voltar);
+        else registrarDesfazer('mudança de posição do cartão', voltar);
+      },
+      aoCriarColuna: async (nome, ordem) => {
+        const c = await SD.colunaCriar('pessoas', nome, ordem); colunas.push(c);
+        feito(`Coluna "${c.nome}" criada.`, 'criação da coluna', async () => {
+          if (ctx.ehAdmin) { await SD.colunaExcluir(c.id); colunas = colunas.filter(x => x !== c); }
+          else { await SD.colunaOcultar(c.id, true); c.oculta = true; }
+          atualizar();
+        });
+        return c;
+      },
+      aoOcultar: async (c, ocultar) => {
+        await SD.colunaOcultar(c.id, ocultar);
+        feito(ocultar ? `Coluna "${c.nome}" oculta para você.` : `Coluna "${c.nome}" visível de novo.`, ocultar ? 'ocultação da coluna' : 'exibição da coluna',
+          async () => { await SD.colunaOcultar(c.id, !ocultar); c.oculta = !ocultar; atualizar(); });
+      },
       podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,
-      aoRenomear: (c, nome) => SD.colunaRenomear(c.id, nome),
+      aoRenomear: async (c, nome) => {
+        const antigo = c.nome;
+        await SD.colunaRenomear(c.id, nome);
+        feito(`Coluna renomeada para "${nome}".`, 'renomeação da coluna', async () => { await SD.colunaRenomear(c.id, antigo); c.nome = antigo; atualizar(); });
+      },
       podeExcluir: () => ctx.ehAdmin,
       podeReordenar: () => ctx.ehAdmin,
-      aoReordenar: (c, ordem) => SD.colunaOrdenar(c.id, ordem),
+      aoReordenar: async (c, ordem, anterior) => {
+        await SD.colunaOrdenar(c.id, ordem);
+        feito(`Coluna "${c.nome}" mudou de lugar.`, 'mudança de ordem da coluna', async () => { await SD.colunaOrdenar(c.id, anterior); c.ordem = anterior; atualizar(); });
+      },
       aoExcluir: async c => { await SD.colunaExcluir(c.id); colunas = colunas.filter(x => x.id !== c.id); },
       aoAdicionar: colunaId => { location.href = 'nova/' + (colunaId ? '?etapa=' + colunaId : ''); }
     });
@@ -248,6 +277,8 @@
     aplicar();
   };
   const recarregarVisao = () => visao === 'kanban' ? quadro?.recarregar() : carregarTabela();
+  // Depois de desfazer: se o cartão estiver aberto, mostra a pessoa como ficou.
+  const reabrir = id => { if (document.getElementById('cartaoPainel')) abrirCartao(id); };
 
   // ---------- cartão da pessoa ----------
   async function abrirCartao(id) {
@@ -340,10 +371,12 @@
       catch (e) { const r = document.createRange(); r.selectNodeContents(corpo.querySelector('#cQual')); getSelection().removeAllRanges(); getSelection().addRange(r); avisar('Selecionei o texto: use Ctrl+C para copiar.'); }
     });
     corpo.querySelector('#cArquivar').onclick = async e => {
+      const estava = !!p.arquivado_em;
       ocupado(e.currentTarget, true);
       try {
-        await SD.pessoasArquivar([p.id], !p.arquivado_em);
-        avisar(p.arquivado_em ? 'Pessoa desarquivada.' : 'Pessoa arquivada. Arquivadas podem ser excluídas depois.');
+        await SD.pessoasArquivar([p.id], !estava);
+        feito(estava ? 'Pessoa desarquivada.' : 'Pessoa arquivada. Arquivadas podem ser excluídas depois.', estava ? 'desarquivamento' : 'arquivamento',
+          async () => { await SD.pessoasArquivar([p.id], estava); recarregarVisao(); reabrir(p.id); });
         recarregarVisao(); abrirCartao(p.id);
       } catch (err) { falha(err); ocupado(e.currentTarget, false); }
     };
@@ -355,7 +388,13 @@
     });
     corpo.querySelector('#cEtapa').onchange = async e => {
       const etapa = e.target.value || null;
-      try { await SD.pessoaMover(p.id, etapa, Date.now() / 1000); p.etapa_id = etapa; avisar(etapa ? `Movida para "${nomeEtapa(etapa)}".` : 'Pessoa sem etapa.'); recarregarVisao(); carregarHistorico(p); }
+      const de = p.etapa_id || null, ordemDe = p.etapa_ordem ?? null;
+      try {
+        await SD.pessoaMover(p.id, etapa, Date.now() / 1000); p.etapa_id = etapa;
+        feito(etapa ? `Movida para "${nomeEtapa(etapa)}".` : 'Pessoa sem etapa.', 'mudança de etapa',
+          async () => { await SD.pessoaMover(p.id, de, ordemDe); recarregarVisao(); reabrir(p.id); });
+        recarregarVisao(); carregarHistorico(p);
+      }
       catch (err) { falha(err); e.target.value = p.etapa_id || ''; }
     };
 
@@ -374,12 +413,19 @@
           ${fora.map(m => `<option value="${m.id}">${esc(m.nome)}</option>`).join('')}</select>` : '')
       + (resp.length ? '' : '<p class="nota" style="flex-basis:100%">Nenhum responsável ainda.</p>');
     el.querySelectorAll('[data-tirar]').forEach(b => b.onclick = async () => {
-      try { await SD.responsavelRemover(p.id, b.dataset.tirar); resp = resp.filter(x => x !== b.dataset.tirar); p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao(); }
+      const id = b.dataset.tirar;
+      try {
+        await SD.responsavelRemover(p.id, id); resp = resp.filter(x => x !== id); p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao();
+        feito(`${nomeDe(id)} saiu dos responsáveis.`, 'retirada do responsável', async () => { await SD.responsavelIncluir(p.id, id); recarregarVisao(); reabrir(p.id); });
+      }
       catch (e) { falha(e); }
     });
     el.querySelector('#cAddResp')?.addEventListener('change', async e => {
       const id = e.target.value; if (!id) return;
-      try { await SD.responsavelIncluir(p.id, id); resp = [...resp, id]; p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao(); }
+      try {
+        await SD.responsavelIncluir(p.id, id); resp = [...resp, id]; p.resp = resp.map(perfil_id => ({ perfil_id })); desenharResponsaveis(p, resp); recarregarVisao();
+        feito(`${nomeDe(id)} agora é responsável.`, 'inclusão do responsável', async () => { await SD.responsavelRemover(p.id, id); recarregarVisao(); reabrir(p.id); });
+      }
       catch (err) { falha(err); }
     });
   }
@@ -416,7 +462,11 @@
       e.preventDefault();
       const texto = el.querySelector('#sigTexto').value.trim();
       if (!texto) return falha(new Error('Escreva a informação sigilosa.'));
-      try { await SD.sigiloSalvar(p.id, texto); avisar('Informação sigilosa registrada.'); carregarSigilos(p); }
+      try {
+        const novoId = await SD.sigiloSalvar(p.id, texto);
+        feito('Informação sigilosa registrada.', 'registro da informação sigilosa', async () => { await SD.sigiloApagar(novoId); reabrir(p.id); });
+        carregarSigilos(p);
+      }
       catch (err) { falha(err); }
     };
     el.querySelectorAll('[data-editar]').forEach(b => b.onclick = async () => {
@@ -424,20 +474,39 @@
       const novo = await janela({ titulo: 'Editar informação sigilosa', html: `<textarea class="campo" rows="6" aria-label="Texto">${esc(s.texto)}</textarea>`,
         acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Salvar', tipo: 'pri', valor: j => j.querySelector('textarea').value.trim() }] });
       if (!novo || novo === s.texto) return;
-      try { await SD.sigiloSalvar(p.id, novo, s.id); avisar('Informação atualizada.'); carregarSigilos(p); }
+      try {
+        await SD.sigiloSalvar(p.id, novo, s.id);
+        feito('Informação atualizada.', 'edição da informação sigilosa', async () => { await SD.sigiloSalvar(p.id, s.texto, s.id); reabrir(p.id); });
+        carregarSigilos(p);
+      }
       catch (err) { falha(err); }
     });
+    // Desfazer o apagar registra o texto de novo, agora em nome de quem desfez.
     el.querySelectorAll('[data-apagar]').forEach(b => botaoDuplo(b, 'Confirmar', async () => {
-      try { await SD.sigiloApagar(b.dataset.apagar); avisar('Informação apagada.'); carregarSigilos(p); }
+      const s = lista.find(x => x.id === b.dataset.apagar);
+      try {
+        await SD.sigiloApagar(s.id);
+        feito('Informação apagada.', 'exclusão da informação sigilosa', async () => { await SD.sigiloSalvar(p.id, s.texto); reabrir(p.id); });
+        carregarSigilos(p);
+      }
       catch (err) { falha(err); }
     }));
     el.querySelector('#sigConceder')?.addEventListener('change', async e => {
       const id = e.target.value; if (!id) return;
-      try { await SD.sigiloConceder(p.id, id, true); avisar(`${nomeDe(id)} agora vê as informações sigilosas desta pessoa.`); carregarSigilos(p); }
+      try {
+        await SD.sigiloConceder(p.id, id, true);
+        feito(`${nomeDe(id)} agora vê as informações sigilosas desta pessoa.`, 'concessão de acesso', async () => { await SD.sigiloConceder(p.id, id, false); reabrir(p.id); });
+        carregarSigilos(p);
+      }
       catch (err) { falha(err); }
     });
     el.querySelectorAll('[data-revogar]').forEach(b => b.onclick = async () => {
-      try { await SD.sigiloConceder(p.id, b.dataset.revogar, false); carregarSigilos(p); }
+      const id = b.dataset.revogar;
+      try {
+        await SD.sigiloConceder(p.id, id, false);
+        feito(`${nomeDe(id)} não vê mais as informações sigilosas.`, 'retirada de acesso', async () => { await SD.sigiloConceder(p.id, id, true); reabrir(p.id); });
+        carregarSigilos(p);
+      }
       catch (err) { falha(err); }
     });
   }
@@ -461,9 +530,13 @@
 
   // ---------- início ----------
   atualizar();
-  const abrir = parametro('id'), salvo = parametro('salvo');
-  if (salvo) avisar(salvo === 'novo' ? 'Pessoa cadastrada.' : 'Cadastro atualizado.');
+  const abrir = parametro('id');
   if (abrir) abrirCartao(abrir);
+  // Cadastro salvo no formulário e desfeito aqui.
+  document.addEventListener('semper:dados-mudaram', e => {
+    recarregarVisao();
+    if (e.detail?.tipo === 'pessoaCriada') Cartao.fechar(); else reabrir(e.detail?.id);
+  });
 })();
 </script>
 </body>

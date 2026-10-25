@@ -86,7 +86,7 @@
 <script src="../assets/comum.js"></script>
 <script>
 (async function () {
-  const { esc, url, avatar, montarCasca, exigirLogin, titulo, atrasar, relativo, dataCurta, dataHora, avisar, falha, botaoDuplo, ocupado, PAPEIS } = window.UI;
+  const { esc, url, avatar, montarCasca, exigirLogin, titulo, atrasar, relativo, dataCurta, dataHora, avisar, falha, botaoDuplo, ocupado, feito, PAPEIS } = window.UI;
   const ctx = await exigirLogin();
   if (!ctx.ehAdmin) { location.replace(url('inicio/')); return; }
   montarCasca('equipe', ctx);
@@ -139,13 +139,23 @@
     }).join('') || '<tr><td colspan="5" class="nota">Nenhum usuário.</td></tr>';
     tb.querySelectorAll('[data-papel]').forEach(s => s.onchange = async () => {
       const u = usuarios.find(x => x.id === s.dataset.papel);
-      try { await SD.equipeDefinirPapel(u.id, s.value); avisar(`${u.nome} agora é ${PAPEIS[s.value].toLowerCase()}.`); carregar(); }
+      const antes = u.papel;
+      try {
+        await SD.equipeDefinirPapel(u.id, s.value);
+        feito(`${u.nome} agora é ${PAPEIS[s.value].toLowerCase()}.`, 'troca de papel', async () => { await SD.equipeDefinirPapel(u.id, antes); carregar(); });
+        carregar();
+      }
       catch (e) { falha(e); s.value = u.papel; }
     });
     tb.querySelectorAll('[data-ativo]').forEach(b => {
       const u = usuarios.find(x => x.id === b.dataset.ativo), ativar = b.dataset.valor === 'true';
       const agir = async () => {
-        try { await SD.equipeDefinirAtivo(u.id, ativar); avisar(ativar ? `${u.nome} pode entrar de novo.` : `${u.nome} foi desativado(a) e perdeu o acesso aos dados. Nada do que fez foi apagado.`); carregar(); }
+        try {
+          await SD.equipeDefinirAtivo(u.id, ativar);
+          feito(ativar ? `${u.nome} pode entrar de novo.` : `${u.nome} foi desativado(a) e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
+            ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); carregar(); });
+          carregar();
+        }
         catch (e) { falha(e); }
       };
       if (ativar) b.onclick = agir; else botaoDuplo(b, 'Confirmar desativação', agir);
@@ -239,6 +249,7 @@
       box.innerHTML = `Acesso liberado para <b>${esc(c.nome)}</b> como ${PAPEIS[c.papel].toLowerCase()}. Peça para a pessoa entrar no link abaixo, em "Primeiro acesso", com o e-mail <b>${esc(c.email)}</b>.
         <div class="link-convite"><code>${esc(linkAcesso)}</code><button type="button" class="mini" id="copiarMsg">Copiar mensagem</button></div>`;
       $('copiarMsg').onclick = () => copiar(mensagemConvite(c));
+      feito(`Acesso liberado para ${c.nome}.`, 'liberação de acesso', async () => { await SD.conviteCancelar(c.id); box.hidden = true; carregar(); });
       escolhida = null; desenharEscolhida(); $('cEmail').value = '';
       carregar();
     } catch (err) { falha(err); }

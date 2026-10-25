@@ -18,7 +18,7 @@
       aoOcultar: async (coluna, ocultar) => {},
       podeRenomear: coluna => bool, aoRenomear: async (coluna, nome) => {},
       podeExcluir: coluna => bool,  aoExcluir: async coluna => {},
-      podeReordenar: () => bool,    aoReordenar: async (coluna, ordem) => {},   // a ordem vale para todo o escritório
+      podeReordenar: () => bool,    aoReordenar: async (coluna, ordem, ordemAnterior) => {},   // a ordem vale para todo o escritório
       aoAdicionar: colunaId => {}      // botão "Adicionar" no pé da coluna
     }
   */
@@ -205,7 +205,7 @@
       colunas.sort((a, b) => a.ordem - b.ordem);
       const el = quadro.querySelector(`[data-coluna="${c.id}"]`);
       quadro.insertBefore(el, prox ? quadro.querySelector(`[data-coluna="${prox.id}"]`) : quadro.querySelector('.nova-coluna'));
-      try { await o.aoReordenar(c, c.ordem); }
+      try { await o.aoReordenar(c, c.ordem, anterior); }
       catch (e) {
         falha(e);
         c.ordem = anterior; colunas.sort((a, b) => a.ordem - b.ordem); desenhar();

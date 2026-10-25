@@ -550,12 +550,17 @@
       let r;
       if (modo === 'atualizar') {
         if (alvo.arquivado_em) { dados.arquivado_em = null; dados.arquivado_por = null; }
+        // Para desfazer: os valores que esta gravação vai trocar e os responsáveis de antes.
+        const antes = Object.fromEntries(Object.keys(dados).map(k => [k, alvo[k] ?? null]));
         r = await SD.pessoaAtualizar(alvo.id, dados, resp);
+        UI.guardarDesfazer({ tipo: 'pessoaAtualizada', id: alvo.id, antes, resp: (alvo.resp || []).map(x => x.perfil_id),
+          texto: 'Cadastro atualizado.', descricao: 'atualização do cadastro' });
       } else {
         if (etapaInicial) dados.etapa_id = etapaInicial, dados.etapa_ordem = Date.now() / 1000;
         r = await SD.pessoaCriar(dados, resp);
+        UI.guardarDesfazer({ tipo: 'pessoaCriada', id: r.id, texto: 'Pessoa cadastrada.', descricao: 'cadastro da pessoa' });
       }
-      location.href = url(`pessoas/?id=${r.id}&salvo=${modo === 'atualizar' ? 'atualizado' : 'novo'}`);
+      location.href = url(`pessoas/?id=${r.id}`);
     } catch (e) {
       falha(e);
       ocupado(btn, false);

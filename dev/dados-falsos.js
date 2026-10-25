@@ -174,8 +174,8 @@
     sigilosListar: pid => espera(bd.sigilos.filter(s => s.pessoa_id === pid).map(s => ({ ...s, autor: EQUIPE.find(m => m.id === s.criado_por)?.nome, pode_editar: true }))),
     async sigiloSalvar(pid, texto, id) {
       if (id) Object.assign(bd.sigilos.find(s => s.id === id), { texto, atualizado_em: agora() });
-      else bd.sigilos.push({ id: novoId(), pessoa_id: pid, texto, criado_por: eu, criado_em: agora(), atualizado_em: agora() });
-      gravar(); return id || 'novo';
+      else { id = novoId(); bd.sigilos.push({ id, pessoa_id: pid, texto, criado_por: eu, criado_em: agora(), atualizado_em: agora() }); }
+      gravar(); return id;
     },
     async sigiloApagar(id) { bd.sigilos = bd.sigilos.filter(s => s.id !== id); gravar(); },
     sigiloAcessos: pid => espera(bd.acessos.filter(a => a.pessoa_id === pid).map(a => ({ ...a, nome: EQUIPE.find(m => m.id === a.perfil_id)?.nome, pode_conceder: true }))),

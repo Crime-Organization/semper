@@ -100,11 +100,16 @@
     if (!nome) return falha(new Error('Informe seu nome.'));
     if (!/^[a-z0-9._-]{2,40}$/.test(usuario)) return falha(new Error('O usuário aceita letras sem acento, números, ponto, hífen e sublinhado (2 a 40).'));
     const btn = e.target.querySelector('button');
+    const antes = { nome: ctx.perfil.nome, usuario: ctx.perfil.usuario };
     ocupado(btn, true);
     try {
       await SD.salvarPerfil({ nome, usuario });
       montarCasca('inicio', ctx);
-      avisar('Conta atualizada.');
+      UI.feito('Conta atualizada.', 'alteração da conta', async () => {
+        await SD.salvarPerfil(antes);
+        cNome.value = antes.nome; cUsuario.value = antes.usuario;
+        montarCasca('inicio', ctx);
+      });
     } catch (err) {
       falha(/duplicate|existe/i.test(err.message) ? new Error('Esse @usuário já é usado por outra pessoa do escritório.') : err);
     }
