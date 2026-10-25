@@ -19,3 +19,6 @@ node_modules/
 *.zip
 # Cópia de referência da interface da Educação (repositório próprio)
 educacao/
+
+# Site compilado (gerado pela rotina de publicação)
+dist/

@@ -1,0 +1,4 @@
+/* Formulário de cadastro de pessoa */
+.aviso-tel { font-size: 13px; color: var(--warn-ink); background: var(--warn-bg); padding: 8px 12px; border-radius: 8px; line-height: 1.5 }
+.aviso-tel a { font-weight: 700; border-bottom: 1px solid currentColor }
+.faixa-atualizar { margin: 0 }

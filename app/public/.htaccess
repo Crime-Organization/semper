@@ -1,0 +1,36 @@
+# SEMPER publicado (gerado a partir de app/ pela rotina de publicação do GitHub).
+
+DirectoryIndex index.html
+
+<IfModule mod_headers.c>
+  # A página principal é sempre conferida: assim cada publicação nova chega na hora.
+  <FilesMatch "(^$|\.html$)">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+  # Arquivos com código de versão no nome (index-AbC123xy.js) nunca mudam: o navegador guarda por um ano.
+  <FilesMatch "-[A-Za-z0-9_-]{8}\.(js|css|woff2?|svg|png|jpe?g|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # Proteções básicas: o site não abre dentro de outro site, e o navegador não adivinha tipos de arquivo.
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Endereços do sistema (/inicio/, /pessoas/...) não são pastas: todos abrem o index.html,
+# e o próprio SEMPER mostra a tela certa. Arquivos que existem são servidos normalmente.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# Arquivos ocultos (.git e outros) nunca são servidos. A pasta .well-known continua aberta,
+# porque a Hostinger a usa para renovar o certificado SSL.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+RedirectMatch 404 ^/\.git(/|$)

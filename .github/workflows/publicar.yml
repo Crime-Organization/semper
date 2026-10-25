@@ -1,0 +1,57 @@
+name: Publicar o SEMPER
+
+# A cada envio ao main que mexa no app, confere os tipos, roda os testes, compila o React e publica
+# o resultado no ramo "publicacao", que é o que a Hostinger coloca no ar. Se algo falhar, nada é
+# publicado e o site continua como estava.
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/publicar.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar
+        working-directory: app
+        run: npm ci
+
+      - name: Conferir tipos e testes
+        working-directory: app
+        run: npm run verificar
+
+      - name: Compilar
+        working-directory: app
+        run: npx vite build
+
+      - name: Publicar no ramo publicacao
+        env:
+          MENSAGEM: ${{ github.event.head_commit.message }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git fetch origin publicacao
+          git worktree add -B publicacao ../publicacao origin/publicacao
+          cd ../publicacao
+          git rm -r -q --ignore-unmatch .
+          cp -a "$GITHUB_WORKSPACE/app/dist/." .
+          git add -A
+          if git diff --cached --quiet; then echo "Nada mudou no site."; exit 0; fi
+          git commit -q -m "Publicação de ${GITHUB_SHA::7}" -m "${MENSAGEM%%$'\n'*}"
+          git push origin publicacao

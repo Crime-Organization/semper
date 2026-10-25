@@ -16,8 +16,8 @@ DirectoryIndex index.html
   Require all denied
 </FilesMatch>
 
-# Material de referência e configurações locais também não.
-RedirectMatch 404 ^/(referencia|banco|dev|\.claude|\.git)(/|$)
+# Material de referência, configurações locais e o código do app (que vai ao ar já compilado) também não.
+RedirectMatch 404 ^/(referencia|banco|dev|app|\.claude|\.git|\.github)(/|$)
 
 # Nem arquivos ocultos (.gitignore e outros). A pasta .well-known continua aberta,
 # porque a Hostinger a usa para renovar o certificado SSL.

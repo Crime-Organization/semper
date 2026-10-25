@@ -4,13 +4,13 @@
     {
       "name": "semper",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["dev/servidor.js", "8090"],
+      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--port", "8090", "--strictPort"],
       "port": 8090
     },
     {
       "name": "semper-teste",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["dev/servidor.js", "8091", "--falso"],
+      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--mode", "falso", "--port", "8091", "--strictPort"],
       "port": 8091
     }
   ]

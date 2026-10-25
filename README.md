@@ -2,19 +2,23 @@
 
 Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.bragaferreira.adv.br/.
 
-O repositório é o próprio site: tudo o que está aqui vai para a raiz (`public_html`) do site `semper.bragaferreira.adv.br` na Hostinger, ligado a este repositório pela conexão com o GitHub (hPanel → Avançado → GIT), que publica sozinha a cada push no `main`. O endereço antigo, `bragaferreira.adv.br/semper/`, redireciona para o novo. O `.htaccess` impede que arquivos `.md`, `.sql`, `.env`, `.json` e as pastas `banco/`, `dev/` e `referencia/` sejam servidos.
+## Como vai ao ar
+
+O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que mexa em `app/`, a rotina do GitHub (`.github/workflows/publicar.yml`) confere os tipos, roda os testes, compila e grava o site pronto no ramo **`publicacao`**. A Hostinger (hPanel → Avançado → GIT, site `semper.bragaferreira.adv.br`) publica esse ramo. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
+
+> **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
 
 | Pasta / arquivo | Conteúdo |
 |---|---|
-| `index.html` | Login da equipe, primeiro acesso por convite, recuperação de senha e entrada do cliente (em preparação). |
-| `inicio/` | Painel inicial e "Minha conta". |
-| `pessoas/` | Cadastro comum de pessoas: tabela, kanban de atendimento (CRM) e cartão com qualificação, histórico e informações sigilosas. |
-| `pessoas/nova/` | Formulário de cadastro em etapas (também usado para atualizar), com busca de CNPJ e CEP e controle de duplicidade. |
-| `equipe/` | Equipe e acessos (master e administradores): liberar acesso, papéis, desativar e registro de ações (LGPD). |
-| `assets/` | `marca.js` (nome, logo, cores e conexão), `dados.js` (única camada que fala com o banco), `comum.js` (casca do app), `pessoa.js` (regras de cadastro e qualificação), `kanban.js` (quadro comum aos módulos) e `estilo.css`. |
-| `banco/` | Estrutura do banco no Supabase, em scripts numerados (`001_base.sql`, ...). |
-| `dev/` | Servidor local de testes e dados fictícios. |
-| `DESIGN.md` | Sistema visual (cores, tipografia, componentes). |
+| `app/src/paginas/` | Telas: `Entrada` (login, primeiro acesso, recuperação de senha, cliente), `Inicio`, `Pessoas` e `CartaoPessoa`, `NovaPessoa` (cadastro em etapas) e `Equipe`. |
+| `app/src/ui/` | Peças comuns: `Casca` (barra lateral), `PaginaModulo`, `quadro/` (`Kanban` e `useColunas`), avisos e desfazer (Ctrl+Z), janelas, painel do cartão, tema e sessão. |
+| `app/src/dados/` | `supabase.ts` (única parte que fala com o banco), `falso.ts` (banco fictício para testes) e `tipos.ts` (o formato dos dados). |
+| `app/src/regras/` | Regras de cadastro: formatos, validação, qualificação e consultas de CNPJ e CEP, com os testes. |
+| `app/src/marca.ts` e `app/src/imagens/` | Nome, logos, foto, cores e conexão com o banco (marca branca). |
+| `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
+| `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
+| `banco/` | Estrutura do banco no Supabase, em scripts numerados (`001_base.sql`, ...), e os modelos de e-mail. |
+| `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
 | `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
 | `Trello/` | Exportações do Trello com dados de clientes. Não versionado. |
 
@@ -29,14 +33,28 @@ Configuração no painel do Supabase (Authentication):
 
 ## Testar no computador
 
-```bash
-node dev/servidor.js 8090
-```
-Abre o site com o banco de verdade em http://localhost:8090/.
+Na primeira vez, instale as dependências dentro de `app/`:
 
 ```bash
-node dev/servidor.js 8091 --falso
+npm install --prefix app
 ```
-Abre o site com pessoas fictícias e sem login, em http://localhost:8091/inicio/.
 
-Fluxo de trabalho: pull → editar → testar → commit → push.
+Com pessoas fictícias e sem login (nada vai para o banco), em http://localhost:8091/:
+
+```bash
+npm run teste --prefix app
+```
+
+Com o banco de verdade, em http://localhost:8090/:
+
+```bash
+npm run dev --prefix app
+```
+
+Conferir os tipos e rodar os testes (o mesmo que a rotina de publicação faz):
+
+```bash
+npm run verificar --prefix app
+```
+
+Fluxo de trabalho: pull → editar → testar → commit → push (a publicação é automática).

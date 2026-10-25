@@ -16,11 +16,11 @@ O ritmo de uma página interna é sempre o mesmo: olho (rótulo em caixa alta es
 - Botões, abas, selos e chips são pílulas (`{rounded.full}`). Cartões e caixas usam 12px, campos 8–10px.
 - Quase sem sombra: a profundidade vem da borda de 1px (`{colors.line}` / `{colors.line2}`) e da troca de fundo. Sombra só no que flutua (gaveta, modal, cartão sendo arrastado no kanban, toast).
 - Ponto final verde nos títulos editoriais.
-- **Marca branca (SaaS):** nome, submarca, cores e logos vêm de `assets/marca.js` (`window.MARCA`). Cada escritório cliente troca só esse arquivo ou a configuração equivalente no banco, e nunca o HTML.
+- **Marca branca (SaaS):** nome, submarca, cores e logos vêm de `app/src/marca.ts` (`MARCA`). Cada escritório cliente troca só esse arquivo e as imagens de `app/src/imagens/` (ou, mais adiante, a configuração equivalente no banco), e nunca as telas.
 
 ## Colors
 
-Fontes: `assets/estilo.css` e `assets/marca.js`.
+Fontes: `app/src/estilo.css` e `app/src/marca.ts`.
 
 ### Brand & Accent
 
@@ -144,24 +144,25 @@ Regras:
 - **Telas de acesso:** duas metades iguais (foto escura | formulário com caixa de até 420px).
 
 ### Página de módulo (pessoas, contratos, demandas, tarefas, processos…)
-Toda página de módulo é montada pela peça comum **`UI.paginaModulo(alvo, config)`** (em `assets/comum.js`). Nunca escreva essa estrutura à mão numa página: o módulo só declara o conteúdo, e o desenho vem da peça e do `estilo.css`. Assim, toda mudança de layout feita uma vez vale para todos os módulos.
+Toda página de módulo é montada pelo componente comum **`<PaginaModulo>`** (em `app/src/ui/PaginaModulo.tsx`). Nunca escreva essa estrutura à mão numa página: o módulo só declara o conteúdo, e o desenho vem do componente e do `estilo.css`. Assim, toda mudança de layout feita uma vez vale para todos os módulos. A tela de Pessoas (`app/src/paginas/Pessoas.tsx`) é o modelo.
 
-```js
-const pagina = UI.paginaModulo(document.getElementById('miolo'), {
-  olho: 'Cadastro comum do escritório', titulo: 'Pessoas',
-  acao: { rotulo: 'Nova pessoa', href: 'nova/' },
-  busca: 'Nome, CPF/CNPJ, telefone, e-mail ou código',
-  filtros: [{ id: 'fTipo', rotulo: 'Tipo', opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }],
-  visoes: ['tabela', 'kanban']
-});
-// devolve: pagina.lead, .busca, .visao, .lote, .acao, .filtro(id), .botoesVisao, .marcarVisao(v)
+```tsx
+<PaginaModulo olho="Cadastro comum do escritório" titulo="Pessoas"
+  acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
+  busca={{ placeholder: 'Nome, CPF/CNPJ, telefone, e-mail ou código', aoBuscar: termo => ... }}
+  filtros={[{ id: 'tipo', rotulo: 'Tipo', valor, aoMudar, opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }]}
+  visao={visao} aoTrocarVisao={setVisao} lead="28 pessoas ativas." lote={selecionadas ? <>…</> : null}>
+  {visao === 'kanban' ? <Kanban quadro={useColunas('pessoas', ctx)} … /> : <Tabela … />}
+</PaginaModulo>
 ```
+
+O quadro também é comum: `useColunas(modulo, ctx)` (em `app/src/ui/quadro/`) cuida das colunas (criar, ocultar, renomear, excluir, reordenar, permissões e desfazer) e `<Kanban>` desenha e arrasta os cartões. O módulo só diz como carregar, desenhar e mover os cartões.
 
 Estrutura, sempre nesta ordem:
 1. **Cabeçalho** (`.cabeca`): olho → linha com o título (com o ponto verde) e a **ação principal à direita, na mesma linha do título** → lead.
 2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura.
-3. **Área da visualização** (`#visao`): tabela, ou o quadro kanban preenchendo o resto da tela.
-4. **Barra de ações em lote** (`#lote`): aparece quando há itens selecionados na tabela.
+3. **Área da visualização**: tabela, ou o quadro kanban (`.area-quadro`) preenchendo o resto da tela.
+4. **Barra de ações em lote** (`.lote`): aparece quando há itens selecionados na tabela.
 
 Comportamento conforme o espaço disponível. É sempre pelo tamanho real do conteúdo (container queries), nunca por contas em JavaScript nem por página:
 - Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. Os filtros se distribuem em linhas iguais, e a troca Tabela/Kanban ocupa a largura toda.
@@ -190,7 +191,7 @@ O kanban segue o modelo do Trello, **não** o do Notion:
 - Tabelas rolam na horizontal dentro de `.tabela`.
 
 ### Image Behavior
-Uma única fotografia de marca, `assets/img/farol.jpg`, sempre em escala de cinza (`grayscale(1)`) e escurecida com `brightness(.45–.55)` quando há texto por cima. Não há fotos coloridas nem ilustrações. Os ícones são traço fino (stroke 1.4–2) em `currentColor`.
+Uma única fotografia de marca, `app/src/imagens/farol.webp` (já em escala de cinza e compactada), sempre em escala de cinza (`grayscale(1)`) e escurecida com `brightness(.45–.55)` quando há texto por cima. Não há fotos coloridas nem ilustrações. Os ícones são traço fino (stroke 1.4–2) em `currentColor`.
 
 ## Elevation & Depth
 
