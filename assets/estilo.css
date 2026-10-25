@@ -182,11 +182,19 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 
 .conteudo { flex: 1; min-width: 0; padding: 36px clamp(16px, 2vw, 32px) 64px }
 .miolo { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px }
-/* Cabeçalho de página de módulo: título à esquerda e ação principal à direita, na altura do título. */
-.cabeca { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px 16px; flex-wrap: wrap }
-.cabeca > .btn { margin-top: 26px }
+/* Cabeçalho de página de módulo (montado por UI.paginaModulo): ação principal na linha do título.
+   Quando o espaço do conteúdo fica estreito (zoom, celular), a ação vira um botão redondo só com o "+". */
+.cabeca { container-type: inline-size }
+.cabeca .olho { margin-bottom: 4px }
+.cabeca-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px }
+.cabeca-linha .titulo { min-width: 0; overflow-wrap: anywhere }
+.cabeca-acao { flex-shrink: 0 }
 .cabeca .lead { margin-top: 6px }
-.miolo.largo { max-width: none; gap: 20px }
+@container (max-width: 560px) {
+  .cabeca-acao { width: 44px; padding: 0 }
+  .cabeca-acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+}
+.miolo.largo { max-width: none; gap: 20px; container-type: inline-size }
 /* Páginas com quadro (kanban): o conteúdo vira uma coluna da altura da tela e o quadro ocupa o que sobra,
    qualquer que seja o tamanho do cabeçalho. Só as colunas rolam; a página não. */
 @media (min-width: 901px) {
@@ -227,6 +235,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .abas { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
 .abas button { height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px }
 .abas button[aria-pressed="true"], .abas button[aria-selected="true"] { background: var(--sel); color: var(--sel-txt) }
+/* Espaço estreito (zoom, celular): filtros em linhas iguais e a troca Tabela/Kanban na largura toda. */
+@container (max-width: 560px) {
+  .barra-ferr > .filtro { flex: 1 1 140px; min-width: 0 }
+  .barra-ferr > .abas { flex: 1 1 100%; margin-left: 0 }
+  .barra-ferr > .abas button { flex: 1; justify-content: center }
+}
 .lote { border: 1px solid var(--dark-borda); position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 14px 12px 22px; border-radius: 16px; background: var(--dark); color: #FBFBF9; box-shadow: 0 12px 36px rgba(0,0,0,.22) }
 .lote b { font-size: 20px; font-weight: 900 }
 .lote .acoes-lote { display: flex; gap: 8px; flex-wrap: wrap }

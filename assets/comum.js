@@ -331,12 +331,48 @@
   }
 
   const titulo = nome => { document.title = `${nome} · ${M.nome} ${M.submarca}`; };
+
+  // ---------- página de módulo ----------
+  // Estrutura única de toda página de módulo (pessoas, contratos, demandas, tarefas, processos...):
+  // cabeçalho com a ação principal na altura do título, barra de busca e filtros, troca Tabela/Kanban,
+  // área da lista e barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
+  // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
+  const VISOES = { tabela: 'Tabela', kanban: 'Kanban' };
+  function paginaModulo(alvo, { olho = '', titulo: nome, acao, busca = 'Buscar', filtros = [], visoes = ['tabela', 'kanban'] }) {
+    alvo.className = 'miolo largo';
+    alvo.innerHTML = `
+      <header class="cabeca">
+        ${olho ? `<p class="olho">${esc(olho)}</p>` : ''}
+        <div class="cabeca-linha">
+          <h1 class="titulo">${esc(nome)}<span class="ponto">.</span></h1>
+          ${acao ? `<a class="btn pri cabeca-acao" id="btnAcao" href="${esc(acao.href)}" title="${esc(acao.rotulo)}" aria-label="${esc(acao.rotulo)}">${icone('mais', 18)}<span class="cabeca-acao-rotulo">${esc(acao.rotulo)}</span></a>` : ''}
+        </div>
+        <p class="lead" id="lead">&nbsp;</p>
+      </header>
+      <div class="barra-ferr" role="search">
+        <label class="busca-campo">${icone('buscar', 18)}<span class="sr">Buscar</span>
+          <input id="busca" type="search" placeholder="${esc(busca)}" autocomplete="off"></label>
+        ${filtros.map(f => `<select class="filtro" id="${esc(f.id)}" aria-label="${esc(f.rotulo)}">${f.opcoes
+          .map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join('')}</select>`).join('')}
+        ${visoes.length > 1 ? `<div class="abas" role="group" aria-label="Visualização">${visoes.map(v =>
+          `<button type="button" data-visao="${v}">${icone(v, 15)}${VISOES[v]}</button>`).join('')}</div>` : ''}
+      </div>
+      <div id="visao"><p class="carregando">Carregando…</p></div>
+      <div class="lote" id="lote" hidden></div>`;
+    const el = id => alvo.querySelector('#' + id);
+    return {
+      lead: el('lead'), busca: el('busca'), visao: el('visao'), lote: el('lote'), acao: el('btnAcao'),
+      filtro: id => el(id),
+      botoesVisao: [...alvo.querySelectorAll('[data-visao]')],
+      marcarVisao: v => alvo.querySelectorAll('[data-visao]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.visao === v)))
+    };
+  }
   const parametro = nome => new URLSearchParams(location.search).get(nome);
   function atrasar(fn, ms = 300) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
   window.UI = {
     RAIZ, url, esc, icone, avatar, avatares, corDe, iniciais, avisar, falha, janela, confirmar, botaoDuplo, ocupado,
-    feito, registrarDesfazer, desfazerUltimo, guardarDesfazer, TEMAS, temaAtual, definirTema,
+    feito, registrarDesfazer, desfazerUltimo, guardarDesfazer, TEMAS, temaAtual, definirTema, paginaModulo,
     Cartao, montarCasca, exigirLogin, titulo, parametro, atrasar, dataCurta, dataHora, relativo, PAPEIS
   };
 })();

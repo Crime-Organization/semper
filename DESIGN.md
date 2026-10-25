@@ -137,15 +137,39 @@ Regras:
 ### Spacing System
 - **Base unit:** 4px, quase sempre em passos de 8px nas peças maiores.
 - **Tokens:** `{spacing.xxs}` 4px · `{spacing.xs}` 8px · `{spacing.sm}` 12px · `{spacing.md}` 16px · `{spacing.lg}` 24px · `{spacing.xl}` 32px · `{spacing.xxl}` 40px · `{spacing.huge}` 56–64px.
-- Páginas internas usam `.conteudo` com padding `56px clamp(16px, 5vw, 72px) 80px` e 40px entre blocos (`.miolo`). Cartões têm padding de 24px, itens de lista 20px × 24px e cartões do kanban 12px × 14px.
+- Páginas internas usam `.conteudo` com padding `36px clamp(16px, 2vw, 32px) 64px`: no máximo 32px entre a barra lateral e o conteúdo e na direita. O espaço entre blocos é de 36px nas páginas de leitura (`.miolo`) e 20px nas páginas de módulo (`.miolo.largo`). Cartões têm padding de 24px, itens de lista 20px × 24px e cartões do kanban 12px × 14px.
 
 ### Grid & Container
 - **Área de trabalho:** barra lateral de 264px + conteúdo. `.miolo` vai até 1040px em páginas de leitura e formulário. Tabelas e kanban usam a largura toda.
 - **Telas de acesso:** duas metades iguais (foto escura | formulário com caixa de até 420px).
 
+### Página de módulo (pessoas, contratos, demandas, tarefas, processos…)
+Toda página de módulo é montada pela peça comum **`UI.paginaModulo(alvo, config)`** (em `assets/comum.js`). Nunca escreva essa estrutura à mão numa página: o módulo só declara o conteúdo, e o desenho vem da peça e do `estilo.css`. Assim, toda mudança de layout feita uma vez vale para todos os módulos.
+
+```js
+const pagina = UI.paginaModulo(document.getElementById('miolo'), {
+  olho: 'Cadastro comum do escritório', titulo: 'Pessoas',
+  acao: { rotulo: 'Nova pessoa', href: 'nova/' },
+  busca: 'Nome, CPF/CNPJ, telefone, e-mail ou código',
+  filtros: [{ id: 'fTipo', rotulo: 'Tipo', opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }],
+  visoes: ['tabela', 'kanban']
+});
+// devolve: pagina.lead, .busca, .visao, .lote, .acao, .filtro(id), .botoesVisao, .marcarVisao(v)
+```
+
+Estrutura, sempre nesta ordem:
+1. **Cabeçalho** (`.cabeca`): olho → linha com o título (com o ponto verde) e a **ação principal à direita, na mesma linha do título** → lead.
+2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura.
+3. **Área da visualização** (`#visao`): tabela, ou o quadro kanban preenchendo o resto da tela.
+4. **Barra de ações em lote** (`#lote`): aparece quando há itens selecionados na tabela.
+
+Comportamento conforme o espaço disponível. É sempre pelo tamanho real do conteúdo (container queries), nunca por contas em JavaScript nem por página:
+- Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. Os filtros se distribuem em linhas iguais, e a troca Tabela/Kanban ocupa a largura toda.
+- Com quadro kanban, a página vira uma coluna da altura da tela e o quadro ocupa o que sobra. A página não rola, só as colunas.
+
 ### Kanban (demandas)
 O kanban segue o modelo do Trello, **não** o do Notion:
-- O quadro ocupa a altura da janela (`height: calc(100dvh - cabeçalho)`) e rola **na horizontal** quando as colunas não cabem.
+- O quadro ocupa a altura que sobra da janela, só pelo layout (`body.com-quadro`, `.area-quadro`), e rola **na horizontal** quando as colunas não cabem.
 - Cada coluna tem largura fixa (272–296px), fundo `{colors.soft}`, `{rounded.lg}` e cabeçalho fixo (nome em `{typography.label-caps}` + contagem tabular).
 - **A lista de cartões rola dentro da própria coluna** (`overflow-y: auto`), sem nunca empurrar a página para baixo. O botão "Adicionar cartão" fica fixo no pé da coluna.
 - Cartão: branco, borda `{colors.line2}`, `{rounded.md}`, título em `{typography.card-title}`, metadados (código do contrato, responsável, prazo, contagem de checklist) em `{typography.caption}`. Arrastando, o cartão ganha a sombra Floating e leve rotação (1–2°).

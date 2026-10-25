@@ -22,36 +22,7 @@
 <div class="app">
   <aside class="side" id="side" aria-label="Menu"></aside>
   <main class="conteudo">
-    <div class="miolo largo">
-      <header class="cabeca">
-        <div>
-          <p class="olho">Cadastro comum do escritório</p>
-          <h1 class="titulo">Pessoas<span class="ponto">.</span></h1>
-          <p class="lead" id="lead">&nbsp;</p>
-        </div>
-        <a class="btn pri" id="btnNova" href="nova/">Nova pessoa</a>
-      </header>
-
-      <div class="barra-ferr" role="search">
-        <label class="busca-campo"><span id="icoBusca"></span><span class="sr">Buscar</span>
-          <input id="busca" type="search" placeholder="Nome, CPF/CNPJ, telefone, e-mail ou código" autocomplete="off"></label>
-        <select class="filtro" id="fTipo" aria-label="Tipo de cadastro">
-          <option value="">Todos os tipos</option><option value="pf">Pessoa física</option>
-          <option value="pj">Pessoa jurídica</option><option value="contato">Somente contato</option>
-        </select>
-        <select class="filtro" id="fResp" aria-label="Responsável"></select>
-        <select class="filtro" id="fSituacao" aria-label="Situação">
-          <option value="ativas">Ativas</option><option value="arquivadas">Arquivadas</option>
-        </select>
-        <div class="abas" role="group" aria-label="Visualização">
-          <button type="button" data-visao="tabela" id="vTabela"></button>
-          <button type="button" data-visao="kanban" id="vKanban"></button>
-        </div>
-      </div>
-
-      <div id="visao"><p class="carregando">Carregando…</p></div>
-      <div class="lote" id="lote" hidden></div>
-    </div>
+    <div id="miolo"></div>
   </main>
 </div>
 
@@ -73,12 +44,16 @@
   const $ = id => document.getElementById(id);
   const nomeDe = id => ctx.equipe.find(p => p.id === id)?.nome || 'Usuário removido';
 
-  $('icoBusca').innerHTML = icone('buscar', 18);
-  $('vTabela').innerHTML = icone('tabela', 15) + 'Tabela';
-  $('vKanban').innerHTML = icone('kanban', 15) + 'Kanban';
-  $('btnNova').innerHTML = icone('mais', 16) + 'Nova pessoa';
-  $('fResp').innerHTML = `<option value="">Todos os responsáveis</option><option value="${eu}">Sob minha responsabilidade</option>` +
-    ctx.equipe.filter(p => p.id !== eu).map(p => `<option value="${p.id}">${esc(p.nome)}</option>`).join('');
+  const pagina = UI.paginaModulo($('miolo'), {
+    olho: 'Cadastro comum do escritório', titulo: 'Pessoas', acao: { rotulo: 'Nova pessoa', href: 'nova/' },
+    busca: 'Nome, CPF/CNPJ, telefone, e-mail ou código',
+    filtros: [
+      { id: 'fTipo', rotulo: 'Tipo de cadastro', opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente contato']] },
+      { id: 'fResp', rotulo: 'Responsável', opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'],
+        ...ctx.equipe.filter(p => p.id !== eu).map(p => [p.id, p.nome])] },
+      { id: 'fSituacao', rotulo: 'Situação', opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
+    ]
+  });
 
   // Estado da página (da URL, senão das preferências do usuário)
   const f = {
@@ -101,11 +76,8 @@
   const nomeEtapa = id => colunas.find(c => c.id === id)?.nome || '';
 
   // ---------- visualização ----------
-  function marcarVisao() {
-    $('vTabela').setAttribute('aria-pressed', String(visao === 'tabela'));
-    $('vKanban').setAttribute('aria-pressed', String(visao === 'kanban'));
-  }
-  document.querySelectorAll('[data-visao]').forEach(b => b.onclick = () => {
+  const marcarVisao = () => pagina.marcarVisao(visao);
+  pagina.botoesVisao.forEach(b => b.onclick = () => {
     if (b.dataset.visao === 'kanban' && f.situacao === 'arquivadas') {
       f.situacao = 'ativas'; $('fSituacao').value = 'ativas';
       avisar('O quadro mostra só as pessoas ativas.', 'ok');
