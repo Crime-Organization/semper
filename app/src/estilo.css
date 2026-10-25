@@ -388,7 +388,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .lista-tel { display: flex; flex-direction: column; gap: 8px }
 .lista-tel .linha-campo button { flex-shrink: 0 }
 .retorno { padding: 10px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5 }
-.navegar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 20px; border-top: 1px solid var(--line) }
+/* Voltar e Próxima: sem divisória, separados das perguntas só pelo espaço. */
+.navegar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 32px }
 .navegar .btn { height: 48px; padding: 0 26px }
 .marcar { display: inline-flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; color: var(--text); cursor: pointer }
 .marcar input { width: 18px; height: 18px; accent-color: var(--accent) }
