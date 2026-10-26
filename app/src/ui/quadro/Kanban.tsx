@@ -1,11 +1,13 @@
 // Quadro kanban comum a todos os módulos, no modelo do Trello: as colunas ocupam a altura da tela
 // e cada lista rola dentro da própria coluna. As colunas vêm de useColunas(); o módulo só diz como
-// carregar, desenhar e mover os cartões.
+// carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
+// no menu da coluna.
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { Coluna, Pagina } from '../../dados';
+import type { Coluna, Ordem, Pagina } from '../../dados';
 import { Icone } from '../Icone';
 import { falha } from '../avisos';
+import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { normal, numero } from '../util';
 import type { Quadro } from './useColunas';
 
@@ -13,19 +15,17 @@ export interface Movimento { de: string | null; para: string | null; ordem: numb
 
 interface Props<T extends { id: string }> {
   quadro: Quadro;
-  /** Cartões de uma coluna (null = "Sem etapa"), a partir de "deslocamento". */
-  carregar: (colunaId: string | null, deslocamento: number) => Promise<Pagina<T>>;
+  /** Cartões de uma coluna (null = "Sem etapa"), a partir de "deslocamento", na ordem escolhida para ela. */
+  carregar: (colunaId: string | null, deslocamento: number, ordem: Ordem) => Promise<Pagina<T>>;
   /** Mude este valor para recarregar todas as colunas (filtros novos, dados que mudaram). */
   recarga: string | number;
   ordemDe: (item: T) => number | null;
-  cartao: (item: T) => ReactNode;
+  /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data). */
+  cartao: (item: T, ordem: Ordem) => ReactNode;
   aoAbrir: (item: T) => void;
   aoMover: (item: T, m: Movimento) => Promise<void>;
   /** Botão "Adicionar" no pé de cada coluna. */
   aoAdicionar?: (colunaId: string | null) => void;
-  /** false quando a lista está em outra ordem (nome, data): o cartão ainda muda de coluna, mas entra no
-   *  lugar que essa ordem define, e não dá para mudar a posição dentro da mesma coluna. */
-  manual?: boolean;
 }
 
 interface Lista<T> { itens: T[]; total: number; erro?: string }
@@ -53,7 +53,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const [antesDeCol, setAntesDeCol] = useState<string | null>(null);   // id da coluna ou "fim"
   const antesDeColRef = useRef(antesDeCol);
   antesDeColRef.current = antesDeCol;
-  const [menu, setMenu] = useState<{ c: Coluna; botao: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<{ c: Coluna | null; k: string; botao: HTMLElement } | null>(null);
   const [nova, setNova] = useState('');
   const [criando, setCriando] = useState(false);
   const campoNova = useRef<HTMLInputElement>(null);
@@ -61,6 +61,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 
   const visiveis = quadro.colunas.filter(c => !c.oculta);
   const ocultas = quadro.colunas.filter(c => c.oculta);
+  // Fora da ordem manual, o cartão ainda muda de coluna, mas entra no lugar que a ordem da coluna
+  // define, e não dá para mudar a posição dentro dela.
+  const manualEm = (id: string | null) => p.current.quadro.ordemDe(id) === 'manual';
 
   // A altura vem só do layout (estilo.css, "com-quadro"): o quadro preenche o que sobra da tela.
   useEffect(() => {
@@ -73,7 +76,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const g = mais ? geracao.current[k] : (geracao.current[k] = (geracao.current[k] || 0) + 1);
     const atual = listasRef.current[k];
     try {
-      const { linhas, total } = await p.current.carregar(id, mais && atual ? atual.itens.length : 0);
+      const { linhas, total } = await p.current.carregar(id, mais && atual ? atual.itens.length : 0, p.current.quadro.ordemDe(id));
       if (geracao.current[k] !== g) return;   // chegou depois de uma recarga mais nova
       if (!mais) linhas.forEach(l => { delete ordens.current[l.id]; });
       setListas(l => ({ ...l, [k]: { itens: mais ? [...(l[k]?.itens || []), ...linhas] : linhas, total } }));
@@ -90,6 +93,17 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     carregar(null);
     idsVisiveis.split(',').filter(Boolean).forEach(id => carregar(id));
   }, [quadro.pronto, idsVisiveis, props.recarga, carregar]);
+
+  // Coluna que mudou de ordem é relida sozinha.
+  const ordensVistas = useRef<Record<string, Ordem>>({});
+  useEffect(() => {
+    if (!quadro.pronto) return;
+    for (const id of [null, ...visiveis.map(c => c.id)]) {
+      const k = chave(id), o = quadro.ordemDe(id);
+      if (ordensVistas.current[k] && ordensVistas.current[k] !== o) carregar(id);
+      ordensVistas.current[k] = o;
+    }
+  });
 
   function rolarBordas(x: number) {
     const q = elQuadro.current;
@@ -121,7 +135,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const origem = listasRef.current[kDe], destino = listasRef.current[kPara];
     if (!origem || !destino) return;
     const semItem = origem.itens.filter(x => x.id !== item.id);
-    if (p.current.manual === false) {
+    if (!manualEm(para)) {
       if (kDe === kPara) return;
       // Vai para o fim da ordem manual; na tela, entra onde a ordem escolhida mandar (a coluna é relida).
       const ordemAnterior = ordemDe(item), ordem = Date.now() / 1000;
@@ -173,8 +187,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const l = listas[k];
     const aqui = alvo?.k === k;
     const reordena = !!c && quadro.podeReordenar;
-    const marcador = aqui && props.manual !== false;
-    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && props.manual === false ? ' recebendo' : '')} data-coluna={k}>
+    const ordem = quadro.ordemDe(id), manual = ordem === 'manual';
+    const marcador = aqui && manual;
+    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -185,17 +200,18 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         } : undefined}
         onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); } : undefined}>
         <h3 title={nome}>{nome}</h3><span className="coluna-n">{l ? numero(l.total) : '…'}</span>
-        {c && <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
-          onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.c.id === c.id ? null : { c, botao }); }}>
+        <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
+          onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
           <Icone nome="pontos" tam={16} />
-        </button>}
+        </button>
       </header>
+      {!manual && <p className="coluna-ordem" title="Ordem desta lista (muda no menu da coluna)">{ORDENS[ordem]}</p>}
       <div className="coluna-lista" role="list" aria-label={nome}
         onDragOver={e => {
           if (!arrasto.current) return;
-          if (props.manual === false && chave(arrasto.current.de) === k) return;
+          if (!manual && chave(arrasto.current.de) === k) return;
           e.preventDefault();
-          const antes = props.manual === false ? null : posicao(e.currentTarget, e.clientY);
+          const antes = manual ? posicao(e.currentTarget, e.clientY) : null;
           if (alvoRef.current?.k !== k || alvoRef.current.antes !== antes) setAlvo({ k, antes });
           rolarBordas(e.clientX);
         }}
@@ -216,7 +232,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
               e.dataTransfer.setData('text/plain', it.id);
             }}
             onDragEnd={() => { arrasto.current = null; setArrastando(null); setAlvo(null); }}>
-            {props.cartao(it)}
+            {props.cartao(it, ordem)}
           </article>
         </Fragment>)}
         {marcador && alvo.antes === null && <div className="kmarcador" />}
@@ -281,7 +297,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 }
 
 // ---------- menu da coluna ----------
-function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
+function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: -9999, left: 0 });
   const fechar = useRef(aoFechar);
@@ -298,13 +314,22 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna; botao: HTMLElem
     document.addEventListener('keydown', tecla);
     return () => { clearTimeout(t); document.removeEventListener('click', fora); document.removeEventListener('keydown', tecla); };
   }, [botao]);
-  const visiveis = quadro.colunas.filter(x => !x.oculta), i = visiveis.findIndex(x => x.id === c.id);
+  const visiveis = quadro.colunas.filter(x => !x.oculta), i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
   const agir = (fn: () => unknown) => () => { fechar.current(); fn(); };
+  const atual = quadro.ordemDe(c ? c.id : null);
   return createPortal(<div className="kmenu" role="menu" ref={ref} style={pos}>
+    <p className="rotulo-caps kmenu-titulo">Ordenar esta lista</p>
+    {ORDENS_DO_QUADRO.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === atual}
+      onClick={agir(() => quadro.ordenar(c ? c.id : null, o))}>
+      <span className="kmenu-marca">{o === atual && <Icone nome="check" tam={15} />}</span>{ORDENS[o]}
+    </button>)}
+    {c && <>
+    <hr className="kmenu-divisoria" />
     {quadro.podeReordenar && i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
     {quadro.podeReordenar && i < visiveis.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
     <button type="button" role="menuitem" onClick={agir(() => quadro.ocultar(c, true))}><Icone nome="oculto" tam={15} /> Ocultar para mim</button>
     {quadro.podeRenomear(c) && <button type="button" role="menuitem" onClick={agir(() => quadro.renomear(c))}><Icone nome="editar" tam={15} /> Renomear</button>}
     {quadro.podeExcluir(c) && <button type="button" role="menuitem" className="perigo" onClick={agir(() => quadro.excluir(c))}><Icone nome="lixeira" tam={15} /> Excluir coluna</button>}
+    </>}
   </div>, document.body);
 }

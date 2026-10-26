@@ -1,5 +1,6 @@
-// Ordem das listas (quadro e tabela) de qualquer módulo: as opções, a escolha guardada de cada usuário
-// e a data que acompanha a ordem escolhida. O <PaginaModulo> mostra o controle "Ordenar".
+// Ordem das listas de qualquer módulo: as opções, a escolha guardada de cada usuário e a data que
+// acompanha a ordem escolhida. Na tabela, o <PaginaModulo> mostra o controle "Ordenar"; no quadro,
+// cada coluna tem a sua ordem, escolhida no menu da coluna (useColunas).
 import { useState } from 'react';
 import type { Ordem } from '../dados';
 import type { Visao } from './PaginaModulo';
@@ -19,6 +20,8 @@ const OPCOES: Record<Visao, Ordem[]> = {
   kanban: ['manual', 'novos', 'antigos', 'recentes', 'nome', 'nome_desc'],
   tabela: ['nome', 'nome_desc', 'novos', 'antigos', 'recentes']
 };
+/** Opções de cada coluna do quadro (a manual, de arrastar, só existe no quadro). */
+export const ORDENS_DO_QUADRO = OPCOES.kanban;
 const PADRAO: Record<Visao, Ordem> = { kanban: 'manual', tabela: 'nome' };
 
 export interface Ordenacao { valor: Ordem; opcoes: Ordem[]; aoMudar: (o: Ordem) => void }

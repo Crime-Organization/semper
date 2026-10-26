@@ -1,10 +1,11 @@
 // Colunas do quadro (kanban) de um módulo: carregar, criar, ocultar, renomear, excluir e reordenar,
-// com as regras de permissão e o desfazer. As colunas são do escritório; cada usuário só as oculta para si.
+// com as regras de permissão e o desfazer, e a ordem dos cartões de cada coluna (escolha de cada usuário). As colunas são do escritório; cada usuário só as oculta para si.
 // Todo módulo com quadro usa este gancho com o <Kanban>; nada disso se reescreve por página.
 import { useEffect, useRef, useState } from 'react';
-import { SD, type Coluna, type ContextoAtivo, type Modulo } from '../../dados';
+import { SD, type Coluna, type ContextoAtivo, type Modulo, type Ordem } from '../../dados';
 import { falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
+import { lerPreferencia, salvarPreferencia } from '../preferencias';
 import { normal } from '../util';
 
 export interface Quadro {
@@ -24,6 +25,9 @@ export interface Quadro {
   /** Coloca a coluna antes de "antesDe" (ou no fim, se null), entre as visíveis. A ordem vale para todo o escritório. */
   posicionar: (c: Coluna, antesDe: Coluna | null) => Promise<void>;
   mover: (c: Coluna, passo: -1 | 1) => void;
+  /** Ordem dos cartões de uma coluna (null = "Sem etapa"). Cada coluna tem a sua; o padrão é a manual. */
+  ordemDe: (colunaId: string | null) => Ordem;
+  ordenar: (colunaId: string | null, ordem: Ordem) => void;
 }
 
 const ordenar = (cs: Coluna[]) => cs.slice().sort((a, b) => a.ordem - b.ordem);
@@ -34,6 +38,9 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   const [pronto, setPronto] = useState(false);
   const atuais = useRef(colunas);
   atuais.current = colunas;
+  // Ordem escolhida em cada coluna, guardada no perfil: { "sem" | id da coluna: ordem }.
+  const chaveOrdens = `${modulo}.ordem.colunas`;
+  const [ordens, setOrdens] = useState<Record<string, Ordem>>(() => lerPreferencia(chaveOrdens, {}));
 
   useEffect(() => {
     let vivo = true;
@@ -127,8 +134,17 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     if (passo > 0 && i < visiveis.length - 1) posicionar(c, visiveis[i + 2] || null);
   }
 
+  function ordenarCartoes(colunaId: string | null, ordem: Ordem) {
+    const k = colunaId || 'sem', novas = { ...ordens, [k]: ordem };
+    if (ordem === 'manual') delete novas[k];
+    setOrdens(novas);
+    salvarPreferencia(chaveOrdens, novas);
+  }
+
   return {
     colunas, sugestoes, pronto, rotuloSemEtapa,
+    ordemDe: id => ordens[id || 'sem'] || 'manual',
+    ordenar: ordenarCartoes,
     nomeDe: id => colunas.find(c => c.id === id)?.nome || '',
     podeReordenar: ctx.ehAdmin,
     podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,

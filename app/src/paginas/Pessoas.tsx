@@ -39,8 +39,10 @@ export default function Pessoas() {
   const [visao, setVisao] = useState<Visao>(() =>
     (params.get('visao') || lerPreferencia('pessoas.visao', 'tabela')) === 'kanban' && params.get('situacao') !== 'arquivadas' ? 'kanban' : 'tabela');
   // Ordem escolhida (cada visualização tem a sua). Na tabela, mudar a ordem volta para a primeira página.
-  const ordem = useOrdem('pessoas', visao);
-  const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); if (visao === 'tabela') setF(atual => ({ ...atual, pagina: 0 })); } };
+  // Ordem da tabela (controle "Ordenar" da barra; mudar volta para a primeira página). No quadro, cada
+  // coluna tem a sua, no menu da coluna.
+  const ordem = useOrdem('pessoas', 'tabela');
+  const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -120,8 +122,7 @@ export default function Pessoas() {
   </> : null;
 
   const lead = visao === 'kanban'
-    ? (ordem.valor === 'manual' ? 'Acompanhamento do atendimento. Arraste os cartões entre as colunas.'
-      : 'Acompanhamento do atendimento. Arraste os cartões entre as colunas; para mudar a posição dentro de uma coluna, use a ordem manual.')
+    ? 'Acompanhamento do atendimento. Arraste os cartões entre as colunas; a ordem de cada coluna muda no menu dela (⋯).'
     : tabela ? `${plural(tabela.total, f.situacao === 'arquivadas' ? 'pessoa arquivada' : 'pessoa ativa', f.situacao === 'arquivadas' ? 'pessoas arquivadas' : 'pessoas ativas')}${filtrado ? ' com os filtros escolhidos' : ''}.` : null;
 
   return <>
@@ -135,15 +136,14 @@ export default function Pessoas() {
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'situacao', rotulo: 'Situação', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
       ]}
-      ordem={ordenacao}
+      ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lead={lead} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.tipo, f.responsavel, ordem.valor].join('|')}
-          manual={ordem.valor === 'manual'}
-          carregar={(colunaId, deslocamento) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordem.valor, situacao: 'ativas' }, deslocamento, 30)}
+          recarga={[recarga, f.termo, f.tipo, f.responsavel].join('|')}
+          carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
-          cartao={p => <CartaoKanban p={p} ordem={ordem.valor} />}
+          cartao={(p, ordemDaColuna) => <CartaoKanban p={p} ordem={ordemDaColuna} />}
           aoAbrir={p => abrir(p.id)}
           aoMover={async (p, { de, para, ordem, ordemAnterior }) => {
             await SD.pessoaMover(p.id, para, ordem);

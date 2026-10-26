@@ -151,7 +151,7 @@ Toda página de módulo é montada pelo componente comum **`<PaginaModulo>`** (e
   acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
   busca={{ placeholder: 'Nome, CPF/CNPJ, telefone, e-mail ou código', aoBuscar: termo => ... }}
   filtros={[{ id: 'tipo', rotulo: 'Tipo', valor, aoMudar, opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }]}
-  ordem={useOrdem('pessoas', visao)}
+  ordem={visao === 'tabela' ? useOrdem('pessoas', 'tabela') : undefined}
   visao={visao} aoTrocarVisao={setVisao} lead="28 pessoas ativas." lote={selecionadas ? <>…</> : null}>
   {visao === 'kanban' ? <Kanban quadro={useColunas('pessoas', ctx)} … /> : <Tabela … />}
 </PaginaModulo>
@@ -159,11 +159,11 @@ Toda página de módulo é montada pelo componente comum **`<PaginaModulo>`** (e
 
 O quadro também é comum: `useColunas(modulo, ctx)` (em `app/src/ui/quadro/`) cuida das colunas (criar, ocultar, renomear, excluir, reordenar, permissões e desfazer) e `<Kanban>` desenha e arrasta os cartões. O módulo só diz como carregar, desenhar e mover os cartões.
 
-Toda listagem tem o controle **Ordenar**, comum ao quadro e à tabela: `useOrdem(modulo, visao)` (em `app/src/ui/ordem.ts`) guarda a escolha de cada usuário, separada para o quadro e para a tabela. Opções: ordem manual (só no quadro, arrastando os cartões), mais novos primeiro, mais antigos primeiro, atualizados recentemente, nome A–Z e nome Z–A. Nas ordens por data, o cartão mostra a data correspondente (`dataDaOrdem`), e a tabela troca a última coluna para a data de cadastro quando a ordem é por cadastro.
+**Ordenar.** No quadro, **cada coluna tem a sua ordem**, escolhida no topo do menu da coluna (⋯), inclusive na "Sem etapa": ordem manual (arrastando os cartões), mais novos primeiro, mais antigos primeiro, atualizados recentemente, nome A–Z e nome Z–A. A coluna fora da ordem manual mostra a ordem abaixo do título, e nas ordens por data os cartões dela mostram a data (`dataDaOrdem`). A escolha é de cada usuário e fica guardada por coluna (`useColunas`: `ordemDe` e `ordenar`). Na tabela, que é uma lista só, o controle **Ordenar** fica na barra (`useOrdem(modulo, 'tabela')` em `app/src/ui/ordem.ts`), e a última coluna mostra a data de cadastro quando a ordem é por cadastro.
 
 Estrutura, sempre nesta ordem:
 1. **Cabeçalho** (`.cabeca`): olho → linha com o título (com o ponto verde) e a **ação principal à direita, na mesma linha do título** → lead.
-2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → **Ordenar** → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura.
+2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → **Ordenar** (só na tabela) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura.
 3. **Área da visualização**: tabela, ou o quadro kanban (`.area-quadro`) preenchendo o resto da tela.
 4. **Barra de ações em lote** (`.lote`): aparece quando há itens selecionados na tabela.
 
@@ -177,7 +177,7 @@ O kanban segue o modelo do Trello, **não** o do Notion:
 - Cada coluna tem largura fixa (272–296px), fundo `{colors.soft}`, `{rounded.lg}` e cabeçalho fixo (nome em `{typography.label-caps}` + contagem tabular).
 - **A lista de cartões rola dentro da própria coluna** (`overflow-y: auto`), sem nunca empurrar a página para baixo. O botão "Adicionar cartão" fica fixo no pé da coluna.
 - Cartão: branco, borda `{colors.line2}`, `{rounded.md}`, título em `{typography.card-title}`, metadados (código do contrato, responsável, prazo, contagem de checklist) em `{typography.caption}`. Arrastando, o cartão ganha a sombra Floating e leve rotação (1–2°), que somem assim que ele é solto.
-- Na ordem manual, uma barra verde mostra onde o cartão vai entrar. Em outra ordem (nome, data), o cartão só muda de coluna: a coluna de destino inteira fica contornada em verde tracejado, e o cartão entra no lugar que a ordem escolhida define.
+- Coluna na ordem manual: uma barra verde mostra onde o cartão vai entrar. Coluna em outra ordem (nome, data): o cartão só entra nela vindo de outra coluna; a coluna inteira fica contornada em verde tracejado e o cartão entra no lugar que a ordem dela define. Dentro dela não dá para mudar a posição.
 - Coluna e cartão nunca são preenchidos de verde. O verde aparece só no foco e no botão principal.
 
 ### Cartão (painel de detalhe de pessoa, contrato, demanda…)
