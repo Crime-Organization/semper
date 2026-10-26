@@ -11,9 +11,9 @@ O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que 
 | Pasta / arquivo | Conteúdo |
 |---|---|
 | `app/src/paginas/` | Telas: `Entrada` (login, primeiro acesso, recuperação de senha, cliente), `Inicio`, `Pessoas` e `CartaoPessoa`, `NovaPessoa` (cadastro em etapas) e `Equipe`. |
-| `app/src/ui/` | Peças comuns: `Casca` (barra lateral), `PaginaModulo`, `quadro/` (`Kanban` e `useColunas`), avisos e desfazer (Ctrl+Z), janelas, painel do cartão, tema e sessão. |
+| `app/src/ui/` | Peças comuns: `Casca` (barra lateral), `PaginaModulo` (com o menu ⋯ de `Menu`), `quadro/` (`Kanban` e `useColunas`), avisos e desfazer (Ctrl+Z), janelas, painel do cartão, tema e sessão. |
 | `app/src/dados/` | `supabase.ts` (única parte que fala com o banco), `falso.ts` (banco fictício para testes) e `tipos.ts` (o formato dos dados). |
-| `app/src/regras/` | Regras de cadastro: formatos, validação, qualificação e consultas de CNPJ e CEP, com os testes. |
+| `app/src/regras/` | Regras de cadastro: formatos, validação, qualificação, consultas de CNPJ e CEP, vínculos e o CSV do Google Contatos (`contatosGoogle.ts`), com os testes. |
 | `app/src/marca.ts` e `app/src/imagens/` | Nome, logos, foto, cores e conexão com o banco (marca branca). |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |

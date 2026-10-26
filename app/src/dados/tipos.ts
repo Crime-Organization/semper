@@ -162,6 +162,8 @@ export interface Dados {
 
   // pessoas
   pessoasListar(f?: FiltroPessoas): Promise<Pagina<PessoaLista>>;
+  /** Todas as pessoas do filtro (sem paginar), com o cadastro completo, em ordem de nome: para exportar. */
+  pessoasExportar(f?: FiltroPessoas): Promise<Pessoa[]>;
   pessoasDaEtapa(etapaId: string | null, f?: FiltroPessoas, deslocamento?: number, limite?: number): Promise<Pagina<PessoaLista>>;
   pessoaObter(id: string): Promise<Pessoa | null>;
   pessoaPorDocumento(documento: string, excetoId?: string): Promise<PessoaResumida | null>;

@@ -3,11 +3,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
+import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { fmtDocumento, fmtTelefone, TIPOS } from '../regras/pessoa';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
+import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
@@ -15,7 +17,7 @@ import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { dataDaOrdem, useOrdem } from '../ui/ordem';
-import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
+import { baixarArquivo, dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoPessoa } from './CartaoPessoa';
 import './Pessoas.css';
 
@@ -110,6 +112,36 @@ export default function Pessoas() {
       setSelecionadas(new Set()); recarregar();
     } catch (e) { falha(e); }
   }
+  // ---------- exportar ----------
+  // Leva as pessoas da lista como ela está filtrada (busca, tipo, responsável, situação) para o Google Contatos.
+  // Só administradores: é a base inteira de clientes saindo do sistema.
+  async function exportarGoogle() {
+    const quantas = visao === 'tabela' && tabela ? plural(tabela.total, 'pessoa', 'pessoas') : 'as pessoas';
+    const escolha = await janela<'com' | 'sem'>({
+      titulo: 'Exportar para o Google Contatos',
+      corpo: <>
+        <p>Gera um arquivo CSV com {quantas} desta lista{filtrado || f.situacao === 'arquivadas' ? ', com os filtros escolhidos' : ''}. No Google Contatos, use "Importar" e escolha o arquivo.</p>
+        <div className="opcoes-janela" role="radiogroup" aria-label="Descrição dos contatos">
+          <label><input type="radio" name="descricao" value="com" defaultChecked />
+            <span>Com a qualificação na descrição<small>Nome, telefones, e-mails, aniversário e a qualificação completa.</small></span></label>
+          <label><input type="radio" name="descricao" value="sem" />
+            <span>Sem descrição<small>Só nome, telefones, e-mails e aniversário.</small></span></label>
+        </div>
+        <p className="sub">O Google cria contatos novos ao importar: quem já estiver lá fica repetido. Depois, use "Mesclar e corrigir" no Google.</p>
+      </>,
+      acoes: [{ rotulo: 'Cancelar', valor: null },
+        { rotulo: 'Baixar arquivo', tipo: 'pri', valor: j => j.querySelector<HTMLInputElement>('input[name="descricao"]:checked')?.value === 'sem' ? 'sem' : 'com' }]
+    });
+    if (!escolha) return;
+    try {
+      const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, situacao: f.situacao });
+      if (!pessoas.length) { avisar('Nenhuma pessoa para exportar com esses filtros.', 'erro'); return; }
+      const hoje = new Date().toLocaleDateString('sv-SE');
+      baixarArquivo(`contatos-google-${escolha}-qualificacao-${hoje}.csv`, csvContatosGoogle(pessoas, { comQualificacao: escolha === 'com' }));
+      avisar(`${plural(pessoas.length, 'contato exportado', 'contatos exportados')}.`, 'ok');
+    } catch (e) { falha(e); }
+  }
+
   const n = selecionadas.size;
   const lote = visao === 'tabela' && n > 0 ? <>
     <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className="link" style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => setSelecionadas(new Set())}>limpar</button></span>
@@ -137,6 +169,7 @@ export default function Pessoas() {
         { id: 'situacao', rotulo: 'Situação', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
+      mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle }] : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lead={lead} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}

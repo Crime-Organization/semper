@@ -33,6 +33,15 @@ export function useAtrasado<T>(valor: T, ms = 350) {
   return atrasado;
 }
 
+/** Entrega um arquivo gerado na tela (CSV, por exemplo) como download. */
+export function baixarArquivo(nome: string, conteudo: string, tipo = 'text/csv;charset=utf-8') {
+  const url = URL.createObjectURL(new Blob([conteudo], { type: tipo }));
+  const a = document.createElement('a');
+  a.href = url; a.download = nome;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** Copia um texto; se o navegador não deixar, seleciona o elemento para Ctrl+C. Devolve se copiou. */
 export async function copiarTexto(texto: string, selecionar?: HTMLElement | null) {
   try { await navigator.clipboard.writeText(texto); return true; }

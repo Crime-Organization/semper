@@ -168,6 +168,7 @@ export const SD: Dados = {
     const por = f.porPagina || 50, de = (f.pagina || 0) * por;
     return espera({ linhas: r.slice(de, de + por).map(lista), total: r.length });
   },
+  pessoasExportar: (f = {}) => espera(filtrar(f).sort(ORDENS.nome)),
   async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
     const r = filtrar(f).filter(p => (p.etapa_id || null) === (etapaId || null))
       .sort(ORDENS[f.ordem || 'manual']);

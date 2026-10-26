@@ -152,6 +152,7 @@ Toda página de módulo é montada pelo componente comum **`<PaginaModulo>`** (e
   busca={{ placeholder: 'Nome, CPF/CNPJ, telefone, e-mail ou código', aoBuscar: termo => ... }}
   filtros={[{ id: 'tipo', rotulo: 'Tipo', valor, aoMudar, opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }]}
   ordem={visao === 'tabela' ? useOrdem('pessoas', 'tabela') : undefined}
+  mais={[{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportar }]}
   visao={visao} aoTrocarVisao={setVisao} lead="28 pessoas ativas." lote={selecionadas ? <>…</> : null}>
   {visao === 'kanban' ? <Kanban quadro={useColunas('pessoas', ctx)} … /> : <Tabela … />}
 </PaginaModulo>
@@ -163,9 +164,11 @@ O quadro também é comum: `useColunas(modulo, ctx)` (em `app/src/ui/quadro/`) c
 
 Estrutura, sempre nesta ordem:
 1. **Cabeçalho** (`.cabeca`): olho → linha com o título (com o ponto verde) e a **ação principal à direita, na mesma linha do título** → lead.
-2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → **Ordenar** (só na tabela) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura.
+2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → **Ordenar** (só na tabela) → menu **⋯** (`mais`, ações sobre a lista inteira, como exportar; só aparece se o módulo tiver alguma) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura. O menu ⋯ e o menu da coluna do quadro usam a mesma peça, `<MenuFlutuante>` (`app/src/ui/Menu.tsx`).
 3. **Área da visualização**: tabela, ou o quadro kanban (`.area-quadro`) preenchendo o resto da tela.
 4. **Barra de ações em lote** (`.lote`): aparece quando há itens selecionados na tabela.
+
+**Exportar.** A exportação leva a lista como ela está filtrada (busca, filtros e situação), gera o arquivo na própria tela (`baixarArquivo`, em `app/src/ui/util.ts`) e fica no menu ⋯, só para administradores. Em Pessoas: **Exportar para o Google Contatos**, no mesmo CSV que o Google exporta e importa (`app/src/regras/contatosGoogle.ts`), com ou sem a qualificação na descrição.
 
 Comportamento conforme o espaço disponível. É sempre pelo tamanho real do conteúdo (container queries), nunca por contas em JavaScript nem por página:
 - Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. Os filtros se distribuem em linhas iguais, e a troca Tabela/Kanban ocupa a largura toda.

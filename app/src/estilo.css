@@ -236,6 +236,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .abas { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
 .abas button { height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px }
 .abas button[aria-pressed="true"], .abas button[aria-selected="true"] { background: var(--sel); color: var(--sel-txt) }
+/* Menu "⋯" das ações sobre a lista inteira (exportar...), redondo, na altura dos filtros. */
+.barra-mais { flex: 0 0 auto; width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--ink); cursor: pointer }
+.barra-mais:hover, .barra-mais[aria-expanded="true"] { background: var(--soft) }
+/* Opções dentro de uma janela (ex.: com ou sem qualificação). */
+.opcoes-janela { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px }
+.opcoes-janela label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; line-height: 1.4 }
+.opcoes-janela input { margin-top: 3px; accent-color: var(--accent-ink) }
+.opcoes-janela small { display: block; color: var(--muted) }
 /* Espaço estreito (zoom, celular): filtros em linhas iguais e a troca Tabela/Kanban na largura toda. */
 @container (max-width: 560px) {
   .barra-ferr > .filtro { flex: 1 1 140px; min-width: 0 }

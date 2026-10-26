@@ -2,10 +2,10 @@
 // e cada lista rola dentro da própria coluna. As colunas vêm de useColunas(); o módulo só diz como
 // carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
 // no menu da coluna.
-import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Coluna, Ordem, Pagina } from '../../dados';
 import { Icone } from '../Icone';
+import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { normal, numero } from '../util';
@@ -298,26 +298,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 
 // ---------- menu da coluna ----------
 function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: -9999, left: 0 });
-  const fechar = useRef(aoFechar);
-  fechar.current = aoFechar;
-  useLayoutEffect(() => {
-    const r = botao.getBoundingClientRect(), m = ref.current!;
-    setPos({ top: r.bottom + window.scrollY + 6, left: Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - 12) });
-    m.querySelector('button')?.focus();
-  }, [botao]);
-  useEffect(() => {
-    const fora = () => fechar.current();
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { fechar.current(); botao.focus(); } };
-    const t = setTimeout(() => document.addEventListener('click', fora), 0);
-    document.addEventListener('keydown', tecla);
-    return () => { clearTimeout(t); document.removeEventListener('click', fora); document.removeEventListener('keydown', tecla); };
-  }, [botao]);
   const visiveis = quadro.colunas.filter(x => !x.oculta), i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
-  const agir = (fn: () => unknown) => () => { fechar.current(); fn(); };
+  const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   const atual = quadro.ordemDe(c ? c.id : null);
-  return createPortal(<div className="kmenu" role="menu" ref={ref} style={pos}>
+  return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
     <p className="rotulo-caps kmenu-titulo">Ordenar esta lista</p>
     {ORDENS_DO_QUADRO.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === atual}
       onClick={agir(() => quadro.ordenar(c ? c.id : null, o))}>
@@ -331,5 +315,5 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
     {quadro.podeRenomear(c) && <button type="button" role="menuitem" onClick={agir(() => quadro.renomear(c))}><Icone nome="editar" tam={15} /> Renomear</button>}
     {quadro.podeExcluir(c) && <button type="button" role="menuitem" className="perigo" onClick={agir(() => quadro.excluir(c))}><Icone nome="lixeira" tam={15} /> Excluir coluna</button>}
     </>}
-  </div>, document.body);
+  </MenuFlutuante>;
 }

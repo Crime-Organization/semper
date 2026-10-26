@@ -4,7 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
 import { telefoneNormal } from '../regras/pessoa';
-import type { Contexto, Dados, FiltroPessoas, Ordem } from './tipos';
+import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -173,6 +173,17 @@ export const SD: Dados = {
     q = ordenar(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome');
     const { data, count } = await rodar(q.range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
+  },
+
+  // Exportação: todas as pessoas do filtro, com o cadastro completo, em lotes de 1.000 (o máximo de uma consulta).
+  async pessoasExportar(f = {}) {
+    const lote = 1000, todas: Pessoa[] = [];
+    for (let de = 0; ; de += lote) {
+      const q = filtrar(sb.from('pessoas').select('*, resp:pessoa_responsaveis(perfil_id)' + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '')), f);
+      const { data } = await rodar(ordenar(q, 'nome').range(de, de + lote - 1));
+      todas.push(...data);
+      if (data.length < lote) return todas;
+    }
   },
 
   // Cartões de uma coluna do kanban (etapaId null = "Sem etapa").

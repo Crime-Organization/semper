@@ -5,7 +5,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { Ordem } from '../dados';
-import { Icone } from './Icone';
+import { Icone, type NomeIcone } from './Icone';
+import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
 
@@ -20,6 +21,9 @@ export interface Filtro {
   aoMudar: (valor: string) => void;
 }
 
+/** Item do menu "⋯" da barra (exportar, importar e outras ações sobre a lista inteira). */
+export interface AcaoMenu { rotulo: string; icone: NomeIcone; aoEscolher: () => void }
+
 interface Props {
   olho?: string;
   titulo: string;
@@ -27,8 +31,10 @@ interface Props {
   /** Busca com espera enquanto digita: aoBuscar recebe o termo só quando a pessoa para de digitar. */
   busca?: { placeholder: string; aoBuscar: (termo: string) => void };
   filtros?: Filtro[];
-  /** Controle "Ordenar" (vem de useOrdem, em ui/ordem.ts): vale para o quadro e para a tabela. */
+  /** Controle "Ordenar" da tabela (vem de useOrdem, em ui/ordem.ts); no quadro, cada coluna tem o seu. */
   ordem?: Ordenacao;
+  /** Ações sobre a lista inteira, no menu "⋯" ao lado dos filtros (ex.: exportar). */
+  mais?: AcaoMenu[];
   visoes?: Visao[];
   visao?: Visao;
   aoTrocarVisao?: (v: Visao) => void;
@@ -38,7 +44,8 @@ interface Props {
   children: ReactNode;
 }
 
-export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lead, lote, children }: Props) {
+export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lead, lote, children }: Props) {
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [termo, setTermo] = useState('');
   const atrasado = useAtrasado(termo, 350);
   const aoBuscar = busca?.aoBuscar;
@@ -70,6 +77,13 @@ export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, v
       {ordem && <select className="filtro" aria-label="Ordenar" title="Ordenar" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as Ordem)}>
         {ordem.opcoes.map(o => <option key={o} value={o}>{ORDENS[o]}</option>)}
       </select>}
+      {mais.length > 0 && <button type="button" className="barra-mais" title="Mais ações" aria-label="Mais ações" aria-haspopup="menu"
+        aria-expanded={!!menu} onClick={e => setMenu(menu ? null : e.currentTarget)}><Icone nome="pontos" tam={20} /></button>}
+      {menu && <MenuFlutuante botao={menu} aoFechar={() => setMenu(null)}>
+        {mais.map(a => <button key={a.rotulo} type="button" role="menuitem" onClick={() => { setMenu(null); a.aoEscolher(); }}>
+          <Icone nome={a.icone} tam={15} /> {a.rotulo}
+        </button>)}
+      </MenuFlutuante>}
       {visoes.length > 1 && <div className="abas" role="group" aria-label="Visualização">
         {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => aoTrocarVisao?.(v)}>
           <Icone nome={v} tam={15} />{VISOES[v]}
