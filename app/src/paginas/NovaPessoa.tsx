@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNo
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import {
-  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, emailValido, ENTIDADES, ESTADO_CIVIL, fmtCEP, fmtCNPJ, fmtCPF, fmtData,
+  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, fmtCEP, fmtCNPJ, fmtCPF, fmtData,
   fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS
 } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
@@ -150,6 +150,7 @@ export default function NovaPessoa() {
       if (ok) ok = await verificarDocumento(d);
     }
     if (e === 's-empresa') {
+      if (ehIndividual(a.entidade)) marcar('genero', !!a.genero, 'Selecione o gênero do(a) titular (usado na concordância da qualificação).');
       const d = dig(a.cnpj);
       marcar('cnpj', cnpjValido(d), d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.');
       ok = dataOk(a.abertura, 'abertura', novos) && ok;
@@ -330,7 +331,9 @@ export default function NovaPessoa() {
       });
     } else if (t === 'pj') {
       const nat = a.natureza || null;
+      // MEI e empresário individual guardam o gênero do titular, para a concordância da qualificação.
       Object.assign(d, pf, {
+        genero: ehIndividual(a.entidade) ? a.genero || null : null,
         natureza: nat, tipo_entidade: nat && ENTIDADES[nat]?.includes(a.entidade) ? a.entidade : null,
         nome_fantasia: maius(a.fantasia), porte: a.porte || null, abertura: lerData(a.abertura),
         representantes: maius(a.representantes), documento: dig(a.cnpj) || dig(a.cnpjBusca) || null
@@ -546,6 +549,12 @@ export default function NovaPessoa() {
 
         {etapa === 's-empresa' && <section className="etapa ativa" key={etapa}>
           <header><h2>Pessoa jurídica</h2><p>Dados da empresa ou entidade.</p></header>
+          {ehIndividual(c.entidade) && <div className={pc('genero')}>
+            <span className="rot">Gênero do(a) titular<span className="req">*</span></span>
+            <p className="dica">No MEI e no empresário individual, a empresa é a própria pessoa: a qualificação concorda com ela (empresário ou empresária, inscrito ou inscrita).</p>
+            <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
+            {erro('genero')}
+          </div>}
           <div className="pergunta"><label htmlFor="fantasia">Nome fantasia</label>{texto('fantasia', { maximo: 200, maiusculas: true })}</div>
           <div className="pergunta">
             <span className="rot">Porte</span>

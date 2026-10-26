@@ -150,71 +150,108 @@ export const emailValido = (v: Texto) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(Strin
 
 // ---------- texto ----------
 type Qualificavel = DadosPessoa & { nome?: string | null };
-const genero = (p: Qualificavel, m: string, f: string, n: string) => p.genero === 'm' ? m : p.genero === 'f' ? f : n;
-// "Sociedade Empresária Limitada" -> "sociedade empresária limitada" (mantém siglas como MEI)
-const minusculas = (t: Texto) => String(t || '').split(' ').map(w => (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) ? w : w.toLowerCase()).join(' ');
+const espacos = (t: Texto) => String(t ?? '').replace(/\s+/g, ' ').trim();
+// "Sociedade Empresária Limitada" -> "sociedade empresária limitada" (mantém siglas como MEI); tudo em maiúsculas vira minúsculas.
+const minusculas = (t: Texto) => {
+  const s = espacos(t);
+  if (s === s.toUpperCase()) return s.toLowerCase();
+  return s.split(' ').map(w => (w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w)) ? w : w.toLowerCase()).join(' ');
+};
 const listaE = (itens: string[]) => itens.length <= 1 ? (itens[0] || '') : itens.slice(0, -1).join(', ') + ' e ' + itens[itens.length - 1];
 
-function nacionalidade(p: Qualificavel) {
-  const n = String(p.nacionalidade || '').trim();
-  if (!n) return '';
-  if (/^brasileir/i.test(n)) return genero(p, 'brasileiro', 'brasileira', 'brasileiro(a)');
-  return n.toLowerCase();
+// Endereço e cidade digitados todos em maiúsculas (ou minúsculas) saem como nome próprio: "RUA DAS FLORES" -> "Rua das Flores".
+// O que veio com maiúsculas e minúsculas fica como foi digitado. Números romanos e trechos com algarismos ("BR-251") ficam em maiúsculas.
+const PEQUENAS = new Set(['a', 'à', 'ao', 'as', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'o', 'os']);
+const ROMANO = /^(?=[ivxlcdm]{2,}$)m{0,3}(cm|cd|d?c{0,3})(xc|xl|l?x{0,3})(ix|iv|v?i{0,3})$/;
+export function nomeProprio(t: Texto) {
+  const s = espacos(t);
+  if (s !== s.toUpperCase() && s !== s.toLowerCase()) return s;
+  return s.toLowerCase().split(' ').map((w, i) => {
+    if (/\d/.test(w) || ROMANO.test(w)) return w.toUpperCase();
+    if (i > 0 && PEQUENAS.has(w)) return w;
+    return w.replace(/(^|[-/('’.])(\p{L})/gu, (_, antes: string, letra: string) => antes + letra.toUpperCase());
+  }).join(' ');
 }
 
+/** Empresário individual e MEI: a pessoa jurídica é a própria pessoa, e o texto concorda com o gênero dela. */
+export const ehIndividual = (tipoEntidade: Texto) => /^(Microempreendedor\(a\) Individual \(MEI\)|Empresári[oa](\(a\))? Individual)$/i.test(espacos(tipoEntidade));
+
+// Concordância como na planilha do escritório: com o gênero informado, "o(a)" e "(a)" viram a forma certa, inclusive no que
+// foi digitado ("agricultor(a)", "Empresário(a) Individual"). Sem gênero, o texto fica com "(a)".
+function flexionar(texto: string, g: string | null | undefined) {
+  if (g === 'f') return texto.replace(/o\(a\)/g, 'a').replace(/\(a\)/g, 'a');
+  if (g === 'm') return texto.replace(/o\(a\)/g, 'o').replace(/\(a\)/g, '');
+  return texto;
+}
+
+function nacionalidade(p: Qualificavel) {
+  const n = espacos(p.nacionalidade);
+  if (!n) return '';
+  return /^brasileir/i.test(n) ? 'brasileiro(a)' : n.toLowerCase();
+}
+
+// "Rua das Flores, nº 10, Apto 201, bairro Centro, em Montes Claros/MG, CEP: 39.400-121". Devolve também como ligar ao
+// texto anterior: "na Rua…", "no Sítio…" ou, sem logradouro, direto "em Montes Claros/MG".
+const MASCULINOS = /^(s[ií]tio|povoado|distrito|assentamento|c[oó]rrego|beco|largo|loteamento|conjunto|condom[ií]nio|parque|residencial|n[uú]cleo|setor|trevo|viaduto|acampamento|lugar|km|quil[oô]metro|bairro|morro|alto|retiro|engenho|lote|ramal|caminho|p[aá]tio)\b/i;
 function endereco(p: Qualificavel) {
-  if (!p.logradouro && !p.municipio) return '';
+  if (!p.logradouro && !p.municipio) return null;
   const partes: string[] = [];
-  if (p.logradouro) partes.push(p.logradouro.trim() + (p.numero ? `, nº ${String(p.numero).trim()}` : ''));
-  if (p.complemento) partes.push(p.complemento.trim());
-  if (p.bairro) partes.push(`bairro ${p.bairro.trim()}`);
-  if (p.municipio) partes.push(`em ${p.municipio.trim()}${p.uf ? '/' + p.uf : ''}`);
+  const logradouro = nomeProprio(p.logradouro);
+  if (logradouro) partes.push(logradouro + (p.numero ? `, nº ${espacos(p.numero)}` : ''));
+  if (p.complemento) partes.push(nomeProprio(p.complemento));
+  if (p.bairro) partes.push(`bairro ${nomeProprio(p.bairro)}`);
+  if (p.municipio) partes.push(`em ${nomeProprio(p.municipio)}${p.uf ? '/' + espacos(p.uf).toUpperCase() : ''}`);
   if (p.cep) partes.push(`CEP: ${fmtCEPQualificacao(p.cep)}`);
-  return partes.join(', ');
+  return { texto: partes.join(', '), artigo: !logradouro ? '' : MASCULINOS.test(logradouro) ? 'no ' : 'na ' };
 }
 
 function contatos(p: Qualificavel) {
   const partes: string[] = [];
-  const emails = (p.emails || []).filter(Boolean);
+  const emails = (p.emails || []).map(e => espacos(e).toLowerCase()).filter(Boolean);
   const tels = (p.telefones || []).filter(Boolean).map(fmtTelefone);
   if (emails.length) partes.push((emails.length > 1 ? 'e-mails ' : 'e-mail ') + listaE(emails));
   if (tels.length) partes.push((tels.length > 1 ? 'telefones nº ' : 'telefone nº ') + listaE(tels));
   return partes.join(', ');
 }
 
-// Qualificação no padrão das peças do escritório, gerada a partir do cadastro.
+// Qualificação no modelo das peças do escritório (o mesmo da planilha do site), gerada a partir do cadastro.
+// Sociedades, associações e entes públicos concordam no feminino ("inscrita", "representada"); pessoa física,
+// MEI e empresário individual concordam com o gênero da pessoa.
 export function qualificacao(p: Qualificavel | null | undefined) {
-  if (!p || !p.nome) return '';
-  const partes = [String(p.nome).trim().toUpperCase()];
+  if (!p || !p.nome || (p.tipo !== 'pf' && p.tipo !== 'pj')) return '';
+  const partes = [espacos(p.nome).toUpperCase()];
+  const end = endereco(p);
+  const representantes = espacos(p.representantes).split(/\s+e\/ou\s+/i).map(n => n.toUpperCase()).filter(Boolean).join(' e/ou ');
+  let concorda = false;
   if (p.tipo === 'pf') {
-    const o = (m: string, f: string, n: string) => genero(p, m, f, n);
+    concorda = true;
     if (nacionalidade(p)) partes.push(nacionalidade(p));
-    if (p.profissao) partes.push(String(p.profissao).trim());
-    if (p.estado_civil && ESTADO_CIVIL[p.estado_civil]) partes.push(o(...ESTADO_CIVIL[p.estado_civil]));
-    if (p.documento) partes.push(`${o('inscrito', 'inscrita', 'inscrito(a)')} no CPF nº ${fmtCPF(p.documento)}`);
-    if (p.rg) partes.push(`com RG nº ${String(p.rg).trim()}`);
-    const pais = [p.nome_mae, p.nome_pai].filter(Boolean).map(n => String(n).trim().toUpperCase());
-    if (pais.length) partes.push(`${o('filho', 'filha', 'filho(a)')} de ${pais.join(' e de ')}`);
-    if (p.nascimento) partes.push(`${o('nascido', 'nascida', 'nascido(a)')} em ${fmtData(p.nascimento)}`);
-    if (p.nascimento_municipio) partes.push(`natural de ${String(p.nascimento_municipio).trim()}${p.nascimento_uf ? '/' + p.nascimento_uf : ''}`);
-    const end = endereco(p);
-    if (end) partes.push(`${o('residente e domiciliado', 'residente e domiciliada', 'residente e domiciliado(a)')} na ${end}`);
-  } else if (p.tipo === 'pj') {
-    if (p.tipo_entidade) partes.push(minusculas(p.tipo_entidade));
-    if (p.documento) partes.push(`inscrito(a) no CNPJ nº ${fmtCNPJ(p.documento)}`);
-    if (p.porte && PORTES[p.porte]) partes.push(`com porte de ${PORTES[p.porte].toLowerCase()}`);
-    const end = endereco(p);
-    if (end) partes.push(`com sede na ${end}`);
+    if (p.profissao) partes.push(minusculas(p.profissao));
+    if (p.estado_civil && ESTADO_CIVIL[p.estado_civil]) partes.push(ESTADO_CIVIL[p.estado_civil][2]);
+    if (p.documento) partes.push(`inscrito(a) no CPF nº ${fmtCPF(p.documento)}`);
+    if (p.rg) partes.push(`com RG nº ${espacos(p.rg)}` + (p.rg_expedicao ? `, expedida em ${fmtData(p.rg_expedicao)}` : ''));
+    const pais = [p.nome_mae, p.nome_pai].map(n => espacos(n).toUpperCase()).filter(Boolean);
+    if (pais.length) partes.push(`filho(a) de ${pais.join(' e de ')}`);
+    if (p.nascimento) partes.push(`nascido(a) em ${fmtData(p.nascimento)}`);
+    if (p.nascimento_municipio) partes.push(`natural de ${nomeProprio(p.nascimento_municipio)}${p.nascimento_uf ? '/' + espacos(p.nascimento_uf).toUpperCase() : ''}`);
+    if (end) partes.push(`residente e domiciliado(a) ${end.artigo}${end.texto}`);
   } else {
-    return '';
+    const individual = ehIndividual(p.tipo_entidade);
+    concorda = individual;
+    const inscrita = individual ? 'inscrito(a)' : 'inscrita';
+    if (p.natureza === 'publica') partes.push('pessoa jurídica de direito público');
+    else if (p.tipo_entidade) partes.push(minusculas(p.tipo_entidade) + (p.natureza === 'sem_fins' ? ' sem fins lucrativos' : ''));
+    if (p.documento) partes.push(`${inscrita} no CNPJ nº ${fmtCNPJ(p.documento)}`);
+    if (p.nome_fantasia) partes.push(`com título do estabelecimento ${espacos(p.nome_fantasia).toUpperCase()}`);
+    if (p.porte && PORTES[p.porte]) partes.push(`com porte de ${PORTES[p.porte].toLowerCase()}`);
+    if (representantes) partes.push(`${individual ? 'representado(a)' : 'representada'} por ${representantes}`);
+    if (end) partes.push(`${individual ? 'com endereço profissional' : 'com sede'} ${end.artigo}${end.texto}`);
   }
   const cont = contatos(p);
   if (cont) partes.push(cont);
-  if (p.tipo === 'pj' && p.representantes) {
-    const nomes = String(p.representantes).split(/\s+e\/ou\s+/i).map(n => n.trim().toUpperCase()).filter(Boolean);
-    partes.push(`neste ato representado(a) por ${nomes.join(' e/ou ')}`);
-  }
-  return partes.join(', ');
+  // Campo digitado com vírgula no fim ("Rua X,") não vira ",,".
+  const texto = partes.join(', ').replace(/\s+,/g, ',').replace(/,(\s*,)+/g, ',');
+  return concorda ? flexionar(texto, p.genero) : texto;
 }
 
 // ---------- consulta de CNPJ (publica.cnpj.ws) ----------
