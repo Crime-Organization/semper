@@ -4,6 +4,7 @@
 import type {
   AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
+import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -284,6 +285,11 @@ export const SD: Dados = {
   async vinculoApagar(id) {
     const v = bd.vinculos!.find(x => x.id === id); if (!v) return;
     bd.vinculos = bd.vinculos!.filter(x => x.id !== id); historicoVinculo(v, false); gravar();
+  },
+  representantesVinculados: ids => {
+    const tipos = new Set(bd.tiposVinculo!.filter(t => t.nome === TIPO_REPRESENTANTE).map(t => t.id));
+    return espera(bd.vinculos!.filter(v => tipos.has(v.tipo_id) && ids.includes(v.pessoa_para))
+      .flatMap(v => { const pessoa = bd.pessoas.find(p => p.id === v.pessoa_de); return pessoa ? [{ pj_id: v.pessoa_para, pessoa, funcao: v.descricao }] : []; }));
   },
 
   colunasListar: () => espera(bd.colunas.slice().sort((a, b) => a.ordem - b.ordem).map(c => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),

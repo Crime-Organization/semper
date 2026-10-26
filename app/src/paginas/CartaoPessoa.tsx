@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
-import { CAMPOS, qualificacao, TIPOS, valorLegivel } from '../regras/pessoa';
+import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
@@ -41,6 +41,16 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   const [vinculos, setVinculos] = useState<Vinculo[] | string | null>(null);
   const carregarVinculos = useCallback(() => SD.vinculosListar(id).then(setVinculos).catch(e => setVinculos((e as Error).message)), [id]);
   useEffect(() => { carregarVinculos(); }, [carregarVinculos]);
+  // Pessoa jurídica: quem a representa (vínculo "Representante legal de") entra no fim da qualificação, com a qualificação dele.
+  const [representantes, setRepresentantes] = useState<Representante[]>([]);
+  const ehPJ = p?.tipo === 'pj';
+  useEffect(() => {
+    const deles = ehPJ && Array.isArray(vinculos) ? vinculos.filter(v => v.tipo.nome === TIPO_REPRESENTANTE && v.pessoa_para === id) : [];
+    if (!deles.length) { setRepresentantes([]); return; }
+    let vivo = true;
+    SD.representantesVinculados([id]).then(r => { if (vivo) setRepresentantes(r); }).catch(() => { if (vivo) setRepresentantes([]); });
+    return () => { vivo = false; };
+  }, [vinculos, ehPJ, id]);
   // Depois de desfazer: mostra a pessoa como ficou.
   useMudancas(d => {
     carregar();
@@ -55,7 +65,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
   const V = (campo: string, v: unknown = (p as unknown as Record<string, unknown>)[campo]) =>
     v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) ? '' : valorLegivel(campo, v);
-  const textoQual = qualificacao(p);
+  const textoQual = qualificacao(p, { representantes });
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   const ehUsuario = ctx.equipe.some(m => m.pessoa_id === p.id);
   const local = (mun: string | null, uf: string | null) => mun ? mun + (uf ? '/' + uf : '') : '';

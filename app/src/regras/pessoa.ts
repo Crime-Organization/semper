@@ -90,15 +90,28 @@ export const fmtCPF = (v: Texto) => { const d = dig(v); return d.length === 11 ?
 export const fmtCNPJ = (v: Texto) => { const d = dig(v); return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? ''); };
 export const fmtDocumento = (v: Texto) => { const d = dig(v); return d.length === 14 ? fmtCNPJ(d) : d.length === 11 ? fmtCPF(d) : String(v ?? ''); };
 export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
-const fmtCEPQualificacao = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{2})(\d{3})(\d{3})/, '$1.$2-$3') : String(v ?? ''); };
-export function fmtTelefone(v: Texto) {
+// Celular antigo, de 8 dígitos (começa com 6 a 9), ganha o 9 da frente: (16) 8201-0240 -> (16) 98201-0240.
+// Também tira o +55 e o 0 antes do DDD.
+const celularCompleto = (v: Texto) => {
   let d = dig(v);
   if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
+  else if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
+  return d.length === 10 && /[6-9]/.test(d[2]) ? d.slice(0, 2) + '9' + d.slice(2) : d;
+};
+export function fmtTelefone(v: Texto) {
+  const d = celularCompleto(v);
   if (d.length === 11) return d.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
   if (d.length === 10) return d.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
   return String(v ?? '').trim();
 }
+/** O número foi digitado sem o 9 do celular (vai ser salvo com ele). */
+export const faltaNoveCelular = (v: Texto) => { const d = dig(v).replace(/^(55|0)(?=\d{10}$)/, ''); return d.length === 10 && /[6-9]/.test(d[2]); };
 export const telefoneNormal = (v: Texto) => { let d = dig(v); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
+/** Para achar cadastro repetido: o número com e sem o 9 do celular (cadastros antigos podem estar sem ele). */
+export function variantesTelefone(v: Texto) {
+  const d = celularCompleto(v);
+  return d.length === 11 && d[2] === '9' && /[6-9]/.test(d[3]) ? [d, d.slice(0, 2) + d.slice(3)] : [d];
+}
 export const fmtData = (iso: Texto) => { if (!iso) return ''; const [a, m, d] = String(iso).slice(0, 10).split('-'); return d && m && a ? `${d}/${m}/${a}` : ''; };
 // "dd/mm/aaaa" -> "aaaa-mm-dd" (ou null se vazia; lança erro se inválida)
 export function lerData(txt: Texto) {
@@ -190,7 +203,7 @@ function nacionalidade(p: Qualificavel) {
   return /^brasileir/i.test(n) ? 'brasileiro(a)' : n.toLowerCase();
 }
 
-// "Rua das Flores, nº 10, Apto 201, bairro Centro, em Montes Claros/MG, CEP: 39.400-121". Devolve também como ligar ao
+// "Rua das Flores, nº 10, Apto 201, bairro Centro, em Montes Claros/MG, CEP 39400-121". Devolve também como ligar ao
 // texto anterior: "na Rua…", "no Sítio…" ou, sem logradouro, direto "em Montes Claros/MG".
 const MASCULINOS = /^(s[ií]tio|povoado|distrito|assentamento|c[oó]rrego|beco|largo|loteamento|conjunto|condom[ií]nio|parque|residencial|n[uú]cleo|setor|trevo|viaduto|acampamento|lugar|km|quil[oô]metro|bairro|morro|alto|retiro|engenho|lote|ramal|caminho|p[aá]tio)\b/i;
 function endereco(p: Qualificavel) {
@@ -201,34 +214,58 @@ function endereco(p: Qualificavel) {
   if (p.complemento) partes.push(nomeProprio(p.complemento));
   if (p.bairro) partes.push(`bairro ${nomeProprio(p.bairro)}`);
   if (p.municipio) partes.push(`em ${nomeProprio(p.municipio)}${p.uf ? '/' + espacos(p.uf).toUpperCase() : ''}`);
-  if (p.cep) partes.push(`CEP: ${fmtCEPQualificacao(p.cep)}`);
+  if (p.cep) partes.push(`CEP ${fmtCEP(p.cep)}`);
   return { texto: partes.join(', '), artigo: !logradouro ? '' : MASCULINOS.test(logradouro) ? 'no ' : 'na ' };
 }
 
+// "endereço eletrônico maria@exemplo.com, telefone (38) 99999-1234" (endereço eletrônico, como no art. 319, II, do CPC).
 function contatos(p: Qualificavel) {
   const partes: string[] = [];
   const emails = (p.emails || []).map(e => espacos(e).toLowerCase()).filter(Boolean);
   const tels = (p.telefones || []).filter(Boolean).map(fmtTelefone);
-  if (emails.length) partes.push((emails.length > 1 ? 'e-mails ' : 'e-mail ') + listaE(emails));
-  if (tels.length) partes.push((tels.length > 1 ? 'telefones nº ' : 'telefone nº ') + listaE(tels));
+  if (emails.length) partes.push((emails.length > 1 ? 'endereços eletrônicos ' : 'endereço eletrônico ') + listaE(emails));
+  if (tels.length) partes.push((tels.length > 1 ? 'telefones ' : 'telefone ') + listaE(tels));
   return partes.join(', ');
+}
+
+/** Representante vinculado à pessoa jurídica (vínculo "Representante legal de"), com a função escrita no vínculo. */
+export interface Representante { pessoa: Qualificavel; funcao?: string | null }
+export const TIPO_REPRESENTANTE = 'Representante legal de';
+
+// Fim da qualificação da pessoa jurídica: "neste ato representada por sua sócia administradora, FULANA, brasileira, …".
+// Com representante vinculado, entra a qualificação dele (sem os contatos); sem vínculo, só os nomes do cadastro.
+function representacao(p: Qualificavel, individual: boolean, vinculados: Representante[]) {
+  const quem = vinculados.length
+    ? vinculados.map(({ pessoa, funcao }) => {
+      const texto = qualificacao(pessoa, { paraRepresentar: true });
+      const f = minusculas(funcao);
+      return f ? `${pessoa.genero === 'f' ? 'sua' : pessoa.genero === 'm' ? 'seu' : 'seu(sua)'} ${f}, ${texto}` : texto;
+    }).filter(Boolean).join(', e por ')
+    : espacos(p.representantes).split(/\s+e\/ou\s+/i).map(n => n.toUpperCase()).filter(Boolean).join(' e/ou ');
+  if (!quem) return '';
+  return `neste ato ${individual ? flexionar('representado(a)', p.genero) : 'representada'} por ${quem}`;
+}
+
+interface OpcoesQualificacao {
+  /** Representantes vinculados (pessoas cadastradas); sem eles, vale o campo de representantes. */
+  representantes?: Representante[];
+  /** Qualificação de quem representa outra pessoa: sem contatos e sem a própria representação. */
+  paraRepresentar?: boolean;
 }
 
 // Qualificação no modelo das peças do escritório (o mesmo da planilha do site), gerada a partir do cadastro.
 // Sociedades, associações e entes públicos concordam no feminino ("inscrita", "representada"); pessoa física,
-// MEI e empresário individual concordam com o gênero da pessoa.
-export function qualificacao(p: Qualificavel | null | undefined) {
+// MEI e empresário individual concordam com o gênero da pessoa. A representação fica no fim.
+export function qualificacao(p: Qualificavel | null | undefined, opcoes: OpcoesQualificacao = {}): string {
   if (!p || !p.nome || (p.tipo !== 'pf' && p.tipo !== 'pj')) return '';
   const partes = [espacos(p.nome).toUpperCase()];
   const end = endereco(p);
-  const representantes = espacos(p.representantes).split(/\s+e\/ou\s+/i).map(n => n.toUpperCase()).filter(Boolean).join(' e/ou ');
-  let concorda = false;
+  const individual = p.tipo === 'pj' && ehIndividual(p.tipo_entidade);
   if (p.tipo === 'pf') {
-    concorda = true;
     if (nacionalidade(p)) partes.push(nacionalidade(p));
     if (p.profissao) partes.push(minusculas(p.profissao));
     if (p.estado_civil && ESTADO_CIVIL[p.estado_civil]) partes.push(ESTADO_CIVIL[p.estado_civil][2]);
-    if (p.documento) partes.push(`inscrito(a) no CPF nº ${fmtCPF(p.documento)}`);
+    if (p.documento) partes.push(`inscrito(a) no CPF sob o nº ${fmtCPF(p.documento)}`);
     if (p.rg) partes.push(`com RG nº ${espacos(p.rg)}` + (p.rg_expedicao ? `, expedida em ${fmtData(p.rg_expedicao)}` : ''));
     const pais = [p.nome_mae, p.nome_pai].map(n => espacos(n).toUpperCase()).filter(Boolean);
     if (pais.length) partes.push(`filho(a) de ${pais.join(' e de ')}`);
@@ -236,22 +273,22 @@ export function qualificacao(p: Qualificavel | null | undefined) {
     if (p.nascimento_municipio) partes.push(`natural de ${nomeProprio(p.nascimento_municipio)}${p.nascimento_uf ? '/' + espacos(p.nascimento_uf).toUpperCase() : ''}`);
     if (end) partes.push(`residente e domiciliado(a) ${end.artigo}${end.texto}`);
   } else {
-    const individual = ehIndividual(p.tipo_entidade);
-    concorda = individual;
-    const inscrita = individual ? 'inscrito(a)' : 'inscrita';
     if (p.natureza === 'publica') partes.push('pessoa jurídica de direito público');
     else if (p.tipo_entidade) partes.push(minusculas(p.tipo_entidade) + (p.natureza === 'sem_fins' ? ' sem fins lucrativos' : ''));
-    if (p.documento) partes.push(`${inscrita} no CNPJ nº ${fmtCNPJ(p.documento)}`);
+    if (p.documento) partes.push(`${individual ? 'inscrito(a)' : 'inscrita'} no CNPJ sob o nº ${fmtCNPJ(p.documento)}`);
     if (p.nome_fantasia) partes.push(`com título do estabelecimento ${espacos(p.nome_fantasia).toUpperCase()}`);
     if (p.porte && PORTES[p.porte]) partes.push(`com porte de ${PORTES[p.porte].toLowerCase()}`);
-    if (representantes) partes.push(`${individual ? 'representado(a)' : 'representada'} por ${representantes}`);
     if (end) partes.push(`${individual ? 'com endereço profissional' : 'com sede'} ${end.artigo}${end.texto}`);
   }
-  const cont = contatos(p);
-  if (cont) partes.push(cont);
+  if (!opcoes.paraRepresentar) {
+    const cont = contatos(p);
+    if (cont) partes.push(cont);
+  }
   // Campo digitado com vírgula no fim ("Rua X,") não vira ",,".
-  const texto = partes.join(', ').replace(/\s+,/g, ',').replace(/,(\s*,)+/g, ',');
-  return concorda ? flexionar(texto, p.genero) : texto;
+  let texto = partes.join(', ').replace(/\s+,/g, ',').replace(/,(\s*,)+/g, ',');
+  if (p.tipo === 'pf' || individual) texto = flexionar(texto, p.genero);
+  const rep = p.tipo === 'pj' && !opcoes.paraRepresentar ? representacao(p, individual, opcoes.representantes || []) : '';
+  return rep ? `${texto}, ${rep}` : texto;
 }
 
 // ---------- consulta de CNPJ (publica.cnpj.ws) ----------

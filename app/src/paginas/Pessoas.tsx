@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
-import { fmtDocumento, fmtTelefone, TIPOS } from '../regras/pessoa';
+import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -136,8 +136,13 @@ export default function Pessoas() {
     try {
       const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, situacao: f.situacao });
       if (!pessoas.length) { avisar('Nenhuma pessoa para exportar com esses filtros.', 'erro'); return; }
+      // Na qualificação das pessoas jurídicas entra quem as representa (vínculo "Representante legal de").
+      const representantes: Record<string, Representante[]> = {};
+      if (escolha === 'com') {
+        for (const r of await SD.representantesVinculados(pessoas.filter(p => p.tipo === 'pj').map(p => p.id))) (representantes[r.pj_id] ||= []).push(r);
+      }
       const hoje = new Date().toLocaleDateString('sv-SE');
-      baixarArquivo(`contatos-google-${escolha}-qualificacao-${hoje}.csv`, csvContatosGoogle(pessoas, { comQualificacao: escolha === 'com' }));
+      baixarArquivo(`contatos-google-${escolha}-qualificacao-${hoje}.csv`, csvContatosGoogle(pessoas, { comQualificacao: escolha === 'com', representantes }));
       avisar(`${plural(pessoas.length, 'contato exportado', 'contatos exportados')}.`, 'ok');
     } catch (e) { falha(e); }
   }

@@ -4,8 +4,8 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNo
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import {
-  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, fmtCEP, fmtCNPJ, fmtCPF, fmtData,
-  fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS
+  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
+  fmtCPF, fmtData, fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
 import { Botao } from '../ui/Botoes';
@@ -68,6 +68,7 @@ export default function NovaPessoa() {
   const passoRef = useRef(0);
   const [erros, setErros] = useState<Record<string, string>>({});
   const [avisosTel, setAvisosTel] = useState<Record<number, PessoaResumida[]>>({});
+  const [noveTel, setNoveTel] = useState<Record<number, string>>({});
   const [retornoCNPJ, setRetornoCNPJ] = useState<Retorno>(null);
   const [retornoCEP, setRetornoCEP] = useState<Retorno>(null);
   const [ocupado, setOcupado] = useState<false | 'validando' | 'salvando'>(false);
@@ -215,13 +216,22 @@ export default function NovaPessoa() {
     return true;
   }
 
-  // Telefone repetido: só avisa, sem impedir.
+  // Celular antigo, sem o 9: o campo já fica corrigido, com um aviso de como estava.
+  function completarCelular(k: number, valor: string) {
+    if (!faltaNoveCelular(valor)) { setNoveTel(a => ({ ...a, [k]: '' })); return valor; }
+    const novo = fmtTelefone(valor);
+    mudarLista('telefones', cRef.current.telefones.map(y => y.k === k ? { ...y, v: novo } : y));
+    setNoveTel(a => ({ ...a, [k]: valor }));
+    return novo;
+  }
+
+  // Telefone repetido: só avisa, sem impedir. Procura com e sem o 9 (cadastros antigos podem estar sem ele).
   async function conferirTelefone(k: number, valor: string) {
-    const t = telefoneNormal(valor);
+    const t = variantesTelefone(valor);
     setAvisosTel(a => ({ ...a, [k]: [] }));
-    if (t.length < 10) return;
+    if (t[0].length < 10) return;
     try {
-      const achados = await SD.pessoasPorTelefones([t], alvoRef.current?.id);
+      const achados = await SD.pessoasPorTelefones(t, alvoRef.current?.id);
       if (achados.length) setAvisosTel(a => ({ ...a, [k]: achados }));
     } catch { /* o aviso não é essencial */ }
   }
@@ -430,9 +440,10 @@ export default function NovaPessoa() {
         <input type={tel ? 'tel' : 'email'} className={tel ? 'tel' : 'email'} inputMode={tel ? 'tel' : undefined} aria-label={tel ? 'Telefone' : 'E-mail'}
           placeholder={tel ? '(00) 00000-0000' : 'email@exemplo.com'} value={x.v}
           onChange={e => mudarLista(campo, cRef.current[campo].map(y => y.k === x.k ? { ...y, v: tel ? MASCARAS.telefone(e.target.value) : e.target.value } : y))}
-          onBlur={tel ? e => conferirTelefone(x.k, e.target.value) : undefined} />
+          onBlur={tel ? e => conferirTelefone(x.k, completarCelular(x.k, e.target.value)) : undefined} />
         {i > 0 && <button type="button" className="icone-btn" aria-label="Remover" onClick={() => mudarLista(campo, cRef.current[campo].filter(y => y.k !== x.k))}><Icone nome="fechar" tam={15} /></button>}
       </div>
+      {tel && noveTel[x.k] && <div className="aviso-tel">Acrescentei o 9 do celular (estava {noveTel[x.k]}).</div>}
       {tel && (avisosTel[x.k]?.length ?? 0) > 0 && <div className="aviso-tel">Já existe cadastro com este telefone: {avisosTel[x.k].map((a, j) =>
         <Fragment key={a.id}>{j > 0 && ', '}<a href={'/pessoas/?id=' + a.id} target="_blank" rel="noopener">{a.nome}</a></Fragment>)}. Você pode seguir normalmente.</div>}
     </div>)}

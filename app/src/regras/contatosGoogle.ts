@@ -1,7 +1,7 @@
 // Pessoas no formato do Google Contatos: o mesmo CSV que o Google exporta e aceita em "Importar".
 // Nome, telefones, e-mails, aniversário e, se pedido, a qualificação na descrição.
 import type { Pessoa } from '../dados/tipos';
-import { dig, qualificacao } from './pessoa';
+import { dig, qualificacao, type Representante } from './pessoa';
 
 // Colunas na ordem em que o Google exporta. Telefones e e-mails ganham colunas (Phone 4, 5…) quando alguém tem mais de 3.
 const ANTES = ['First Name', 'Middle Name', 'Last Name', 'Phonetic First Name', 'Phonetic Middle Name', 'Phonetic Last Name',
@@ -35,7 +35,8 @@ const celular = (t: string) => /^\+55 \d{2} 9\d{4}-\d{4}$/.test(t);
 const aniversario = (p: Pessoa) => (p.tipo === 'pj' ? p.abertura : p.nascimento) || '';
 const campo = (v: string) => /[",\r\n]|^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 
-export function csvContatosGoogle(pessoas: Pessoa[], { comQualificacao }: { comQualificacao: boolean }) {
+/** representantes: por id da pessoa jurídica, quem a representa (entra na qualificação dela). */
+export function csvContatosGoogle(pessoas: Pessoa[], { comQualificacao, representantes = {} }: { comQualificacao: boolean; representantes?: Record<string, Representante[]> }) {
   const contatos = pessoas.map(p => ({
     p,
     telefones: [...new Set((p.telefones || []).map(telefoneGoogle).filter(Boolean))],
@@ -44,7 +45,8 @@ export function csvContatosGoogle(pessoas: Pessoa[], { comQualificacao }: { comQ
   const cab = cabecalhoGoogle(Math.max(0, ...contatos.map(c => c.telefones.length)), Math.max(0, ...contatos.map(c => c.emails.length)));
   const linhas = contatos.map(({ p, telefones, emails }) => {
     const v: Record<string, string> = {
-      'First Name': p.nome, Birthday: aniversario(p), Labels: '* myContacts', Notes: comQualificacao ? qualificacao(p) : ''
+      'First Name': p.nome, Birthday: aniversario(p), Labels: '* myContacts',
+      Notes: comQualificacao ? qualificacao(p, { representantes: representantes[p.id] }) : ''
     };
     telefones.forEach((t, i) => { v[`Phone ${i + 1} - Label`] = celular(t) ? 'Mobile' : ''; v[`Phone ${i + 1} - Value`] = t; });
     emails.forEach((e, i) => { v[`E-mail ${i + 1} - Value`] = e; });

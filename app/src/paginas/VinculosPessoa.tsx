@@ -2,6 +2,7 @@
 // Fica no cartão da pessoa; clicar no nome abre o cartão da outra pessoa.
 import { useState, type FormEvent } from 'react';
 import { SD, type Pessoa, type PessoaLista, type Vinculo, type VinculoTipo } from '../dados';
+import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from '../regras/vinculos';
 import { avisar, falha, feito } from '../ui/avisos';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
@@ -31,6 +32,8 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
   const opcoes = tipos ? opcoesDeVinculo(tipos) : [];
   const escolhida = opcoes.find(o => o.chave === opcao);
   const pedeDescricao = !!escolhida && exigeDescricao(escolhida.rotulo);
+  // No representante legal, a descrição é a função, que entra na qualificação da pessoa jurídica.
+  const ehRepresentacao = !!escolhida && tipos?.find(t => t.id === escolhida.tipoId)?.nome === TIPO_REPRESENTANTE;
 
   function abrirFormulario() {
     setFormulario(true);
@@ -117,10 +120,14 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
           </select>
         </label>
         <BuscaPessoa rotulo="Pessoa" escolhida={outra} aoEscolher={setOutra} desativar={x => x.id === p.id ? 'é a própria pessoa' : null} />
-        <label>Descrição {pedeDescricao ? <small>(obrigatória em "Outro")</small> : <small>(opcional)</small>}
-          <input maxLength={300} value={descricao} onChange={e => setDescricao(e.target.value)}
-            placeholder={pedeDescricao ? 'Ex.: inventariante do espólio' : 'Ex.: 50% das cotas, desde 2020'} />
-        </label>
+        {ehRepresentacao
+          ? <label>Função <small>(entra na qualificação: "neste ato representada por sua sócia administradora, …")</small>
+            <input maxLength={120} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: sócia administradora" />
+          </label>
+          : <label>Descrição {pedeDescricao ? <small>(obrigatória em "Outro")</small> : <small>(opcional)</small>}
+            <input maxLength={300} value={descricao} onChange={e => setDescricao(e.target.value)}
+              placeholder={pedeDescricao ? 'Ex.: inventariante do espólio' : 'Ex.: 50% das cotas, desde 2020'} />
+          </label>}
         <div className="form-vinculo-acoes">
           <button type="button" className="btn btn-sm" onClick={fecharFormulario}>Cancelar</button>
           <button type="submit" className="btn pri btn-sm" disabled={ocupado}>Vincular</button>

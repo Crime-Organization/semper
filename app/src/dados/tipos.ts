@@ -132,6 +132,9 @@ export interface Vinculo {
   de: PessoaResumida; para: PessoaResumida; tipo: Pick<VinculoTipo, 'id' | 'nome' | 'inverso'>;
 }
 
+/** Quem representa uma pessoa jurídica (vínculo "Representante legal de"), com o cadastro completo e a função escrita no vínculo. */
+export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao: string | null }
+
 export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean }
 
 export interface Usuario {
@@ -191,6 +194,8 @@ export interface Dados {
   vinculosListar(pessoaId: string): Promise<Vinculo[]>;
   vinculoCriar(de: string, para: string, tipoId: string, descricao?: string | null): Promise<string>;
   vinculoApagar(id: string): Promise<void>;
+  /** Representantes vinculados das pessoas jurídicas indicadas (para a qualificação delas). */
+  representantesVinculados(pjIds: string[]): Promise<RepresentanteVinculado[]>;
 
   // quadros (kanban)
   colunasListar(modulo: Modulo): Promise<Coluna[]>;

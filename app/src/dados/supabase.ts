@@ -3,8 +3,8 @@
 import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
-import { telefoneNormal } from '../regras/pessoa';
-import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa } from './tipos';
+import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -295,6 +295,22 @@ export const SD: Dados = {
     return data.id;
   },
   async vinculoApagar(id) { await rodar(sb.from('pessoa_vinculos').delete().eq('id', id)); },
+  // Quem representa cada pessoa jurídica: vínculos do tipo "Representante legal de", com o cadastro completo do
+  // representante (lado "de"). Em lotes de 150, para a consulta não ficar longa demais.
+  async representantesVinculados(pjIds) {
+    const ids = [...new Set(pjIds)];
+    if (!ids.length) return [];
+    const { data: tipos } = await rodar(sb.from('vinculo_tipos').select('id').eq('nome', TIPO_REPRESENTANTE));
+    if (!tipos.length) return [];
+    const saida: RepresentanteVinculado[] = [];
+    for (let i = 0; i < ids.length; i += 150) {
+      const { data } = await rodar(sb.from('pessoa_vinculos')
+        .select('pessoa_para, descricao, de:pessoas!pessoa_vinculos_pessoa_de_fkey(*)')
+        .in('tipo_id', tipos.map((t: { id: string }) => t.id)).in('pessoa_para', ids.slice(i, i + 150)).order('criado_em'));
+      for (const v of data) if (v.de) saida.push({ pj_id: v.pessoa_para, pessoa: v.de, funcao: v.descricao });
+    }
+    return saida;
+  },
 
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {
