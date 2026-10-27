@@ -30,6 +30,9 @@ DirectoryIndex index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+  # Um endereço só: www.semper.app.br vai para semper.app.br (mantendo o caminho e os parâmetros).
+  RewriteCond %{HTTP_HOST} ^www\.semper\.app\.br$ [NC]
+  RewriteRule ^ https://semper.app.br%{REQUEST_URI} [R=301,L]
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
