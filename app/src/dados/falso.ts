@@ -146,6 +146,7 @@ export const SD: Dados = {
   entrar: async () => { bd.logado = true; gravar(); },
   primeiroAcesso: async () => ({ entrou: false }),
   recuperarSenha: async () => {},
+  confirmarLink: async () => { bd.logado = true; gravar(); },
   novaSenha: async () => {},
   sair: async () => { bd.logado = false; gravar(); },
   aoMudarSessao: () => () => {},

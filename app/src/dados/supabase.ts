@@ -130,6 +130,8 @@ export const SD: Dados = {
     return { entrou: !!data.session };
   },
   async recuperarSenha(email, voltarPara) { await rodar(sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: voltarPara })); },
+  // Os e-mails trazem só um código de uso único (token_hash), não a chave de acesso: ele é trocado aqui pela sessão.
+  async confirmarLink(codigo, tipo) { await rodar(sb.auth.verifyOtp({ token_hash: codigo, type: tipo })); ctx = null; },
   async novaSenha(senha) { await rodar(sb.auth.updateUser({ password: senha })); },
   async sair() { ctx = null; await sb.auth.signOut(); },
   aoMudarSessao(cb) {

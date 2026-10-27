@@ -13,5 +13,11 @@ Modelo "Change email address"   -> assunto: Confirme seu novo e-mail · SEMPER
 O modelo "Invite user" não é usado: no SEMPER a pessoa cria a própria senha em
 "Primeiro acesso", depois que o administrador libera o acesso em Equipe e acessos.
 
-Os códigos entre chaves duplas ({{ .ConfirmationURL }}, {{ .Email }}...) são
-preenchidos pelo Supabase. Não os altere.
+Os códigos entre chaves duplas ({{ .SiteURL }}, {{ .TokenHash }}, {{ .Email }}...)
+são preenchidos pelo Supabase. Não os altere.
+
+Segurança: os links levam só um código de uso único ({{ .TokenHash }}), que o
+SEMPER troca pela sessão ao abrir. Não use {{ .ConfirmationURL }}: ele põe a
+chave de acesso no próprio endereço, que pode ficar no histórico do navegador.
+O "Site URL" do Supabase precisa ser o endereço do SEMPER
+(https://semper.bragaferreira.adv.br/).

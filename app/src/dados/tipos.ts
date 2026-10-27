@@ -151,6 +151,9 @@ export interface RegistroAuditoria {
 
 export interface Exclusao { excluidas: number; naoExcluidas: number; motivo: string }
 
+/** Tipos de link enviados por e-mail (parâmetro "type" do link). */
+export type TipoLink = 'email' | 'recovery' | 'email_change';
+
 /** Contrato da camada de dados: as telas só conversam com o banco por aqui. */
 export interface Dados {
   // sessão
@@ -159,6 +162,8 @@ export interface Dados {
   /** Cria a conta pelo convite: além do e-mail, vai o código do link que o convidado recebeu. */
   primeiroAcesso(email: string, senha: string, voltarPara: string, codigo: string): Promise<{ entrou: boolean }>;
   recuperarSenha(email: string, voltarPara: string): Promise<void>;
+  /** Link dos e-mails (confirmação, nova senha, troca de e-mail): troca o código de uso único pela sessão. */
+  confirmarLink(codigo: string, tipo: TipoLink): Promise<void>;
   novaSenha(senha: string): Promise<void>;
   sair(): Promise<void>;
   aoMudarSessao(cb: (evento: string) => void): () => void;

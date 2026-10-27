@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { MARCA } from '../marca';
-import { SD } from '../dados';
+import { SD, type TipoLink } from '../dados';
 import { emailValido } from '../regras/pessoa';
 import { mostrarTema, temaGuardado } from '../ui/tema';
 import { useTitulo } from '../ui/util';
@@ -21,7 +21,12 @@ export default function Entrada() {
   const volta = params.get('volta');
   const destino = volta && volta.startsWith('/') && !volta.startsWith('//') ? volta : '/inicio/';
   const aqui = location.origin + '/';   // endereço do SEMPER (para os links dos e-mails)
-  const porRecuperacao = location.hash.includes('type=recovery') || params.has('nova-senha');
+  // Link dos e-mails: ?token_hash=...&type=... (código de uso único, trocado pela sessão ao abrir).
+  const linkEmail = (() => {
+    const codigo = params.get('token_hash'), tipo = params.get('type') as TipoLink | null;
+    return codigo && tipo && (['email', 'recovery', 'email_change'] as string[]).includes(tipo) ? { codigo, tipo } : null;
+  })();
+  const porRecuperacao = location.hash.includes('type=recovery') || params.has('nova-senha') || linkEmail?.tipo === 'recovery';
   // Código do convite: vem depois do "#" no link do convite. Fica só na memória e sai do endereço,
   // para não ficar no histórico do navegador.
   const [codigoConvite] = useState(() => new URLSearchParams(location.hash.slice(1)).get('convite') || '');
@@ -43,12 +48,18 @@ export default function Entrada() {
   useEffect(() => { caixa.current?.querySelector<HTMLInputElement>('form input')?.focus(); }, [painel]);
 
   // Links dos e-mails: a confirmação de cadastro entra direto; o de nova senha abre o formulário.
+  // (Os links antigos, com a chave no "#", continuam funcionando pelo aoMudarSessao.)
   useEffect(() => {
     const parar = SD.aoMudarSessao(evento => {
       if (evento === 'PASSWORD_RECOVERY') mostrar('nova');
       else if (evento === 'SIGNED_IN' && !porRecuperacao && location.hash.includes('access_token')) navegar('/inicio/', { replace: true });
     });
-    if (!porRecuperacao) SD.sessao().then(s => { if (s && !params.has('desativado')) navegar(destino, { replace: true }); });
+    if (linkEmail) {
+      history.replaceState(null, '', location.pathname);
+      SD.confirmarLink(linkEmail.codigo, linkEmail.tipo)
+        .then(() => { if (linkEmail.tipo === 'recovery') mostrar('nova'); else navegar('/inicio/', { replace: true }); })
+        .catch(() => { mostrar('entrar'); avisar('Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.'); });
+    } else if (!porRecuperacao) SD.sessao().then(s => { if (s && !params.has('desativado')) navegar(destino, { replace: true }); });
     return parar;
   }, []);
 
