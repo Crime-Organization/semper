@@ -3,6 +3,8 @@
 .entrada .lado { position: relative; background: var(--dark); color: #FBFBF9; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: 40px clamp(24px, 4vw, 56px) }
 .entrada .lado img.fundo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 70% 60%; filter: grayscale(1) brightness(.45) }
 .entrada .lado > * { position: relative }
+.entrada .lado .conhecer { align-self: flex-start; font-size: 14px; font-weight: 700; color: #DCDCD4; text-decoration: underline; text-underline-offset: 4px; text-decoration-color: rgb(220 220 212 / .5) }
+.entrada .lado .conhecer:hover { color: #fff; text-decoration-color: #fff }
 .entrada .lado h1 { margin: 0; font-size: clamp(48px, 7vw, 104px); line-height: .85; font-weight: 900; letter-spacing: -.035em; text-transform: uppercase }
 .entrada .lado p { max-width: 420px; font-size: 18px; font-weight: 300; line-height: 1.55; color: #DCDCD4 }
 .entrada .form-lado { display: flex; align-items: center; justify-content: center; padding: 48px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)) }

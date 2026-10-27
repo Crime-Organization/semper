@@ -3,7 +3,7 @@ Painel do Supabase > projeto semper > Authentication > Emails (aba Templates).
 Em cada modelo, cole o ASSUNTO no campo "Subject" e o conteúdo do arquivo .html
 no campo do corpo (modo "Source"/HTML) e clique em Save.
 
-Modelo "Confirm signup"         -> assunto: Confirme seu acesso ao SEMPER · Braga Ferreira
+Modelo "Confirm signup"         -> assunto: Confirme seu acesso ao SEMPER
                                     arquivo: 1-confirmar-primeiro-acesso.html
 Modelo "Reset password"         -> assunto: Crie uma nova senha · SEMPER
                                     arquivo: 2-nova-senha.html

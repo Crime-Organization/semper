@@ -1,0 +1,15 @@
+/* Configurações: dados da instituição */
+.config { display: flex; flex-direction: column; gap: 18px }
+.config .cartao { display: flex; flex-direction: column; gap: 16px }
+.config-logo { display: flex; gap: 18px; align-items: center; flex-wrap: wrap }
+.config-logo-previa { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 200px; height: 96px; padding: 12px; border: 1px solid var(--line2); border-radius: 10px; background: #fff }
+.config-logo-previa img { max-width: 100%; max-height: 100%; object-fit: contain }
+.config-logo-previa.vazia span { font-size: 32px; font-weight: 900; color: #8A8981 }
+.config-logo-texto { flex: 1 1 260px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.config-logo-texto .nota { margin: 0 }
+.config-logo-texto .acoes { display: flex; gap: 8px; flex-wrap: wrap }
+.config-cnpj { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end }
+.config-cnpj label { flex: 1 1 180px; min-width: 0 }
+.config label.com-erro input { border-color: var(--erro) }
+.config .erro-campo { font-size: 13px; font-weight: 400; color: var(--erro) }
+.config-salvar { display: flex; justify-content: flex-end }

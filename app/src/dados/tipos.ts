@@ -28,9 +28,25 @@ export interface Membro {
   pessoa_id?: string | null;
 }
 
-export interface Escritorio {
-  id: string;
+/** Dados da instituição: cada escritório tem os seus, editados pelo administrador em Configurações. */
+export interface DadosEscritorio {
   nome: string;
+  logo: string | null;          // imagem em data:image/...;base64 (até ~300 KB)
+  cnpj: string | null;          // só números
+  oab_registro: string | null;  // registro da sociedade na OAB
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  municipio: string | null;
+  uf: string | null;
+  cep: string | null;           // só números
+  telefone: string | null;      // só números
+  email: string | null;
+  site: string | null;
+}
+export interface Escritorio extends DadosEscritorio {
+  id: string;
   slug: string;
   modulos: Record<string, boolean>;
 }
@@ -241,4 +257,7 @@ export interface Dados {
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;
   /** Registra uma exportação no registro de ações (LGPD). Vem antes de entregar o arquivo; só administradores. */
   exportacaoRegistrar(tabela: 'pessoas', descricao: string, quantidade: number): Promise<void>;
+
+  /** Salva os dados da instituição (só administradores). logo ausente mantém a atual; null a remove. */
+  escritorioSalvar(dados: Omit<DadosEscritorio, 'logo'> & { logo?: string | null }): Promise<void>;
 }

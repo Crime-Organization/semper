@@ -181,7 +181,8 @@ export const SD: Dados = {
       .select('id, escritorio_id, pessoa_id, nome, usuario, papel, ativo, cor, oab, preferencias').eq('id', s.user.id).maybeSingle());
     if (!perfil) return { usuario: s.user, perfil: null, equipe: [], ehAdmin: false, ehMaster: false };
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
-      rodar(sb.from('escritorios').select('id, nome, slug, modulos').eq('id', perfil.escritorio_id).maybeSingle()),
+      rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
+        .eq('id', perfil.escritorio_id).maybeSingle()),
       rodar(sb.from('perfis').select('id, nome, usuario, papel, ativo, cor, pessoa_id').order('nome'))
     ]);
     ctx = {
@@ -394,6 +395,11 @@ export const SD: Dados = {
   },
   async exportacaoRegistrar(tabela, descricao, quantidade) {
     await rpc('exportacao_registrar', { p_tabela: tabela, p_descricao: descricao, p_quantidade: quantidade });
+  },
+
+  async escritorioSalvar(dados) {
+    await rpc('escritorio_salvar', { p: dados });
+    ctx = null;   // a barra lateral e os convites passam a usar os dados novos
   },
   async auditoriaListar(limite = 50) {
     const { data } = await rodar(sb.from('auditoria').select('id, tabela, registro_id, acao, resumo, feito_por, em')

@@ -21,9 +21,9 @@ export const numero = (n: number) => n.toLocaleString('pt-BR');
 /** Texto comparável: sem acentos, sem espaços nas pontas, em minúsculas. */
 export const normal = (t: unknown) => String(t || '').trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Título da aba do navegador: "Pessoas · Braga Ferreira SEMPER". */
+/** Título da aba do navegador: "Pessoas · SEMPER". */
 export function useTitulo(nome: string) {
-  useEffect(() => { document.title = `${nome} · ${MARCA.nome} ${MARCA.submarca}`; }, [nome]);
+  useEffect(() => { document.title = `${nome} · ${MARCA.nome}`; }, [nome]);
 }
 
 /** Valor que só muda depois de um tempo parado (ex.: busca enquanto digita). */

@@ -23,13 +23,13 @@ export default function Equipe() {
 const TABELAS: Record<string, string> = {
   pessoas: 'cadastro de pessoa', pessoa_responsaveis: 'responsáveis de', pessoa_sigilos: 'informação sigilosa de',
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
-  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo'
+  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório'
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou' };
 // O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
 const linkAcesso = (codigo?: string) => location.origin + '/entrar/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
-const mensagemConvite = (c: Convite, codigo?: string) =>
-  `Olá! Seu acesso ao ${MARCA.submarca} (${MARCA.nome}) foi liberado. Abra ${linkAcesso(codigo)} e crie sua senha usando o e-mail ${c.email}. O link é pessoal e vale por 7 dias.`;
+const mensagemConvite = (c: Convite, escritorio?: string, codigo?: string) =>
+  `Olá! Seu acesso ao ${MARCA.nome}${escritorio ? ` (${escritorio})` : ''} foi liberado. Abra ${linkAcesso(codigo)} e crie sua senha usando o e-mail ${c.email}. O link é pessoal e vale por 7 dias.`;
 async function copiar(texto: string) {
   if (await copiarTexto(texto)) avisar('Mensagem copiada. Envie para a pessoa.');
   else avisar(texto, 'ok');
@@ -83,7 +83,7 @@ function PainelEquipe() {
   async function novoLink(c: Convite) {
     try {
       const codigo = await SD.conviteNovoLink(c.id);
-      const texto = mensagemConvite(c, codigo);
+      const texto = mensagemConvite(c, ctx.escritorio?.nome, codigo);
       if (await copiarTexto(texto)) avisar('Link novo copiado. Envie para a pessoa: o link anterior deixou de valer.');
       else avisar(texto, 'ok');
     } catch (e) { falha(e); }
@@ -224,7 +224,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
       </form>
       {criado && <div className="aviso ok">
         Acesso liberado para <b>{criado.nome}</b> como {PAPEIS[criado.papel].toLowerCase()}. Envie o link abaixo só para essa pessoa: ela cria a senha com o e-mail <b>{criado.email}</b>. O link vale por 7 dias e aparece só agora; depois, use "Novo link" em Convites pendentes.
-        <div className="link-convite"><code>{linkAcesso(criado.codigo)}</code><button type="button" className="mini" onClick={() => copiar(mensagemConvite(criado, criado.codigo))}>Copiar mensagem</button></div>
+        <div className="link-convite"><code>{linkAcesso(criado.codigo)}</code><button type="button" className="mini" onClick={() => copiar(mensagemConvite(criado, ctx.escritorio?.nome, criado.codigo))}>Copiar mensagem</button></div>
       </div>}
     </div>
   </section>;

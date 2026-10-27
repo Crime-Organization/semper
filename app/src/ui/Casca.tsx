@@ -13,6 +13,7 @@ import { PAPEIS } from './util';
 export function Casca({ children }: { children: ReactNode }) {
   const { ctx } = useSessao();
   const p = ctx.perfil;
+  const nomeEsc = ctx.escritorio?.nome || MARCA.nome;
   const tema = useTema();
   const navegar = useNavigate();
   const local = useLocation();
@@ -35,20 +36,21 @@ export function Casca({ children }: { children: ReactNode }) {
     avisar(`Tema: ${TEMAS[proximo]}${proximo === 'auto' ? ' (segue o aparelho)' : ''}.`);
   };
   const sair = async () => { await SD.sair(); navegar('/entrar/'); };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'equipe', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
     <div className="topo-cel">
       <button type="button" aria-label="Abrir menu" onClick={e => { e.stopPropagation(); setAberta(a => !a); }}><Icone nome="menu" tam={18} /></button>
-      <b style={{ fontSize: 14 }}>{MARCA.nome} <span style={{ color: 'var(--accent-ink)' }}>{MARCA.submarca}</span></b>
+      <b className="topo-nome">{nomeEsc} <span style={{ color: 'var(--accent-ink)' }}>{MARCA.nome}</span></b>
       <span style={{ width: 40 }} />
     </div>
     <div className="app">
       <aside className={'side' + (aberta ? ' aberta' : '')} aria-label="Menu" ref={lateral}>
-        <Link className="marca-app" to="/inicio/" aria-label={`${MARCA.nome} ${MARCA.submarca}: início`}>
-          <span className="ini">{MARCA.nome.trim().charAt(0)}</span>
-          <span style={{ minWidth: 0 }}><b>{ctx.escritorio?.nome || MARCA.nome}</b><small>{MARCA.submarca}</small></span>
+        {/* O nome do escritório vem das Configurações. */}
+        <Link className="marca-app" to="/inicio/" aria-label={`${nomeEsc}: início`}>
+          <span className="ini">{nomeEsc.trim().charAt(0)}</span>
+          <span style={{ minWidth: 0 }}><b>{nomeEsc}</b><small>{MARCA.nome}</small></span>
         </Link>
         <nav className="nav" aria-label="Seções">
           {item('/inicio/', 'inicio', 'Início')}
@@ -57,6 +59,7 @@ export function Casca({ children }: { children: ReactNode }) {
             <Link className="nav-mais" to="/pessoas/nova/" aria-label="Cadastrar pessoa" title="Cadastrar pessoa"><Icone nome="mais" tam={15} /></Link>
           </div>
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
+          {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>
         <div className="side-rodape">
           <div className="usuario">

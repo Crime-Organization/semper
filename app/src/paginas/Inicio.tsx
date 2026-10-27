@@ -32,7 +32,6 @@ export default function Inicio() {
   const primeiro = (ctx.perfil.nome || '').trim().split(/\s+/)[0];
   return <div className="miolo">
     <header>
-      <p className="olho">{ctx.escritorio?.nome || ''}</p>
       <h1 className="titulo">Olá{primeiro ? ', ' + primeiro : ''}<span className="ponto">.</span></h1>
     </header>
 

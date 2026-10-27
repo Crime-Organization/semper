@@ -1,7 +1,7 @@
 // Entrada: login da equipe, primeiro acesso por convite, recuperação de senha e entrada do cliente (em preparação).
 // É sempre clara, qualquer que seja o tema escolhido.
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { MARCA } from '../marca';
 import { SD, type TipoLink } from '../dados';
 import { emailValido } from '../regras/pessoa';
@@ -123,12 +123,9 @@ export default function Entrada() {
   return <div className="entrada"><div className="tela">
     <div className="lado">
       <img className="fundo" src={MARCA.fotoEntrada} alt="" aria-hidden="true" />
-      <a href={MARCA.site} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <img src={MARCA.logoClaro} alt={MARCA.nome} style={{ height: 18, width: 'auto' }} />
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.22em', textTransform: 'uppercase', color: 'var(--accent-bright)' }}>{MARCA.submarca}</span>
-      </a>
+      <Link to="/" className="conhecer">Conheça o {MARCA.nome}</Link>
       <div>
-        <h1>{MARCA.submarca}<span style={{ color: 'var(--accent-bright)' }}>.</span></h1>
+        <h1>{MARCA.nome}<span style={{ color: 'var(--accent-bright)' }}>.</span></h1>
         <p>Contratos, demandas, prazos e equipe do escritório reunidos num só lugar.</p>
       </div>
     </div>

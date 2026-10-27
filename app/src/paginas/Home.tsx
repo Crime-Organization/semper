@@ -246,8 +246,8 @@ function Escritorio() {
       <div className="h-painel-texto">
         <h2 id="t-escritorio" className="h-l" data-entra>Feito dentro de um escritório.</h2>
         <div className="h-painel-bloco" data-entra>
-          <h3 className="h-m">Nasceu na {MARCA.nome}</h3>
-          <p>O SEMPER foi criado para o dia a dia de um escritório de advocacia em {MARCA.cidade}: o cadastro dos clientes, o atendimento e as peças que saem dele.</p>
+          <h3 className="h-m">Nasceu na Braga Ferreira</h3>
+          <p>O SEMPER foi criado no dia a dia da Braga Ferreira, um escritório de advocacia em {MARCA.cidade}, a partir do cadastro dos clientes, do atendimento e das peças que saem dele. Hoje é um sistema próprio, feito para qualquer escritório.</p>
         </div>
         <div className="h-painel-bloco" data-entra>
           <h3 className="h-m">Os dados ficam protegidos</h3>
@@ -345,7 +345,7 @@ function Rodape() {
     <div className="h-rodape-links">
       <nav aria-labelledby="r-semper"><h2 id="r-semper">O SEMPER</h2><a href="#qualificacao">Qualificação</a><a href="#funciona">O que já funciona</a><a href="#modulos">Módulos</a><a href="#perguntas">Perguntas</a></nav>
       <nav aria-labelledby="r-acesso"><h2 id="r-acesso">Acesso</h2><Link to="/entrar/">Entrar</Link><Link to="/entrar/?primeiro-acesso">Primeiro acesso</Link></nav>
-      <nav aria-labelledby="r-contato"><h2 id="r-contato">Contato</h2><a href={CONTATO.href} {...abaNova(CONTATO)}>{MARCA.whatsapp ? 'WhatsApp' : 'E-mail'}</a><a href={MARCA.site} target="_blank" rel="noopener">{MARCA.nome}</a></nav>
+      <nav aria-labelledby="r-contato"><h2 id="r-contato">Contato</h2><a href={CONTATO.href} {...abaNova(CONTATO)}>{MARCA.whatsapp ? 'WhatsApp' : MARCA.emailContato}</a></nav>
       <div className="h-rodape-lugar"><h2>Onde</h2><p>{MARCA.cidade}</p><p>semper.app.br</p></div>
     </div>
     <div className="h-rodape-fim">

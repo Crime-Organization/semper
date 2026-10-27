@@ -14,10 +14,10 @@ O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que 
 | `app/src/ui/` | Peças comuns: `Casca` (barra lateral), `PaginaModulo` (com o menu ⋯ de `Menu`), `quadro/` (`Kanban` e `useColunas`), avisos e desfazer (Ctrl+Z), janelas, painel do cartão, tema e sessão. |
 | `app/src/dados/` | `supabase.ts` (única parte que fala com o banco), `falso.ts` (banco fictício para testes) e `tipos.ts` (o formato dos dados). |
 | `app/src/regras/` | Regras de cadastro: formatos, validação, qualificação, consultas de CNPJ e CEP, vínculos e o CSV do Google Contatos (`contatosGoogle.ts`), com os testes. |
-| `app/src/marca.ts` e `app/src/imagens/` | Nome, logos, foto, cores e conexão com o banco (marca branca). |
+| `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
-| `banco/` | Estrutura do banco no Supabase, em scripts numerados e já aplicados (`001_base.sql`, `002_desempenho.sql`, `003_vinculos.sql`, `004_convite_seguro.sql`, `005_exportacoes.sql`, `006_lgpd_exclusao.sql`, `007_duas_etapas.sql`), e os modelos de e-mail. |
+| `banco/` | Estrutura do banco no Supabase, em scripts numerados e já aplicados (`001_base.sql`, `002_desempenho.sql`, `003_vinculos.sql`, `004_convite_seguro.sql`, `005_exportacoes.sql`, `006_lgpd_exclusao.sql`, `007_duas_etapas.sql`, `008_identidade_escritorio.sql`), e os modelos de e-mail. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
 | `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
 | `Trello/` | Exportações do Trello com dados de clientes. Não versionado. |
@@ -29,7 +29,7 @@ Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: tod
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**`, `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
 - **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
-- **SMTP** (configurado): Google Workspace, `smtp.gmail.com` porta 465, login na conta `contato@bragaferreira.adv.br` com senha de app; remetente `SEMPER · Braga Ferreira <nao-responda@bragaferreira.adv.br>`, apelido dessa conta autorizado em "Enviar e-mail como" no Gmail. O domínio tem SPF com `_spf.google.com` e DKIM do Google (`google._domainkey`).
+- **SMTP**: Hostinger, `smtp.hostinger.com` porta 465, conta `nao-responda@semper.app.br`; remetente `SEMPER <nao-responda@semper.app.br>`. O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
 
 ## Testar no computador
 

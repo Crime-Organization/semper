@@ -2,7 +2,7 @@
 // Usada só em "npm run teste". Segue o mesmo contrato de dados/supabase.ts.
 // Para recomeçar do zero, rode no console: SEMPER_FALSO.reiniciar()
 import type {
-  AcessoSigilo, Coluna, Contexto, Convite, Dados, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Contexto, Convite, Dados, DadosEscritorio, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
 import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 
@@ -42,6 +42,7 @@ interface Banco {
   vinculos?: { id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string; criado_em: string }[];
   duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
   semCodigo?: boolean;   // entrou só com a senha e ainda falta o código do aplicativo
+  escritorio?: DadosEscritorio;
 }
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -97,6 +98,8 @@ let bd: Banco;
 try { bd = JSON.parse(sessionStorage.getItem(CHAVE) || 'null') || semente(); } catch { bd = semente(); }
 bd.tiposVinculo ??= TIPOS_VINCULO.map(([nome, inverso], i) => ({ id: 'tv' + (i + 1), escritorio_id: null, nome, inverso, ordem: i === TIPOS_VINCULO.length - 1 ? 1000 : (i + 1) * 10 }));
 bd.vinculos ??= [];
+bd.escritorio ??= { nome: 'Escritório Exemplo (teste)', logo: null, cnpj: null, oab_registro: null, logradouro: null, numero: null, complemento: null,
+  bairro: null, municipio: 'Montes Claros', uf: 'MG', cep: null, telefone: null, email: null, site: null };
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -162,7 +165,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', nome: 'Braga Ferreira (teste)', slug: 'teste', modulos: { pessoas: true } },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, ...r }) => r), ehAdmin: true, ehMaster: true
     };
     return espera(c);
@@ -336,6 +339,12 @@ export const SD: Dados = {
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
+  async escritorioSalvar(dados) {
+    const atual = bd.escritorio!;
+    bd.escritorio = { ...atual, ...dados, logo: dados.logo === undefined ? atual.logo : dados.logo };
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'escritorios', registro_id: 'e1', acao: 'alteracao', resumo: { nome: dados.nome }, feito_por: eu, em: agora() });
+    gravar(); await espera(null);
+  },
   async exportacaoRegistrar(tabela, descricao, quantidade) {
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: null, acao: 'exportacao', resumo: { descricao, quantidade }, feito_por: eu, em: agora() });
     gravar();

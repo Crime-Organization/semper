@@ -12,6 +12,7 @@ const Inicio = lazy(() => import('./paginas/Inicio'));
 const Pessoas = lazy(() => import('./paginas/Pessoas'));
 const NovaPessoa = lazy(() => import('./paginas/NovaPessoa'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
+const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
 // O formulário recomeça do zero a cada vez que é aberto (mesmo clicando no "+" de dentro dele).
 function FormularioPessoa() {
@@ -30,6 +31,7 @@ export function App() {
           <Route path="pessoas" element={<Pessoas />} />
           <Route path="pessoas/nova" element={<FormularioPessoa />} />
           <Route path="equipe" element={<Equipe />} />
+          <Route path="configuracoes" element={<Configuracoes />} />
         </Route>
         <Route path="*" element={<Navigate to="/inicio/" replace />} />
       </Routes>
