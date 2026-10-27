@@ -17,7 +17,7 @@ O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que 
 | `app/src/marca.ts` e `app/src/imagens/` | Nome, logos, foto, cores e conexão com o banco (marca branca). |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
-| `banco/` | Estrutura do banco no Supabase, em scripts numerados e já aplicados (`001_base.sql`, `002_desempenho.sql`, `003_vinculos.sql`), e os modelos de e-mail. |
+| `banco/` | Estrutura do banco no Supabase, em scripts numerados e já aplicados (`001_base.sql`, `002_desempenho.sql`, `003_vinculos.sql`, `004_convite_seguro.sql`, `005_exportacoes.sql`, `006_lgpd_exclusao.sql`, `007_duas_etapas.sql`), e os modelos de e-mail. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
 | `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
 | `Trello/` | Exportações do Trello com dados de clientes. Não versionado. |
