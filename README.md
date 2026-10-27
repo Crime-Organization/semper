@@ -1,10 +1,10 @@
 # SEMPER
 
-Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.bragaferreira.adv.br/.
+Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.app.br/ (o endereço antigo, semper.bragaferreira.adv.br, redireciona para lá).
 
 ## Como vai ao ar
 
-O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que mexa em `app/`, a rotina do GitHub (`.github/workflows/publicar.yml`) confere os tipos, roda os testes, compila e grava o site pronto no ramo **`publicacao`**. A Hostinger (hPanel → Avançado → GIT, site `semper.bragaferreira.adv.br`) publica esse ramo. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
+O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que mexa em `app/`, a rotina do GitHub (`.github/workflows/publicar.yml`) confere os tipos, roda os testes, compila e grava o site pronto no ramo **`publicacao`**. A Hostinger (hPanel → Avançado → GIT, sites `semper.app.br` e `semper.bragaferreira.adv.br`, os dois ligados ao mesmo ramo) publica esse ramo; o `.htaccess` manda o endereço antigo e o `www` para `semper.app.br`. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
 
 > **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
 
@@ -27,7 +27,7 @@ O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que 
 Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: toda linha tem `escritorio_id` e as regras de acesso (RLS) só mostram o que pertence ao escritório de quem está logado. O cadastro de usuários é só por convite.
 
 Configuração no painel do Supabase (Authentication):
-- **URL Configuration**: Site URL `https://semper.bragaferreira.adv.br/`; Redirect URLs `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
+- **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**`, `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
 - **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
 - **SMTP** (configurado): Google Workspace, `smtp.gmail.com` porta 465, login na conta `contato@bragaferreira.adv.br` com senha de app; remetente `SEMPER · Braga Ferreira <nao-responda@bragaferreira.adv.br>`, apelido dessa conta autorizado em "Enviar e-mail como" no Gmail. O domínio tem SPF com `_spf.google.com` e DKIM do Google (`google._domainkey`).
 

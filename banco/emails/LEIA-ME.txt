@@ -20,4 +20,4 @@ Segurança: os links levam só um código de uso único ({{ .TokenHash }}), que 
 SEMPER troca pela sessão ao abrir. Não use {{ .ConfirmationURL }}: ele põe a
 chave de acesso no próprio endereço, que pode ficar no histórico do navegador.
 O "Site URL" do Supabase precisa ser o endereço do SEMPER
-(https://semper.bragaferreira.adv.br/).
+(https://semper.app.br/).
