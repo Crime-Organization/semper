@@ -214,12 +214,11 @@ function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
   return <>
     <div className="kt">{p.nome}</div>
     <div className="km">
-      <span>{p.documento ? fmtDocumento(p.documento) : TIPOS[p.tipo]}</span>
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
       {p.municipio && <span>{p.municipio}{p.uf ? '/' + p.uf : ''}</span>}
       {data && <span>{data}</span>}
     </div>
-    <div className="kp"><span className="codigo">{p.codigo}</span><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} max={4} tam={24} /></div>
+    {p.resp.length > 0 && <div className="kp"><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} max={4} tam={24} /></div>}
   </>;
 }
 
