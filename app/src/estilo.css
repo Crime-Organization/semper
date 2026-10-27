@@ -292,7 +292,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kcartao:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .kcartao.arrastando { opacity: .45; transform: rotate(1.5deg); box-shadow: 0 12px 36px rgba(0,0,0,.18) }
 .kcartao .kt { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
-.kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px }
+/* Detalhes do cartão, um por linha (telefone, cidade, data). */
+.kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px }
 .kcartao .kp { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 26px }
 /* Rodapé só com os responsáveis: ficam no canto direito. */
 .kcartao .kp > :only-child { margin-left: auto }
