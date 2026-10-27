@@ -25,7 +25,7 @@ const TABELAS: Record<string, string> = {
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
   pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo'
 };
-const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu' };
+const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou' };
 // O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
 const linkAcesso = (codigo?: string) => location.origin + '/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
 const mensagemConvite = (c: Convite, codigo?: string) =>
@@ -158,12 +158,16 @@ function PainelEquipe() {
 
     <section aria-labelledby="tReg" className="registro" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h2 className="secao" id="tReg">Registro de ações</h2>
-      <p className="nota" style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu ou leu informações (exigência da LGPD). Últimas 60 ações.</p>
+      <p className="nota" style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu, leu ou exportou informações (exigência da LGPD). Últimas 60 ações.</p>
       <div className="cartao">
         {registro === null ? <p className="carregando">Carregando…</p>
           : typeof registro === 'string' ? <div className="aviso erro">{registro}</div>
           : !registro.length ? <p className="nota">Nenhuma ação registrada ainda.</p>
           : <ol>{registro.map(r => {
+            if (r.acao === 'exportacao') {
+              const q = r.resumo?.quantidade ?? 0;
+              return <li key={r.id}>{nomeDe(r.feito_por)} exportou {q} {q === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'} {r.resumo?.descricao && <b>({r.resumo.descricao})</b>}<span>{dataHora(r.em)}</span></li>;
+            }
             const alvo = r.resumo?.nome || r.resumo?.email || r.resumo?.codigo || '';
             return <li key={r.id}>{nomeDe(r.feito_por)} {ACOES[r.acao] || r.acao} {TABELAS[r.tabela] || r.tabela} {alvo && <b>{alvo}</b>}<span>{dataHora(r.em)}</span></li>;
           })}</ol>}

@@ -335,5 +335,9 @@ export const SD: Dados = {
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
-  auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n))
+  auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
+  async exportacaoRegistrar(tabela, descricao, quantidade) {
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: null, acao: 'exportacao', resumo: { descricao, quantidade }, feito_por: eu, em: agora() });
+    gravar();
+  }
 };

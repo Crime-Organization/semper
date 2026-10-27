@@ -150,6 +150,8 @@ export default function Pessoas() {
       if (escolha === 'com') {
         for (const r of await SD.representantesVinculados(pessoas.filter(p => p.tipo === 'pj').map(p => p.id))) (representantes[r.pj_id] ||= []).push(r);
       }
+      // A exportação entra no registro de ações (LGPD) antes de o arquivo sair; se não registrar, não exporta.
+      await SD.exportacaoRegistrar('pessoas', `Google Contatos, ${escolha === 'com' ? 'com' : 'sem'} qualificação`, pessoas.length);
       const hoje = new Date().toLocaleDateString('sv-SE');
       baixarArquivo(`contatos-google-${escolha}-qualificacao-${hoje}.csv`, csvContatosGoogle(pessoas, { comQualificacao: escolha === 'com', representantes }));
       avisar(`${plural(pessoas.length, 'contato exportado', 'contatos exportados')}.`, 'ok');

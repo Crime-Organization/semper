@@ -392,6 +392,9 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('convites').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só o master cancela convites de administradores.');
   },
+  async exportacaoRegistrar(tabela, descricao, quantidade) {
+    await rpc('exportacao_registrar', { p_tabela: tabela, p_descricao: descricao, p_quantidade: quantidade });
+  },
   async auditoriaListar(limite = 50) {
     const { data } = await rodar(sb.from('auditoria').select('id, tabela, registro_id, acao, resumo, feito_por, em')
       .order('em', { ascending: false }).limit(limite));

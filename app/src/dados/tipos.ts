@@ -146,7 +146,7 @@ export interface Convite { id: string; email: string; nome: string; papel: Papel
 export type ConviteCriado = Convite & { codigo?: string };
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string } | null; feito_por: string | null; em: string;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number } | null; feito_por: string | null; em: string;
 }
 
 export interface Exclusao { excluidas: number; naoExcluidas: number; motivo: string }
@@ -239,4 +239,6 @@ export interface Dados {
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;
+  /** Registra uma exportação no registro de ações (LGPD). Vem antes de entregar o arquivo; só administradores. */
+  exportacaoRegistrar(tabela: 'pessoas', descricao: string, quantidade: number): Promise<void>;
 }
