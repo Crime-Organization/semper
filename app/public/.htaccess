@@ -30,10 +30,13 @@ DirectoryIndex index.html
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
-  # Um endereço só: www.semper.app.br e o endereço antigo (semper.bragaferreira.adv.br) vão para
-  # semper.app.br, mantendo o caminho e os parâmetros (links de convite e de e-mail já enviados continuam valendo).
-  RewriteCond %{HTTP_HOST} ^(www\.semper\.app\.br|semper\.bragaferreira\.adv\.br)$ [NC]
+  # Um endereço só: www.semper.app.br vai para semper.app.br, mantendo o caminho e os parâmetros.
+  RewriteCond %{HTTP_HOST} ^www\.semper\.app\.br$ [NC]
   RewriteRule ^ https://semper.app.br%{REQUEST_URI} [R=301,L]
+  # O endereço antigo (semper.bragaferreira.adv.br) foi desligado: responde "não existe mais" (410)
+  # e não leva ao SEMPER. O SEMPER fica só em semper.app.br.
+  RewriteCond %{HTTP_HOST} ^semper\.bragaferreira\.adv\.br$ [NC]
+  RewriteRule ^ - [G,L]
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d

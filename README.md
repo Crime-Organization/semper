@@ -1,10 +1,10 @@
 # SEMPER
 
-Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.app.br/ (o endereço antigo, semper.bragaferreira.adv.br, redireciona para lá).
+Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): contratos, demandas, tarefas, processos, pessoas, compromissos, financeiro e o conteúdo do site. Publicada em https://semper.app.br/.
 
 ## Como vai ao ar
 
-O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que mexa em `app/`, a rotina do GitHub (`.github/workflows/publicar.yml`) confere os tipos, roda os testes, compila e grava o site pronto no ramo **`publicacao`**. A Hostinger (hPanel → Avançado → GIT, sites `semper.app.br` e `semper.bragaferreira.adv.br`, os dois ligados ao mesmo ramo) publica esse ramo; o `.htaccess` manda o endereço antigo e o `www` para `semper.app.br`. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
+O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que mexa em `app/`, a rotina do GitHub (`.github/workflows/publicar.yml`) confere os tipos, roda os testes, compila e grava o site pronto no ramo **`publicacao`**. A Hostinger (hPanel → Avançado → GIT, site `semper.app.br`) publica esse ramo; o `.htaccess` manda o `www` para `semper.app.br` e responde 410 (desligado) no endereço antigo, semper.bragaferreira.adv.br. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
 
 > **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
 
@@ -27,9 +27,9 @@ O sistema fica em `app/` (React + TypeScript + Vite). A cada push no `main` que 
 Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: toda linha tem `escritorio_id` e as regras de acesso (RLS) só mostram o que pertence ao escritório de quem está logado. O cadastro de usuários é só por convite.
 
 Configuração no painel do Supabase (Authentication):
-- **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**`, `https://semper.bragaferreira.adv.br/**` e `http://localhost:8090/**`.
+- **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.
 - **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
-- **SMTP**: Hostinger, `smtp.hostinger.com` porta 465, conta `nao-responda@semper.app.br`; remetente `SEMPER <nao-responda@semper.app.br>`. O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
+- **SMTP**: Hostinger, `smtp.hostinger.com` porta 465. `nao-responda@semper.app.br` é um alias: o login (Username e senha ou senha de aplicativo) é o da caixa principal a que ele pertence, e o alias entra só como remetente (`SEMPER <nao-responda@semper.app.br>`). O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
 
 ## Testar no computador
 
