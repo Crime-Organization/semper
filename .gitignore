@@ -22,3 +22,6 @@ educacao/
 
 # Site compilado (gerado pela rotina de publicação)
 dist/
+
+# Arquivos de trabalho das skills de design
+.taste-skill/

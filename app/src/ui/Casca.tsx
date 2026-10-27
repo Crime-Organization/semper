@@ -34,7 +34,7 @@ export function Casca({ children }: { children: ReactNode }) {
     definirTema(proximo);
     avisar(`Tema: ${TEMAS[proximo]}${proximo === 'auto' ? ' (segue o aparelho)' : ''}.`);
   };
-  const sair = async () => { await SD.sair(); navegar('/'); };
+  const sair = async () => { await SD.sair(); navegar('/entrar/'); };
   const item = (para: string, icone: 'inicio' | 'pessoas' | 'equipe', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 

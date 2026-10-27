@@ -1,0 +1,289 @@
+/* Página inicial pública. Tudo preso a .home, com as cores fixas do tema claro da marca (DESIGN.md):
+   a página não muda com o tema escuro do sistema. O motivo é a pasta com aba, das pastas do escritório. */
+.home {
+  --h-papel: #FBFBF9; --h-papel2: #F5F5F2; --h-cinza: #DCDCD4; --h-tinta: #1A1916; --h-texto: #3D3B36; --h-texto2: #57554F;
+  --h-escuro: #1A1916; --h-cartao: #2C2A26; --h-claro: #FBFBF9; --h-claro2: #DCDCD4;
+  --h-verde: #377D22; --h-verde-escuro: #2B6119; --h-verde-vivo: #5FAE3E; --h-verde-fundo: #EEF5EA;
+  --h-campo: var(--h-verde);
+  --h-margem: clamp(16px, 4.5vw, 72px);
+  --h-espaco: clamp(72px, 10vw, 152px);
+  --h-raio: clamp(18px, 2vw, 28px);
+  --h-saida: cubic-bezier(.16, 1, .3, 1);
+  background: var(--h-papel); color: var(--h-tinta); overflow-x: clip;
+}
+.home.campo-m { --h-campo: var(--h-verde-escuro) }
+.home main > section { scroll-margin-top: 0 }
+
+/* ---------- tipos ---------- */
+.home h1, .home h2, .home h3 { margin: 0; font-weight: 900; text-wrap: balance }
+.home .h-l { font-size: clamp(38px, 5.4vw, 84px); letter-spacing: -.04em; line-height: 1 }
+.home .h-m { font-size: clamp(22px, 2vw, 30px); letter-spacing: -.02em; line-height: 1.15 }
+.home p { margin: 0; font-size: clamp(17px, 1.25vw, 19px); line-height: 1.6; color: var(--h-texto); text-wrap: pretty }
+.home .h-ponto { font-weight: inherit; color: var(--h-verde) }
+
+/* ---------- botões (pílula, como no sistema) ---------- */
+.home .h-botao {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 30px; border: 0; border-radius: 999px;
+  background: var(--h-verde); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer;
+  transition: background-color .25s ease, color .25s ease, transform .2s var(--h-saida);
+}
+.home .h-botao:hover { background: var(--h-verde-escuro) }
+.home .h-botao:active { transform: scale(.97) }
+.home .h-botao-claro { background: #fff; color: var(--h-tinta) }
+.home .h-botao-claro:hover { background: var(--h-verde-fundo) }
+.home .h-botao-escuro { background: var(--h-tinta) }
+.home .h-botao-escuro:hover { background: var(--h-cartao) }
+.home .h-botao-pequeno { min-height: 44px; padding: 0 22px; font-size: 15px }
+.home .h-mini {
+  height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--h-tinta); color: #fff;
+  font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; transition: background-color .2s ease, transform .2s var(--h-saida);
+}
+.home .h-mini:hover { background: var(--h-verde) }
+.home .h-mini:active { transform: scale(.95) }
+
+/* ---------- abertura: o nome, a frase e a pilha de pastas ---------- */
+.h-abertura { display: flex; flex-direction: column; min-height: 100svh; padding-top: clamp(20px, 3vw, 40px); background: var(--h-escuro); color: var(--h-claro) }
+.h-topo { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; padding: 0 var(--h-margem) }
+.h-abertura h1 { overflow: hidden; font-size: clamp(64px, 14.5vw, 232px); line-height: .92; letter-spacing: -.05em; padding-bottom: .02em }
+.h-abertura h1 > span { display: block }
+.h-abertura h1 .h-ponto { color: var(--h-verde-vivo) }
+.h-entrar {
+  margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px;
+  background: var(--h-cartao); color: var(--h-claro); font-weight: 800; font-size: 16px; transition: background-color .25s ease, color .25s ease;
+}
+.h-entrar:hover { background: var(--h-claro); color: var(--h-tinta) }
+.home .h-frase { margin: clamp(20px, 2.6vw, 40px) var(--h-margem) 0; max-width: 36ch; font-size: clamp(19px, 1.9vw, 28px); font-weight: 300; line-height: 1.45; color: var(--h-claro2) }
+
+.h-pastas { --aba-l: clamp(150px, 15vw, 230px); --aba-a: clamp(40px, 3.6vw, 50px); display: flex; flex-direction: column; margin-top: auto; padding-top: calc(clamp(40px, 7vh, 96px) + var(--aba-a)) }
+.h-pasta { --c: var(--h-cartao); --t: var(--h-claro); position: relative; display: block; height: clamp(44px, 4.6vw, 62px); background: var(--c); color: var(--t) }
+.h-pasta.p1 { --c: var(--h-cartao); --t: var(--h-claro) }
+.h-pasta.p2 { --c: var(--h-cinza); --t: var(--h-tinta) }
+.h-pasta.p3 { --c: var(--h-papel2); --t: var(--h-tinta) }
+.h-pasta.p4 { --c: var(--h-verde-fundo); --t: var(--h-verde-escuro) }
+.h-pasta .h-aba {
+  position: absolute; z-index: 0; bottom: 100%; left: calc(var(--h-margem) + (100% - 2 * var(--h-margem) - var(--aba-l)) * var(--i) / 4);
+  display: flex; align-items: center; justify-content: center; width: max-content; min-width: var(--aba-l); height: var(--aba-a); padding: 0 18px;
+  color: var(--t); font-size: clamp(15px, 1.15vw, 17px); font-weight: 800; white-space: nowrap;
+}
+/* a aba: um trapézio de cantos redondos, da cor da pasta */
+.h-pasta .h-aba::before {
+  content: ''; position: absolute; z-index: -1; inset: 0 0 -2px; border-radius: 14px 14px 0 0; background: var(--c);
+  transform: perspective(48px) rotateX(9deg); transform-origin: bottom;
+}
+.h-pasta:not(.h-frente) { transition: transform .35s var(--h-saida) }
+.h-pasta:not(.h-frente):hover, .h-pasta:not(.h-frente):focus-visible { transform: translateY(-8px) }
+.h-pasta:focus-visible { outline: 0 }
+.h-pasta:focus-visible .h-aba { text-decoration: underline; text-underline-offset: 4px }
+.h-frente { --c: var(--h-campo); --t: #fff; height: auto; padding: clamp(24px, 3vw, 40px) var(--h-margem) clamp(36px, 4vw, 56px); transition: background-color .6s ease }
+.h-frente .h-aba::before { transition: background-color .6s ease }
+.h-frente-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px }
+.h-ver { color: #fff; font-weight: 800; font-size: 17px; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; text-decoration-color: rgb(255 255 255 / .5); transition: text-decoration-color .25s ease }
+.h-ver:hover { text-decoration-color: #fff }
+.h-frente :focus-visible, .h-qual :focus-visible, .h-conhecer :focus-visible { outline-color: #fff }
+
+/* ---------- qualificação: o controle grande sobre o campo verde ---------- */
+.h-qual {
+  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); grid-template-areas: "texto controle" "caixa foto";
+  gap: clamp(36px, 4vw, 64px) clamp(32px, 5vw, 88px); align-items: start;
+  padding: clamp(32px, 4vw, 56px) var(--h-margem) var(--h-espaco); background: var(--h-campo); color: #fff; transition: background-color .6s ease;
+}
+.h-qual-texto { grid-area: texto; display: flex; flex-direction: column; gap: 24px }
+.h-qual-texto p { color: #fff; max-width: 52ch }
+.h-genero { grid-area: controle; position: relative; display: grid; grid-template-rows: 1fr 1fr; gap: 10px; padding: 10px; border-radius: 40px; background: rgb(0 0 0 / .2) }
+.h-genero button {
+  position: relative; min-height: clamp(84px, 9vw, 140px); padding: 0 24px; border: 0; border-radius: 30px; background: transparent; color: #fff;
+  font: inherit; font-size: clamp(34px, 4.6vw, 72px); font-weight: 900; letter-spacing: -.035em; cursor: pointer;
+  transition: color .35s ease, background-color .35s ease, transform .2s var(--h-saida);
+}
+.h-genero button:active { transform: scale(.98) }
+.h-genero button[aria-checked="true"] { background: #fff; color: var(--h-campo) }
+.h-genero button:focus-visible { outline: 3px solid #fff; outline-offset: -6px }
+.h-qual-caixa { grid-area: caixa; padding: clamp(22px, 2.6vw, 36px); border-radius: var(--h-raio); background: var(--h-papel); color: var(--h-tinta) }
+.h-qual-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px }
+.h-qual-cabeca h3 { font-size: 17px; letter-spacing: 0 }
+.home .h-qual-gerada { color: var(--h-tinta); font-size: clamp(17px, 1.35vw, 20px); line-height: 1.7 }
+.h-qual-gerada mark { padding: 1px 3px; border-radius: 5px; background: var(--h-verde-fundo); color: var(--h-verde-escuro); font-weight: 700 }
+.h-qual-foto { grid-area: foto; margin: 0; display: flex; flex-direction: column; gap: 14px }
+.h-qual-foto img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: right top; border-radius: var(--h-raio); background: var(--h-papel) }
+.h-qual-foto figcaption { font-size: 15px; line-height: 1.5; color: #fff }
+
+/* ---------- o que já funciona: frases com chave ---------- */
+.h-funciona { padding: var(--h-espaco) var(--h-margem) }
+.h-funciona > h2 { margin-bottom: clamp(32px, 4vw, 56px) }
+.h-funciona ul { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none }
+.h-faixa {
+  --c: var(--h-verde); --t: #fff; --t2: rgb(255 255 255 / .88);
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px 32px;
+  padding: clamp(22px, 2.6vw, 36px) clamp(22px, 3vw, 44px); border-radius: var(--h-raio); background: var(--h-papel2); color: var(--h-tinta);
+  transition: background-color .45s ease, color .45s ease;
+}
+.h-faixa.f2 { --c: var(--h-escuro) }
+.h-faixa.f3 { --c: var(--h-verde-fundo); --t: var(--h-tinta); --t2: var(--h-texto) }
+.h-faixa.f4 { --c: var(--h-cartao) }
+.h-faixa.f5 { --c: var(--h-cinza); --t: var(--h-tinta); --t2: var(--h-texto) }
+.h-faixa.ligada { background: var(--c); color: var(--t) }
+.h-faixa-frase { font-size: clamp(26px, 3.3vw, 52px); letter-spacing: -.035em; line-height: 1.08 }
+.h-chave { position: relative; flex: none; width: 84px; height: 48px; padding: 0; border: 0; border-radius: 999px; background: #6B6A63; cursor: pointer; transition: background-color .3s ease }
+.h-chave span { position: absolute; top: 6px; left: 6px; width: 36px; height: 36px; border-radius: 50%; background: #fff; transition: transform .4s var(--h-saida), background-color .3s ease }
+.h-chave:active span { transform: scale(.9) }
+.ligada .h-chave { background: #fff }
+.ligada .h-chave span { transform: translateX(36px); background: var(--c) }
+.ligada.f3 .h-chave, .ligada.f5 .h-chave { background: var(--h-tinta) }
+.ligada.f3 .h-chave span, .ligada.f5 .h-chave span { background: #fff }
+.h-faixa-mais { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px 40px; align-items: start }
+.home .h-faixa-mais p { max-width: 48ch; color: var(--t2) }
+.h-faixa-mais img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: left top; border-radius: calc(var(--h-raio) - 6px) }
+.h-faixa-mais:only-child, .h-faixa-mais:not(:has(img)) { grid-template-columns: minmax(0, 1fr) }
+
+/* ---------- módulos: índice com a tela ao lado ---------- */
+.h-modulos { padding: var(--h-espaco) var(--h-margem); background: var(--h-escuro); color: var(--h-claro) }
+.h-modulos > h2 { margin-bottom: clamp(32px, 4vw, 56px) }
+.h-indice { position: relative }
+.h-indice ul { margin: 0; padding: 0; list-style: none }
+.h-linha { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; padding: clamp(14px, 1.6vw, 22px) 0; transition: opacity .25s ease }
+.h-linha-nome { font-size: clamp(40px, 6.4vw, 104px); letter-spacing: -.045em; line-height: 1; color: #A8A79F; transition: transform .45s var(--h-saida), color .25s ease }
+.h-linha.pronto .h-linha-nome { color: var(--h-claro) }
+.home .h-linha-texto { flex-basis: 100%; max-width: 54ch; color: var(--h-claro2) }
+.h-linha-texto b { font-weight: 800; color: var(--h-claro) }
+.h-linha.pronto .h-linha-texto b { color: var(--h-verde-vivo) }
+.h-linha-foto { order: -1; flex-basis: 100%; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top; margin-bottom: 8px; border-radius: calc(var(--h-raio) - 6px) }
+.h-quadro { display: none }
+@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
+  .h-indice ul { max-width: 58% }
+  .h-linha-foto { display: none }
+  .h-indice ul.apontando .h-linha:not(.atual) { opacity: .4 }
+  .h-indice ul.apontando .h-linha.atual .h-linha-nome { transform: translateX(14px) }
+  .h-quadro {
+    display: block; position: absolute; z-index: 1; top: 0; right: 0; width: 40%; aspect-ratio: 16 / 10; overflow: hidden; pointer-events: none;
+    border-radius: var(--h-raio); background: var(--h-cartao); transition: transform .45s var(--h-saida), background-color .3s ease;
+  }
+  .h-quadro.sem-foto { background: var(--h-verde) }
+  .h-quadro img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; opacity: 0; transform: scale(1.04); transition: opacity .3s ease, transform .6s var(--h-saida) }
+  .h-quadro img.visivel { opacity: 1; transform: none }
+  .h-quadro-nome { position: absolute; left: 28px; bottom: 20px; right: 28px; color: #fff; font-size: clamp(36px, 4vw, 64px); font-weight: 900; letter-spacing: -.04em; line-height: 1; opacity: 0; transform: translateY(16px); transition: opacity .3s ease, transform .5s var(--h-saida) }
+  .h-quadro-nome .h-ponto { color: var(--h-tinta) }
+  .h-quadro-nome.visivel { opacity: 1; transform: none }
+}
+
+/* ---------- o escritório: painel escuro, farol recortado em forma de pasta ---------- */
+.h-escritorio { padding: var(--h-espaco) var(--h-margem) 0 }
+.h-painel {
+  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(36px, 5vw, 88px); align-items: center;
+  padding: clamp(28px, 5vw, 80px); border-radius: calc(var(--h-raio) + 8px); background: var(--h-cartao); color: var(--h-claro);
+}
+.h-painel-texto { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(24px, 2.6vw, 36px) }
+.h-painel-bloco { display: flex; flex-direction: column; gap: 10px }
+.home .h-painel-bloco p { max-width: 50ch; color: var(--h-claro2) }
+.h-farol { margin: 0; aspect-ratio: 4 / 5; overflow: hidden; clip-path: polygon(0 0, 42% 0, 50% 44px, 100% 44px, 100% 100%, 0 100%); border-radius: 0 0 var(--h-raio) var(--h-raio) }
+.h-farol img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 60%; filter: grayscale(1) contrast(1.05); transform: scale(1.12) }
+
+/* ---------- perguntas: título preso, respostas em blocos ---------- */
+.h-perguntas { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 32px clamp(32px, 5vw, 88px); align-items: start; padding: var(--h-espaco) var(--h-margem) }
+.h-perguntas > h2 { position: sticky; top: 32px }
+.h-respostas { display: flex; flex-direction: column; gap: 10px }
+.h-respostas details { border-radius: var(--h-raio); background: var(--h-papel2); transition: background-color .3s ease }
+.h-respostas details[open] { background: var(--h-verde-fundo) }
+.h-respostas summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px clamp(20px, 2.4vw, 32px); cursor: pointer; list-style: none; font-size: clamp(18px, 1.5vw, 22px); font-weight: 800; letter-spacing: -.01em; line-height: 1.3 }
+.h-respostas summary::-webkit-details-marker { display: none }
+.h-respostas summary i { position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--h-tinta); transition: background-color .3s ease, transform .4s var(--h-saida) }
+.h-respostas summary i::before, .h-respostas summary i::after { content: ''; position: absolute; left: 11px; right: 11px; top: 17px; height: 2px; border-radius: 2px; background: #fff }
+.h-respostas summary i::after { transform: rotate(90deg); transition: transform .4s var(--h-saida) }
+.h-respostas details[open] summary i { background: var(--h-verde); transform: rotate(180deg) }
+.h-respostas details[open] summary i::after { transform: rotate(0) }
+.h-respostas summary:hover i { background: var(--h-verde) }
+.h-respostas details p { padding: 0 clamp(20px, 2.4vw, 32px) 24px; max-width: 62ch }
+
+/* ---------- conhecer: o primeiro passo, já aberto ---------- */
+.h-conhecer {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px clamp(32px, 5vw, 88px); align-items: center;
+  padding: var(--h-espaco) var(--h-margem); background: var(--h-verde); color: #fff;
+}
+.h-conhecer-texto { display: flex; flex-direction: column; gap: 24px }
+.home .h-conhecer-texto p { max-width: 44ch; color: #fff }
+.h-dialogo { display: flex; flex-direction: column; gap: 20px; padding: clamp(24px, 3vw, 40px); border-radius: var(--h-raio); background: var(--h-papel); color: var(--h-tinta) }
+.h-dialogo h3 { font-size: 22px; letter-spacing: -.01em }
+.h-dialogo > label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 800; color: var(--h-texto) }
+.h-dialogo input:not([type]) , .h-dialogo input[type="text"] {
+  height: 54px; padding: 0 16px; border: 1px solid var(--h-cinza); border-radius: 14px; background: #fff; color: var(--h-tinta); font: inherit; font-size: 17px; font-weight: 400;
+}
+.h-dialogo input::placeholder { color: #8A8981 }
+.h-dialogo input:focus { outline: 2px solid var(--h-verde); outline-offset: 0; border-color: transparent }
+.h-dialogo fieldset { margin: 0; padding: 0; border: 0; min-width: 0 }
+.h-dialogo legend { padding: 0; margin-bottom: 8px; font-size: 15px; font-weight: 800; color: var(--h-texto) }
+.h-escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--h-papel2) }
+.h-escolha label { position: relative; display: flex; cursor: pointer }
+.h-escolha input { position: absolute; opacity: 0; pointer-events: none }
+.h-escolha span { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; border-radius: 999px; font-size: 15px; font-weight: 800; color: var(--h-texto2); text-align: center; transition: background-color .25s ease, color .25s ease }
+.h-escolha input:checked + span { background: var(--h-tinta); color: #fff }
+.h-escolha input:focus-visible + span { outline: 2px solid var(--h-verde); outline-offset: 2px }
+.h-dialogo .h-botao { width: 100% }
+
+/* ---------- rodapé: a marca em blocos ---------- */
+.h-rodape { padding: clamp(48px, 6vw, 96px) var(--h-margem) 32px; background: var(--h-escuro); color: var(--h-claro) }
+.h-blocos { display: block; width: 100%; height: auto; overflow: hidden }
+.h-blocos text { font-family: var(--font); font-size: 180px; font-weight: 900; letter-spacing: -.04em }
+.h-blocos g { --c: var(--h-cartao); --t: var(--h-claro); transform-box: fill-box }
+.h-blocos rect { fill: var(--c) }
+.h-blocos text { fill: var(--t) }
+.h-blocos .b2, .h-blocos .b5 { --c: var(--h-cinza); --t: var(--h-tinta) }
+.h-blocos .b3 { --c: var(--h-verde); --t: #fff }
+.h-blocos .b4 { --c: var(--h-verde-fundo); --t: var(--h-verde-escuro) }
+.h-blocos .b6 { --c: var(--h-papel2); --t: var(--h-tinta) }
+.h-blocos .b7 { --c: var(--h-verde-vivo); --t: var(--h-tinta) }
+.h-rodape-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; margin-top: clamp(48px, 6vw, 88px) }
+.h-rodape-links > * { display: flex; flex-direction: column; align-items: flex-start; gap: 10px }
+.h-rodape-links h2 { margin-bottom: 4px; font-size: 17px; letter-spacing: 0; color: var(--h-claro) }
+.h-rodape-links a { color: var(--h-claro2); font-size: 16px; transition: color .2s ease }
+.h-rodape-links a:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px }
+.home .h-rodape-links p { font-size: 16px; color: var(--h-claro2) }
+.h-rodape-fim { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: clamp(48px, 6vw, 80px) }
+.home .h-rodape-fim p { font-size: 15px; color: var(--h-claro2) }
+
+/* ---------- celular e telas médias ---------- */
+@media (max-width: 900px) {
+  .h-qual { grid-template-columns: minmax(0, 1fr); grid-template-areas: "texto" "controle" "caixa" "foto" }
+  .h-genero { grid-template-rows: none; grid-template-columns: 1fr 1fr; border-radius: 999px; padding: 6px; gap: 6px }
+  .h-abertura { min-height: 0 }
+  .h-genero button { min-height: 64px; padding: 0 8px; border-radius: 999px; font-size: clamp(20px, 6vw, 34px) }
+  .h-faixa-mais { grid-template-columns: minmax(0, 1fr) }
+  .h-painel { grid-template-columns: minmax(0, 1fr) }
+  .h-farol { aspect-ratio: 4 / 3; order: -1 }
+  .h-perguntas { grid-template-columns: minmax(0, 1fr) }
+  .h-perguntas > h2 { position: static }
+  .h-conhecer { grid-template-columns: minmax(0, 1fr) }
+  .h-rodape-links { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+}
+@media (max-width: 560px) {
+  .h-entrar { order: -1 }
+  .h-faixa { grid-template-columns: minmax(0, 1fr); gap: 16px }
+  .h-chave { justify-self: start }
+  .h-chave { width: 68px; height: 40px }
+  .h-chave span { width: 28px; height: 28px }
+  .ligada .h-chave span { transform: translateX(28px) }
+  .h-frente-acoes .h-botao { width: 100% }
+  .h-rodape-fim { flex-direction: column-reverse; align-items: flex-start }
+}
+
+/* ---------- movimento: chegada da abertura, entradas por seção, o farol devagar ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.home) { scroll-behavior: smooth }
+  .h-abertura h1 > span { animation: h-subir-linha .9s var(--h-saida) .1s backwards }
+  .h-frase { animation: h-subir .6s var(--h-saida) .42s backwards }
+  .h-entrar { animation: h-subir .6s var(--h-saida) .5s backwards }
+  .h-pasta { animation: h-pasta .8s var(--h-saida) backwards; animation-delay: calc(.3s + var(--i) * 90ms) }
+  .h-qual-gerada mark { animation: h-marca 1.1s ease backwards }
+  .h-faixa-mais { animation: h-subir .55s var(--h-saida) backwards }
+  .h-farol img { animation: h-deriva 24s ease-in-out infinite alternate }
+  .com-entradas [data-entra] { opacity: 0; transform: translateY(24px); transition: opacity .7s ease var(--d, 0ms), transform .9s var(--h-saida) var(--d, 0ms) }
+  .com-entradas [data-entra="foto"] { transform: scale(.96) }
+  .com-entradas .h-blocos g[data-entra] { transform: translateY(45%); opacity: 1 }
+  .com-entradas [data-entra].entrou { opacity: 1; transform: none }
+  /* depois de entrar, cada parte volta às próprias transições (a faixa muda de cor, a linha esmaece) */
+  .com-entradas .h-faixa.entrou { transition: background-color .45s ease, color .45s ease, opacity .7s ease var(--d, 0ms), transform .9s var(--h-saida) var(--d, 0ms) }
+  .com-entradas .h-linha.entrou { transition: opacity .25s ease, transform .9s var(--h-saida) var(--d, 0ms) }
+}
+@keyframes h-subir-linha { from { transform: translateY(105%) } }
+@keyframes h-subir { from { opacity: 0; transform: translateY(16px) } }
+@keyframes h-pasta { from { transform: translateY(70%) } }
+@keyframes h-marca { from { background: var(--h-verde-vivo); color: var(--h-tinta) } }
+@keyframes h-deriva { from { transform: scale(1.12) translate(-2%, 1%) } to { transform: scale(1.12) translate(2%, -2%) } }

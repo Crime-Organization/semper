@@ -15,6 +15,10 @@ export const MARCA = {
   fotoEntrada,  // fundo da tela de entrada
   cidade: 'Montes Claros/MG',
   site: 'https://bragaferreira.adv.br',
+  // Contato da página inicial (quem quer conhecer o SEMPER). WhatsApp só com números, com DDI e DDD
+  // (ex.: '5538999990000'); vazio, o botão abre um e-mail para o endereço abaixo.
+  whatsapp: '',
+  emailContato: 'contato@bragaferreira.adv.br',
   cores: { destaque: '#377D22', escuro: '#1A1916' },
 
   // Conexão com o banco. A chave abaixo é pública por natureza (a segurança fica

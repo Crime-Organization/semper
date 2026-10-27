@@ -6,6 +6,7 @@ import { Avisos } from './ui/avisos';
 import { Janelas } from './ui/janela';
 import { ExigirLogin } from './ui/sessao';
 
+const Home = lazy(() => import('./paginas/Home'));
 const Entrada = lazy(() => import('./paginas/Entrada'));
 const Inicio = lazy(() => import('./paginas/Inicio'));
 const Pessoas = lazy(() => import('./paginas/Pessoas'));
@@ -22,7 +23,8 @@ export function App() {
   return <BrowserRouter>
     <Suspense fallback={null}>
       <Routes>
-        <Route path="/" element={<Entrada />} />
+        <Route path="/" element={<Home />} />
+        <Route path="entrar" element={<Entrada />} />
         <Route element={<ExigirLogin />}>
           <Route path="inicio" element={<Inicio />} />
           <Route path="pessoas" element={<Pessoas />} />

@@ -20,7 +20,9 @@ export default function Entrada() {
   const [params] = useSearchParams();
   const volta = params.get('volta');
   const destino = volta && volta.startsWith('/') && !volta.startsWith('//') ? volta : '/inicio/';
-  const aqui = location.origin + '/';   // endereço do SEMPER (para os links dos e-mails)
+  // Endereço dos links dos e-mails: a raiz do SEMPER (o Site URL do Supabase). A página inicial reconhece
+  // o link (?token_hash, ?nova-senha, #access_token…) e o traz para esta tela.
+  const aqui = location.origin + '/';
   // Link dos e-mails: ?token_hash=...&type=... (código de uso único, trocado pela sessão ao abrir).
   const linkEmail = (() => {
     const codigo = params.get('token_hash'), tipo = params.get('type') as TipoLink | null;

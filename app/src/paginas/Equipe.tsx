@@ -27,7 +27,7 @@ const TABELAS: Record<string, string> = {
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou' };
 // O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
-const linkAcesso = (codigo?: string) => location.origin + '/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
+const linkAcesso = (codigo?: string) => location.origin + '/entrar/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
 const mensagemConvite = (c: Convite, codigo?: string) =>
   `Olá! Seu acesso ao ${MARCA.submarca} (${MARCA.nome}) foi liberado. Abra ${linkAcesso(codigo)} e crie sua senha usando o e-mail ${c.email}. O link é pessoal e vale por 7 dias.`;
 async function copiar(texto: string) {
