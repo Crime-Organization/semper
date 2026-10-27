@@ -8,8 +8,4 @@
 .config-logo-texto { flex: 1 1 260px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
 .config-logo-texto .nota { margin: 0 }
 .config-logo-texto .acoes { display: flex; gap: 8px; flex-wrap: wrap }
-.config-cnpj { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end }
-.config-cnpj label { flex: 1 1 180px; min-width: 0 }
-.config label.com-erro input { border-color: var(--erro) }
-.config .erro-campo { font-size: 13px; font-weight: 400; color: var(--erro) }
 .config-salvar { display: flex; justify-content: flex-end }

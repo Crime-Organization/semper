@@ -111,6 +111,25 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .campos label small { font-weight: 400; color: var(--muted) }
 .grade-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px }
 
+/* Grade de formulário: 12 colunas medidas pela largura do cartão (não da tela), então vale igual com
+   ou sem barra lateral. Cada campo diz quantas colunas ocupa em cada faixa: --p no estreito (padrão 12,
+   a linha inteira), --m a partir de 560px e --g a partir de 860px. Os campos alinham pela base, então
+   um rótulo que quebra em duas linhas não desalinha a fileira. */
+.form-grade { container: formulario / inline-size }
+.grade-form { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px 16px; align-items: end }
+.grade-form > * { grid-column: span var(--p, 12); min-width: 0 }
+@container formulario (min-width: 560px) { .grade-form > * { grid-column: span var(--m, var(--p, 12)) } }
+@container formulario (min-width: 860px) { .grade-form > * { grid-column: span var(--g, var(--m, var(--p, 12))) } }
+.grade-form .campo-form { display: flex; flex-direction: column; gap: 6px }
+.grade-form .campo-form label { display: block; font-size: 13px; font-weight: 700; color: var(--text) }
+.grade-form .campo-form label small { font-weight: 400; color: var(--muted) }
+.grade-form .grupo-campo { display: flex; gap: 8px }
+.grade-form .grupo-campo input { flex: 1 1 auto; min-width: 0 }
+.grade-form .grupo-campo .btn { flex: none; height: 44px; white-space: nowrap }
+.grade-form .erro-campo { font-size: 13px; color: var(--erro) }
+.grade-form .com-erro input, .grade-form .com-erro select { border-color: var(--erro) }
+@container formulario (max-width: 420px) { .grade-form .grupo-campo { flex-wrap: wrap } .grade-form .grupo-campo .btn { width: 100% } }
+
 /* ---------- avisos ---------- */
 .aviso { padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5 }
 .aviso.erro { background: var(--erro-bg); color: var(--erro) }

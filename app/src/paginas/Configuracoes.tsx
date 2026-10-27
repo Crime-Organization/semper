@@ -1,7 +1,7 @@
 // Configurações (master e administradores): os dados da instituição. O nome aparece nas telas do
 // escritório (barra lateral, mensagem de convite); a logomarca e os demais dados ficam prontos para
 // contratos e procurações. O SEMPER não tem nome de escritório fixo: tudo vem daqui.
-import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type Ref } from 'react';
+import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
 import { cnpjValido, consultarCEP, consultarCNPJ, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
@@ -18,6 +18,9 @@ export default function Configuracoes() {
 }
 
 type Campo = Exclude<keyof DadosEscritorio, 'logo'>;
+/** Colunas (de 12) que o campo ocupa: p no estreito, m a partir de 560px, g a partir de 860px. */
+type Tam = { p?: number; m?: number; g?: number };
+const colunas = (t: Tam = {}) => ({ '--p': t.p, '--m': t.m, '--g': t.g }) as CSSProperties;
 type Form = Record<Campo, string>;
 const CAMPOS: Campo[] = ['nome', 'cnpj', 'oab_registro', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf', 'telefone', 'email', 'site'];
 
@@ -149,14 +152,18 @@ function Instituicao() {
     setOcupado(false);
   }
 
-  const campo = (c: Campo, rotulo: string, props: InputHTMLAttributes<HTMLInputElement> & { dica?: string; ref?: Ref<HTMLInputElement> } = {}) => {
-    const { dica, ...resto } = props;
-    return <label className={erros[c] ? 'com-erro' : ''}>
-      <span>{rotulo}{dica && <small> {dica}</small>}</span>
-      <input id={'cfg-' + c} value={f[c]} onChange={e => mudar(c, e.target.value)} aria-invalid={!!erros[c]}
-        aria-describedby={erros[c] ? 'cfg-erro-' + c : undefined} {...resto} />
+  // Cada campo diz quantas das 12 colunas ocupa: p no estreito, m a partir de 560px, g a partir de 860px
+  // (veja .grade-form em estilo.css). "junto" vai ao lado do campo, como o botão do CNPJ.
+  type Opcoes = InputHTMLAttributes<HTMLInputElement> & { dica?: string; ref?: Ref<HTMLInputElement>; tam?: Tam; junto?: ReactNode };
+  const campo = (c: Campo, rotulo: string, props: Opcoes = {}) => {
+    const { dica, tam, junto, ...resto } = props;
+    const entrada = <input id={'cfg-' + c} value={f[c]} onChange={e => mudar(c, e.target.value)} aria-invalid={!!erros[c]}
+      aria-describedby={erros[c] ? 'cfg-erro-' + c : undefined} {...resto} />;
+    return <div className={'campo-form' + (erros[c] ? ' com-erro' : '')} style={colunas(tam)}>
+      <label htmlFor={'cfg-' + c}>{rotulo}{dica && <small> {dica}</small>}</label>
+      {junto ? <div className="grupo-campo">{entrada}{junto}</div> : entrada}
       {erros[c] && <span className="erro-campo" id={'cfg-erro-' + c}>{erros[c]}</span>}
-    </label>;
+    </div>;
   };
 
   return <div className="miolo">
@@ -167,7 +174,7 @@ function Instituicao() {
     </header>
 
     <form className="config campos" noValidate onSubmit={salvar}>
-      <section className="cartao" aria-labelledby="tInst">
+      <section className="cartao form-grade" aria-labelledby="tInst">
         <h2 className="secao" id="tInst">Instituição</h2>
         <div className="config-logo">
           <div className={'config-logo-previa' + (logo ? '' : ' vazia')}>
@@ -183,41 +190,41 @@ function Instituicao() {
             <input ref={arquivo} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={escolherLogo} />
           </div>
         </div>
-        <div className="grade-campos">
-          {campo('nome', 'Nome do escritório', { maxLength: 120, autoComplete: 'organization', required: true })}
-          <div className="config-cnpj">
-            {campo('cnpj', 'CNPJ', { inputMode: 'numeric', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)) })}
-            <button type="button" className="btn" onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
-          </div>
-          {campo('oab_registro', 'Registro na OAB', { dica: 'da sociedade, ex.: OAB/MG 1.234', maxLength: 60 })}
+        <div className="grade-form">
+          {campo('nome', 'Nome do escritório', { maxLength: 120, autoComplete: 'organization', required: true, tam: { g: 8 } })}
+          {campo('oab_registro', 'Registro na OAB', { placeholder: 'da sociedade, ex.: OAB/MG 1.234', maxLength: 60, tam: { m: 5, g: 4 } })}
+          {campo('cnpj', 'CNPJ', {
+            inputMode: 'numeric', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)), tam: { m: 7, g: 8 },
+            junto: <button type="button" className="btn" onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
+          })}
         </div>
       </section>
 
-      <section className="cartao" aria-labelledby="tEnd">
+      <section className="cartao form-grade" aria-labelledby="tEnd">
         <h2 className="secao" id="tEnd">Endereço</h2>
-        <div className="grade-campos">
-          {campo('cep', 'CEP', { inputMode: 'numeric', onChange: e => mudarCEP(e.target.value), dica: buscando === 'cep' ? 'consultando…' : undefined })}
-          {campo('logradouro', 'Logradouro', { maxLength: 200 })}
-          {campo('numero', 'Número', { maxLength: 20, ref: campoNumero })}
-          {campo('complemento', 'Complemento', { maxLength: 100 })}
-          {campo('bairro', 'Bairro', { maxLength: 100 })}
-          {campo('municipio', 'Município', { maxLength: 100 })}
-          <label>
-            <span>UF</span>
+        <div className="grade-form">
+          {campo('cep', 'CEP', { inputMode: 'numeric', onChange: e => mudarCEP(e.target.value), dica: buscando === 'cep' ? 'consultando…' : undefined, tam: { p: 6, m: 4, g: 3 } })}
+          {campo('logradouro', 'Logradouro', { maxLength: 200, tam: { m: 8, g: 7 } })}
+          {campo('numero', 'Número', { maxLength: 20, ref: campoNumero, tam: { p: 4, m: 3, g: 2 } })}
+          {campo('complemento', 'Complemento', { maxLength: 100, tam: { p: 8, m: 4, g: 3 } })}
+          {campo('bairro', 'Bairro', { maxLength: 100, tam: { m: 5, g: 4 } })}
+          {campo('municipio', 'Município', { maxLength: 100, tam: { p: 8, m: 8, g: 3 } })}
+          <div className="campo-form" style={colunas({ p: 4, m: 4, g: 2 })}>
+            <label htmlFor="cfg-uf">UF</label>
             <select id="cfg-uf" value={f.uf} onChange={e => mudar('uf', e.target.value)}>
               <option value="">—</option>
               {UFS.map(u => <option key={u} value={u}>{u}</option>)}
             </select>
-          </label>
+          </div>
         </div>
       </section>
 
-      <section className="cartao" aria-labelledby="tCont">
+      <section className="cartao form-grade" aria-labelledby="tCont">
         <h2 className="secao" id="tCont">Contato</h2>
-        <div className="grade-campos">
-          {campo('telefone', 'Telefone', { inputMode: 'tel', autoComplete: 'tel', onChange: e => mudar('telefone', MASCARAS.telefone(e.target.value)) })}
-          {campo('email', 'E-mail', { type: 'email', autoComplete: 'email', maxLength: 200 })}
-          {campo('site', 'Site', { inputMode: 'url', placeholder: 'www.escritorio.adv.br', maxLength: 200 })}
+        <div className="grade-form">
+          {campo('telefone', 'Telefone', { inputMode: 'tel', autoComplete: 'tel', onChange: e => mudar('telefone', MASCARAS.telefone(e.target.value)), tam: { m: 6, g: 3 } })}
+          {campo('email', 'E-mail', { type: 'email', autoComplete: 'email', maxLength: 200, tam: { m: 6, g: 5 } })}
+          {campo('site', 'Site', { inputMode: 'url', placeholder: 'www.escritorio.adv.br', maxLength: 200, tam: { g: 4 } })}
         </div>
       </section>
 
