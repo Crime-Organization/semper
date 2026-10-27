@@ -22,6 +22,10 @@ export default function Entrada() {
   const destino = volta && volta.startsWith('/') && !volta.startsWith('//') ? volta : '/inicio/';
   const aqui = location.origin + '/';   // endereço do SEMPER (para os links dos e-mails)
   const porRecuperacao = location.hash.includes('type=recovery') || params.has('nova-senha');
+  // Código do convite: vem depois do "#" no link do convite. Fica só na memória e sai do endereço,
+  // para não ficar no histórico do navegador.
+  const [codigoConvite] = useState(() => new URLSearchParams(location.hash.slice(1)).get('convite') || '');
+  useEffect(() => { if (codigoConvite) history.replaceState(null, '', location.pathname + location.search); }, [codigoConvite]);
   const inicial: Painel = porRecuperacao ? 'nova' : params.has('primeiro-acesso') ? 'primeiro' : params.has('recuperar') ? 'recuperar' : params.has('cliente') ? 'cliente' : 'entrar';
 
   const [painel, setPainel] = useState<Painel>(inicial);
@@ -68,7 +72,7 @@ export default function Entrada() {
     if (!emailValido(ler('email'))) return avisar('Informe o e-mail em que você recebeu o convite.');
     if (ler('senha').length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');
     if (ler('senha') !== ler('senha2')) return avisar('As duas senhas não são iguais.');
-    const { entrou } = await SD.primeiroAcesso(ler('email'), ler('senha'), aqui);
+    const { entrou } = await SD.primeiroAcesso(ler('email'), ler('senha'), aqui, codigoConvite);
     if (entrou) { navegar('/inicio/'); return; }
     form.reset();
     mostrar('entrar');
@@ -127,7 +131,9 @@ export default function Entrada() {
         </form>}
 
         {painel === 'primeiro' && <form noValidate onSubmit={primeiro}>
-          <p className="dica" style={{ fontSize: 14 }}>Use o e-mail em que você recebeu o convite do escritório e crie sua senha.</p>
+          <p className="dica" style={{ fontSize: 14 }}>{codigoConvite
+            ? 'Use o e-mail em que você recebeu o convite do escritório e crie sua senha.'
+            : 'O primeiro acesso é feito pelo link do convite que o escritório enviou para você (vale 7 dias). Abra esse link; se ele se perdeu ou venceu, peça um novo ao administrador.'}</p>
           <label>E-mail do convite<input name="email" type="email" autoComplete="email" required /></label>
           <label>Crie uma senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
           <label>Repita a senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>

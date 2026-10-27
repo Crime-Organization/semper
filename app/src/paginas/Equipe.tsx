@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
-import { SD, type Convite, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
+import { SD, type Convite, type ConviteCriado, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -26,9 +26,10 @@ const TABELAS: Record<string, string> = {
   pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo'
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu' };
-const linkAcesso = () => location.origin + '/?primeiro-acesso';
-const mensagemConvite = (c: Convite) =>
-  `Olá! Seu acesso ao ${MARCA.submarca} (${MARCA.nome}) foi liberado. Entre em ${linkAcesso()} e crie sua senha usando o e-mail ${c.email}.`;
+// O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
+const linkAcesso = (codigo?: string) => location.origin + '/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
+const mensagemConvite = (c: Convite, codigo?: string) =>
+  `Olá! Seu acesso ao ${MARCA.submarca} (${MARCA.nome}) foi liberado. Abra ${linkAcesso(codigo)} e crie sua senha usando o e-mail ${c.email}. O link é pessoal e vale por 7 dias.`;
 async function copiar(texto: string) {
   if (await copiarTexto(texto)) avisar('Mensagem copiada. Envie para a pessoa.');
   else avisar(texto, 'ok');
@@ -77,6 +78,15 @@ function PainelEquipe() {
   async function cancelarConvite(id: string) {
     try { await SD.conviteCancelar(id); avisar('Convite cancelado.'); carregar(); }
     catch (e) { falha(e); }
+  }
+  // O banco não guarda o código do link: para reenviar, gera um link novo (o anterior deixa de valer).
+  async function novoLink(c: Convite) {
+    try {
+      const codigo = await SD.conviteNovoLink(c.id);
+      const texto = mensagemConvite(c, codigo);
+      if (await copiarTexto(texto)) avisar('Link novo copiado. Envie para a pessoa: o link anterior deixou de valer.');
+      else avisar(texto, 'ok');
+    } catch (e) { falha(e); }
   }
 
   return <div className="miolo">
@@ -135,9 +145,11 @@ function PainelEquipe() {
             <td><div className="nome">{c.nome}</div><div className="sub">{c.email}</div></td>
             <td>{PAPEIS[c.papel]}</td><td>{relativo(c.criado_em)}</td>
             <td><div className="td-acoes">
-              <button type="button" className="mini" onClick={() => copiar(mensagemConvite(c))}>Copiar link</button>
               {c.papel === 'usuario' || ctx.ehMaster
-                ? <BotaoDuplo className="mini perigo" confirmar="Confirmar" aoConfirmar={() => cancelarConvite(c.id)}>Cancelar</BotaoDuplo>
+                ? <>
+                  <button type="button" className="mini" title="Gera e copia um link novo; o anterior deixa de valer" onClick={() => novoLink(c)}>Novo link</button>
+                  <BotaoDuplo className="mini perigo" confirmar="Confirmar" aoConfirmar={() => cancelarConvite(c.id)}>Cancelar</BotaoDuplo>
+                </>
                 : <span className="nota">Só o master</span>}
             </div></td>
           </tr>)}</tbody>
@@ -168,7 +180,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   const [email, setEmail] = useState('');
   const [papel, setPapel] = useState<Papel>('usuario');
   const [ocupado, setOcupado] = useState(false);
-  const [criado, setCriado] = useState<Convite | null>(null);
+  const [criado, setCriado] = useState<ConviteCriado | null>(null);
   const campoEmail = useRef<HTMLInputElement>(null);
 
   const ja = new Set([...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)].filter(Boolean));
@@ -198,7 +210,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   return <section aria-labelledby="tConv" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <h2 className="secao" id="tConv">Dar acesso a uma pessoa</h2>
     <div className="cartao campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <p className="nota">Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e cria a própria senha em "Primeiro acesso".</p>
+      <p className="nota">Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha.</p>
       <form className="form-convite" noValidate onSubmit={liberar}>
         <div><BuscaPessoa rotulo="Pessoa" escolhida={escolhida} aoEscolher={escolher} placeholder="Busque pelo nome ou CPF"
           desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
@@ -207,8 +219,8 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
         <button className="btn pri" type="submit" disabled={ocupado}>Liberar acesso</button>
       </form>
       {criado && <div className="aviso ok">
-        Acesso liberado para <b>{criado.nome}</b> como {PAPEIS[criado.papel].toLowerCase()}. Peça para a pessoa entrar no link abaixo, em "Primeiro acesso", com o e-mail <b>{criado.email}</b>.
-        <div className="link-convite"><code>{linkAcesso()}</code><button type="button" className="mini" onClick={() => copiar(mensagemConvite(criado))}>Copiar mensagem</button></div>
+        Acesso liberado para <b>{criado.nome}</b> como {PAPEIS[criado.papel].toLowerCase()}. Envie o link abaixo só para essa pessoa: ela cria a senha com o e-mail <b>{criado.email}</b>. O link vale por 7 dias e aparece só agora; depois, use "Novo link" em Convites pendentes.
+        <div className="link-convite"><code>{linkAcesso(criado.codigo)}</code><button type="button" className="mini" onClick={() => copiar(mensagemConvite(criado, criado.codigo))}>Copiar mensagem</button></div>
       </div>}
     </div>
   </section>;

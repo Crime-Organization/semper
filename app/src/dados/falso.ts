@@ -10,6 +10,7 @@ const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
 const novoId = () => crypto.randomUUID();
 const codigo = () => Math.random().toString(16).slice(2, 10).toUpperCase().padEnd(8, '0');
+const codigoConvite = () => [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
 const agora = () => new Date().toISOString();
 const semAcento = (t: unknown) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const telNormal = (t: unknown) => { let d = String(t || '').replace(/\D/g, ''); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
@@ -306,8 +307,10 @@ export const SD: Dados = {
   equipeListar: () => espera(EQUIPE.map(m => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
-    const c: Convite = { id: novoId(), email, nome: p.nome, papel, pessoa_id: pid, criado_em: agora() }; bd.convites.unshift(c); gravar(); return espera(c);
+    const c: Convite = { id: novoId(), email, nome: p.nome, papel, pessoa_id: pid, criado_em: agora() }; bd.convites.unshift(c); gravar();
+    return espera({ ...c, codigo: codigoConvite() });
   },
+  conviteNovoLink: () => espera(codigoConvite()),
   async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
   convitesListar: () => espera(bd.convites),

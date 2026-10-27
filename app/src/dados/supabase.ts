@@ -54,7 +54,7 @@ function traduzir(e: unknown): Error {
   if (/Invalid login credentials/i.test(msg)) return t('E-mail ou senha incorretos.');
   if (/Email not confirmed/i.test(msg)) return t('Confirme seu e-mail pelo link que enviamos antes de entrar.');
   if (/already registered|already been registered/i.test(msg)) return t('Este e-mail já tem conta. Use "Entrar" ou recupere a senha.');
-  if (/Database error saving new user/i.test(msg)) return t('Não encontramos convite para este e-mail. Peça ao administrador do escritório para convidar você.');
+  if (/Database error saving new user/i.test(msg)) return t('Convite não encontrado ou vencido. Use o link mais recente que o escritório enviou para este e-mail, ou peça um novo ao administrador.');
   if (/Password should be/i.test(msg)) return t('A senha precisa ter pelo menos 8 caracteres.');
   if (/rate limit|security purposes/i.test(msg)) return t('O limite de envio de e-mails foi atingido. Aguarde cerca de uma hora e tente de novo.');
   if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return t('Sem conexão com o servidor. Verifique a internet e tente de novo.');
@@ -121,8 +121,9 @@ export const SD: Dados = {
   // ---------- sessão ----------
   async sessao() { const { data } = await sb.auth.getSession(); return data.session; },
   async entrar(email, senha) { await rodar(sb.auth.signInWithPassword({ email: email.trim(), password: senha })); ctx = null; },
-  async primeiroAcesso(email, senha, voltarPara) {
-    const { data } = await rodar(sb.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { emailRedirectTo: voltarPara } }));
+  // O código do convite vai nos dados do cadastro; o banco só cria a conta se ele bater com o do convite.
+  async primeiroAcesso(email, senha, voltarPara, codigo) {
+    const { data } = await rodar(sb.auth.signUp({ email: email.trim().toLowerCase(), password: senha, options: { emailRedirectTo: voltarPara, data: { convite: codigo } } }));
     if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
       throw new Error('Este e-mail já tem conta. Use "Entrar" ou recupere a senha.');
     }
@@ -344,6 +345,7 @@ export const SD: Dados = {
   // ---------- equipe e administração ----------
   equipeListar: () => rpc('equipe_listar'),
   conviteCriar: (pessoaId, email, papel) => rpc('convite_criar', { p_pessoa: pessoaId, p_email: email, p_papel: papel }),
+  conviteNovoLink: id => rpc('convite_novo_link', { p_id: id }),
   equipeDefinirPapel: (perfilId, papel) => rpc('equipe_definir_papel', { p_perfil: perfilId, p_papel: papel }),
   equipeDefinirAtivo: (perfilId, ativo) => rpc('equipe_definir_ativo', { p_perfil: perfilId, p_ativo: ativo }),
   async convitesListar() {

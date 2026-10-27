@@ -142,6 +142,8 @@ export interface Usuario {
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
 }
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
+/** Convite recém-criado: traz o código do link (o banco guarda só o resumo, então ele só aparece agora). */
+export type ConviteCriado = Convite & { codigo?: string };
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
   resumo: { nome?: string; email?: string; codigo?: string } | null; feito_por: string | null; em: string;
@@ -154,7 +156,8 @@ export interface Dados {
   // sessão
   sessao(): Promise<{ user: { id: string; email?: string } } | null>;
   entrar(email: string, senha: string): Promise<void>;
-  primeiroAcesso(email: string, senha: string, voltarPara: string): Promise<{ entrou: boolean }>;
+  /** Cria a conta pelo convite: além do e-mail, vai o código do link que o convidado recebeu. */
+  primeiroAcesso(email: string, senha: string, voltarPara: string, codigo: string): Promise<{ entrou: boolean }>;
   recuperarSenha(email: string, voltarPara: string): Promise<void>;
   novaSenha(senha: string): Promise<void>;
   sair(): Promise<void>;
@@ -208,7 +211,9 @@ export interface Dados {
 
   // equipe e administração
   equipeListar(): Promise<Usuario[]>;
-  conviteCriar(pessoaId: string, email: string, papel: Papel): Promise<Convite>;
+  conviteCriar(pessoaId: string, email: string, papel: Papel): Promise<ConviteCriado>;
+  /** Link novo para um convite pendente (o anterior deixa de valer). Devolve o código. */
+  conviteNovoLink(id: string): Promise<string>;
   equipeDefinirPapel(perfilId: string, papel: Papel): Promise<void>;
   equipeDefinirAtivo(perfilId: string, ativo: boolean): Promise<void>;
   convitesListar(): Promise<Convite[]>;
