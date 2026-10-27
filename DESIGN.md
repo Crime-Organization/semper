@@ -147,31 +147,32 @@ Regras:
 Toda página de módulo é montada pelo componente comum **`<PaginaModulo>`** (em `app/src/ui/PaginaModulo.tsx`). Nunca escreva essa estrutura à mão numa página: o módulo só declara o conteúdo, e o desenho vem do componente e do `estilo.css`. Assim, toda mudança de layout feita uma vez vale para todos os módulos. A tela de Pessoas (`app/src/paginas/Pessoas.tsx`) é o modelo.
 
 ```tsx
-<PaginaModulo olho="Cadastro comum do escritório" titulo="Pessoas"
+<PaginaModulo titulo="Pessoas" contador="28 ativas"
   acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
-  busca={{ placeholder: 'Nome, CPF/CNPJ, telefone, e-mail ou código', aoBuscar: termo => ... }}
+  busca={{ placeholder: 'Buscar nome, CPF/CNPJ, telefone…', aoBuscar: termo => ... }}
   filtros={[{ id: 'tipo', rotulo: 'Tipo', valor, aoMudar, opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física']] }]}
   ordem={visao === 'tabela' ? useOrdem('pessoas', 'tabela') : undefined}
   mais={[{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportar }]}
-  visao={visao} aoTrocarVisao={setVisao} lead="28 pessoas ativas." lote={selecionadas ? <>…</> : null}>
+  visao={visao} aoTrocarVisao={setVisao} lote={selecionadas ? <>…</> : null}>
   {visao === 'kanban' ? <Kanban quadro={useColunas('pessoas', ctx)} … /> : <Tabela … />}
 </PaginaModulo>
 ```
 
 O quadro também é comum: `useColunas(modulo, ctx)` (em `app/src/ui/quadro/`) cuida das colunas (criar, ocultar, renomear, excluir, reordenar, permissões e desfazer) e `<Kanban>` desenha e arrasta os cartões. O módulo só diz como carregar, desenhar e mover os cartões.
 
-**Ordenar.** No quadro, **cada coluna tem a sua ordem**, escolhida no topo do menu da coluna (⋯), inclusive na "Sem etapa": ordem manual (arrastando os cartões), mais novos primeiro, mais antigos primeiro, atualizados recentemente, nome A–Z e nome Z–A. A coluna fora da ordem manual mostra a ordem abaixo do título, e nas ordens por data os cartões dela mostram a data (`dataDaOrdem`). A escolha é de cada usuário e fica guardada por coluna (`useColunas`: `ordemDe` e `ordenar`). Na tabela, que é uma lista só, o controle **Ordenar** fica na barra (`useOrdem(modulo, 'tabela')` em `app/src/ui/ordem.ts`), e a última coluna mostra a data de cadastro quando a ordem é por cadastro.
+**Ordenar.** No quadro, **cada coluna tem a sua ordem**, escolhida no topo do menu da coluna (⋯), inclusive na "Sem etapa": ordem manual (arrastando os cartões), mais novos primeiro, mais antigos primeiro, atualizados recentemente, nome A–Z e nome Z–A. A coluna fora da ordem manual mostra a ordem abaixo do título, e nas ordens por data os cartões dela mostram a data (`dataDaOrdem`). A escolha é de cada usuário e fica guardada por coluna (`useColunas`: `ordemDe` e `ordenar`). Na tabela, que é uma lista só, a ordem é escolhida em **Ordenar**, no painel do botão Filtros (`useOrdem(modulo, 'tabela')` em `app/src/ui/ordem.ts`), e a última coluna mostra a data de cadastro quando a ordem é por cadastro.
 
 Estrutura, sempre nesta ordem:
-1. **Cabeçalho** (`.cabeca`): olho → linha com o título (com o ponto verde) e a **ação principal à direita, na mesma linha do título** → lead.
-2. **Barra de busca e filtros** (`.barra-ferr`): busca (ocupa o que sobra) → filtros (compactos) → **Ordenar** (só na tabela) → menu **⋯** (`mais`, ações sobre a lista inteira, como exportar; só aparece se o módulo tiver alguma) → troca **Tabela/Kanban** na ponta direita. Todos os controles com 42px de altura. O menu ⋯ e o menu da coluna do quadro usam a mesma peça, `<MenuFlutuante>` (`app/src/ui/Menu.tsx`).
+1. **Cabeçalho numa linha só** (`.cabeca`), para a lista começar logo no alto: à esquerda o **título grande** (com o ponto verde) e o **contador** (`contador`, ex.: "28 ativas", já com a busca e os filtros); à direita a barra (`.barra-ferr`) e a **ação principal**. Não há linha de "olho" nem frase de explicação: o menu lateral já diz onde se está.
+2. **Barra** (`.barra-ferr`): busca → botão **Filtros** (os filtros e a ordem num painel; o botão mostra quantos filtros estão fora do padrão, que é a primeira opção de cada um) → menu **⋯** (`mais`, ações sobre a lista inteira, como exportar; só aparece se o módulo tiver alguma) → troca **Tabela/Kanban**. Todos os controles com 42px de altura. O painel de Filtros, o menu ⋯ e o menu da coluna do quadro usam a mesma peça, `<MenuFlutuante>` (`app/src/ui/Menu.tsx`; com `painel`, clicar dentro não fecha).
 3. **Área da visualização**: tabela, ou o quadro kanban (`.area-quadro`) preenchendo o resto da tela.
 4. **Barra de ações em lote** (`.lote`): aparece quando há itens selecionados na tabela.
 
 **Exportar.** A exportação leva a lista como ela está filtrada (busca, filtros e situação), gera o arquivo na própria tela (`baixarArquivo`, em `app/src/ui/util.ts`) e fica no menu ⋯, só para administradores. Em Pessoas: **Exportar para o Google Contatos**, no mesmo CSV que o Google exporta e importa (`app/src/regras/contatosGoogle.ts`), com ou sem a qualificação na descrição.
 
 Comportamento conforme o espaço disponível. É sempre pelo tamanho real do conteúdo (container queries), nunca por contas em JavaScript nem por página:
-- Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. Os filtros se distribuem em linhas iguais, e a troca Tabela/Kanban ocupa a largura toda.
+- Conteúdo com 1080px ou menos (telas médias, zoom): a ação principal fica na linha do título e a barra desce para a linha de baixo, com a busca ocupando o que sobra.
+- Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. A busca ocupa a largura toda; Filtros, ⋯ e Tabela/Kanban vêm abaixo.
 - Com quadro kanban, a página vira uma coluna da altura da tela e o quadro ocupa o que sobra. A página não rola, só as colunas.
 
 ### Kanban (demandas)

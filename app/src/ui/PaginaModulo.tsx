@@ -1,5 +1,5 @@
 // Página de módulo: estrutura única de toda listagem (pessoas, contratos, demandas, tarefas, processos...):
-// cabeçalho com a ação principal na altura do título, barra de busca, filtros e ordem, troca Tabela/Kanban,
+// cabeçalho numa linha só (título, contador, busca, Filtros, menu ⋯, troca Tabela/Kanban e a ação principal),
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
 import { useEffect, useState, type ReactNode } from 'react';
@@ -13,6 +13,7 @@ import { useAtrasado } from './util';
 export type Visao = 'tabela' | 'kanban';
 const VISOES: Record<Visao, string> = { tabela: 'Tabela', kanban: 'Kanban' };
 
+/** Filtro da lista. A primeira opção é a padrão: as outras contam como filtro ligado no botão "Filtros". */
 export interface Filtro {
   id: string;
   rotulo: string;
@@ -25,27 +26,29 @@ export interface Filtro {
 export interface AcaoMenu { rotulo: string; icone: NomeIcone; aoEscolher: () => void }
 
 interface Props {
-  olho?: string;
   titulo: string;
+  /** Texto curto ao lado do título, como "28 ativas". */
+  contador?: ReactNode;
   acao?: { rotulo: string; para: string };
   /** Busca com espera enquanto digita: aoBuscar recebe o termo só quando a pessoa para de digitar. */
   busca?: { placeholder: string; aoBuscar: (termo: string) => void };
+  /** Filtros e ordem ficam juntos no painel do botão "Filtros". */
   filtros?: Filtro[];
-  /** Controle "Ordenar" da tabela (vem de useOrdem, em ui/ordem.ts); no quadro, cada coluna tem o seu. */
+  /** Ordem da tabela (vem de useOrdem, em ui/ordem.ts); no quadro, cada coluna tem a sua. */
   ordem?: Ordenacao;
-  /** Ações sobre a lista inteira, no menu "⋯" ao lado dos filtros (ex.: exportar). */
+  /** Ações sobre a lista inteira, no menu "⋯" (ex.: exportar). */
   mais?: AcaoMenu[];
   visoes?: Visao[];
   visao?: Visao;
   aoTrocarVisao?: (v: Visao) => void;
-  lead?: ReactNode;
   /** Barra de ações em lote (aparece presa ao pé da tela quando há itens selecionados). */
   lote?: ReactNode;
   children: ReactNode;
 }
 
-export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lead, lote, children }: Props) {
+export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lote, children }: Props) {
   const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [painel, setPainel] = useState<HTMLElement | null>(null);
   const [termo, setTermo] = useState('');
   const atrasado = useAtrasado(termo, 350);
   const aoBuscar = busca?.aoBuscar;
@@ -55,41 +58,53 @@ export function PaginaModulo({ olho, titulo, acao, busca, filtros = [], ordem, m
     setBuscado(atrasado);
     aoBuscar?.(atrasado);
   }, [atrasado, buscado, aoBuscar]);
+  const ligados = filtros.filter(f => f.valor !== (f.opcoes[0]?.[0] ?? '')).length;
 
   return <div className="miolo largo">
     <header className="cabeca">
-      {olho && <p className="olho">{olho}</p>}
-      <div className="cabeca-linha">
+      <div className="cabeca-titulo">
         <h1 className="titulo">{titulo}<span className="ponto">.</span></h1>
-        {acao && <Link className="btn pri cabeca-acao" to={acao.para} title={acao.rotulo} aria-label={acao.rotulo}>
-          <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
-        </Link>}
+        {contador && <span className="contador">{contador}</span>}
       </div>
-      <p className="lead">{lead || ' '}</p>
+      <div className="barra-ferr" role="search">
+        {busca && <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar</span>
+          <input type="search" placeholder={busca.placeholder} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
+        </label>}
+        {(filtros.length > 0 || ordem) && <button type="button" className="barra-botao barra-filtros" aria-haspopup="dialog" aria-expanded={!!painel}
+          aria-label={ligados ? `Filtros (${ligados} ligado${ligados > 1 ? 's' : ''})` : 'Filtros'} onClick={e => setPainel(painel ? null : e.currentTarget)}>
+          <Icone nome="filtro" tam={16} /> Filtros{ligados > 0 && <span className="filtros-ligados" aria-hidden="true">{ligados}</span>}
+        </button>}
+        {painel && <MenuFlutuante botao={painel} aoFechar={() => setPainel(null)} painel rotulo="Filtros">
+          <div className="painel-filtros">
+            {filtros.map(f => <label key={f.id}>{f.rotulo}
+              <select className="filtro" value={f.valor} onChange={e => f.aoMudar(e.target.value)}>
+                {f.opcoes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+              </select>
+            </label>)}
+            {ordem && <label>Ordenar
+              <select className="filtro" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as Ordem)}>
+                {ordem.opcoes.map(o => <option key={o} value={o}>{ORDENS[o]}</option>)}
+              </select>
+            </label>}
+          </div>
+        </MenuFlutuante>}
+        {mais.length > 0 && <button type="button" className="barra-mais" title="Mais ações" aria-label="Mais ações" aria-haspopup="menu"
+          aria-expanded={!!menu} onClick={e => setMenu(menu ? null : e.currentTarget)}><Icone nome="pontos" tam={20} /></button>}
+        {menu && <MenuFlutuante botao={menu} aoFechar={() => setMenu(null)}>
+          {mais.map(a => <button key={a.rotulo} type="button" role="menuitem" onClick={() => { setMenu(null); a.aoEscolher(); }}>
+            <Icone nome={a.icone} tam={15} /> {a.rotulo}
+          </button>)}
+        </MenuFlutuante>}
+        {visoes.length > 1 && <div className="abas" role="group" aria-label="Visualização">
+          {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => aoTrocarVisao?.(v)}>
+            <Icone nome={v} tam={15} />{VISOES[v]}
+          </button>)}
+        </div>}
+      </div>
+      {acao && <Link className="btn pri cabeca-acao" to={acao.para} title={acao.rotulo} aria-label={acao.rotulo}>
+        <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
+      </Link>}
     </header>
-    <div className="barra-ferr" role="search">
-      {busca && <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar</span>
-        <input type="search" placeholder={busca.placeholder} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
-      </label>}
-      {filtros.map(f => <select key={f.id} className="filtro" aria-label={f.rotulo} value={f.valor} onChange={e => f.aoMudar(e.target.value)}>
-        {f.opcoes.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-      </select>)}
-      {ordem && <select className="filtro" aria-label="Ordenar" title="Ordenar" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as Ordem)}>
-        {ordem.opcoes.map(o => <option key={o} value={o}>{ORDENS[o]}</option>)}
-      </select>}
-      {mais.length > 0 && <button type="button" className="barra-mais" title="Mais ações" aria-label="Mais ações" aria-haspopup="menu"
-        aria-expanded={!!menu} onClick={e => setMenu(menu ? null : e.currentTarget)}><Icone nome="pontos" tam={20} /></button>}
-      {menu && <MenuFlutuante botao={menu} aoFechar={() => setMenu(null)}>
-        {mais.map(a => <button key={a.rotulo} type="button" role="menuitem" onClick={() => { setMenu(null); a.aoEscolher(); }}>
-          <Icone nome={a.icone} tam={15} /> {a.rotulo}
-        </button>)}
-      </MenuFlutuante>}
-      {visoes.length > 1 && <div className="abas" role="group" aria-label="Visualização">
-        {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => aoTrocarVisao?.(v)}>
-          <Icone nome={v} tam={15} />{VISOES[v]}
-        </button>)}
-      </div>}
-    </div>
     {children}
     {lote && <div className="lote">{lote}</div>}
   </div>;

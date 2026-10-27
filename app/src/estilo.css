@@ -183,14 +183,21 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 
 .conteudo { flex: 1; min-width: 0; padding: 36px clamp(16px, 2vw, 32px) 64px }
 .miolo { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 36px }
-/* Cabeçalho de página de módulo (montado por <PaginaModulo>): ação principal na linha do título.
-   Quando o espaço do conteúdo fica estreito (zoom, celular), a ação vira um botão redondo só com o "+". */
-.cabeca { container-type: inline-size }
-.cabeca .olho { margin-bottom: 4px }
-.cabeca-linha { display: flex; align-items: center; justify-content: space-between; gap: 12px }
-.cabeca-linha .titulo { min-width: 0; overflow-wrap: anywhere }
+/* Cabeçalho de página de módulo (montado por <PaginaModulo>), numa linha só: título grande com o contador,
+   e à direita busca, Filtros, ⋯, Tabela/Kanban e a ação principal. Sem espaço para tudo (telas médias, zoom),
+   a ação fica na linha do título e a barra desce para a linha de baixo; no celular, a ação vira o "+" redondo. */
+.cabeca { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px }
+.cabeca-titulo { display: flex; align-items: center; gap: 12px; min-width: 0 }
+.cabeca-titulo .titulo { min-width: 0; overflow-wrap: anywhere }
+.contador { flex-shrink: 0; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap }
+.cabeca > .barra-ferr { flex: 1 1 auto; justify-content: flex-end }
 .cabeca-acao { flex-shrink: 0 }
-.cabeca .lead { margin-top: 6px }
+@container (max-width: 1080px) {
+  .cabeca-titulo { flex: 1 1 auto }
+  .cabeca-acao { order: 2 }
+  .cabeca > .barra-ferr { order: 3; flex-basis: 100%; justify-content: flex-start }
+  .cabeca > .barra-ferr > .busca-campo { max-width: none }
+}
 @container (max-width: 560px) {
   .cabeca-acao { width: 44px; padding: 0 }
   .cabeca-acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
@@ -224,14 +231,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 }
 
 /* ---------- barra de ferramentas e filtros ---------- */
-/* Barra de busca e filtros: tudo na mesma altura; a busca ocupa o que sobra e a troca de visualização fica na ponta. */
+/* Barra de busca e filtros: tudo na mesma altura (42px); os filtros e a ordem ficam no painel do botão "Filtros". */
 .barra-ferr { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center }
-.barra-ferr > .filtro { flex: 0 1 auto; height: 42px }
-.barra-ferr > .abas { margin-left: auto; height: 42px; align-items: center }
+.barra-ferr > .abas { height: 42px; align-items: center }
 .barra-ferr > .abas button { height: 32px }
-.busca-campo { flex: 1 1 300px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted) }
+.busca-campo { flex: 1 1 200px; max-width: 360px; min-width: 0; display: flex; align-items: center; gap: 10px; height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--muted) }
+.barra-botao { flex: 0 0 auto; height: 42px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--ink); font-size: 14px; font-weight: 700; cursor: pointer }
+.barra-botao:hover, .barra-botao[aria-expanded="true"] { background: var(--soft) }
+.filtros-ligados { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--sel); color: var(--sel-txt); font-size: 12px; display: inline-flex; align-items: center; justify-content: center }
+.kmenu.painel { padding: 14px; min-width: 260px; max-width: calc(100vw - 24px) }
+.painel-filtros { display: flex; flex-direction: column; gap: 12px }
+.painel-filtros label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted) }
+.painel-filtros .filtro { width: 100%; height: 40px; font-weight: 400; letter-spacing: 0 }
 .busca-campo:focus-within { outline: 2px solid var(--accent); border-color: transparent }
-.busca-campo input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 15px; color: var(--ink); height: 100% }
+.busca-campo input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 15px; color: var(--ink); height: 100%; text-overflow: ellipsis }
 .filtro { height: 44px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); padding: 0 14px; font-size: 14px; color: var(--ink); max-width: 100% }
 .abas { display: inline-flex; gap: 4px; padding: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
 .abas button { height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 6px }
@@ -244,10 +257,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .opcoes-janela label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; line-height: 1.4 }
 .opcoes-janela input { margin-top: 3px; accent-color: var(--accent-ink) }
 .opcoes-janela small { display: block; color: var(--muted) }
-/* Espaço estreito (zoom, celular): filtros em linhas iguais e a troca Tabela/Kanban na largura toda. */
+/* Espaço estreito (zoom, celular): a busca na largura toda; Filtros, ⋯ e Tabela/Kanban dividem a linha de baixo. */
 @container (max-width: 560px) {
-  .barra-ferr > .filtro { flex: 1 1 140px; min-width: 0 }
-  .barra-ferr > .abas { flex: 1 1 100%; margin-left: 0 }
+  .barra-ferr > .busca-campo { flex-basis: 100% }
+  .barra-ferr > .abas { flex: 1 1 auto }
   .barra-ferr > .abas button { flex: 1; justify-content: center }
 }
 .lote { border: 1px solid var(--dark-borda); position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 14px 12px 22px; border-radius: 16px; background: var(--dark); color: #FBFBF9; box-shadow: 0 12px 36px rgba(0,0,0,.22) }

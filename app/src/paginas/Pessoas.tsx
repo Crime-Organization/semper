@@ -74,6 +74,15 @@ export default function Pessoas() {
     return () => { vivo = false; };
   }, [visao, f, ordem.valor, recarga]);
 
+  // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
+  const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
+  useEffect(() => {
+    if (visao !== 'kanban') return;
+    let vivo = true;
+    SD.pessoasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
+
   const filtrado = !!(f.termo || f.tipo || f.responsavel);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); setSelecionadas(new Set()); };
 
@@ -158,13 +167,13 @@ export default function Pessoas() {
       </>}</span>
   </> : null;
 
-  const lead = visao === 'kanban'
-    ? 'Acompanhamento do atendimento. Arraste os cartões entre as colunas; a ordem de cada coluna muda no menu dela (⋯).'
-    : tabela ? `${plural(tabela.total, f.situacao === 'arquivadas' ? 'pessoa arquivada' : 'pessoa ativa', f.situacao === 'arquivadas' ? 'pessoas arquivadas' : 'pessoas ativas')}${filtrado ? ' com os filtros escolhidos' : ''}.` : null;
+  // Contador ao lado do título: quantas pessoas a lista mostra (com a busca e os filtros).
+  const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
+  const contador = total === null ? null : f.situacao === 'arquivadas' ? plural(total, 'arquivada', 'arquivadas') : plural(total, 'ativa', 'ativas');
 
   return <>
-    <PaginaModulo olho="Cadastro comum do escritório" titulo="Pessoas" acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
-      busca={{ placeholder: 'Nome, CPF/CNPJ, telefone, e-mail ou código', aoBuscar: termo => mudarFiltro({ termo }) }}
+    <PaginaModulo titulo="Pessoas" contador={contador} acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
+      busca={{ placeholder: 'Buscar nome, CPF/CNPJ, telefone…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'tipo', rotulo: 'Tipo de cadastro', valor: f.tipo || '', aoMudar: tipo => mudarFiltro({ tipo }),
           opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente contato']] },
@@ -175,7 +184,7 @@ export default function Pessoas() {
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle }] : undefined}
-      visao={visao} aoTrocarVisao={trocarVisao} lead={lead} lote={lote}>
+      visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
           recarga={[recarga, f.termo, f.tipo, f.responsavel].join('|')}
