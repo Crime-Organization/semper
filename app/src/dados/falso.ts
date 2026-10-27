@@ -40,7 +40,12 @@ interface Banco {
   logado: boolean;
   tiposVinculo?: VinculoTipo[];
   vinculos?: { id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string; criado_em: string }[];
+  duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
+  semCodigo?: boolean;   // entrou só com a senha e ainda falta o código do aplicativo
 }
+// No modo de teste, o código do aplicativo autenticador é sempre 123456.
+const CODIGO_TESTE = '123456';
+const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
 
 function semente(): Banco {
   const colunas = ETAPAS.map((nome, i) => ({ id: 'c' + (i + 1), nome, ordem: i + 1, criado_por: null }));
@@ -143,12 +148,12 @@ const achar = (id: string) => {
 
 export const SD: Dados = {
   sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
-  entrar: async () => { bd.logado = true; gravar(); },
+  entrar: async () => { bd.logado = true; bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo); gravar(); },
   primeiroAcesso: async () => ({ entrou: false }),
   recuperarSenha: async () => {},
   confirmarLink: async () => { bd.logado = true; gravar(); },
   novaSenha: async () => {},
-  sair: async () => { bd.logado = false; gravar(); },
+  sair: async () => { bd.logado = false; bd.semCodigo = false; gravar(); },
   aoMudarSessao: () => () => {},
   async contexto() {
     if (!bd.logado) return null;
@@ -163,6 +168,20 @@ export const SD: Dados = {
     return espera(c);
   },
   async salvarPerfil(campos) { Object.assign(bd.perfil, campos); gravar(); },
+
+  duasEtapasFatores: () => espera(bd.duasEtapas ?? []),
+  async duasEtapasIniciar() {
+    const f = { id: novoId(), ativo: false, criado_em: agora() };
+    bd.duasEtapas = [...(bd.duasEtapas ?? []).filter(x => x.ativo), f]; gravar();
+    return espera({ id: f.id, qr: QR_TESTE, segredo: 'JBSWY3DPEHPK3PXP' });
+  },
+  async duasEtapasConfirmar(id, codigo) {
+    if (codigo !== CODIGO_TESTE) return erro('Código incorreto ou vencido. (No modo de teste, use 123456.)');
+    const f = bd.duasEtapas?.find(x => x.id === id); if (f) f.ativo = true; gravar();
+  },
+  async duasEtapasDesativar(id) { bd.duasEtapas = (bd.duasEtapas ?? []).filter(x => x.id !== id); gravar(); },
+  duasEtapasPendente: () => espera(!!bd.logado && !!bd.semCodigo),
+  async duasEtapasEntrar(codigo) { if (codigo !== CODIGO_TESTE) return erro("Código incorreto ou vencido. (No modo de teste, use 123456.)"); bd.semCodigo = false; gravar(); },
   async salvarPreferencia(k, v) { bd.perfil.preferencias = { ...bd.perfil.preferencias, [k]: v }; gravar(); },
 
   async pessoasListar(f = {}) {

@@ -252,6 +252,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Menu "⋯" das ações sobre a lista inteira (exportar...), redondo, na altura dos filtros. */
 .barra-mais { flex: 0 0 auto; width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--ink); cursor: pointer }
 .barra-mais:hover, .barra-mais[aria-expanded="true"] { background: var(--soft) }
+/* Minha conta: verificação em duas etapas. */
+.duas-etapas { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--line) }
+.duas-etapas h3 { margin: 0; font-size: 16px; font-weight: 900 }
+.duas-etapas-ativar { display: flex; flex-direction: column; gap: 12px }
+.duas-etapas-ativar ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--text2); line-height: 1.5 }
+.duas-etapas-ativar .qr { background: #fff; padding: 8px; border-radius: 12px; border: 1px solid var(--line) }
+.duas-etapas-ativar .chave { font-size: 13px; letter-spacing: .08em; overflow-wrap: anywhere }
 /* Opções dentro de uma janela (ex.: com ou sem qualificação). */
 .opcoes-janela { display: flex; flex-direction: column; gap: 10px; margin: 14px 0 4px }
 .opcoes-janela label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; line-height: 1.4 }

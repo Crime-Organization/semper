@@ -52,6 +52,8 @@ function traduzir(e: unknown): Error {
   if (cod === '42501' || /permission denied|row-level security/i.test(msg)) return t('Você não tem permissão para fazer isso.');
   if (cod === 'P0001') return t(msg);
   if (/Invalid login credentials/i.test(msg)) return t('E-mail ou senha incorretos.');
+  if (/Invalid TOTP|invalid.*code|code.*(expired|invalid)/i.test(msg)) return t('Código incorreto ou vencido. Digite o código que o aplicativo mostra agora.');
+  if (/AAL2 required|aal2/i.test(msg)) return t('Para fazer isso, entre de novo com o código do aplicativo autenticador.');
   if (/Email not confirmed/i.test(msg)) return t('Confirme seu e-mail pelo link que enviamos antes de entrar.');
   if (/already registered|already been registered/i.test(msg)) return t('Este e-mail já tem conta. Use "Entrar" ou recupere a senha.');
   if (/Database error saving new user/i.test(msg)) return t('Convite não encontrado ou vencido. Use o link mais recente que o escritório enviou para este e-mail, ou peça um novo ao administrador.');
@@ -137,6 +139,37 @@ export const SD: Dados = {
   aoMudarSessao(cb) {
     const { data } = sb.auth.onAuthStateChange(evento => cb(evento));
     return () => data.subscription.unsubscribe();
+  },
+
+  // ---------- verificação em duas etapas (aplicativo autenticador, TOTP) ----------
+  async duasEtapasFatores() {
+    const { data } = await rodar(sb.auth.mfa.listFactors());
+    return (data.all || []).filter((f: Livre) => f.factor_type === 'totp')
+      .map((f: Livre) => ({ id: f.id, ativo: f.status === 'verified', criado_em: f.created_at }));
+  },
+  async duasEtapasIniciar() {
+    // Uma ativação começada e não confirmada impediria a nova: sai antes.
+    const { data: l } = await rodar(sb.auth.mfa.listFactors());
+    for (const f of (l.all || []).filter((x: Livre) => x.factor_type === 'totp' && x.status !== 'verified')) {
+      await rodar(sb.auth.mfa.unenroll({ factorId: f.id }));
+    }
+    const { data } = await rodar(sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'SEMPER ' + new Date().toISOString().slice(0, 16) }));
+    return { id: data.id, qr: data.totp.qr_code, segredo: data.totp.secret };
+  },
+  async duasEtapasConfirmar(id, codigo) { await rodar(sb.auth.mfa.challengeAndVerify({ factorId: id, code: codigo })); ctx = null; },
+  async duasEtapasDesativar(id) { await rodar(sb.auth.mfa.unenroll({ factorId: id })); ctx = null; },
+  async duasEtapasPendente() {
+    try {
+      const { data } = await rodar(sb.auth.mfa.getAuthenticatorAssuranceLevel());
+      return data.currentLevel === 'aal1' && data.nextLevel === 'aal2';
+    } catch { return false; }
+  },
+  async duasEtapasEntrar(codigo) {
+    const { data } = await rodar(sb.auth.mfa.listFactors());
+    const f = (data.totp || [])[0];
+    if (!f) throw new Error('Nenhum aplicativo autenticador ativo nesta conta.');
+    await rodar(sb.auth.mfa.challengeAndVerify({ factorId: f.id, code: codigo }));
+    ctx = null;
   },
 
   // Quem está logado: perfil, escritório e equipe. null se não houver sessão.

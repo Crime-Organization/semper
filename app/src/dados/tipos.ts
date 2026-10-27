@@ -151,6 +151,11 @@ export interface RegistroAuditoria {
 
 export interface Exclusao { excluidas: number; naoExcluidas: number; motivo: string }
 
+/** Verificação em duas etapas (aplicativo autenticador no celular). */
+export interface FatorDuasEtapas { id: string; ativo: boolean; criado_em: string }
+/** Início da ativação: o QR code (imagem) e a chave para digitar no aplicativo. */
+export interface CadastroDuasEtapas { id: string; qr: string; segredo: string }
+
 /** Tipos de link enviados por e-mail (parâmetro "type" do link). */
 export type TipoLink = 'email' | 'recovery' | 'email_change';
 
@@ -168,6 +173,16 @@ export interface Dados {
   sair(): Promise<void>;
   aoMudarSessao(cb: (evento: string) => void): () => void;
   contexto(forcar?: boolean): Promise<Contexto | null>;
+
+  // verificação em duas etapas
+  duasEtapasFatores(): Promise<FatorDuasEtapas[]>;
+  duasEtapasIniciar(): Promise<CadastroDuasEtapas>;
+  duasEtapasConfirmar(id: string, codigo: string): Promise<void>;
+  duasEtapasDesativar(id: string): Promise<void>;
+  /** A pessoa entrou só com a senha e tem a verificação ativa: falta o código do aplicativo. */
+  duasEtapasPendente(): Promise<boolean>;
+  duasEtapasEntrar(codigo: string): Promise<void>;
+
   salvarPerfil(campos: Partial<Pick<Perfil, 'nome' | 'usuario' | 'cor'>>): Promise<void>;
   salvarPreferencia(chave: string, valor: unknown): Promise<void>;
 

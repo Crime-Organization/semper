@@ -33,6 +33,9 @@ export function ExigirLogin() {
   aqui.current = local.pathname + local.search;
 
   const carregar = useCallback(async (forcar: boolean, primeira = false) => {
+    // Entrou só com a senha e tem verificação em duas etapas: volta à entrada para digitar o código
+    // (o banco não mostra os dados antes disso).
+    if (await SD.duasEtapasPendente()) { navegar('/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
     let c;
     try { c = await SD.contexto(forcar); }
     catch (e) { if (primeira) setErro((e as Error).message); return; }

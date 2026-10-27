@@ -9,8 +9,8 @@ import { mostrarTema, temaGuardado } from '../ui/tema';
 import { useTitulo } from '../ui/util';
 import './Entrada.css';
 
-type Painel = 'entrar' | 'primeiro' | 'cliente' | 'solicitar' | 'recuperar' | 'nova';
-const TITULOS: Record<Painel, string> = { entrar: 'Entrar', primeiro: 'Primeiro acesso', cliente: 'Área do cliente', solicitar: 'Solicitar acesso', recuperar: 'Recuperar senha', nova: 'Nova senha' };
+type Painel = 'entrar' | 'primeiro' | 'cliente' | 'solicitar' | 'recuperar' | 'nova' | 'codigo';
+const TITULOS: Record<Painel, string> = { entrar: 'Entrar', primeiro: 'Primeiro acesso', cliente: 'Área do cliente', solicitar: 'Solicitar acesso', recuperar: 'Recuperar senha', nova: 'Nova senha', codigo: 'Código de verificação' };
 const ABA_DE: Partial<Record<Painel, 'entrar' | 'cliente'>> = { entrar: 'entrar', primeiro: 'entrar', recuperar: 'entrar', cliente: 'cliente', solicitar: 'cliente' };
 type Mensagem = { texto: string; tipo: 'erro' | 'ok' | 'info' } | null;
 
@@ -59,7 +59,11 @@ export default function Entrada() {
       SD.confirmarLink(linkEmail.codigo, linkEmail.tipo)
         .then(() => { if (linkEmail.tipo === 'recovery') mostrar('nova'); else navegar('/inicio/', { replace: true }); })
         .catch(() => { mostrar('entrar'); avisar('Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.'); });
-    } else if (!porRecuperacao) SD.sessao().then(s => { if (s && !params.has('desativado')) navegar(destino, { replace: true }); });
+    } else if (!porRecuperacao) SD.sessao().then(async s => {
+      if (!s || params.has('desativado')) return;
+      // Entrou com a senha, mas tem verificação em duas etapas: falta o código do aplicativo.
+      if (await SD.duasEtapasPendente()) mostrar('codigo'); else navegar(destino, { replace: true });
+    });
     return parar;
   }, []);
 
@@ -77,8 +81,16 @@ export default function Entrada() {
   const entrar = enviar(async ler => {
     if (!emailValido(ler('email')) || !ler('senha')) return avisar('Informe o e-mail e a senha.');
     await SD.entrar(ler('email'), ler('senha'));
+    if (await SD.duasEtapasPendente()) { mostrar('codigo'); return; }
     navegar(destino);
   });
+  const codigo = enviar(async ler => {
+    const c = ler('codigo').replace(/\D/g, '');
+    if (c.length !== 6) return avisar('Digite os 6 números que o aplicativo autenticador mostra.');
+    await SD.duasEtapasEntrar(c);
+    navegar(destino);
+  });
+  const sairDoCodigo = async () => { await SD.sair(); mostrar('entrar'); };
   const primeiro = enviar(async (ler, form) => {
     if (!emailValido(ler('email'))) return avisar('Informe o e-mail em que você recebeu o convite.');
     if (ler('senha').length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');
@@ -173,6 +185,14 @@ export default function Entrada() {
           <p className="dica">Enviaremos um link para você criar uma nova senha.</p>
           {enviarBotao('Enviar link')}
           {ir('entrar', 'Voltar para entrar')}
+        </form>}
+
+        {painel === 'codigo' && <form noValidate onSubmit={codigo}>
+          <p className="dica" style={{ fontSize: 14 }}>Sua conta tem verificação em duas etapas. Abra o aplicativo autenticador do celular e digite o código do SEMPER.</p>
+          <label>Código de 6 números<input name="codigo" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required /></label>
+          {enviarBotao('Confirmar')}
+          <button className="link" type="button" disabled={ocupado} onClick={sairDoCodigo}>Entrar com outra conta</button>
+          <p className="dica">Perdeu o celular ou o aplicativo? Fale com o master do escritório.</p>
         </form>}
 
         {painel === 'nova' && <form noValidate onSubmit={novaSenha}>
