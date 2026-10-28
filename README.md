@@ -4,14 +4,14 @@ Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): co
 
 ## Como vai ao ar
 
-O sistema fica em `app/` (React + TypeScript + Vite). Cada push no `main` e cada pull request passam pela rotina `.github/workflows/verificar.yml`, que confere os tipos, roda os testes (unitários, de componente e de ponta a ponta, veja [`app/TESTES.md`](app/TESTES.md)) e compila, mas não publica nada.
+O sistema fica em `app/` (React + TypeScript + Vite). Os testes ficam numa rotina própria, `.github/workflows/testes.yml`: tipos, unitários e de componente num job, e os de ponta a ponta em outro, em paralelo (veja [`app/TESTES.md`](app/TESTES.md)). Cada push no `main` e cada pull request passam por `.github/workflows/verificar.yml`, que chama os testes e só compila se todos passarem, mas não publica nada.
 
 O site só muda quando sai uma **versão** (`.github/workflows/publicar.yml`):
 
 - **Versão nova:** GitHub → Actions → *Publicar o SEMPER* → *Run workflow* (no `main`), escolhendo o tipo de mudança. O número sai sozinho da última marca: correção `v1.2.3 → v1.2.4`, novidade `→ v1.3.0`, grande `→ v2.0.0` (a primeira é `v1.0.0`). Também dá para criar a marca à mão: `git tag v1.2.4 && git push origin v1.2.4`.
 - **Voltar atrás:** *Run workflow* preenchendo `versao` com uma marca que já existe (ex.: `v1.2.3`).
 
-A rotina confere os tipos, roda os testes (inclusive os de ponta a ponta) e compila. Só se tudo passar ela cria a marca `vX.Y.Z` e a versão no GitHub (Releases, com a lista de commits), e grava o site pronto no ramo **`publicacao`**. Para ver o que está no ar, abra https://semper.app.br/versao.txt. A Hostinger (hPanel → Avançado → GIT, site `semper.app.br`) publica esse ramo; o `.htaccess` manda o `www` para `semper.app.br` e responde 410 (desligado) no endereço antigo, semper.bragaferreira.adv.br. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
+A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, só se todos passarem, compila, cria a marca `vX.Y.Z` e a versão no GitHub (Releases, com a lista de commits), e grava o site pronto no ramo **`publicacao`**. Para ver o que está no ar, abra https://semper.app.br/versao.txt. A Hostinger (hPanel → Avançado → GIT, site `semper.app.br`) publica esse ramo; o `.htaccess` manda o `www` para `semper.app.br` e responde 410 (desligado) no endereço antigo, semper.bragaferreira.adv.br. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
 
 > **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
 

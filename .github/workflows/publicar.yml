@@ -8,8 +8,8 @@ name: Publicar o SEMPER
 # - Também dá para criar a marca à mão: git tag v1.2.4 && git push origin v1.2.4.
 # - Voltar atrás: Run workflow preenchendo "versao" com uma marca que já existe (ex.: v1.2.3).
 #
-# Confere os tipos, roda os testes (unitários, de componente e de ponta a ponta) e compila; só depois disso cria a marca e a versão no GitHub
-# e grava o site pronto no ramo "publicacao", que é o que a Hostinger coloca no ar.
+# Três etapas: escolhe a versão, roda os testes (testes.yml) nesse mesmo commit e, só se todos passarem, compila,
+# cria a marca e a versão no GitHub e grava o site pronto no ramo "publicacao", que é o que a Hostinger coloca no ar.
 # Se algo falhar, nenhuma marca é criada, nada é publicado e o site continua como estava.
 on:
   workflow_dispatch:
@@ -33,8 +33,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publicar:
+  versao:
+    name: Escolher a versão
     runs-on: ubuntu-latest
+    outputs:
+      versao: ${{ steps.versao.outputs.versao }}
+      commit: ${{ steps.versao.outputs.commit }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -71,7 +75,25 @@ jobs:
           fi
           [[ "$VERSAO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::\"$VERSAO\" não é uma versão no formato v1.2.3."; exit 1; }
           echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "Versão: $VERSAO ($(git rev-parse --short HEAD))"
+
+  testes:
+    name: Testes
+    needs: versao
+    uses: ./.github/workflows/testes.yml
+    with:
+      ref: ${{ needs.versao.outputs.commit }}
+
+  publicar:
+    name: Compilar e publicar
+    needs: [versao, testes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.versao.outputs.commit }}
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -83,30 +105,10 @@ jobs:
         working-directory: app
         run: npm ci
 
-      - name: Conferir tipos e testes
-        working-directory: app
-        run: npm run verificar
-
-      - name: Instalar o navegador dos testes de ponta a ponta
-        working-directory: app
-        run: npx playwright install --with-deps chromium
-
-      - name: Testes de ponta a ponta
-        working-directory: app
-        run: npm run testar-telas
-
-      - name: Guardar o relatório dos testes de ponta a ponta
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-playwright
-          path: app/playwright-report/
-          retention-days: 14
-
       - name: Compilar
         working-directory: app
         env:
-          VERSAO: ${{ steps.versao.outputs.versao }}
+          VERSAO: ${{ needs.versao.outputs.versao }}
         run: |
           npx vite build
           # Para conferir o que está no ar: https://semper.app.br/versao.txt
@@ -114,7 +116,7 @@ jobs:
 
       - name: Marcar a versão
         env:
-          VERSAO: ${{ steps.versao.outputs.versao }}
+          VERSAO: ${{ needs.versao.outputs.versao }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -132,7 +134,7 @@ jobs:
 
       - name: Publicar no ramo publicacao
         env:
-          VERSAO: ${{ steps.versao.outputs.versao }}
+          VERSAO: ${{ needs.versao.outputs.versao }}
         run: |
           set -euo pipefail
           ORIGEM=$(git rev-parse --short HEAD)

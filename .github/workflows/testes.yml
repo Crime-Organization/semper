@@ -1,0 +1,74 @@
+name: Testes do SEMPER
+
+# Os testes do SEMPER num lugar só. As rotinas verificar.yml (cada envio e pull request) e publicar.yml
+# (cada versão) chamam esta e só compilam ou publicam se todos os jobs daqui passarem.
+# Os jobs rodam em paralelo. Também dá para rodar à mão em qualquer ramo: Actions → Testes do SEMPER → Run workflow.
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Commit, ramo ou marca a testar (vazio: o que disparou a rotina)'
+        type: string
+        required: false
+        default: ''
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unitarios:
+    name: Tipos, unitários e componentes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar
+        working-directory: app
+        run: npm ci
+
+      - name: Conferir tipos e testes
+        working-directory: app
+        run: npm run verificar
+
+  ponta-a-ponta:
+    name: Ponta a ponta (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar
+        working-directory: app
+        run: npm ci
+
+      - name: Instalar o navegador
+        working-directory: app
+        run: npx playwright install --with-deps chromium
+
+      - name: Testes de ponta a ponta
+        working-directory: app
+        run: npm run testar-telas
+
+      - name: Guardar o relatório
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-playwright
+          path: app/playwright-report/
+          retention-days: 14
