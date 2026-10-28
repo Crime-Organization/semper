@@ -26,15 +26,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Instalar
-        working-directory: app
-        run: npm ci
+      - uses: ./.github/actions/preparar
 
       - name: Conferir os tipos
         working-directory: app
@@ -52,15 +44,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Instalar
-        working-directory: app
-        run: npm ci
+      - uses: ./.github/actions/preparar
 
       - name: Testes unitários e de componente
         working-directory: app
@@ -74,15 +58,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.sha }}
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Instalar
-        working-directory: app
-        run: npm ci
+      - uses: ./.github/actions/preparar
 
       - name: Instalar o navegador
         working-directory: app

@@ -7,6 +7,7 @@ name: Publicar o SEMPER
 #   grande v2.0.0; a primeira é v1.0.0).
 # - Também dá para criar a marca à mão: git tag v1.2.4 && git push origin v1.2.4.
 # - Voltar atrás: Run workflow preenchendo "versao" com uma marca que já existe (ex.: v1.2.3).
+#   (A versão é testada e compilada com as próprias rotinas e a ação .github/actions/preparar, que existem desde a v1.0.0.)
 #
 # Três etapas: escolhe a versão, roda os testes (testes.yml) nesse mesmo commit e, só se todos passarem, compila,
 # cria a marca e a versão no GitHub e grava o site pronto no ramo "publicacao", que é o que a Hostinger coloca no ar.
@@ -95,15 +96,7 @@ jobs:
           ref: ${{ needs.versao.outputs.commit }}
           fetch-depth: 0
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: app/package-lock.json
-
-      - name: Instalar
-        working-directory: app
-        run: npm ci
+      - uses: ./.github/actions/preparar
 
       - name: Compilar
         working-directory: app
