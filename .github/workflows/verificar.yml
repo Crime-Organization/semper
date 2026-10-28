@@ -1,7 +1,6 @@
 name: Verificar o SEMPER
 
-# A cada envio ao main e a cada pull request, confere os tipos, roda os testes (unitários, de componente
-# e de ponta a ponta) e compila o React.
+# A cada envio ao main e a cada pull request, roda os testes (testes.yml) e, só se todos passarem, compila o React.
 # Não publica nada: o site só muda quando sai uma versão nova (veja publicar.yml).
 on:
   push:
@@ -16,7 +15,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verificar:
+  testes:
+    name: Testes
+    uses: ./.github/workflows/testes.yml
+
+  compilar:
+    name: Compilar
+    needs: testes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -30,26 +35,6 @@ jobs:
       - name: Instalar
         working-directory: app
         run: npm ci
-
-      - name: Conferir tipos e testes
-        working-directory: app
-        run: npm run verificar
-
-      - name: Instalar o navegador dos testes de ponta a ponta
-        working-directory: app
-        run: npx playwright install --with-deps chromium
-
-      - name: Testes de ponta a ponta
-        working-directory: app
-        run: npm run testar-telas
-
-      - name: Guardar o relatório dos testes de ponta a ponta
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-playwright
-          path: app/playwright-report/
-          retention-days: 14
 
       - name: Compilar
         working-directory: app

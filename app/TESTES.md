@@ -8,7 +8,7 @@ Três tipos de teste, todos escritos no mesmo padrão (BDD, em português). Nenh
 | Componente | Peças de `src/ui/` montadas sozinhas (botões, janelas, avisos, busca…) | Vitest + Testing Library | ao lado da peça: `src/ui/*.test.tsx` | `npm run verificar` |
 | Ponta a ponta | Fluxos inteiros no navegador (entrar, cadastrar, quadro, equipe…) | Playwright | `e2e/*.spec.ts` | `npm run testar-telas` |
 
-Os comandos rodam dentro de `app/` (ou com `--prefix app` a partir da raiz). A rotina de publicação roda os três; se algum falhar, nada é publicado.
+Os comandos rodam dentro de `app/` (ou com `--prefix app` a partir da raiz). No GitHub, os três rodam na rotina `.github/workflows/testes.yml`, chamada a cada push e pull request (`verificar.yml`) e a cada versão (`publicar.yml`): se algum falhar, nada é compilado nem publicado.
 
 ## O padrão
 
