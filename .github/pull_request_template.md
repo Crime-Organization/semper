@@ -3,7 +3,8 @@
 ### Qual a tarefa associada?
 
 <!-- Link do item no roteiro (https://github.com/orgs/Crime-Organization/projects/2) ou da issue.
-     Se for uma issue, escreva "Closes #123" para ela fechar sozinha no merge. -->
+     Se for uma issue, escreva "Closes #123" para ela fechar sozinha no merge.
+     Antes de pedir revisão, confira se todos os critérios de aceitação da tarefa foram atendidos. -->
 
 ### O que mudou?
 
