@@ -21,6 +21,8 @@ interface PropsCampo {
   dica?: ReactNode;
   /** Mensagem de erro; com ela, o campo fica marcado e a mensagem aparece. */
   erro?: ReactNode;
+  /** O que vem depois da mensagem de erro (ex.: o resultado de uma busca de CEP). */
+  depois?: ReactNode;
   className?: string;
   children: ReactNode;
 }
@@ -28,12 +30,13 @@ interface PropsCampo {
  * Pergunta de formulário: rótulo (com * se obrigatório), dica, o campo e a mensagem de erro.
  * O campo recebe o id indicado em "para"; aria-invalid e aria-describedby ficam a cargo de propsDoCampo().
  */
-export function Campo({ rotulo, para, obrigatorio, dica, erro, className, children }: PropsCampo) {
+export function Campo({ rotulo, para, obrigatorio, dica, erro, depois, className, children }: PropsCampo) {
   return <div className={['pergunta', erro ? 'erro' : '', className].filter(Boolean).join(' ')}>
     <label htmlFor={para}>{rotulo}{obrigatorio && <span className="req">*</span>}</label>
     {dica && <p className="dica" id={para + '-dica'}>{dica}</p>}
     {children}
     {erro && <span className="msg-erro" id={para + '-erro'} role="alert">{erro}</span>}
+    {depois}
   </div>;
 }
 /** Props de acessibilidade do campo que vai dentro de <Campo>: id, aria-invalid e aria-describedby (dica e erro). */
@@ -42,12 +45,22 @@ export function propsDoCampo(para: string, { dica, erro }: { dica?: ReactNode; e
   return { id: para, 'aria-invalid': erro ? true : undefined, 'aria-describedby': descrito || undefined };
 }
 
+interface PropsEscolhas {
+  rotulo: ReactNode;
+  obrigatorio?: boolean;
+  dica?: ReactNode;
+  erro?: ReactNode;
+  /** Arranjo das opções: em coluna única (listas longas) ou várias marcáveis lado a lado. */
+  arranjo?: 'coluna-unica' | 'multipla';
+  children: ReactNode;
+}
 /** Grupo de opções (rádios ou caixas) com um rótulo comum, como "Gênero" ou "Tipo de cadastro". */
-export function Escolhas({ rotulo, obrigatorio, erro, children }: { rotulo: ReactNode; obrigatorio?: boolean; erro?: ReactNode; children: ReactNode }) {
+export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }: PropsEscolhas) {
   const id = useId();
   return <div className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={id}>
     <span className="rot" id={id}>{rotulo}{obrigatorio && <span className="req">*</span>}</span>
-    <div className="escolhas">{children}</div>
+    {dica && <p className="dica">{dica}</p>}
+    <div className={arranjo ? 'escolhas ' + arranjo : 'escolhas'}>{children}</div>
     {erro && <span className="msg-erro" role="alert">{erro}</span>}
   </div>;
 }

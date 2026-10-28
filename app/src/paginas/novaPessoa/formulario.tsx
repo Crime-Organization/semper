@@ -28,6 +28,8 @@ export interface Formulario {
   /** Classes da pergunta de um campo (marcada com erro, se houver). */
   pc: (campo: string, extra?: string) => string;
   erro: (campo: string) => ReactNode;
+  /** A mensagem de erro do campo, se houver (para o Campo e o Escolhas). */
+  erroDe: (campo: string) => string | undefined;
   texto: (campo: keyof CamposCadastro, props?: OpcoesTexto) => ReactNode;
   data: (campo: keyof CamposCadastro) => ReactNode;
   radios: (nome: keyof CamposCadastro, opcoes: [string, string][], aoEscolher?: (v: string) => void) => ReactNode;

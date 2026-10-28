@@ -266,8 +266,8 @@ As peças acima existem como componentes React. Cada um gera o mesmo HTML e as m
 | Peça | Componente | Exemplo |
 |---|---|---|
 | Botões (`.btn`, `.pri`, `.esc`, `.perigo`, `.btn-sm`, `.mini`, `.link`) | `Botao` e `BotaoDuplo` (em `ui/Botoes.tsx`), `BotaoLink`, `estiloBotao()` | `<Botao variante="principal">Salvar</Botao>` · `<BotaoDuplo forma="mini" variante="perigo" …>` · `<BotaoLink to="/pessoas/nova/" variante="principal">` |
-| Pergunta de formulário (`.pergunta`, `.req`, `.dica`, `.msg-erro`) | `Campo` com `propsDoCampo()` | `<Campo rotulo="CPF" para="cpf" obrigatorio erro={erro}><input {...propsDoCampo('cpf', { erro })} /></Campo>` |
-| Grupo de opções (`.pergunta` + `.escolhas`) | `Escolhas` | `<Escolhas rotulo="Gênero" obrigatorio>…rádios…</Escolhas>` |
+| Pergunta de formulário (`.pergunta`, `.req`, `.dica`, `.msg-erro`) | `Campo` com `propsDoCampo()`; `depois` para o que vem após o erro (ex.: o resultado de uma busca) | `<Campo rotulo="CPF" para="cpf" obrigatorio erro={erro}><input {...propsDoCampo('cpf', { erro })} /></Campo>` |
+| Grupo de opções (`.pergunta` + `.escolhas`) | `Escolhas`, com `dica` e `arranjo` (`coluna-unica`, `multipla`) | `<Escolhas rotulo="Gênero" obrigatorio>…rádios…</Escolhas>` |
 | `alert` (`.aviso`) | `Aviso` | `<Aviso tipo="erro">{mensagem}</Aviso>` |
 | `status-chip` (`.selo`) | `Selo` | `<Selo tipo="pend">Pendente</Selo>` |
 | `card` (`.cartao`) | `Cartao` | `<Cartao>…</Cartao>` |
