@@ -14,6 +14,7 @@ import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { Aviso, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
 import { ETAPAS } from './novaPessoa/etapas';
 import { FormularioCtx, type Formulario, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
@@ -356,8 +357,9 @@ export default function NovaPessoa() {
   // ---------- pedaços do formulário ----------
   const pc = (campo: string, extra = '') => 'pergunta' + (erros[campo] ? ' erro' : '') + (extra ? ' ' + extra : '');
   const erro = (campo: string) => <span className="msg-erro">{erros[campo] || MSG[campo]}</span>;
+  const erroDe = (campo: string) => erros[campo];
   const texto = (campo: keyof Campos, props: OpcoesTexto = {}) =>
-    <input type="text" id={campo} className={props.maiusculas ? 'caixa-alta' : undefined} maxLength={props.maximo} placeholder={props.placeholder}
+    <input type="text" {...propsDoCampo(campo, { dica: true, erro: erros[campo] })} className={props.maiusculas ? 'caixa-alta' : undefined} maxLength={props.maximo} placeholder={props.placeholder}
       inputMode={props.numerico ? 'numeric' : undefined} value={c[campo] as string}
       onChange={e => mudarTexto(campo, props.mascara ? MASCARAS[props.mascara](e.target.value) : e.target.value)}
       onBlur={() => { if (props.maiusculas) mudarTexto(campo, maiusculas(cRef.current[campo] as string)); props.aoSair?.(); }} />;
@@ -385,7 +387,7 @@ export default function NovaPessoa() {
     mudarLista(campo, [...cRef.current[campo], linha()]);
     setTimeout(() => { const els = document.querySelectorAll<HTMLInputElement>(campo === 'telefones' ? '.lista-tel .tel' : '.lista-tel .email'); els[els.length - 1]?.focus(); }, 0);
   };
-  const retorno = (r: Retorno) => r && <div className={'retorno aviso ' + r.tipo}>{r.conteudo}</div>;
+  const retorno = (r: Retorno) => r && <Aviso tipo={r.tipo} className="retorno">{r.conteudo}</Aviso>;
 
   const pj = c.tipo === 'pj';
   // Quem pode ser responsável: a equipe ativa e quem já é responsável (mesmo desativado, para não sair sem querer).
@@ -393,7 +395,7 @@ export default function NovaPessoa() {
   const voltarLista = idAtualizar ? '/pessoas/?id=' + idAtualizar : '/pessoas/';
   const formulario: Formulario = {
     c, cRef, pj, mudar, marcarErro, verificarDocumento, buscarCNPJ, buscarCEP, retornoCNPJ, retornoCEP, botaoCNPJ, botaoCEP, botaoAvancar,
-    opcoesResp, pc, erro, texto, data, radios, ufs, lista, acrescentar, retorno
+    opcoesResp, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
   };
   const Atual = ETAPAS[etapa].Componente;
 
@@ -402,8 +404,8 @@ export default function NovaPessoa() {
       <p className="olho"><Link to={voltarLista}>Pessoas</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar cadastro' : 'Nova pessoa'}<span className="ponto">.</span></h1>
     </header>
-    {alvo && <div className="aviso info faixa-atualizar">Você está atualizando o cadastro de <b>{alvo.nome}</b> ({alvo.codigo}). As informações anteriores ficam guardadas no histórico.</div>}
-    {!pronto ? <p className="carregando">Carregando…</p> : <>
+    {alvo && <Aviso tipo="info" className="faixa-atualizar">Você está atualizando o cadastro de <b>{alvo.nome}</b> ({alvo.codigo}). As informações anteriores ficam guardadas no histórico.</Aviso>}
+    {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>
         <div className="progresso"><i style={{ width: Math.round(100 * passo / Math.max(1, total - 1)) + '%' }} /></div>
@@ -413,8 +415,8 @@ export default function NovaPessoa() {
         <FormularioCtx.Provider value={formulario}><Atual key={etapa} /></FormularioCtx.Provider>
 
         <div className="navegar">
-          <button type="button" className="btn" style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passoRef.current - 1)}>Voltar</button>
-          <button type="button" className="btn pri" ref={botaoAvancar} disabled={!!ocupado} onClick={avancar}>
+          <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passoRef.current - 1)}>Voltar</button>
+          <button type="button" className={estiloBotao({ variante: 'principal' })} ref={botaoAvancar} disabled={!!ocupado} onClick={avancar}>
             {ocupado === 'salvando' ? 'Salvando…' : ultimo ? (alvo ? 'Salvar alterações' : 'Salvar cadastro') : 'Próxima'}
           </button>
         </div>

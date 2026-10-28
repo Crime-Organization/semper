@@ -5,45 +5,38 @@ import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
 import { AO_ENTRAR, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
 import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, NATUREZAS, PORTES } from '../../regras/pessoa';
+import { Campo, Dica, Escolhas, estiloBotao } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { useFormulario } from './formulario';
 
 function EtapaTipo() {
-  const { botaoAvancar, pc, erro, radios } = useFormulario();
+  const { botaoAvancar, erroDe, radios } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Qual é o tipo de cadastro?</h2></header>
-    <div className={pc('tipo')}>
-      <span className="rot">Selecione uma opção<span className="req">*</span></span>
-      <div className="escolhas">{radios('tipo', [['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente informações de contato']],
-        () => setTimeout(() => botaoAvancar.current?.click(), 200))}</div>
-      {erro('tipo')}
-    </div>
+    <Escolhas rotulo="Selecione uma opção" obrigatorio erro={erroDe('tipo')}>
+      {radios('tipo', [['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente informações de contato']],
+        () => setTimeout(() => botaoAvancar.current?.click(), 200))}
+    </Escolhas>
   </section>;
 }
 
 function EtapaIdentificacao() {
-  const { c, pj, mudar, buscarCNPJ, retornoCNPJ, botaoCNPJ, pc, erro, texto, retorno } = useFormulario();
+  const { c, pj, mudar, buscarCNPJ, retornoCNPJ, botaoCNPJ, erroDe, texto, retorno } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>{pj ? 'Dados da empresa' : c.tipo === 'pf' ? 'Dados pessoais' : 'Identificação'}</h2></header>
-    <div className={pc('nome')}>
-      <label htmlFor="nome">Nome<span className="req">*</span></label>
-      <p className="dica">{pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}</p>
+    <Campo rotulo="Nome" para="nome" obrigatorio erro={erroDe('nome')}
+      dica={pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}>
       {texto('nome', { maximo: TAMANHO_PESSOA.nome, maiusculas: true })}
-      {erro('nome')}
-    </div>
+    </Campo>
     {pj && <>
-      <div className={pc('cnpjBusca')}>
-        <label htmlFor="cnpjBusca">CNPJ<span className="req">*</span></label>
-        <p className="dica">Clique em Buscar para trazer os dados da Receita, ou siga e preencha manualmente.</p>
+      <Campo rotulo="CNPJ" para="cnpjBusca" obrigatorio erro={erroDe('cnpjBusca')} depois={retorno(retornoCNPJ)}
+        dica="Clique em Buscar para trazer os dados da Receita, ou siga e preencha manualmente.">
         <div className="linha-campo">
           {texto('cnpjBusca', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true })}
-          <Botao className="btn esc" ref={botaoCNPJ} ocupadoTexto="Buscando…" onClick={buscarCNPJ}>Buscar</Botao>
+          <Botao variante="escuro" ref={botaoCNPJ} ocupadoTexto="Buscando…" onClick={buscarCNPJ}>Buscar</Botao>
         </div>
-        {erro('cnpjBusca')}
-        {retorno(retornoCNPJ)}
-      </div>
-      <div className="pergunta">
-        <label htmlFor="natureza">Natureza jurídica</label>
+      </Campo>
+      <Campo rotulo="Natureza jurídica" para="natureza">
         <select id="natureza" value={c.natureza} onChange={e => {
           const natureza = e.target.value;
           mudar(c.entidade && !ENTIDADES[natureza]?.includes(c.entidade) ? { natureza, entidade: '' } : { natureza });
@@ -51,49 +44,41 @@ function EtapaIdentificacao() {
           <option value="">Selecione</option>
           {Object.entries(NATUREZAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </select>
-      </div>
+      </Campo>
     </>}
   </section>;
 }
 
 function EtapaPessoaFisica() {
-  const { c, cRef, marcarErro, verificarDocumento, pc, erro, texto, data, radios, ufs } = useFormulario();
+  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios, ufs } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Pessoa física</h2><p>Dados pessoais para a qualificação.</p></header>
-    <div className={pc('genero')}>
-      <span className="rot">Gênero<span className="req">*</span></span>
-      <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
-      {erro('genero')}
-    </div>
+    <Escolhas rotulo="Gênero" obrigatorio erro={erroDe('genero')}>{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</Escolhas>
+    {/* A nacionalidade tem um campo depois das opções (a outra nacionalidade): fica com a marcação própria. */}
     <div className="pergunta">
       <span className="rot">Nacionalidade</span>
       <div className="escolhas">{radios('nac', [['brasileira', 'Brasileira'], ['outra', 'Outra']],
         v => { if (v === 'outra') setTimeout(() => document.getElementById('nacOutra')?.focus(), 0); })}</div>
       {c.nac === 'outra' && texto('nacOutra', { maximo: TAMANHO_PESSOA.nacionalidade, placeholder: 'Ex.: portuguesa' })}
     </div>
-    <div className="pergunta"><label htmlFor="profissao">Profissão</label>{texto('profissao', { maximo: TAMANHO_PESSOA.profissao })}</div>
-    <div className="pergunta">
-      <span className="rot">Estado civil</span>
-      <div className="escolhas">{radios('ec', Object.entries(ESTADO_CIVIL).map(([k, v]) => [k, v[2]] as [string, string]))}</div>
-    </div>
-    <div className={pc('cpf')}>
-      <label htmlFor="cpf">CPF<span className="req">*</span></label>
+    <Campo rotulo="Profissão" para="profissao">{texto('profissao', { maximo: TAMANHO_PESSOA.profissao })}</Campo>
+    <Escolhas rotulo="Estado civil">{radios('ec', Object.entries(ESTADO_CIVIL).map(([k, v]) => [k, v[2]] as [string, string]))}</Escolhas>
+    <Campo rotulo="CPF" para="cpf" obrigatorio erro={erroDe('cpf')}>
       {texto('cpf', { mascara: 'cpf', placeholder: '000.000.000-00', numerico: true, aoSair: () => {
         const d = dig(cRef.current.cpf);
         if (cpfValido(d)) void verificarDocumento(d); else if (d) marcarErro('cpf', 'CPF inválido: confira os números.');
       } })}
-      {erro('cpf')}
-    </div>
+    </Campo>
     <div className="grade-campos">
-      <div className="pergunta"><label htmlFor="rg">RG</label><p className="dica">Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG</p>{texto('rg', { maximo: TAMANHO_PESSOA.rg })}</div>
-      <div className={pc('rgExp')}><label htmlFor="rgExp">Data de expedição</label><p className="dica">DD/MM/AAAA</p>{data('rgExp')}{erro('rgExp')}</div>
+      <Campo rotulo="RG" para="rg" dica="Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG">{texto('rg', { maximo: TAMANHO_PESSOA.rg })}</Campo>
+      <Campo rotulo="Data de expedição" para="rgExp" dica="DD/MM/AAAA" erro={erroDe('rgExp')}>{data('rgExp')}</Campo>
     </div>
-    <div className="pergunta"><label htmlFor="mae">Nome da mãe</label>{texto('mae', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
-    <div className="pergunta"><label htmlFor="pai">Nome do pai</label>{texto('pai', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
+    <Campo rotulo="Nome da mãe" para="mae">{texto('mae', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</Campo>
+    <Campo rotulo="Nome do pai" para="pai">{texto('pai', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</Campo>
     <div className="grade-campos">
-      <div className={pc('nasc')}><label htmlFor="nasc">Data de nascimento</label>{data('nasc')}{erro('nasc')}</div>
-      <div className="pergunta"><label htmlFor="nascMun">Município de nascimento</label>{texto('nascMun', { maximo: TAMANHO_PESSOA.municipio })}</div>
-      <div className="pergunta"><label htmlFor="nascUf">UF de nascimento</label>{ufs('nascUf')}</div>
+      <Campo rotulo="Data de nascimento" para="nasc" erro={erroDe('nasc')}>{data('nasc')}</Campo>
+      <Campo rotulo="Município de nascimento" para="nascMun">{texto('nascMun', { maximo: TAMANHO_PESSOA.municipio })}</Campo>
+      <Campo rotulo="UF de nascimento" para="nascUf">{ufs('nascUf')}</Campo>
     </div>
   </section>;
 }
@@ -102,107 +87,91 @@ function EtapaEntidade() {
   const { c, radios } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>{NATUREZAS[c.natureza] || 'Tipo de entidade'}</h2><p>Em qual tipo a pessoa jurídica se enquadra?</p></header>
+    {/* Sem rótulo próprio: o título da etapa já diz o que escolher. */}
     <div className="pergunta"><div className="escolhas coluna-unica">{radios('entidade', (ENTIDADES[c.natureza] || []).map(t => [t, t] as [string, string]))}</div></div>
   </section>;
 }
 
 function EtapaEmpresa() {
-  const { c, cRef, marcarErro, verificarDocumento, pc, erro, texto, data, radios } = useFormulario();
+  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Pessoa jurídica</h2><p>Dados da empresa ou entidade.</p></header>
-    {ehIndividual(c.entidade) && <div className={pc('genero')}>
-      <span className="rot">Gênero do(a) titular<span className="req">*</span></span>
-      <p className="dica">No MEI e no empresário individual, a empresa é a própria pessoa: a qualificação concorda com ela (empresário ou empresária, inscrito ou inscrita).</p>
-      <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
-      {erro('genero')}
-    </div>}
-    <div className="pergunta"><label htmlFor="fantasia">Nome fantasia</label>{texto('fantasia', { maximo: TAMANHO_PESSOA.nomeFantasia, maiusculas: true })}</div>
-    <div className="pergunta">
-      <span className="rot">Porte</span>
-      <p className="dica">Nos casos de MEI, não é preciso marcar.</p>
-      <div className="escolhas">{radios('porte', Object.entries(PORTES))}</div>
-    </div>
+    {ehIndividual(c.entidade) && <Escolhas rotulo="Gênero do(a) titular" obrigatorio erro={erroDe('genero')}
+      dica="No MEI e no empresário individual, a empresa é a própria pessoa: a qualificação concorda com ela (empresário ou empresária, inscrito ou inscrita).">
+      {radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}
+    </Escolhas>}
+    <Campo rotulo="Nome fantasia" para="fantasia">{texto('fantasia', { maximo: TAMANHO_PESSOA.nomeFantasia, maiusculas: true })}</Campo>
+    <Escolhas rotulo="Porte" dica="Nos casos de MEI, não é preciso marcar.">{radios('porte', Object.entries(PORTES))}</Escolhas>
     <div className="grade-campos">
-      <div className={pc('cnpj')}>
-        <label htmlFor="cnpj">CNPJ<span className="req">*</span></label>
+      <Campo rotulo="CNPJ" para="cnpj" obrigatorio erro={erroDe('cnpj')}>
         {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true, aoSair: () => {
           const d = dig(cRef.current.cnpj);
           if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
         } })}
-        {erro('cnpj')}
-      </div>
-      <div className={pc('abertura')}><label htmlFor="abertura">Data de abertura</label>{data('abertura')}{erro('abertura')}</div>
+      </Campo>
+      <Campo rotulo="Data de abertura" para="abertura" erro={erroDe('abertura')}>{data('abertura')}</Campo>
     </div>
-    <div className="pergunta"><label htmlFor="representantes">Representante(s) legal(is)</label>
-      <p className="dica">Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.</p>
-      {texto('representantes', { maximo: TAMANHO_PESSOA.representantes, maiusculas: true })}</div>
+    <Campo rotulo="Representante(s) legal(is)" para="representantes"
+      dica={'Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.'}>
+      {texto('representantes', { maximo: TAMANHO_PESSOA.representantes, maiusculas: true })}
+    </Campo>
   </section>;
 }
 
 function EtapaEndereco() {
-  const { buscarCEP, retornoCEP, botaoCEP, pc, erro, texto, ufs, retorno } = useFormulario();
+  const { buscarCEP, retornoCEP, botaoCEP, erroDe, texto, ufs, retorno } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Endereço</h2></header>
-    <div className={pc('cep')}>
-      <label htmlFor="cep">CEP</label>
-      <p className="dica">Clique em Buscar para preencher o endereço.</p>
+    <Campo rotulo="CEP" para="cep" dica="Clique em Buscar para preencher o endereço." erro={erroDe('cep')} depois={retorno(retornoCEP)}>
       <div className="linha-campo">
         {texto('cep', { mascara: 'cep', placeholder: '00000-000', numerico: true })}
-        <Botao className="btn esc" ref={botaoCEP} ocupadoTexto="Buscando…" onClick={buscarCEP}>Buscar</Botao>
+        <Botao variante="escuro" ref={botaoCEP} ocupadoTexto="Buscando…" onClick={buscarCEP}>Buscar</Botao>
       </div>
-      {erro('cep')}
-      {retorno(retornoCEP)}
-    </div>
-    <div className="pergunta"><label htmlFor="logradouro">Logradouro</label><p className="dica">Rua, avenida, fazenda etc.</p>{texto('logradouro', { maximo: TAMANHO_PESSOA.logradouro })}</div>
+    </Campo>
+    <Campo rotulo="Logradouro" para="logradouro" dica="Rua, avenida, fazenda etc.">{texto('logradouro', { maximo: TAMANHO_PESSOA.logradouro })}</Campo>
     <div className="grade-campos">
-      <div className="pergunta"><label htmlFor="numero">Número</label><p className="dica">Sem número: S/N</p>{texto('numero', { maximo: TAMANHO_PESSOA.numero })}</div>
-      <div className="pergunta"><label htmlFor="complemento">Complemento</label><p className="dica">Apto, sala, bloco…</p>{texto('complemento', { maximo: TAMANHO_PESSOA.complemento })}</div>
+      <Campo rotulo="Número" para="numero" dica="Sem número: S/N">{texto('numero', { maximo: TAMANHO_PESSOA.numero })}</Campo>
+      <Campo rotulo="Complemento" para="complemento" dica="Apto, sala, bloco…">{texto('complemento', { maximo: TAMANHO_PESSOA.complemento })}</Campo>
     </div>
-    <div className="pergunta"><label htmlFor="bairro">Bairro</label>{texto('bairro', { maximo: TAMANHO_PESSOA.bairro })}</div>
+    <Campo rotulo="Bairro" para="bairro">{texto('bairro', { maximo: TAMANHO_PESSOA.bairro })}</Campo>
     <div className="grade-campos">
-      <div className="pergunta"><label htmlFor="municipio">Município</label>{texto('municipio', { maximo: TAMANHO_PESSOA.municipio })}</div>
-      <div className="pergunta"><label htmlFor="uf">UF</label>{ufs('uf')}</div>
+      <Campo rotulo="Município" para="municipio">{texto('municipio', { maximo: TAMANHO_PESSOA.municipio })}</Campo>
+      <Campo rotulo="UF" para="uf">{ufs('uf')}</Campo>
     </div>
   </section>;
 }
 
 function EtapaContato() {
-  const { c, cRef, mudar, opcoesResp, pc, erro, data, lista, acrescentar } = useFormulario();
+  const { c, cRef, mudar, opcoesResp, pc, erro, erroDe, data, lista, acrescentar } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Contato</h2></header>
+    {/* Telefones e e-mails são listas com um botão de acrescentar: ficam com a marcação própria. */}
     <div className={pc('telefones')}>
       <span className="rot">Telefone<span className="req">*</span></span>
-      <p className="dica">Com DDD. Ex.: (38) 99999-0000</p>
+      <Dica>Com DDD. Ex.: (38) 99999-0000</Dica>
       {lista('telefones', true)}
-      <div><button type="button" className="link" onClick={() => acrescentar('telefones')}>+ Adicionar outro telefone</button></div>
+      <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('telefones')}>+ Adicionar outro telefone</button></div>
       {erro('telefones')}
     </div>
     <div className={pc('emails')}>
       <span className="rot">E-mail</span>
       {lista('emails', false)}
-      <div><button type="button" className="link" onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
+      <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
       {erro('emails')}
     </div>
-    <div className="pergunta">
-      <span className="rot">Profissionais responsáveis</span>
-      <p className="dica">Eles aparecem no cartão da pessoa.</p>
-      <div className="escolhas multipla">{opcoesResp.map(m => <label key={m.id}>
+    <Escolhas rotulo="Profissionais responsáveis" dica="Eles aparecem no cartão da pessoa." arranjo="multipla">
+      {opcoesResp.map(m => <label key={m.id}>
         <input type="checkbox" name="resp" value={m.id} checked={c.resp.includes(m.id)}
           onChange={e => mudar({ resp: e.target.checked ? [...cRef.current.resp, m.id] : cRef.current.resp.filter(x => x !== m.id) })} />
         {m.nome}{m.ativo ? '' : ' (desativado)'}
-      </label>)}</div>
-    </div>
-    <div className="pergunta">
-      <label htmlFor="lgpdBase">Base legal para o tratamento dos dados (LGPD)</label>
+      </label>)}
+    </Escolhas>
+    <Campo rotulo="Base legal para o tratamento dos dados (LGPD)" para="lgpdBase">
       <select id="lgpdBase" value={c.lgpdBase} onChange={e => mudar({ lgpdBase: e.target.value })}>
         {Object.entries(LGPD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
       </select>
-    </div>
-    {c.lgpdBase === 'consentimento' && <div className={pc('lgpdData')}>
-      <label htmlFor="lgpdData">Data do consentimento</label>
-      {data('lgpdData')}
-      {erro('lgpdData')}
-    </div>}
+    </Campo>
+    {c.lgpdBase === 'consentimento' && <Campo rotulo="Data do consentimento" para="lgpdData" erro={erroDe('lgpdData')}>{data('lgpdData')}</Campo>}
   </section>;
 }
 

@@ -106,6 +106,28 @@ describe('Campo de formulário', () => {
   });
 });
 
+describe('Campo e grupo de opções: acréscimos do cadastro', () => {
+  it('quando o campo tem erro e um resultado de busca, então o resultado vem depois da mensagem de erro', () => {
+    // Quando
+    const { container } = render(<Campo rotulo="CEP" para="cep" erro="O CEP tem 8 dígitos." depois={<Aviso tipo="ok">Endereço preenchido.</Aviso>}>
+      <input {...propsDoCampo('cep', { erro: true })} />
+    </Campo>);
+    // Então
+    const filhos = [...container.firstElementChild!.children].map(e => e.className || e.tagName.toLowerCase());
+    expect(filhos).toEqual(['label', 'input', 'msg-erro', 'aviso ok']);
+  });
+
+  it('quando o grupo tem dica e arranjo, então a dica vem antes das opções e o arranjo entra na classe delas', () => {
+    // Quando
+    const { container } = render(<Escolhas rotulo="Porte" dica="No MEI, não é preciso marcar." arranjo="coluna-unica">
+      <label><input type="radio" name="porte" value="me" />Microempresa</label>
+    </Escolhas>);
+    // Então
+    const grupo = container.firstElementChild!;
+    expect([...grupo.children].map(e => e.className)).toEqual(['rot', 'dica', 'escolhas coluna-unica']);
+  });
+});
+
 describe('Peças de texto e de estado', () => {
   it.each([
     ['Aviso de erro', () => <Aviso tipo="erro">Falhou</Aviso>, 'aviso erro', 'alert'],
