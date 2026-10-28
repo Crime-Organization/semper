@@ -6,6 +6,7 @@ import { fmtDocumento, fmtTelefone, TIPOS } from '../regras/pessoa';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao, Vazio } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
@@ -26,8 +27,8 @@ export default function Inicio() {
     if (r && local.hash === '#conta') document.getElementById('conta')?.scrollIntoView();
   }, [r, local.hash, local.key]);
 
-  if (erro) return <div className="miolo"><div className="aviso erro">{erro}</div></div>;
-  if (!r) return <div className="miolo"><p className="carregando">Carregando…</p></div>;
+  if (erro) return <div className="miolo"><Aviso tipo="erro">{erro}</Aviso></div>;
+  if (!r) return <div className="miolo"><Carregando /></div>;
 
   const primeiro = (ctx.perfil.nome || '').trim().split(/\s+/)[0];
   return <div className="miolo">
@@ -41,25 +42,25 @@ export default function Inicio() {
         <p>{r.total ? 'Cadastre uma pessoa nova ou acompanhe o atendimento no quadro.' : 'Cadastre a primeira pessoa do escritório.'}</p>
       </div>
       <div className="acoes">
-        <Link className="btn" to="/pessoas/?visao=kanban">Ver o quadro</Link>
-        <Link className="btn pri" to="/pessoas/nova/">Cadastrar pessoa</Link>
+        <BotaoLink to="/pessoas/?visao=kanban">Ver o quadro</BotaoLink>
+        <BotaoLink variante="principal" to="/pessoas/nova/">Cadastrar pessoa</BotaoLink>
       </div>
     </section>
 
     <section aria-labelledby="tNum" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h2 className="secao" id="tNum">Pessoas</h2>
+      <TituloSecao id="tNum">Pessoas</TituloSecao>
       <div className="resumo">
         <Link className="cartao" to="/pessoas/"><b>{numero(r.total)}</b><span>No escritório</span></Link>
         <Link className="cartao" to="/pessoas/?responsavel=eu"><b>{numero(r.minhas)}</b><span>Sob sua responsabilidade</span></Link>
-        <div className="cartao"><b>{numero(r.mes)}</b><span>Cadastradas neste mês</span></div>
+        <Cartao><b>{numero(r.mes)}</b><span>Cadastradas neste mês</span></Cartao>
         <Link className="cartao" to="/pessoas/?situacao=arquivadas"><b>{numero(r.arquivadas)}</b><span>Arquivadas</span></Link>
       </div>
     </section>
 
     <section aria-labelledby="tRec" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div className="secao-topo">
-        <h2 className="secao" id="tRec">Atualizadas recentemente</h2>
-        <Link className="link" to="/pessoas/">Ver todas</Link>
+        <TituloSecao id="tRec">Atualizadas recentemente</TituloSecao>
+        <BotaoLink forma="link" to="/pessoas/">Ver todas</BotaoLink>
       </div>
       {r.recentes.length ? <div className="tabela"><table style={{ minWidth: 560 }}>
         <thead><tr><th scope="col">Pessoa</th><th scope="col">Contato</th><th scope="col">Responsáveis</th><th scope="col">Atualizada</th></tr></thead>
@@ -70,7 +71,7 @@ export default function Inicio() {
           <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{relativo(p.atualizado_em)}</td>
         </tr>)}</tbody>
       </table></div>
-        : <div className="vazio">Nenhuma pessoa cadastrada ainda. <Link className="link" to="/pessoas/nova/">Cadastrar a primeira</Link></div>}
+        : <Vazio>Nenhuma pessoa cadastrada ainda. <BotaoLink forma="link" to="/pessoas/nova/">Cadastrar a primeira</BotaoLink></Vazio>}
     </section>
 
     <MinhaConta aoSalvar={() => recarregar(false)} />
@@ -108,13 +109,13 @@ function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
   }
 
   return <section id="conta" aria-labelledby="tConta" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-    <h2 className="secao" id="tConta">Minha conta</h2>
-    <div className="cartao campos" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <p className="nota">E-mail de acesso: <b style={{ color: 'var(--ink)' }}>{ctx.usuario.email}</b></p>
+    <TituloSecao id="tConta">Minha conta</TituloSecao>
+    <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Nota>E-mail de acesso: <b style={{ color: 'var(--ink)' }}>{ctx.usuario.email}</b></Nota>
       <form className="grade-campos" style={{ alignItems: 'end' }} onSubmit={salvar}>
         <label>Nome<input value={nome} onChange={e => setNome(e.target.value)} required /></label>
         <label>Usuário para menções <small>(@nome nas conversas)</small><input value={usuario} onChange={e => setUsuario(e.target.value)} required /></label>
-        <div><button className="btn esc" type="submit" disabled={ocupado}>Salvar</button></div>
+        <div><button className={estiloBotao({ variante: 'escuro' })} type="submit" disabled={ocupado}>Salvar</button></div>
       </form>
       <label style={{ maxWidth: 320 }}>Aparência
         <select value={tema} onChange={e => definirTema(e.target.value as Tema)}>
@@ -122,7 +123,7 @@ function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
         </select>
       </label>
       <DuasEtapas />
-    </div>
+    </Cartao>
   </section>;
 }
 
@@ -164,10 +165,10 @@ function DuasEtapas() {
 
   return <div className="duas-etapas">
     <h3>Verificação em duas etapas</h3>
-    {fatores === null ? <p className="carregando">Carregando…</p>
+    {fatores === null ? <Carregando />
       : ativo ? <>
-        <p className="nota"><span className="selo ok">Ativa</span> desde {dataCurta(ativo.criado_em)}. Ao entrar, o SEMPER pede a senha e o código do aplicativo autenticador.</p>
-        <div><BotaoDuplo className="btn btn-sm" confirmar="Confirmar: desativar" aoConfirmar={desativar}>Desativar</BotaoDuplo></div>
+        <Nota><Selo tipo="ok">Ativa</Selo> desde {dataCurta(ativo.criado_em)}. Ao entrar, o SEMPER pede a senha e o código do aplicativo autenticador.</Nota>
+        <div><BotaoDuplo pequeno confirmar="Confirmar: desativar" aoConfirmar={desativar}>Desativar</BotaoDuplo></div>
       </>
       : cadastro ? <form className="duas-etapas-ativar" onSubmit={confirmar}>
         <ol>
@@ -179,14 +180,14 @@ function DuasEtapas() {
         <div className="grade-campos" style={{ alignItems: 'end' }}>
           <label>Código do aplicativo<input value={codigo} onChange={e => setCodigo(e.target.value)} inputMode="numeric" autoComplete="one-time-code" maxLength={7} required /></label>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn pri" type="submit" disabled={ocupado}>Ativar</button>
-            <button className="btn" type="button" onClick={() => setCadastro(null)}>Cancelar</button>
+            <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Ativar</button>
+            <button className={estiloBotao()} type="button" onClick={() => setCadastro(null)}>Cancelar</button>
           </div>
         </div>
       </form>
       : <>
-        <p className="nota">Além da senha, o SEMPER passa a pedir um código de 6 números do aplicativo autenticador do celular. Assim, quem descobrir sua senha não entra.{ctx.ehAdmin ? ' Recomendado para quem administra o escritório.' : ''}</p>
-        <div><button className="btn btn-sm pri" type="button" disabled={ocupado} onClick={iniciar}>Ativar verificação em duas etapas</button></div>
+        <Nota>Além da senha, o SEMPER passa a pedir um código de 6 números do aplicativo autenticador do celular. Assim, quem descobrir sua senha não entra.{ctx.ehAdmin ? ' Recomendado para quem administra o escritório.' : ''}</Nota>
+        <div><button className={estiloBotao({ variante: 'principal', pequeno: true })} type="button" disabled={ocupado} onClick={iniciar}>Ativar verificação em duas etapas</button></div>
       </>}
   </div>;
 }
