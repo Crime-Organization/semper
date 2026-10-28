@@ -1,7 +1,7 @@
 // Pessoas: cadastro comum do escritório. Tabela com ações em lote, kanban do atendimento (CRM)
 // e o cartão de cada pessoa. A estrutura da página vem de <PaginaModulo>.
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
@@ -9,6 +9,7 @@ import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
@@ -162,12 +163,12 @@ export default function Pessoas() {
 
   const n = selecionadas.size;
   const lote = visao === 'tabela' && n > 0 ? <>
-    <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className="link" style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => setSelecionadas(new Set())}>limpar</button></span>
+    <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => setSelecionadas(new Set())}>limpar</button></span>
     <span className="acoes-lote">{f.situacao === 'ativas'
-      ? <button type="button" className="mini" onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
+      ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
       : <>
-        <button type="button" className="mini" onClick={() => arquivarLote(false)}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
-        <BotaoDuplo className="mini perigo" confirmar={`Confirmar exclusão de ${n}`} aoConfirmar={excluirLote}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(false)}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
+        <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${n}`} aoConfirmar={excluirLote}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
       </>}</span>
   </> : null;
 
@@ -241,12 +242,12 @@ interface PropsTabela {
 
 function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelecionar, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
-  if (erro) return <div className="aviso erro">{erro}</div>;
-  if (!pagina) return <p className="carregando">Carregando…</p>;
+  if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
+  if (!pagina) return <Carregando />;
   const { linhas, total } = pagina;
-  if (!linhas.length) return <div className="vazio">{filtrado ? 'Nenhuma pessoa encontrada com esses filtros.'
+  if (!linhas.length) return <Vazio>{filtrado ? 'Nenhuma pessoa encontrada com esses filtros.'
     : f.situacao === 'arquivadas' ? 'Nenhuma pessoa arquivada.'
-    : <>Nenhuma pessoa cadastrada ainda. <Link className="link" to="/pessoas/nova/">Cadastrar a primeira</Link></>}</div>;
+    : <>Nenhuma pessoa cadastrada ainda. <BotaoLink forma="link" to="/pessoas/nova/">Cadastrar a primeira</BotaoLink></>}</Vazio>;
 
   const pg = f.pagina || 0, de = pg * POR_PAGINA + 1, ate = pg * POR_PAGINA + linhas.length;
   const todas = linhas.every(p => selecionadas.has(p.id));
@@ -278,8 +279,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelec
     <div className="paginacao" style={{ marginTop: 12 }}>
       <span>Mostrando {numero(de)}–{numero(ate)} de {numero(total)}</span>
       <span style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="mini" disabled={pg === 0} onClick={() => aoPaginar(pg - 1)}>Anterior</button>
-        <button type="button" className="mini" disabled={ate >= total} onClick={() => aoPaginar(pg + 1)}>Próxima</button>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} disabled={pg === 0} onClick={() => aoPaginar(pg - 1)}>Anterior</button>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} disabled={ate >= total} onClick={() => aoPaginar(pg + 1)}>Próxima</button>
       </span>
     </div>
   </div>;
