@@ -4,4 +4,4 @@ try {
   var t = localStorage.getItem('semper-tema');
   if (location.pathname === '/' || location.pathname.indexOf('/entrar') === 0) document.documentElement.dataset.tema = 'claro';
   else if (t === 'claro' || t === 'escuro') document.documentElement.dataset.tema = t;
-} catch (e) { /* sem acesso ao armazenamento: fica o tema automático */ }
+} catch { /* sem acesso ao armazenamento: fica o tema automático */ }
