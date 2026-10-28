@@ -1,30 +1,25 @@
 // Avisos rápidos, desfazer (Ctrl+Z) e o sinal de "dados mudaram".
 // Funções comuns (não dependem de componente): qualquer tela chama avisar(), falha() ou feito().
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect, useRef } from 'react';
+import { criarLoja } from './loja';
 import { DURACAO_AVISO } from './tempos';
 
 type TipoAviso = 'ok' | 'erro' | 'info';
 interface Aviso { id: number; texto: string; tipo: TipoAviso; acao?: { rotulo: string; fn: () => void }; saindo?: boolean }
 
-let avisos: Aviso[] = [];
+const avisos = criarLoja<Aviso[]>([]);
 let seq = 0;
-const ouvintes = new Set<() => void>();
-const emitir = () => ouvintes.forEach(f => f());
-const assinar = (f: () => void) => { ouvintes.add(f); return () => { ouvintes.delete(f); }; };
 
 export function removerAviso(id: number) {
-  avisos = avisos.filter(a => a.id !== id);
-  emitir();
+  avisos.mudar(lista => lista.filter(a => a.id !== id));
 }
 
 /** Mostra um aviso no pé da tela. acao (opcional) vira um botão no aviso (ex.: "Desfazer"). Devolve o id. */
 export function avisar(texto: string, tipo: TipoAviso = 'ok', acao?: Aviso['acao']) {
   const id = ++seq;
-  avisos = [...avisos, { id, texto, tipo, acao }];
-  emitir();
+  avisos.mudar(lista => [...lista, { id, texto, tipo, acao }]);
   setTimeout(() => {
-    avisos = avisos.map(a => a.id === id ? { ...a, saindo: true } : a);
-    emitir();
+    avisos.mudar(lista => lista.map(a => a.id === id ? { ...a, saindo: true } : a));
     setTimeout(() => removerAviso(id), 300);
   }, tipo === 'erro' ? DURACAO_AVISO.erro : acao ? DURACAO_AVISO.comAcao : DURACAO_AVISO.ok);
   return id;
@@ -93,7 +88,7 @@ function teclaDesfazer(e: KeyboardEvent) {
 
 /** Área dos avisos (uma só, na raiz do app). Também liga o Ctrl+Z. */
 export function Avisos() {
-  const lista = useSyncExternalStore(assinar, () => avisos);
+  const lista = avisos.usar();
   useEffect(() => {
     document.addEventListener('keydown', teclaDesfazer);
     return () => document.removeEventListener('keydown', teclaDesfazer);
