@@ -49,10 +49,10 @@ function PainelEquipe() {
     } catch (e) { falha(e); }
     SD.auditoriaListar(60).then(setRegistro).catch(e => setRegistro((e as Error).message));
   }, []);
-  useEffect(() => { carregar(); }, [carregar]);
-  useMudancas(() => { carregar(); });
+  useEffect(() => { void carregar(); }, [carregar]);
+  useMudancas(() => { void carregar(); });
   // Papéis e situação mudam a equipe que as outras telas mostram.
-  const mudouEquipe = () => { carregar(); recarregar(true); };
+  const mudouEquipe = () => { void carregar(); void recarregar(true); };
 
   const lista = usuarios || [];
   const n = (fn: (u: Usuario) => boolean) => lista.filter(fn).length;
@@ -63,20 +63,20 @@ function PainelEquipe() {
     const antes = u.papel;
     try {
       await SD.equipeDefinirPapel(u.id, papel);
-      feito(`${u.nome} agora é ${PAPEIS[papel].toLowerCase()}.`, 'troca de papel', async () => { await SD.equipeDefinirPapel(u.id, antes); recarregar(true); });
+      feito(`${u.nome} agora é ${PAPEIS[papel].toLowerCase()}.`, 'troca de papel', async () => { await SD.equipeDefinirPapel(u.id, antes); void recarregar(true); });
       mudouEquipe();
-    } catch (e) { falha(e); carregar(); }
+    } catch (e) { falha(e); void carregar(); }
   }
   async function definirAtivo(u: Usuario, ativar: boolean) {
     try {
       await SD.equipeDefinirAtivo(u.id, ativar);
       feito(ativar ? `${u.nome} pode entrar de novo.` : `${u.nome} foi desativado(a) e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
-        ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); recarregar(true); });
+        ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
       mudouEquipe();
     } catch (e) { falha(e); }
   }
   async function cancelarConvite(id: string) {
-    try { await SD.conviteCancelar(id); avisar('Convite cancelado.'); carregar(); }
+    try { await SD.conviteCancelar(id); avisar('Convite cancelado.'); void carregar(); }
     catch (e) { falha(e); }
   }
   // O banco não guarda o código do link: para reenviar, gera um link novo (o anterior deixa de valer).

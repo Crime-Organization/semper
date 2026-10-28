@@ -13,7 +13,7 @@ describe('Janela de confirmação', () => {
 
   it('quando abre, então mostra o título, o texto e as duas escolhas', () => {
     // Quando
-    abrir();
+    void abrir();
     // Então
     expect(screen.getByRole('dialog', { name: 'Excluir pessoa' })).toHaveTextContent('Isso não pode ser desfeito.');
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeInTheDocument();
@@ -55,14 +55,14 @@ describe('Pedir um texto', () => {
 
   it('quando abre, então o campo já vem com o valor atual', () => {
     // Quando
-    abrir();
+    void abrir();
     // Então
     expect(screen.getByRole('textbox', { name: 'Nome da coluna' })).toHaveValue('Orçamento');
   });
 
   it('quando se digita além do limite, então o campo para no limite', async () => {
     // Dado
-    abrir();
+    void abrir();
     const campo = screen.getByRole('textbox', { name: 'Nome da coluna' });
     await userEvent.clear(campo);
     // Quando

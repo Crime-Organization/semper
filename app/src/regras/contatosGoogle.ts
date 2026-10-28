@@ -20,7 +20,7 @@ export function cabecalhoGoogle(telefones = 3, emails = 3) {
  *  celulares antigos de 8 dígitos; número estrangeiro, sem DDD ou incompleto vai como foi digitado. */
 export function telefoneGoogle(v: string) {
   const original = String(v || '').trim();
-  if (/^\+/.test(original) && !/^\+\s*55/.test(original)) return original;
+  if (original.startsWith('+') && !/^\+\s*55/.test(original)) return original;
   let d = dig(original);
   if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
   else if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);

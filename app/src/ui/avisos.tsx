@@ -73,7 +73,7 @@ async function executarDesfazer(item: ItemDesfazer) {
   } catch (e) { falha(e); }
 }
 export function desfazerUltimo() {
-  if (pilha.length) executarDesfazer(pilha[pilha.length - 1]);
+  if (pilha.length) void executarDesfazer(pilha[pilha.length - 1]);
   else avisar('Não há ação para desfazer.');
 }
 /** Mostra o aviso da ação feita, com o botão "Desfazer". */

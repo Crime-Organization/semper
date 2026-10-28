@@ -130,8 +130,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
 
   function mover(c: Coluna, passo: -1 | 1) {
     const visiveis = atuais.current.filter(x => !x.oculta), i = visiveis.findIndex(x => x.id === c.id);
-    if (passo < 0 && i > 0) posicionar(c, visiveis[i - 1]);
-    if (passo > 0 && i < visiveis.length - 1) posicionar(c, visiveis[i + 2] || null);
+    if (passo < 0 && i > 0) void posicionar(c, visiveis[i - 1]);
+    if (passo > 0 && i < visiveis.length - 1) void posicionar(c, visiveis[i + 2] || null);
   }
 
   function ordenarCartoes(colunaId: string | null, ordem: Ordem) {
