@@ -25,3 +25,7 @@ dist/
 
 # Arquivos de trabalho das skills de design
 .taste-skill/
+
+# Resultados dos testes de ponta a ponta (Playwright)
+app/playwright-report/
+app/test-results/

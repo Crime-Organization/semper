@@ -1,6 +1,8 @@
 // Versão de teste da camada de dados, com pessoas fictícias guardadas na aba do navegador.
-// Usada só em "npm run teste". Segue o mesmo contrato de dados/supabase.ts.
+// Usada em "npm run teste" e nos testes (unitários, de componente e de ponta a ponta). Segue o mesmo contrato de dados/supabase.ts.
 // Para recomeçar do zero, rode no console: SEMPER_FALSO.reiniciar()
+// Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
+// ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
   AcessoSigilo, Coluna, Contexto, Convite, Dados, DadosEscritorio, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';

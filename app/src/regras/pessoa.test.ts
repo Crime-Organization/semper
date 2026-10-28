@@ -1,8 +1,11 @@
 // Testes das regras de cadastro: rodam com "npm run verificar" e na rotina de publicação.
 // Se algum falhar, a publicação para e o site no ar continua como estava.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { describe, expect, it } from 'vitest';
-import { cnpjValido, cpfValido, deCNPJws, faltaNoveCelular, fmtTelefone, lerData, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone } from './pessoa';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  cnpjValido, consultarCEP, dig, consultarCNPJ, cpfValido, deCNPJws, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
+  fmtTelefone, lerData, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone
+} from './pessoa';
 
 describe('Documentos', () => {
   describe('Dado um CPF', () => {
@@ -293,5 +296,195 @@ describe('Histórico', () => {
     const mostrado = valorLegivel(campo, valor);
     // Então
     expect(mostrado).toBe(esperado);
+  });
+});
+
+describe('Só os dígitos', () => {
+  it.each([
+    ['529.982.247-25', '52998224725'],
+    ['(38) 99999-1234', '38999991234'],
+    [null, ''],
+    [undefined, '']
+  ])('quando o texto é %j, então sobram só os dígitos "%s"', (texto, esperado) => {
+    // Quando
+    const digitos = dig(texto);
+    // Então
+    expect(digitos).toBe(esperado);
+  });
+});
+
+describe('Formatos de documento e endereço', () => {
+  it.each([
+    ['fmtCPF', fmtCPF, '52998224725', '529.982.247-25'],
+    ['fmtCPF', fmtCPF, '529.982.247-25', '529.982.247-25'],
+    ['fmtCNPJ', fmtCNPJ, '11222333000181', '11.222.333/0001-81'],
+    ['fmtCNPJ', fmtCNPJ, '11.222.333/0001-81', '11.222.333/0001-81'],
+    ['fmtDocumento', fmtDocumento, '52998224725', '529.982.247-25'],
+    ['fmtDocumento', fmtDocumento, '11222333000181', '11.222.333/0001-81'],
+    ['fmtCEP', fmtCEP, '39400121', '39400-121'],
+    ['fmtCEP', fmtCEP, '39400-121', '39400-121']
+  ])('quando %s recebe "%s", então mostra "%s"', (_nome, formatar, entrada, esperado) => {
+    // Quando
+    const mostrado = formatar(entrada);
+    // Então
+    expect(mostrado).toBe(esperado);
+  });
+
+  it.each([
+    ['fmtCPF', fmtCPF],
+    ['fmtCNPJ', fmtCNPJ],
+    ['fmtDocumento', fmtDocumento],
+    ['fmtCEP', fmtCEP]
+  ])('quando %s recebe vazio ou nada, então devolve texto vazio sem quebrar', (_nome, formatar) => {
+    // Quando
+    const vazios = [formatar(''), formatar(null), formatar(undefined)];
+    // Então
+    expect(vazios).toEqual(['', '', '']);
+  });
+
+  it('quando o documento tem um número de dígitos que não é CPF nem CNPJ, então fica como foi digitado', () => {
+    // Quando
+    const mostrado = fmtDocumento('12345');
+    // Então
+    expect(mostrado).toBe('12345');
+  });
+});
+
+describe('Formato de data', () => {
+  it('quando a data vem do banco, então aparece no formato brasileiro', () => {
+    // Quando
+    const mostrada = fmtData('1980-05-10');
+    // Então
+    expect(mostrada).toBe('10/05/1980');
+  });
+
+  it('quando a data vem com horário, então o horário é ignorado', () => {
+    // Quando
+    const mostrada = fmtData('1980-05-10T13:45:00Z');
+    // Então
+    expect(mostrada).toBe('10/05/1980');
+  });
+
+  it.each([[''], [null], ['1980']])('quando a data é %j, então fica vazia', vazia => {
+    // Quando
+    const mostrada = fmtData(vazia);
+    // Então
+    expect(mostrada).toBe('');
+  });
+});
+
+describe('Validação de e-mail', () => {
+  it.each([
+    ['maria@exemplo.com', true],
+    ['  maria@exemplo.com.br  ', true],
+    ['maria.exemplo.com', false],
+    ['maria@exemplo', false],
+    ['maria @exemplo.com', false],
+    ['', false]
+  ])('quando o e-mail é "%s", então a validação dá %s', (email, valido) => {
+    // Quando
+    const resultado = emailValido(email);
+    // Então
+    expect(resultado).toBe(valido);
+  });
+});
+
+describe('Empresa individual', () => {
+  it.each([
+    ['Microempreendedor(a) Individual (MEI)', true],
+    ['Empresário(a) Individual', true],
+    ['Empresária Individual', true],
+    ['  empresário individual ', true],
+    ['Sociedade Empresária Limitada', false],
+    ['', false]
+  ])('quando o tipo de entidade é "%s", então "é individual" dá %s', (tipo, individual) => {
+    // Quando
+    const resultado = ehIndividual(tipo);
+    // Então
+    expect(resultado).toBe(individual);
+  });
+});
+
+// Respostas simuladas da internet: nenhum teste fala com a Receita, a BrasilAPI ou o ViaCEP.
+const resposta = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status });
+const rede = vi.fn<typeof fetch>();
+beforeEach(() => { rede.mockReset(); vi.stubGlobal('fetch', rede); });
+afterEach(() => { vi.unstubAllGlobals(); });
+
+describe('Consultar CNPJ na Receita', () => {
+  it('quando a Receita encontra o CNPJ, então os dados viram campos do cadastro', async () => {
+    // Dado
+    rede.mockResolvedValue(resposta({ razao_social: 'Padaria Exemplo Ltda', estabelecimento: { cidade: { nome: 'Montes Claros' }, estado: { sigla: 'MG' } } }));
+    // Quando
+    const dados = await consultarCNPJ('11.222.333/0001-81');
+    // Então
+    expect(rede).toHaveBeenCalledWith('https://publica.cnpj.ws/cnpj/11222333000181');
+    expect(dados).toMatchObject({ nome: 'PADARIA EXEMPLO LTDA', municipio: 'Montes Claros', uf: 'MG' });
+  });
+
+  it.each([
+    ['a Receita não encontra o CNPJ', resposta({}, 404), 'CNPJ não encontrado na Receita.'],
+    ['há consultas demais seguidas', resposta({}, 429), 'Muitas consultas seguidas. Aguarde um minuto e tente de novo.'],
+    ['a Receita está fora do ar', resposta({}, 500), 'Não foi possível consultar o CNPJ agora.'],
+    ['a resposta vem sem razão social', resposta({}), 'CNPJ não encontrado na Receita.']
+  ])('quando %s, então o erro é "%s"', async (_situacao, respostaDaRede, erro) => {
+    // Dado
+    rede.mockResolvedValue(respostaDaRede);
+    // Quando
+    const consulta = consultarCNPJ('11222333000181');
+    // Então
+    await expect(consulta).rejects.toThrow(erro);
+  });
+});
+
+describe('Consultar CEP', () => {
+  it('quando o CEP não tem 8 dígitos, então nem consulta e avisa', async () => {
+    // Quando
+    const consulta = consultarCEP('3940');
+    // Então
+    await expect(consulta).rejects.toThrow('O CEP tem 8 dígitos.');
+    expect(rede).not.toHaveBeenCalled();
+  });
+
+  it('quando a BrasilAPI encontra o CEP, então o endereço vem dela', async () => {
+    // Dado
+    rede.mockResolvedValue(resposta({ street: 'Rua das Flores', neighborhood: 'Centro', city: 'Montes Claros', state: 'MG' }));
+    // Quando
+    const endereco = await consultarCEP('39400-121');
+    // Então
+    expect(rede).toHaveBeenCalledWith('https://brasilapi.com.br/api/cep/v2/39400121');
+    expect(endereco).toEqual({ logradouro: 'Rua das Flores', bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG' });
+  });
+
+  it.each([
+    ['responde com erro', () => rede.mockResolvedValueOnce(resposta({}, 500))],
+    ['está fora do ar', () => rede.mockRejectedValueOnce(new TypeError('Failed to fetch'))]
+  ])('quando a BrasilAPI %s, então o endereço vem do ViaCEP', async (_situacao, falharBrasilAPI) => {
+    // Dado
+    falharBrasilAPI();
+    rede.mockResolvedValueOnce(resposta({ logradouro: 'Rua das Flores', bairro: 'Centro', localidade: 'Montes Claros', uf: 'MG' }));
+    // Quando
+    const endereco = await consultarCEP('39400121');
+    // Então
+    expect(rede).toHaveBeenLastCalledWith('https://viacep.com.br/ws/39400121/json/');
+    expect(endereco).toEqual({ logradouro: 'Rua das Flores', bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG' });
+  });
+
+  it('quando nenhum dos dois encontra o CEP, então pede para conferir ou preencher à mão', async () => {
+    // Dado
+    rede.mockResolvedValueOnce(resposta({}, 404)).mockResolvedValueOnce(resposta({ erro: true }));
+    // Quando
+    const consulta = consultarCEP('00000000');
+    // Então
+    await expect(consulta).rejects.toThrow('CEP não encontrado. Confira o número ou preencha manualmente.');
+  });
+
+  it('quando os dois estão fora do ar, então pede para preencher o endereço à mão', async () => {
+    // Dado
+    rede.mockRejectedValue(new TypeError('Failed to fetch'));
+    // Quando
+    const consulta = consultarCEP('39400121');
+    // Então
+    await expect(consulta).rejects.toThrow('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
   });
 });
