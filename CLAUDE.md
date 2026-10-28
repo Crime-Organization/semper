@@ -39,14 +39,17 @@ O banco guarda dados reais de clientes. Um erro nele não tem "desfazer".
   Ele roda no navegador, sem login e sem tocar no Supabase. Só use `npm run dev` (banco de verdade)
   quando a pessoa pedir, e avise que ele usa dados reais até existir o banco de desenvolvimento (tarefa #74).
 - **Nunca mude a estrutura do banco pelo painel do Supabase** (criar tabela ou coluna clicando).
-  Toda mudança de estrutura é um arquivo SQL novo no repositório e passa por pull request:
-  - hoje: próximo número em `banco/` (ex.: `banco/009_contratos.sql`); depois da tarefa #75, em `supabase/migrations/`;
-  - nunca edite um script que já foi aplicado: corrija com um script novo.
+  Toda mudança de estrutura é uma **migração nova** em `supabase/migrations/` e passa por pull request:
+  - crie com `supabase migration new <nome>` (ex.: `supabase migration new contratos`), que põe a data no nome;
+  - antes do PR, aplique do zero num banco local: `supabase db start` e `supabase db reset --local --no-seed`
+    (as portas ficam em 553xx, veja `supabase/config.toml`);
+  - nunca edite uma migração que já foi aplicada: corrija com uma migração nova;
+  - quem aplica em produção é uma pessoa (e, depois da #76, a rotina Publicar), nunca o agente.
 - **Toda migração só acrescenta.** Pode criar tabela, coluna, função ou regra. Não pode apagar nem renomear
   no mesmo passo: a versão anterior do site precisa continuar funcionando com o banco novo (é o que permite
   voltar a versão do site). Apagar o que ficou sem uso é uma migração separada, depois.
 - **Toda tabela nova tem `escritorio_id` e regras RLS** que só mostram as linhas do escritório de quem está logado,
-  como as tabelas de `banco/001_base.sql`. Um escritório nunca pode ver dados de outro.
+  como as tabelas de `supabase/migrations/20261024000001_base.sql`. Um escritório nunca pode ver dados de outro.
 - **Só `app/src/dados/supabase.ts` fala com o banco.** Função nova de dados entra no contrato `Dados`
   (`app/src/dados/tipos.ts`, dividido por área: `DadosPessoas`, `DadosEquipe`…), em `supabase.ts` **e** no banco
   fictício `falso.ts`, que precisa se comportar igual (o `contrato.test.ts` confere).
