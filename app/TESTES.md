@@ -88,7 +88,8 @@ test('quando o CPF tem um dígito errado, então o formulário avisa e não segu
 ```bash
 npm install --prefix app                          # primeira vez
 npx --prefix app playwright install chromium      # primeira vez, para os testes de ponta a ponta
-npm run verificar --prefix app                    # tipos + unitários + componentes
+npm run verificar --prefix app                    # tipos + lint + unitários + componentes
+npm run lint --prefix app                         # só o lint
 npm run testar-telas --prefix app                 # ponta a ponta
 ```
 

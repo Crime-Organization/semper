@@ -4,7 +4,7 @@ Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): co
 
 ## Como vai ao ar
 
-O sistema fica em `app/` (React + TypeScript + Vite). Os testes ficam numa rotina própria, `.github/workflows/testes.yml`: tipos, unitários e de componente num job, e os de ponta a ponta em outro, em paralelo (veja [`app/TESTES.md`](app/TESTES.md)). Cada push no `main` e cada pull request passam por `.github/workflows/verificar.yml`, que chama os testes e só compila se todos passarem, mas não publica nada.
+O sistema fica em `app/` (React + TypeScript + Vite). Os testes ficam numa rotina própria, `.github/workflows/testes.yml`, com três jobs em paralelo: tipos e lint, unitários e de componente, e ponta a ponta (veja [`app/TESTES.md`](app/TESTES.md)). Cada push no `main` e cada pull request passam por `.github/workflows/verificar.yml`, que chama os testes e só compila se todos passarem, mas não publica nada.
 
 O site só muda quando sai uma **versão** (`.github/workflows/publicar.yml`):
 
@@ -59,10 +59,16 @@ Com o banco de verdade, em http://localhost:8090/:
 npm run dev --prefix app
 ```
 
-Conferir os tipos e rodar os testes unitários e de componente:
+Conferir os tipos, o lint e rodar os testes unitários e de componente:
 
 ```bash
 npm run verificar --prefix app
+```
+
+Só o lint ([oxlint](https://oxc.rs), regras em `app/.oxlintrc.json`); `npm run build` também passa por ele e para se houver erro:
+
+```bash
+npm run lint --prefix app
 ```
 
 Rodar os testes de ponta a ponta no navegador (sobe o banco fictício sozinho; na primeira vez, instale o navegador com `npx --prefix app playwright install chromium`):
