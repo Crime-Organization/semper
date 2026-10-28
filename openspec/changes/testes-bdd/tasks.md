@@ -53,7 +53,7 @@
 - [x] 7.1 Conferir as rotinas atuais: o `main` já tem `verificar.yml` (envios e pull requests, sem publicar) e `publicar.yml` (só versões `vX.Y.Z`); não é preciso mudar gatilhos
 - [x] 7.2 Acrescentar a instalação do Chromium (`npx playwright install --with-deps chromium`) e o passo `npm run testar-telas` antes de compilar, em `verificar.yml` e em `publicar.yml`
 - [x] 7.3 Enviar `playwright-report/` como anexo da execução quando os testes de ponta a ponta falharem (`actions/upload-artifact`)
-- [ ] 7.4 Abrir o pull request do ramo e confirmar que a rotina roda os três tipos de teste sem publicar
+- [x] 7.4 Abrir o pull request do ramo e confirmar que a rotina roda os três tipos de teste sem publicar
 
 ## 8. Documentação
 
