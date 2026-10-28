@@ -3,10 +3,13 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
+import { ordemNoFim } from '../ui/quadro/posicao';
 import {
-  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
+  cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
   fmtCPF, fmtData, fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
+import { consultarCEP, consultarCNPJ } from '../dados/consultas';
+import { TAMANHO_PESSOA } from '../dados/limites';
 import { falha, feito } from '../ui/avisos';
 import { Botao } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
@@ -380,7 +383,7 @@ export default function NovaPessoa() {
         });
         navegar('/pessoas/?id=' + r.id);
       } else {
-        if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = Date.now() / 1000; }
+        if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
         feito('Pessoa cadastrada.', 'cadastro da pessoa', async () => {
           await SD.pessoasArquivar([r.id], true);
@@ -488,7 +491,7 @@ export default function NovaPessoa() {
           <div className={pc('nome')}>
             <label htmlFor="nome">Nome<span className="req">*</span></label>
             <p className="dica">{pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}</p>
-            {texto('nome', { maximo: 200, maiusculas: true })}
+            {texto('nome', { maximo: TAMANHO_PESSOA.nome, maiusculas: true })}
             {erro('nome')}
           </div>
           {pj && <>
@@ -526,9 +529,9 @@ export default function NovaPessoa() {
             <span className="rot">Nacionalidade</span>
             <div className="escolhas">{radios('nac', [['brasileira', 'Brasileira'], ['outra', 'Outra']],
               v => { if (v === 'outra') setTimeout(() => document.getElementById('nacOutra')?.focus(), 0); })}</div>
-            {c.nac === 'outra' && texto('nacOutra', { maximo: 60, placeholder: 'Ex.: portuguesa' })}
+            {c.nac === 'outra' && texto('nacOutra', { maximo: TAMANHO_PESSOA.nacionalidade, placeholder: 'Ex.: portuguesa' })}
           </div>
-          <div className="pergunta"><label htmlFor="profissao">Profissão</label>{texto('profissao', { maximo: 120 })}</div>
+          <div className="pergunta"><label htmlFor="profissao">Profissão</label>{texto('profissao', { maximo: TAMANHO_PESSOA.profissao })}</div>
           <div className="pergunta">
             <span className="rot">Estado civil</span>
             <div className="escolhas">{radios('ec', Object.entries(ESTADO_CIVIL).map(([k, v]) => [k, v[2]] as [string, string]))}</div>
@@ -542,14 +545,14 @@ export default function NovaPessoa() {
             {erro('cpf')}
           </div>
           <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="rg">RG</label><p className="dica">Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG</p>{texto('rg', { maximo: 60 })}</div>
+            <div className="pergunta"><label htmlFor="rg">RG</label><p className="dica">Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG</p>{texto('rg', { maximo: TAMANHO_PESSOA.rg })}</div>
             <div className={pc('rgExp')}><label htmlFor="rgExp">Data de expedição</label><p className="dica">DD/MM/AAAA</p>{data('rgExp')}{erro('rgExp')}</div>
           </div>
-          <div className="pergunta"><label htmlFor="mae">Nome da mãe</label>{texto('mae', { maximo: 200, maiusculas: true })}</div>
-          <div className="pergunta"><label htmlFor="pai">Nome do pai</label>{texto('pai', { maximo: 200, maiusculas: true })}</div>
+          <div className="pergunta"><label htmlFor="mae">Nome da mãe</label>{texto('mae', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
+          <div className="pergunta"><label htmlFor="pai">Nome do pai</label>{texto('pai', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
           <div className="grade-campos">
             <div className={pc('nasc')}><label htmlFor="nasc">Data de nascimento</label>{data('nasc')}{erro('nasc')}</div>
-            <div className="pergunta"><label htmlFor="nascMun">Município de nascimento</label>{texto('nascMun', { maximo: 120 })}</div>
+            <div className="pergunta"><label htmlFor="nascMun">Município de nascimento</label>{texto('nascMun', { maximo: TAMANHO_PESSOA.municipio })}</div>
             <div className="pergunta"><label htmlFor="nascUf">UF de nascimento</label>{ufs('nascUf')}</div>
           </div>
         </section>}
@@ -567,7 +570,7 @@ export default function NovaPessoa() {
             <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
             {erro('genero')}
           </div>}
-          <div className="pergunta"><label htmlFor="fantasia">Nome fantasia</label>{texto('fantasia', { maximo: 200, maiusculas: true })}</div>
+          <div className="pergunta"><label htmlFor="fantasia">Nome fantasia</label>{texto('fantasia', { maximo: TAMANHO_PESSOA.nomeFantasia, maiusculas: true })}</div>
           <div className="pergunta">
             <span className="rot">Porte</span>
             <p className="dica">Nos casos de MEI, não é preciso marcar.</p>
@@ -586,7 +589,7 @@ export default function NovaPessoa() {
           </div>
           <div className="pergunta"><label htmlFor="representantes">Representante(s) legal(is)</label>
             <p className="dica">Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.</p>
-            {texto('representantes', { maximo: 400, maiusculas: true })}</div>
+            {texto('representantes', { maximo: TAMANHO_PESSOA.representantes, maiusculas: true })}</div>
         </section>}
 
         {etapa === 's-endereco' && <section className="etapa ativa" key={etapa}>
@@ -601,14 +604,14 @@ export default function NovaPessoa() {
             {erro('cep')}
             {retorno(retornoCEP)}
           </div>
-          <div className="pergunta"><label htmlFor="logradouro">Logradouro</label><p className="dica">Rua, avenida, fazenda etc.</p>{texto('logradouro', { maximo: 200 })}</div>
+          <div className="pergunta"><label htmlFor="logradouro">Logradouro</label><p className="dica">Rua, avenida, fazenda etc.</p>{texto('logradouro', { maximo: TAMANHO_PESSOA.logradouro })}</div>
           <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="numero">Número</label><p className="dica">Sem número: S/N</p>{texto('numero', { maximo: 20 })}</div>
-            <div className="pergunta"><label htmlFor="complemento">Complemento</label><p className="dica">Apto, sala, bloco…</p>{texto('complemento', { maximo: 120 })}</div>
+            <div className="pergunta"><label htmlFor="numero">Número</label><p className="dica">Sem número: S/N</p>{texto('numero', { maximo: TAMANHO_PESSOA.numero })}</div>
+            <div className="pergunta"><label htmlFor="complemento">Complemento</label><p className="dica">Apto, sala, bloco…</p>{texto('complemento', { maximo: TAMANHO_PESSOA.complemento })}</div>
           </div>
-          <div className="pergunta"><label htmlFor="bairro">Bairro</label>{texto('bairro', { maximo: 120 })}</div>
+          <div className="pergunta"><label htmlFor="bairro">Bairro</label>{texto('bairro', { maximo: TAMANHO_PESSOA.bairro })}</div>
           <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="municipio">Município</label>{texto('municipio', { maximo: 120 })}</div>
+            <div className="pergunta"><label htmlFor="municipio">Município</label>{texto('municipio', { maximo: TAMANHO_PESSOA.municipio })}</div>
             <div className="pergunta"><label htmlFor="uf">UF</label>{ufs('uf')}</div>
           </div>
         </section>}

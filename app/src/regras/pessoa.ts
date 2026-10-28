@@ -90,12 +90,14 @@ export const fmtCPF = (v: Texto) => { const d = dig(v); return d.length === 11 ?
 export const fmtCNPJ = (v: Texto) => { const d = dig(v); return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? ''); };
 export const fmtDocumento = (v: Texto) => { const d = dig(v); return d.length === 14 ? fmtCNPJ(d) : d.length === 11 ? fmtCPF(d) : String(v ?? ''); };
 export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
+// Tira o código do Brasil (+55) de um número só com dígitos, quando ele vem com DDD e número completos.
+const sem55 = (d: string) => (d.length === 12 || d.length === 13) && d.startsWith('55') ? d.slice(2) : d;
 // Celular antigo, de 8 dígitos (começa com 6 a 9), ganha o 9 da frente: (16) 8201-0240 -> (16) 98201-0240.
 // Também tira o +55 e o 0 antes do DDD.
-const celularCompleto = (v: Texto) => {
-  let d = dig(v);
-  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
-  else if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
+export const celularCompleto = (v: Texto) => {
+  const digitos = dig(v);
+  let d = sem55(digitos);
+  if (d === digitos && (d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
   return d.length === 10 && /[6-9]/.test(d[2]) ? d.slice(0, 2) + '9' + d.slice(2) : d;
 };
 export function fmtTelefone(v: Texto) {
@@ -106,7 +108,7 @@ export function fmtTelefone(v: Texto) {
 }
 /** O número foi digitado sem o 9 do celular (vai ser salvo com ele). */
 export const faltaNoveCelular = (v: Texto) => { const d = dig(v).replace(/^(55|0)(?=\d{10}$)/, ''); return d.length === 10 && /[6-9]/.test(d[2]); };
-export const telefoneNormal = (v: Texto) => { let d = dig(v); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
+export const telefoneNormal = (v: Texto) => sem55(dig(v));
 /** Para achar cadastro repetido: o número com e sem o 9 do celular (cadastros antigos podem estar sem ele). */
 export function variantesTelefone(v: Texto) {
   const d = celularCompleto(v);
@@ -310,7 +312,7 @@ export interface DadosCNPJ {
 }
 
 // Resposta da API (só os campos usados).
-interface RespostaCNPJws {
+export interface RespostaCNPJws {
   razao_social?: string;
   natureza_juridica?: { descricao?: string };
   porte?: { descricao?: string };
@@ -351,47 +353,35 @@ export function deCNPJws(data: RespostaCNPJws): DadosCNPJ {
   };
 }
 
-export async function consultarCNPJ(cnpj: string) {
-  const d = dig(cnpj);
-  const r = await fetch(`https://publica.cnpj.ws/cnpj/${d}`);
-  if (r.status === 404) throw new Error('CNPJ não encontrado na Receita.');
-  if (r.status === 429) throw new Error('Muitas consultas seguidas. Aguarde um minuto e tente de novo.');
-  if (!r.ok) throw new Error('Não foi possível consultar o CNPJ agora.');
-  const data = await r.json() as RespostaCNPJws;
-  if (!data || !data.razao_social) throw new Error('CNPJ não encontrado na Receita.');
-  return deCNPJws(data);
-}
+// CEP: endereço no formato do cadastro, a partir da BrasilAPI (principal) ou do ViaCEP (reserva).
+export interface EnderecoCEP { logradouro: string; bairro: string; municipio: string; uf: string }
+export interface RespostaBrasilAPI { street?: string; neighborhood?: string; city?: string; state?: string }
+export interface RespostaViaCEP { logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean | string }
+export const deBrasilAPI = (x: RespostaBrasilAPI): EnderecoCEP =>
+  ({ logradouro: x.street || '', bairro: x.neighborhood || '', municipio: x.city || '', uf: x.state || '' });
+export const deViaCEP = (x: RespostaViaCEP): EnderecoCEP =>
+  ({ logradouro: x.logradouro || '', bairro: x.bairro || '', municipio: x.localidade || '', uf: x.uf || '' });
 
-// CEP: BrasilAPI (principal) e ViaCEP (reserva).
-export async function consultarCEP(cep: string) {
-  const d = dig(cep);
-  if (d.length !== 8) throw new Error('O CEP tem 8 dígitos.');
-  try {
-    const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${d}`);
-    if (r.ok) { const x = await r.json(); return { logradouro: x.street || '', bairro: x.neighborhood || '', municipio: x.city || '', uf: x.state || '' }; }
-  } catch { /* tenta a reserva */ }
-  let x;
-  try { x = await (await fetch(`https://viacep.com.br/ws/${d}/json/`)).json(); }
-  catch { throw new Error('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.'); }
-  if (!x || x.erro) throw new Error('CEP não encontrado. Confira o número ou preencha manualmente.');
-  return { logradouro: x.logradouro || '', bairro: x.bairro || '', municipio: x.localidade || '', uf: x.uf || '' };
-}
+// Como cada campo aparece no histórico e no cartão. Campo novo com formato próprio é uma linha nova aqui;
+// os demais aparecem como foram gravados (listas separadas por vírgula).
+const LEGIVEL: Record<string, (s: string, v: unknown) => string> = {
+  tipo: s => TIPOS[s as TipoPessoa] || s,
+  genero: s => s === 'm' ? 'Masculino' : s === 'f' ? 'Feminino' : s,
+  estado_civil: s => ESTADO_CIVIL[s]?.[2] || s,
+  natureza: s => NATUREZAS[s] || s,
+  porte: s => PORTES[s] || s,
+  lgpd_base: s => LGPD[s] || s,
+  documento: fmtDocumento,
+  cep: fmtCEP,
+  telefones: (s, v) => Array.isArray(v) ? v.map(fmtTelefone).join(', ') : s,
+  arquivado_em: () => 'Arquivado',
+  rg_expedicao: fmtData, nascimento: fmtData, abertura: fmtData, lgpd_consentimento: fmtData
+};
 
-// Valor legível de um campo (para histórico e cartão).
 export function valorLegivel(campo: string, v: unknown): string {
   if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) return '—';
   const s = String(v);
-  if (campo === 'tipo') return TIPOS[s as TipoPessoa] || s;
-  if (campo === 'genero') return v === 'm' ? 'Masculino' : v === 'f' ? 'Feminino' : s;
-  if (campo === 'estado_civil') return ESTADO_CIVIL[s]?.[2] || s;
-  if (campo === 'natureza') return NATUREZAS[s] || s;
-  if (campo === 'porte') return PORTES[s] || s;
-  if (campo === 'lgpd_base') return LGPD[s] || s;
-  if (campo === 'documento') return fmtDocumento(s);
-  if (campo === 'cep') return fmtCEP(s);
-  if (campo === 'telefones' && Array.isArray(v)) return v.map(fmtTelefone).join(', ');
-  if (campo === 'emails' && Array.isArray(v)) return v.join(', ');
-  if (campo === 'arquivado_em') return 'Arquivado';
-  if (['rg_expedicao', 'nascimento', 'abertura', 'lgpd_consentimento'].includes(campo)) return fmtData(s);
+  const formatar = LEGIVEL[campo];
+  if (formatar) return formatar(s, v);
   return Array.isArray(v) ? v.join(', ') : s;
 }

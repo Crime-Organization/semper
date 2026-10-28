@@ -175,9 +175,12 @@ export interface CadastroDuasEtapas { id: string; qr: string; segredo: string }
 /** Tipos de link enviados por e-mail (parâmetro "type" do link). */
 export type TipoLink = 'email' | 'recovery' | 'email_change';
 
-/** Contrato da camada de dados: as telas só conversam com o banco por aqui. */
-export interface Dados {
-  // sessão
+// Contrato da camada de dados: as telas só conversam com o banco por aqui. É dividido por área, para cada tela
+// ou peça poder depender só da parte que usa (ex.: Pick<DadosPessoas, 'pessoasListar'>). supabase.ts e falso.ts
+// implementam o contrato inteiro (Dados), e contrato.test.ts confere que se comportam igual.
+
+/** Sessão, conta e preferências de quem entrou. */
+export interface DadosSessao {
   sessao(): Promise<{ user: { id: string; email?: string } } | null>;
   entrar(email: string, senha: string): Promise<void>;
   /** Cria a conta pelo convite: além do e-mail, vai o código do link que o convidado recebeu. */
@@ -189,8 +192,12 @@ export interface Dados {
   sair(): Promise<void>;
   aoMudarSessao(cb: (evento: string) => void): () => void;
   contexto(forcar?: boolean): Promise<Contexto | null>;
+  salvarPerfil(campos: Partial<Pick<Perfil, 'nome' | 'usuario' | 'cor'>>): Promise<void>;
+  salvarPreferencia(chave: string, valor: unknown): Promise<void>;
+}
 
-  // verificação em duas etapas
+/** Verificação em duas etapas. */
+export interface DadosDuasEtapas {
   duasEtapasFatores(): Promise<FatorDuasEtapas[]>;
   duasEtapasIniciar(): Promise<CadastroDuasEtapas>;
   duasEtapasConfirmar(id: string, codigo: string): Promise<void>;
@@ -198,11 +205,10 @@ export interface Dados {
   /** A pessoa entrou só com a senha e tem a verificação ativa: falta o código do aplicativo. */
   duasEtapasPendente(): Promise<boolean>;
   duasEtapasEntrar(codigo: string): Promise<void>;
+}
 
-  salvarPerfil(campos: Partial<Pick<Perfil, 'nome' | 'usuario' | 'cor'>>): Promise<void>;
-  salvarPreferencia(chave: string, valor: unknown): Promise<void>;
-
-  // pessoas
+/** Cadastro de pessoas. */
+export interface DadosPessoas {
   pessoasListar(f?: FiltroPessoas): Promise<Pagina<PessoaLista>>;
   /** Todas as pessoas do filtro (sem paginar), com o cadastro completo, em ordem de nome: para exportar. */
   pessoasExportar(f?: FiltroPessoas): Promise<Pessoa[]>;
@@ -219,15 +225,19 @@ export interface Dados {
   responsavelIncluir(pessoaId: string, perfilId: string): Promise<void>;
   responsavelRemover(pessoaId: string, perfilId: string): Promise<void>;
   pessoasResumo(): Promise<ResumoPessoas>;
+}
 
-  // informações sigilosas
+/** Informações sigilosas de uma pessoa. */
+export interface DadosSigilo {
   sigilosListar(pessoaId: string): Promise<Sigilo[]>;
   sigiloSalvar(pessoaId: string, texto: string, id?: string | null): Promise<string>;
   sigiloApagar(id: string): Promise<void>;
   sigiloAcessos(pessoaId: string): Promise<AcessoSigilo[]>;
   sigiloConceder(pessoaId: string, perfilId: string, conceder?: boolean): Promise<void>;
+}
 
-  // vínculos entre pessoas
+/** Vínculos entre pessoas. */
+export interface DadosVinculos {
   vinculoTiposListar(): Promise<VinculoTipo[]>;
   vinculoTipoCriar(nome: string, inverso: string): Promise<VinculoTipo>;
   vinculosListar(pessoaId: string): Promise<Vinculo[]>;
@@ -235,8 +245,10 @@ export interface Dados {
   vinculoApagar(id: string): Promise<void>;
   /** Representantes vinculados das pessoas jurídicas indicadas (para a qualificação delas). */
   representantesVinculados(pjIds: string[]): Promise<RepresentanteVinculado[]>;
+}
 
-  // quadros (kanban)
+/** Colunas dos quadros (kanban). */
+export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
   sugestoesListar(modulo: Modulo): Promise<string[]>;
   colunaCriar(modulo: Modulo, nome: string, ordem: number): Promise<Coluna>;
@@ -244,8 +256,10 @@ export interface Dados {
   colunaRenomear(id: string, nome: string): Promise<void>;
   colunaOrdenar(id: string, ordem: number): Promise<void>;
   colunaExcluir(id: string): Promise<void>;
+}
 
-  // equipe e administração
+/** Equipe, convites, registro de ações e dados do escritório (administração). */
+export interface DadosEquipe {
   equipeListar(): Promise<Usuario[]>;
   conviteCriar(pessoaId: string, email: string, papel: Papel): Promise<ConviteCriado>;
   /** Link novo para um convite pendente (o anterior deixa de valer). Devolve o código. */
@@ -261,3 +275,5 @@ export interface Dados {
   /** Salva os dados da instituição (só administradores). logo ausente mantém a atual; null a remove. */
   escritorioSalvar(dados: Omit<DadosEscritorio, 'logo'> & { logo?: string | null }): Promise<void>;
 }
+
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosQuadros, DadosEquipe {}

@@ -5,6 +5,7 @@ import { Link, Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
+import { REGISTRO_DE_ACOES } from '../dados/limites';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -47,7 +48,7 @@ function PainelEquipe() {
       const [u, c] = await Promise.all([SD.equipeListar(), SD.convitesListar()]);
       setUsuarios(u); setConvites(c);
     } catch (e) { falha(e); }
-    SD.auditoriaListar(60).then(setRegistro).catch(e => setRegistro((e as Error).message));
+    SD.auditoriaListar(REGISTRO_DE_ACOES).then(setRegistro).catch(e => setRegistro((e as Error).message));
   }, []);
   useEffect(() => { void carregar(); }, [carregar]);
   useMudancas(() => { void carregar(); });

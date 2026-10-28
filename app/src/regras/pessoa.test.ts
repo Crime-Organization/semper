@@ -1,9 +1,9 @@
 // Testes das regras de cadastro: rodam com "npm run verificar" e na rotina de publicação.
 // Se algum falhar, a publicação para e o site no ar continua como estava.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  cnpjValido, consultarCEP, dig, consultarCNPJ, cpfValido, deCNPJws, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
+  cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
   fmtTelefone, lerData, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone
 } from './pessoa';
 
@@ -290,7 +290,30 @@ describe('Histórico', () => {
     ['documento', '52998224725', '529.982.247-25'],
     ['estado_civil', 'viuvo', 'viúvo(a)'],
     ['nascimento', '1980-05-10', '10/05/1980'],
-    ['emails', [], '—']
+    ['emails', [], '—'],
+    ['tipo', 'pj', 'Pessoa jurídica'],
+    ['tipo', 'outro', 'outro'],
+    ['genero', 'm', 'Masculino'],
+    ['genero', 'f', 'Feminino'],
+    ['genero', 'x', 'x'],
+    ['estado_civil', 'desconhecido', 'desconhecido'],
+    ['natureza', 'sem_fins', 'Entidades sem fins lucrativos'],
+    ['porte', 'epp', 'Empresa de pequeno porte'],
+    ['lgpd_base', 'contrato', 'Execução de contrato ou procedimentos preliminares (art. 7º, V)'],
+    ['documento', '11222333000181', '11.222.333/0001-81'],
+    ['cep', '39400121', '39400-121'],
+    ['telefones', ['38999991234', '3832220000'], '(38) 99999-1234, (38) 3222-0000'],
+    ['telefones', '38999991234', '38999991234'],
+    ['emails', ['a@b.com', 'c@d.com'], 'a@b.com, c@d.com'],
+    ['arquivado_em', '2026-10-28T10:00:00Z', 'Arquivado'],
+    ['rg_expedicao', '2001-02-03', '03/02/2001'],
+    ['abertura', '2010-03-01', '01/03/2010'],
+    ['lgpd_consentimento', '2026-01-15', '15/01/2026'],
+    ['profissao', 'professora', 'professora'],
+    ['outro_campo', ['x', 'y'], 'x, y'],
+    ['nome', null, '—'],
+    ['nome', undefined, '—'],
+    ['nome', '', '—']
   ])('quando o campo %s mudou para %j, então o histórico mostra "%s"', (campo, valor, esperado) => {
     // Quando
     const mostrado = valorLegivel(campo, valor);
@@ -405,86 +428,28 @@ describe('Empresa individual', () => {
   });
 });
 
-// Respostas simuladas da internet: nenhum teste fala com a Receita, a BrasilAPI ou o ViaCEP.
-const resposta = (corpo: unknown, status = 200) => new Response(JSON.stringify(corpo), { status });
-const rede = vi.fn<typeof fetch>();
-beforeEach(() => { rede.mockReset(); vi.stubGlobal('fetch', rede); });
-afterEach(() => { vi.unstubAllGlobals(); });
-
-describe('Consultar CNPJ na Receita', () => {
-  it('quando a Receita encontra o CNPJ, então os dados viram campos do cadastro', async () => {
-    // Dado
-    rede.mockResolvedValue(resposta({ razao_social: 'Padaria Exemplo Ltda', estabelecimento: { cidade: { nome: 'Montes Claros' }, estado: { sigla: 'MG' } } }));
+describe('Endereço a partir do CEP', () => {
+  it('quando a resposta vem da BrasilAPI, então vira os campos de endereço do cadastro', () => {
     // Quando
-    const dados = await consultarCNPJ('11.222.333/0001-81');
+    const endereco = deBrasilAPI({ street: 'Rua das Flores', neighborhood: 'Centro', city: 'Montes Claros', state: 'MG' });
     // Então
-    expect(rede).toHaveBeenCalledWith('https://publica.cnpj.ws/cnpj/11222333000181');
-    expect(dados).toMatchObject({ nome: 'PADARIA EXEMPLO LTDA', municipio: 'Montes Claros', uf: 'MG' });
+    expect(endereco).toEqual({ logradouro: 'Rua das Flores', bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG' });
   });
 
-  it.each([
-    ['a Receita não encontra o CNPJ', resposta({}, 404), 'CNPJ não encontrado na Receita.'],
-    ['há consultas demais seguidas', resposta({}, 429), 'Muitas consultas seguidas. Aguarde um minuto e tente de novo.'],
-    ['a Receita está fora do ar', resposta({}, 500), 'Não foi possível consultar o CNPJ agora.'],
-    ['a resposta vem sem razão social', resposta({}), 'CNPJ não encontrado na Receita.']
-  ])('quando %s, então o erro é "%s"', async (_situacao, respostaDaRede, erro) => {
-    // Dado
-    rede.mockResolvedValue(respostaDaRede);
+  it('quando a resposta vem do ViaCEP, então vira os mesmos campos', () => {
     // Quando
-    const consulta = consultarCNPJ('11222333000181');
+    const endereco = deViaCEP({ logradouro: 'Rua das Flores', bairro: 'Centro', localidade: 'Montes Claros', uf: 'MG' });
     // Então
-    await expect(consulta).rejects.toThrow(erro);
-  });
-});
-
-describe('Consultar CEP', () => {
-  it('quando o CEP não tem 8 dígitos, então nem consulta e avisa', async () => {
-    // Quando
-    const consulta = consultarCEP('3940');
-    // Então
-    await expect(consulta).rejects.toThrow('O CEP tem 8 dígitos.');
-    expect(rede).not.toHaveBeenCalled();
-  });
-
-  it('quando a BrasilAPI encontra o CEP, então o endereço vem dela', async () => {
-    // Dado
-    rede.mockResolvedValue(resposta({ street: 'Rua das Flores', neighborhood: 'Centro', city: 'Montes Claros', state: 'MG' }));
-    // Quando
-    const endereco = await consultarCEP('39400-121');
-    // Então
-    expect(rede).toHaveBeenCalledWith('https://brasilapi.com.br/api/cep/v2/39400121');
     expect(endereco).toEqual({ logradouro: 'Rua das Flores', bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG' });
   });
 
   it.each([
-    ['responde com erro', () => rede.mockResolvedValueOnce(resposta({}, 500))],
-    ['está fora do ar', () => rede.mockRejectedValueOnce(new TypeError('Failed to fetch'))]
-  ])('quando a BrasilAPI %s, então o endereço vem do ViaCEP', async (_situacao, falharBrasilAPI) => {
-    // Dado
-    falharBrasilAPI();
-    rede.mockResolvedValueOnce(resposta({ logradouro: 'Rua das Flores', bairro: 'Centro', localidade: 'Montes Claros', uf: 'MG' }));
+    ['BrasilAPI', deBrasilAPI],
+    ['ViaCEP', deViaCEP]
+  ])('quando a resposta da %s vem sem algum campo, então ele fica em branco', (_fonte, converter) => {
     // Quando
-    const endereco = await consultarCEP('39400121');
+    const endereco = converter({});
     // Então
-    expect(rede).toHaveBeenLastCalledWith('https://viacep.com.br/ws/39400121/json/');
-    expect(endereco).toEqual({ logradouro: 'Rua das Flores', bairro: 'Centro', municipio: 'Montes Claros', uf: 'MG' });
-  });
-
-  it('quando nenhum dos dois encontra o CEP, então pede para conferir ou preencher à mão', async () => {
-    // Dado
-    rede.mockResolvedValueOnce(resposta({}, 404)).mockResolvedValueOnce(resposta({ erro: true }));
-    // Quando
-    const consulta = consultarCEP('00000000');
-    // Então
-    await expect(consulta).rejects.toThrow('CEP não encontrado. Confira o número ou preencha manualmente.');
-  });
-
-  it('quando os dois estão fora do ar, então pede para preencher o endereço à mão', async () => {
-    // Dado
-    rede.mockRejectedValue(new TypeError('Failed to fetch'));
-    // Quando
-    const consulta = consultarCEP('39400121');
-    // Então
-    await expect(consulta).rejects.toThrow('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
+    expect(endereco).toEqual({ logradouro: '', bairro: '', municipio: '', uf: '' });
   });
 });

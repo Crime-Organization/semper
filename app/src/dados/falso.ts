@@ -6,7 +6,10 @@
 import type {
   AcessoSigilo, Coluna, Contexto, Convite, Dados, DadosEscritorio, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
-import { TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { normal } from '../regras/texto';
+import { POR_COLUNA, POR_PAGINA } from './limites';
+import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -14,8 +17,6 @@ const novoId = () => crypto.randomUUID();
 const codigo = () => Math.random().toString(16).slice(2, 10).toUpperCase().padEnd(8, '0');
 const codigoConvite = () => [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
 const agora = () => new Date().toISOString();
-const semAcento = (t: unknown) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const telNormal = (t: unknown) => { let d = String(t || '').replace(/\D/g, ''); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
 
 type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string };
 const EQUIPE: MembroFalso[] = [
@@ -61,7 +62,7 @@ function semente(): Banco {
   const cpfs = ['52998224725', '11144477735', '39053344705', '74682489070', '12345678909', '98765432100', '04746201094', '61236758012'];
   const cnpjs = ['11625970000107', '11222333000181', '45723174000110'];
   const pessoas: Pessoa[] = [];
-  const dia = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+  const dia = (n: number) => new Date(Date.now() - n * DIA).toISOString();
   const p = (dados: Partial<Pessoa>) => pessoas.push(Object.assign({
     id: novoId(), codigo: codigo(), tipo: 'pf', nome: '', genero: null, nacionalidade: null, profissao: null, estado_civil: null, rg: null, rg_expedicao: null,
     nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null, natureza: null, tipo_entidade: null,
@@ -109,12 +110,12 @@ gravar();
 const eu = 'u-master';
 const auditar = (tabela: string, acao: string, p?: Pessoa) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo }, feito_por: eu, em: agora() });
-const busca = (p: Pessoa) => semAcento([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telNormal), ...(p.emails || []), p.municipio].join(' '));
+const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
   const t = String(texto || '').trim();
   if (!t) return '';
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
-  return semAcento(t);
+  return normal(t);
 }
 function filtrar(f: FiltroPessoas = {}) {
   const t = termo(f.termo);
@@ -192,11 +193,11 @@ export const SD: Dados = {
   async pessoasListar(f = {}) {
     let r = filtrar(f);
     r = r.sort(ORDENS[f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome']);
-    const por = f.porPagina || 50, de = (f.pagina || 0) * por;
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     return espera({ linhas: r.slice(de, de + por).map(lista), total: r.length });
   },
   pessoasExportar: (f = {}) => espera(filtrar(f).sort(ORDENS.nome)),
-  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
+  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrar(f).filter(p => (p.etapa_id || null) === (etapaId || null))
       .sort(ORDENS[f.ordem || 'manual']);
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(lista), total: r.length });
@@ -207,8 +208,8 @@ export const SD: Dados = {
     return espera(p ? { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em } : null);
   },
   pessoasPorTelefones: (tels, exceto) => {
-    const t = tels.map(telNormal).filter(x => x.length >= 8);
-    return espera(bd.pessoas.filter(p => p.id !== exceto && p.telefones.some(x => t.includes(telNormal(x)))).slice(0, 5)
+    const t = tels.map(telefoneNormal).filter(x => x.length >= 8);
+    return espera(bd.pessoas.filter(p => p.id !== exceto && p.telefones.some(x => t.includes(telefoneNormal(x)))).slice(0, 5)
       .map(p => ({ id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo })));
   },
   async pessoaCriar(dados, resp) {
@@ -292,7 +293,7 @@ export const SD: Dados = {
 
   vinculoTiposListar: () => espera(bd.tiposVinculo!.slice().sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome))),
   async vinculoTipoCriar(nome, inverso) {
-    if (bd.tiposVinculo!.some(t => semAcento(t.nome) === semAcento(nome) && semAcento(t.inverso) === semAcento(inverso || nome))) return erro('Esse tipo de vínculo já existe.');
+    if (bd.tiposVinculo!.some(t => normal(t.nome) === normal(nome) && normal(t.inverso) === normal(inverso || nome))) return erro('Esse tipo de vínculo já existe.');
     const t: VinculoTipo = { id: novoId(), escritorio_id: 'e1', nome: nome.trim(), inverso: (inverso || nome).trim(), ordem: 500 };
     bd.tiposVinculo!.push(t); gravar(); return espera(t);
   },
@@ -321,7 +322,7 @@ export const SD: Dados = {
   colunasListar: () => espera(bd.colunas.slice().sort((a, b) => a.ordem - b.ordem).map(c => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),
   sugestoesListar: () => espera(ETAPAS),
   async colunaCriar(_modulo, nome, ordem) {
-    if (bd.colunas.some(c => semAcento(c.nome) === semAcento(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
+    if (bd.colunas.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
     const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu }; bd.colunas.push(c); gravar(); return espera({ ...c, oculta: false });
   },
   async colunaOcultar(id, ocultar) { bd.ocultas = ocultar ? [...new Set([...bd.ocultas, id])] : bd.ocultas.filter(x => x !== id); gravar(); },
@@ -332,6 +333,8 @@ export const SD: Dados = {
   equipeListar: () => espera(EQUIPE.map(m => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
+    // Como o índice convites_email_pendente do banco: um só convite pendente por e-mail.
+    if (bd.convites.some(c => c.email.toLowerCase() === email.toLowerCase())) return erro('Este e-mail já tem um convite pendente.');
     const c: Convite = { id: novoId(), email, nome: p.nome, papel, pessoa_id: pid, criado_em: agora() }; bd.convites.unshift(c); gravar();
     return espera({ ...c, codigo: codigoConvite() });
   },

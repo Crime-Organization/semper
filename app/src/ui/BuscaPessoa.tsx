@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { SD, type PessoaLista } from '../dados';
+import { ACHADOS_DA_BUSCA } from '../dados/limites';
 import { fmtDocumento, TIPOS } from '../regras/pessoa';
 import { falha } from './avisos';
 import { useAtrasado } from './util';
@@ -20,7 +21,7 @@ interface Props {
 
 export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placeholder = 'Busque pelo nome, CPF/CNPJ ou telefone', focar }: Props) {
   const [termo, setTermo] = useState('');
-  const buscado = useAtrasado(termo, 300);
+  const buscado = useAtrasado(termo);
   const [achados, setAchados] = useState<PessoaLista[] | null>(null);
   const [aberta, setAberta] = useState(false);
   const campo = useRef<HTMLInputElement>(null);
@@ -31,7 +32,7 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
     const t = buscado.trim();
     if (t.length < 2) { setAchados(null); return; }
     let vivo = true;
-    SD.pessoasListar({ termo: t, porPagina: 8 }).then(r => { if (vivo) setAchados(r.linhas); }).catch(falha);
+    SD.pessoasListar({ termo: t, porPagina: ACHADOS_DA_BUSCA }).then(r => { if (vivo) setAchados(r.linhas); }).catch(falha);
     return () => { vivo = false; };
   }, [buscado]);
   useEffect(() => {

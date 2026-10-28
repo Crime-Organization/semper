@@ -1,6 +1,7 @@
 // Avisos rápidos, desfazer (Ctrl+Z) e o sinal de "dados mudaram".
 // Funções comuns (não dependem de componente): qualquer tela chama avisar(), falha() ou feito().
 import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { DURACAO_AVISO } from './tempos';
 
 type TipoAviso = 'ok' | 'erro' | 'info';
 interface Aviso { id: number; texto: string; tipo: TipoAviso; acao?: { rotulo: string; fn: () => void }; saindo?: boolean }
@@ -25,7 +26,7 @@ export function avisar(texto: string, tipo: TipoAviso = 'ok', acao?: Aviso['acao
     avisos = avisos.map(a => a.id === id ? { ...a, saindo: true } : a);
     emitir();
     setTimeout(() => removerAviso(id), 300);
-  }, tipo === 'erro' ? 6000 : acao ? 8000 : 3500);
+  }, tipo === 'erro' ? DURACAO_AVISO.erro : acao ? DURACAO_AVISO.comAcao : DURACAO_AVISO.ok);
   return id;
 }
 export const falha = (e: unknown) => avisar((e as Error)?.message || 'Não foi possível concluir agora.', 'erro');

@@ -1,6 +1,7 @@
 // Utilidades de texto, datas e título da página.
 import { useEffect, useState } from 'react';
 import { MARCA } from '../marca';
+import { DIA, ESPERA_AO_DIGITAR, HORA, MINUTO } from './tempos';
 import type { Papel } from '../dados';
 
 export const PAPEIS: Record<Papel, string> = { master: 'Master', admin: 'Administrador', usuario: 'Usuário' };
@@ -9,17 +10,15 @@ export const dataCurta = (iso?: string | null) => iso ? new Date(iso).toLocaleDa
 export const dataHora = (iso?: string | null) => iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 export function relativo(iso?: string | null) {
   if (!iso) return '';
-  const s = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (s < 60) return 'agora';
-  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
-  if (s < 86400 * 7) { const d = Math.floor(s / 86400); return d === 1 ? 'ontem' : `há ${d} dias`; }
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < MINUTO) return 'agora';
+  if (ms < HORA) return `há ${Math.floor(ms / MINUTO)} min`;
+  if (ms < DIA) return `há ${Math.floor(ms / HORA)} h`;
+  if (ms < 7 * DIA) { const d = Math.floor(ms / DIA); return d === 1 ? 'ontem' : `há ${d} dias`; }
   return dataCurta(iso);
 }
 export const numero = (n: number) => n.toLocaleString('pt-BR');
 
-/** Texto comparável: sem acentos, sem espaços nas pontas, em minúsculas. */
-export const normal = (t: unknown) => String(t || '').trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Título da aba do navegador: "Pessoas · SEMPER". */
 export function useTitulo(nome: string) {
@@ -27,7 +26,7 @@ export function useTitulo(nome: string) {
 }
 
 /** Valor que só muda depois de um tempo parado (ex.: busca enquanto digita). */
-export function useAtrasado<T>(valor: T, ms = 350) {
+export function useAtrasado<T>(valor: T, ms = ESPERA_AO_DIGITAR) {
   const [atrasado, setAtrasado] = useState(valor);
   useEffect(() => { const t = setTimeout(() => setAtrasado(valor), ms); return () => clearTimeout(t); }, [valor, ms]);
   return atrasado;

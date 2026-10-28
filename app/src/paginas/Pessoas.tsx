@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
+import { POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { Avatares } from '../ui/Avatar';
@@ -21,7 +22,6 @@ import { baixarArquivo, dataCurta, numero, relativo, useTitulo } from '../ui/uti
 import { CartaoPessoa } from './CartaoPessoa';
 import './Pessoas.css';
 
-const POR_PAGINA = 50;
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
 
 export default function Pessoas() {

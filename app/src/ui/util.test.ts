@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dataCurta, dataHora, normal, numero, relativo } from './util';
+import { dataCurta, dataHora, numero, relativo } from './util';
 
 describe('Datas na tela', () => {
   it('quando a data vem do banco, então aparece como dia/mês/ano no fuso de Brasília', () => {
@@ -58,19 +58,5 @@ describe('Números na tela', () => {
     const mostrado = numero(1234567.5);
     // Então
     expect(mostrado).toBe('1.234.567,5');
-  });
-});
-
-describe('Busca sem acento', () => {
-  it.each([
-    ['  José da Conceição ', 'jose da conceicao'],
-    ['ÁGUA', 'agua'],
-    [null, ''],
-    [42, '42']
-  ])('quando o texto é %j, então a forma comparável é "%s"', (texto, esperado) => {
-    // Quando
-    const comparavel = normal(texto);
-    // Então
-    expect(comparavel).toBe(esperado);
   });
 });

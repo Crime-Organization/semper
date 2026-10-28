@@ -4,7 +4,9 @@
 import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
-import { cnpjValido, consultarCEP, consultarCNPJ, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
+import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
+import { consultarCEP, consultarCNPJ } from '../dados/consultas';
+import { TAMANHO_ESCRITORIO } from '../dados/limites';
 import { avisar, falha, feito } from '../ui/avisos';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
@@ -191,8 +193,8 @@ function Instituicao() {
           </div>
         </div>
         <div className="grade-form">
-          {campo('nome', 'Nome do escritório', { maxLength: 120, autoComplete: 'organization', required: true, tam: { g: 8 } })}
-          {campo('oab_registro', 'Registro na OAB', { placeholder: 'da sociedade, ex.: OAB/MG 1.234', maxLength: 60, tam: { m: 5, g: 4 } })}
+          {campo('nome', 'Nome do escritório', { maxLength: TAMANHO_ESCRITORIO.nome, autoComplete: 'organization', required: true, tam: { g: 8 } })}
+          {campo('oab_registro', 'Registro na OAB', { placeholder: 'da sociedade, ex.: OAB/MG 1.234', maxLength: TAMANHO_ESCRITORIO.oab_registro, tam: { m: 5, g: 4 } })}
           {campo('cnpj', 'CNPJ', {
             inputMode: 'numeric', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)), tam: { m: 7, g: 8 },
             junto: <button type="button" className="btn" onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
@@ -204,11 +206,11 @@ function Instituicao() {
         <h2 className="secao" id="tEnd">Endereço</h2>
         <div className="grade-form">
           {campo('cep', 'CEP', { inputMode: 'numeric', onChange: e => mudarCEP(e.target.value), dica: buscando === 'cep' ? 'consultando…' : undefined, tam: { p: 6, m: 4, g: 3 } })}
-          {campo('logradouro', 'Logradouro', { maxLength: 200, tam: { m: 8, g: 7 } })}
-          {campo('numero', 'Número', { maxLength: 20, ref: campoNumero, tam: { p: 4, m: 3, g: 2 } })}
-          {campo('complemento', 'Complemento', { maxLength: 100, tam: { p: 8, m: 4, g: 3 } })}
-          {campo('bairro', 'Bairro', { maxLength: 100, tam: { m: 5, g: 4 } })}
-          {campo('municipio', 'Município', { maxLength: 100, tam: { p: 8, m: 8, g: 3 } })}
+          {campo('logradouro', 'Logradouro', { maxLength: TAMANHO_ESCRITORIO.logradouro, tam: { m: 8, g: 7 } })}
+          {campo('numero', 'Número', { maxLength: TAMANHO_ESCRITORIO.numero, ref: campoNumero, tam: { p: 4, m: 3, g: 2 } })}
+          {campo('complemento', 'Complemento', { maxLength: TAMANHO_ESCRITORIO.complemento, tam: { p: 8, m: 4, g: 3 } })}
+          {campo('bairro', 'Bairro', { maxLength: TAMANHO_ESCRITORIO.bairro, tam: { m: 5, g: 4 } })}
+          {campo('municipio', 'Município', { maxLength: TAMANHO_ESCRITORIO.municipio, tam: { p: 8, m: 8, g: 3 } })}
           <div className="campo-form" style={colunas({ p: 4, m: 4, g: 2 })}>
             <label htmlFor="cfg-uf">UF</label>
             <select id="cfg-uf" value={f.uf} onChange={e => mudar('uf', e.target.value)}>
@@ -223,8 +225,8 @@ function Instituicao() {
         <h2 className="secao" id="tCont">Contato</h2>
         <div className="grade-form">
           {campo('telefone', 'Telefone', { inputMode: 'tel', autoComplete: 'tel', onChange: e => mudar('telefone', MASCARAS.telefone(e.target.value)), tam: { m: 6, g: 3 } })}
-          {campo('email', 'E-mail', { type: 'email', autoComplete: 'email', maxLength: 200, tam: { m: 6, g: 5 } })}
-          {campo('site', 'Site', { inputMode: 'url', placeholder: 'www.escritorio.adv.br', maxLength: 200, tam: { g: 4 } })}
+          {campo('email', 'E-mail', { type: 'email', autoComplete: 'email', maxLength: TAMANHO_ESCRITORIO.email, tam: { m: 6, g: 5 } })}
+          {campo('site', 'Site', { inputMode: 'url', placeholder: 'www.escritorio.adv.br', maxLength: TAMANHO_ESCRITORIO.site, tam: { g: 4 } })}
         </div>
       </section>
 

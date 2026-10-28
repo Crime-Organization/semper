@@ -6,6 +6,7 @@ import { SD, type ContextoAtivo } from '../dados';
 import { iniciarPreferencias } from './preferencias';
 import { aplicarTema, type Tema } from './tema';
 import { Casca } from './Casca';
+import { MINUTO } from './tempos';
 
 interface Sessao {
   ctx: ContextoAtivo;
@@ -21,7 +22,7 @@ export function useSessao() {
 }
 export const useCtx = () => useSessao().ctx;
 
-const RENOVAR_APOS = 10 * 60 * 1000;   // relê a equipe e o próprio acesso ao trocar de tela depois de 10 min
+const RENOVAR_APOS = 10 * MINUTO;   // relê a equipe e o próprio acesso ao trocar de tela depois de 10 min
 
 export function ExigirLogin() {
   const [ctx, setCtx] = useState<ContextoAtivo | null>(null);
