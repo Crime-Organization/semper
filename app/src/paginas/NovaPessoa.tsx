@@ -1,54 +1,28 @@
 // Cadastro de pessoa em etapas (também usado para atualizar: /pessoas/nova/?id=...), com busca de CNPJ e CEP,
 // controle de duplicidade por CPF/CNPJ (oferece atualizar o cadastro existente) e aviso de telefone repetido.
-import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import {
-  cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
-  fmtCPF, fmtData, fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS, variantesTelefone
+  cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
+  fmtCPF, fmtData, fmtTelefone, lerData, MASCARAS, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
-import { TAMANHO_PESSOA } from '../dados/limites';
 import { falha, feito } from '../ui/avisos';
-import { Botao } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
+import { ETAPAS } from './novaPessoa/etapas';
+import { FormularioCtx, type Formulario, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
 import './NovaPessoa.css';
 
-type Etapa = 's-tipo' | 's-ident' | 's-pf' | 's-entidade' | 's-empresa' | 's-endereco' | 's-contato';
-interface Linha { k: number; v: string }
-interface Campos {
-  tipo: '' | TipoPessoa;
-  nome: string; cnpjBusca: string; natureza: string;
-  genero: string; nac: '' | 'brasileira' | 'outra'; nacOutra: string; profissao: string; ec: string; cpf: string;
-  rg: string; rgExp: string; mae: string; pai: string; nasc: string; nascMun: string; nascUf: string;
-  entidade: string; fantasia: string; porte: string; cnpj: string; abertura: string; representantes: string;
-  cep: string; logradouro: string; numero: string; complemento: string; bairro: string; municipio: string; uf: string;
-  telefones: Linha[]; emails: Linha[]; resp: string[]; lgpdBase: string; lgpdData: string;
-}
-type Retorno = { tipo: 'ok' | 'erro'; conteudo: ReactNode } | null;
-
-const MSG: Record<string, string> = {
-  tipo: 'Selecione o tipo de cadastro.', nome: 'Informe o nome.', cnpjBusca: 'Informe um CNPJ válido.',
-  genero: 'Selecione o gênero (usado na concordância da qualificação).', cpf: 'Informe um CPF válido.', rgExp: 'Data inválida.',
-  nasc: 'Data inválida.', cnpj: 'Informe um CNPJ válido.', abertura: 'Data inválida.', cep: 'O CEP tem 8 dígitos.',
-  telefones: 'Informe pelo menos um telefone com DDD.', emails: 'Confira o formato do e-mail.', lgpdData: 'Data inválida.'
-};
+type Campos = CamposCadastro;
 
 let seq = 0;
 const linha = (v = ''): Linha => ({ k: ++seq, v });
-const maiusculas = (v: string) => v.toUpperCase().replace(/\s+/g, ' ').trim();
-
-function fluxo(c: Campos): Etapa[] {
-  if (c.tipo === 'pf') return ['s-tipo', 's-ident', 's-pf', 's-endereco', 's-contato'];
-  if (c.tipo === 'pj') return ['s-tipo', 's-ident', ...(c.natureza ? ['s-entidade' as const] : []), 's-empresa', 's-endereco', 's-contato'];
-  if (c.tipo === 'contato') return ['s-tipo', 's-ident', 's-contato'];
-  return ['s-tipo'];
-}
-
 export default function NovaPessoa() {
   const ctx = useCtx();
   const navegar = useNavigate();
@@ -105,16 +79,8 @@ export default function NovaPessoa() {
     const novo = Math.max(0, Math.min(i, f.length - 1));
     passoRef.current = novo;
     setPasso(novo);
-    const a = cRef.current;
-    if (f[novo] === 's-entidade') {
-      const lista = ENTIDADES[a.natureza] || [];
-      const t = alvoRef.current?.tipo_entidade;
-      if (!lista.includes(a.entidade)) mudar({ entidade: t && lista.includes(t) ? t : '' });
-    }
-    if (f[novo] === 's-contato') {
-      if (!a.telefones.length) mudar({ telefones: [linha()] });
-      if (!cRef.current.emails.length) mudar({ emails: [linha()] });
-    }
+    const ajustes = ETAPAS[f[novo]].aoEntrar?.(cRef.current, { entidadeDoCadastro: alvoRef.current?.tipo_entidade, novaLinha: () => linha() });
+    if (ajustes && Object.keys(ajustes).length) mudar(ajustes);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   useEffect(() => {
@@ -124,53 +90,16 @@ export default function NovaPessoa() {
   }, [passo, pronto]);
 
   // ---------- validação ----------
-  function dataOk(valor: string, campo: string, novos: Record<string, string>) {
-    try { lerData(valor); return true; }
-    catch (e) { novos[campo] = (e as Error).message; return false; }
-  }
-
+  // Cada etapa sabe se está certa (novaPessoa/etapas.tsx e regras/cadastro.ts); aqui só se aplicam os ajustes,
+  // se confere o CPF/CNPJ no banco quando a etapa pede, e se mostram os erros.
   async function validar(e: Etapa) {
-    const novos: Record<string, string> = {}, conferidos: string[] = ['rgExp', 'nasc', 'abertura', 'lgpdData'];
-    let ok = true;
-    const marcar = (campo: string, cond: boolean, texto?: string) => { conferidos.push(campo); if (!cond) { novos[campo] = texto || MSG[campo]; ok = false; } };
-    let a = cRef.current;
-    if (e === 's-tipo') marcar('tipo', !!a.tipo);
-    if (e === 's-ident') {
-      mudar({ nome: maiusculas(a.nome) });
-      a = cRef.current;
-      marcar('nome', !!a.nome);
-      if (a.tipo === 'pj') {
-        const d = dig(a.cnpjBusca);
-        marcar('cnpjBusca', cnpjValido(d), d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.');
-        if (ok) { if (!a.cnpj) mudar({ cnpj: fmtCNPJ(d) }); ok = await verificarDocumento(d); }
-      }
-    }
-    if (e === 's-pf') {
-      marcar('genero', !!a.genero);
-      const d = dig(a.cpf);
-      marcar('cpf', cpfValido(d), d ? 'CPF inválido: confira os números.' : 'Informe o CPF.');
-      ok = dataOk(a.rgExp, 'rgExp', novos) && ok;
-      ok = dataOk(a.nasc, 'nasc', novos) && ok;
-      if (ok) ok = await verificarDocumento(d);
-    }
-    if (e === 's-empresa') {
-      if (ehIndividual(a.entidade)) marcar('genero', !!a.genero, 'Selecione o gênero do(a) titular (usado na concordância da qualificação).');
-      const d = dig(a.cnpj);
-      marcar('cnpj', cnpjValido(d), d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.');
-      ok = dataOk(a.abertura, 'abertura', novos) && ok;
-      if (ok) ok = await verificarDocumento(d);
-    }
-    if (e === 's-endereco') { const cep = dig(a.cep); marcar('cep', !cep || cep.length === 8); }
-    if (e === 's-contato') {
-      const tels = a.telefones.map(t => dig(t.v)).filter(Boolean);
-      marcar('telefones', tels.length > 0 && tels.every(t => t.length >= 10 && t.length <= 13), tels.length ? 'Confira os telefones: use DDD + número.' : undefined);
-      marcar('emails', a.emails.map(x => x.v.trim()).filter(Boolean).every(emailValido));
-      if (a.lgpdBase === 'consentimento') ok = dataOk(a.lgpdData, 'lgpdData', novos) && ok;
-    }
+    const r = ETAPAS[e].validar(cRef.current);
+    if (Object.keys(r.ajustes).length) mudar(r.ajustes);
+    let ok = !Object.keys(r.erros).length;
+    if (ok && r.documento !== undefined) ok = await verificarDocumento(r.documento);
     // Os campos conferidos agora ficam só com o erro novo (ou sem erro).
-    setErros(x => ({ ...Object.fromEntries(Object.entries(x).filter(([k]) => !conferidos.includes(k))), ...novos }));
-    if (Object.keys(novos).length) {
-      ok = false;
+    setErros(x => ({ ...Object.fromEntries(Object.entries(x).filter(([k]) => !r.conferidos.includes(k))), ...r.erros }));
+    if (Object.keys(r.erros).length) {
       requestAnimationFrame(() => document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
     }
     return ok;
@@ -427,7 +356,7 @@ export default function NovaPessoa() {
   // ---------- pedaços do formulário ----------
   const pc = (campo: string, extra = '') => 'pergunta' + (erros[campo] ? ' erro' : '') + (extra ? ' ' + extra : '');
   const erro = (campo: string) => <span className="msg-erro">{erros[campo] || MSG[campo]}</span>;
-  const texto = (campo: keyof Campos, props: { maximo?: number; maiusculas?: boolean; mascara?: keyof typeof MASCARAS; placeholder?: string; numerico?: boolean; aoSair?: () => void } = {}) =>
+  const texto = (campo: keyof Campos, props: OpcoesTexto = {}) =>
     <input type="text" id={campo} className={props.maiusculas ? 'caixa-alta' : undefined} maxLength={props.maximo} placeholder={props.placeholder}
       inputMode={props.numerico ? 'numeric' : undefined} value={c[campo] as string}
       onChange={e => mudarTexto(campo, props.mascara ? MASCARAS[props.mascara](e.target.value) : e.target.value)}
@@ -462,6 +391,11 @@ export default function NovaPessoa() {
   // Quem pode ser responsável: a equipe ativa e quem já é responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && c.resp.includes(m.id))];
   const voltarLista = idAtualizar ? '/pessoas/?id=' + idAtualizar : '/pessoas/';
+  const formulario: Formulario = {
+    c, cRef, pj, mudar, marcarErro, verificarDocumento, buscarCNPJ, buscarCEP, retornoCNPJ, retornoCEP, botaoCNPJ, botaoCEP, botaoAvancar,
+    opcoesResp, pc, erro, texto, data, radios, ufs, lista, acrescentar, retorno
+  };
+  const Atual = ETAPAS[etapa].Componente;
 
   return <div className="passos">
     <header>
@@ -476,182 +410,7 @@ export default function NovaPessoa() {
       </div>
 
       <form noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-        {etapa === 's-tipo' && <section className="etapa ativa" key={etapa}>
-          <header><h2>Qual é o tipo de cadastro?</h2></header>
-          <div className={pc('tipo')}>
-            <span className="rot">Selecione uma opção<span className="req">*</span></span>
-            <div className="escolhas">{radios('tipo', [['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente informações de contato']],
-              () => setTimeout(() => botaoAvancar.current?.click(), 200))}</div>
-            {erro('tipo')}
-          </div>
-        </section>}
-
-        {etapa === 's-ident' && <section className="etapa ativa" key={etapa}>
-          <header><h2>{pj ? 'Dados da empresa' : c.tipo === 'pf' ? 'Dados pessoais' : 'Identificação'}</h2></header>
-          <div className={pc('nome')}>
-            <label htmlFor="nome">Nome<span className="req">*</span></label>
-            <p className="dica">{pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}</p>
-            {texto('nome', { maximo: TAMANHO_PESSOA.nome, maiusculas: true })}
-            {erro('nome')}
-          </div>
-          {pj && <>
-            <div className={pc('cnpjBusca')}>
-              <label htmlFor="cnpjBusca">CNPJ<span className="req">*</span></label>
-              <p className="dica">Clique em Buscar para trazer os dados da Receita, ou siga e preencha manualmente.</p>
-              <div className="linha-campo">
-                {texto('cnpjBusca', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true })}
-                <Botao className="btn esc" ref={botaoCNPJ} ocupadoTexto="Buscando…" onClick={buscarCNPJ}>Buscar</Botao>
-              </div>
-              {erro('cnpjBusca')}
-              {retorno(retornoCNPJ)}
-            </div>
-            <div className="pergunta">
-              <label htmlFor="natureza">Natureza jurídica</label>
-              <select id="natureza" value={c.natureza} onChange={e => {
-                const natureza = e.target.value;
-                mudar(c.entidade && !ENTIDADES[natureza]?.includes(c.entidade) ? { natureza, entidade: '' } : { natureza });
-              }}>
-                <option value="">Selecione</option>
-                {Object.entries(NATUREZAS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </>}
-        </section>}
-
-        {etapa === 's-pf' && <section className="etapa ativa" key={etapa}>
-          <header><h2>Pessoa física</h2><p>Dados pessoais para a qualificação.</p></header>
-          <div className={pc('genero')}>
-            <span className="rot">Gênero<span className="req">*</span></span>
-            <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
-            {erro('genero')}
-          </div>
-          <div className="pergunta">
-            <span className="rot">Nacionalidade</span>
-            <div className="escolhas">{radios('nac', [['brasileira', 'Brasileira'], ['outra', 'Outra']],
-              v => { if (v === 'outra') setTimeout(() => document.getElementById('nacOutra')?.focus(), 0); })}</div>
-            {c.nac === 'outra' && texto('nacOutra', { maximo: TAMANHO_PESSOA.nacionalidade, placeholder: 'Ex.: portuguesa' })}
-          </div>
-          <div className="pergunta"><label htmlFor="profissao">Profissão</label>{texto('profissao', { maximo: TAMANHO_PESSOA.profissao })}</div>
-          <div className="pergunta">
-            <span className="rot">Estado civil</span>
-            <div className="escolhas">{radios('ec', Object.entries(ESTADO_CIVIL).map(([k, v]) => [k, v[2]] as [string, string]))}</div>
-          </div>
-          <div className={pc('cpf')}>
-            <label htmlFor="cpf">CPF<span className="req">*</span></label>
-            {texto('cpf', { mascara: 'cpf', placeholder: '000.000.000-00', numerico: true, aoSair: () => {
-              const d = dig(cRef.current.cpf);
-              if (cpfValido(d)) void verificarDocumento(d); else if (d) marcarErro('cpf', 'CPF inválido: confira os números.');
-            } })}
-            {erro('cpf')}
-          </div>
-          <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="rg">RG</label><p className="dica">Número, órgão e estado. Ex.: MG 12.345.678 SSP/MG</p>{texto('rg', { maximo: TAMANHO_PESSOA.rg })}</div>
-            <div className={pc('rgExp')}><label htmlFor="rgExp">Data de expedição</label><p className="dica">DD/MM/AAAA</p>{data('rgExp')}{erro('rgExp')}</div>
-          </div>
-          <div className="pergunta"><label htmlFor="mae">Nome da mãe</label>{texto('mae', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
-          <div className="pergunta"><label htmlFor="pai">Nome do pai</label>{texto('pai', { maximo: TAMANHO_PESSOA.filiacao, maiusculas: true })}</div>
-          <div className="grade-campos">
-            <div className={pc('nasc')}><label htmlFor="nasc">Data de nascimento</label>{data('nasc')}{erro('nasc')}</div>
-            <div className="pergunta"><label htmlFor="nascMun">Município de nascimento</label>{texto('nascMun', { maximo: TAMANHO_PESSOA.municipio })}</div>
-            <div className="pergunta"><label htmlFor="nascUf">UF de nascimento</label>{ufs('nascUf')}</div>
-          </div>
-        </section>}
-
-        {etapa === 's-entidade' && <section className="etapa ativa" key={etapa}>
-          <header><h2>{NATUREZAS[c.natureza] || 'Tipo de entidade'}</h2><p>Em qual tipo a pessoa jurídica se enquadra?</p></header>
-          <div className="pergunta"><div className="escolhas coluna-unica">{radios('entidade', (ENTIDADES[c.natureza] || []).map(t => [t, t] as [string, string]))}</div></div>
-        </section>}
-
-        {etapa === 's-empresa' && <section className="etapa ativa" key={etapa}>
-          <header><h2>Pessoa jurídica</h2><p>Dados da empresa ou entidade.</p></header>
-          {ehIndividual(c.entidade) && <div className={pc('genero')}>
-            <span className="rot">Gênero do(a) titular<span className="req">*</span></span>
-            <p className="dica">No MEI e no empresário individual, a empresa é a própria pessoa: a qualificação concorda com ela (empresário ou empresária, inscrito ou inscrita).</p>
-            <div className="escolhas">{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</div>
-            {erro('genero')}
-          </div>}
-          <div className="pergunta"><label htmlFor="fantasia">Nome fantasia</label>{texto('fantasia', { maximo: TAMANHO_PESSOA.nomeFantasia, maiusculas: true })}</div>
-          <div className="pergunta">
-            <span className="rot">Porte</span>
-            <p className="dica">Nos casos de MEI, não é preciso marcar.</p>
-            <div className="escolhas">{radios('porte', Object.entries(PORTES))}</div>
-          </div>
-          <div className="grade-campos">
-            <div className={pc('cnpj')}>
-              <label htmlFor="cnpj">CNPJ<span className="req">*</span></label>
-              {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true, aoSair: () => {
-                const d = dig(cRef.current.cnpj);
-                if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
-              } })}
-              {erro('cnpj')}
-            </div>
-            <div className={pc('abertura')}><label htmlFor="abertura">Data de abertura</label>{data('abertura')}{erro('abertura')}</div>
-          </div>
-          <div className="pergunta"><label htmlFor="representantes">Representante(s) legal(is)</label>
-            <p className="dica">Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.</p>
-            {texto('representantes', { maximo: TAMANHO_PESSOA.representantes, maiusculas: true })}</div>
-        </section>}
-
-        {etapa === 's-endereco' && <section className="etapa ativa" key={etapa}>
-          <header><h2>Endereço</h2></header>
-          <div className={pc('cep')}>
-            <label htmlFor="cep">CEP</label>
-            <p className="dica">Clique em Buscar para preencher o endereço.</p>
-            <div className="linha-campo">
-              {texto('cep', { mascara: 'cep', placeholder: '00000-000', numerico: true })}
-              <Botao className="btn esc" ref={botaoCEP} ocupadoTexto="Buscando…" onClick={buscarCEP}>Buscar</Botao>
-            </div>
-            {erro('cep')}
-            {retorno(retornoCEP)}
-          </div>
-          <div className="pergunta"><label htmlFor="logradouro">Logradouro</label><p className="dica">Rua, avenida, fazenda etc.</p>{texto('logradouro', { maximo: TAMANHO_PESSOA.logradouro })}</div>
-          <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="numero">Número</label><p className="dica">Sem número: S/N</p>{texto('numero', { maximo: TAMANHO_PESSOA.numero })}</div>
-            <div className="pergunta"><label htmlFor="complemento">Complemento</label><p className="dica">Apto, sala, bloco…</p>{texto('complemento', { maximo: TAMANHO_PESSOA.complemento })}</div>
-          </div>
-          <div className="pergunta"><label htmlFor="bairro">Bairro</label>{texto('bairro', { maximo: TAMANHO_PESSOA.bairro })}</div>
-          <div className="grade-campos">
-            <div className="pergunta"><label htmlFor="municipio">Município</label>{texto('municipio', { maximo: TAMANHO_PESSOA.municipio })}</div>
-            <div className="pergunta"><label htmlFor="uf">UF</label>{ufs('uf')}</div>
-          </div>
-        </section>}
-
-        {etapa === 's-contato' && <section className="etapa ativa" key={etapa}>
-          <header><h2>Contato</h2></header>
-          <div className={pc('telefones')}>
-            <span className="rot">Telefone<span className="req">*</span></span>
-            <p className="dica">Com DDD. Ex.: (38) 99999-0000</p>
-            {lista('telefones', true)}
-            <div><button type="button" className="link" onClick={() => acrescentar('telefones')}>+ Adicionar outro telefone</button></div>
-            {erro('telefones')}
-          </div>
-          <div className={pc('emails')}>
-            <span className="rot">E-mail</span>
-            {lista('emails', false)}
-            <div><button type="button" className="link" onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
-            {erro('emails')}
-          </div>
-          <div className="pergunta">
-            <span className="rot">Profissionais responsáveis</span>
-            <p className="dica">Eles aparecem no cartão da pessoa.</p>
-            <div className="escolhas multipla">{opcoesResp.map(m => <label key={m.id}>
-              <input type="checkbox" name="resp" value={m.id} checked={c.resp.includes(m.id)}
-                onChange={e => mudar({ resp: e.target.checked ? [...cRef.current.resp, m.id] : cRef.current.resp.filter(x => x !== m.id) })} />
-              {m.nome}{m.ativo ? '' : ' (desativado)'}
-            </label>)}</div>
-          </div>
-          <div className="pergunta">
-            <label htmlFor="lgpdBase">Base legal para o tratamento dos dados (LGPD)</label>
-            <select id="lgpdBase" value={c.lgpdBase} onChange={e => mudar({ lgpdBase: e.target.value })}>
-              {Object.entries(LGPD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-          {c.lgpdBase === 'consentimento' && <div className={pc('lgpdData')}>
-            <label htmlFor="lgpdData">Data do consentimento</label>
-            {data('lgpdData')}
-            {erro('lgpdData')}
-          </div>}
-        </section>}
+        <FormularioCtx.Provider value={formulario}><Atual key={etapa} /></FormularioCtx.Provider>
 
         <div className="navegar">
           <button type="button" className="btn" style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passoRef.current - 1)}>Voltar</button>
