@@ -78,7 +78,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
       </div>,
       acoes: [{ rotulo: 'Cancelar', valor: null }, {
         rotulo: 'Criar tipo', tipo: 'pri',
-        valor: j => ({ nome: (j.querySelector('[name="nome"]') as HTMLInputElement).value.trim(), inverso: (j.querySelector('[name="inverso"]') as HTMLInputElement).value.trim() })
+        valor: campos => ({ nome: String(campos.get('nome') ?? '').trim(), inverso: String(campos.get('inverso') ?? '').trim() })
       }]
     });
     if (!r) return;

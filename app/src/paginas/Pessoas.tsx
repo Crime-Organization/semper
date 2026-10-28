@@ -141,7 +141,7 @@ export default function Pessoas() {
         <p className="sub">O Google cria contatos novos ao importar: quem já estiver lá fica repetido. Depois, use "Mesclar e corrigir" no Google.</p>
       </>,
       acoes: [{ rotulo: 'Cancelar', valor: null },
-        { rotulo: 'Baixar arquivo', tipo: 'pri', valor: j => j.querySelector<HTMLInputElement>('input[name="descricao"]:checked')?.value === 'sem' ? 'sem' : 'com' }]
+        { rotulo: 'Baixar arquivo', tipo: 'pri', valor: campos => campos.get('descricao') === 'sem' ? 'sem' : 'com' }]
     });
     if (!escolha) return;
     try {

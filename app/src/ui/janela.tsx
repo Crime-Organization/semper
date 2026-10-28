@@ -1,11 +1,12 @@
 // Janelas de confirmação e de escolha. janela() devolve uma promessa com o valor escolhido (null ao fechar),
 // então qualquer tela pergunta com: const ok = await confirmar('Título', 'Texto').
+// A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 
 export interface AcaoJanela<T> {
   rotulo: string;
-  /** Valor devolvido (null = desistiu); se for função, recebe a janela e devolve o resultado (ex.: ler um campo). */
-  valor: T | null | ((janela: HTMLElement) => T | null);
+  /** Valor devolvido (null = desistiu); se for função, recebe os campos da janela pelo name e devolve o resultado. */
+  valor: T | null | ((campos: FormData) => T | null);
   tipo?: 'pri' | 'perigo';
 }
 interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; resolver: (v: unknown) => void }
@@ -42,15 +43,16 @@ export function pedirTexto(titulo: string, valor = '', { multilinha = false, max
   return janela<string>({
     titulo,
     corpo: multilinha
-      ? <textarea className="campo" rows={6} defaultValue={valor} aria-label={titulo} />
-      : <input className="campo" maxLength={maximo} defaultValue={valor} aria-label={titulo} />,
+      ? <textarea name="texto" className="campo" rows={6} defaultValue={valor} aria-label={titulo} />
+      : <input name="texto" className="campo" maxLength={maximo} defaultValue={valor} aria-label={titulo} />,
     acoes: [{ rotulo: 'Cancelar', valor: null },
-      { rotulo: 'Salvar', tipo: 'pri', valor: j => (j.querySelector('input, textarea') as HTMLInputElement).value.trim() }]
+      { rotulo: 'Salvar', tipo: 'pri', valor: campos => String(campos.get('texto') ?? '').trim() }]
   });
 }
 
 function JanelaAberta({ p }: { p: Pedido }) {
   const veu = useRef<HTMLDivElement>(null);
+  const formulario = useRef<HTMLFormElement>(null);
   const idTitulo = 'jt' + p.id;
   useEffect(() => {
     const anterior = document.activeElement as HTMLElement | null;
@@ -60,18 +62,19 @@ function JanelaAberta({ p }: { p: Pedido }) {
     else (el.querySelector<HTMLElement>('.btn.pri') || el.querySelector<HTMLElement>('.btn'))?.focus();
     return () => { anterior?.focus?.(); };
   }, []);
-  const escolher = (a: AcaoJanela<unknown>) => fechar(p.id, typeof a.valor === 'function' ? (a.valor as (j: HTMLElement) => unknown)(veu.current!) : a.valor);
+  const escolher = (a: AcaoJanela<unknown>) =>
+    fechar(p.id, typeof a.valor === 'function' ? (a.valor as (campos: FormData) => unknown)(new FormData(formulario.current!)) : a.valor);
   return <div className="veu-janela" ref={veu} onClick={e => { if (e.target === e.currentTarget) fechar(p.id, null); }}
     onKeyDown={e => {
       if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') { e.preventDefault(); veu.current?.querySelector<HTMLElement>('.btn.pri')?.click(); }
     }}>
-    <div className="janela" role="dialog" aria-modal="true" aria-labelledby={idTitulo}>
+    <form className="janela" ref={formulario} role="dialog" aria-modal="true" aria-labelledby={idTitulo} noValidate onSubmit={e => e.preventDefault()}>
       <h2 id={idTitulo}>{p.titulo}</h2>
       <div className="janela-corpo">{p.corpo}</div>
       <div className="janela-acoes">
         {p.acoes.map((a, i) => <button key={i} type="button" className={'btn' + (a.tipo ? ' ' + a.tipo : '')} onClick={() => escolher(a)}>{a.rotulo}</button>)}
       </div>
-    </div>
+    </form>
   </div>;
 }
 
