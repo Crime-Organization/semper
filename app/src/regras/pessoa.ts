@@ -360,21 +360,26 @@ export const deBrasilAPI = (x: RespostaBrasilAPI): EnderecoCEP =>
 export const deViaCEP = (x: RespostaViaCEP): EnderecoCEP =>
   ({ logradouro: x.logradouro || '', bairro: x.bairro || '', municipio: x.localidade || '', uf: x.uf || '' });
 
-// Valor legível de um campo (para histórico e cartão).
+// Como cada campo aparece no histórico e no cartão. Campo novo com formato próprio é uma linha nova aqui;
+// os demais aparecem como foram gravados (listas separadas por vírgula).
+const LEGIVEL: Record<string, (s: string, v: unknown) => string> = {
+  tipo: s => TIPOS[s as TipoPessoa] || s,
+  genero: s => s === 'm' ? 'Masculino' : s === 'f' ? 'Feminino' : s,
+  estado_civil: s => ESTADO_CIVIL[s]?.[2] || s,
+  natureza: s => NATUREZAS[s] || s,
+  porte: s => PORTES[s] || s,
+  lgpd_base: s => LGPD[s] || s,
+  documento: fmtDocumento,
+  cep: fmtCEP,
+  telefones: (s, v) => Array.isArray(v) ? v.map(fmtTelefone).join(', ') : s,
+  arquivado_em: () => 'Arquivado',
+  rg_expedicao: fmtData, nascimento: fmtData, abertura: fmtData, lgpd_consentimento: fmtData
+};
+
 export function valorLegivel(campo: string, v: unknown): string {
   if (v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length)) return '—';
   const s = String(v);
-  if (campo === 'tipo') return TIPOS[s as TipoPessoa] || s;
-  if (campo === 'genero') return v === 'm' ? 'Masculino' : v === 'f' ? 'Feminino' : s;
-  if (campo === 'estado_civil') return ESTADO_CIVIL[s]?.[2] || s;
-  if (campo === 'natureza') return NATUREZAS[s] || s;
-  if (campo === 'porte') return PORTES[s] || s;
-  if (campo === 'lgpd_base') return LGPD[s] || s;
-  if (campo === 'documento') return fmtDocumento(s);
-  if (campo === 'cep') return fmtCEP(s);
-  if (campo === 'telefones' && Array.isArray(v)) return v.map(fmtTelefone).join(', ');
-  if (campo === 'emails' && Array.isArray(v)) return v.join(', ');
-  if (campo === 'arquivado_em') return 'Arquivado';
-  if (['rg_expedicao', 'nascimento', 'abertura', 'lgpd_consentimento'].includes(campo)) return fmtData(s);
+  const formatar = LEGIVEL[campo];
+  if (formatar) return formatar(s, v);
   return Array.isArray(v) ? v.join(', ') : s;
 }

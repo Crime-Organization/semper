@@ -4,6 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { traduzir } from './erros';
 import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
@@ -31,38 +32,6 @@ const comSessao: typeof fetch = async (entrada, init) => {
 const db = new PostgrestClient(URL_BASE + '/rest/v1', { fetch: comSessao });
 const sb = { auth, from: (tabela: string) => db.from(tabela), rpc: (nome: string, args?: Record<string, unknown>) => db.rpc(nome, args) };
 let ctx: Contexto | null = null;
-
-// ---------- erros em português ----------
-type ErroBanco = { message?: string; code?: string } | null | undefined;
-function traduzir(e: unknown): Error {
-  const x = e as ErroBanco;
-  const msg = String(x?.message || e || '');
-  const cod = x?.code || '';
-  const t = (texto: string) => Object.assign(new Error(texto), { original: e });
-  if (cod === '23505' || /duplicate key/.test(msg)) {
-    if (/pessoas_documento_unico/.test(msg)) return t('Já existe um cadastro com este CPF/CNPJ.');
-    if (/quadro_colunas_nome_unico/.test(msg)) return t('Já existe uma coluna com esse nome neste quadro.');
-    if (/convites_email_pendente/.test(msg)) return t('Este e-mail já tem um convite pendente.');
-    if (/pessoa_vinculos_unico/.test(msg)) return t('Essas duas pessoas já têm esse vínculo.');
-    if (/vinculo_tipos_unico/.test(msg)) return t('Esse tipo de vínculo já existe.');
-    return t('Esse registro já existe.');
-  }
-  if (cod === '23503' && /perfis_pessoa_fkey/.test(msg)) return t('Esta pessoa é usuária do sistema e não pode ser excluída.');
-  if (cod === '23514') return t('Algum campo está em formato inválido. Confira os dados e tente de novo.');
-  if (cod === '42501' || /permission denied|row-level security/i.test(msg)) return t('Você não tem permissão para fazer isso.');
-  if (cod === 'P0001') return t(msg);
-  if (/Invalid login credentials/i.test(msg)) return t('E-mail ou senha incorretos.');
-  if (/Invalid TOTP|invalid.*code|code.*(expired|invalid)/i.test(msg)) return t('Código incorreto ou vencido. Digite o código que o aplicativo mostra agora.');
-  if (/AAL2 required|aal2/i.test(msg)) return t('Para fazer isso, entre de novo com o código do aplicativo autenticador.');
-  if (/Email not confirmed/i.test(msg)) return t('Confirme seu e-mail pelo link que enviamos antes de entrar.');
-  if (/already registered|already been registered/i.test(msg)) return t('Este e-mail já tem conta. Use "Entrar" ou recupere a senha.');
-  if (/Database error saving new user/i.test(msg)) return t('Convite não encontrado ou vencido. Use o link mais recente que o escritório enviou para este e-mail, ou peça um novo ao administrador.');
-  if (/Password should be/i.test(msg)) return t('A senha precisa ter pelo menos 8 caracteres.');
-  if (/rate limit|security purposes/i.test(msg)) return t('O limite de envio de e-mails foi atingido. Aguarde cerca de uma hora e tente de novo.');
-  if (/Failed to fetch|NetworkError|Load failed/i.test(msg)) return t('Sem conexão com o servidor. Verifique a internet e tente de novo.');
-  if (/JWT expired|invalid JWT/i.test(msg)) return t('Sua sessão expirou. Entre de novo.');
-  return t('Não foi possível concluir agora. Tente de novo.');
-}
 
 // Resposta do Supabase: devolve os dados ou lança o erro já traduzido. O banco responde em formato
 // livre (any); daqui para fora valem os tipos de dados/tipos.ts.

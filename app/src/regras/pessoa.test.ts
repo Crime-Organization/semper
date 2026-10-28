@@ -290,7 +290,30 @@ describe('Histórico', () => {
     ['documento', '52998224725', '529.982.247-25'],
     ['estado_civil', 'viuvo', 'viúvo(a)'],
     ['nascimento', '1980-05-10', '10/05/1980'],
-    ['emails', [], '—']
+    ['emails', [], '—'],
+    ['tipo', 'pj', 'Pessoa jurídica'],
+    ['tipo', 'outro', 'outro'],
+    ['genero', 'm', 'Masculino'],
+    ['genero', 'f', 'Feminino'],
+    ['genero', 'x', 'x'],
+    ['estado_civil', 'desconhecido', 'desconhecido'],
+    ['natureza', 'sem_fins', 'Entidades sem fins lucrativos'],
+    ['porte', 'epp', 'Empresa de pequeno porte'],
+    ['lgpd_base', 'contrato', 'Execução de contrato ou procedimentos preliminares (art. 7º, V)'],
+    ['documento', '11222333000181', '11.222.333/0001-81'],
+    ['cep', '39400121', '39400-121'],
+    ['telefones', ['38999991234', '3832220000'], '(38) 99999-1234, (38) 3222-0000'],
+    ['telefones', '38999991234', '38999991234'],
+    ['emails', ['a@b.com', 'c@d.com'], 'a@b.com, c@d.com'],
+    ['arquivado_em', '2026-10-28T10:00:00Z', 'Arquivado'],
+    ['rg_expedicao', '2001-02-03', '03/02/2001'],
+    ['abertura', '2010-03-01', '01/03/2010'],
+    ['lgpd_consentimento', '2026-01-15', '15/01/2026'],
+    ['profissao', 'professora', 'professora'],
+    ['outro_campo', ['x', 'y'], 'x, y'],
+    ['nome', null, '—'],
+    ['nome', undefined, '—'],
+    ['nome', '', '—']
   ])('quando o campo %s mudou para %j, então o histórico mostra "%s"', (campo, valor, esperado) => {
     // Quando
     const mostrado = valorLegivel(campo, valor);
