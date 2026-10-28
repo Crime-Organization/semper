@@ -10,8 +10,9 @@ import { useTitulo } from '../ui/util';
 import './Entrada.css';
 
 type Painel = 'entrar' | 'primeiro' | 'cliente' | 'solicitar' | 'recuperar' | 'nova' | 'codigo';
-const TITULOS: Record<Painel, string> = { entrar: 'Entrar', primeiro: 'Primeiro acesso', cliente: 'Área do cliente', solicitar: 'Solicitar acesso', recuperar: 'Recuperar senha', nova: 'Nova senha', codigo: 'Código de verificação' };
-const ABA_DE: Partial<Record<Painel, 'entrar' | 'cliente'>> = { entrar: 'entrar', primeiro: 'entrar', recuperar: 'entrar', cliente: 'cliente', solicitar: 'cliente' };
+// Cada painel tem tudo o que é dele num lugar só (padrão State): título, aba em que aparece (Equipe ou Sou cliente;
+// sem aba, as abas somem), o envio do formulário e os campos.
+interface DefPainel { titulo: string; aba?: 'entrar' | 'cliente'; enviar: (e: FormEvent<HTMLFormElement>) => Promise<void>; campos: ReactNode }
 type Mensagem = { texto: string; tipo: 'erro' | 'ok' | 'info' } | null;
 
 export default function Entrada() {
@@ -119,7 +120,80 @@ export default function Entrada() {
 
   const ir = (p: Painel, rotulo: ReactNode) => <button className="link" type="button" disabled={ocupado} onClick={() => mostrar(p)}>{rotulo}</button>;
   const enviarBotao = (rotulo: string) => <button className="btn pri" type="submit" disabled={ocupado}>{rotulo}</button>;
-  const aba = ABA_DE[painel];
+
+  const paineis: Record<Painel, DefPainel> = {
+    entrar: {
+      titulo: 'Entrar', aba: 'entrar', enviar: entrar,
+      campos: <>
+        <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
+        <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
+        {enviarBotao('Entrar')}
+        <div className="links">{ir('recuperar', 'Esqueci minha senha')}{ir('primeiro', 'Primeiro acesso')}</div>
+        <p className="dica">Os acessos da equipe são liberados pelo administrador do escritório.</p>
+      </>
+    },
+    primeiro: {
+      titulo: 'Primeiro acesso', aba: 'entrar', enviar: primeiro,
+      campos: <>
+        <p className="dica" style={{ fontSize: 14 }}>{codigoConvite
+          ? 'Use o e-mail em que você recebeu o convite do escritório e crie sua senha.'
+          : 'O primeiro acesso é feito pelo link do convite que o escritório enviou para você (vale 7 dias). Abra esse link; se ele se perdeu ou venceu, peça um novo ao administrador.'}</p>
+        <label>E-mail do convite<input name="email" type="email" autoComplete="email" required /></label>
+        <label>Crie uma senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
+        <label>Repita a senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>
+        <p className="dica">Use pelo menos 8 caracteres.</p>
+        {enviarBotao('Criar meu acesso')}
+        {ir('entrar', 'Voltar para entrar')}
+      </>
+    },
+    cliente: {
+      titulo: 'Área do cliente', aba: 'cliente', enviar: portalEmBreve,
+      campos: <>
+        <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
+        <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
+        {enviarBotao('Acompanhar minhas demandas')}
+        {ir('solicitar', 'Ainda não tenho acesso')}
+      </>
+    },
+    solicitar: {
+      titulo: 'Solicitar acesso', aba: 'cliente', enviar: portalEmBreve,
+      campos: <>
+        <label>CPF ou CNPJ<input name="documento" inputMode="numeric" autoComplete="off" required /></label>
+        <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
+        <p className="dica">Use o e-mail informado no seu cadastro. O advogado responsável analisa o pedido e libera o acesso.</p>
+        {enviarBotao('Solicitar acesso')}
+        {ir('cliente', 'Voltar para entrar')}
+      </>
+    },
+    recuperar: {
+      titulo: 'Recuperar senha', aba: 'entrar', enviar: recuperar,
+      campos: <>
+        <label>E-mail da conta<input name="email" type="email" autoComplete="email" required /></label>
+        <p className="dica">Enviaremos um link para você criar uma nova senha.</p>
+        {enviarBotao('Enviar link')}
+        {ir('entrar', 'Voltar para entrar')}
+      </>
+    },
+    codigo: {
+      titulo: 'Código de verificação', enviar: codigo,
+      campos: <>
+        <p className="dica" style={{ fontSize: 14 }}>Sua conta tem verificação em duas etapas. Abra o aplicativo autenticador do celular e digite o código do SEMPER.</p>
+        <label>Código de 6 números<input name="codigo" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required /></label>
+        {enviarBotao('Confirmar')}
+        <button className="link" type="button" disabled={ocupado} onClick={sairDoCodigo}>Entrar com outra conta</button>
+        <p className="dica">Perdeu o celular ou o aplicativo? Fale com o master do escritório.</p>
+      </>
+    },
+    nova: {
+      titulo: 'Nova senha', enviar: novaSenha,
+      campos: <>
+        <label>Nova senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
+        <label>Repita a nova senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>
+        {enviarBotao('Salvar nova senha')}
+      </>
+    }
+  };
+  const atual = paineis[painel];
 
   return <div className="entrada"><div className="tela">
     <div className="lado">
@@ -135,71 +209,17 @@ export default function Entrada() {
       <div className="caixa" ref={caixa}>
         <div>
           <p className="olho">Área restrita</p>
-          <h2 className="titulo" style={{ fontSize: 'clamp(30px, 3.4vw, 40px)' }}>{TITULOS[painel]}</h2>
+          <h2 className="titulo" style={{ fontSize: 'clamp(30px, 3.4vw, 40px)' }}>{atual.titulo}</h2>
         </div>
 
-        {aba && <div className="abas" role="tablist" aria-label="Acesso">
-          <button type="button" role="tab" aria-selected={aba === 'entrar'} onClick={() => mostrar('entrar')}>Equipe</button>
-          <button type="button" role="tab" aria-selected={aba === 'cliente'} onClick={() => mostrar('cliente')}>Sou cliente</button>
+        {atual.aba && <div className="abas" role="tablist" aria-label="Acesso">
+          <button type="button" role="tab" aria-selected={atual.aba === 'entrar'} onClick={() => mostrar('entrar')}>Equipe</button>
+          <button type="button" role="tab" aria-selected={atual.aba === 'cliente'} onClick={() => mostrar('cliente')}>Sou cliente</button>
         </div>}
 
         {msg && <div className={'aviso ' + msg.tipo} role="status">{msg.texto}</div>}
 
-        {painel === 'entrar' && <form noValidate onSubmit={entrar}>
-          <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
-          <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
-          {enviarBotao('Entrar')}
-          <div className="links">{ir('recuperar', 'Esqueci minha senha')}{ir('primeiro', 'Primeiro acesso')}</div>
-          <p className="dica">Os acessos da equipe são liberados pelo administrador do escritório.</p>
-        </form>}
-
-        {painel === 'primeiro' && <form noValidate onSubmit={primeiro}>
-          <p className="dica" style={{ fontSize: 14 }}>{codigoConvite
-            ? 'Use o e-mail em que você recebeu o convite do escritório e crie sua senha.'
-            : 'O primeiro acesso é feito pelo link do convite que o escritório enviou para você (vale 7 dias). Abra esse link; se ele se perdeu ou venceu, peça um novo ao administrador.'}</p>
-          <label>E-mail do convite<input name="email" type="email" autoComplete="email" required /></label>
-          <label>Crie uma senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
-          <label>Repita a senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>
-          <p className="dica">Use pelo menos 8 caracteres.</p>
-          {enviarBotao('Criar meu acesso')}
-          {ir('entrar', 'Voltar para entrar')}
-        </form>}
-
-        {painel === 'cliente' && <form noValidate onSubmit={portalEmBreve}>
-          <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
-          <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
-          {enviarBotao('Acompanhar minhas demandas')}
-          {ir('solicitar', 'Ainda não tenho acesso')}
-        </form>}
-
-        {painel === 'solicitar' && <form noValidate onSubmit={portalEmBreve}>
-          <label>CPF ou CNPJ<input name="documento" inputMode="numeric" autoComplete="off" required /></label>
-          <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
-          <p className="dica">Use o e-mail informado no seu cadastro. O advogado responsável analisa o pedido e libera o acesso.</p>
-          {enviarBotao('Solicitar acesso')}
-          {ir('cliente', 'Voltar para entrar')}
-        </form>}
-
-        {painel === 'recuperar' && <form noValidate onSubmit={recuperar}>
-          <label>E-mail da conta<input name="email" type="email" autoComplete="email" required /></label>
-          <p className="dica">Enviaremos um link para você criar uma nova senha.</p>
-          {enviarBotao('Enviar link')}
-          {ir('entrar', 'Voltar para entrar')}
-        </form>}
-
-        {painel === 'codigo' && <form noValidate onSubmit={codigo}>
-          <p className="dica" style={{ fontSize: 14 }}>Sua conta tem verificação em duas etapas. Abra o aplicativo autenticador do celular e digite o código do SEMPER.</p>
-          <label>Código de 6 números<input name="codigo" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required /></label>
-          {enviarBotao('Confirmar')}
-          <button className="link" type="button" disabled={ocupado} onClick={sairDoCodigo}>Entrar com outra conta</button>
-          <p className="dica">Perdeu o celular ou o aplicativo? Fale com o master do escritório.</p>
-        </form>}
-
-        {painel === 'nova' && <form noValidate onSubmit={novaSenha}>
-          <label>Nova senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
-          <label>Repita a nova senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>
-          {enviarBotao('Salvar nova senha')}
-        </form>}
+        <form key={painel} noValidate onSubmit={atual.enviar}>{atual.campos}</form>
       </div>
     </div>
   </div></div>;
