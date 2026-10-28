@@ -101,3 +101,25 @@ describe('Pedir um texto', () => {
     await expect(resposta).resolves.toBeNull();
   });
 });
+
+describe('Janela com campos', () => {
+  it('quando a pessoa preenche os campos e confirma, então quem abriu recebe os valores pelo nome de cada campo', async () => {
+    // Dado
+    let resposta!: Promise<{ nome: string; cor: string } | null>;
+    act(() => {
+      resposta = janela.janela({
+        titulo: 'Nova etiqueta',
+        corpo: <><label>Nome<input name="nome" /></label>
+          <label><input type="radio" name="cor" value="verde" />Verde</label><label><input type="radio" name="cor" value="azul" />Azul</label></>,
+        acoes: [{ rotulo: 'Cancelar', valor: null },
+          { rotulo: 'Criar', tipo: 'pri', valor: campos => ({ nome: String(campos.get('nome')), cor: String(campos.get('cor')) }) }]
+      });
+    });
+    await userEvent.type(screen.getByRole('textbox', { name: 'Nome' }), 'Urgente');
+    await userEvent.click(screen.getByRole('radio', { name: 'Azul' }));
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Criar' }));
+    // Então
+    await expect(resposta).resolves.toEqual({ nome: 'Urgente', cor: 'azul' });
+  });
+});
