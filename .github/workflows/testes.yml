@@ -2,7 +2,8 @@ name: Testes do SEMPER
 
 # Os testes do SEMPER num lugar só. As rotinas verificar.yml (cada envio e pull request) e publicar.yml
 # (cada versão) chamam esta e só compilam ou publicam se todos os jobs daqui passarem.
-# Os jobs rodam em paralelo. Também dá para rodar à mão em qualquer ramo: Actions → Testes do SEMPER → Run workflow.
+# Três jobs em paralelo: tipos e lint, unitários e componentes, e ponta a ponta.
+# Também dá para rodar à mão em qualquer ramo: Actions → Testes do SEMPER → Run workflow.
 on:
   workflow_call:
     inputs:
@@ -17,8 +18,8 @@ permissions:
   contents: read
 
 jobs:
-  unitarios:
-    name: Tipos, unitários e componentes
+  lint:
+    name: Tipos e lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -35,9 +36,35 @@ jobs:
         working-directory: app
         run: npm ci
 
-      - name: Conferir tipos e testes
+      - name: Conferir os tipos
         working-directory: app
-        run: npm run verificar
+        run: npm run tipos
+
+      - name: Lint
+        working-directory: app
+        run: npm run lint -- --format github
+
+  unitarios:
+    name: Unitários e componentes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar
+        working-directory: app
+        run: npm ci
+
+      - name: Testes unitários e de componente
+        working-directory: app
+        run: npm run testar
 
   ponta-a-ponta:
     name: Ponta a ponta (Playwright)

@@ -198,7 +198,7 @@ export const SD: Dados = {
   },
   async salvarPreferencia(chave, valor) {
     if (!ctx?.perfil) return;
-    const preferencias = { ...(ctx.perfil.preferencias || {}), [chave]: valor };
+    const preferencias = { ...ctx.perfil.preferencias, [chave]: valor };
     ctx.perfil.preferencias = preferencias;
     try { await sb.from('perfis').update({ preferencias }).eq('id', uid()); } catch { /* preferência não é crítica */ }
   },

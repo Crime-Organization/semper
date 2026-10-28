@@ -112,7 +112,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
     {formulario
       ? <form className="form-vinculo campos" noValidate onSubmit={vincular}>
         <label>Vínculo
-          <select value={opcao} onChange={e => { if (e.target.value === NOVO_TIPO) novoTipo(); else setOpcao(e.target.value); }}>
+          <select value={opcao} onChange={e => { if (e.target.value === NOVO_TIPO) void novoTipo(); else setOpcao(e.target.value); }}>
             <option value="">{tipos ? 'Escolha o tipo de vínculo' : 'Carregando…'}</option>
             <optgroup label="Vínculos padrão">{padrao.map(o => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}</optgroup>
             {proprios.length > 0 && <optgroup label="Do escritório">{proprios.map(o => <option key={o.chave} value={o.chave}>{o.rotulo}</option>)}</optgroup>}

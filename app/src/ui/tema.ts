@@ -29,9 +29,9 @@ export function aplicarTema(t: Tema) {
   catch { /* sem armazenamento: vale só nesta visita */ }
 }
 /** Aplica e grava no perfil, para valer em qualquer aparelho. */
-export async function definirTema(t: Tema) {
+export function definirTema(t: Tema) {
   aplicarTema(t);
-  await salvarPreferencia('tema', t);
+  salvarPreferencia('tema', t);
 }
 export const useTema = () => useSyncExternalStore(assinar, temaAtual);
 

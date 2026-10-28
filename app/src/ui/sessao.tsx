@@ -35,21 +35,23 @@ export function ExigirLogin() {
   const carregar = useCallback(async (forcar: boolean, primeira = false) => {
     // Entrou só com a senha e tem verificação em duas etapas: volta à entrada para digitar o código
     // (o banco não mostra os dados antes disso).
-    if (await SD.duasEtapasPendente()) { navegar('/entrar/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
     let c;
-    try { c = await SD.contexto(forcar); }
+    try {
+      if (await SD.duasEtapasPendente()) { navegar('/entrar/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
+      c = await SD.contexto(forcar);
+    }
     catch (e) { if (primeira) setErro((e as Error).message); return; }
     if (!c) { navegar('/entrar/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
-    if (!c.perfil) { await SD.sair(); navegar('/entrar/?desativado', { replace: true }); return; }
+    if (!c.perfil) { await SD.sair().catch(() => {}); navegar('/entrar/?desativado', { replace: true }); return; }
     iniciarPreferencias(c.perfil.preferencias);
     if (primeira) aplicarTema((c.perfil.preferencias?.tema as Tema) || 'auto');
     if (forcar || primeira) lidoEm.current = Date.now();
     setCtx({ ...c, perfil: { ...c.perfil } } as ContextoAtivo);
   }, [navegar]);
 
-  useEffect(() => { carregar(false, true); }, [carregar]);
+  useEffect(() => { void carregar(false, true); }, [carregar]);
   useEffect(() => {
-    if (lidoEm.current && Date.now() - lidoEm.current > RENOVAR_APOS) carregar(true);
+    if (lidoEm.current && Date.now() - lidoEm.current > RENOVAR_APOS) void carregar(true);
   }, [local.pathname, carregar]);
 
   if (erro) return <div className="aviso erro" style={{ margin: '40px auto', maxWidth: 520 }}>{erro}</div>;
