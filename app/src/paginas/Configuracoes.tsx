@@ -8,6 +8,7 @@ import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, U
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { TAMANHO_ESCRITORIO } from '../dados/limites';
 import { avisar, falha, feito } from '../ui/avisos';
+import { estiloBotao, Nota, TituloSecao } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import './Configuracoes.css';
@@ -177,17 +178,17 @@ function Instituicao() {
 
     <form className="config campos" noValidate onSubmit={salvar}>
       <section className="cartao form-grade" aria-labelledby="tInst">
-        <h2 className="secao" id="tInst">Instituição</h2>
+        <TituloSecao id="tInst">Instituição</TituloSecao>
         <div className="config-logo">
           <div className={'config-logo-previa' + (logo ? '' : ' vazia')}>
             {logo ? <img src={logo} alt={`Logomarca de ${f.nome || 'escritório'}`} /> : <span>{(f.nome.trim() || 'S').charAt(0)}</span>}
           </div>
           <div className="config-logo-texto">
             <b>Logomarca</b>
-            <p className="nota">Vai para os documentos do escritório, como contratos e procurações (em breve). PNG, JPG, WebP ou SVG, de preferência com fundo transparente.</p>
+            <Nota>Vai para os documentos do escritório, como contratos e procurações (em breve). PNG, JPG, WebP ou SVG, de preferência com fundo transparente.</Nota>
             <div className="acoes">
-              <button type="button" className="btn" onClick={() => arquivo.current?.click()}>{logo ? 'Trocar imagem' : 'Escolher imagem'}</button>
-              {logo && <button type="button" className="btn" onClick={() => setLogo(null)}>Remover</button>}
+              <button type="button" className={estiloBotao()} onClick={() => arquivo.current?.click()}>{logo ? 'Trocar imagem' : 'Escolher imagem'}</button>
+              {logo && <button type="button" className={estiloBotao()} onClick={() => setLogo(null)}>Remover</button>}
             </div>
             <input ref={arquivo} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onChange={escolherLogo} />
           </div>
@@ -197,13 +198,13 @@ function Instituicao() {
           {campo('oab_registro', 'Registro na OAB', { placeholder: 'da sociedade, ex.: OAB/MG 1.234', maxLength: TAMANHO_ESCRITORIO.oab_registro, tam: { m: 5, g: 4 } })}
           {campo('cnpj', 'CNPJ', {
             inputMode: 'numeric', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)), tam: { m: 7, g: 8 },
-            junto: <button type="button" className="btn" onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
+            junto: <button type="button" className={estiloBotao()} onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
           })}
         </div>
       </section>
 
       <section className="cartao form-grade" aria-labelledby="tEnd">
-        <h2 className="secao" id="tEnd">Endereço</h2>
+        <TituloSecao id="tEnd">Endereço</TituloSecao>
         <div className="grade-form">
           {campo('cep', 'CEP', { inputMode: 'numeric', onChange: e => mudarCEP(e.target.value), dica: buscando === 'cep' ? 'consultando…' : undefined, tam: { p: 6, m: 4, g: 3 } })}
           {campo('logradouro', 'Logradouro', { maxLength: TAMANHO_ESCRITORIO.logradouro, tam: { m: 8, g: 7 } })}
@@ -222,7 +223,7 @@ function Instituicao() {
       </section>
 
       <section className="cartao form-grade" aria-labelledby="tCont">
-        <h2 className="secao" id="tCont">Contato</h2>
+        <TituloSecao id="tCont">Contato</TituloSecao>
         <div className="grade-form">
           {campo('telefone', 'Telefone', { inputMode: 'tel', autoComplete: 'tel', onChange: e => mudar('telefone', MASCARAS.telefone(e.target.value)), tam: { m: 6, g: 3 } })}
           {campo('email', 'E-mail', { type: 'email', autoComplete: 'email', maxLength: TAMANHO_ESCRITORIO.email, tam: { m: 6, g: 5 } })}
@@ -231,7 +232,7 @@ function Instituicao() {
       </section>
 
       <div className="config-salvar">
-        <button className="btn pri" type="submit" disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
+        <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
       </div>
     </form>
   </div>;
