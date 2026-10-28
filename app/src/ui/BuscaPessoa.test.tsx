@@ -4,11 +4,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PessoaLista } from '../dados';
+import type { DadosPessoas, PessoaLista } from '../dados';
 import { BuscaPessoa } from './BuscaPessoa';
 
-const { pessoasListar } = vi.hoisted(() => ({ pessoasListar: vi.fn() }));
-vi.mock('../dados', () => ({ SD: { pessoasListar } }));
+// A busca usa só uma operação da camada de dados; o mock declara exatamente essa.
+const { pessoasListar } = vi.hoisted(() => ({ pessoasListar: vi.fn<DadosPessoas['pessoasListar']>() }));
+vi.mock('../dados', () => ({ SD: { pessoasListar } satisfies Pick<DadosPessoas, 'pessoasListar'> }));
 
 const ana = { id: 'p-ana', codigo: 'A1', tipo: 'pf', nome: 'ANA TESTE LIMA', documento: '52998224725' } as PessoaLista;
 const padaria = { id: 'p-pad', codigo: 'P1', tipo: 'pj', nome: 'PADARIA ANA', documento: '11222333000181' } as PessoaLista;
