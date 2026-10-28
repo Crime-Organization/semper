@@ -1,7 +1,6 @@
 // Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, vínculos, dados,
 // informações sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router';
 import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
 import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -9,6 +8,7 @@ import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Rep
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { pedirTexto } from '../ui/janela';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -61,9 +61,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
 
-  if (erro) return <div className="aviso erro">{erro}</div>;
-  if (p === undefined) return <p className="carregando">Carregando…</p>;
-  if (!p) return <div className="vazio">Esta pessoa não foi encontrada. Ela pode ter sido excluída.</div>;
+  if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
+  if (p === undefined) return <Carregando />;
+  if (!p) return <Vazio>Esta pessoa não foi encontrada. Ela pode ter sido excluída.</Vazio>;
 
   const V = (campo: string, v: unknown = (p as unknown as Record<string, unknown>)[campo]) =>
     v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) ? '' : valorLegivel(campo, v);
@@ -103,21 +103,21 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
-        <span className="selo escuro">{TIPOS[p.tipo]}</span><span className="codigo">{p.codigo}</span>
-        {p.arquivado_em && <span className="selo arq">Arquivada</span>}
-        {ehUsuario && <span className="selo ok">Usuária do sistema</span>}
+        <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
+        {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+        {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
       </div>
       <h2>{p.nome}</h2>
-      {p.nome_fantasia && <p className="nota" style={{ marginTop: 4 }}>{p.nome_fantasia}</p>}
+      {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
     </header>
 
     {/* Ações numa linha só. Em espaço estreito, Copiar e Arquivar viram botões redondos só com o ícone (estilo.css, "cartao-acoes"). */}
     <div className="cartao-acoes">
-      <Link className="btn pri btn-sm" to={'/pessoas/nova/?id=' + p.id}><Icone nome="editar" tam={15} /> Atualizar cadastro</Link>
-      {textoQual && <button type="button" className="btn btn-sm acao-copiar" title="Copiar qualificação" aria-label="Copiar qualificação" onClick={copiar}>
+      <BotaoLink variante="principal" pequeno to={'/pessoas/nova/?id=' + p.id}><Icone nome="editar" tam={15} /> Atualizar cadastro</BotaoLink>
+      {textoQual && <button type="button" className={estiloBotao({ pequeno: true }, 'acao-copiar')} title="Copiar qualificação" aria-label="Copiar qualificação" onClick={copiar}>
         <Icone nome="copiar" tam={15} /><span className="acao-rotulo">Copiar qualificação</span>
       </button>}
-      <Botao className="btn btn-sm acao-arquivar" title={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
+      <Botao pequeno className="acao-arquivar" title={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
         <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
       </Botao>
     </div>
@@ -125,7 +125,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Pessoa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
         : 'Pessoa arquivada. Só quem cadastrou esta pessoa ou um administrador pode excluí-la.'}</span>
-      {podeExcluir && <BotaoDuplo className="btn btn-sm perigo" confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
+      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
     <section className="bloco campos">
@@ -144,12 +144,12 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     {textoQual && <section className="bloco">
       <h3>Qualificação</h3>
       <div className="qualificacao" ref={qual}>{textoQual}</div>
-      <p className="nota">Gerada a partir do cadastro. Fica só no SEMPER.</p>
+      <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
     </section>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
-      {vinculos === null ? <p className="carregando">Carregando…</p>
-        : typeof vinculos === 'string' ? <div className="aviso erro">{vinculos}</div>
+      {vinculos === null ? <Carregando />
+        : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
@@ -226,7 +226,7 @@ function Responsaveis({ p, aoMudar }: { p: Pessoa; aoMudar: (resp: string[]) => 
       <option value="">+ Incluir responsável</option>
       {fora.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
     </select>}
-    {!resp.length && <p className="nota" style={{ flexBasis: '100%' }}>Nenhum responsável ainda.</p>}
+    {!resp.length && <Nota style={{ flexBasis: '100%' }}>Nenhum responsável ainda.</Nota>}
   </div>;
 }
 
@@ -248,8 +248,8 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
     return () => { vivo = false; };
   }, [p.id, versao]);
 
-  if (dados === null) return <p className="carregando">Carregando…</p>;
-  if (typeof dados === 'string') return <div className="aviso erro">{dados}</div>;
+  if (dados === null) return <Carregando />;
+  if (typeof dados === 'string') return <Aviso tipo="erro">{dados}</Aviso>;
   const { lista, acessos } = dados;
   const veTodas = p.criado_por === eu || ctx.ehMaster || acessos.some(a => a.perfil_id === eu);
   const podeConceder = acessos[0]?.pode_conceder ?? (p.criado_por === eu || ctx.ehMaster || lista.some(s => s.criado_por === eu));
@@ -291,16 +291,16 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
       <div className="meta">
         <span>{s.autor || 'Usuário removido'} · {dataHora(s.atualizado_em)}</span>
         {s.pode_editar && <span style={{ display: 'flex', gap: 6 }}>
-          <button type="button" className="mini" onClick={() => editar(s)}><Icone nome="editar" tam={13} /> Editar</button>
-          <BotaoDuplo className="mini perigo" confirmar="Confirmar" aoConfirmar={() => apagar(s)}>Apagar</BotaoDuplo>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => editar(s)}><Icone nome="editar" tam={13} /> Editar</button>
+          <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar" aoConfirmar={() => apagar(s)}>Apagar</BotaoDuplo>
         </span>}
       </div>
     </div>)
-      : <p className="nota">{veTodas ? 'Nenhuma informação sigilosa registrada.'
-        : 'Você não tem acesso às informações sigilosas desta pessoa, se houver. Você pode registrar uma: ela ficará visível para você, para quem cadastrou a pessoa e para o master.'}</p>}
+      : <Nota>{veTodas ? 'Nenhuma informação sigilosa registrada.'
+        : 'Você não tem acesso às informações sigilosas desta pessoa, se houver. Você pode registrar uma: ela ficará visível para você, para quem cadastrou a pessoa e para o master.'}</Nota>}
     <form className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 8 }} onSubmit={registrar}>
       <label>Registrar informação sigilosa<textarea maxLength={TAMANHO_SIGILO} placeholder="Visível só para quem tem acesso" value={texto} onChange={e => setTexto(e.target.value)} /></label>
-      <div><button className="btn esc btn-sm" type="submit">Salvar informação</button></div>
+      <div><button className={estiloBotao({ variante: 'escuro', pequeno: true })} type="submit">Salvar informação</button></div>
     </form>
     {podeConceder && <div className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       <p className="rotulo-caps">Quem mais vê</p>
@@ -308,7 +308,7 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
         {acessos.length ? acessos.map(a => <span key={a.perfil_id} className="resp-chip">
           <Avatar p={ctx.equipe.find(m => m.id === a.perfil_id) || { id: a.perfil_id, nome: a.nome }} tam={26} /> {a.nome}
           <button type="button" aria-label={`Tirar o acesso de ${a.nome}`} onClick={() => conceder(a.perfil_id, false)}><Icone nome="fechar" tam={13} /></button>
-        </span>) : <p className="nota">Só quem cadastrou a pessoa, quem escreveu e o master.</p>}
+        </span>) : <Nota>Só quem cadastrou a pessoa, quem escreveu e o master.</Nota>}
         {semAcesso.length > 0 && <select className="filtro" style={{ height: 34 }} aria-label="Conceder acesso" value="" onChange={e => { if (e.target.value) void conceder(e.target.value, true); }}>
           <option value="">+ Conceder acesso</option>
           {semAcesso.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
@@ -329,9 +329,9 @@ function HistoricoPessoa({ id, versao }: { id: string; versao: number }) {
     return () => { vivo = false; };
   }, [id, versao]);
 
-  if (hist === null) return <p className="carregando">Carregando…</p>;
-  if (typeof hist === 'string') return <div className="aviso erro">{hist}</div>;
-  if (!hist.length) return <p className="nota">Nenhuma alteração desde o cadastro.</p>;
+  if (hist === null) return <Carregando />;
+  if (typeof hist === 'string') return <Aviso tipo="erro">{hist}</Aviso>;
+  if (!hist.length) return <Nota>Nenhuma alteração desde o cadastro.</Nota>;
   return <ol className="hist">{hist.map(h => <li key={h.id}>
     <span className="quando">{dataHora(h.em)} · {h.feito_por ? nomeDe(h.feito_por) : 'Sistema'}</span>
     {Object.entries(h.alteracoes).map(([campo, v]) => {
