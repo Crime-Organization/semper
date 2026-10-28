@@ -1,0 +1,58 @@
+name: Tarefa
+description: Uma tarefa do roteiro do SEMPER, com descrição e critérios de aceitação.
+title: ""
+projects: ["Crime-Organization/2"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Escreva no título o que precisa ser feito, numa frase (ex.: "Avisar quando o CPF for inválido no cadastro").
+        A tarefa entra sozinha no [roteiro](https://github.com/orgs/Crime-Organization/projects/2) como *Todo*.
+
+  - type: textarea
+    id: descricao
+    attributes:
+      label: Descrição
+      description: O que precisa ser feito e por quê. Contexto, quem pediu, qual problema resolve.
+      placeholder: |
+        Hoje o cadastro aceita qualquer CPF e o erro só aparece quando o escritório emite um documento.
+        A pessoa precisa saber na hora que digitou errado.
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Critérios de aceitação
+      description: |
+        Quando a tarefa está pronta? Um critério por linha, no padrão Dado / Quando / Então, o mesmo dos testes (app/TESTES.md).
+        Cada critério deve virar um teste, e as caixas mostram o progresso.
+      placeholder: |
+        - [ ] Dado um CPF inválido, quando a pessoa salvar o cadastro, então aparece o aviso "CPF inválido" e nada é salvo.
+        - [ ] Dado um CPF válido com pontos e traço, quando a pessoa salvar, então o cadastro é salvo só com os números.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Interface
+        - Pessoas
+        - Acesso e segurança
+        - Novos módulos
+        - Qualidade e testes
+        - Publicação e domínio
+        - E-mails
+        - LGPD
+    validations:
+      required: true
+
+  - type: textarea
+    id: observacoes
+    attributes:
+      label: Observações
+      description: Links, prints, telas de referência, dúvidas em aberto.
+    validations:
+      required: false
