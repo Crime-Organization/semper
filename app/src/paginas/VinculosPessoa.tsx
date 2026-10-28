@@ -2,6 +2,7 @@
 // Fica no cartão da pessoa; clicar no nome abre o cartão da outra pessoa.
 import { useState, type FormEvent } from 'react';
 import { SD, type Pessoa, type PessoaLista, type Vinculo, type VinculoTipo } from '../dados';
+import { estiloBotao, Nota, Selo } from '../ui/base';
 import { TAMANHO_VINCULO } from '../dados/limites';
 import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from '../regras/vinculos';
@@ -100,7 +101,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
           <div className="vinculo-texto">
             <span className="vinculo-tipo">{rotulo}</span>
             <button type="button" className="vinculo-pessoa" title="Abrir o cartão desta pessoa" onClick={() => aoAbrirPessoa(o.id)}>{o.nome}</button>
-            {o.arquivado_em && <span className="selo arq">Arquivada</span>}
+            {o.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
             {v.descricao && <span className="vinculo-obs">{v.descricao}</span>}
           </div>
           <button type="button" className="icone-btn" title="Retirar o vínculo" aria-label={`Retirar o vínculo com ${o.nome}`} onClick={() => retirar(v)}>
@@ -108,7 +109,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
           </button>
         </li>;
       })}
-    </ul> : !formulario && <p className="nota">Nenhum vínculo com outras pessoas ainda.</p>}
+    </ul> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
 
     {formulario
       ? <form className="form-vinculo campos" noValidate onSubmit={vincular}>
@@ -130,10 +131,10 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
               placeholder={pedeDescricao ? 'Ex.: inventariante do espólio' : 'Ex.: 50% das cotas, desde 2020'} />
           </label>}
         <div className="form-vinculo-acoes">
-          <button type="button" className="btn btn-sm" onClick={fecharFormulario}>Cancelar</button>
-          <button type="submit" className="btn pri btn-sm" disabled={ocupado}>Vincular</button>
+          <button type="button" className={estiloBotao({ pequeno: true })} onClick={fecharFormulario}>Cancelar</button>
+          <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado}>Vincular</button>
         </div>
       </form>
-      : <div><button type="button" className="mini" onClick={abrirFormulario}><Icone nome="mais" tam={14} /> Vincular pessoa</button></div>}
+      : <div><button type="button" className={estiloBotao({ forma: 'mini' })} onClick={abrirFormulario}><Icone nome="mais" tam={14} /> Vincular pessoa</button></div>}
   </>;
 }
