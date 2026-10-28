@@ -7,6 +7,27 @@ o `DESIGN.md` para o visual e o `app/TESTES.md` para os testes.
 Quem pede as mudanças nem sempre é programador. Explique em português simples o que vai fazer e por quê,
 e **pergunte antes** de qualquer coisa que mexa no banco de produção, apague dados ou publique o site.
 
+## Toda mudança tem uma tarefa no quadro
+
+Tudo o que for feito **vem de uma tarefa do quadro ou cria uma**. Nada de mudança sem tarefa: é o quadro que
+mostra o que está sendo feito, por quem e por quê. Quadro: https://github.com/orgs/Crime-Organization/projects/2
+
+1. **Antes de começar, procure a tarefa.** `gh issue list -R Crime-Organization/semper --search "<palavras>"`
+   (inclua `--state all` para ver se já foi feita). Se existir, use essa.
+2. **Se não existir, crie** no formato do modelo de tarefa (`.github/ISSUE_TEMPLATE/tarefa.yml`): título numa frase,
+   e o corpo com `### Descrição`, `### Critérios de aceitação` (caixas `- [ ]` no padrão Dado / Quando / Então),
+   `### Área` e `### Observações`. Mostre o texto à pessoa antes de criar. Depois:
+   ```bash
+   gh issue create -R Crime-Organization/semper --title "…" --body-file corpo.md
+   gh project item-add 2 --owner Crime-Organization --url <link da issue>
+   ```
+   e preencha **Área** e **Status** no quadro.
+3. **Mantenha o Status em dia:** *In Progress* ao começar; *Em revisão* ao abrir o PR; *Bloqueado* se parar
+   esperando algo ou alguém (com um comentário dizendo o quê); *Done* vem sozinho no merge, pelo `Closes #N`.
+4. **Escopo:** se no meio do caminho aparecer outra coisa para fazer, não misture no mesmo PR. Crie uma tarefa
+   nova para ela e siga com a atual.
+5. Mudança pequena (texto, um ajuste de estilo) também tem tarefa: pode ser curta, mas existe.
+
 ## Banco de dados
 
 O banco guarda dados reais de clientes. Um erro nele não tem "desfazer".
@@ -125,8 +146,8 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
 1. `npm run verificar --prefix app` (tipos, lint e testes) passa.
 2. Se mexeu em tela: `npm run testar-telas --prefix app` passa e você conferiu no `npm run teste --prefix app`.
 3. Trabalhe num ramo próprio, nunca direto no `main`.
-4. Preencha o template do PR, com `Closes #N` da tarefa do roteiro (https://github.com/orgs/Crime-Organization/projects/2),
-   e confira os critérios de aceitação da tarefa.
+4. Preencha o template do PR, com `Closes #N` da tarefa do quadro (veja "Toda mudança tem uma tarefa no quadro"),
+   confira os critérios de aceitação da tarefa e mova a tarefa para *Em revisão*. PR sem tarefa não deve ser aberto.
 5. Se o PR tem migração: diga no PR que ela só acrescenta e que a versão anterior do site continua funcionando.
 
 O site **não** vai ao ar no merge: só quando alguém roda "Publicar o SEMPER" (veja o `README.md`). Não rode a
