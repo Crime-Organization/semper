@@ -1,0 +1,39 @@
+name: Verificar o SEMPER
+
+# A cada envio ao main e a cada pull request, confere os tipos, roda os testes e compila o React.
+# Não publica nada: o site só muda quando sai uma versão nova (veja publicar.yml).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verificar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Instalar
+        working-directory: app
+        run: npm ci
+
+      - name: Conferir tipos e testes
+        working-directory: app
+        run: npm run verificar
+
+      - name: Compilar
+        working-directory: app
+        run: npx vite build

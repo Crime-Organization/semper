@@ -1,13 +1,29 @@
 name: Publicar o SEMPER
 
-# A cada envio ao main que mexa no app, confere os tipos, roda os testes, compila o React e publica
-# o resultado no ramo "publicacao", que é o que a Hostinger coloca no ar. Se algo falhar, nada é
-# publicado e o site continua como estava.
+# Põe uma versão no ar. Cada versão é uma marca vX.Y.Z no commit que foi publicado.
+#
+# - Versão nova: Actions → Publicar o SEMPER → Run workflow (no main), escolhendo o tipo de mudança.
+#   O número sai sozinho a partir da última marca (v1.2.3 → correção v1.2.4, novidade v1.3.0,
+#   grande v2.0.0; a primeira é v1.0.0).
+# - Também dá para criar a marca à mão: git tag v1.2.4 && git push origin v1.2.4.
+# - Voltar atrás: Run workflow preenchendo "versao" com uma marca que já existe (ex.: v1.2.3).
+#
+# Confere os tipos, roda os testes e compila; só depois disso cria a marca e a versão no GitHub
+# e grava o site pronto no ramo "publicacao", que é o que a Hostinger coloca no ar.
+# Se algo falhar, nenhuma marca é criada, nada é publicado e o site continua como estava.
 on:
-  push:
-    branches: [main]
-    paths: ['app/**', '.github/workflows/publicar.yml']
   workflow_dispatch:
+    inputs:
+      tipo:
+        description: 'Tipo de mudança da versão nova'
+        type: choice
+        options: [correção, novidade, grande]
+        default: correção
+      versao:
+        description: 'Ou republicar uma versão que já existe (ex.: v1.2.3), para voltar atrás'
+        required: false
+  push:
+    tags: ['v*.*.*']
 
 permissions:
   contents: write
@@ -21,6 +37,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.versao || github.ref }}
+          fetch-depth: 0
+
+      - name: Escolher a versão
+        id: versao
+        env:
+          TIPO: ${{ inputs.tipo }}
+          PEDIDA: ${{ inputs.versao }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            VERSAO="$GITHUB_REF_NAME"
+          elif [ -n "$PEDIDA" ]; then
+            git rev-parse -q --verify "refs/tags/$PEDIDA" >/dev/null || { echo "::error::A versão $PEDIDA não existe."; exit 1; }
+            VERSAO="$PEDIDA"
+          else
+            if [ "$GITHUB_REF" != refs/heads/main ]; then echo "::error::Versão nova só sai do main."; exit 1; fi
+            JA=$(git tag --points-at HEAD --list 'v*.*.*' | head -1)
+            if [ -n "$JA" ]; then echo "::error::Este commit já é a versão $JA. Para republicá-la, preencha \"versao\"."; exit 1; fi
+            ULTIMA=$(git tag --list 'v*.*.*' --sort=-v:refname | head -1)
+            if [ -z "$ULTIMA" ]; then
+              VERSAO=v1.0.0
+            else
+              IFS=. read -r MAIOR MENOR CORRECAO <<< "${ULTIMA#v}"
+              case "$TIPO" in
+                grande)   VERSAO="v$((MAIOR + 1)).0.0" ;;
+                novidade) VERSAO="v$MAIOR.$((MENOR + 1)).0" ;;
+                *)        VERSAO="v$MAIOR.$MENOR.$((CORRECAO + 1))" ;;
+              esac
+            fi
+          fi
+          [[ "$VERSAO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::\"$VERSAO\" não é uma versão no formato v1.2.3."; exit 1; }
+          echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
+          echo "Versão: $VERSAO ($(git rev-parse --short HEAD))"
 
       - uses: actions/setup-node@v5
         with:
@@ -38,14 +89,37 @@ jobs:
 
       - name: Compilar
         working-directory: app
-        run: npx vite build
+        env:
+          VERSAO: ${{ steps.versao.outputs.versao }}
+        run: |
+          npx vite build
+          # Para conferir o que está no ar: https://semper.app.br/versao.txt
+          printf '%s %s\n' "$VERSAO" "$(git rev-parse --short HEAD)" > dist/versao.txt
+
+      - name: Marcar a versão
+        env:
+          VERSAO: ${{ steps.versao.outputs.versao }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          if ! git rev-parse -q --verify "refs/tags/$VERSAO" >/dev/null; then
+            git tag -a "$VERSAO" -m "SEMPER $VERSAO"
+            git push origin "$VERSAO"
+          fi
+          if ! gh release view "$VERSAO" >/dev/null 2>&1; then
+            ANTERIOR=$(git describe --tags --abbrev=0 --match 'v*.*.*' "$VERSAO^" 2>/dev/null || true)
+            git log --no-merges --format='- %s' ${ANTERIOR:+"$ANTERIOR.."}"$VERSAO" > ../notas.md
+            gh release create "$VERSAO" --verify-tag --title "SEMPER $VERSAO" --notes-file ../notas.md
+          fi
 
       - name: Publicar no ramo publicacao
         env:
-          MENSAGEM: ${{ github.event.head_commit.message }}
+          VERSAO: ${{ steps.versao.outputs.versao }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          set -euo pipefail
+          ORIGEM=$(git rev-parse --short HEAD)
           git fetch origin publicacao
           git worktree add -B publicacao ../publicacao origin/publicacao
           cd ../publicacao
@@ -53,5 +127,5 @@ jobs:
           cp -a "$GITHUB_WORKSPACE/app/dist/." .
           git add -A
           if git diff --cached --quiet; then echo "Nada mudou no site."; exit 0; fi
-          git commit -q -m "Publicação de ${GITHUB_SHA::7}" -m "${MENSAGEM%%$'\n'*}"
+          git commit -q -m "SEMPER $VERSAO" -m "Publicação de $ORIGEM"
           git push origin publicacao
