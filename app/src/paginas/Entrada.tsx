@@ -7,6 +7,7 @@ import { SD, type TipoLink } from '../dados';
 import { emailValido } from '../regras/pessoa';
 import { mostrarTema, temaGuardado } from '../ui/tema';
 import { useTitulo } from '../ui/util';
+import { Aviso, Dica, estiloBotao } from '../ui/base';
 import './Entrada.css';
 
 type Painel = 'entrar' | 'primeiro' | 'cliente' | 'solicitar' | 'recuperar' | 'nova' | 'codigo';
@@ -118,8 +119,8 @@ export default function Entrada() {
     navegar('/inicio/');
   });
 
-  const ir = (p: Painel, rotulo: ReactNode) => <button className="link" type="button" disabled={ocupado} onClick={() => mostrar(p)}>{rotulo}</button>;
-  const enviarBotao = (rotulo: string) => <button className="btn pri" type="submit" disabled={ocupado}>{rotulo}</button>;
+  const ir = (p: Painel, rotulo: ReactNode) => <button className={estiloBotao({ forma: 'link' })} type="button" disabled={ocupado} onClick={() => mostrar(p)}>{rotulo}</button>;
+  const enviarBotao = (rotulo: string) => <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>{rotulo}</button>;
 
   const paineis: Record<Painel, DefPainel> = {
     entrar: {
@@ -129,19 +130,19 @@ export default function Entrada() {
         <label>Senha<input name="senha" type="password" autoComplete="current-password" required /></label>
         {enviarBotao('Entrar')}
         <div className="links">{ir('recuperar', 'Esqueci minha senha')}{ir('primeiro', 'Primeiro acesso')}</div>
-        <p className="dica">Os acessos da equipe são liberados pelo administrador do escritório.</p>
+        <Dica>Os acessos da equipe são liberados pelo administrador do escritório.</Dica>
       </>
     },
     primeiro: {
       titulo: 'Primeiro acesso', aba: 'entrar', enviar: primeiro,
       campos: <>
-        <p className="dica" style={{ fontSize: 14 }}>{codigoConvite
+        <Dica style={{ fontSize: 14 }}>{codigoConvite
           ? 'Use o e-mail em que você recebeu o convite do escritório e crie sua senha.'
-          : 'O primeiro acesso é feito pelo link do convite que o escritório enviou para você (vale 7 dias). Abra esse link; se ele se perdeu ou venceu, peça um novo ao administrador.'}</p>
+          : 'O primeiro acesso é feito pelo link do convite que o escritório enviou para você (vale 7 dias). Abra esse link; se ele se perdeu ou venceu, peça um novo ao administrador.'}</Dica>
         <label>E-mail do convite<input name="email" type="email" autoComplete="email" required /></label>
         <label>Crie uma senha<input name="senha" type="password" autoComplete="new-password" minLength={8} required /></label>
         <label>Repita a senha<input name="senha2" type="password" autoComplete="new-password" minLength={8} required /></label>
-        <p className="dica">Use pelo menos 8 caracteres.</p>
+        <Dica>Use pelo menos 8 caracteres.</Dica>
         {enviarBotao('Criar meu acesso')}
         {ir('entrar', 'Voltar para entrar')}
       </>
@@ -160,7 +161,7 @@ export default function Entrada() {
       campos: <>
         <label>CPF ou CNPJ<input name="documento" inputMode="numeric" autoComplete="off" required /></label>
         <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
-        <p className="dica">Use o e-mail informado no seu cadastro. O advogado responsável analisa o pedido e libera o acesso.</p>
+        <Dica>Use o e-mail informado no seu cadastro. O advogado responsável analisa o pedido e libera o acesso.</Dica>
         {enviarBotao('Solicitar acesso')}
         {ir('cliente', 'Voltar para entrar')}
       </>
@@ -169,7 +170,7 @@ export default function Entrada() {
       titulo: 'Recuperar senha', aba: 'entrar', enviar: recuperar,
       campos: <>
         <label>E-mail da conta<input name="email" type="email" autoComplete="email" required /></label>
-        <p className="dica">Enviaremos um link para você criar uma nova senha.</p>
+        <Dica>Enviaremos um link para você criar uma nova senha.</Dica>
         {enviarBotao('Enviar link')}
         {ir('entrar', 'Voltar para entrar')}
       </>
@@ -177,11 +178,11 @@ export default function Entrada() {
     codigo: {
       titulo: 'Código de verificação', enviar: codigo,
       campos: <>
-        <p className="dica" style={{ fontSize: 14 }}>Sua conta tem verificação em duas etapas. Abra o aplicativo autenticador do celular e digite o código do SEMPER.</p>
+        <Dica style={{ fontSize: 14 }}>Sua conta tem verificação em duas etapas. Abra o aplicativo autenticador do celular e digite o código do SEMPER.</Dica>
         <label>Código de 6 números<input name="codigo" inputMode="numeric" autoComplete="one-time-code" maxLength={7} required /></label>
         {enviarBotao('Confirmar')}
-        <button className="link" type="button" disabled={ocupado} onClick={sairDoCodigo}>Entrar com outra conta</button>
-        <p className="dica">Perdeu o celular ou o aplicativo? Fale com o master do escritório.</p>
+        <button className={estiloBotao({ forma: 'link' })} type="button" disabled={ocupado} onClick={sairDoCodigo}>Entrar com outra conta</button>
+        <Dica>Perdeu o celular ou o aplicativo? Fale com o master do escritório.</Dica>
       </>
     },
     nova: {
@@ -217,7 +218,7 @@ export default function Entrada() {
           <button type="button" role="tab" aria-selected={atual.aba === 'cliente'} onClick={() => mostrar('cliente')}>Sou cliente</button>
         </div>}
 
-        {msg && <div className={'aviso ' + msg.tipo} role="status">{msg.texto}</div>}
+        {msg && <Aviso tipo={msg.tipo}>{msg.texto}</Aviso>}
 
         <form key={painel} noValidate onSubmit={atual.enviar}>{atual.campos}</form>
       </div>
