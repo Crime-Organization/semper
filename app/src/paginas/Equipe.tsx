@@ -1,7 +1,7 @@
 // Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, papéis,
 // desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, Navigate } from 'react-router';
+import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
@@ -10,6 +10,7 @@ import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao, Vazio } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, PAPEIS, relativo, useTitulo } from '../ui/util';
 import './Equipe.css';
@@ -102,13 +103,13 @@ function PainelEquipe() {
     <section className="resumo" aria-label="Resumo">
       {([['Usuários ativos', n(u => u.ativo)], ['Administradores', n(u => u.ativo && u.papel !== 'usuario')],
         ['Desativados', n(u => !u.ativo)], ['Convites pendentes', convites.length]] as const)
-        .map(([r, v]) => <div key={r} className="cartao"><b>{usuarios ? v : '…'}</b><span>{r}</span></div>)}
+        .map(([r, v]) => <Cartao key={r}><b>{usuarios ? v : '…'}</b><span>{r}</span></Cartao>)}
     </section>
 
     <LiberarAcesso usuarios={lista} convites={convites} aoLiberar={carregar} />
 
     <section aria-labelledby="tUsu" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h2 className="secao" id="tUsu">Usuários</h2>
+      <TituloSecao id="tUsu">Usuários</TituloSecao>
       <div className="tabela"><table>
         <thead><tr><th scope="col">Usuário</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col">Último acesso</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
         <tbody>
@@ -123,13 +124,13 @@ function PainelEquipe() {
                   {(['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
                 </select>
                 : <span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span>}</td>
-              <td>{!u.ativo ? <span className="selo erro">Desativado</span> : !u.confirmado ? <span className="selo pend">Aguardando confirmação</span> : <span className="selo ok">Ativo</span>}</td>
+              <td>{!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}</td>
               <td style={{ whiteSpace: 'nowrap' }}>{u.ultimo_acesso ? dataHora(u.ultimo_acesso) : <span className="nota">Nunca entrou</span>}</td>
               <td><div className="td-acoes">
-                {u.pessoa_id && <Link className="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</Link>}
+                {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
-                  : u.ativo ? <BotaoDuplo className="mini perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
-                  : <button type="button" className="mini" onClick={() => definirAtivo(u, true)}>Reativar</button>}
+                  : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
+                  : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => definirAtivo(u, true)}>Reativar</button>}
               </div></td>
             </tr>;
           })}
@@ -138,8 +139,8 @@ function PainelEquipe() {
     </section>
 
     <section aria-labelledby="tPend" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h2 className="secao" id="tPend">Convites pendentes</h2>
-      {!convites.length ? <div className="vazio">Nenhum convite pendente.</div>
+      <TituloSecao id="tPend">Convites pendentes</TituloSecao>
+      {!convites.length ? <Vazio>Nenhum convite pendente.</Vazio>
         : <div className="tabela"><table style={{ minWidth: 620 }}>
           <thead><tr><th>Convidado</th><th>Papel</th><th>Criado</th><th><span className="sr">Ações</span></th></tr></thead>
           <tbody>{convites.map(c => <tr key={c.id}>
@@ -148,8 +149,8 @@ function PainelEquipe() {
             <td><div className="td-acoes">
               {c.papel === 'usuario' || ctx.ehMaster
                 ? <>
-                  <button type="button" className="mini" title="Gera e copia um link novo; o anterior deixa de valer" onClick={() => novoLink(c)}>Novo link</button>
-                  <BotaoDuplo className="mini perigo" confirmar="Confirmar" aoConfirmar={() => cancelarConvite(c.id)}>Cancelar</BotaoDuplo>
+                  <button type="button" className={estiloBotao({ forma: 'mini' })} title="Gera e copia um link novo; o anterior deixa de valer" onClick={() => novoLink(c)}>Novo link</button>
+                  <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar" aoConfirmar={() => cancelarConvite(c.id)}>Cancelar</BotaoDuplo>
                 </>
                 : <span className="nota">Só o master</span>}
             </div></td>
@@ -158,12 +159,12 @@ function PainelEquipe() {
     </section>
 
     <section aria-labelledby="tReg" className="registro" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <h2 className="secao" id="tReg">Registro de ações</h2>
-      <p className="nota" style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu, leu ou exportou informações (exigência da LGPD). Últimas 60 ações.</p>
-      <div className="cartao">
-        {registro === null ? <p className="carregando">Carregando…</p>
-          : typeof registro === 'string' ? <div className="aviso erro">{registro}</div>
-          : !registro.length ? <p className="nota">Nenhuma ação registrada ainda.</p>
+      <TituloSecao id="tReg">Registro de ações</TituloSecao>
+      <Nota style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu, leu ou exportou informações (exigência da LGPD). Últimas 60 ações.</Nota>
+      <Cartao>
+        {registro === null ? <Carregando />
+          : typeof registro === 'string' ? <Aviso tipo="erro">{registro}</Aviso>
+          : !registro.length ? <Nota>Nenhuma ação registrada ainda.</Nota>
           : <ol>{registro.map(r => {
             if (r.acao === 'exportacao') {
               const q = r.resumo?.quantidade ?? 0;
@@ -172,7 +173,7 @@ function PainelEquipe() {
             const alvo = r.resumo?.nome || r.resumo?.email || r.resumo?.codigo || '';
             return <li key={r.id}>{nomeDe(r.feito_por)} {ACOES[r.acao] || r.acao} {TABELAS[r.tabela] || r.tabela} {alvo && <b>{alvo}</b>}<span>{dataHora(r.em)}</span></li>;
           })}</ol>}
-      </div>
+      </Cartao>
     </section>
   </div>;
 }
@@ -213,20 +214,20 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   }
 
   return <section aria-labelledby="tConv" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-    <h2 className="secao" id="tConv">Dar acesso a uma pessoa</h2>
-    <div className="cartao campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <p className="nota">Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha.</p>
+    <TituloSecao id="tConv">Dar acesso a uma pessoa</TituloSecao>
+    <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Nota>Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha.</Nota>
       <form className="form-convite" noValidate onSubmit={liberar}>
         <div><BuscaPessoa rotulo="Pessoa" escolhida={escolhida} aoEscolher={escolher} placeholder="Busque pelo nome ou CPF"
           desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
         <label>E-mail de acesso<input ref={campoEmail} type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Papel<select value={papel} onChange={e => setPapel(e.target.value as Papel)}>{papeis.map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}</select></label>
-        <button className="btn pri" type="submit" disabled={ocupado}>Liberar acesso</button>
+        <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Liberar acesso</button>
       </form>
-      {criado && <div className="aviso ok">
+      {criado && <Aviso tipo="ok">
         Acesso liberado para <b>{criado.nome}</b> como {PAPEIS[criado.papel].toLowerCase()}. Envie o link abaixo só para essa pessoa: ela cria a senha com o e-mail <b>{criado.email}</b>. O link vale por 7 dias e aparece só agora; depois, use "Novo link" em Convites pendentes.
-        <div className="link-convite"><code>{linkAcesso(criado.codigo)}</code><button type="button" className="mini" onClick={() => copiar(mensagemConvite(criado, ctx.escritorio?.nome, criado.codigo))}>Copiar mensagem</button></div>
-      </div>}
-    </div>
+        <div className="link-convite"><code>{linkAcesso(criado.codigo)}</code><button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => copiar(mensagemConvite(criado, ctx.escritorio?.nome, criado.codigo))}>Copiar mensagem</button></div>
+      </Aviso>}
+    </Cartao>
   </section>;
 }
