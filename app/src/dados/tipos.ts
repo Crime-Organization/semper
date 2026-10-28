@@ -175,9 +175,9 @@ export interface CadastroDuasEtapas { id: string; qr: string; segredo: string }
 /** Tipos de link enviados por e-mail (parâmetro "type" do link). */
 export type TipoLink = 'email' | 'recovery' | 'email_change';
 
-/** Contrato da camada de dados: as telas só conversam com o banco por aqui. */
-// Contrato da camada de dados, dividido por área: cada tela ou peça pode depender só da parte que usa
-// (ex.: Pick<DadosPessoas, 'pessoasListar'>). supabase.ts e falso.ts implementam o contrato inteiro, Dados.
+// Contrato da camada de dados: as telas só conversam com o banco por aqui. É dividido por área, para cada tela
+// ou peça poder depender só da parte que usa (ex.: Pick<DadosPessoas, 'pessoasListar'>). supabase.ts e falso.ts
+// implementam o contrato inteiro (Dados), e contrato.test.ts confere que se comportam igual.
 
 /** Sessão, conta e preferências de quem entrou. */
 export interface DadosSessao {

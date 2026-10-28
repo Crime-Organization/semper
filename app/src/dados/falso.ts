@@ -332,6 +332,8 @@ export const SD: Dados = {
   equipeListar: () => espera(EQUIPE.map(m => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
+    // Como o índice convites_email_pendente do banco: um só convite pendente por e-mail.
+    if (bd.convites.some(c => c.email.toLowerCase() === email.toLowerCase())) return erro('Este e-mail já tem um convite pendente.');
     const c: Convite = { id: novoId(), email, nome: p.nome, papel, pessoa_id: pid, criado_em: agora() }; bd.convites.unshift(c); gravar();
     return espera({ ...c, codigo: codigoConvite() });
   },
