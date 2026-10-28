@@ -1,7 +1,8 @@
 // Janelas de confirmação e de escolha. janela() devolve uma promessa com o valor escolhido (null ao fechar),
 // então qualquer tela pergunta com: const ok = await confirmar('Título', 'Texto').
 // A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { criarLoja } from './loja';
 
 export interface AcaoJanela<T> {
   rotulo: string;
@@ -11,27 +12,22 @@ export interface AcaoJanela<T> {
 }
 interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; resolver: (v: unknown) => void }
 
-let pedidos: Pedido[] = [];
+const pedidos = criarLoja<Pedido[]>([]);
 let seq = 0;
-const ouvintes = new Set<() => void>();
-const emitir = () => ouvintes.forEach(f => f());
-const assinar = (f: () => void) => { ouvintes.add(f); return () => { ouvintes.delete(f); }; };
 
 function fechar(id: number, valor: unknown) {
-  const p = pedidos.find(x => x.id === id);
+  const p = pedidos.ler().find(x => x.id === id);
   if (!p) return;
-  pedidos = pedidos.filter(x => x !== p);
-  emitir();
+  pedidos.mudar(lista => lista.filter(x => x !== p));
   p.resolver(valor);
 }
 
 export function janela<T>({ titulo, corpo = null, acoes }: { titulo: string; corpo?: ReactNode; acoes?: AcaoJanela<T>[] }): Promise<T | null> {
   return new Promise(resolve => {
-    pedidos = [...pedidos, {
+    pedidos.mudar(lista => [...lista, {
       id: ++seq, titulo, corpo, acoes: (acoes || [{ rotulo: 'Fechar', valor: null }]) as AcaoJanela<unknown>[],
       resolver: v => resolve(v as T | null)
-    }];
-    emitir();
+    }]);
   });
 }
 
@@ -80,12 +76,13 @@ function JanelaAberta({ p }: { p: Pedido }) {
 
 /** Lugar das janelas (um só, na raiz do app). Esc fecha só a de cima. */
 export function Janelas() {
-  const lista = useSyncExternalStore(assinar, () => pedidos);
+  const lista = pedidos.usar();
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || !pedidos.length) return;
+      const abertas = pedidos.ler();
+      if (e.key !== 'Escape' || !abertas.length) return;
       e.stopPropagation();
-      fechar(pedidos[pedidos.length - 1].id, null);
+      fechar(abertas[abertas.length - 1].id, null);
     };
     document.addEventListener('keydown', tecla, true);
     return () => document.removeEventListener('keydown', tecla, true);

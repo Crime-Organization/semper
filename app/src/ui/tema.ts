@@ -1,22 +1,23 @@
 // Tema claro, escuro ou automático (segue o aparelho) e cor de destaque da marca.
-import { useSyncExternalStore } from 'react';
 import { MARCA } from '../marca';
+import { criarLoja } from './loja';
 import { salvarPreferencia } from './preferencias';
 
 export type Tema = 'auto' | 'claro' | 'escuro';
 export const TEMAS: Record<Tema, string> = { auto: 'Automático', claro: 'Claro', escuro: 'Escuro' };
 
 const html = document.documentElement;
-const ouvintes = new Set<() => void>();
-const assinar = (f: () => void) => { ouvintes.add(f); return () => { ouvintes.delete(f); }; };
 
+// O tema da tela mora no atributo data-tema (o tema-inicial.js já o põe antes de o app carregar);
+// a loja acompanha esse atributo para o React redesenhar quando ele muda.
 export const temaAtual = (): Tema => (html.dataset.tema as Tema) || 'auto';
+const tema = criarLoja<Tema>(temaAtual());
 
 /** Só muda o que aparece na tela (a entrada força o claro sem mexer na preferência guardada). */
 export function mostrarTema(t: Tema) {
   if (t === 'claro' || t === 'escuro') html.dataset.tema = t;
   else delete html.dataset.tema;
-  ouvintes.forEach(f => f());
+  tema.mudar(temaAtual());
 }
 export function temaGuardado(): Tema {
   try { const t = localStorage.getItem('semper-tema'); return t === 'claro' || t === 'escuro' ? t : 'auto'; }
@@ -33,7 +34,7 @@ export function definirTema(t: Tema) {
   aplicarTema(t);
   salvarPreferencia('tema', t);
 }
-export const useTema = () => useSyncExternalStore(assinar, temaAtual);
+export const useTema = tema.usar;
 
 // Cor de destaque vinda da marca (os tons derivados só mudam se a marca trocar o verde padrão).
 const mudarTom = (hex: string, f: number) => '#' + [16, 8, 0].map(s => {
