@@ -9,6 +9,7 @@ import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { normal } from '../../regras/texto';
+import { ordemNoFim } from './posicao';
 import { numero } from '../util';
 import type { Quadro } from './useColunas';
 
@@ -139,7 +140,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     if (!manualEm(para)) {
       if (kDe === kPara) return;
       // Vai para o fim da ordem manual; na tela, entra onde a ordem escolhida mandar (a coluna é relida).
-      const ordemAnterior = ordemDe(item), ordem = Date.now() / 1000;
+      const ordemAnterior = ordemDe(item), ordem = ordemNoFim();
       ordens.current[item.id] = ordem;
       setListas(l => ({ ...l, [kDe]: { ...l[kDe], itens: semItem, total: l[kDe].total - 1 }, [kPara]: { ...l[kPara], itens: [item, ...l[kPara].itens], total: l[kPara].total + 1 } }));
       try { await p.current.aoMover(item, { de, para, ordem, ordemAnterior }); void carregar(para); }

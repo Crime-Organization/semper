@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
+import { ordemNoFim } from '../ui/quadro/posicao';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -85,7 +86,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
   async function mudarEtapa(valor: string) {
-    const etapa = valor || null, de = p!.etapa_id || null, ordemDe = p!.etapa_ordem ?? null, ordem = Date.now() / 1000;
+    const etapa = valor || null, de = p!.etapa_id || null, ordemDe = p!.etapa_ordem ?? null, ordem = ordemNoFim();
     try {
       await SD.pessoaMover(p!.id, etapa, ordem);
       setP({ ...p!, etapa_id: etapa, etapa_ordem: ordem });

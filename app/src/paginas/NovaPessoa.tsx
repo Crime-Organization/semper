@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
+import { ordemNoFim } from '../ui/quadro/posicao';
 import {
   cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
   fmtCPF, fmtData, fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS, variantesTelefone
@@ -381,7 +382,7 @@ export default function NovaPessoa() {
         });
         navegar('/pessoas/?id=' + r.id);
       } else {
-        if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = Date.now() / 1000; }
+        if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
         feito('Pessoa cadastrada.', 'cadastro da pessoa', async () => {
           await SD.pessoasArquivar([r.id], true);
