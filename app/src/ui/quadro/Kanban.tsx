@@ -11,6 +11,7 @@ import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { TAMANHO_COLUNA } from '../../dados/limites';
 import { normal } from '../../regras/texto';
 import { ordemNoFim } from './posicao';
+import { Carregando, estiloBotao } from '../base';
 import { numero } from '../util';
 import type { Quadro } from './useColunas';
 
@@ -249,7 +250,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     </section>;
   }
 
-  if (!quadro.pronto) return <div className="area-quadro"><p className="carregando">Carregando…</p></div>;
+  if (!quadro.pronto) return <div className="area-quadro"><Carregando /></div>;
 
   const existentes = new Set(quadro.colunas.map(c => normal(c.nome)));
   return <div className="area-quadro">
@@ -285,7 +286,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
             {ocultas.map(c => <option key={c.id} value={c.nome}>oculta</option>)}
             {quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(s => <option key={s} value={s} />)}
           </datalist>
-          <button type="submit" className="btn pri btn-sm" disabled={criando}>Criar coluna</button>
+          <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={criando}>Criar coluna</button>
         </form>
         {ocultas.length > 0 && <div className="ocultas">
           <p className="rotulo-caps">Ocultas para você</p>

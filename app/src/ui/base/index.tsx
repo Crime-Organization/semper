@@ -66,8 +66,8 @@ export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }:
 }
 
 /** Faixa de aviso dentro da tela (não confundir com os avisos do pé da tela, em ../avisos.tsx). */
-export function Aviso({ tipo, children, className }: { tipo: 'erro' | 'ok' | 'info'; children: ReactNode; className?: string }) {
-  return <div className={['aviso', tipo, className].filter(Boolean).join(' ')} role={tipo === 'erro' ? 'alert' : 'status'}>{children}</div>;
+export function Aviso({ tipo, className, ...resto }: ComponentProps<'div'> & { tipo: 'erro' | 'ok' | 'info' }) {
+  return <div className={['aviso', tipo, className].filter(Boolean).join(' ')} role={tipo === 'erro' ? 'alert' : 'status'} {...resto} />;
 }
 
 export type TipoSelo = 'ok' | 'erro' | 'pend' | 'arq' | 'escuro';
