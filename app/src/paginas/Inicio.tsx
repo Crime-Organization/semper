@@ -19,8 +19,8 @@ export default function Inicio() {
   const [erro, setErro] = useState('');
 
   const carregar = () => SD.pessoasResumo().then(setR).catch(e => setErro((e as Error).message));
-  useEffect(() => { carregar(); }, []);
-  useMudancas(() => { carregar(); });
+  useEffect(() => { void carregar(); }, []);
+  useMudancas(() => { void carregar(); });
   // "Minha conta" no menu leva até a seção, mesmo vindo de outra tela.
   useEffect(() => {
     if (r && local.hash === '#conta') document.getElementById('conta')?.scrollIntoView();
@@ -134,7 +134,7 @@ function DuasEtapas() {
   const [codigo, setCodigo] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const carregar = () => SD.duasEtapasFatores().then(setFatores).catch(falha);
-  useEffect(() => { carregar(); }, []);
+  useEffect(() => { void carregar(); }, []);
   const ativo = fatores?.find(f => f.ativo);
 
   async function iniciar() {
@@ -152,13 +152,13 @@ function DuasEtapas() {
       await SD.duasEtapasConfirmar(cadastro.id, c);
       setCadastro(null);
       avisar('Verificação em duas etapas ativada. Nas próximas entradas, o SEMPER vai pedir o código do aplicativo.');
-      carregar();
+      void carregar();
     } catch (err) { falha(err); }
     setOcupado(false);
   }
   async function desativar() {
     if (!ativo) return;
-    try { await SD.duasEtapasDesativar(ativo.id); avisar('Verificação em duas etapas desativada. A entrada volta a pedir só a senha.'); carregar(); }
+    try { await SD.duasEtapasDesativar(ativo.id); avisar('Verificação em duas etapas desativada. A entrada volta a pedir só a senha.'); void carregar(); }
     catch (e) { falha(e); }
   }
 

@@ -57,6 +57,7 @@ export default function Pessoas() {
   const fechar = () => setParams({}, { replace: true });
   useEffect(() => {
     if (['visao', 'responsavel', 'situacao'].some(k => params.has(k))) setParams(aberto ? { id: aberto } : {}, { replace: true });
+  // oxlint-disable-next-line react/exhaustive-deps -- limpa endereços antigos uma vez só, ao abrir a tela
   }, []);
 
   // Cadastro desfeito aqui depois de salvo no formulário: fecha o cartão da pessoa que deixou de existir.
@@ -81,6 +82,7 @@ export default function Pessoas() {
     let vivo = true;
     SD.pessoasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
+  // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
   }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
 
   const filtrado = !!(f.termo || f.tipo || f.responsavel);

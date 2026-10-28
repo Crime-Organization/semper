@@ -1,0 +1,36 @@
+{
+  // Lint do SEMPER (oxlint). Roda em "npm run lint" e nas rotinas do GitHub: com qualquer erro, a build para.
+  // Só aponta problemas; não mexe na formatação do código.
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "oxc", "unicorn", "vitest"],
+  "categories": { "correctness": "error" },
+  "env": { "browser": true, "es2024": true },
+  "rules": {
+    // Regras dos hooks do React.
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+
+    // Promessas: toda chamada assíncrona leva await, .catch() ou void (quando a função já trata o erro por dentro).
+    // A navegação do React Router não falha, então dispensa o void.
+    "typescript/no-floating-promises": ["error", {
+      "allowForKnownSafeCalls": [{ "from": "package", "name": ["NavigateFunction", "navigate"], "package": "react-router" }]
+    }],
+    // Passar função assíncrona onde se espera uma comum (onClick, aoEscolher...) é o padrão do código: essas funções
+    // tratam o erro por dentro. Promessa usada como condição (if, filter) continua proibida.
+    "typescript/no-misused-promises": ["error", { "checksVoidReturn": false }],
+    "typescript/await-thenable": "error",
+    "no-unused-vars": "error",
+
+    // String(valor) é usado de propósito com valores simples (texto, número, vazio).
+    "typescript/no-base-to-string": "off",
+    // Regras do React Compiler, que o SEMPER não usa. Guardar a versão mais recente de uma função num ref
+    // durante a renderização (ref.current = fn) é um padrão proposital aqui.
+    "react/refs": "off",
+    "react/set-state-in-effect": "off",
+    "react/purity": "off",
+    "react/immutability": "off",
+    // Nos testes, vi.fn() sem tipo explícito é suficiente.
+    "vitest/require-mock-type-parameters": "off"
+  },
+  "ignorePatterns": ["dist/**", "playwright-report/**", "test-results/**"]
+}

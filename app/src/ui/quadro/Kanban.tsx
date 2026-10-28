@@ -90,7 +90,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const idsVisiveis = visiveis.map(c => c.id).sort().join(',');
   useEffect(() => {
     if (!quadro.pronto) return;
-    carregar(null);
+    void carregar(null);
     idsVisiveis.split(',').filter(Boolean).forEach(id => carregar(id));
   }, [quadro.pronto, idsVisiveis, props.recarga, carregar]);
 
@@ -100,7 +100,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     if (!quadro.pronto) return;
     for (const id of [null, ...visiveis.map(c => c.id)]) {
       const k = chave(id), o = quadro.ordemDe(id);
-      if (ordensVistas.current[k] && ordensVistas.current[k] !== o) carregar(id);
+      if (ordensVistas.current[k] && ordensVistas.current[k] !== o) void carregar(id);
       ordensVistas.current[k] = o;
     }
   });
@@ -141,8 +141,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       const ordemAnterior = ordemDe(item), ordem = Date.now() / 1000;
       ordens.current[item.id] = ordem;
       setListas(l => ({ ...l, [kDe]: { ...l[kDe], itens: semItem, total: l[kDe].total - 1 }, [kPara]: { ...l[kPara], itens: [item, ...l[kPara].itens], total: l[kPara].total + 1 } }));
-      try { await p.current.aoMover(item, { de, para, ordem, ordemAnterior }); carregar(para); }
-      catch (e) { falha(e); carregar(de); carregar(para); }
+      try { await p.current.aoMover(item, { de, para, ordem, ordemAnterior }); void carregar(para); }
+      catch (e) { falha(e); void carregar(de); void carregar(para); }
       return;
     }
     const base = kDe === kPara ? semItem : destino.itens;
@@ -160,7 +160,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       ? { ...l, [kDe]: { ...l[kDe], itens: novaLista } }
       : { ...l, [kDe]: { ...l[kDe], itens: semItem, total: l[kDe].total - 1 }, [kPara]: { ...l[kPara], itens: novaLista, total: l[kPara].total + 1 } });
     try { await p.current.aoMover(item, { de, para, ordem, ordemAnterior }); }
-    catch (e) { falha(e); carregar(de); carregar(para); }
+    catch (e) { falha(e); void carregar(de); void carregar(para); }
   }
 
   // ---------- arrastar colunas ----------
@@ -216,7 +216,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
           rolarBordas(e.clientX);
         }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node | null) && alvoRef.current?.k === k) setAlvo(null); }}
-        onDrop={e => { e.preventDefault(); if (arrasto.current) soltar(id); }}>
+        onDrop={e => { e.preventDefault(); if (arrasto.current) void soltar(id); }}>
         {!l ? <p className="coluna-vazia">Carregando…</p>
           : l.erro ? <p className="coluna-vazia erro">{l.erro}</p>
           : !l.itens.length && !marcador ? <p className="coluna-vazia">Nenhum item.</p> : null}
@@ -266,7 +266,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         colArrasto.current = null;
         setColArrastada(null);
         setAntesDeCol(null);
-        quadro.posicionar(c, antes && antes !== 'fim' ? quadro.colunas.find(x => x.id === antes) || null : null);
+        void quadro.posicionar(c, antes && antes !== 'fim' ? quadro.colunas.find(x => x.id === antes) || null : null);
       }}>
       <Fragment key="sem">{coluna(null)}</Fragment>
       {visiveis.map(c => <Fragment key={c.id}>
@@ -275,7 +275,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       </Fragment>)}
       {antesDeCol === 'fim' && <div className="kmarcador-col" />}
       <section className="coluna nova-coluna">
-        <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); criarColuna(); }}>
+        <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>
           <input id={idNova} ref={campoNova} list={idSugestoes} maxLength={60} placeholder="Nome da coluna" value={nova} onChange={e => setNova(e.target.value)} />
           <datalist id={idSugestoes}>

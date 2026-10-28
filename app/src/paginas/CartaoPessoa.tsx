@@ -36,11 +36,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.pessoaObter(id).then(x => { setP(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
-  useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => { void carregar(); }, [carregar]);
   // Os vínculos carregam com a pessoa, para a quantidade aparecer mesmo com a seção fechada.
   const [vinculos, setVinculos] = useState<Vinculo[] | string | null>(null);
   const carregarVinculos = useCallback(() => SD.vinculosListar(id).then(setVinculos).catch(e => setVinculos((e as Error).message)), [id]);
-  useEffect(() => { carregarVinculos(); }, [carregarVinculos]);
+  useEffect(() => { void carregarVinculos(); }, [carregarVinculos]);
   // Pessoa jurídica: quem a representa (vínculo "Representante legal de") entra no fim da qualificação, com a qualificação dele.
   const [representantes, setRepresentantes] = useState<Representante[]>([]);
   const ehPJ = p?.tipo === 'pj';
@@ -53,8 +53,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   }, [vinculos, ehPJ, id]);
   // Depois de desfazer: mostra a pessoa como ficou.
   useMudancas(d => {
-    carregar();
-    carregarVinculos();
+    void carregar();
+    void carregarVinculos();
     setVersaoHist(v => v + 1);
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
@@ -148,7 +148,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
       {vinculos === null ? <p className="carregando">Carregando…</p>
         : typeof vinculos === 'string' ? <div className="aviso erro">{vinculos}</div>
-        : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { carregarVinculos(); setVersaoHist(v => v + 1); }} />}
+        : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
     <Recolhivel titulo="Dados do cadastro" preferencia="pessoas.cartao.dados">
@@ -181,6 +181,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 }
 
 function Grupo({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode][] }) {
+  // oxlint-disable-next-line typescript/no-misused-promises -- os valores são textos; no React 19 o tipo ReactNode inclui Promise
   const cheias = linhas.filter(([, v]) => v);
   if (!cheias.length) return null;
   return <div className="grupo-dados">
@@ -257,7 +258,7 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
     e.preventDefault();
     const t = texto.trim();
     if (!t) { falha(new Error('Escreva a informação sigilosa.')); return; }
-    agir(async () => {
+    void agir(async () => {
       const novoId = await SD.sigiloSalvar(p.id, t);
       setTexto('');
       feito('Informação sigilosa registrada.', 'registro da informação sigilosa', async () => { await SD.sigiloApagar(novoId); return desfeito; });
@@ -266,7 +267,7 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
   const editar = async (s: Sigilo) => {
     const novo = await pedirTexto('Editar informação sigilosa', s.texto, { multilinha: true });
     if (!novo || novo === s.texto) return;
-    agir(async () => {
+    void agir(async () => {
       await SD.sigiloSalvar(p.id, novo, s.id);
       feito('Informação atualizada.', 'edição da informação sigilosa', async () => { await SD.sigiloSalvar(p.id, s.texto, s.id); return desfeito; });
     });
@@ -306,7 +307,7 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
           <Avatar p={ctx.equipe.find(m => m.id === a.perfil_id) || { id: a.perfil_id, nome: a.nome }} tam={26} /> {a.nome}
           <button type="button" aria-label={`Tirar o acesso de ${a.nome}`} onClick={() => conceder(a.perfil_id, false)}><Icone nome="fechar" tam={13} /></button>
         </span>) : <p className="nota">Só quem cadastrou a pessoa, quem escreveu e o master.</p>}
-        {semAcesso.length > 0 && <select className="filtro" style={{ height: 34 }} aria-label="Conceder acesso" value="" onChange={e => { if (e.target.value) conceder(e.target.value, true); }}>
+        {semAcesso.length > 0 && <select className="filtro" style={{ height: 34 }} aria-label="Conceder acesso" value="" onChange={e => { if (e.target.value) void conceder(e.target.value, true); }}>
           <option value="">+ Conceder acesso</option>
           {semAcesso.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>}

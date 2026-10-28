@@ -322,6 +322,7 @@ export default function NovaPessoa() {
   }
   useEffect(() => {
     if (idAtualizar) entrarAtualizacao(idAtualizar, false).catch(falha).finally(() => setPronto(true));
+  // oxlint-disable-next-line react/exhaustive-deps -- carrega o cadastro a atualizar uma vez só, ao abrir o formulário
   }, []);
 
   // ---------- coleta e envio ----------
@@ -536,7 +537,7 @@ export default function NovaPessoa() {
             <label htmlFor="cpf">CPF<span className="req">*</span></label>
             {texto('cpf', { mascara: 'cpf', placeholder: '000.000.000-00', numerico: true, aoSair: () => {
               const d = dig(cRef.current.cpf);
-              if (cpfValido(d)) verificarDocumento(d); else if (d) marcarErro('cpf', 'CPF inválido: confira os números.');
+              if (cpfValido(d)) void verificarDocumento(d); else if (d) marcarErro('cpf', 'CPF inválido: confira os números.');
             } })}
             {erro('cpf')}
           </div>
@@ -577,7 +578,7 @@ export default function NovaPessoa() {
               <label htmlFor="cnpj">CNPJ<span className="req">*</span></label>
               {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true, aoSair: () => {
                 const d = dig(cRef.current.cnpj);
-                if (cnpjValido(d)) verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
+                if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
               } })}
               {erro('cnpj')}
             </div>

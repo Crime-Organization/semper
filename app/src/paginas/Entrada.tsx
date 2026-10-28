@@ -65,8 +65,9 @@ export default function Entrada() {
       if (!s || params.has('desativado')) return;
       // Entrou com a senha, mas tem verificação em duas etapas: falta o código do aplicativo.
       if (await SD.duasEtapasPendente()) mostrar('codigo'); else navegar(destino, { replace: true });
-    });
+    }).catch(() => { /* sem conferir a sessão, a tela de entrada continua como está */ });
     return parar;
+  // oxlint-disable-next-line react/exhaustive-deps -- confere a sessão uma vez só, ao abrir a tela
   }, []);
 
   // Envio com o formulário ocupado; ler(nome) traz o valor de cada campo.
