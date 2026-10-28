@@ -1,5 +1,6 @@
 // Botões com comportamento comum: o que fica ocupado enquanto a ação roda e o de exclusão em dois cliques.
 import { useEffect, useRef, useState, type ComponentPropsWithRef, type MouseEvent, type ReactNode } from 'react';
+import { PRAZO_PARA_CONFIRMAR } from './tempos';
 
 type Base = Omit<ComponentPropsWithRef<'button'>, 'onClick'>;
 
@@ -26,7 +27,7 @@ export function BotaoDuplo({ className = '', confirmar, aoConfirmar, children, .
   useEffect(() => () => clearTimeout(tempo.current), []);
   const clicar = async () => {
     clearTimeout(tempo.current);
-    if (!armado) { setArmado(true); tempo.current = window.setTimeout(() => setArmado(false), 4000); return; }
+    if (!armado) { setArmado(true); tempo.current = window.setTimeout(() => setArmado(false), PRAZO_PARA_CONFIRMAR); return; }
     setArmado(false);
     await aoConfirmar();
   };

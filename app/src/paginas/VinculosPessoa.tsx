@@ -2,6 +2,7 @@
 // Fica no cartão da pessoa; clicar no nome abre o cartão da outra pessoa.
 import { useState, type FormEvent } from 'react';
 import { SD, type Pessoa, type PessoaLista, type Vinculo, type VinculoTipo } from '../dados';
+import { TAMANHO_VINCULO } from '../dados/limites';
 import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from '../regras/vinculos';
 import { avisar, falha, feito } from '../ui/avisos';
@@ -72,8 +73,8 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
     const r = await janela<{ nome: string; inverso: string }>({
       titulo: 'Novo tipo de vínculo',
       corpo: <div className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <label>Como aparece na pessoa aberta<input name="nome" maxLength={60} placeholder="Ex.: Inventariante de" /></label>
-        <label>Como aparece na outra pessoa <small>(em branco, se for igual)</small><input name="inverso" maxLength={60} placeholder="Ex.: Espólio com inventariante" /></label>
+        <label>Como aparece na pessoa aberta<input name="nome" maxLength={TAMANHO_VINCULO.nome} placeholder="Ex.: Inventariante de" /></label>
+        <label>Como aparece na outra pessoa <small>(em branco, se for igual)</small><input name="inverso" maxLength={TAMANHO_VINCULO.inverso} placeholder="Ex.: Espólio com inventariante" /></label>
       </div>,
       acoes: [{ rotulo: 'Cancelar', valor: null }, {
         rotulo: 'Criar tipo', tipo: 'pri',
@@ -122,10 +123,10 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
         <BuscaPessoa rotulo="Pessoa" escolhida={outra} aoEscolher={setOutra} desativar={x => x.id === p.id ? 'é a própria pessoa' : null} />
         {ehRepresentacao
           ? <label>Função <small>(entra na qualificação: "neste ato representada por sua sócia administradora, …")</small>
-            <input maxLength={120} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: sócia administradora" />
+            <input maxLength={TAMANHO_VINCULO.funcao} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: sócia administradora" />
           </label>
           : <label>Descrição {pedeDescricao ? <small>(obrigatória em "Outro")</small> : <small>(opcional)</small>}
-            <input maxLength={300} value={descricao} onChange={e => setDescricao(e.target.value)}
+            <input maxLength={TAMANHO_VINCULO.descricao} value={descricao} onChange={e => setDescricao(e.target.value)}
               placeholder={pedeDescricao ? 'Ex.: inventariante do espólio' : 'Ex.: 50% das cotas, desde 2020'} />
           </label>}
         <div className="form-vinculo-acoes">

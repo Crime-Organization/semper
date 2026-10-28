@@ -5,6 +5,7 @@
 // para a entrada, em /entrar/.
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent } from 'react';
 import { Link, Navigate } from 'react-router';
+import { TAMANHO_ESCRITORIO } from '../dados/limites';
 import { MARCA } from '../marca';
 import { qualificacao } from '../regras/pessoa';
 import { mostrarTema, temaGuardado } from '../ui/tema';
@@ -308,7 +309,7 @@ function Conhecer() {
     <form className="h-dialogo" data-ui onSubmit={enviar} data-entra>
       <h3>Conhecer o SEMPER</h3>
       <label>Nome do escritório
-        <input ref={campo} value={nome} onChange={e => setNome(e.target.value)} maxLength={120} required placeholder="Silva & Souza Advogados" autoComplete="organization" />
+        <input ref={campo} value={nome} onChange={e => setNome(e.target.value)} maxLength={TAMANHO_ESCRITORIO.nome} required placeholder="Silva & Souza Advogados" autoComplete="organization" />
       </label>
       <fieldset>
         <legend>Tamanho da equipe</legend>

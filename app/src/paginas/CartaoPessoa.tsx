@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
+import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
@@ -298,7 +299,7 @@ function Sigilos({ p, versao, aoMudar }: { p: Pessoa; versao: number; aoMudar: (
       : <p className="nota">{veTodas ? 'Nenhuma informação sigilosa registrada.'
         : 'Você não tem acesso às informações sigilosas desta pessoa, se houver. Você pode registrar uma: ela ficará visível para você, para quem cadastrou a pessoa e para o master.'}</p>}
     <form className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 8 }} onSubmit={registrar}>
-      <label>Registrar informação sigilosa<textarea maxLength={5000} placeholder="Visível só para quem tem acesso" value={texto} onChange={e => setTexto(e.target.value)} /></label>
+      <label>Registrar informação sigilosa<textarea maxLength={TAMANHO_SIGILO} placeholder="Visível só para quem tem acesso" value={texto} onChange={e => setTexto(e.target.value)} /></label>
       <div><button className="btn esc btn-sm" type="submit">Salvar informação</button></div>
     </form>
     {podeConceder && <div className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

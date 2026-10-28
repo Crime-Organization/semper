@@ -8,6 +8,8 @@ import type {
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
+import { POR_COLUNA, POR_PAGINA } from './limites';
+import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -60,7 +62,7 @@ function semente(): Banco {
   const cpfs = ['52998224725', '11144477735', '39053344705', '74682489070', '12345678909', '98765432100', '04746201094', '61236758012'];
   const cnpjs = ['11625970000107', '11222333000181', '45723174000110'];
   const pessoas: Pessoa[] = [];
-  const dia = (n: number) => new Date(Date.now() - n * 86400000).toISOString();
+  const dia = (n: number) => new Date(Date.now() - n * DIA).toISOString();
   const p = (dados: Partial<Pessoa>) => pessoas.push(Object.assign({
     id: novoId(), codigo: codigo(), tipo: 'pf', nome: '', genero: null, nacionalidade: null, profissao: null, estado_civil: null, rg: null, rg_expedicao: null,
     nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null, natureza: null, tipo_entidade: null,
@@ -191,11 +193,11 @@ export const SD: Dados = {
   async pessoasListar(f = {}) {
     let r = filtrar(f);
     r = r.sort(ORDENS[f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome']);
-    const por = f.porPagina || 50, de = (f.pagina || 0) * por;
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     return espera({ linhas: r.slice(de, de + por).map(lista), total: r.length });
   },
   pessoasExportar: (f = {}) => espera(filtrar(f).sort(ORDENS.nome)),
-  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
+  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrar(f).filter(p => (p.etapa_id || null) === (etapaId || null))
       .sort(ORDENS[f.ordem || 'manual']);
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(lista), total: r.length });

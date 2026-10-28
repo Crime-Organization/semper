@@ -8,6 +8,7 @@ import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
+import { TAMANHO_COLUNA } from '../../dados/limites';
 import { normal } from '../../regras/texto';
 import { ordemNoFim } from './posicao';
 import { numero } from '../util';
@@ -279,7 +280,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>
-          <input id={idNova} ref={campoNova} list={idSugestoes} maxLength={60} placeholder="Nome da coluna" value={nova} onChange={e => setNova(e.target.value)} />
+          <input id={idNova} ref={campoNova} list={idSugestoes} maxLength={TAMANHO_COLUNA} placeholder="Nome da coluna" value={nova} onChange={e => setNova(e.target.value)} />
           <datalist id={idSugestoes}>
             {ocultas.map(c => <option key={c.id} value={c.nome}>oculta</option>)}
             {quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(s => <option key={s} value={s} />)}

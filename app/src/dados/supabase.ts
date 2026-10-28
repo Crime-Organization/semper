@@ -6,6 +6,7 @@ import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
+import { POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
@@ -175,7 +176,7 @@ export const SD: Dados = {
 
   // ---------- pessoas ----------
   async pessoasListar(f = {}) {
-    const por = f.porPagina || 50, de = (f.pagina || 0) * por;
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     let q = filtrar(sb.from('pessoas').select(selecao(f), { count: 'exact' }), f);
     q = ordenar(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome');
     const { data, count } = await rodar(q.range(de, de + por - 1));
@@ -194,7 +195,7 @@ export const SD: Dados = {
   },
 
   // Cartões de uma coluna do kanban (etapaId null = "Sem etapa").
-  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = 30) {
+  async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     let q = filtrar(sb.from('pessoas').select(selecao(f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     q = ordenar(q, f.ordem || 'manual');
@@ -371,7 +372,7 @@ export const SD: Dados = {
     await rpc('escritorio_salvar', { p: dados });
     ctx = null;   // a barra lateral e os convites passam a usar os dados novos
   },
-  async auditoriaListar(limite = 50) {
+  async auditoriaListar(limite = REGISTRO_DE_ACOES) {
     const { data } = await rodar(sb.from('auditoria').select('id, tabela, registro_id, acao, resumo, feito_por, em')
       .order('em', { ascending: false }).limit(limite));
     return data;
