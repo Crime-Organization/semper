@@ -1,7 +1,7 @@
 // Pessoas no formato do Google Contatos: o mesmo CSV que o Google exporta e aceita em "Importar".
 // Nome, telefones, e-mails, aniversário e, se pedido, a qualificação na descrição.
 import type { Pessoa } from '../dados/tipos';
-import { dig, qualificacao, type Representante } from './pessoa';
+import { celularCompleto, qualificacao, type Representante } from './pessoa';
 
 // Colunas na ordem em que o Google exporta. Telefones e e-mails ganham colunas (Phone 4, 5…) quando alguém tem mais de 3.
 const ANTES = ['First Name', 'Middle Name', 'Last Name', 'Phonetic First Name', 'Phonetic Middle Name', 'Phonetic Last Name',
@@ -21,10 +21,7 @@ export function cabecalhoGoogle(telefones = 3, emails = 3) {
 export function telefoneGoogle(v: string) {
   const original = String(v || '').trim();
   if (original.startsWith('+') && !/^\+\s*55/.test(original)) return original;
-  let d = dig(original);
-  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
-  else if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
-  if (d.length === 10 && /[6-9]/.test(d[2])) d = d.slice(0, 2) + '9' + d.slice(2);
+  const d = celularCompleto(original);
   if (d.length === 11 && d[2] === '9') return `+55 ${d.slice(0, 2)} ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10 && /[2-5]/.test(d[2])) return `+55 ${d.slice(0, 2)} ${d.slice(2, 6)}-${d.slice(6)}`;
   return original;

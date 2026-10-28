@@ -4,6 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
@@ -64,7 +65,7 @@ function termoBusca(texto?: string) {
   const t = String(texto || '').trim();
   if (!t) return '';
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
-  return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[%_\\]/g, m => '\\' + m);
+  return normal(t).replace(/[%_\\]/g, m => '\\' + m);
 }
 function filtrar(q: Livre, f: FiltroPessoas = {}) {
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);

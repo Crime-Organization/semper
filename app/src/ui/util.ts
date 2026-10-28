@@ -18,8 +18,6 @@ export function relativo(iso?: string | null) {
 }
 export const numero = (n: number) => n.toLocaleString('pt-BR');
 
-/** Texto comparável: sem acentos, sem espaços nas pontas, em minúsculas. */
-export const normal = (t: unknown) => String(t || '').trim().normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /** Título da aba do navegador: "Pessoas · SEMPER". */
 export function useTitulo(nome: string) {

@@ -6,7 +6,7 @@ import { SD, type Coluna, type ContextoAtivo, type Modulo, type Ordem } from '..
 import { falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { normal } from '../util';
+import { normal } from '../../regras/texto';
 
 export interface Quadro {
   colunas: Coluna[];

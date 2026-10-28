@@ -6,7 +6,8 @@
 import type {
   AcessoSigilo, Coluna, Contexto, Convite, Dados, DadosEscritorio, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
 } from './tipos';
-import { TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { normal } from '../regras/texto';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -14,8 +15,6 @@ const novoId = () => crypto.randomUUID();
 const codigo = () => Math.random().toString(16).slice(2, 10).toUpperCase().padEnd(8, '0');
 const codigoConvite = () => [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
 const agora = () => new Date().toISOString();
-const semAcento = (t: unknown) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const telNormal = (t: unknown) => { let d = String(t || '').replace(/\D/g, ''); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
 
 type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string };
 const EQUIPE: MembroFalso[] = [
@@ -109,12 +108,12 @@ gravar();
 const eu = 'u-master';
 const auditar = (tabela: string, acao: string, p?: Pessoa) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo }, feito_por: eu, em: agora() });
-const busca = (p: Pessoa) => semAcento([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telNormal), ...(p.emails || []), p.municipio].join(' '));
+const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
   const t = String(texto || '').trim();
   if (!t) return '';
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
-  return semAcento(t);
+  return normal(t);
 }
 function filtrar(f: FiltroPessoas = {}) {
   const t = termo(f.termo);
@@ -207,8 +206,8 @@ export const SD: Dados = {
     return espera(p ? { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em } : null);
   },
   pessoasPorTelefones: (tels, exceto) => {
-    const t = tels.map(telNormal).filter(x => x.length >= 8);
-    return espera(bd.pessoas.filter(p => p.id !== exceto && p.telefones.some(x => t.includes(telNormal(x)))).slice(0, 5)
+    const t = tels.map(telefoneNormal).filter(x => x.length >= 8);
+    return espera(bd.pessoas.filter(p => p.id !== exceto && p.telefones.some(x => t.includes(telefoneNormal(x)))).slice(0, 5)
       .map(p => ({ id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo })));
   },
   async pessoaCriar(dados, resp) {
@@ -292,7 +291,7 @@ export const SD: Dados = {
 
   vinculoTiposListar: () => espera(bd.tiposVinculo!.slice().sort((a, b) => a.ordem - b.ordem || a.nome.localeCompare(b.nome))),
   async vinculoTipoCriar(nome, inverso) {
-    if (bd.tiposVinculo!.some(t => semAcento(t.nome) === semAcento(nome) && semAcento(t.inverso) === semAcento(inverso || nome))) return erro('Esse tipo de vínculo já existe.');
+    if (bd.tiposVinculo!.some(t => normal(t.nome) === normal(nome) && normal(t.inverso) === normal(inverso || nome))) return erro('Esse tipo de vínculo já existe.');
     const t: VinculoTipo = { id: novoId(), escritorio_id: 'e1', nome: nome.trim(), inverso: (inverso || nome).trim(), ordem: 500 };
     bd.tiposVinculo!.push(t); gravar(); return espera(t);
   },
@@ -321,7 +320,7 @@ export const SD: Dados = {
   colunasListar: () => espera(bd.colunas.slice().sort((a, b) => a.ordem - b.ordem).map(c => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),
   sugestoesListar: () => espera(ETAPAS),
   async colunaCriar(_modulo, nome, ordem) {
-    if (bd.colunas.some(c => semAcento(c.nome) === semAcento(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
+    if (bd.colunas.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
     const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu }; bd.colunas.push(c); gravar(); return espera({ ...c, oculta: false });
   },
   async colunaOcultar(id, ocultar) { bd.ocultas = ocultar ? [...new Set([...bd.ocultas, id])] : bd.ocultas.filter(x => x !== id); gravar(); },

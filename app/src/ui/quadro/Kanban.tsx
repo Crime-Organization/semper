@@ -8,7 +8,8 @@ import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
-import { normal, numero } from '../util';
+import { normal } from '../../regras/texto';
+import { numero } from '../util';
 import type { Quadro } from './useColunas';
 
 export interface Movimento { de: string | null; para: string | null; ordem: number; ordemAnterior: number | null }

@@ -90,12 +90,14 @@ export const fmtCPF = (v: Texto) => { const d = dig(v); return d.length === 11 ?
 export const fmtCNPJ = (v: Texto) => { const d = dig(v); return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? ''); };
 export const fmtDocumento = (v: Texto) => { const d = dig(v); return d.length === 14 ? fmtCNPJ(d) : d.length === 11 ? fmtCPF(d) : String(v ?? ''); };
 export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
+// Tira o código do Brasil (+55) de um número só com dígitos, quando ele vem com DDD e número completos.
+const sem55 = (d: string) => (d.length === 12 || d.length === 13) && d.startsWith('55') ? d.slice(2) : d;
 // Celular antigo, de 8 dígitos (começa com 6 a 9), ganha o 9 da frente: (16) 8201-0240 -> (16) 98201-0240.
 // Também tira o +55 e o 0 antes do DDD.
-const celularCompleto = (v: Texto) => {
-  let d = dig(v);
-  if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2);
-  else if ((d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
+export const celularCompleto = (v: Texto) => {
+  const digitos = dig(v);
+  let d = sem55(digitos);
+  if (d === digitos && (d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
   return d.length === 10 && /[6-9]/.test(d[2]) ? d.slice(0, 2) + '9' + d.slice(2) : d;
 };
 export function fmtTelefone(v: Texto) {
@@ -106,7 +108,7 @@ export function fmtTelefone(v: Texto) {
 }
 /** O número foi digitado sem o 9 do celular (vai ser salvo com ele). */
 export const faltaNoveCelular = (v: Texto) => { const d = dig(v).replace(/^(55|0)(?=\d{10}$)/, ''); return d.length === 10 && /[6-9]/.test(d[2]); };
-export const telefoneNormal = (v: Texto) => { let d = dig(v); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
+export const telefoneNormal = (v: Texto) => sem55(dig(v));
 /** Para achar cadastro repetido: o número com e sem o 9 do celular (cadastros antigos podem estar sem ele). */
 export function variantesTelefone(v: Texto) {
   const d = celularCompleto(v);
