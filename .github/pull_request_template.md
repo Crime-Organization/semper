@@ -2,9 +2,14 @@
 
 ### Qual a tarefa associada?
 
-<!-- Link do item no roteiro (https://github.com/orgs/Crime-Organization/projects/2) ou da issue.
-     Se for uma issue, escreva "Closes #123" para ela fechar sozinha no merge.
+<!-- Complete com o número da tarefa (issue) do roteiro, ex.: "Closes #55". Roteiro: https://github.com/orgs/Crime-Organization/projects/2
+     Com o "Closes", a tarefa fecha sozinha no merge e vai para Done no quadro.
+     Mais de uma tarefa: uma linha "Closes #N" para cada.
+     Se o PR só avança a tarefa, sem terminá-la, escreva "Parte de #123" (não fecha).
+     Ao abrir o PR, mova a tarefa para "Em revisão" no quadro.
      Antes de pedir revisão, confira se todos os critérios de aceitação da tarefa foram atendidos. -->
+
+Closes #
 
 ### O que mudou?
 
