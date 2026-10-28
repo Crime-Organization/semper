@@ -310,7 +310,7 @@ export interface DadosCNPJ {
 }
 
 // Resposta da API (só os campos usados).
-interface RespostaCNPJws {
+export interface RespostaCNPJws {
   razao_social?: string;
   natureza_juridica?: { descricao?: string };
   porte?: { descricao?: string };
@@ -351,31 +351,14 @@ export function deCNPJws(data: RespostaCNPJws): DadosCNPJ {
   };
 }
 
-export async function consultarCNPJ(cnpj: string) {
-  const d = dig(cnpj);
-  const r = await fetch(`https://publica.cnpj.ws/cnpj/${d}`);
-  if (r.status === 404) throw new Error('CNPJ não encontrado na Receita.');
-  if (r.status === 429) throw new Error('Muitas consultas seguidas. Aguarde um minuto e tente de novo.');
-  if (!r.ok) throw new Error('Não foi possível consultar o CNPJ agora.');
-  const data = await r.json() as RespostaCNPJws;
-  if (!data || !data.razao_social) throw new Error('CNPJ não encontrado na Receita.');
-  return deCNPJws(data);
-}
-
-// CEP: BrasilAPI (principal) e ViaCEP (reserva).
-export async function consultarCEP(cep: string) {
-  const d = dig(cep);
-  if (d.length !== 8) throw new Error('O CEP tem 8 dígitos.');
-  try {
-    const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${d}`);
-    if (r.ok) { const x = await r.json(); return { logradouro: x.street || '', bairro: x.neighborhood || '', municipio: x.city || '', uf: x.state || '' }; }
-  } catch { /* tenta a reserva */ }
-  let x;
-  try { x = await (await fetch(`https://viacep.com.br/ws/${d}/json/`)).json(); }
-  catch { throw new Error('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.'); }
-  if (!x || x.erro) throw new Error('CEP não encontrado. Confira o número ou preencha manualmente.');
-  return { logradouro: x.logradouro || '', bairro: x.bairro || '', municipio: x.localidade || '', uf: x.uf || '' };
-}
+// CEP: endereço no formato do cadastro, a partir da BrasilAPI (principal) ou do ViaCEP (reserva).
+export interface EnderecoCEP { logradouro: string; bairro: string; municipio: string; uf: string }
+export interface RespostaBrasilAPI { street?: string; neighborhood?: string; city?: string; state?: string }
+export interface RespostaViaCEP { logradouro?: string; bairro?: string; localidade?: string; uf?: string; erro?: boolean | string }
+export const deBrasilAPI = (x: RespostaBrasilAPI): EnderecoCEP =>
+  ({ logradouro: x.street || '', bairro: x.neighborhood || '', municipio: x.city || '', uf: x.state || '' });
+export const deViaCEP = (x: RespostaViaCEP): EnderecoCEP =>
+  ({ logradouro: x.logradouro || '', bairro: x.bairro || '', municipio: x.localidade || '', uf: x.uf || '' });
 
 // Valor legível de um campo (para histórico e cartão).
 export function valorLegivel(campo: string, v: unknown): string {

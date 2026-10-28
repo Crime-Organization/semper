@@ -4,9 +4,10 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type ReactNo
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import {
-  cnpjValido, consultarCEP, consultarCNPJ, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
+  cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, ESTADO_CIVIL, faltaNoveCelular, fmtCEP, fmtCNPJ,
   fmtCPF, fmtData, fmtTelefone, lerData, LGPD, MASCARAS, NATUREZAS, PORTES, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
+import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { falha, feito } from '../ui/avisos';
 import { Botao } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';

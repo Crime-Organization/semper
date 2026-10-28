@@ -4,7 +4,8 @@
 import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
-import { cnpjValido, consultarCEP, consultarCNPJ, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
+import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
+import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { avisar, falha, feito } from '../ui/avisos';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
