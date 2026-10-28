@@ -3,6 +3,7 @@
 // A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
 import { useEffect, useRef, type ReactNode } from 'react';
 import { criarLoja } from './loja';
+import { estiloBotao } from './base/botao';
 
 export interface AcaoJanela<T> {
   rotulo: string;
@@ -68,7 +69,7 @@ function JanelaAberta({ p }: { p: Pedido }) {
       <h2 id={idTitulo}>{p.titulo}</h2>
       <div className="janela-corpo">{p.corpo}</div>
       <div className="janela-acoes">
-        {p.acoes.map((a, i) => <button key={i} type="button" className={'btn' + (a.tipo ? ' ' + a.tipo : '')} onClick={() => escolher(a)}>{a.rotulo}</button>)}
+        {p.acoes.map((a, i) => <button key={i} type="button" className={estiloBotao({ variante: a.tipo === 'pri' ? 'principal' : a.tipo })} onClick={() => escolher(a)}>{a.rotulo}</button>)}
       </div>
     </form>
   </div>;

@@ -3,9 +3,9 @@
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
 import type { Ordem } from '../dados';
 import { Icone, type NomeIcone } from './Icone';
+import { BotaoLink } from './base';
 import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
@@ -101,9 +101,9 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
           </button>)}
         </div>}
       </div>
-      {acao && <Link className="btn pri cabeca-acao" to={acao.para} title={acao.rotulo} aria-label={acao.rotulo}>
+      {acao && <BotaoLink variante="principal" className="cabeca-acao" to={acao.para} title={acao.rotulo} aria-label={acao.rotulo}>
         <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
-      </Link>}
+      </BotaoLink>}
     </header>
     {children}
     {lote && <div className="lote">{lote}</div>}

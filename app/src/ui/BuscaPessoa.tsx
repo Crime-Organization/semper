@@ -2,12 +2,12 @@
 // do que vem abaixo (não empurra o formulário) e fecha ao clicar fora ou com Esc.
 // Peça comum: vínculos entre pessoas, liberar acesso (Equipe) e, depois, partes de processos, contratos etc.
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
 import { SD, type PessoaLista } from '../dados';
 import { ACHADOS_DA_BUSCA } from '../dados/limites';
 import { fmtDocumento, TIPOS } from '../regras/pessoa';
 import { falha } from './avisos';
 import { useAtrasado } from './util';
+import { BotaoLink, estiloBotao } from './base';
 
 interface Props {
   rotulo: string;
@@ -44,7 +44,7 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
 
   if (escolhida) return <label>{rotulo}
     <span className="escolhida"><span title={escolhida.nome}>{escolhida.nome}</span>
-      <button type="button" className="mini" onClick={() => { aoEscolher(null); setTermo(''); setAchados(null); setTimeout(() => campo.current?.focus(), 0); }}>Trocar</button>
+      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => { aoEscolher(null); setTermo(''); setAchados(null); setTimeout(() => campo.current?.focus(), 0); }}>Trocar</button>
     </span>
   </label>;
 
@@ -67,7 +67,7 @@ export function BuscaPessoa({ rotulo, escolhida, aoEscolher, desativar, placehol
             <b>{p.nome}</b><small>{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''}{motivo ? ' · ' + motivo : ''}</small>
           </button>
         </li>;
-      }) : <li className="nota" style={{ padding: '10px 12px' }}>Nenhuma pessoa encontrada. <Link className="link" to="/pessoas/nova/">Cadastrar</Link></li>}
+      }) : <li className="nota" style={{ padding: '10px 12px' }}>Nenhuma pessoa encontrada. <BotaoLink forma="link" to="/pessoas/nova/">Cadastrar</BotaoLink></li>}
     </ul>}
   </div>;
 }

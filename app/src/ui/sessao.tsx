@@ -6,6 +6,7 @@ import { SD, type ContextoAtivo } from '../dados';
 import { iniciarPreferencias } from './preferencias';
 import { aplicarTema, type Tema } from './tema';
 import { Casca } from './Casca';
+import { Aviso, Carregando } from './base';
 import { MINUTO } from './tempos';
 
 interface Sessao {
@@ -55,9 +56,9 @@ export function ExigirLogin() {
     if (lidoEm.current && Date.now() - lidoEm.current > RENOVAR_APOS) void carregar(true);
   }, [local.pathname, carregar]);
 
-  if (erro) return <div className="aviso erro" style={{ margin: '40px auto', maxWidth: 520 }}>{erro}</div>;
+  if (erro) return <Aviso tipo="erro" style={{ margin: '40px auto', maxWidth: 520 }}>{erro}</Aviso>;
   if (!ctx) return null;
   return <SessaoCtx.Provider value={{ ctx, recarregar: (forcar = true) => carregar(forcar) }}>
-    <Casca><Suspense fallback={<div className="miolo"><p className="carregando">Carregando…</p></div>}><Outlet /></Suspense></Casca>
+    <Casca><Suspense fallback={<div className="miolo"><Carregando /></div>}><Outlet /></Suspense></Casca>
   </SessaoCtx.Provider>;
 }
