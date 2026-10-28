@@ -259,6 +259,27 @@ Uma única fotografia de marca, `app/src/imagens/farol.webp` (já em escala de c
 - **`green-period`:** títulos editoriais terminam com "." verde (`{colors.accent}` no claro, `{colors.accent-bright}` no escuro).
 - **`toast`:** fixo embaixo ao centro, `{colors.dark}`, `{rounded.md}`, sombra Floating.
 
+### Em código (`app/src/ui/base/`)
+
+As peças acima existem como componentes React. Cada um gera o mesmo HTML e as mesmas classes descritas aqui, com as cores e os tamanhos de `estilo.css`. Telas novas usam os componentes, e não escrevem as classes à mão; as telas antigas passam para eles aos poucos, sem mudar a aparência.
+
+| Peça | Componente | Exemplo |
+|---|---|---|
+| Botões (`.btn`, `.pri`, `.esc`, `.perigo`, `.btn-sm`, `.mini`, `.link`) | `Botao` e `BotaoDuplo` (em `ui/Botoes.tsx`), `BotaoLink`, `estiloBotao()` | `<Botao variante="principal">Salvar</Botao>` · `<BotaoDuplo forma="mini" variante="perigo" …>` · `<BotaoLink to="/pessoas/nova/" variante="principal">` |
+| Pergunta de formulário (`.pergunta`, `.req`, `.dica`, `.msg-erro`) | `Campo` com `propsDoCampo()` | `<Campo rotulo="CPF" para="cpf" obrigatorio erro={erro}><input {...propsDoCampo('cpf', { erro })} /></Campo>` |
+| Grupo de opções (`.pergunta` + `.escolhas`) | `Escolhas` | `<Escolhas rotulo="Gênero" obrigatorio>…rádios…</Escolhas>` |
+| `alert` (`.aviso`) | `Aviso` | `<Aviso tipo="erro">{mensagem}</Aviso>` |
+| `status-chip` (`.selo`) | `Selo` | `<Selo tipo="pend">Pendente</Selo>` |
+| `card` (`.cartao`) | `Cartao` | `<Cartao>…</Cartao>` |
+| Título de seção (`h2.secao`) | `TituloSecao` | `<TituloSecao>Usuários</TituloSecao>` |
+| Nota e dica (`.nota`, `.dica`) | `Nota`, `Dica` | `<Nota>Quem faz parte da equipe…</Nota>` |
+| Carregando (`.carregando`) | `Carregando` | `<Carregando />` |
+| `empty-state` (`.vazio`) | `Vazio` | `<Vazio>Nenhum convite pendente.</Vazio>` |
+
+Além da aparência, os componentes cuidam da acessibilidade: o `Campo` liga o rótulo, a dica e o erro ao campo (`aria-invalid`, `aria-describedby`) e anuncia o erro; o `Aviso` de erro é anunciado como alerta; o `Carregando`, como status. Os testes de `ui/base/base.test.tsx` garantem que as classes geradas são as desta seção.
+
+Os formulários de Configurações ainda usam outra marcação (`.campo-form`, `.com-erro`, `.erro-campo`). Unificar com o `Campo` muda a aparência deles e fica para a migração das telas.
+
 ## Do's and Don'ts
 
 ### Do
