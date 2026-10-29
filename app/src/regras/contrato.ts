@@ -2,7 +2,7 @@
 // percentuais da divisão, leitura de valores em reais e a validação do cadastro. Tudo puro, sem tela nem banco.
 // As contas seguem as planilhas de receitas do escritório (aba Contratos).
 import type { CategoriaHonorario, Contrato, DadosContrato, PapelNoContrato } from '../dados/tipos';
-import { OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 
@@ -96,7 +96,8 @@ export const fmtPercentual = (v: number | null | undefined) => v === null || v =
 // ---------- formulário ----------
 /** Campos do formulário de contrato, como digitados. */
 export interface CamposContrato {
-  clienteId: string;
+  /** Um por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
+  clientes: string[];
   responsavelId: string;
   /** Um por linha; linhas vazias são ignoradas ao salvar. */
   objetos: string[];
@@ -117,14 +118,14 @@ export interface CamposContrato {
   codigoAntigo: string;
 }
 export const CONTRATO_VAZIO: CamposContrato = {
-  clienteId: '', responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
+  clientes: [''], responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
   primeiroPagamento: '', percentualEscritorio: '', participantes: [], indicadorId: '', indicadorPercentual: '',
   documentoUrl: '', observacoes: '', codigoAntigo: ''
 };
 
 /** Mensagem de cada campo obrigatório que falta. */
 export const MSG_CONTRATO: Partial<Record<keyof CamposContrato, string>> = {
-  clienteId: 'Escolha o cliente.',
+  clientes: 'Escolha o cliente.',
   responsavelId: 'Escolha o advogado responsável.',
   objetos: 'Informe ao menos um objeto do contrato.',
   categoria: 'Escolha a categoria de honorário.'
@@ -132,7 +133,7 @@ export const MSG_CONTRATO: Partial<Record<keyof CamposContrato, string>> = {
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
 type Conferencia = (c: CamposContrato) => string | null;
-type CampoTexto = Exclude<keyof CamposContrato, 'objetos' | 'participantes'>;
+type CampoTexto = Exclude<keyof CamposContrato, 'clientes' | 'objetos' | 'participantes'>;
 /** Onde aparece cada erro: um campo do formulário, ou a divisão como um todo (a soma dos percentuais). */
 export type CampoComErro = keyof CamposContrato | 'divisao';
 /** Participantes preenchidos (com pessoa ou com %). */
@@ -149,7 +150,11 @@ const quieto = <T>(ler: (t: string) => T, t: string) => { try { return ler(t); }
 
 /** Regras do cadastro, uma lista por campo (a primeira que falhar dá a mensagem). Campo novo = entrada nova aqui. */
 const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
-  clienteId: [obrigatorio('clienteId')],
+  clientes: [
+    c => c.clientes.some(Boolean) ? null : MSG_CONTRATO.clientes!,
+    c => new Set(c.clientes.filter(Boolean)).size < c.clientes.filter(Boolean).length ? 'O mesmo cliente aparece duas vezes.' : null,
+    c => c.clientes.filter(Boolean).length > CLIENTES_MAXIMOS ? `Um contrato pode ter até ${CLIENTES_MAXIMOS} clientes.` : null
+  ],
   responsavelId: [obrigatorio('responsavelId')],
   objetos: [
     c => limparObjetos(c.objetos).length ? null : MSG_CONTRATO.objetos!,
@@ -202,7 +207,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
   const texto = (t: string) => t.trim() || null;
   const parcelas = c.parcelas.trim();
   return {
-    cliente_id: c.clienteId, responsavel_id: c.responsavelId, objetos: limparObjetos(c.objetos), servico: juntarObjetos(c.objetos), categoria: c.categoria as CategoriaHonorario,
+    clientes: [...new Set(c.clientes.filter(Boolean))], responsavel_id: c.responsavelId, objetos: limparObjetos(c.objetos), servico: juntarObjetos(c.objetos), categoria: c.categoria as CategoriaHonorario,
     valor: lerDinheiro(c.valor), entrada: lerDinheiro(c.entrada), parcelas: parcelas ? Number(parcelas) : null, descontos: lerDinheiro(c.descontos),
     assinado_em: lerData(c.assinadoEm), primeiro_pagamento: lerData(c.primeiroPagamento),
     percentual_escritorio: c.percentualEscritorio ? Number(c.percentualEscritorio) : null,
@@ -216,7 +221,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
 export function camposDoContrato(k: Contrato): CamposContrato {
   const pct = (v: number | null) => v === null ? '' : String(v).replace('.', ',');
   return {
-    clienteId: k.cliente_id, responsavelId: k.responsavel_id, objetos: k.objetos.length ? [...k.objetos] : [''], categoria: k.categoria,
+    clientes: k.clientes.length ? k.clientes.map(p => p.id) : [''], responsavelId: k.responsavel_id, objetos: k.objetos.length ? [...k.objetos] : [''], categoria: k.categoria,
     valor: dinheiroNoCampo(k.valor), entrada: dinheiroNoCampo(k.entrada), parcelas: k.parcelas ? String(k.parcelas) : '',
     descontos: dinheiroNoCampo(k.descontos), assinadoEm: fmtData(k.assinado_em), primeiroPagamento: fmtData(k.primeiro_pagamento),
     percentualEscritorio: k.percentual_escritorio === null ? '' : String(k.percentual_escritorio),
@@ -228,7 +233,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
 
 /** Nome de cada campo no histórico de alterações do contrato. */
 export const CAMPOS_CONTRATO: Record<string, string> = {
-  cliente_id: 'Cliente', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
+  cliente_id: 'Cliente', clientes: 'Clientes', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
   percentual_escritorio: 'Enviado ao escritório', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', observacoes: 'Observações',
@@ -263,7 +268,7 @@ export type EtapaContrato = 'partes' | 'objetos' | 'honorarios' | 'divisao' | 'd
 export interface DefinicaoEtapa { id: EtapaContrato; titulo: string; texto: string; campos: CampoComErro[] }
 export const ETAPAS_CONTRATO: DefinicaoEtapa[] = [
   { id: 'partes', titulo: 'Cliente e responsável', texto: 'Quem contrata e o advogado que responde pelo contrato.',
-    campos: ['clienteId', 'responsavelId', 'codigoAntigo'] },
+    campos: ['clientes', 'responsavelId', 'codigoAntigo'] },
   { id: 'objetos', titulo: 'O que foi contratado', texto: 'Cada objeto vira uma demanda quando o contrato for assinado.',
     campos: ['objetos', 'categoria'] },
   { id: 'honorarios', titulo: 'Honorários', texto: 'Valores e datas. Nada aqui é obrigatório.',
@@ -287,9 +292,9 @@ export const PAPEIS_NO_CONTRATO: Record<PapelNoContrato, string> = {
   cliente: 'Cliente', responsavel: 'Responsável', participante: 'Participante', indicador: 'Indicador'
 };
 /** O que confere cada papel: a pessoa (ou o usuário dela, no responsável) no campo certo do contrato. */
-interface PartesDoContrato { cliente_id: string; responsavel_id: string; indicador_id: string | null; participantes: string[] }
+interface PartesDoContrato { clientes: string[]; responsavel_id: string; indicador_id: string | null; participantes: string[] }
 const CONFERE_PAPEL: Record<PapelNoContrato, (k: PartesDoContrato, pessoaId: string, perfilId: string | null) => boolean> = {
-  cliente: (k, p) => k.cliente_id === p,
+  cliente: (k, p) => k.clientes.includes(p),
   responsavel: (k, _p, perfil) => !!perfil && k.responsavel_id === perfil,
   participante: (k, p) => k.participantes.includes(p),
   indicador: (k, p) => k.indicador_id === p
@@ -297,3 +302,8 @@ const CONFERE_PAPEL: Record<PapelNoContrato, (k: PartesDoContrato, pessoaId: str
 /** Os papéis da pessoa no contrato, na ordem de PAPEIS_NO_CONTRATO (vazio: ela não está nele). */
 export const papeisNoContrato = (k: PartesDoContrato, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNoContrato[]).filter(papel => CONFERE_PAPEL[papel](k, pessoaId, perfilId));
+
+/** Nomes por extenso, como se fala: "ANA", "ANA e BRUNO", "ANA, BRUNO e CARLA". */
+export const nomesPorExtenso = (nomes: string[]) => new Intl.ListFormat('pt-BR', { style: 'long', type: 'conjunction' }).format(nomes);
+/** Os clientes de um contrato por extenso, a partir do nome guardado ("A; B"). */
+export const clientesPorExtenso = (clienteNome: string) => nomesPorExtenso(clienteNome.split('; '));

@@ -107,7 +107,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     describe('Contratos', () => {
       const novoContrato = async (extra: Parameters<Dados['contratoCriar']>[0] = {}) => {
         const { id: cliente } = await criar(marca());
-        return SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore', ...extra });
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore', ...extra });
       };
 
       it('quando um contrato é criado, então recebe o número com a sigla do responsável, o sequencial e o ano', async () => {
@@ -323,7 +323,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const { id: ana } = await criar(marca());
         const { id: comoCliente } = await novoContrato();
         const { id: comoParticipante } = await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 10 }] });
-        const { id: daAna } = await SD.contratoCriar({ cliente_id: ana, responsavel_id: 'u-master', objetos: ['Oposição'], categoria: 'pro_bono' });
+        const { id: daAna } = await SD.contratoCriar({ clientes: [ana], responsavel_id: 'u-master', objetos: ['Oposição'], categoria: 'pro_bono' });
         // Quando
         const lista = await SD.contratosDaPessoa(ana);
         // Então
@@ -338,6 +338,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const lista = await SD.contratosDaPessoa('p-ana', 'u-ana');
         // Então
         expect(lista.find(k => k.id === id)?.papeis).toEqual(['responsavel']);
+      });
+
+      it('quando o contrato tem dois clientes, então os dois voltam na ordem, e o contrato aparece para cada um como cliente', async () => {
+        // Dado
+        const nomeAna = marca(), nomeBruno = marca();
+        const { id: ana } = await criar(nomeAna), { id: bruno } = await criar(nomeBruno);
+        // Quando
+        const { id } = await SD.contratoCriar({ clientes: [ana, bruno, ana], responsavel_id: 'u-master', objetos: ['Divórcio'], categoria: 'pro_labore' });
+        // Então
+        const lido = await SD.contratoObter(id);
+        expect(lido!.clientes.map(c => c.id)).toEqual([ana, bruno]);
+        expect(lido!.cliente_nome).toBe(`${nomeAna}; ${nomeBruno}`);
+        expect((await SD.contratosDaPessoa(bruno)).map(k => [k.id, k.papeis])).toEqual([[id, ['cliente']]]);
+        expect((await SD.contratosListar({ termo: nomeBruno })).linhas.map(k => k.id)).toEqual([id]);
+      });
+
+      it('quando a versão anterior do site grava só o cliente antigo, então a lista passa a ter só ele', async () => {
+        // Dado
+        const { id: ana } = await criar(marca());
+        const { id } = await novoContrato();
+        // Quando
+        await SD.contratoAtualizar(id, { cliente_id: ana });
+        // Então
+        expect((await SD.contratoObter(id))!.clientes.map(c => c.id)).toEqual([ana]);
       });
 
       it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {

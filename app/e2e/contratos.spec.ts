@@ -269,3 +269,24 @@ test.describe('Contratos no cartão da pessoa', () => {
     await expect(page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveText('Trocar');
   });
 });
+
+test.describe('Contrato com mais de um cliente', () => {
+  test('quando o contrato tem dois clientes, então o cartão mostra os dois e o contrato aparece no cartão de cada um', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/novo/');
+    await escolherPessoa(page, 'Cliente', 'luciana', 'LUCIANA ROCHA AMOSTRA');
+    // Quando
+    await page.getByRole('button', { name: 'Adicionar cliente' }).click();
+    await escolherPessoa(page, 'Cliente 2', 'paulo', 'PAULO HENRIQUE SIMULADO');
+    await proxima(page, 'O que foi contratado');
+    await page.getByRole('combobox', { name: 'Objeto 1' }).fill('Divórcio consensual');
+    await page.getByText('Pró-labore', { exact: true }).click();
+    await salvarContrato(page);
+    // Então
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA e PAULO HENRIQUE SIMULADO' })).toBeVisible();
+    await page.goto('/pessoas/');
+    await page.getByRole('searchbox').fill('paulo henrique');
+    await page.getByRole('row').filter({ hasText: 'PAULO HENRIQUE SIMULADO' }).click();
+    await expect(page.getByRole('dialog').getByRole('link', { name: /Divórcio consensual/ })).toContainText('Cliente');
+  });
+});

@@ -40,3 +40,6 @@
 .linha-participante label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink) }
 .grade-indicador { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 14px; align-items: start }
 @container formulario (max-width: 559px) { .grade-indicador { grid-template-columns: minmax(0, 1fr) } }
+/* Cada cliente numa linha: a busca da pessoa e, havendo mais de um, o botão de tirar. */
+.linha-cliente { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: end }
+.linha-cliente > .icone-btn { margin-bottom: 6px }

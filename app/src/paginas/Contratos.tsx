@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_PAGINA } from '../dados/limites';
-import { CATEGORIAS, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
+import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -168,7 +168,7 @@ function CartaoKanban({ k, ordem }: { k: ContratoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, k);
   return <>
-    <div className="kt">{k.cliente.nome}</div>
+    <div className="kt">{clientesPorExtenso(k.cliente_nome)}</div>
     <div className="km">
       <span className="codigo">{k.codigo}</span>
       <span className="contrato-servico">{k.servico}</span>
@@ -214,7 +214,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, aoAbrir, 
       <tbody>{linhas.map(k => <tr key={k.id} className={'clicavel' + (selecionadas.has(k.id) ? ' marcada' : '')}
         onClick={e => { if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) aoAbrir(k.id); }}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} onChange={e => marcar([k.id], e.target.checked)} /></td>
-        <td><div className="nome">{k.cliente.nome}</div><div className="sub contrato-servico">{k.servico}</div></td>
+        <td><div className="nome">{clientesPorExtenso(k.cliente_nome)}</div><div className="sub contrato-servico">{k.servico}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}><span className="codigo">{k.codigo}</span>{k.codigo_antigo && <div className="sub">antigo: {k.codigo_antigo}</div>}</td>
         <td>{CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtDinheiro(k.valor)}</td>
