@@ -9,6 +9,7 @@ import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { TAMANHO_COLUNA } from '../../dados/limites';
+import { MARCOS } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 import { ordemNoFim } from './posicao';
 import { Carregando, estiloBotao } from '../base';
@@ -193,7 +194,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const reordena = !!c && quadro.podeReordenar;
     const ordem = quadro.ordemDe(id), manual = ordem === 'manual';
     const marcador = aqui && manual;
-    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
+    const marco = c?.marco ? MARCOS[c.marco] : null;
+    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -203,7 +205,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
           e.dataTransfer.setData('text/plain', 'coluna:' + c!.id);
         } : undefined}
         onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); } : undefined}>
-        <h3 title={nome}>{nome}</h3><span className="coluna-n">{l ? numero(l.total) : '…'}</span>
+        <h3 title={marco ? `${nome}: ${marco.explicacao}` : nome}>{nome}</h3>
+        {marco && <span className="coluna-marco-selo" title={marco.explicacao} aria-label={`Coluna-marco: ${marco.rotulo}`}><Icone nome="check" tam={13} /></span>}
+        <span className="coluna-n">{l ? numero(l.total) : '…'}</span>
         <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
           onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
           <Icone nome="pontos" tam={16} />
@@ -313,6 +317,7 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
     </button>)}
     {c && <>
     <hr className="kmenu-divisoria" />
+    {c.marco && <p className="kmenu-nota">{MARCOS[c.marco].explicacao}</p>}
     {quadro.podeReordenar && i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
     {quadro.podeReordenar && i < visiveis.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.mover(c, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
     <button type="button" role="menuitem" onClick={agir(() => quadro.ocultar(c, true))}><Icone nome="oculto" tam={15} /> Ocultar para mim</button>

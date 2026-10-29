@@ -309,3 +309,28 @@ test.describe('Ligações em quadrinhos', () => {
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'TEREZA CRISTINA PILOTO' })).toBeVisible();
   });
 });
+
+test.describe('Coluna-marco do contrato assinado', () => {
+  test('quando o administrador abre o menu da coluna do contrato assinado, então vê a explicação e não há como excluí-la', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Quando
+    await page.getByRole('button', { name: 'Opções da coluna Assinado / em andamento' }).click();
+    // Então
+    const menu = page.getByRole('menu');
+    await expect(menu.getByText(/Coluna do contrato assinado/)).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: 'Excluir coluna' })).toHaveCount(0);
+    await expect(page.getByLabel('Coluna-marco: Contrato assinado')).toBeVisible();
+  });
+
+  test('quando o administrador abre o menu de uma coluna comum, então pode excluí-la', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Quando
+    await page.getByRole('button', { name: 'Opções da coluna Encerrado' }).click();
+    // Então
+    await expect(page.getByRole('menu').getByRole('menuitem', { name: 'Excluir coluna' })).toBeVisible();
+  });
+});

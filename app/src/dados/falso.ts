@@ -156,6 +156,8 @@ for (const m of EQUIPE) { const pessoa = bd.pessoas.find(x => x.id === m.pessoa_
 if (!bd.colunas.some(c => c.modulo === 'contratos')) {
   bd.colunas.push(...SITUACOES_CONTRATO.map((nome, i) => ({ id: 'k' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'contratos' as const })));
 }
+// A coluna "Assinado / em andamento" de Contratos é a coluna-marco do contrato assinado (como a migração 014).
+bd.colunas.forEach(c => { if (c.modulo === 'contratos' && c.id === 'k3') c.marco = 'assinado'; });
 bd.contratos ??= sementeContratos();
 bd.historicoContratos ??= [];
 // Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
@@ -572,6 +574,7 @@ export const SD: Dados = {
   async colunaRenomear(id, nome) { const c = bd.colunas.find(x => x.id === id); if (c) c.nome = nome; gravar(); },
   async colunaOrdenar(id, ordem) { const c = bd.colunas.find(x => x.id === id); if (c) c.ordem = ordem; gravar(); },
   async colunaExcluir(id) {
+    if (bd.colunas.find(c => c.id === id)?.marco) return erro('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
     bd.colunas = bd.colunas.filter(c => c.id !== id);
     for (const item of [...bd.pessoas, ...bd.contratos!]) if (item.etapa_id === id) item.etapa_id = null;
     gravar();

@@ -151,7 +151,9 @@ export interface Vinculo {
 /** Quem representa uma pessoa jurídica (vínculo "Representante legal de"), com o cadastro completo e a função escrita no vínculo. */
 export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao: string | null }
 
-export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean }
+/** Código fixo das colunas que marcam um ponto do fluxo (regras/quadro.ts). */
+export type MarcoColuna = 'assinado' | 'inicio' | 'concluido';
+export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null }
 
 /** Categoria de honorário do contrato. */
 export type CategoriaHonorario = 'pro_labore' | 'quota_litis' | 'sucumbencia' | 'adiantamento_despesas' | 'pro_bono';
