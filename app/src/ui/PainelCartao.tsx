@@ -1,7 +1,9 @@
 // Painel do cartão, sobre um véu: abre ao lado (desliza da direita) ou numa janela no centro da tela, como no Trello.
 // Cada usuário escolhe no botão ao lado do "X", e a escolha fica nas preferências dele (vale para os cartões de todos os
 // módulos, em qualquer aparelho). Esc ou clique fora fecham (se não houver janela aberta).
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+// Na janela no centro há uma coluna à direita, para os comentários: ColunaDoCartao diz onde ela está (no painel ao lado,
+// não há coluna, e os comentários ficam numa seção do cartão).
+import { createContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icone, type NomeIcone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
@@ -13,6 +15,8 @@ const FORMATOS: Record<FormatoCartao, { outro: FormatoCartao; rotulo: string; ic
   centro: { outro: 'lado', rotulo: 'Abrir ao lado', icone: 'lado' }
 };
 export const PREFERENCIA_FORMATO = 'cartao.formato';
+/** A coluna da direita da janela no centro (null no painel ao lado). */
+export const ColunaDoCartao = createContext<HTMLElement | null>(null);
 const formatoGuardado = (): FormatoCartao => {
   const f = lerPreferencia<string>(PREFERENCIA_FORMATO, 'lado');
   return f in FORMATOS ? f as FormatoCartao : 'lado';
@@ -21,6 +25,7 @@ const formatoGuardado = (): FormatoCartao => {
 export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; children: ReactNode }) {
   const [on, setOn] = useState(false);
   const [formato, setFormato] = useState(formatoGuardado);
+  const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const painel = useRef<HTMLElement>(null);
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;
@@ -44,7 +49,12 @@ export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; chi
         <button type="button" className="cartao-botao cartao-formato" aria-label={rotulo} title={rotulo} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>
         <button type="button" className="cartao-botao" aria-label="Fechar" onClick={() => fechar.current()}><Icone nome="fechar" tam={18} /></button>
       </div>
-      <div className="cartao-corpo">{children}</div>
+      <div className="cartao-conteudo">
+        <ColunaDoCartao.Provider value={formato === 'centro' ? coluna : null}>
+          <div className="cartao-corpo">{children}</div>
+        </ColunaDoCartao.Provider>
+        {formato === 'centro' && <div className="cartao-coluna" ref={setColuna} />}
+      </div>
     </aside>
   </>, document.body);
 }

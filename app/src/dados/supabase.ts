@@ -6,10 +6,10 @@ import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CONTRATOS_DA_PESSOA, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
+import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Funcao, Ordem, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
+import type { Comentario, Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -91,6 +91,11 @@ async function sincronizarResponsaveis(pessoaId: string, responsaveis?: string[]
 }
 
 const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome, args)).then(r => r.data);
+
+// ---------- comentários ----------
+const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
+/** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id' };
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
@@ -456,6 +461,26 @@ export const SD: Dados = {
   async colunaExcluir(id) {
     const { data } = await rodar(sb.from('quadro_colunas').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
+  },
+
+  // ---------- comentários ----------
+  async comentariosListar(modulo, cartaoId) {
+    const { data } = await rodar(sb.from('comentarios').select(CAMPOS_COMENTARIO).eq(CARTAO_DO_COMENTARIO[modulo], cartaoId)
+      .order('criado_em', { ascending: false }).limit(COMENTARIOS_DO_CARTAO));
+    return data as Comentario[];
+  },
+  async comentarioCriar(modulo, cartaoId, texto) {
+    const { data } = await rodar(sb.from('comentarios').insert({ [CARTAO_DO_COMENTARIO[modulo]]: cartaoId, texto }).select(CAMPOS_COMENTARIO).single());
+    return data as Comentario;
+  },
+  async comentarioEditar(id, texto) {
+    const { data } = await rodar(sb.from('comentarios').update({ texto }).eq('id', id).select(CAMPOS_COMENTARIO));
+    if (!data.length) throw new Error('Só quem escreveu o comentário pode editá-lo.');
+    return data[0] as Comentario;
+  },
+  async comentarioExcluir(id) {
+    const { data } = await rodar(sb.from('comentarios').delete().eq('id', id).select('id'));
+    if (!data.length) throw new Error('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
   },
 
   // ---------- equipe e administração ----------

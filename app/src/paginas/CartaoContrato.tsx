@@ -7,6 +7,7 @@ import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtens
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { SecaoComentarios } from '../ui/Comentarios';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -156,6 +157,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
     </Recolhivel>
+
+    <SecaoComentarios modulo="contratos" cartaoId={k.id} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico">
       <HistoricoContrato id={k.id} versao={versaoHist} />

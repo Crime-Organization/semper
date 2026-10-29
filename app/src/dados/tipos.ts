@@ -385,4 +385,26 @@ export interface DadosEquipe {
   escritorioSalvar(dados: Omit<DadosEscritorio, 'logo'> & { logo?: string | null }): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe {}
+/** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
+export type ModuloComentado = 'pessoas' | 'contratos';
+export interface Comentario {
+  id: string;
+  autor_id: string | null;   // null: o usuário foi removido do sistema
+  texto: string;
+  mencoes: string[];         // perfis marcados com @ (o banco acha no texto)
+  criado_em: string;
+  editado_em: string | null;
+}
+
+/** Comentários dos cartões, com @ (banco/016_comentarios.sql). */
+export interface DadosComentarios {
+  /** Os comentários do cartão, do mais novo para o mais antigo. */
+  comentariosListar(modulo: ModuloComentado, cartaoId: string): Promise<Comentario[]>;
+  comentarioCriar(modulo: ModuloComentado, cartaoId: string, texto: string): Promise<Comentario>;
+  /** Só quem escreveu. */
+  comentarioEditar(id: string, texto: string): Promise<Comentario>;
+  /** Quem escreveu ou um administrador. */
+  comentarioExcluir(id: string): Promise<void>;
+}
+
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios {}

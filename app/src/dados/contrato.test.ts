@@ -424,6 +424,91 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Comentários', () => {
+      // Quem está logado é o Mateus (@mateus.goncalves, advogado); a Ana é advogada e o Bruno, estagiário.
+      const contratoNovo = async () => {
+        const { id: cliente } = await criar(marca());
+        return (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' })).id;
+      };
+
+      it('quando alguém comenta no cartão, então o comentário vem no topo, com o autor e as menções achadas no texto', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        await SD.comentarioCriar('pessoas', pessoa, 'Primeiro');
+        // Quando
+        const novo = await SD.comentarioCriar('pessoas', pessoa, '  Ligar amanhã, @ana.lima. Cópia para @bruno.souza  ');
+        // Então
+        const lista = await SD.comentariosListar('pessoas', pessoa);
+        expect(lista.map(c => c.texto)).toEqual(['Ligar amanhã, @ana.lima. Cópia para @bruno.souza', 'Primeiro']);
+        expect(novo).toMatchObject({ autor_id: 'u-master', editado_em: null });
+        expect([...novo.mencoes].sort()).toEqual(['u-ana', 'u-bruno']);
+      });
+
+      it('quando o comentário está vazio, então salvar é recusado com a mensagem em português', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        const salvar = SD.comentarioCriar('pessoas', pessoa, '   ');
+        // Então
+        await expect(salvar).rejects.toThrow('Escreva o comentário.');
+      });
+
+      it('quando um comentário de contrato menciona quem não é advogado, então salvar é recusado; um advogado pode', async () => {
+        // Dado
+        const contrato = await contratoNovo();
+        // Quando
+        const [estagiario, advogada] = await Promise.allSettled([
+          SD.comentarioCriar('contratos', contrato, 'Veja isto, @bruno.souza'), SD.comentarioCriar('contratos', contrato, 'Veja isto, @ana.lima')
+        ]);
+        // Então
+        expect(estagiario).toMatchObject({ status: 'rejected', reason: { message: 'Não é possível mencionar Bruno Exemplo Souza em contratos: só advogados podem ser mencionados.' } });
+        expect(advogada).toMatchObject({ status: 'fulfilled', value: { mencoes: ['u-ana'] } });
+      });
+
+      it('quando o autor edita o comentário, então o texto e as menções mudam, e fica a data da edição', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const { id } = await SD.comentarioCriar('pessoas', pessoa, 'Falar com @ana.lima');
+        // Quando
+        await SD.comentarioEditar(id, 'Falar com @bruno.souza');
+        // Então
+        const [editado] = await SD.comentariosListar('pessoas', pessoa);
+        expect(editado).toMatchObject({ texto: 'Falar com @bruno.souza', mencoes: ['u-bruno'] });
+        expect(editado.editado_em).not.toBeNull();
+      });
+
+      it('quando o comentário é apagado, então ele sai da lista', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const { id } = await SD.comentarioCriar('pessoas', pessoa, 'Vou apagar');
+        // Quando
+        await SD.comentarioExcluir(id);
+        // Então
+        expect(await SD.comentariosListar('pessoas', pessoa)).toEqual([]);
+      });
+
+      it('quando o contrato é excluído, então os comentários dele vão junto', async () => {
+        // Dado
+        const contrato = await contratoNovo();
+        await SD.comentarioCriar('contratos', contrato, 'Comentário que vai junto');
+        await SD.contratosArquivar([contrato]);
+        // Quando
+        await SD.contratosExcluir([contrato]);
+        // Então
+        expect(await SD.comentariosListar('contratos', contrato)).toEqual([]);
+      });
+
+      it('quando os comentários de uma pessoa são listados, então não vêm os de outro cartão', async () => {
+        // Dado
+        const { id: uma } = await criar(marca()), { id: outra } = await criar(marca());
+        await SD.comentarioCriar('pessoas', uma, 'Desta pessoa');
+        // Quando
+        const daOutra = await SD.comentariosListar('pessoas', outra);
+        // Então
+        expect(daOutra).toEqual([]);
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

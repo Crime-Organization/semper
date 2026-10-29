@@ -13,6 +13,7 @@ const ICONES = {
   fechar: '<path d="M6 6l12 12M18 6L6 18"/>',
   lado: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16"/>',
   centro: '<rect x="3" y="4" width="18" height="16" rx="2"/><rect x="7.5" y="8" width="9" height="8" rx="1"/>',
+  comentario: '<path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   tabela: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 10v10"/>',
   kanban: '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/>',
   arquivo: '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v10a1 1 0 001 1h12a1 1 0 001-1V9M10 13h4"/>',

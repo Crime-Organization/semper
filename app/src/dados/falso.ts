@@ -4,13 +4,14 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
-  Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Comentario, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
+import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { CLIENTES_MAXIMOS, COMENTARIOS_DO_CARTAO, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -60,6 +61,7 @@ interface Banco {
   historicoContratos?: (Historico & { contrato_id: string })[];
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
+  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
 }
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -170,6 +172,9 @@ bd.contratos.forEach(k => {
   const antigo = k as unknown as { participante_id?: string | null; participante_percentual?: number | null };
   k.participantes ??= antigo.participante_id ? [{ pessoa_id: antigo.participante_id, percentual: antigo.participante_percentual ?? null }] : [];
 });
+// Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
+bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
+  mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -329,6 +334,16 @@ function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): D
 function conferirResponsavel(id: string | undefined) {
   if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
 }
+/** Como o gatilho preparar do banco: o texto sem espaços nas pontas e as menções achadas nele; em contratos, só advogados. */
+function prepararComentario(modulo: ModuloComentado, bruto: string) {
+  const texto = bruto.trim();
+  if (!texto) throw new Error('Escreva o comentário.');
+  const mencoes = mencoesNoTexto(texto, EQUIPE);
+  const negado = mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)).sort((a, b) => a.nome.localeCompare(b.nome))[0];
+  if (negado) throw new Error(mencaoNegada(negado.nome));
+  return { texto, mencoes: mencoes.map(m => m.id) };
+}
+const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
@@ -432,6 +447,7 @@ export const SD: Dados = {
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
       ligados.forEach(v => historicoVinculo(v, false));
@@ -551,6 +567,7 @@ export const SD: Dados = {
       if (!k || !k.arquivado_em) return;
       bd.contratos = bd.contratos!.filter(x => x.id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       auditar('contratos', 'exclusao', k); excluidas++;
     });
     gravar();
@@ -587,6 +604,29 @@ export const SD: Dados = {
     bd.colunas = bd.colunas.filter(c => c.id !== id);
     for (const item of [...bd.pessoas, ...bd.contratos!]) if (item.etapa_id === id) item.etapa_id = null;
     gravar();
+  },
+
+  // ---------- comentários (como o gatilho e as regras de banco/016_comentarios.sql) ----------
+  comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId)
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, COMENTARIOS_DO_CARTAO).map(comentarioLido)),
+  async comentarioCriar(modulo, cartaoId, texto) {
+    const existe = modulo === 'pessoas' ? bd.pessoas.some(p => p.id === cartaoId) : bd.contratos!.some(k => k.id === cartaoId);
+    if (!existe) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto), criado_em: agora(), editado_em: null };
+    bd.comentarios!.push(c); gravar();
+    return espera(comentarioLido(c));
+  },
+  async comentarioEditar(id, texto) {
+    const c = bd.comentarios!.find(x => x.id === id);
+    if (!c || c.autor_id !== eu) return erro('Só quem escreveu o comentário pode editá-lo.');
+    Object.assign(c, prepararComentario(c.modulo, texto), { editado_em: agora() }); gravar();
+    return espera(comentarioLido(c));
+  },
+  async comentarioExcluir(id) {
+    const c = bd.comentarios!.find(x => x.id === id);
+    // Quem está logado no banco fictício é o master: apaga os de qualquer autor.
+    if (!c) return erro('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
+    bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
   },
 
   equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
