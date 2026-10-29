@@ -4,6 +4,7 @@
 // no menu da coluna.
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Coluna, Ordem, Pagina } from '../../dados';
+import { cliquesQueAbrem } from '../abrirItem';
 import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
@@ -27,6 +28,8 @@ interface Props<T extends { id: string }> {
   ordemDe: (item: T) => number | null;
   /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data). */
   cartao: (item: T, ordem: Ordem) => ReactNode;
+  /** Endereço que abre o cartão do item: Ctrl+clique e a rodinha do mouse o abrem numa aba nova. */
+  endereco: (item: T) => string;
   aoAbrir: (item: T) => void;
   aoMover: (item: T, m: Movimento) => Promise<void>;
   /** Botão "Adicionar" no pé de cada coluna. */
@@ -231,7 +234,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         {l?.itens.map(it => <Fragment key={it.id}>
           {marcador && alvo.antes === it.id && <div className="kmarcador" />}
           <article className={'kcartao' + (arrastando === it.id ? ' arrastando' : '')} role="listitem" tabIndex={0} draggable data-item={it.id}
-            onClick={() => p.current.aoAbrir(it)}
+            {...cliquesQueAbrem(props.endereco(it), () => p.current.aoAbrir(it))}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.current.aoAbrir(it); } }}
             onDragStart={e => {
               arrasto.current = { item: it, de: id };

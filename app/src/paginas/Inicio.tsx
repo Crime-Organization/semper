@@ -1,8 +1,9 @@
 // Início: saudação, atalhos, números de Pessoas, atualizadas recentemente e "Minha conta".
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { SD, type CadastroDuasEtapas, type FatorDuasEtapas, type ResumoPessoas } from '../dados';
 import { fmtDocumento, fmtTelefone, TIPOS } from '../regras/pessoa';
+import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -14,7 +15,6 @@ import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
 export default function Inicio() {
   useTitulo('Início');
   const { ctx, recarregar } = useSessao();
-  const navegar = useNavigate();
   const local = useLocation();
   const [r, setR] = useState<ResumoPessoas | null>(null);
   const [erro, setErro] = useState('');
@@ -64,12 +64,12 @@ export default function Inicio() {
       </div>
       {r.recentes.length ? <div className="tabela"><table style={{ minWidth: 560 }}>
         <thead><tr><th scope="col">Pessoa</th><th scope="col">Contato</th><th scope="col">Responsáveis</th><th scope="col">Atualizada</th></tr></thead>
-        <tbody>{r.recentes.map(p => <tr key={p.id} className="clicavel" onClick={() => navegar('/pessoas/?id=' + p.id)}>
-          <td><div className="nome">{p.nome}</div><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''}</div></td>
+        <tbody>{r.recentes.map(p => <LinhaQueAbre key={p.id} para={'/pessoas/?id=' + p.id}>
+          <td><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''}</div></td>
           <td>{fmtTelefone(p.telefones?.[0] || '')}</td>
           <td><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} /></td>
           <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{relativo(p.atualizado_em)}</td>
-        </tr>)}</tbody>
+        </LinhaQueAbre>)}</tbody>
       </table></div>
         : <Vazio>Nenhuma pessoa cadastrada ainda. <BotaoLink forma="link" to="/pessoas/nova/">Cadastrar a primeira</BotaoLink></Vazio>}
     </section>

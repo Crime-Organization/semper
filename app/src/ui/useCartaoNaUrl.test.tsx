@@ -38,4 +38,13 @@ describe('Cartão aberto na URL', () => {
     expect(result.current.cartao.aberto).toBeNull();
     expect(result.current.local.search).toBe('');
   });
+
+  it('quando o módulo pede o endereço de um item, então é a página do módulo com o id do item (o que abre numa aba nova)', () => {
+    // Dado
+    const { result } = montar('/contratos/?id=k1');
+    // Quando
+    const endereco = result.current.cartao.endereco('k2');
+    // Então
+    expect(endereco).toBe('/contratos/?id=k2');
+  });
 });
