@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, limparObjetos, percentualResponsavel, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
@@ -252,5 +252,45 @@ describe('Participantes por extenso', () => {
     const texto = textoDosParticipantes(lista);
     // Então
     expect(texto).toBe(esperado);
+  });
+});
+
+describe('Etapas do cadastro de contrato', () => {
+  it('quando o cadastro é aberto, então as etapas seguem a ordem do cadastro de pessoa: partes, objetos, honorários, divisão, documento', () => {
+    // Quando
+    const etapas = ETAPAS_CONTRATO.map(e => e.id);
+    // Então
+    expect(etapas).toEqual(['partes', 'objetos', 'honorarios', 'divisao', 'documento']);
+  });
+
+  it('quando todo campo que tem regra é conferido, então ele pertence a uma etapa só', () => {
+    // Quando
+    const campos = ETAPAS_CONTRATO.flatMap(e => e.campos);
+    // Então
+    expect(new Set(campos).size).toBe(campos.length);
+    expect(Object.keys(validarContrato(CONTRATO_VAZIO)).every(c => campos.includes(c as never))).toBe(true);
+  });
+
+  it.each([
+    ['partes', ['clienteId', 'responsavelId']],
+    ['objetos', ['objetos', 'categoria']],
+    ['honorarios', []]
+  ] as const)('quando a etapa %s está vazia, então só os campos dela pedem correção: %j', (etapa, esperados) => {
+    // Quando
+    const erros = errosDaEtapa(etapa, CONTRATO_VAZIO);
+    // Então
+    expect(Object.keys(erros).sort()).toEqual([...esperados].sort());
+  });
+
+  it.each([
+    ['nada preenchido', {}, 0],
+    ['só as partes preenchidas', { clienteId: 'p1', responsavelId: 'u1' }, 1],
+    ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '10' }, 3],
+    ['tudo certo', minimo, -1]
+  ])('quando há %s, então a primeira etapa com erro é a %s', (_caso, extra, esperada) => {
+    // Quando
+    const etapa = primeiraEtapaComErro(campos(extra));
+    // Então
+    expect(etapa).toBe(esperada);
   });
 });

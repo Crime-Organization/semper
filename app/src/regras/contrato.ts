@@ -256,3 +256,28 @@ export function calculadosDoContrato(c: CamposContrato) {
       quieto(lerPercentual, c.indicadorPercentual))
   };
 }
+
+// ---------- etapas do cadastro ----------
+/** As etapas do cadastro de contrato, na ordem, como no cadastro de pessoa. */
+export type EtapaContrato = 'partes' | 'objetos' | 'honorarios' | 'divisao' | 'documento';
+export interface DefinicaoEtapa { id: EtapaContrato; titulo: string; texto: string; campos: CampoComErro[] }
+export const ETAPAS_CONTRATO: DefinicaoEtapa[] = [
+  { id: 'partes', titulo: 'Cliente e responsável', texto: 'Quem contrata e o advogado que responde pelo contrato.',
+    campos: ['clienteId', 'responsavelId', 'codigoAntigo'] },
+  { id: 'objetos', titulo: 'O que foi contratado', texto: 'Cada objeto vira uma demanda quando o contrato for assinado.',
+    campos: ['objetos', 'categoria'] },
+  { id: 'honorarios', titulo: 'Honorários', texto: 'Valores e datas. Nada aqui é obrigatório.',
+    campos: ['valor', 'entrada', 'parcelas', 'descontos', 'assinadoEm', 'primeiroPagamento'] },
+  { id: 'divisao', titulo: 'Divisão', texto: 'Todos os percentuais são sobre o total; o responsável fica com o que sobra.',
+    campos: ['percentualEscritorio', 'participantes', 'indicadorId', 'indicadorPercentual', 'divisao'] },
+  { id: 'documento', titulo: 'Documento e observações', texto: 'O contrato assinado fica na pasta do Drive: cole o link aqui.',
+    campos: ['documentoUrl', 'observacoes'] }
+];
+
+/** Erros só dos campos de uma etapa (o que impede de seguir para a próxima). */
+export function errosDaEtapa(etapa: EtapaContrato, c: CamposContrato): Partial<Record<CampoComErro, string>> {
+  const campos = ETAPAS_CONTRATO.find(e => e.id === etapa)!.campos, erros = validarContrato(c);
+  return Object.fromEntries(Object.entries(erros).filter(([campo]) => campos.includes(campo as CampoComErro)));
+}
+/** Posição da primeira etapa com erro (para voltar a ela ao salvar), ou -1 se pode salvar. */
+export const primeiraEtapaComErro = (c: CamposContrato) => ETAPAS_CONTRATO.findIndex(e => Object.keys(errosDaEtapa(e.id, c)).length > 0);
