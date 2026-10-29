@@ -58,8 +58,6 @@ interface Banco {
   escritorio?: DadosEscritorio;
   contratos?: ContratoGuardado[];
   historicoContratos?: (Historico & { contrato_id: string })[];
-  /** Último número de contrato dado (como privado.contrato_numeracao no banco): nunca se repete. */
-  ultimoContrato?: number;
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
 }
@@ -160,7 +158,6 @@ if (!bd.colunas.some(c => c.modulo === 'contratos')) {
 }
 bd.contratos ??= sementeContratos();
 bd.historicoContratos ??= [];
-bd.ultimoContrato ??= Math.max(0, ...bd.contratos!.map(k => k.numero));
 // Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
 bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
@@ -469,13 +466,14 @@ export const SD: Dados = {
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(contratoLista), total: r.length });
   },
   contratoObter: id => { const k = bd.contratos!.find(x => x.id === id); return espera(k ? contratoCompleto(k) : null); },
-  // Como o gatilho do banco: o número vem da sigla do responsável (CPF no cadastro dele), do sequencial do escritório e do ano.
+  // Como o gatilho do banco: o número vem da sigla do responsável (CPF no cadastro dele), do sequencial do ano e do ano.
+  // O sequencial é o maior número que existe no ano, mais um: o número do último contrato excluído volta a ser usado.
   async contratoCriar(dados) {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
     const d = ajustarObjetos(dados);
-    const numero = bd.ultimoContrato = bd.ultimoContrato! + 1, ano = new Date().getFullYear();
+    const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
     bd.contratos!.push(k); guardarObjetos(k.objetos); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });

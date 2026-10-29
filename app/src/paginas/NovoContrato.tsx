@@ -1,7 +1,7 @@
 // Cadastro de contrato numa página só (também usado para atualizar: /contratos/novo/?id=...).
 // Os quatro campos obrigatórios vêm primeiro; os demais ficam sempre à mostra, sem obrigar. O contrato tem um ou mais
 // objetos, um por linha, com as sugestões da lista do escritório.
-// O número do contrato é dado pelo banco ao salvar e nunca muda.
+// O número do contrato é dado pelo banco ao salvar e, depois de dado, não muda.
 import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Contrato, type DadosContrato, type PessoaLista } from '../dados';
@@ -181,7 +181,7 @@ export default function NovoContrato() {
     <header>
       <p className="olho"><Link to={voltar}>Contratos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar contrato' : 'Novo contrato'}<span className="ponto">.</span></h1>
-      {!alvo && <p className="lead">O número é dado ao salvar: a sigla do responsável, o número do contrato no escritório e o ano. Ele nunca muda.</p>}
+      {!alvo && <p className="lead">O número é dado ao salvar: a sigla do responsável, o número do contrato no ano (a contagem recomeça em janeiro) e o ano. Depois de dado, ele não muda.</p>}
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando o contrato <b>{alvo.codigo}</b> de <b>{alvo.cliente.nome}</b>. O número não muda, e as informações anteriores ficam no histórico.</Aviso>}
 

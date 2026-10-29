@@ -27,7 +27,7 @@ export function siglaAdvogado(nome: string, cpf: string | null | undefined): str
   return letras.length === 2 && d.length === 11 ? letras + d.slice(-2) : null;
 }
 
-/** Número do contrato: sigla do advogado, número no escritório (4 dígitos) e ano de criação. Ex.: HE62-0163-2026. */
+/** Número do contrato: sigla do advogado, número no ano (4 dígitos; recomeça a cada ano) e ano de criação. Ex.: HE62-0163-2026. */
 export const numeroContrato = (sigla: string, numero: number, ano: number) => `${sigla}-${String(numero).padStart(4, '0')}-${ano}`;
 
 const centavos = (v: number) => Math.round(v * 100) / 100;
