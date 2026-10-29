@@ -8,7 +8,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { Icone } from '../ui/Icone';
+import { Icone, type NomeIcone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -117,23 +117,23 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
     <section className="bloco">
-      <h3>{internos.length > 1 ? 'Responsável e participantes' : 'Responsável'}</h3>
+      <h3><Icone nome="conta" tam={14} />{internos.length > 1 ? 'Responsável e participantes' : 'Responsável'}</h3>
       <ItensLigados itens={internos} />
     </section>
 
     <section className="bloco campos">
-      <h3>Situação</h3>
+      <h3><Icone nome="kanban" tam={14} />Situação</h3>
       <select aria-label="Situação do contrato" disabled={!!k.arquivado_em} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
         <option value="">{SEM_SITUACAO}</option>
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
 
-    <Recolhivel titulo="Partes" preferencia="contratos.cartao.partes" padrao>
+    <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" padrao>
       <ItensLigados itens={partes} />
     </Recolhivel>
 
-    <Dados titulo="Honorários" preferencia="contratos.cartao.honorarios" linhas={[
+    <Dados titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" linhas={[
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],
       ['Entrada', V('entrada')],
@@ -144,14 +144,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Primeiro pagamento', V('primeiro_pagamento')]
     ]} />
 
-    <Dados titulo="Divisão" preferencia="contratos.cartao.divisao" linhas={[
+    <Dados titulo="Divisão" icone="divisao" preferencia="contratos.cartao.divisao" linhas={[
       ['Enviado ao escritório', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
     ]} />
 
-    <Recolhivel titulo="Documento e observações" preferencia="contratos.cartao.documento" padrao>
+    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento" padrao>
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
@@ -172,8 +172,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 }
 
 /** Tópico do cartão que recolhe, como em Pessoas; começa aberto e cada usuário guarda a sua escolha. */
-function Dados({ titulo, preferencia, linhas }: { titulo: string; preferencia: string; linhas: [string, ReactNode][] }) {
-  return <Recolhivel titulo={titulo} preferencia={preferencia} padrao>
+function Dados({ titulo, icone, preferencia, linhas }: { titulo: string; icone: NomeIcone; preferencia: string; linhas: [string, ReactNode][] }) {
+  return <Recolhivel titulo={titulo} icone={icone} preferencia={preferencia} padrao>
     <dl className="dados">{linhas.map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
   </Recolhivel>;
 }

@@ -32,7 +32,12 @@ const ICONES = {
   abaixo: '<path d="M6 9l6 6 6-6"/>',
   vinculo: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1.1 1.1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1.1-1.1"/>',
   baixar: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
-  filtro: '<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>'
+  filtro: '<path d="M4 5h16l-6 7.5V18l-4 2v-7.5z"/>',
+  cadastro: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="11" r="2"/><path d="M5.5 16a3 3 0 016 0M14 10h4M14 13.5h3"/>',
+  dinheiro: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/>',
+  divisao: '<path d="M12 4a8 8 0 108 8h-8z"/><path d="M15 3.5a8 8 0 015.5 5.5H15z"/>',
+  texto: '<path d="M5 6h14M5 10h14M5 14h14M5 18h9"/>',
+  anexo: '<path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.1-8.1a3.3 3.3 0 014.7 4.7l-8.1 8.1a1.7 1.7 0 01-2.4-2.4l7.4-7.4"/>'
 };
 export type NomeIcone = keyof typeof ICONES;
 
