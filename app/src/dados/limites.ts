@@ -22,6 +22,11 @@ export const TAMANHO_ESCRITORIO = {
 };
 /** Vínculos: nome, inverso e descrição como no banco (banco/003_vinculos.sql); a função do representante só no formulário. */
 export const TAMANHO_VINCULO = { nome: 60, inverso: 60, descricao: 300, funcao: 120 };
+/** Contratos: os mesmos do banco (banco/009_contratos.sql). */
+export const TAMANHO_CONTRATO = { servico: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
+/** Número máximo de parcelas de um contrato (o banco aceita de 1 a 360). */
+export const PARCELAS_MAXIMAS = 360;
+
 /** Nome de coluna do quadro e informação sigilosa (só no formulário). */
 export const TAMANHO_COLUNA = 60;
 export const TAMANHO_SIGILO = 5000;

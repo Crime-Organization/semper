@@ -153,6 +153,71 @@ export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao:
 
 export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean }
 
+/** Categoria de honorário do contrato. */
+export type CategoriaHonorario = 'pro_labore' | 'quota_litis' | 'sucumbencia' | 'adiantamento_despesas' | 'pro_bono';
+
+/**
+ * Contrato: liga um cliente (pessoa) ao advogado responsável (perfil). O número (codigo, ex.: HE62-0163-2026) é dado
+ * pelo banco na criação e nunca muda: sigla do responsável na criação (2 letras do nome e 2 dígitos do CPF), número
+ * sequencial do escritório e ano de criação. Valores em reais; percentuais de 0 a 100.
+ */
+export interface Contrato {
+  id: string;
+  codigo: string;
+  numero: number;
+  sigla: string;
+  ano: number;
+  codigo_antigo: string | null;   // código das planilhas, nos contratos que vieram de lá (ex.: HE62-DE74-001/24)
+  cliente_id: string;
+  responsavel_id: string;
+  servico: string;
+  categoria: CategoriaHonorario;
+  valor: number | null;
+  entrada: number | null;
+  parcelas: number | null;
+  descontos: number | null;
+  assinado_em: string | null;
+  primeiro_pagamento: string | null;
+  percentual_escritorio: number | null;   // 20, 30 ou 100: quanto do que o cliente paga vai para a conta PJ
+  participante_id: string | null;
+  participante_percentual: number | null;
+  indicador_id: string | null;
+  indicador_percentual: number | null;
+  documento_url: string | null;   // link do documento assinado (Google Drive)
+  observacoes: string | null;
+  etapa_id: string | null;
+  etapa_ordem: number | null;
+  arquivado_em: string | null;
+  arquivado_por: string | null;
+  criado_por: string | null;
+  criado_em: string;
+  atualizado_por: string | null;
+  atualizado_em: string;
+  cliente: PessoaResumida;
+  participante: PessoaResumida | null;
+  indicador: PessoaResumida | null;
+}
+
+/** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
+export type DadosContrato = Partial<Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'servico' | 'categoria' | 'valor'
+  | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio' | 'participante_id'
+  | 'participante_percentual' | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
+  | 'arquivado_em' | 'arquivado_por'>>;
+
+/** Linha das listagens de contratos (tabela e quadro). */
+export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente'>;
+
+export interface FiltroContratos {
+  termo?: string;
+  responsavel?: string;
+  categoria?: string;
+  situacao?: 'ativos' | 'arquivados';
+  ordem?: Ordem;
+  pagina?: number;
+  porPagina?: number;
+}
+
 export interface Usuario {
   id: string; nome: string; usuario: string; papel: Papel; ativo: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
@@ -247,6 +312,20 @@ export interface DadosVinculos {
   representantesVinculados(pjIds: string[]): Promise<RepresentanteVinculado[]>;
 }
 
+/** Contratos. Na ordem "nome", a lista vai pelo nome do cliente. */
+export interface DadosContratos {
+  contratosListar(f?: FiltroContratos): Promise<Pagina<ContratoLista>>;
+  contratosDaEtapa(etapaId: string | null, f?: FiltroContratos, deslocamento?: number, limite?: number): Promise<Pagina<ContratoLista>>;
+  contratoObter(id: string): Promise<Contrato | null>;
+  contratoCriar(dados: DadosContrato): Promise<{ id: string; codigo: string }>;
+  contratoAtualizar(id: string, dados: DadosContrato): Promise<{ id: string; codigo: string }>;
+  contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */
+  contratosExcluir(ids: string[]): Promise<Exclusao>;
+  contratoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  contratoHistorico(id: string): Promise<Historico[]>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -276,4 +355,4 @@ export interface DadosEquipe {
   escritorioSalvar(dados: Omit<DadosEscritorio, 'logo'> & { logo?: string | null }): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosQuadros, DadosEquipe {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe {}

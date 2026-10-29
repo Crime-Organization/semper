@@ -4,9 +4,11 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Contexto, Convite, Dados, DadosEscritorio, FiltroPessoas, Historico, Membro, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosEscritorio, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { numeroContrato, siglaAdvogado } from '../regras/contrato';
 import { normal } from '../regras/texto';
 import { POR_COLUNA, POR_PAGINA } from './limites';
 import { DIA } from '../ui/tempos';
@@ -17,22 +19,30 @@ const novoId = () => crypto.randomUUID();
 const codigo = () => Math.random().toString(16).slice(2, 10).toUpperCase().padEnd(8, '0');
 const codigoConvite = () => [...crypto.getRandomValues(new Uint8Array(24))].map(b => b.toString(16).padStart(2, '0')).join('');
 const agora = () => new Date().toISOString();
+/** Quem está logado no banco fictício: o master do escritório de exemplo. */
+const eu = 'u-master';
 
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string };
+// O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
 const EQUIPE: MembroFalso[] = [
-  { id: 'u-master', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com' },
-  { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com' },
-  { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com' },
-  { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com' }
+  { id: 'u-master', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
+  { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
+  { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
+  { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
 ];
 const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atendimento', 'Atendimento em andamento',
   'Levantamento de informações', 'Orçamento solicitado', 'Orçamento em andamento', 'Orçamento enviado', 'Enviar carta proposta',
   'Contrato em andamento', 'Confecção de documentos', 'Mensagem de boas-vindas', 'Efetuar cobrança', 'Pesquisa de satisfação',
   'Pendência/observações', 'Pendente tratamento', 'Não conversão'];
+/** Colunas iniciais do quadro de contratos (as mesmas sugestões do banco, banco/009_contratos.sql). */
+const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
+const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO };
+/** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco). */
+type ContratoGuardado = Omit<Contrato, 'cliente' | 'participante' | 'indicador'>;
 
 interface Banco {
   pessoas: Pessoa[];
-  colunas: Omit<Coluna, 'oculta'>[];
+  colunas: (Omit<Coluna, 'oculta'> & { modulo?: Modulo })[];   // sem módulo: pessoas (semente anterior aos contratos)
   ocultas: string[];
   historico: (Historico & { pessoa_id: string })[];
   sigilos: { id: string; pessoa_id: string; texto: string; criado_por: string; criado_em: string; atualizado_em: string }[];
@@ -46,6 +56,10 @@ interface Banco {
   duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
   semCodigo?: boolean;   // entrou só com a senha e ainda falta o código do aplicativo
   escritorio?: DadosEscritorio;
+  contratos?: ContratoGuardado[];
+  historicoContratos?: (Historico & { contrato_id: string })[];
+  /** Último número de contrato dado (como privado.contrato_numeracao no banco): nunca se repete. */
+  ultimoContrato?: number;
 }
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -71,7 +85,7 @@ function semente(): Banco {
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: 'u-master', criado_em: agora(),
     atualizado_por: null, atualizado_em: agora(), resp: [{ perfil_id: 'u-master' }]
   } as Pessoa, dados));
-  EQUIPE.forEach(m => p({ id: m.pessoa_id, tipo: 'contato', nome: m.nome.toUpperCase(), emails: [m.email], telefones: ['(38) 3222-0000'], resp: [{ perfil_id: m.id }] }));
+  EQUIPE.forEach(m => p({ id: m.pessoa_id, tipo: 'contato', nome: m.nome.toUpperCase(), documento: m.cpf, emails: [m.email], telefones: ['(38) 3222-0000'], resp: [{ perfil_id: m.id }] }));
   nomes.forEach((nome, i) => p({
     nome, criado_em: dia(40 - i), atualizado_em: dia((i * 7) % 23), genero: i % 2 ? 'f' : 'm', nacionalidade: 'brasileira', profissao: ['lavrador', 'professora', 'comerciante', 'aposentada'][i % 4],
     estado_civil: ['solteiro', 'casado', 'viuvo', 'divorciado'][i % 4], documento: cpfs[i] || null, rg: `MG ${10 + i}.345.678 SSP/MG`,
@@ -103,12 +117,52 @@ bd.tiposVinculo ??= TIPOS_VINCULO.map(([nome, inverso], i) => ({ id: 'tv' + (i +
 bd.vinculos ??= [];
 bd.escritorio ??= { nome: 'Escritório Exemplo (teste)', logo: null, cnpj: null, oab_registro: null, logradouro: null, numero: null, complemento: null,
   bairro: null, municipio: 'Montes Claros', uf: 'MG', cep: null, telefone: null, email: null, site: null };
+// Contratos de exemplo, com clientes da semente e números como os do banco (sigla do responsável, sequencial, ano).
+function sementeContratos(): ContratoGuardado[] {
+  const ano = new Date().getFullYear();
+  // [cliente, responsável, serviço, categoria, valor, coluna]
+  const casos: [string, string, string, Contrato['categoria'], number | null, string | null][] = [
+    ['JOSÉ DA SILVA TESTE', 'u-master', 'Registro de marca', 'pro_labore', 3000, 'k3'],
+    ['MARIA APARECIDA EXEMPLO', 'u-ana', 'Ação de cobrança', 'quota_litis', null, 'k1'],
+    ['PADARIA PÃO QUENTE EXEMPLO LTDA', 'u-master', 'Consultoria e assessoria jurídica', 'pro_labore', 12000, 'k3'],
+    ['JOÃO PEDRO FICTÍCIO', 'u-bruno', 'Divórcio consensual', 'pro_labore', 4500, 'k2'],
+    ['ANTÔNIA SOUZA DEMONSTRAÇÃO', 'u-ana', 'Inventário extrajudicial', 'pro_labore', 8000, 'k4'],
+    ['COMERCIAL NORTE TESTE LTDA', 'u-master', 'Ação de indenização por danos morais', 'sucumbencia', null, null]
+  ];
+  return casos.flatMap(([nome, resp, servico, categoria, valor, etapa], i) => {
+    const cliente = bd.pessoas.find(p => p.nome === nome);
+    const m = EQUIPE.find(x => x.id === resp)!, sigla = siglaAdvogado(m.nome, m.cpf)!;
+    if (!cliente) return [];
+    return [{
+      ...contratoNovo(), id: novoId(), numero: i + 1, sigla, ano, codigo: numeroContrato(sigla, i + 1, ano),
+      codigo_antigo: i === 0 ? 'MA96-JO25-001/24' : null, cliente_id: cliente.id, responsavel_id: resp, servico, categoria,
+      valor, entrada: valor ? valor / 5 : null, parcelas: valor ? 5 : null, percentual_escritorio: valor ? 30 : null,
+      assinado_em: etapa === 'k3' || etapa === 'k4' ? `${ano}-03-10` : null, etapa_id: etapa, etapa_ordem: etapa ? i : null, criado_por: resp
+    }];
+  });
+}
+/** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
+function contratoNovo(): ContratoGuardado {
+  return {
+    id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', responsavel_id: '', servico: '', categoria: 'pro_labore',
+    valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
+    participante_id: null, participante_percentual: null, indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
+    etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
+  };
+}
+// Sessões abertas antes dos contratos: a equipe ganha o CPF; os contratos, as colunas e a semente deles.
+for (const m of EQUIPE) { const pessoa = bd.pessoas.find(x => x.id === m.pessoa_id); if (pessoa && !pessoa.documento) pessoa.documento = m.cpf; }
+if (!bd.colunas.some(c => c.modulo === 'contratos')) {
+  bd.colunas.push(...SITUACOES_CONTRATO.map((nome, i) => ({ id: 'k' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'contratos' as const })));
+}
+bd.contratos ??= sementeContratos();
+bd.historicoContratos ??= [];
+bd.ultimoContrato ??= Math.max(0, ...bd.contratos!.map(k => k.numero));
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
 
-const eu = 'u-master';
-const auditar = (tabela: string, acao: string, p?: Pessoa) =>
+const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo }, feito_por: eu, em: agora() });
 const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
@@ -152,6 +206,66 @@ const achar = (id: string) => {
   return p;
 };
 
+// ---------- contratos ----------
+const resumoDe = (id: string | null): PessoaResumida | null => {
+  const p = id ? bd.pessoas.find(x => x.id === id) : null;
+  return p ? { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em } : null;
+};
+const contratoCompleto = (k: ContratoGuardado): Contrato =>
+  ({ ...k, cliente: resumoDe(k.cliente_id)!, participante: resumoDe(k.participante_id), indicador: resumoDe(k.indicador_id) });
+const contratoLista = (k: ContratoGuardado): ContratoLista => ({
+  id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
+  responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
+  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente: resumoDe(k.cliente_id)!
+});
+const nomeDoCliente = (k: ContratoGuardado) => bd.pessoas.find(p => p.id === k.cliente_id)?.nome || '';
+// Como a coluna "busca" do banco: o número entra também só com os dígitos, para a busca por "0163/2026" achar.
+const buscaContrato = (k: ContratoGuardado) => normal([k.codigo, k.codigo.replace(/\D/g, ''), k.codigo_antigo, k.servico, nomeDoCliente(k)].join(' '));
+function filtrarContratos(f: FiltroContratos = {}) {
+  const t = termo(f.termo);
+  return bd.contratos!.filter(k => (f.situacao === 'arquivados' ? k.arquivado_em : !k.arquivado_em)
+    && (!f.responsavel || k.responsavel_id === f.responsavel)
+    && (!f.categoria || k.categoria === f.categoria)
+    && (!t || buscaContrato(k).includes(t)));
+}
+// Na ordem "nome", vale o nome do cliente; nos empates, o contrato mais novo primeiro.
+const ORDENS_CONTRATO: Record<Ordem, (a: ContratoGuardado, b: ContratoGuardado) => number> = {
+  manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.numero - a.numero,
+  nome: (a, b) => nomeDoCliente(a).localeCompare(nomeDoCliente(b)) || b.numero - a.numero,
+  nome_desc: (a, b) => nomeDoCliente(b).localeCompare(nomeDoCliente(a)) || b.numero - a.numero,
+  novos: (a, b) => b.criado_em.localeCompare(a.criado_em) || b.numero - a.numero,
+  antigos: (a, b) => a.criado_em.localeCompare(b.criado_em) || a.numero - b.numero,
+  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em) || b.numero - a.numero
+};
+const acharContrato = (id: string) => {
+  const k = bd.contratos!.find(x => x.id === id);
+  if (!k) throw new Error('Contrato não encontrado.');
+  return k;
+};
+const nomeDaColuna = (id: string | null) => bd.colunas.find(c => c.id === id)?.nome || null;
+// Das pessoas, do responsável e da coluna, o histórico guarda o nome (como no banco), não o id.
+const nomeDaPessoa = (id: unknown) => bd.pessoas.find(p => p.id === id)?.nome ?? null;
+const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
+  cliente_id: ['cliente_id', nomeDaPessoa],
+  participante_id: ['participante_id', nomeDaPessoa],
+  indicador_id: ['indicador_id', nomeDaPessoa],
+  responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
+  etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
+};
+/** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico do contrato. */
+function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) {
+  const atual = k as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
+  Object.entries(dados).forEach(([campo, v]) => {
+    if (campo !== 'etapa_ordem' && campo !== 'arquivado_por' && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
+      const [chave, nome] = NOME_NO_HISTORICO[campo] ?? [campo, (x: unknown) => x];
+      alt[chave] = { de: nome(atual[campo] ?? null), para: nome(v ?? null) };
+    }
+  });
+  if (Object.keys(alt).length) bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: k.id, alteracoes: alt, feito_por: eu, em: agora() });
+}
+/** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
+const temContrato = (pessoaId: string) => bd.contratos!.some(k => [k.cliente_id, k.participante_id, k.indicador_id].includes(pessoaId));
+
 export const SD: Dados = {
   sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
   entrar: async () => { bd.logado = true; bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo); gravar(); },
@@ -168,8 +282,8 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true }, ...bd.escritorio! },
-      equipe: EQUIPE.map(({ email: _email, ...r }) => r), ehAdmin: true, ehMaster: true
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true }, ...bd.escritorio! },
+      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
     };
     return espera(c);
   },
@@ -247,6 +361,7 @@ export const SD: Dados = {
       const p = bd.pessoas.find(x => x.id === id);
       if (!p || !p.arquivado_em) return;
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
+      if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
@@ -319,18 +434,81 @@ export const SD: Dados = {
       .flatMap(v => { const pessoa = bd.pessoas.find(p => p.id === v.pessoa_de); return pessoa ? [{ pj_id: v.pessoa_para, pessoa, funcao: v.descricao }] : []; }));
   },
 
-  colunasListar: () => espera(bd.colunas.slice().sort((a, b) => a.ordem - b.ordem).map(c => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),
-  sugestoesListar: () => espera(ETAPAS),
-  async colunaCriar(_modulo, nome, ordem) {
-    if (bd.colunas.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
-    const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu }; bd.colunas.push(c); gravar(); return espera({ ...c, oculta: false });
+  // ---------- contratos ----------
+  async contratosListar(f = {}) {
+    const r = filtrarContratos(f).sort(ORDENS_CONTRATO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    return espera({ linhas: r.slice(de, de + por).map(contratoLista), total: r.length });
+  },
+  async contratosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    const r = filtrarContratos(f).filter(k => (k.etapa_id || null) === (etapaId || null)).sort(ORDENS_CONTRATO[f.ordem || 'manual']);
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(contratoLista), total: r.length });
+  },
+  contratoObter: id => { const k = bd.contratos!.find(x => x.id === id); return espera(k ? contratoCompleto(k) : null); },
+  // Como o gatilho do banco: o número vem da sigla do responsável (CPF no cadastro dele), do sequencial do escritório e do ano.
+  async contratoCriar(dados) {
+    const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
+    const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
+    if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
+    const numero = bd.ultimoContrato = bd.ultimoContrato! + 1, ano = new Date().getFullYear();
+    const k: ContratoGuardado = { ...contratoNovo(), ...dados, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
+    bd.contratos!.push(k); auditar('contratos', 'inclusao', k); gravar();
+    return espera({ id: k.id, codigo: k.codigo });
+  },
+  async contratoAtualizar(id, dados) {
+    const k = acharContrato(id);
+    historicoContrato(k, dados);
+    Object.assign(k, dados, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('contratos', 'alteracao', k); gravar();
+    return espera({ id, codigo: k.codigo });
+  },
+  async contratosArquivar(ids, arquivar = true) {
+    ids.forEach(id => {
+      const k = bd.contratos!.find(x => x.id === id); if (!k) return;
+      historicoContrato(k, { arquivado_em: arquivar ? agora() : null });
+      Object.assign(k, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+    });
+    gravar(); return espera(ids.length);
+  },
+  async contratosExcluir(ids) {
+    let excluidas = 0;
+    ids.forEach(id => {
+      const k = bd.contratos!.find(x => x.id === id);
+      if (!k || !k.arquivado_em) return;
+      bd.contratos = bd.contratos!.filter(x => x.id !== id);
+      bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
+      auditar('contratos', 'exclusao', k); excluidas++;
+    });
+    gravar();
+    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos.' : '' });
+  },
+  async contratoMover(id, etapaId, ordem) {
+    const k = acharContrato(id);
+    if ((k.etapa_id || null) !== (etapaId || null)) {
+      bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
+    }
+    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
+  },
+  contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id)),
+
+  // ---------- quadros: cada módulo tem as suas colunas ----------
+  colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)
+    .map(({ modulo: _m, ...c }) => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),
+  sugestoesListar: modulo => espera(SUGESTOES[modulo] ?? []),
+  async colunaCriar(modulo, nome, ordem) {
+    if (bd.colunas.some(c => (c.modulo ?? 'pessoas') === modulo && normal(c.nome) === normal(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
+    const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu }; bd.colunas.push({ ...c, modulo }); gravar(); return espera({ ...c, oculta: false });
   },
   async colunaOcultar(id, ocultar) { bd.ocultas = ocultar ? [...new Set([...bd.ocultas, id])] : bd.ocultas.filter(x => x !== id); gravar(); },
   async colunaRenomear(id, nome) { const c = bd.colunas.find(x => x.id === id); if (c) c.nome = nome; gravar(); },
   async colunaOrdenar(id, ordem) { const c = bd.colunas.find(x => x.id === id); if (c) c.ordem = ordem; gravar(); },
-  async colunaExcluir(id) { bd.colunas = bd.colunas.filter(c => c.id !== id); bd.pessoas.forEach(p => { if (p.etapa_id === id) p.etapa_id = null; }); gravar(); },
+  async colunaExcluir(id) {
+    bd.colunas = bd.colunas.filter(c => c.id !== id);
+    for (const item of [...bd.pessoas, ...bd.contratos!]) if (item.etapa_id === id) item.etapa_id = null;
+    gravar();
+  },
 
-  equipeListar: () => espera(EQUIPE.map(m => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
+  equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
     // Como o índice convites_email_pendente do banco: um só convite pendente por e-mail.

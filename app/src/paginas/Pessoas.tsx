@@ -14,10 +14,13 @@ import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
+import { Paginacao } from '../ui/Paginacao';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
+import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
+import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataDaOrdem, useOrdem } from '../ui/ordem';
 import { baixarArquivo, dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoPessoa } from './CartaoPessoa';
@@ -48,14 +51,12 @@ export default function Pessoas() {
   const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
-  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const selecao = useSelecao();
   const [tabela, setTabela] = useState<Pagina<PessoaLista> | null>(null);
   const [erroTabela, setErroTabela] = useState('');
 
   // O cartão aberto fica na URL (?id=...), para o link levar direto à pessoa.
-  const aberto = params.get('id');
-  const abrir = (id: string) => setParams({ id }, { replace: true });
-  const fechar = () => setParams({}, { replace: true });
+  const { aberto, abrir, fechar } = useCartaoNaUrl();
   useEffect(() => {
     if (['visao', 'responsavel', 'situacao'].some(k => params.has(k))) setParams(aberto ? { id: aberto } : {}, { replace: true });
   // oxlint-disable-next-line react/exhaustive-deps -- limpa endereços antigos uma vez só, ao abrir a tela
@@ -87,7 +88,7 @@ export default function Pessoas() {
   }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
 
   const filtrado = !!(f.termo || f.tipo || f.responsavel);
-  const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); setSelecionadas(new Set()); };
+  const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
     if (v === 'kanban' && f.situacao === 'arquivadas') {
@@ -96,7 +97,7 @@ export default function Pessoas() {
     }
     setVisao(v);
     salvarPreferencia('pessoas.visao', v);
-    setSelecionadas(new Set());
+    selecao.limpar();
   }
   function mudarSituacao(valor: string) {
     const situacao = valor === 'arquivadas' ? 'arquivadas' : 'ativas';
@@ -106,22 +107,22 @@ export default function Pessoas() {
 
   // ---------- ações em lote ----------
   async function arquivarLote(arquivar: boolean) {
-    const lista = [...selecionadas];
+    const lista = [...selecao.selecionadas];
     try {
       const q = await SD.pessoasArquivar(lista, arquivar);
       const quantas = q === 1 ? '1 pessoa' : q + ' pessoas';
       feito(arquivar ? `${plural(q, 'pessoa arquivada', 'pessoas arquivadas')}.` : `${plural(q, 'pessoa voltou', 'pessoas voltaram')} para as ativas.`,
         arquivar ? `arquivamento de ${quantas}` : `desarquivamento de ${quantas}`, async () => { await SD.pessoasArquivar(lista, !arquivar); });
-      setSelecionadas(new Set()); recarregar();
+      selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }
   async function excluirLote() {
     try {
-      const r = await SD.pessoasExcluir([...selecionadas]);
+      const r = await SD.pessoasExcluir([...selecao.selecionadas]);
       avisar(r.naoExcluidas
         ? `${r.excluidas} excluída(s). ${r.naoExcluidas} não pôde(puderam) ser excluída(s): ${r.motivo || 'só quem cadastrou ou um administrador exclui.'}`
         : `${plural(r.excluidas, 'pessoa excluída', 'pessoas excluídas')} definitivamente.`, r.naoExcluidas ? 'erro' : 'ok');
-      setSelecionadas(new Set()); recarregar();
+      selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }
   // ---------- exportar ----------
@@ -161,9 +162,9 @@ export default function Pessoas() {
     } catch (e) { falha(e); }
   }
 
-  const n = selecionadas.size;
+  const n = selecao.quantas;
   const lote = visao === 'tabela' && n > 0 ? <>
-    <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => setSelecionadas(new Set())}>limpar</button></span>
+    <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
     <span className="acoes-lote">{f.situacao === 'ativas'
       ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
       : <>
@@ -204,8 +205,8 @@ export default function Pessoas() {
             else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/pessoas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
-        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecionadas={selecionadas} etapa={quadro.nomeDe}
-          aoSelecionar={setSelecionadas} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} etapa={quadro.nomeDe}
+          aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
       <CartaoPessoa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} aoAbrirPessoa={abrir} />
@@ -233,14 +234,13 @@ interface PropsTabela {
   f: FiltroPessoas;
   ordem: Ordem;
   filtrado: boolean;
-  selecionadas: Set<string>;
+  selecao: Selecao;
   etapa: (id: string | null) => string;
-  aoSelecionar: (s: Set<string>) => void;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelecionar, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -249,15 +249,10 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelec
     : f.situacao === 'arquivadas' ? 'Nenhuma pessoa arquivada.'
     : <>Nenhuma pessoa cadastrada ainda. <BotaoLink forma="link" to="/pessoas/nova/">Cadastrar a primeira</BotaoLink></>}</Vazio>;
 
-  const pg = f.pagina || 0, de = pg * POR_PAGINA + 1, ate = pg * POR_PAGINA + linhas.length;
+  const { selecionadas, marcar } = selecao;
   const todas = linhas.every(p => selecionadas.has(p.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
-  const marcar = (ids: string[], sim: boolean) => {
-    const s = new Set(selecionadas);
-    ids.forEach(id => sim ? s.add(id) : s.delete(id));
-    aoSelecionar(s);
-  };
   return <div>
     <div className="tabela tabela-pessoas"><table>
       <thead><tr>
@@ -276,12 +271,6 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecionadas, etapa, aoSelec
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(p.criado_em) : relativo(p.atualizado_em)}</td>
       </tr>)}</tbody>
     </table></div>
-    <div className="paginacao" style={{ marginTop: 12 }}>
-      <span>Mostrando {numero(de)}–{numero(ate)} de {numero(total)}</span>
-      <span style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className={estiloBotao({ forma: 'mini' })} disabled={pg === 0} onClick={() => aoPaginar(pg - 1)}>Anterior</button>
-        <button type="button" className={estiloBotao({ forma: 'mini' })} disabled={ate >= total} onClick={() => aoPaginar(pg + 1)}>Próxima</button>
-      </span>
-    </div>
+    <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />
   </div>;
 }

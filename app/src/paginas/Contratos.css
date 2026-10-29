@@ -1,0 +1,14 @@
+/* Contratos: tabela, quadro, cartão e cadastro */
+.tabela-contratos td:nth-child(2) { min-width: 240px; max-width: 360px }
+/* O serviço pode ser longo: até duas linhas na tabela e no quadro. */
+.contrato-servico { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
+.contrato-calculado { font-size: 15px; font-weight: 700; color: var(--ink); min-height: 44px; display: flex; align-items: center; font-variant-numeric: tabular-nums }
+.contrato-salvar { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap }
+.contrato-link { color: var(--accent-ink); font-weight: 700; border-bottom: 1px solid currentColor; overflow-wrap: anywhere }
+.contrato-obs { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: var(--ink); margin: 0 }
+.contrato-form { display: flex; flex-direction: column; gap: 18px }
+.contrato-form .cartao { display: flex; flex-direction: column; gap: 16px }
+.contrato-form .cartao > .nota { margin: 0 }
+.contrato-form .req { color: var(--erro); margin-left: 2px }
+.rotulo-calculado { font-size: 13px; font-weight: 700; color: var(--text) }
+.rotulo-calculado small { font-weight: 400; color: var(--muted) }

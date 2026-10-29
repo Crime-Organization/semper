@@ -104,6 +104,98 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Contratos', () => {
+      const novoContrato = async (extra: Parameters<Dados['contratoCriar']>[0] = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', servico: 'Registro de marca', categoria: 'pro_labore', ...extra });
+      };
+
+      it('quando um contrato é criado, então recebe o número com a sigla do responsável, o sequencial e o ano', async () => {
+        // Quando
+        const { id, codigo } = await novoContrato();
+        // Então
+        const lido = await SD.contratoObter(id);
+        expect(codigo).toMatch(new RegExp(`^MA96-\\d{4}-${new Date().getFullYear()}$`));
+        expect(lido).toMatchObject({ id, codigo, sigla: 'MA96', servico: 'Registro de marca', categoria: 'pro_labore' });
+      });
+
+      it('quando dois contratos são criados, então o segundo tem o número seguinte do escritório', async () => {
+        // Quando
+        const a = await SD.contratoObter((await novoContrato()).id);
+        const b = await SD.contratoObter((await novoContrato({ responsavel_id: 'u-ana' })).id);
+        // Então
+        expect(b!.numero).toBe(a!.numero + 1);
+        expect(b!.sigla).toBe('AN05');
+      });
+
+      it('quando o contrato muda de responsável e de coluna, então o número continua o mesmo', async () => {
+        // Dado
+        const [coluna] = await SD.colunasListar('contratos');
+        const { id, codigo } = await novoContrato();
+        // Quando
+        await SD.contratoAtualizar(id, { responsavel_id: 'u-ana', servico: 'Outro serviço' });
+        await SD.contratoMover(id, coluna.id, 1);
+        // Então
+        const lido = await SD.contratoObter(id);
+        expect(lido).toMatchObject({ codigo, responsavel_id: 'u-ana', etapa_id: coluna.id });
+      });
+
+      it('quando se busca pelo código antigo da planilha, então o contrato é encontrado', async () => {
+        // Dado
+        const antigo = 'ZZ11-' + Math.random().toString(36).slice(2, 6).toUpperCase() + '-001/24';
+        const { id } = await novoContrato({ codigo_antigo: antigo });
+        // Quando
+        const r = await SD.contratosListar({ termo: antigo.toLowerCase() });
+        // Então
+        expect(r.linhas.map(k => k.id)).toEqual([id]);
+      });
+
+      it('quando um contrato ativo é excluído, então ele continua lá; arquivado, sai de vez', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        // Quando
+        const ativo = await SD.contratosExcluir([id]);
+        await SD.contratosArquivar([id]);
+        const arquivado = await SD.contratosExcluir([id]);
+        // Então
+        expect(ativo.excluidas).toBe(0);
+        expect(arquivado.excluidas).toBe(1);
+        expect(await SD.contratoObter(id)).toBeNull();
+      });
+
+      it('quando o contrato mais recente é excluído, então o número dele não volta a ser usado', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        const excluido = (await SD.contratoObter(id))!.numero;
+        await SD.contratosArquivar([id]);
+        await SD.contratosExcluir([id]);
+        // Quando
+        const seguinte = await SD.contratoObter((await novoContrato()).id);
+        // Então
+        expect(seguinte!.numero).toBe(excluido + 1);
+      });
+
+      it('quando a pessoa é cliente de um contrato, então ela não pode ser excluída', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        await SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', servico: 'Registro de marca', categoria: 'pro_labore' });
+        await SD.pessoasArquivar([cliente]);
+        // Quando
+        const r = await SD.pessoasExcluir([cliente]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em contratos e não pode ser excluída.' });
+      });
+
+      it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {
+        // Quando
+        const contratos = (await SD.colunasListar('contratos')).map(c => c.nome);
+        const pessoas = (await SD.colunasListar('pessoas')).map(c => c.nome);
+        // Então
+        expect(contratos).toEqual(['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido']);
+        expect(pessoas).not.toContain('Em negociação');
+      });
+    });
+
     describe('Convites', () => {
       it('quando um convite é criado, então aparece nos pendentes com um código de acesso, e sai ao ser cancelado', async () => {
         // Dado

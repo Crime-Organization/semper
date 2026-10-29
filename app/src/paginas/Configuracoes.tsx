@@ -1,14 +1,14 @@
 // Configurações (master e administradores): os dados da instituição. O nome aparece nas telas do
 // escritório (barra lateral, mensagem de convite); a logomarca e os demais dados ficam prontos para
 // contratos e procurações. O SEMPER não tem nome de escritório fixo: tudo vem daqui.
-import { useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
 import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { TAMANHO_ESCRITORIO } from '../dados/limites';
 import { avisar, falha, feito } from '../ui/avisos';
-import { estiloBotao, Nota, TituloSecao } from '../ui/base';
+import { estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import './Configuracoes.css';
@@ -21,9 +21,6 @@ export default function Configuracoes() {
 }
 
 type Campo = Exclude<keyof DadosEscritorio, 'logo'>;
-/** Colunas (de 12) que o campo ocupa: p no estreito, m a partir de 560px, g a partir de 860px. */
-type Tam = { p?: number; m?: number; g?: number };
-const colunas = (t: Tam = {}) => ({ '--p': t.p, '--m': t.m, '--g': t.g }) as CSSProperties;
 type Form = Record<Campo, string>;
 const CAMPOS: Campo[] = ['nome', 'cnpj', 'oab_registro', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf', 'telefone', 'email', 'site'];
 
@@ -157,12 +154,12 @@ function Instituicao() {
 
   // Cada campo diz quantas das 12 colunas ocupa: p no estreito, m a partir de 560px, g a partir de 860px
   // (veja .grade-form em estilo.css). "junto" vai ao lado do campo, como o botão do CNPJ.
-  type Opcoes = InputHTMLAttributes<HTMLInputElement> & { dica?: string; ref?: Ref<HTMLInputElement>; tam?: Tam; junto?: ReactNode };
+  type Opcoes = InputHTMLAttributes<HTMLInputElement> & { dica?: string; ref?: Ref<HTMLInputElement>; tam?: TamanhoNaGrade; junto?: ReactNode };
   const campo = (c: Campo, rotulo: string, props: Opcoes = {}) => {
     const { dica, tam, junto, ...resto } = props;
     const entrada = <input id={'cfg-' + c} value={f[c]} onChange={e => mudar(c, e.target.value)} aria-invalid={!!erros[c]}
       aria-describedby={erros[c] ? 'cfg-erro-' + c : undefined} {...resto} />;
-    return <div className={'campo-form' + (erros[c] ? ' com-erro' : '')} style={colunas(tam)}>
+    return <div className={'campo-form' + (erros[c] ? ' com-erro' : '')} style={naGrade(tam)}>
       <label htmlFor={'cfg-' + c}>{rotulo}{dica && <small> {dica}</small>}</label>
       {junto ? <div className="grupo-campo">{entrada}{junto}</div> : entrada}
       {erros[c] && <span className="erro-campo" id={'cfg-erro-' + c}>{erros[c]}</span>}
@@ -212,7 +209,7 @@ function Instituicao() {
           {campo('complemento', 'Complemento', { maxLength: TAMANHO_ESCRITORIO.complemento, tam: { p: 8, m: 4, g: 3 } })}
           {campo('bairro', 'Bairro', { maxLength: TAMANHO_ESCRITORIO.bairro, tam: { m: 5, g: 4 } })}
           {campo('municipio', 'Município', { maxLength: TAMANHO_ESCRITORIO.municipio, tam: { p: 8, m: 8, g: 3 } })}
-          <div className="campo-form" style={colunas({ p: 4, m: 4, g: 2 })}>
+          <div className="campo-form" style={naGrade({ p: 4, m: 4, g: 2 })}>
             <label htmlFor="cfg-uf">UF</label>
             <select id="cfg-uf" value={f.uf} onChange={e => mudar('uf', e.target.value)}>
               <option value="">—</option>
