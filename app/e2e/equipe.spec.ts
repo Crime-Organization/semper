@@ -50,6 +50,16 @@ test.describe('Equipe e acessos', () => {
     await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('alterou usuário Ana Teste Lima');
   });
 
+  test('quando a tela é a de um computador, então a tabela de usuários cabe na página, sem barra de rolagem', async ({ page }) => {
+    // Quando
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const usuarios = page.getByRole('region', { name: 'Usuários' });
+    await expect(usuarios.getByRole('row')).toHaveCount(5);
+    // Então
+    const [secao, tabela] = await Promise.all([usuarios.boundingBox(), usuarios.getByRole('table').boundingBox()]);
+    expect(tabela!.width).toBeLessThanOrEqual(secao!.width);
+  });
+
   test('quando o e-mail de acesso fica vazio, então avisa e não libera', async ({ page }) => {
     // Dado (escolher a pessoa já preenche o e-mail do cadastro dela; aqui ele é apagado)
     await page.getByRole('textbox', { name: 'Pessoa' }).fill('josé da');

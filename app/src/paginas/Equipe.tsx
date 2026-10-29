@@ -121,10 +121,10 @@ function PainelEquipe() {
       <TituloSecao id="tUsu">Usuários</TituloSecao>
       <Nota style={{ marginTop: -6 }}>A função diz o que cada um faz no escritório: só advogados são responsáveis por contratos, e os participantes de um contrato são sempre da equipe. O papel diz quem administra o sistema.</Nota>
       <div className="tabela"><table>
-        <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col">Último acesso</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
+        <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
         <tbody>
-          {!usuarios && <tr><td colSpan={6} className="carregando">Carregando…</td></tr>}
-          {usuarios && !usuarios.length && <tr><td colSpan={6} className="nota">Nenhum usuário.</td></tr>}
+          {!usuarios && <tr><td colSpan={5} className="carregando">Carregando…</td></tr>}
+          {usuarios && !usuarios.length && <tr><td colSpan={5} className="nota">Nenhum usuário.</td></tr>}
           {lista.map(u => {
             const gerir = podeGerir(u);
             return <tr key={u.id}>
@@ -137,8 +137,10 @@ function PainelEquipe() {
                   {(['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
                 </select>
                 : <span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span>}</td>
-              <td>{!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}</td>
-              <td style={{ whiteSpace: 'nowrap' }}>{u.ultimo_acesso ? dataHora(u.ultimo_acesso) : <span className="nota">Nunca entrou</span>}</td>
+              <td><div className="situacao-usuario">
+                {!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}
+                <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>
+              </div></td>
               <td><div className="td-acoes">
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>

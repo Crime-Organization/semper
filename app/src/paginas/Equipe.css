@@ -9,3 +9,7 @@
 .registro li span { display: block; font-size: 12px; color: var(--muted) }
 .td-acoes { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap }
 .pessoa-usuario { display: flex; align-items: center; gap: 10px }
+/* Um e-mail comprido quebra a linha em vez de alargar a tabela além da página (e criar a barra de rolagem). */
+.pessoa-usuario .sub { overflow-wrap: anywhere }
+/* A situação e, embaixo, o último acesso (numa coluna só, para a tabela caber na página). */
+.situacao-usuario { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
