@@ -5,10 +5,10 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Contrato, type PessoaLista } from '../dados';
-import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
   calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
-  fmtDinheiro, fmtPercentual, lerDinheiro, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
+  fmtDinheiro, fmtPercentual, lerDinheiro, nomesPorExtenso, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
 import { MASCARAS } from '../regras/pessoa';
@@ -22,13 +22,12 @@ import { useTitulo } from '../ui/util';
 import './Contratos.css';
 
 type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
-/** As pessoas únicas do contrato escolhidas pela busca, e o campo de cada uma no formulário (os participantes são uma lista). */
+/** A pessoa única do contrato escolhida pela busca e o campo dela no formulário (clientes e participantes são listas). */
 const PAPEIS = {
-  cliente: { campo: 'clienteId', percentual: null },
   indicador: { campo: 'indicadorId', percentual: 'indicadorPercentual' }
 } as const satisfies Record<string, { campo: keyof CamposContrato; percentual: keyof CamposContrato | null }>;
 type Papel = keyof typeof PAPEIS;
-type CampoTexto = Exclude<keyof CamposContrato, 'objetos' | 'participantes'>;
+type CampoTexto = Exclude<keyof CamposContrato, 'clientes' | 'objetos' | 'participantes'>;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 
@@ -41,7 +40,11 @@ export default function NovoContrato() {
   const membros = ctx.equipe.filter(m => m.ativo);
 
   const [c, setC] = useState<CamposContrato>(() => ({ ...CONTRATO_VAZIO, responsavelId: membros.some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : '' }));
-  const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ cliente: null, indicador: null });
+  const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ indicador: null });
+  // A pessoa escolhida em cada linha de cliente (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
+  const [clientes, setClientes] = useState<Escolhida[]>([null]);
+  const [chavesCli, setChavesCli] = useState<number[]>([0]);
+  const [focarCliente, setFocarCliente] = useState<number | null>(null);
   const [alvo, setAlvo] = useState<Contrato | null>(null);   // contrato sendo atualizado
   const [pronto, setPronto] = useState(!idAtualizar);
   const [passo, setPasso] = useState(0);
@@ -70,9 +73,11 @@ export default function NovoContrato() {
         const objetos = campos.objetos.length;
         setChaves(campos.objetos.map((_, i) => i + 1));
         setChavesPart(k.participantes.map((_, i) => objetos + 1 + i));
-        proximaChave.current = objetos + k.participantes.length + 1;
+        setChavesCli(k.clientes.map((_, i) => objetos + k.participantes.length + 1 + i));
+        proximaChave.current = objetos + k.participantes.length + k.clientes.length + 1;
         setParticipantes(k.participantes.map(p => p.pessoa));
-        setPessoas({ cliente: k.cliente, indicador: k.indicador });
+        setClientes(k.clientes.length ? k.clientes : [null]);
+        setPessoas({ indicador: k.indicador });
       })
       .catch(falha)
       .finally(() => setPronto(true));
@@ -83,7 +88,7 @@ export default function NovoContrato() {
   useEffect(() => {
     if (idAtualizar || !clienteInicial) return;
     SD.pessoaObter(clienteInicial)
-      .then(p => { if (p) { setPessoas(x => ({ ...x, cliente: p })); setC(atual => ({ ...atual, clienteId: p.id })); } })
+      .then(p => { if (p) { setClientes([p]); setC(atual => ({ ...atual, clientes: [p.id] })); } })
       .catch(falha);
   // oxlint-disable-next-line react/exhaustive-deps -- uma vez só, ao abrir o formulário
   }, []);
@@ -151,6 +156,25 @@ export default function NovoContrato() {
     if (i < c.objetos.length - 1) document.getElementById(idObjeto(i + 1))?.focus();
     else if (c.objetos[i].trim() && c.objetos.length < OBJETOS_MAXIMOS) acrescentarObjeto(i);
   }
+
+  // ---------- clientes ----------
+  const escolherCliente = (i: number) => (p: PessoaLista | null) => {
+    setClientes(atual => atual.map((x, j) => j === i ? p : x));
+    setC(atual => ({ ...atual, clientes: atual.clientes.map((x, j) => j === i ? p?.id ?? '' : x) }));
+  };
+  function acrescentarCliente() {
+    const chave = proximaChave.current++;
+    setC(atual => ({ ...atual, clientes: [...atual.clientes, ''] }));
+    setClientes(atual => [...atual, null]);
+    setChavesCli(atual => [...atual, chave]);
+    setFocarCliente(chave);
+  }
+  function tirarCliente(i: number) {
+    setC(atual => ({ ...atual, clientes: atual.clientes.toSpliced(i, 1) }));
+    setClientes(atual => atual.toSpliced(i, 1));
+    setChavesCli(atual => atual.toSpliced(i, 1));
+  }
+  const outroCliente = (i: number) => (p: PessoaLista) => c.clientes.some((x, j) => j !== i && x === p.id) ? 'já é cliente' : null;
 
   // ---------- participantes ----------
   const mudarParticipante = (i: number, campos: Partial<CamposContrato['participantes'][number]>) =>
@@ -249,7 +273,21 @@ export default function NovoContrato() {
 
   const CONTEUDO: Record<EtapaContrato, () => ReactNode> = {
     partes: () => <>
-      {pessoa('cliente', <span>Cliente{req}</span>)}
+      <div className={'pergunta' + (erros.clientes ? ' erro' : '')} role="group" aria-label="Clientes">
+        {c.clientes.map((_, i) => <div className="linha-cliente" key={chavesCli[i]}>
+          <div className="campo-busca">
+            <BuscaPessoa rotulo={c.clientes.length === 1 ? <span>Cliente{req}</span> : `Cliente ${i + 1}`} escolhida={clientes[i]}
+              aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chavesCli[i] === focarCliente} />
+          </div>
+          {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
+            <Icone nome="fechar" tam={15} />
+          </button>}
+        </div>)}
+        <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.clientes.length >= CLIENTES_MAXIMOS} onClick={acrescentarCliente}>
+          <Icone nome="mais" tam={13} /> Adicionar cliente
+        </button></div>
+        {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
+      </div>
       <Campo rotulo="Advogado responsável" para="responsavelId" obrigatorio erro={erros.responsavelId}
         dica={alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.'}>
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
@@ -348,7 +386,7 @@ export default function NovoContrato() {
       <p className="olho"><Link to={voltar}>Contratos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar contrato' : 'Novo contrato'}<span className="ponto">.</span></h1>
     </header>
-    {alvo && <Aviso tipo="info">Você está atualizando o contrato <b>{alvo.codigo}</b> de <b>{alvo.cliente.nome}</b>. O número não muda, e as informações anteriores ficam no histórico.</Aviso>}
+    {alvo && <Aviso tipo="info">Você está atualizando o contrato <b>{alvo.codigo}</b> de <b>{nomesPorExtenso(alvo.clientes.map(x => x.nome))}</b>. O número não muda, e as informações anteriores ficam no histórico.</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>

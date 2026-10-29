@@ -4,7 +4,7 @@
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
-import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
+import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
@@ -44,6 +44,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
+  const nomesClientes = k.clientes.map((c, i) => <Fragment key={c.id}>{i > 0 && ', '}{linkPessoa(c)}</Fragment>);
   const nomesParticipantes = k.participantes.length
     ? k.participantes.map((p, i) => <Fragment key={p.pessoa.id}>{i > 0 && ', '}{linkPessoa(p.pessoa)}</Fragment>) : '—';
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
@@ -80,7 +81,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
       </div>
-      <h2>{k.cliente.nome}</h2>
+      <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       <div className="contrato-objetos-destaque">
         <span className="rotulo-caps" id="objetos-do-contrato">{k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'}</span>
         <ol aria-labelledby="objetos-do-contrato">{k.objetos.map(o => <li key={o}>{o}</li>)}</ol>
@@ -109,7 +110,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </section>
 
     <Dados titulo="Partes" preferencia="contratos.cartao.partes" linhas={[
-      ['Cliente', linkPessoa(k.cliente)],
+      [k.clientes.length > 1 ? 'Clientes' : 'Cliente', nomesClientes],
       ['Responsável', nomeDe(k.responsavel_id)],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', nomesParticipantes],
       ['Indicador', linkPessoa(k.indicador)]

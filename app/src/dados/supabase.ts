@@ -8,7 +8,7 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { CONTRATOS_DA_PESSOA, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
-import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Ordem, Participacao, Pessoa, RepresentanteVinculado } from './tipos';
+import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Ordem, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -94,16 +94,19 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
 const CAMPOS_CONTRATO_LISTA = 'id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
-  + `criado_por, criado_em, atualizado_em, cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA})`;
-const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
+  + 'criado_por, criado_em, atualizado_em, cliente_nome';
+const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
   + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
   + 'documento_url, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
-  + `cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA}), indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), `
+  + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), clientela:contrato_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + `participacoes:contrato_participantes(percentual, ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
-/** Participantes do contrato na ordem do cadastro (o banco os copia da lista gravada no contrato). */
-type ContratoLido = Omit<Contrato, 'participantes'> & { participacoes: (Participacao & { ordem: number })[] };
-const comParticipantes = ({ participacoes, ...k }: ContratoLido): Contrato =>
-  ({ ...k, participantes: participacoes.toSorted((a, b) => a.ordem - b.ordem).map(({ pessoa, percentual }) => ({ pessoa, percentual })) });
+/** Clientes e participantes do contrato na ordem do cadastro (o banco os copia das listas gravadas no contrato). */
+type ContratoLido = Omit<Contrato, 'clientes' | 'participantes'> & {
+  clientela: { ordem: number; pessoa: PessoaResumida }[]; participacoes: (Participacao & { ordem: number })[];
+};
+const comParticipantes = ({ clientela, participacoes, ...k }: ContratoLido): Contrato => ({ ...k,
+  clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa),
+  participantes: participacoes.toSorted((a, b) => a.ordem - b.ordem).map(({ pessoa, percentual }) => ({ pessoa, percentual })) });
 // Ordem dos contratos ("nome" é o do cliente, copiado no contrato pelo banco). O id no fim desempata a paginação.
 const ORDENS_CONTRATO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('numero', { ascending: false }),
@@ -398,24 +401,26 @@ export const SD: Dados = {
       .eq('contrato_id', id).order('em', { ascending: false }).limit(100));
     return data;
   },
-  // Os contratos em que a pessoa aparece: os do cliente, do indicador e do responsável numa consulta; os de participante
-  // vêm de contrato_participantes (um contrato pode ter vários), e os que faltam são lidos à parte.
+  // Os contratos em que a pessoa aparece: os do indicador e do responsável numa consulta; os de cliente e de
+  // participante vêm de contrato_clientes e contrato_participantes (um contrato pode ter vários), e os que faltam são
+  // lidos à parte.
   async contratosDaPessoa(pessoaId, perfilId = null) {
     type Linha = { id: string; codigo: string; servico: string; etapa_id: string | null; arquivado_em: string | null; criado_em: string;
-      cliente_id: string; responsavel_id: string; indicador_id: string | null; participacoes: { pessoa_id: string }[] };
-    const campos = 'id, codigo, servico, etapa_id, arquivado_em, criado_em, cliente_id, responsavel_id, indicador_id, participacoes:contrato_participantes(pessoa_id)';
-    const filtros = [`cliente_id.eq.${pessoaId}`, `indicador_id.eq.${pessoaId}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`] : [])];
-    const [diretos, participa] = await Promise.all([
+      clientes: string[]; responsavel_id: string; indicador_id: string | null; participacoes: { pessoa_id: string }[] };
+    const campos = 'id, codigo, servico, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, indicador_id, participacoes:contrato_participantes(pessoa_id)';
+    const filtros = [`indicador_id.eq.${pessoaId}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`] : [])];
+    const ligados = (tabela: string) => rodar(sb.from(tabela).select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA));
+    const [diretos, cliente, participa] = await Promise.all([
       rodar(sb.from('contratos').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(CONTRATOS_DA_PESSOA)),
-      rodar(sb.from('contrato_participantes').select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA))
+      ligados('contrato_clientes'), ligados('contrato_participantes')
     ]);
     const lidos: Linha[] = diretos.data;
-    const faltam = (participa.data as { contrato_id: string }[]).map(x => x.contrato_id).filter(id => !lidos.some(k => k.id === id));
+    const faltam = [...new Set([...cliente.data, ...participa.data].map((x: { contrato_id: string }) => x.contrato_id))].filter(id => !lidos.some(k => k.id === id));
     const outros: Linha[] = faltam.length ? (await rodar(sb.from('contratos').select(campos).in('id', faltam))).data : [];
     return [...lidos, ...outros]
       .toSorted((a, b) => b.criado_em.localeCompare(a.criado_em))
-      .map(({ participacoes, cliente_id, responsavel_id, indicador_id, ...k }) => ({ ...k,
-        papeis: papeisNoContrato({ cliente_id, responsavel_id, indicador_id, participantes: participacoes.map(p => p.pessoa_id) }, pessoaId, perfilId) }));
+      .map(({ participacoes, clientes, responsavel_id, indicador_id, ...k }) => ({ ...k,
+        papeis: papeisNoContrato({ clientes, responsavel_id, indicador_id, participantes: participacoes.map(p => p.pessoa_id) }, pessoaId, perfilId) }));
   },
   // O banco guarda cada objeto salvo num contrato na lista do escritório (banco/010_contrato_objetos.sql).
   async objetosSugeridos() {

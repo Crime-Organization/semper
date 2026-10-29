@@ -10,7 +10,7 @@ import type {
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { normal } from '../regras/texto';
-import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -38,7 +38,7 @@ const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atend
 const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
 const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO };
 /** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
-type ContratoGuardado = Omit<Contrato, 'cliente' | 'participantes' | 'indicador'> & { participantes: ParticipanteGravado[] };
+type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
 
 interface Banco {
   pessoas: Pessoa[];
@@ -120,22 +120,22 @@ bd.escritorio ??= { nome: 'Escritório Exemplo (teste)', logo: null, cnpj: null,
 // Contratos de exemplo, com clientes da semente e números como os do banco (sigla do responsável, sequencial, ano).
 function sementeContratos(): ContratoGuardado[] {
   const ano = new Date().getFullYear();
-  // [cliente, responsável, objetos (separados por ";"), categoria, valor, coluna]
+  // [clientes (separados por ";"), responsável, objetos (separados por ";"), categoria, valor, coluna]
   const casos: [string, string, string, Contrato['categoria'], number | null, string | null][] = [
     ['JOSÉ DA SILVA TESTE', 'u-master', 'Registro de marca; Busca de anterioridade', 'pro_labore', 3000, 'k3'],
     ['MARIA APARECIDA EXEMPLO', 'u-ana', 'Ação de cobrança', 'quota_litis', null, 'k1'],
     ['PADARIA PÃO QUENTE EXEMPLO LTDA', 'u-master', 'Consultoria e assessoria jurídica', 'pro_labore', 12000, 'k3'],
-    ['JOÃO PEDRO FICTÍCIO', 'u-bruno', 'Divórcio consensual', 'pro_labore', 4500, 'k2'],
+    ['JOÃO PEDRO FICTÍCIO; TEREZA CRISTINA PILOTO', 'u-bruno', 'Divórcio consensual', 'pro_labore', 4500, 'k2'],
     ['ANTÔNIA SOUZA DEMONSTRAÇÃO', 'u-ana', 'Inventário extrajudicial', 'pro_labore', 8000, 'k4'],
     ['COMERCIAL NORTE TESTE LTDA', 'u-master', 'Ação de indenização por danos morais', 'sucumbencia', null, null]
   ];
-  return casos.flatMap(([nome, resp, servico, categoria, valor, etapa], i) => {
-    const cliente = bd.pessoas.find(p => p.nome === nome);
+  return casos.flatMap(([nomes, resp, servico, categoria, valor, etapa], i) => {
+    const clientes = nomes.split('; ').map(nome => bd.pessoas.find(p => p.nome === nome)?.id).filter(id => id !== undefined);
     const m = EQUIPE.find(x => x.id === resp)!, sigla = siglaAdvogado(m.nome, m.cpf)!;
-    if (!cliente) return [];
+    if (!clientes.length) return [];
     return [{
       ...contratoNovo(), id: novoId(), numero: i + 1, sigla, ano, codigo: numeroContrato(sigla, i + 1, ano),
-      codigo_antigo: i === 0 ? 'MA96-JO25-001/24' : null, cliente_id: cliente.id, responsavel_id: resp,
+      codigo_antigo: i === 0 ? 'MA96-JO25-001/24' : null, cliente_id: clientes[0], clientes, responsavel_id: resp,
       objetos: limparObjetos(servico.split(';')), servico, categoria,
       valor, entrada: valor ? valor / 5 : null, parcelas: valor ? 5 : null, percentual_escritorio: valor ? 30 : null,
       assinado_em: etapa === 'k3' || etapa === 'k4' ? `${ano}-03-10` : null, etapa_id: etapa, etapa_ordem: etapa ? i : null, criado_por: resp
@@ -145,7 +145,7 @@ function sementeContratos(): ContratoGuardado[] {
 /** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function contratoNovo(): ContratoGuardado {
   return {
-    id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
+    id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', clientes: [], responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
     valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
     participantes: [], indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
@@ -162,6 +162,8 @@ bd.historicoContratos ??= [];
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
 bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
 // Sessões abertas antes dos vários participantes: o participante antigo entra na lista (como a migração 012).
+// E antes dos vários clientes: o cliente entra na lista (como a migração 013).
+bd.contratos.forEach(k => { k.clientes ??= [k.cliente_id]; });
 bd.contratos.forEach(k => {
   const antigo = k as unknown as { participante_id?: string | null; participante_percentual?: number | null };
   k.participantes ??= antigo.participante_id ? [{ pessoa_id: antigo.participante_id, percentual: antigo.participante_percentual ?? null }] : [];
@@ -220,14 +222,15 @@ const resumoDe = (id: string | null): PessoaResumida | null => {
   return p ? { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em } : null;
 };
 const contratoCompleto = (k: ContratoGuardado): Contrato =>
-  ({ ...k, cliente: resumoDe(k.cliente_id)!, participantes: k.participantes.map(p => ({ pessoa: resumoDe(p.pessoa_id)!, percentual: p.percentual })),
+  ({ ...k, clientes: k.clientes.map(id => resumoDe(id)!), cliente_nome: nomeDoCliente(k), participantes: k.participantes.map(p => ({ pessoa: resumoDe(p.pessoa_id)!, percentual: p.percentual })),
      indicador: resumoDe(k.indicador_id) });
 const contratoLista = (k: ContratoGuardado): ContratoLista => ({
   id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
   responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
-  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente: resumoDe(k.cliente_id)!
+  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k)
 });
-const nomeDoCliente = (k: ContratoGuardado) => bd.pessoas.find(p => p.id === k.cliente_id)?.nome || '';
+/** Como cliente_nome no banco: os nomes de todos os clientes, juntos ("A; B"). */
+const nomeDoCliente = (k: ContratoGuardado) => k.clientes.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
 // Como a coluna "busca" do banco: o número entra também só com os dígitos, para a busca por "0163/2026" achar.
 const buscaContrato = (k: ContratoGuardado) => normal([k.codigo, k.codigo.replace(/\D/g, ''), k.codigo_antigo, k.servico, nomeDoCliente(k)].join(' '));
 function filtrarContratos(f: FiltroContratos = {}) {
@@ -255,7 +258,7 @@ const nomeDaColuna = (id: string | null) => bd.colunas.find(c => c.id === id)?.n
 // Das pessoas, do responsável e da coluna, o histórico guarda o nome (como no banco), não o id.
 const nomeDaPessoa = (id: unknown) => bd.pessoas.find(p => p.id === id)?.nome ?? null;
 const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
-  cliente_id: ['cliente_id', nomeDaPessoa],
+  clientes: ['clientes', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
   participantes: ['participantes', lista => textoDosParticipantes((lista as ParticipanteGravado[] | null ?? [])
     .map(p => ({ nome: nomeDaPessoa(p.pessoa_id) ?? 'pessoa excluída', percentual: p.percentual })))],
   indicador_id: ['indicador_id', nomeDaPessoa],
@@ -263,7 +266,7 @@ const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
 };
 // A mudança dos objetos entra no histórico uma vez só, pelo texto de "servico" ("a; b" → "a; c").
-const FORA_DO_HISTORICO = new Set(['etapa_ordem', 'arquivado_por', 'objetos']);
+const FORA_DO_HISTORICO = new Set(['etapa_ordem', 'arquivado_por', 'objetos', 'cliente_id']);
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico do contrato. */
 function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) {
   const atual = k as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
@@ -290,6 +293,19 @@ function ajustarObjetos(dados: DadosContrato, atual?: ContratoGuardado): DadosCo
   return { ...dados, objetos, servico: objetos.join('; ') };
 }
 /**
+ * Como o gatilho da migração 013: clientes do escritório, sem repetir, ao menos um e no máximo 10; o primeiro fica em
+ * cliente_id. Quem grava só cliente_id (a versão anterior do site) troca a lista por esse cliente.
+ */
+function ajustarClientes(dados: DadosContrato, atual?: ContratoGuardado): DadosContrato {
+  if (atual && dados.clientes === undefined && dados.cliente_id === undefined) return dados;
+  const doAntigo = atual ? dados.clientes === undefined && dados.cliente_id !== atual.cliente_id : !dados.clientes?.length;
+  const lista = [...new Set((doAntigo ? [dados.cliente_id ?? ''] : dados.clientes ?? atual!.clientes).filter(Boolean))];
+  if (!lista.length) throw new Error('Escolha o cliente.');
+  if (lista.length > CLIENTES_MAXIMOS) throw new Error(`Um contrato pode ter até ${CLIENTES_MAXIMOS} clientes.`);
+  if (lista.some(id => !bd.pessoas.some(p => p.id === id))) throw new Error('Cliente não encontrado neste escritório.');
+  return { ...dados, clientes: lista, cliente_id: lista[0] };
+}
+/**
  * Como o gatilho da migração 012: cada participante do escritório, sem repetir, diferente do indicador, com % de 0 a 100.
  * Só confere quando a lista ou o indicador mudam.
  */
@@ -309,7 +325,7 @@ function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): D
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
 const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
-  [k.cliente_id, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
+  [...k.clientes, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
 
 export const SD: Dados = {
   sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
@@ -496,14 +512,14 @@ export const SD: Dados = {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
-    const d = ajustarParticipantes(ajustarObjetos(dados));
+    const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
     bd.contratos!.push(k); guardarObjetos(k.objetos); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
-    const k = acharContrato(id), d = ajustarParticipantes(ajustarObjetos(dados, k), k);
+    const k = acharContrato(id), d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     historicoContrato(k, d);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
     guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();

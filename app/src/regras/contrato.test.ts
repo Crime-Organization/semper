@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
-const minimo = { clienteId: 'p1', responsavelId: 'u1', objetos: ['Registro de marca'], categoria: 'pro_labore' as const };
+const minimo = { clientes: ['p1'], responsavelId: 'u1', objetos: ['Registro de marca'], categoria: 'pro_labore' as const };
 
 describe('Número do contrato', () => {
   it.each([
@@ -130,7 +130,7 @@ describe('Validação do cadastro de contrato', () => {
     const erros = validarContrato(CONTRATO_VAZIO);
     // Então
     expect(erros).toEqual({
-      clienteId: 'Escolha o cliente.', responsavelId: 'Escolha o advogado responsável.',
+      clientes: 'Escolha o cliente.', responsavelId: 'Escolha o advogado responsável.',
       objetos: 'Informe ao menos um objeto do contrato.', categoria: 'Escolha a categoria de honorário.'
     });
   });
@@ -153,6 +153,7 @@ describe('Validação do cadastro de contrato', () => {
       'A mesma pessoa aparece duas vezes nos participantes.'],
     ['a soma com o escritório passa de 100%', { percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '60' }], indicadorId: 'p3', indicadorPercentual: '20' },
       'divisao', 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.'],
+    ['o mesmo cliente aparece duas vezes', { clientes: ['p1', 'p1'] }, 'clientes', 'O mesmo cliente aparece duas vezes.'],
     ['indicador e participante são a mesma pessoa', { participantes: [{ pessoaId: 'p2', percentual: '' }], indicadorId: 'p2' }, 'indicadorId',
       'O indicador e os participantes precisam ser pessoas diferentes.'],
     ['o link do documento não é um endereço', { documentoUrl: 'drive.google.com/x' }, 'documentoUrl', 'Cole o link completo, começando com https://.'],
@@ -183,13 +184,13 @@ describe('Gravação e leitura do contrato', () => {
 
   it('quando um contrato salvo é aberto para atualizar, então os campos voltam formatados', () => {
     // Dado
-    const k = { cliente_id: 'p1', responsavel_id: 'u1', objetos: ['Registro de marca', 'Oposição'], servico: 'Registro de marca; Oposição', categoria: 'pro_labore', valor: 5000, entrada: 1000.5,
+    const k = { cliente_id: 'p1', clientes: [{ id: 'p1', codigo: 'P1', nome: 'JOSÉ', tipo: 'pf' }], responsavel_id: 'u1', objetos: ['Registro de marca', 'Oposição'], servico: 'Registro de marca; Oposição', categoria: 'pro_labore', valor: 5000, entrada: 1000.5,
       parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30,
       participantes: [{ pessoa: { id: 'p2', codigo: 'P2', nome: 'ANA', tipo: 'pf' }, percentual: 26.67 }], indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null, codigo_antigo: null } as Contrato;
     // Quando
     const c = camposDoContrato(k);
     // Então
-    expect(c).toMatchObject({ objetos: ['Registro de marca', 'Oposição'], valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
+    expect(c).toMatchObject({ clientes: ['p1'], objetos: ['Registro de marca', 'Oposição'], valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
       percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '26,67' }], indicadorPercentual: '' });
   });
 });
@@ -272,7 +273,7 @@ describe('Etapas do cadastro de contrato', () => {
   });
 
   it.each([
-    ['partes', ['clienteId', 'responsavelId']],
+    ['partes', ['clientes', 'responsavelId']],
     ['objetos', ['objetos', 'categoria']],
     ['honorarios', []]
   ] as const)('quando a etapa %s está vazia, então só os campos dela pedem correção: %j', (etapa, esperados) => {
@@ -284,7 +285,7 @@ describe('Etapas do cadastro de contrato', () => {
 
   it.each([
     ['nada preenchido', {}, 0],
-    ['só as partes preenchidas', { clienteId: 'p1', responsavelId: 'u1' }, 1],
+    ['só as partes preenchidas', { clientes: ['p1'], responsavelId: 'u1' }, 1],
     ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '10' }, 3],
     ['tudo certo', minimo, -1]
   ])('quando há %s, então a primeira etapa com erro é a %s', (_caso, extra, esperada) => {
@@ -296,9 +297,10 @@ describe('Etapas do cadastro de contrato', () => {
 });
 
 describe('Papel da pessoa no contrato', () => {
-  const k = { cliente_id: 'p1', responsavel_id: 'u1', indicador_id: 'p3', participantes: ['p2', 'p4'] };
+  const k = { clientes: ['p1', 'p5'], responsavel_id: 'u1', indicador_id: 'p3', participantes: ['p2', 'p4'] };
   it.each([
-    ['o cliente', 'p1', null, ['cliente']],
+    ['o primeiro cliente', 'p1', null, ['cliente']],
+    ['o segundo cliente', 'p5', null, ['cliente']],
     ['um dos participantes', 'p4', null, ['participante']],
     ['o indicador', 'p3', null, ['indicador']],
     ['o advogado responsável (pela pessoa ligada ao usuário)', 'p9', 'u1', ['responsavel']],
@@ -308,5 +310,18 @@ describe('Papel da pessoa no contrato', () => {
     const papeis = papeisNoContrato(k, pessoa, perfil);
     // Então
     expect(papeis).toEqual(esperado);
+  });
+});
+
+describe('Clientes por extenso', () => {
+  it.each([
+    ['ANA', 'ANA'],
+    ['ANA; BRUNO', 'ANA e BRUNO'],
+    ['ANA; BRUNO; CARLA', 'ANA, BRUNO e CARLA']
+  ])('quando o contrato guarda "%s", então mostra "%s"', (guardado, esperado) => {
+    // Quando
+    const texto = clientesPorExtenso(guardado);
+    // Então
+    expect(texto).toBe(esperado);
   });
 });

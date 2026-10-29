@@ -168,7 +168,10 @@ export interface Contrato {
   sigla: string;
   ano: number;
   codigo_antigo: string | null;   // código das planilhas, nos contratos que vieram de lá (ex.: HE62-DE74-001/24)
+  /** O primeiro cliente (a versão anterior do site só conhece um). */
   cliente_id: string;
+  /** Os nomes de todos os clientes, juntos ("A; B"): é o que a tabela, o quadro, a busca e a ordem por nome usam. */
+  cliente_nome: string;
   responsavel_id: string;
   /** Objetos do contrato, na ordem em que foram escritos (cada um vira uma demanda quando o contrato é assinado). */
   objetos: string[];
@@ -194,7 +197,8 @@ export interface Contrato {
   criado_em: string;
   atualizado_por: string | null;
   atualizado_em: string;
-  cliente: PessoaResumida;
+  /** Os clientes que assinam o contrato, na ordem do cadastro. */
+  clientes: PessoaResumida[];
   /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o total). */
   participantes: Participacao[];
   indicador: PessoaResumida | null;
@@ -213,14 +217,14 @@ export interface Participacao { pessoa: PessoaResumida; percentual: number | nul
 export interface ParticipanteGravado { pessoa_id: string; percentual: number | null }
 
 /** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
-export type DadosContrato = Partial<{ participantes: ParticipanteGravado[] } & Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
+export type DadosContrato = Partial<{ clientes: string[]; participantes: ParticipanteGravado[] } & Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
   | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio'
   | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
-  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente'>;
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome'>;
 
 export interface FiltroContratos {
   termo?: string;
