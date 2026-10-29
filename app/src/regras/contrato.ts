@@ -2,7 +2,7 @@
 // percentuais da divisão, leitura de valores em reais e a validação do cadastro. Tudo puro, sem tela nem banco.
 // As contas seguem as planilhas de receitas do escritório (aba Contratos).
 import type { CategoriaHonorario, Contrato, DadosContrato } from '../dados/tipos';
-import { PARCELAS_MAXIMAS } from '../dados/limites';
+import { OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 
@@ -45,6 +45,19 @@ export function percentualResponsavel(participante: number | null, indicador: nu
   return resto < 0 ? null : centavos(resto);
 }
 
+// ---------- objetos do contrato ----------
+/** Objetos como o banco guarda: sem espaços nas pontas, sem linhas vazias e sem repetir (ignorando maiúsculas e acentos), na ordem escrita. */
+export function limparObjetos(objetos: string[]): string[] {
+  const vistos = new Set<string>();
+  return objetos.map(o => o.trim()).filter(o => {
+    if (!o || vistos.has(normal(o))) return false;
+    vistos.add(normal(o));
+    return true;
+  });
+}
+/** Os objetos juntos, como ficam no campo "servico" (o que a tabela e o quadro mostram). */
+export const juntarObjetos = (objetos: string[]) => limparObjetos(objetos).join('; ');
+
 // ---------- valores em reais e percentuais ----------
 /** "R$ 1.500,00", "1500,5" ou "1500.50" viram 1500.5. Vazio vira null. */
 export function lerDinheiro(txt: string): number | null {
@@ -78,7 +91,8 @@ export const fmtPercentual = (v: number | null | undefined) => v === null || v =
 export interface CamposContrato {
   clienteId: string;
   responsavelId: string;
-  servico: string;
+  /** Um por linha; linhas vazias são ignoradas ao salvar. */
+  objetos: string[];
   categoria: '' | CategoriaHonorario;
   valor: string;
   entrada: string;
@@ -96,7 +110,7 @@ export interface CamposContrato {
   codigoAntigo: string;
 }
 export const CONTRATO_VAZIO: CamposContrato = {
-  clienteId: '', responsavelId: '', servico: '', categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
+  clienteId: '', responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
   primeiroPagamento: '', percentualEscritorio: '', participanteId: '', participantePercentual: '', indicadorId: '', indicadorPercentual: '',
   documentoUrl: '', observacoes: '', codigoAntigo: ''
 };
@@ -105,19 +119,20 @@ export const CONTRATO_VAZIO: CamposContrato = {
 export const MSG_CONTRATO: Partial<Record<keyof CamposContrato, string>> = {
   clienteId: 'Escolha o cliente.',
   responsavelId: 'Escolha o advogado responsável.',
-  servico: 'Informe o serviço (objeto do contrato).',
+  objetos: 'Informe ao menos um objeto do contrato.',
   categoria: 'Escolha a categoria de honorário.'
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
 type Conferencia = (c: CamposContrato) => string | null;
-const obrigatorio = (campo: keyof CamposContrato): Conferencia => c => String(c[campo]).trim() ? null : MSG_CONTRATO[campo]!;
-const leitura = (ler: (t: string) => unknown, campo: keyof CamposContrato): Conferencia => c => {
+type CampoTexto = Exclude<keyof CamposContrato, 'objetos'>;
+const obrigatorio = (campo: CampoTexto): Conferencia => c => String(c[campo]).trim() ? null : MSG_CONTRATO[campo]!;
+const leitura = (ler: (t: string) => unknown, campo: CampoTexto): Conferencia => c => {
   try { ler(c[campo]); return null; } catch (e) { return (e as Error).message; }
 };
-const dinheiro = (campo: keyof CamposContrato) => leitura(lerDinheiro, campo);
-const data = (campo: keyof CamposContrato) => leitura(lerData, campo);
-const percentual = (campo: keyof CamposContrato) => leitura(lerPercentual, campo);
+const dinheiro = (campo: CampoTexto) => leitura(lerDinheiro, campo);
+const data = (campo: CampoTexto) => leitura(lerData, campo);
+const percentual = (campo: CampoTexto) => leitura(lerPercentual, campo);
 /** Lê sem lançar erro (o erro de formato já é de outra conferência). */
 const quieto = <T>(ler: (t: string) => T, t: string) => { try { return ler(t); } catch { return null; } };
 
@@ -125,7 +140,11 @@ const quieto = <T>(ler: (t: string) => T, t: string) => { try { return ler(t); }
 const CONFERENCIAS: Partial<Record<keyof CamposContrato, Conferencia[]>> = {
   clienteId: [obrigatorio('clienteId')],
   responsavelId: [obrigatorio('responsavelId')],
-  servico: [obrigatorio('servico')],
+  objetos: [
+    c => limparObjetos(c.objetos).length ? null : MSG_CONTRATO.objetos!,
+    c => limparObjetos(c.objetos).length > OBJETOS_MAXIMOS ? `Um contrato pode ter até ${OBJETOS_MAXIMOS} objetos.` : null,
+    c => c.objetos.some(o => o.trim().length > TAMANHO_CONTRATO.objeto) ? `Cada objeto do contrato pode ter até ${TAMANHO_CONTRATO.objeto} caracteres.` : null
+  ],
   categoria: [obrigatorio('categoria')],
   valor: [dinheiro('valor')],
   entrada: [dinheiro('entrada'), c => {
@@ -169,7 +188,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
   const texto = (t: string) => t.trim() || null;
   const parcelas = c.parcelas.trim();
   return {
-    cliente_id: c.clienteId, responsavel_id: c.responsavelId, servico: c.servico.trim(), categoria: c.categoria as CategoriaHonorario,
+    cliente_id: c.clienteId, responsavel_id: c.responsavelId, objetos: limparObjetos(c.objetos), servico: juntarObjetos(c.objetos), categoria: c.categoria as CategoriaHonorario,
     valor: lerDinheiro(c.valor), entrada: lerDinheiro(c.entrada), parcelas: parcelas ? Number(parcelas) : null, descontos: lerDinheiro(c.descontos),
     assinado_em: lerData(c.assinadoEm), primeiro_pagamento: lerData(c.primeiroPagamento),
     percentual_escritorio: c.percentualEscritorio ? Number(c.percentualEscritorio) : null,
@@ -183,7 +202,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
 export function camposDoContrato(k: Contrato): CamposContrato {
   const pct = (v: number | null) => v === null ? '' : String(v).replace('.', ',');
   return {
-    clienteId: k.cliente_id, responsavelId: k.responsavel_id, servico: k.servico, categoria: k.categoria,
+    clienteId: k.cliente_id, responsavelId: k.responsavel_id, objetos: k.objetos.length ? [...k.objetos] : [''], categoria: k.categoria,
     valor: dinheiroNoCampo(k.valor), entrada: dinheiroNoCampo(k.entrada), parcelas: k.parcelas ? String(k.parcelas) : '',
     descontos: dinheiroNoCampo(k.descontos), assinadoEm: fmtData(k.assinado_em), primeiroPagamento: fmtData(k.primeiro_pagamento),
     percentualEscritorio: k.percentual_escritorio === null ? '' : String(k.percentual_escritorio),
@@ -195,7 +214,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
 
 /** Nome de cada campo no histórico de alterações do contrato. */
 export const CAMPOS_CONTRATO: Record<string, string> = {
-  cliente_id: 'Cliente', responsavel_id: 'Responsável', servico: 'Serviço', categoria: 'Categoria', valor: 'Valor do contrato',
+  cliente_id: 'Cliente', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
   percentual_escritorio: 'Enviado ao escritório', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', observacoes: 'Observações',

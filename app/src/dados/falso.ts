@@ -4,13 +4,13 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosEscritorio, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
-import { numeroContrato, siglaAdvogado } from '../regras/contrato';
+import { limparObjetos, numeroContrato, siglaAdvogado } from '../regras/contrato';
 import { normal } from '../regras/texto';
-import { POR_COLUNA, POR_PAGINA } from './limites';
+import { OBJETOS_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -60,6 +60,8 @@ interface Banco {
   historicoContratos?: (Historico & { contrato_id: string })[];
   /** Último número de contrato dado (como privado.contrato_numeracao no banco): nunca se repete. */
   ultimoContrato?: number;
+  /** Lista de objetos do escritório (objeto_sugestoes no banco). */
+  objetosSugeridos?: string[];
 }
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -120,9 +122,9 @@ bd.escritorio ??= { nome: 'Escritório Exemplo (teste)', logo: null, cnpj: null,
 // Contratos de exemplo, com clientes da semente e números como os do banco (sigla do responsável, sequencial, ano).
 function sementeContratos(): ContratoGuardado[] {
   const ano = new Date().getFullYear();
-  // [cliente, responsável, serviço, categoria, valor, coluna]
+  // [cliente, responsável, objetos (separados por ";"), categoria, valor, coluna]
   const casos: [string, string, string, Contrato['categoria'], number | null, string | null][] = [
-    ['JOSÉ DA SILVA TESTE', 'u-master', 'Registro de marca', 'pro_labore', 3000, 'k3'],
+    ['JOSÉ DA SILVA TESTE', 'u-master', 'Registro de marca; Busca de anterioridade', 'pro_labore', 3000, 'k3'],
     ['MARIA APARECIDA EXEMPLO', 'u-ana', 'Ação de cobrança', 'quota_litis', null, 'k1'],
     ['PADARIA PÃO QUENTE EXEMPLO LTDA', 'u-master', 'Consultoria e assessoria jurídica', 'pro_labore', 12000, 'k3'],
     ['JOÃO PEDRO FICTÍCIO', 'u-bruno', 'Divórcio consensual', 'pro_labore', 4500, 'k2'],
@@ -135,7 +137,8 @@ function sementeContratos(): ContratoGuardado[] {
     if (!cliente) return [];
     return [{
       ...contratoNovo(), id: novoId(), numero: i + 1, sigla, ano, codigo: numeroContrato(sigla, i + 1, ano),
-      codigo_antigo: i === 0 ? 'MA96-JO25-001/24' : null, cliente_id: cliente.id, responsavel_id: resp, servico, categoria,
+      codigo_antigo: i === 0 ? 'MA96-JO25-001/24' : null, cliente_id: cliente.id, responsavel_id: resp,
+      objetos: limparObjetos(servico.split(';')), servico, categoria,
       valor, entrada: valor ? valor / 5 : null, parcelas: valor ? 5 : null, percentual_escritorio: valor ? 30 : null,
       assinado_em: etapa === 'k3' || etapa === 'k4' ? `${ano}-03-10` : null, etapa_id: etapa, etapa_ordem: etapa ? i : null, criado_por: resp
     }];
@@ -144,7 +147,7 @@ function sementeContratos(): ContratoGuardado[] {
 /** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function contratoNovo(): ContratoGuardado {
   return {
-    id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', responsavel_id: '', servico: '', categoria: 'pro_labore',
+    id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
     valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
     participante_id: null, participante_percentual: null, indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
@@ -158,6 +161,9 @@ if (!bd.colunas.some(c => c.modulo === 'contratos')) {
 bd.contratos ??= sementeContratos();
 bd.historicoContratos ??= [];
 bd.ultimoContrato ??= Math.max(0, ...bd.contratos!.map(k => k.numero));
+// Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
+bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
+bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -252,17 +258,35 @@ const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
 };
+// A mudança dos objetos entra no histórico uma vez só, pelo texto de "servico" ("a; b" → "a; c").
+const FORA_DO_HISTORICO = new Set(['etapa_ordem', 'arquivado_por', 'objetos']);
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico do contrato. */
 function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) {
   const atual = k as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
   Object.entries(dados).forEach(([campo, v]) => {
-    if (campo !== 'etapa_ordem' && campo !== 'arquivado_por' && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
+    if (!FORA_DO_HISTORICO.has(campo) && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
       const [chave, nome] = NOME_NO_HISTORICO[campo] ?? [campo, (x: unknown) => x];
       alt[chave] = { de: nome(atual[campo] ?? null), para: nome(v ?? null) };
     }
   });
   if (Object.keys(alt).length) bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: k.id, alteracoes: alt, feito_por: eu, em: agora() });
 }
+/**
+ * Como os gatilhos da migração 010: objetos limpos e "servico" igual a eles. Quem grava só o texto (a versão anterior
+ * do site) tem os objetos tirados dele, separados por ";".
+ */
+function ajustarObjetos(dados: DadosContrato, atual?: ContratoGuardado): DadosContrato {
+  if (atual && dados.objetos === undefined && dados.servico === undefined) return dados;
+  const mesmosObjetos = JSON.stringify(dados.objetos ?? atual?.objetos) === JSON.stringify(atual?.objetos);
+  const doTexto = atual ? mesmosObjetos && dados.servico !== undefined && dados.servico !== atual.servico : !dados.objetos?.length;
+  const objetos = limparObjetos(doTexto ? (dados.servico ?? '').split(';') : dados.objetos ?? atual!.objetos);
+  if (!objetos.length) throw new Error('Informe ao menos um objeto do contrato.');
+  if (objetos.length > OBJETOS_MAXIMOS) throw new Error(`Um contrato pode ter até ${OBJETOS_MAXIMOS} objetos.`);
+  if (objetos.some(o => o.length > TAMANHO_CONTRATO.objeto)) throw new Error(`Cada objeto do contrato pode ter até ${TAMANHO_CONTRATO.objeto} caracteres.`);
+  return { ...dados, objetos, servico: objetos.join('; ') };
+}
+/** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
+const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
 const temContrato = (pessoaId: string) => bd.contratos!.some(k => [k.cliente_id, k.participante_id, k.indicador_id].includes(pessoaId));
 
@@ -450,16 +474,17 @@ export const SD: Dados = {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
+    const d = ajustarObjetos(dados);
     const numero = bd.ultimoContrato = bd.ultimoContrato! + 1, ano = new Date().getFullYear();
-    const k: ContratoGuardado = { ...contratoNovo(), ...dados, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
-    bd.contratos!.push(k); auditar('contratos', 'inclusao', k); gravar();
+    const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
+    bd.contratos!.push(k); guardarObjetos(k.objetos); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
-    const k = acharContrato(id);
-    historicoContrato(k, dados);
-    Object.assign(k, dados, { atualizado_em: agora(), atualizado_por: eu });
-    auditar('contratos', 'alteracao', k); gravar();
+    const k = acharContrato(id), d = ajustarObjetos(dados, k);
+    historicoContrato(k, d);
+    Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
+    guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();
     return espera({ id, codigo: k.codigo });
   },
   async contratosArquivar(ids, arquivar = true) {
@@ -490,6 +515,7 @@ export const SD: Dados = {
     Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id)),
+  objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
 
   // ---------- quadros: cada módulo tem as suas colunas ----------
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)

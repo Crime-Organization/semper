@@ -107,7 +107,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     describe('Contratos', () => {
       const novoContrato = async (extra: Parameters<Dados['contratoCriar']>[0] = {}) => {
         const { id: cliente } = await criar(marca());
-        return SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', servico: 'Registro de marca', categoria: 'pro_labore', ...extra });
+        return SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore', ...extra });
       };
 
       it('quando um contrato é criado, então recebe o número com a sigla do responsável, o sequencial e o ano', async () => {
@@ -133,7 +133,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const [coluna] = await SD.colunasListar('contratos');
         const { id, codigo } = await novoContrato();
         // Quando
-        await SD.contratoAtualizar(id, { responsavel_id: 'u-ana', servico: 'Outro serviço' });
+        await SD.contratoAtualizar(id, { responsavel_id: 'u-ana', objetos: ['Outro serviço'] });
         await SD.contratoMover(id, coluna.id, 1);
         // Então
         const lido = await SD.contratoObter(id);
@@ -178,12 +178,59 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando a pessoa é cliente de um contrato, então ela não pode ser excluída', async () => {
         // Dado
         const { id: cliente } = await criar(marca());
-        await SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', servico: 'Registro de marca', categoria: 'pro_labore' });
+        await SD.contratoCriar({ cliente_id: cliente, responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
         await SD.pessoasArquivar([cliente]);
         // Quando
         const r = await SD.pessoasExcluir([cliente]);
         // Então
         expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em contratos e não pode ser excluída.' });
+      });
+
+      it('quando o contrato é salvo com vários objetos, então voltam limpos, na ordem, e o serviço mostra os objetos juntos', async () => {
+        // Quando
+        const { id } = await novoContrato({ objetos: ['Registro de marca', '  Busca de anterioridade ', 'REGISTRO DE MARCA', ''] });
+        // Então
+        expect(await SD.contratoObter(id)).toMatchObject({
+          objetos: ['Registro de marca', 'Busca de anterioridade'], servico: 'Registro de marca; Busca de anterioridade'
+        });
+      });
+
+      it('quando os objetos mudam, então o histórico registra a troca uma vez, pelo texto', async () => {
+        // Dado
+        const { id } = await novoContrato({ objetos: ['Registro de marca', 'Oposição'] });
+        // Quando
+        await SD.contratoAtualizar(id, { objetos: ['Registro de marca', 'Recurso'] });
+        // Então
+        const [ultima] = await SD.contratoHistorico(id);
+        expect(ultima.alteracoes).toEqual({ servico: { de: 'Registro de marca; Oposição', para: 'Registro de marca; Recurso' } });
+      });
+
+      it('quando a versão anterior do site grava só o serviço, então os objetos acompanham o texto', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        // Quando
+        await SD.contratoAtualizar(id, { servico: 'Notificação extrajudicial; Acordo' });
+        // Então
+        expect((await SD.contratoObter(id))!.objetos).toEqual(['Notificação extrajudicial', 'Acordo']);
+      });
+
+      it('quando o contrato não tem nenhum objeto, então salvar é recusado com a mensagem em português', async () => {
+        // Quando
+        const semObjeto = novoContrato({ objetos: ['  '] });
+        // Então
+        await expect(semObjeto).rejects.toThrow('Informe ao menos um objeto do contrato.');
+      });
+
+      it('quando um contrato é salvo, então os objetos entram na lista do escritório, sem repetir', async () => {
+        // Dado
+        const objeto = 'Objeto ' + marca();
+        // Quando
+        await novoContrato({ objetos: [objeto, 'Registro de marca'] });
+        await novoContrato({ objetos: [objeto.toLowerCase()] });
+        // Então
+        const lista = await SD.objetosSugeridos();
+        expect(lista.filter(o => o.toLowerCase() === objeto.toLowerCase())).toEqual([objeto]);
+        expect(lista).toContain('Registro de marca');
       });
 
       it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {

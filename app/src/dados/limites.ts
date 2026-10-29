@@ -22,8 +22,12 @@ export const TAMANHO_ESCRITORIO = {
 };
 /** Vínculos: nome, inverso e descrição como no banco (banco/003_vinculos.sql); a função do representante só no formulário. */
 export const TAMANHO_VINCULO = { nome: 60, inverso: 60, descricao: 300, funcao: 120 };
-/** Contratos: os mesmos do banco (banco/009_contratos.sql). */
-export const TAMANHO_CONTRATO = { servico: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
+/** Contratos: os mesmos do banco (banco/009_contratos.sql e 010_contrato_objetos.sql). */
+export const TAMANHO_CONTRATO = { objeto: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
+/** Quantos objetos um contrato pode ter (o banco recusa mais que isso). */
+export const OBJETOS_MAXIMOS = 20;
+/** Quantos objetos da lista do escritório o cadastro de contrato carrega como sugestão. */
+export const OBJETOS_SUGERIDOS = 1000;
 /** Número máximo de parcelas de um contrato (o banco aceita de 1 a 360). */
 export const PARCELAS_MAXIMAS = 360;
 

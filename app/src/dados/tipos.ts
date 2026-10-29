@@ -170,6 +170,9 @@ export interface Contrato {
   codigo_antigo: string | null;   // código das planilhas, nos contratos que vieram de lá (ex.: HE62-DE74-001/24)
   cliente_id: string;
   responsavel_id: string;
+  /** Objetos do contrato, na ordem em que foram escritos (cada um vira uma demanda quando o contrato é assinado). */
+  objetos: string[];
+  /** Os objetos juntos ("a; b"), como mostram a tabela e o quadro. O banco mantém igual aos objetos. */
   servico: string;
   categoria: CategoriaHonorario;
   valor: number | null;
@@ -199,7 +202,7 @@ export interface Contrato {
 }
 
 /** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
-export type DadosContrato = Partial<Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'servico' | 'categoria' | 'valor'
+export type DadosContrato = Partial<Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
   | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio' | 'participante_id'
   | 'participante_percentual' | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
@@ -324,6 +327,8 @@ export interface DadosContratos {
   contratosExcluir(ids: string[]): Promise<Exclusao>;
   contratoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
   contratoHistorico(id: string): Promise<Historico[]>;
+  /** Objetos já usados em contratos do escritório, em ordem alfabética, para sugerir no cadastro. */
+  objetosSugeridos(): Promise<string[]>;
 }
 
 /** Colunas dos quadros (kanban). */

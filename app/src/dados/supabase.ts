@@ -6,7 +6,7 @@ import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
+import { OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import type { Contexto, Dados, FiltroContratos, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
@@ -94,7 +94,7 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
 const CAMPOS_CONTRATO_LISTA = 'id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
   + `criado_por, criado_em, atualizado_em, cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA})`;
-const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, responsavel_id, servico, categoria, valor, entrada, parcelas, '
+const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
   + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, participante_id, participante_percentual, indicador_id, indicador_percentual, '
   + 'documento_url, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA}), participante:pessoas!contratos_participante_id_fkey(${PESSOA_RESUMIDA}), `
@@ -392,6 +392,11 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('contrato_historico').select('id, alteracoes, feito_por, em')
       .eq('contrato_id', id).order('em', { ascending: false }).limit(100));
     return data;
+  },
+  // O banco guarda cada objeto salvo num contrato na lista do escritório (banco/010_contrato_objetos.sql).
+  async objetosSugeridos() {
+    const { data } = await rodar(sb.from('objeto_sugestoes').select('descricao').order('descricao').limit(OBJETOS_SUGERIDOS));
+    return data.map((x: { descricao: string }) => x.descricao);
   },
 
   // ---------- quadros (kanban) ----------
