@@ -1,6 +1,4 @@
 /* Pessoas: tabela e cartão */
-.td-check { width: 44px }
 .tabela-pessoas td:nth-child(2) { min-width: 240px }
-.etapa-txt { font-size: 13px; color: var(--text2) }
 .grupo-dados + .grupo-dados { margin-top: 6px }
 .grupo-dados h4 { margin: 10px 0 2px; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }

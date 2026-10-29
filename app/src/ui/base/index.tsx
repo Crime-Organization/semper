@@ -1,7 +1,7 @@
 // Peças básicas do SEMPER (o design system em código; veja DESIGN.md). Cada uma gera o mesmo HTML e as mesmas
 // classes que as telas já usam, com as cores e os tamanhos de estilo.css: trocar a marcação de uma tela por elas
 // não muda a aparência. Comportamento (ocupado, dois cliques) fica em ../Botoes.tsx, que aceita o mesmo estilo.
-import { useId, type ComponentProps, type ReactNode } from 'react';
+import { useId, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { estiloBotao, type EstiloBotao } from './botao';
 
@@ -64,6 +64,10 @@ export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }:
     {erro && <span className="msg-erro" role="alert">{erro}</span>}
   </div>;
 }
+
+/** Colunas (de 12) que um campo ocupa na grade de formulário (.grade-form, em estilo.css): p no estreito, m a partir de 560px, g a partir de 860px. */
+export type TamanhoNaGrade = { p?: number; m?: number; g?: number };
+export const naGrade = (t: TamanhoNaGrade = {}) => ({ '--p': t.p, '--m': t.m, '--g': t.g }) as CSSProperties;
 
 /** Faixa de aviso dentro da tela (não confundir com os avisos do pé da tela, em ../avisos.tsx). */
 export function Aviso({ tipo, className, ...resto }: ComponentProps<'div'> & { tipo: 'erro' | 'ok' | 'info' }) {

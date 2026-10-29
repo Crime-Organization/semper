@@ -1,7 +1,7 @@
 // Busca de uma pessoa do cadastro pelo nome, CPF/CNPJ, telefone ou código. A lista de achados abre por cima
 // do que vem abaixo (não empurra o formulário) e fecha ao clicar fora ou com Esc.
 // Peça comum: vínculos entre pessoas, liberar acesso (Equipe) e, depois, partes de processos, contratos etc.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { SD, type PessoaLista } from '../dados';
 import { ACHADOS_DA_BUSCA } from '../dados/limites';
 import { fmtDocumento, TIPOS } from '../regras/pessoa';
@@ -10,8 +10,9 @@ import { useAtrasado } from './util';
 import { BotaoLink, estiloBotao } from './base';
 
 interface Props {
-  rotulo: string;
-  escolhida: PessoaLista | null;
+  rotulo: ReactNode;
+  /** A pessoa já escolhida (basta o id e o nome). */
+  escolhida: Pick<PessoaLista, 'id' | 'nome'> | null;
   aoEscolher: (p: PessoaLista | null) => void;
   /** Motivo para uma pessoa não poder ser escolhida (aparece na lista); null se pode. */
   desativar?: (p: PessoaLista) => string | null;
