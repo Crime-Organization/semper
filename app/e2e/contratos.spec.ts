@@ -190,7 +190,7 @@ test.describe('Contrato salvo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao).toContainText(`MA96-0001-${ANO}`);
-    await expect(cartao.getByRole('definition').filter({ hasText: 'Ana Teste Lima' })).toBeVisible();
+    await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('Responsável');
     await cartao.getByRole('button', { name: /Histórico de alterações/ }).click();
     await expect(cartao.getByText('Situação: Assinado / em andamento → Encerrado')).toBeVisible();
     await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
@@ -288,5 +288,21 @@ test.describe('Contrato com mais de um cliente', () => {
     await page.getByRole('searchbox').fill('paulo henrique');
     await page.getByRole('row').filter({ hasText: 'PAULO HENRIQUE SIMULADO' }).click();
     await expect(page.getByRole('dialog').getByRole('link', { name: /Divórcio consensual/ })).toContainText('Cliente');
+  });
+});
+
+test.describe('Ligações em quadrinhos', () => {
+  test('quando alguém abre um contrato, então cada parte é um quadrinho com o papel, que abre o cartão da pessoa', async ({ page }) => {
+    // Dado: o contrato de divórcio (BR08-0004) tem dois clientes
+    await page.goto('/contratos/');
+    await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ })).toContainText('Cliente');
+    await expect(cartao.getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('Responsável');
+    // Quando
+    await cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ }).click();
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'TEREZA CRISTINA PILOTO' })).toBeVisible();
   });
 });
