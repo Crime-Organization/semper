@@ -182,8 +182,6 @@ export interface Contrato {
   assinado_em: string | null;
   primeiro_pagamento: string | null;
   percentual_escritorio: number | null;   // 20, 30 ou 100: quanto do que o cliente paga vai para a conta PJ
-  participante_id: string | null;
-  participante_percentual: number | null;
   indicador_id: string | null;
   indicador_percentual: number | null;
   documento_url: string | null;   // link do documento assinado (Google Drive)
@@ -197,14 +195,20 @@ export interface Contrato {
   atualizado_por: string | null;
   atualizado_em: string;
   cliente: PessoaResumida;
-  participante: PessoaResumida | null;
+  /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o total). */
+  participantes: Participacao[];
   indicador: PessoaResumida | null;
 }
 
+/** Participante de um contrato, como aparece no cartão. */
+export interface Participacao { pessoa: PessoaResumida; percentual: number | null }
+/** Participante como o cadastro grava (a lista "participantes" do contrato no banco). */
+export interface ParticipanteGravado { pessoa_id: string; percentual: number | null }
+
 /** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
-export type DadosContrato = Partial<Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
-  | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio' | 'participante_id'
-  | 'participante_percentual' | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
+export type DadosContrato = Partial<{ participantes: ParticipanteGravado[] } & Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
+  | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio'
+  | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
 
 /** Linha das listagens de contratos (tabela e quadro). */

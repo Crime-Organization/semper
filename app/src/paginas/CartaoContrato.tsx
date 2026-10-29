@@ -1,9 +1,9 @@
 // Cartão do contrato (painel lateral): ações, objetos, situação, partes, honorários, divisão, documento,
 // observações e histórico de alterações. Todos os campos aparecem, mesmo vazios.
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
-import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, percentualResponsavel, SEM_SITUACAO, valorLegivelContrato, valorParcela } from '../regras/contrato';
+import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
@@ -42,7 +42,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const V = (campo: keyof Contrato) => valorLegivelContrato(campo, k[campo]);
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
-  const doResponsavel = percentualResponsavel(k.participante_percentual, k.indicador_percentual);
+  const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
+  const nomesParticipantes = k.participantes.length
+    ? k.participantes.map((p, i) => <Fragment key={p.pessoa.id}>{i > 0 && ', '}{linkPessoa(p.pessoa)}</Fragment>) : '—';
+  const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
 
   async function arquivar() {
     const estava = !!k!.arquivado_em;
@@ -108,7 +111,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     <Dados titulo="Partes" linhas={[
       ['Cliente', linkPessoa(k.cliente)],
       ['Responsável', nomeDe(k.responsavel_id)],
-      ['Participante', linkPessoa(k.participante)],
+      [k.participantes.length > 1 ? 'Participantes' : 'Participante', nomesParticipantes],
       ['Indicador', linkPessoa(k.indicador)]
     ]} />
 
@@ -125,7 +128,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <Dados titulo="Divisão" linhas={[
       ['Enviado ao escritório', V('percentual_escritorio')],
-      ['Participante', V('participante_percentual')],
+      [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
     ]} />

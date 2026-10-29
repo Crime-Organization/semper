@@ -54,11 +54,57 @@ test.describe('Cadastro de contratos', () => {
     await page.getByLabel('Valor do contrato').fill('5000');
     await page.getByLabel('Entrada').fill('1000');
     await page.getByLabel('Parcelas').fill('5');
-    await escolherPessoa(page, 'Participante', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
-    await page.getByLabel('% do participante').fill('20');
-    // Então
+    await page.getByLabel('Enviado ao escritório').selectOption({ label: '20% do que o cliente pagar' });
+    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    // Então: 100% − 20% do escritório − 10% do participante
     await expect(page.getByRole('status', { name: 'Valor da parcela' })).toHaveText(/1\.000,00/);
+    await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('70%');
+  });
+
+  test('quando o escritório fica com 20%, então o responsável fica com 80%', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/novo/');
+    // Quando
+    await page.getByLabel('Enviado ao escritório').selectOption({ label: '20% do que o cliente pagar' });
+    // Então
     await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('80%');
+  });
+
+  test('quando o contrato tem dois participantes e um indicador, então o cartão mostra todos com os percentuais', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    await page.getByLabel('Enviado ao escritório').selectOption({ label: '30% do que o cliente pagar' });
+    // Quando
+    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    await escolherPessoa(page, 'Participante 2', 'paulo', 'PAULO HENRIQUE SIMULADO');
+    await page.getByRole('textbox', { name: '% do participante 2' }).fill('5');
+    await escolherPessoa(page, 'Indicador', 'raimundo', 'RAIMUNDO NONATO ENSAIO');
+    await page.getByLabel('% do indicador').fill('10');
+    await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('45%');
+    await page.getByRole('button', { name: 'Salvar contrato' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('CARLA BEATRIZ PROTÓTIPO (10%), PAULO HENRIQUE SIMULADO (5%)')).toBeVisible();
+    await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
+  });
+
+  test('quando a soma dos percentuais passa de 100%, então o formulário avisa e não salva', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    await page.getByLabel('Enviado ao escritório').selectOption({ label: '100% do que o cliente pagar' });
+    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    // Quando
+    await page.getByRole('button', { name: 'Salvar contrato' }).click();
+    // Então
+    await expect(page.getByText('A soma dos percentuais (escritório, participantes e indicador) passa de 100%.')).toBeVisible();
+    await expect(page).toHaveURL(/\/contratos\/novo\/$/);
   });
 });
 
