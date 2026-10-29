@@ -1,10 +1,26 @@
-// Painel do cartão: desliza da direita, sobre um véu. Esc ou clique fora fecham (se não houver janela aberta).
+// Painel do cartão, sobre um véu: abre ao lado (desliza da direita) ou numa janela no centro da tela, como no Trello.
+// Cada usuário escolhe no botão ao lado do "X", e a escolha fica nas preferências dele (vale para os cartões de todos os
+// módulos, em qualquer aparelho). Esc ou clique fora fecham (se não houver janela aberta).
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Icone } from './Icone';
+import { Icone, type NomeIcone } from './Icone';
+import { lerPreferencia, salvarPreferencia } from './preferencias';
+
+type FormatoCartao = 'lado' | 'centro';
+/** Em cada formato, o botão oferece o outro. */
+const FORMATOS: Record<FormatoCartao, { outro: FormatoCartao; rotulo: string; icone: NomeIcone }> = {
+  lado: { outro: 'centro', rotulo: 'Abrir no centro da tela', icone: 'centro' },
+  centro: { outro: 'lado', rotulo: 'Abrir ao lado', icone: 'lado' }
+};
+export const PREFERENCIA_FORMATO = 'cartao.formato';
+const formatoGuardado = (): FormatoCartao => {
+  const f = lerPreferencia<string>(PREFERENCIA_FORMATO, 'lado');
+  return f in FORMATOS ? f as FormatoCartao : 'lado';
+};
 
 export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; children: ReactNode }) {
   const [on, setOn] = useState(false);
+  const [formato, setFormato] = useState(formatoGuardado);
   const painel = useRef<HTMLElement>(null);
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;
@@ -15,10 +31,19 @@ export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; chi
     document.addEventListener('keydown', tecla);
     return () => { cancelAnimationFrame(r); document.removeEventListener('keydown', tecla); document.body.classList.remove('sem-rolagem'); };
   }, []);
+  function trocarFormato() {
+    const outro = FORMATOS[formato].outro;
+    setFormato(outro);
+    salvarPreferencia(PREFERENCIA_FORMATO, outro);
+  }
+  const { rotulo, icone } = FORMATOS[formato];
   return createPortal(<>
     <div className={'veu' + (on ? ' on' : '')} onClick={() => fechar.current()} />
-    <aside className={'cartao-painel' + (on ? ' on' : '')} role="dialog" aria-modal="true" tabIndex={-1} ref={painel}>
-      <button type="button" className="cartao-fechar" aria-label="Fechar" onClick={() => fechar.current()}><Icone nome="fechar" tam={18} /></button>
+    <aside className={`cartao-painel ${formato}` + (on ? ' on' : '')} role="dialog" aria-modal="true" tabIndex={-1} ref={painel}>
+      <div className="cartao-botoes">
+        <button type="button" className="cartao-botao cartao-formato" aria-label={rotulo} title={rotulo} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>
+        <button type="button" className="cartao-botao" aria-label="Fechar" onClick={() => fechar.current()}><Icone nome="fechar" tam={18} /></button>
+      </div>
       <div className="cartao-corpo">{children}</div>
     </aside>
   </>, document.body);
