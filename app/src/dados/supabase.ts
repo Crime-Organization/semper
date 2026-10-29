@@ -7,7 +7,7 @@ import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
-import type { Contexto, Dados, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
+import type { Contexto, Dados, FiltroContratos, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -89,6 +89,34 @@ async function sincronizarResponsaveis(pessoaId: string, responsaveis?: string[]
 }
 
 const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome, args)).then(r => r.data);
+
+// ---------- contratos ----------
+const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
+const CAMPOS_CONTRATO_LISTA = 'id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
+  + `criado_por, criado_em, atualizado_em, cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA})`;
+const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, responsavel_id, servico, categoria, valor, entrada, parcelas, '
+  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, participante_id, participante_percentual, indicador_id, indicador_percentual, '
+  + 'documento_url, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + `cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA}), participante:pessoas!contratos_participante_id_fkey(${PESSOA_RESUMIDA}), `
+  + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA})`;
+// Ordem dos contratos ("nome" é o do cliente, copiado no contrato pelo banco). O id no fim desempata a paginação.
+const ORDENS_CONTRATO: Record<Ordem, (q: Livre) => Livre> = {
+  manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('numero', { ascending: false }),
+  nome: q => q.order('cliente_nome').order('numero', { ascending: false }),
+  nome_desc: q => q.order('cliente_nome', { ascending: false }).order('numero', { ascending: false }),
+  novos: q => q.order('criado_em', { ascending: false }),
+  antigos: q => q.order('criado_em', { ascending: true }),
+  recentes: q => q.order('atualizado_em', { ascending: false })
+};
+const ordenarContratos = (q: Livre, ordem: Ordem) => ORDENS_CONTRATO[ordem](q).order('id');
+function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
+  q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  if (f.responsavel) q = q.eq('responsavel_id', f.responsavel);
+  if (f.categoria) q = q.eq('categoria', f.categoria);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
 
 export const SD: Dados = {
   // ---------- sessão ----------
@@ -318,6 +346,52 @@ export const SD: Dados = {
       for (const v of data) if (v.de) saida.push({ pj_id: v.pessoa_para, pessoa: v.de, funcao: v.descricao });
     }
     return saida;
+  },
+
+  // ---------- contratos ----------
+  async contratosListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarContratos(sb.from('contratos').select(CAMPOS_CONTRATO_LISTA, { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarContratos(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async contratosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    let q = filtrarContratos(sb.from('contratos').select(CAMPOS_CONTRATO_LISTA, { count: 'exact' }), f);
+    q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
+    const { data, count } = await rodar(ordenarContratos(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async contratoObter(id) {
+    const { data } = await rodar(sb.from('contratos').select(CAMPOS_CONTRATO).eq('id', id).maybeSingle());
+    return data;
+  },
+  // O número (sigla, sequencial e ano) é dado pelo banco ao gravar.
+  async contratoCriar(dados) {
+    const { data } = await rodar(sb.from('contratos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    return data;
+  },
+  async contratoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('contratos').update(dados).eq('id', id).select('id, codigo').single());
+    return data;
+  },
+  async contratosArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('contratos')
+      .update({ arquivado_em: arquivar ? new Date().toISOString() : null, arquivado_por: arquivar ? uid() : null })
+      .in('id', ids).select('id'));
+    return data.length;
+  },
+  async contratosExcluir(ids) {
+    const { data } = await rodar(sb.from('contratos').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
+  },
+  async contratoMover(id, etapaId, ordem) {
+    await rodar(sb.from('contratos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+  },
+  async contratoHistorico(id) {
+    const { data } = await rodar(sb.from('contrato_historico').select('id, alteracoes, feito_por, em')
+      .eq('contrato_id', id).order('em', { ascending: false }).limit(100));
+    return data;
   },
 
   // ---------- quadros (kanban) ----------
