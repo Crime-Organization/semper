@@ -87,7 +87,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {k.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. O número dele não volta a ser usado.'
+      <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'
         : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}

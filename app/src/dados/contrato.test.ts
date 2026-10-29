@@ -163,7 +163,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.contratoObter(id)).toBeNull();
       });
 
-      it('quando o contrato mais recente é excluído, então o número dele não volta a ser usado', async () => {
+      it('quando o contrato mais recente do ano é excluído, então o número dele volta a ser usado', async () => {
         // Dado
         const { id } = await novoContrato();
         const excluido = (await SD.contratoObter(id))!.numero;
@@ -172,7 +172,44 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Quando
         const seguinte = await SD.contratoObter((await novoContrato()).id);
         // Então
-        expect(seguinte!.numero).toBe(excluido + 1);
+        expect(seguinte!.numero).toBe(excluido);
+      });
+
+      it('quando um contrato do meio é excluído, então o número dele fica vago e a numeração segue do último', async () => {
+        // Dado
+        const { id: meio } = await novoContrato();
+        const ultimo = (await SD.contratoObter((await novoContrato()).id))!.numero;
+        await SD.contratosArquivar([meio]);
+        await SD.contratosExcluir([meio]);
+        // Quando
+        const seguinte = await SD.contratoObter((await novoContrato()).id);
+        // Então
+        expect(seguinte!.numero).toBe(ultimo + 1);
+      });
+
+      it('quando o contrato mais recente é só arquivado, então o número dele continua contando', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        const arquivado = (await SD.contratoObter(id))!.numero;
+        await SD.contratosArquivar([id]);
+        // Quando
+        const seguinte = await SD.contratoObter((await novoContrato()).id);
+        // Então
+        expect(seguinte!.numero).toBe(arquivado + 1);
+      });
+
+      it('quando o ano muda, então a numeração recomeça em 1, com o ano novo no número', async () => {
+        // Dado (o relógio do navegador; no banco de verdade vale o do servidor, conferido no SQL)
+        const anoQueVem = new Date().getFullYear() + 1;
+        await novoContrato();
+        vi.useFakeTimers({ toFake: ['Date'] });
+        vi.setSystemTime(new Date(anoQueVem, 0, 2));
+        try {
+          // Quando
+          const { codigo } = await novoContrato();
+          // Então
+          expect(codigo).toBe(`MA96-0001-${anoQueVem}`);
+        } finally { vi.useRealTimers(); }
       });
 
       it('quando a pessoa é cliente de um contrato, então ela não pode ser excluída', async () => {
