@@ -44,14 +44,16 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
-  // As partes, cada uma num quadrinho que abre o cartão da pessoa (o responsável, pela pessoa ligada ao usuário dele).
+  // O responsável é da equipe (informação interna): fica num bloco próprio, antes da situação, no quadrinho que abre o
+  // cartão da pessoa ligada ao usuário dele. As partes são as pessoas de fora do escritório, cada uma no seu quadrinho.
   const comPercentual = (papel: string, pct: number | null) => pct === null ? papel : `${papel} · ${fmtPercentual(pct)}`;
   const pessoaLigada = (pessoa: PessoaResumida, chave: string, detalhe: string): ItemLigado => ({ id: chave + pessoa.id, para: '/pessoas/?id=' + pessoa.id,
     codigo: pessoa.codigo, titulo: pessoa.nome, detalhe, selo: pessoa.arquivado_em ? 'Arquivada' : undefined });
-  const responsavel = ctx.equipe.find(m => m.id === k.responsavel_id);
+  const membro = ctx.equipe.find(m => m.id === k.responsavel_id);
+  const responsavel: ItemLigado = { id: 'responsavel', para: membro?.pessoa_id ? '/pessoas/?id=' + membro.pessoa_id : undefined,
+    titulo: nomeDe(k.responsavel_id), detalhe: 'Advogado responsável · equipe do escritório' };
   const partes: ItemLigado[] = [
     ...k.clientes.map(c => pessoaLigada(c, 'cliente-', 'Cliente')),
-    { id: 'responsavel', para: responsavel?.pessoa_id ? '/pessoas/?id=' + responsavel.pessoa_id : undefined, titulo: nomeDe(k.responsavel_id), detalhe: 'Responsável' },
     ...k.participantes.map(p => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual))),
     ...(k.indicador ? [pessoaLigada(k.indicador, 'indicador-', comPercentual('Indicador', k.indicador_percentual))] : [])
   ];
@@ -108,6 +110,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
+
+    <section className="bloco">
+      <h3>Responsável</h3>
+      <ItensLigados itens={[responsavel]} />
+    </section>
 
     <section className="bloco campos">
       <h3>Situação</h3>

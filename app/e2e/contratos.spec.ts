@@ -190,7 +190,7 @@ test.describe('Contrato salvo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao).toContainText(`MA96-0001-${ANO}`);
-    await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('Responsável');
+    await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('equipe do escritório');
     await cartao.getByRole('button', { name: /Histórico de alterações/ }).click();
     await expect(cartao.getByText('Situação: Assinado / em andamento → Encerrado')).toBeVisible();
     await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
@@ -292,13 +292,16 @@ test.describe('Contrato com mais de um cliente', () => {
 });
 
 test.describe('Ligações em quadrinhos', () => {
-  test('quando alguém abre um contrato, então cada parte é um quadrinho com o papel, que abre o cartão da pessoa', async ({ page }) => {
+  test('quando alguém abre um contrato, então o responsável vem antes da situação e cada parte é um quadrinho que abre o cartão da pessoa', async ({ page }) => {
     // Dado: o contrato de divórcio (BR08-0004) tem dois clientes
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ })).toContainText('Cliente');
-    await expect(cartao.getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('Responsável');
+    await expect(cartao.getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('equipe do escritório');
+    // O responsável é da equipe: vem antes da situação e fora das partes (as pessoas de fora do escritório).
+    const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
+    expect(blocos.slice(0, 3)).toEqual(['Responsável', 'Situação', 'Partes']);
     // Quando
     await cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ }).click();
     // Então
