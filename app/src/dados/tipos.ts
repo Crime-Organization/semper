@@ -200,6 +200,13 @@ export interface Contrato {
   indicador: PessoaResumida | null;
 }
 
+/** Papel de uma pessoa num contrato (o responsável é um usuário da equipe, pela pessoa ligada a ele). */
+export type PapelNoContrato = 'cliente' | 'responsavel' | 'participante' | 'indicador';
+/** Contrato como aparece no cartão de uma pessoa: o que ele é e o que a pessoa é nele. */
+export interface ContratoDaPessoa extends Pick<Contrato, 'id' | 'codigo' | 'servico' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+  papeis: PapelNoContrato[];
+}
+
 /** Participante de um contrato, como aparece no cartão. */
 export interface Participacao { pessoa: PessoaResumida; percentual: number | null }
 /** Participante como o cadastro grava (a lista "participantes" do contrato no banco). */
@@ -333,6 +340,8 @@ export interface DadosContratos {
   contratoHistorico(id: string): Promise<Historico[]>;
   /** Objetos já usados em contratos do escritório, em ordem alfabética, para sugerir no cadastro. */
   objetosSugeridos(): Promise<string[]>;
+  /** Contratos em que a pessoa é cliente, participante ou indicadora; com perfilId (a pessoa é da equipe), também os em que é a responsável. */
+  contratosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ContratoDaPessoa[]>;
 }
 
 /** Colunas dos quadros (kanban). */

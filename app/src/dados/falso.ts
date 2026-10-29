@@ -8,7 +8,7 @@ import type {
   Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
-import { limparObjetos, numeroContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
+import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { normal } from '../regras/texto';
 import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
@@ -538,6 +538,11 @@ export const SD: Dados = {
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id)),
   objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
+  contratosDaPessoa: (pessoaId, perfilId = null) => espera(bd.contratos!
+    .map(k => ({ k, papeis: papeisNoContrato({ ...k, participantes: k.participantes.map(p => p.pessoa_id) }, pessoaId, perfilId) }))
+    .filter(x => x.papeis.length)
+    .sort((a, b) => b.k.criado_em.localeCompare(a.k.criado_em))
+    .map(({ k, papeis }) => ({ id: k.id, codigo: k.codigo, servico: k.servico, etapa_id: k.etapa_id, arquivado_em: k.arquivado_em, criado_em: k.criado_em, papeis }))),
 
   // ---------- quadros: cada módulo tem as suas colunas ----------
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)

@@ -236,3 +236,36 @@ test.describe('Contrato salvo', () => {
     await expect(page.getByRole('list', { name: 'Aguardando assinatura', exact: true }).getByRole('listitem').filter({ hasText: 'MARIA APARECIDA EXEMPLO' })).toBeVisible();
   });
 });
+
+test.describe('Contratos no cartão da pessoa', () => {
+  test('quando alguém abre o cartão de um cliente, então vê os contratos dele, com o papel, e abre o contrato pelo link', async ({ page }) => {
+    // Dado: JOSÉ DA SILVA TESTE é cliente do contrato MA96-0001
+    await page.goto('/pessoas/');
+    await page.getByRole('searchbox').fill('jose da silva');
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    // Quando
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('button', { name: /Contratos/ })).toContainText('1');
+    const contrato = cartao.getByRole('link', { name: new RegExp(`MA96-0001-${ANO}`) });
+    await expect(contrato).toContainText('Cliente · Assinado / em andamento');
+    await contrato.click();
+    // Então
+    await expect(page).toHaveURL(/\/contratos\/\?id=/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'JOSÉ DA SILVA TESTE' })).toBeVisible();
+  });
+
+  test('quando a pessoa não tem contratos, então o cartão diz isso e cria um contrato com ela como cliente', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('searchbox').fill('luciana');
+    await page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('Nenhum contrato ligado a esta pessoa.')).toBeVisible();
+    // Quando
+    await cartao.getByRole('link', { name: 'Novo contrato com esta pessoa como cliente' }).click();
+    // Então
+    await expect(page.getByRole('heading', { name: 'Cliente e responsável', level: 2 })).toBeVisible();
+    await expect(page.getByText('LUCIANA ROCHA AMOSTRA')).toBeVisible();
+    await expect(page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveText('Trocar');
+  });
+});

@@ -30,6 +30,8 @@ export const PARTICIPANTES_MAXIMOS = 10;
 export const OBJETOS_MAXIMOS = 20;
 /** Quantos objetos da lista do escritório o cadastro de contrato carrega como sugestão. */
 export const OBJETOS_SUGERIDOS = 1000;
+/** Quantos contratos o cartão de uma pessoa mostra (os mais novos primeiro). */
+export const CONTRATOS_DA_PESSOA = 200;
 /** Número máximo de parcelas de um contrato (o banco aceita de 1 a 360). */
 export const PARCELAS_MAXIMAS = 360;
 

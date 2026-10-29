@@ -78,6 +78,15 @@ export default function NovoContrato() {
       .finally(() => setPronto(true));
   // oxlint-disable-next-line react/exhaustive-deps -- carrega o contrato a atualizar uma vez só, ao abrir o formulário
   }, []);
+  // Vindo do cartão de uma pessoa ("Novo contrato com esta pessoa como cliente"): ela já vem escolhida.
+  const clienteInicial = params.get('cliente');
+  useEffect(() => {
+    if (idAtualizar || !clienteInicial) return;
+    SD.pessoaObter(clienteInicial)
+      .then(p => { if (p) { setPessoas(x => ({ ...x, cliente: p })); setC(atual => ({ ...atual, clienteId: p.id })); } })
+      .catch(falha);
+  // oxlint-disable-next-line react/exhaustive-deps -- uma vez só, ao abrir o formulário
+  }, []);
   // Os objetos já usados no escritório aparecem como sugestão enquanto se digita (sem elas, o cadastro segue igual).
   useEffect(() => { SD.objetosSugeridos().then(setSugeridos).catch(() => {}); }, []);
   // A cada etapa, o foco vai para o primeiro campo dela.
