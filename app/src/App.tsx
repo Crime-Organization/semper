@@ -11,13 +11,19 @@ const Entrada = lazy(() => import('./paginas/Entrada'));
 const Inicio = lazy(() => import('./paginas/Inicio'));
 const Pessoas = lazy(() => import('./paginas/Pessoas'));
 const NovaPessoa = lazy(() => import('./paginas/NovaPessoa'));
+const Contratos = lazy(() => import('./paginas/Contratos'));
+const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
-// O formulário recomeça do zero a cada vez que é aberto (mesmo clicando no "+" de dentro dele).
+// Os formulários recomeçam do zero a cada vez que são abertos (mesmo clicando no "+" de dentro deles).
 function FormularioPessoa() {
   const { key } = useLocation();
   return <NovaPessoa key={key} />;
+}
+function FormularioContrato() {
+  const { key } = useLocation();
+  return <NovoContrato key={key} />;
 }
 
 export function App() {
@@ -30,6 +36,8 @@ export function App() {
           <Route path="inicio" element={<Inicio />} />
           <Route path="pessoas" element={<Pessoas />} />
           <Route path="pessoas/nova" element={<FormularioPessoa />} />
+          <Route path="contratos" element={<Contratos />} />
+          <Route path="contratos/novo" element={<FormularioContrato />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="configuracoes" element={<Configuracoes />} />
         </Route>

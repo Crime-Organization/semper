@@ -1,0 +1,184 @@
+// Cartão do contrato (painel lateral): ações, situação, partes, honorários, divisão, documento,
+// observações e histórico de alterações. Todos os campos aparecem, mesmo vazios.
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
+import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
+import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, percentualResponsavel, SEM_SITUACAO, valorLegivelContrato, valorParcela } from '../regras/contrato';
+import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { Botao, BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Icone } from '../ui/Icone';
+import { Recolhivel } from '../ui/Recolhivel';
+import { ordemNoFim } from '../ui/quadro/posicao';
+import type { Quadro } from '../ui/quadro/useColunas';
+import { useCtx } from '../ui/sessao';
+import { dataCurta, dataHora, relativo } from '../ui/util';
+
+interface Props {
+  id: string;
+  quadro: Quadro;
+  /** Avisa a lista de que algo mudou (para recarregar a tabela ou o quadro). */
+  aoMudar: () => void;
+  aoFechar: () => void;
+}
+
+export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
+  const ctx = useCtx();
+  const eu = ctx.perfil.id;
+  const [k, setK] = useState<Contrato | null | undefined>(undefined);   // undefined: carregando; null: não existe
+  const [erro, setErro] = useState('');
+  const [versaoHist, setVersaoHist] = useState(0);
+  const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+
+  const carregar = useCallback(() => SD.contratoObter(id).then(x => { setK(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
+  useEffect(() => { void carregar(); }, [carregar]);
+  // Depois de desfazer: mostra o contrato como ficou.
+  useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+
+  if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
+  if (k === undefined) return <Carregando />;
+  if (!k) return <Vazio>Este contrato não foi encontrado. Ele pode ter sido excluído.</Vazio>;
+
+  const V = (campo: keyof Contrato) => valorLegivelContrato(campo, k[campo]);
+  const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
+  const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
+  const doResponsavel = percentualResponsavel(k.participante_percentual, k.indicador_percentual);
+
+  async function arquivar() {
+    const estava = !!k!.arquivado_em;
+    try {
+      await SD.contratosArquivar([k!.id], !estava);
+      feito(estava ? 'Contrato desarquivado.' : 'Contrato arquivado. Arquivados podem ser excluídos depois.', estava ? 'desarquivamento' : 'arquivamento',
+        async () => { await SD.contratosArquivar([k!.id], estava); });
+      aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+    } catch (e) { falha(e); }
+  }
+  async function excluir() {
+    const r = await SD.contratosExcluir([k!.id]);
+    if (r.excluidas) { avisar('Contrato excluído definitivamente.'); aoFechar(); aoMudar(); }
+    else falha(new Error(r.motivo || 'Não foi possível excluir.'));
+  }
+  async function mudarSituacao(valor: string) {
+    const etapa = valor || null, de = k!.etapa_id || null, ordemDe = k!.etapa_ordem ?? null, ordem = ordemNoFim();
+    try {
+      await SD.contratoMover(k!.id, etapa, ordem);
+      setK({ ...k!, etapa_id: etapa, etapa_ordem: ordem });
+      feito(etapa ? `Movido para "${quadro.nomeDe(etapa)}".` : `Contrato ${SEM_SITUACAO.toLowerCase()}.`, 'mudança de situação',
+        async () => { await SD.contratoMover(k!.id, de, ordemDe); });
+      aoMudar(); setVersaoHist(v => v + 1);
+    } catch (e) { falha(e); }
+  }
+
+  return <>
+    <header className="cartao-cabeca">
+      <div className="linha">
+        <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo><span className="codigo">{k.codigo}</span>
+        {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
+        {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
+      </div>
+      <h2>{k.cliente.nome}</h2>
+      <Nota style={{ marginTop: 4 }}>{k.servico}</Nota>
+    </header>
+
+    <div className="cartao-acoes">
+      <BotaoLink variante="principal" pequeno to={'/contratos/novo/?id=' + k.id}><Icone nome="editar" tam={15} /> Atualizar contrato</BotaoLink>
+      <Botao pequeno className="acao-arquivar" title={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
+        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{k.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
+      </Botao>
+    </div>
+    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {k.arquivado_em && <div className="cartao-arquivada">
+      <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. O número dele não volta a ser usado.'
+        : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
+      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
+    </div>}
+
+    <section className="bloco campos">
+      <h3>Situação</h3>
+      <select aria-label="Situação do contrato" disabled={!!k.arquivado_em} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+        <option value="">{SEM_SITUACAO}</option>
+        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+      </select>
+    </section>
+
+    <Dados titulo="Partes" linhas={[
+      ['Cliente', linkPessoa(k.cliente)],
+      ['Responsável', nomeDe(k.responsavel_id)],
+      ['Participante', linkPessoa(k.participante)],
+      ['Indicador', linkPessoa(k.indicador)]
+    ]} />
+
+    <Dados titulo="Honorários" linhas={[
+      ['Categoria', V('categoria')],
+      ['Valor do contrato', V('valor')],
+      ['Entrada', V('entrada')],
+      ['Parcelas', V('parcelas')],
+      ['Valor da parcela', parcela === null ? '—' : <>{fmtDinheiro(parcela)} <small className="nota">{k.entrada ? 'depois da entrada' : 'calculado'}</small></>],
+      ['Descontos', V('descontos')],
+      ['Assinado em', V('assinado_em')],
+      ['Primeiro pagamento', V('primeiro_pagamento')]
+    ]} />
+
+    <Dados titulo="Divisão" linhas={[
+      ['Enviado ao escritório', V('percentual_escritorio')],
+      ['Participante', V('participante_percentual')],
+      ['Indicador', V('indicador_percentual')],
+      ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
+    ]} />
+
+    <section className="bloco">
+      <h3>Documento</h3>
+      {k.documento_url
+        ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
+        : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
+    </section>
+
+    <section className="bloco">
+      <h3>Observações</h3>
+      {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
+    </section>
+
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico">
+      <HistoricoContrato id={k.id} versao={versaoHist} />
+    </Recolhivel>
+
+    <footer className="cartao-rodape">
+      <span>Criado em {dataCurta(k.criado_em)}{k.criado_por ? ' por ' + nomeDe(k.criado_por) : ''}</span>
+      <span>Atualizado {relativo(k.atualizado_em)}</span>
+    </footer>
+  </>;
+}
+
+function Dados({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode][] }) {
+  return <section className="bloco">
+    <h3>{titulo}</h3>
+    <dl className="dados">{linhas.map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
+  </section>;
+}
+const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
+/** Nome da pessoa com o link para o cartão dela em Pessoas. */
+const linkPessoa = (p: PessoaResumida | null) => p ? <Link className="contrato-link" to={'/pessoas/?id=' + p.id}>{p.nome}</Link> : '—';
+
+// ---------- histórico ----------
+function HistoricoContrato({ id, versao }: { id: string; versao: number }) {
+  const ctx = useCtx();
+  const [hist, setHist] = useState<Historico[] | string | null>(null);
+  const nomeDe = (pid: string) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  useEffect(() => {
+    let vivo = true;
+    SD.contratoHistorico(id).then(h => { if (vivo) setHist(h); }).catch(e => { if (vivo) setHist((e as Error).message); });
+    return () => { vivo = false; };
+  }, [id, versao]);
+
+  if (hist === null) return <Carregando />;
+  if (typeof hist === 'string') return <Aviso tipo="erro">{hist}</Aviso>;
+  if (!hist.length) return <Nota>Nenhuma alteração desde o cadastro.</Nota>;
+  return <ol className="hist">{hist.map(h => <li key={h.id}>
+    <span className="quando">{dataHora(h.em)} · {h.feito_por ? nomeDe(h.feito_por) : 'Sistema'}</span>
+    {Object.entries(h.alteracoes).map(([campo, v]) => {
+      if (campo === 'arquivado_em') return <div key={campo}>{v.para ? 'Arquivado' : 'Desarquivado'}</div>;
+      const de = valorLegivelContrato(campo, v.de), para = valorLegivelContrato(campo, v.para);
+      return <div key={campo}><b>{CAMPOS_CONTRATO[campo] || campo}:</b> {de !== '—' && <><span className="de">{de}</span> → </>}{para}</div>;
+    })}
+  </li>)}</ol>;
+}
