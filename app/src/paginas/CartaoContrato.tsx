@@ -2,7 +2,7 @@
 // vira demanda), em destaque; as ações e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
 // divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
+import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
 import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
@@ -44,17 +44,21 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
-  // O responsável é da equipe (informação interna): fica num bloco próprio, antes da situação, no quadrinho que abre o
-  // cartão da pessoa ligada ao usuário dele. As partes são as pessoas de fora do escritório, cada uma no seu quadrinho.
+  // O responsável e os participantes são da equipe (informação interna): ficam num bloco próprio, antes da situação, cada um
+  // no quadrinho que abre o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e
+  // participantes de fora que já estavam no contrato antes de o participante ser sempre da equipe.
   const comPercentual = (papel: string, pct: number | null) => pct === null ? papel : `${papel} · ${fmtPercentual(pct)}`;
   const pessoaLigada = (pessoa: PessoaResumida, chave: string, detalhe: string): ItemLigado => ({ id: chave + pessoa.id, para: '/pessoas/?id=' + pessoa.id,
     codigo: pessoa.codigo, titulo: pessoa.nome, detalhe, selo: pessoa.arquivado_em ? 'Arquivada' : undefined });
   const membro = ctx.equipe.find(m => m.id === k.responsavel_id);
   const responsavel: ItemLigado = { id: 'responsavel', para: membro?.pessoa_id ? '/pessoas/?id=' + membro.pessoa_id : undefined,
     titulo: nomeDe(k.responsavel_id), detalhe: 'Advogado responsável · equipe do escritório' };
+  const participante = (p: Participacao) => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual));
+  const daEquipe = (p: Participacao) => ctx.equipe.some(m => m.pessoa_id === p.pessoa.id);
+  const internos = [responsavel, ...k.participantes.filter(daEquipe).map(participante)];
   const partes: ItemLigado[] = [
     ...k.clientes.map(c => pessoaLigada(c, 'cliente-', 'Cliente')),
-    ...k.participantes.map(p => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual))),
+    ...k.participantes.filter(p => !daEquipe(p)).map(participante),
     ...(k.indicador ? [pessoaLigada(k.indicador, 'indicador-', comPercentual('Indicador', k.indicador_percentual))] : [])
   ];
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
@@ -112,8 +116,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
     <section className="bloco">
-      <h3>Responsável</h3>
-      <ItensLigados itens={[responsavel]} />
+      <h3>{internos.length > 1 ? 'Responsável e participantes' : 'Responsável'}</h3>
+      <ItensLigados itens={internos} />
     </section>
 
     <section className="bloco campos">

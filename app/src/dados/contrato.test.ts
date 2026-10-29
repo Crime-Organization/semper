@@ -109,6 +109,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const { id: cliente } = await criar(marca());
         return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore', ...extra });
       };
+      // Participante é sempre alguém da equipe: os casos usam as pessoas da equipe ativa do escritório.
+      const daEquipe = async () => (await SD.contexto())!.equipe.filter(m => m.ativo && m.pessoa_id).map(m => m.pessoa_id!);
 
       it('quando um contrato é criado, então recebe o número com a sigla do responsável, o sequencial e o ano', async () => {
         // Quando
@@ -272,7 +274,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
       it('quando o contrato tem vários participantes, então voltam na ordem, com os percentuais', async () => {
         // Dado
-        const { id: ana } = await criar(marca()), { id: bruno } = await criar(marca());
+        const [ana, bruno] = await daEquipe();
         // Quando
         const { id } = await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 20 }, { pessoa_id: bruno, percentual: null }] });
         // Então
@@ -285,7 +287,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         ['um participante que é o indicador', 'O indicador e os participantes precisam ser pessoas diferentes.']
       ])('quando a lista tem %s, então salvar é recusado com a mensagem em português', async (caso, mensagem) => {
         // Dado
-        const { id: ana } = await criar(marca());
+        const [ana] = await daEquipe();
         const dados = caso.startsWith('a mesma')
           ? { participantes: [{ pessoa_id: ana, percentual: 10 }, { pessoa_id: ana, percentual: 5 }] }
           : { participantes: [{ pessoa_id: ana, percentual: 10 }], indicador_id: ana };
@@ -297,8 +299,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
       it('quando os participantes mudam, então o histórico mostra os nomes e os percentuais', async () => {
         // Dado
-        const nome = marca();
-        const { id: ana } = await criar(nome);
+        const [ana] = await daEquipe();
+        const { nome } = (await SD.pessoaObter(ana))!;
         const { id } = await novoContrato();
         // Quando
         await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: ana, percentual: 10.5 }] });
@@ -307,10 +309,10 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(ultima.alteracoes).toEqual({ participantes: { de: null, para: `${nome} (10,5%)` } });
       });
 
-      it('quando a pessoa participa de um contrato, então ela não pode ser excluída', async () => {
-        // Dado
+      it('quando a pessoa é a indicadora de um contrato, então ela não pode ser excluída', async () => {
+        // Dado (o indicador pode ser qualquer pessoa, de fora da equipe)
         const { id: ana } = await criar(marca());
-        await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 10 }] });
+        await novoContrato({ indicador_id: ana, indicador_percentual: 10 });
         await SD.pessoasArquivar([ana]);
         // Quando
         const r = await SD.pessoasExcluir([ana]);
@@ -319,16 +321,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
 
       it('quando se pedem os contratos de uma pessoa, então vêm os dela, com o papel dela em cada um', async () => {
-        // Dado
-        const { id: ana } = await criar(marca());
+        // Dado (alguém da equipe, que pode participar e também ser cliente)
+        const [ana] = await daEquipe();
         const { id: comoCliente } = await novoContrato();
         const { id: comoParticipante } = await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 10 }] });
         const { id: daAna } = await SD.contratoCriar({ clientes: [ana], responsavel_id: 'u-master', objetos: ['Oposição'], categoria: 'pro_bono' });
         // Quando
         const lista = await SD.contratosDaPessoa(ana);
         // Então
-        expect(Object.fromEntries(lista.map(k => [k.id, k.papeis]))).toEqual({ [daAna]: ['cliente'], [comoParticipante]: ['participante'] });
-        expect(lista.map(k => k.id)).not.toContain(comoCliente);
+        const papeis = Object.fromEntries(lista.map(k => [k.id, k.papeis]));
+        expect(papeis[daAna]).toEqual(['cliente']);
+        expect(papeis[comoParticipante]).toEqual(['participante']);
+        expect(papeis).not.toHaveProperty(comoCliente);
       });
 
       it('quando a pessoa é da equipe, então os contratos em que ela é a responsável também vêm', async () => {
@@ -338,6 +342,39 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const lista = await SD.contratosDaPessoa('p-ana', 'u-ana');
         // Então
         expect(lista.find(k => k.id === id)?.papeis).toEqual(['responsavel']);
+      });
+
+      it('quando o participante não é da equipe, então salvar é recusado com a mensagem em português', async () => {
+        // Dado
+        const { id: deFora } = await criar(marca());
+        // Quando
+        const salvar = novoContrato({ participantes: [{ pessoa_id: deFora, percentual: 10 }] });
+        // Então
+        await expect(salvar).rejects.toThrow('O participante precisa ser alguém da equipe do escritório.');
+      });
+
+      it('quando o responsável escolhido não é advogado, então salvar é recusado com a mensagem em português', async () => {
+        // Dado
+        await SD.equipeDefinirFuncao('u-ana', 'estagiario');
+        // Quando
+        const salvar = novoContrato({ responsavel_id: 'u-ana' });
+        // Então
+        await expect(salvar).rejects.toThrow('O responsável do contrato precisa ser um advogado da equipe.');
+      });
+
+      it('dado um responsável que deixou de ser advogado, quando o contrato dele muda, então salva, mas ninguém novo o escolhe', async () => {
+        // Dado
+        const { id } = await novoContrato({ responsavel_id: 'u-ana' });
+        const { id: outro } = await novoContrato();
+        await SD.equipeDefinirFuncao('u-ana', 'administrativo');
+        // Quando
+        const [mudarValor, trocarResponsavel] = await Promise.allSettled([
+          SD.contratoAtualizar(id, { valor: 2000 }), SD.contratoAtualizar(outro, { responsavel_id: 'u-ana' })
+        ]);
+        // Então
+        expect(mudarValor.status).toBe('fulfilled');
+        expect((await SD.contratoObter(id))!.valor).toBe(2000);
+        expect(trocarResponsavel).toMatchObject({ status: 'rejected', reason: { message: 'O responsável do contrato precisa ser um advogado da equipe.' } });
       });
 
       it('quando o contrato tem dois clientes, então os dois voltam na ordem, e o contrato aparece para cada um como cliente', async () => {
@@ -384,6 +421,16 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(contratos).toEqual(['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido']);
         expect(pessoas).not.toContain('Em negociação');
+      });
+    });
+
+    describe('Equipe', () => {
+      it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
+        // Quando
+        await SD.equipeDefinirFuncao('u-ana', 'estagiario');
+        // Então
+        expect((await SD.equipeListar()).find(u => u.id === 'u-ana')?.funcao).toBe('estagiario');
+        expect((await SD.contexto(true))!.equipe.find(m => m.id === 'u-ana')?.funcao).toBe('estagiario');
       });
     });
 

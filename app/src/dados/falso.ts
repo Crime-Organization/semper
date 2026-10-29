@@ -25,10 +25,10 @@ const eu = 'u-master';
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
 type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
 const EQUIPE: MembroFalso[] = [
-  { id: 'u-master', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
-  { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
-  { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
-  { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
+  { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
+  { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
+  { id: 'u-bruno', funcao: 'estagiario', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
+  { id: 'u-carla', funcao: 'administrativo', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
 ];
 const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atendimento', 'Atendimento em andamento',
   'Levantamento de informações', 'Orçamento solicitado', 'Orçamento em andamento', 'Orçamento enviado', 'Enviar carta proposta',
@@ -320,8 +320,14 @@ function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): D
     if (p.pessoa_id === indicador) throw new Error('O indicador e os participantes precisam ser pessoas diferentes.');
     if (lista.findIndex(x => x.pessoa_id === p.pessoa_id) < i) throw new Error('A mesma pessoa aparece duas vezes nos participantes.');
     if (!bd.pessoas.some(x => x.id === p.pessoa_id)) throw new Error('Participante não encontrado neste escritório.');
+    if (!EQUIPE.some(m => m.pessoa_id === p.pessoa_id) && !atual?.participantes.some(x => x.pessoa_id === p.pessoa_id))
+      throw new Error('O participante precisa ser alguém da equipe do escritório.');
   });
   return dados.participantes === undefined ? dados : { ...dados, participantes: lista.map(p => ({ pessoa_id: p.pessoa_id, percentual: p.percentual })) };
+}
+/** Como o gatilho da migração 015: o responsável é sempre um advogado da equipe (conferido ao criar e ao trocar). */
+function conferirResponsavel(id: string | undefined) {
+  if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
 }
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
@@ -344,7 +350,7 @@ export const SD: Dados = {
     const c: Contexto = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
-        papel: 'master', ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
+        papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
     };
@@ -512,6 +518,7 @@ export const SD: Dados = {
   // O sequencial é o maior número que existe no ano, mais um: o número do último contrato excluído volta a ser usado.
   async contratoCriar(dados) {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
+    conferirResponsavel(dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
@@ -521,7 +528,9 @@ export const SD: Dados = {
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
-    const k = acharContrato(id), d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
+    const k = acharContrato(id);
+    if (dados.responsavel_id !== undefined && dados.responsavel_id !== k.responsavel_id) conferirResponsavel(dados.responsavel_id);
+    const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     historicoContrato(k, d);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
     guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();
@@ -591,6 +600,10 @@ export const SD: Dados = {
   conviteNovoLink: () => espera(codigoConvite()),
   async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
+  async equipeDefinirFuncao(id, funcao) {
+    const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
+    m.funcao = funcao; auditar('perfis', 'alteracao', { id, nome: m.nome }); gravar();
+  },
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),

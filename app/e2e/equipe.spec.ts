@@ -38,6 +38,18 @@ test.describe('Equipe e acessos', () => {
     await expect(pendentes).toContainText('Nenhum convite pendente.');
   });
 
+  test('quando o administrador muda a função de alguém, então a função nova aparece e fica no registro de ações', async ({ page }) => {
+    // Dado
+    const funcao = page.getByLabel('Função de Ana Teste Lima');
+    await expect(funcao.getByRole('option', { selected: true })).toHaveText('Advogado');
+    // Quando
+    await funcao.selectOption({ label: 'Estagiário' });
+    // Então
+    await expect(page.getByText('Função de Ana Teste Lima: Estagiário.')).toBeVisible();
+    await expect(funcao.getByRole('option', { selected: true })).toHaveText('Estagiário');
+    await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('alterou usuário Ana Teste Lima');
+  });
+
   test('quando o e-mail de acesso fica vazio, então avisa e não libera', async ({ page }) => {
     // Dado (escolher a pessoa já preenche o e-mail do cadastro dela; aqui ele é apagado)
     await page.getByRole('textbox', { name: 'Pessoa' }).fill('josé da');

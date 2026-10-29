@@ -11,6 +11,7 @@ import {
   fmtDinheiro, fmtPercentual, lerDinheiro, nomesPorExtenso, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
+import { motivoParaNaoParticipar, opcoesDeResponsavel } from '../regras/equipe';
 import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -37,9 +38,11 @@ export default function NovoContrato() {
   const [params] = useSearchParams();
   const idAtualizar = params.get('id');
   const etapaInicial = params.get('etapa');
-  const membros = ctx.equipe.filter(m => m.ativo);
 
-  const [c, setC] = useState<CamposContrato>(() => ({ ...CONTRATO_VAZIO, responsavelId: membros.some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : '' }));
+  // Quem é advogado já vem como responsável.
+  const [c, setC] = useState<CamposContrato>(() => ({
+    ...CONTRATO_VAZIO, responsavelId: opcoesDeResponsavel(ctx.equipe).some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : ''
+  }));
   const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ indicador: null });
   // A pessoa escolhida em cada linha de cliente (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
   const [clientes, setClientes] = useState<Escolhida[]>([null]);
@@ -200,8 +203,10 @@ export default function NovoContrato() {
   const jaNoContrato = (i: number) => (p: PessoaLista) => p.id === c.indicadorId ? 'já é o indicador'
     : c.participantes.some((x, j) => j !== i && x.pessoaId === p.id) ? 'já é participante' : null;
 
-  // Quem pode ser responsável: a equipe ativa e quem já é o responsável (mesmo desativado, para não sair sem querer).
-  const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && m.id === c.responsavelId)];
+  // Quem pode ser responsável: os advogados da equipe e quem já é o responsável (para não sair sem querer).
+  const opcoesResp = opcoesDeResponsavel(ctx.equipe, c.responsavelId);
+  // Participante é sempre alguém da equipe; quem não é aparece desligado na busca, com o motivo.
+  const podeParticipar = (i: number) => (p: PessoaLista) => jaNoContrato(i)(p) ?? motivoParaNaoParticipar(ctx.equipe, p.id);
 
   // ---------- envio ----------
   async function salvar() {
@@ -289,7 +294,7 @@ export default function NovoContrato() {
         {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
       </div>
       <Campo rotulo="Advogado responsável" para="responsavelId" obrigatorio erro={erros.responsavelId}
-        dica={alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.'}>
+        dica={(alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.') + ' Só advogados da equipe.'}>
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
           <option value="">Escolha…</option>
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
@@ -342,11 +347,11 @@ export default function NovoContrato() {
       {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
       <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
         <span className="rot" id="participantes-rotulo">Participantes</span>
-        <p className="dica">Quem trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
+        <p className="dica">Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
         {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
-              desativar={jaNoContrato(i)} focar={chavesPart[i] === focarParticipante} />
+              desativar={podeParticipar(i)} focar={chavesPart[i] === focarParticipante} />
           </div>
           <label>%
             <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
@@ -367,7 +372,7 @@ export default function NovoContrato() {
           {texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId })}
         </Campo>
       </div>
-      <Nota>O indicador é um só, da equipe ou um parceiro de fora. Participantes e indicador precisam estar cadastrados em Pessoas.</Nota>
+      <Nota>Os participantes são sempre da equipe. O indicador é um só e pode ser qualquer pessoa, da equipe ou um parceiro de fora. Todos precisam estar cadastrados em Pessoas.</Nota>
     </>,
     documento: () => <>
       <Campo rotulo="Link do contrato no Drive" para="documentoUrl" erro={erros.documentoUrl}>

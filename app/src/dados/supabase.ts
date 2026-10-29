@@ -8,7 +8,8 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { CONTRATOS_DA_PESSOA, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
-import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Ordem, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado } from './tipos';
+import { FUNCAO_INICIAL } from '../regras/equipe';
+import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Funcao, Ordem, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -185,12 +186,12 @@ export const SD: Dados = {
     const s = await SD.sessao();
     if (!s) return null;
     const { data: perfil } = await rodar(sb.from('perfis')
-      .select('id, escritorio_id, pessoa_id, nome, usuario, papel, ativo, cor, oab, preferencias').eq('id', s.user.id).maybeSingle());
+      .select('id, escritorio_id, pessoa_id, nome, usuario, papel, funcao, ativo, cor, oab, preferencias').eq('id', s.user.id).maybeSingle());
     if (!perfil) return { usuario: s.user, perfil: null, equipe: [], ehAdmin: false, ehMaster: false };
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, ativo, cor, pessoa_id').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id').order('nome'))
     ]);
     ctx = {
       usuario: s.user, perfil, escritorio, equipe: equipe || [],
@@ -458,11 +459,17 @@ export const SD: Dados = {
   },
 
   // ---------- equipe e administração ----------
-  equipeListar: () => rpc('equipe_listar'),
+  // A lista do banco é de antes da função (banco/015): a função de cada um vem dos perfis.
+  async equipeListar() {
+    const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao'))]);
+    const funcaoDe = new Map<string, Funcao>(funcoes.map((f: { id: string; funcao: Funcao }) => [f.id, f.funcao]));
+    return usuarios.map((u: Usuario) => ({ ...u, funcao: funcaoDe.get(u.id) ?? FUNCAO_INICIAL }));
+  },
   conviteCriar: (pessoaId, email, papel) => rpc('convite_criar', { p_pessoa: pessoaId, p_email: email, p_papel: papel }),
   conviteNovoLink: id => rpc('convite_novo_link', { p_id: id }),
   equipeDefinirPapel: (perfilId, papel) => rpc('equipe_definir_papel', { p_perfil: perfilId, p_papel: papel }),
   equipeDefinirAtivo: (perfilId, ativo) => rpc('equipe_definir_ativo', { p_perfil: perfilId, p_ativo: ativo }),
+  equipeDefinirFuncao: (perfilId, funcao) => rpc('equipe_definir_funcao', { p_perfil: perfilId, p_funcao: funcao }),
   async convitesListar() {
     const { data } = await rodar(sb.from('convites').select('id, email, nome, papel, pessoa_id, criado_em')
       .is('usado_em', null).order('criado_em', { ascending: false }));

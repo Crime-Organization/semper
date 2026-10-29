@@ -1,5 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Na semente do banco fictício há 6 contratos (MA96-0001 a 0006). Mateus, que está logado, tem a sigla MA96.
+// Na equipe, Mateus e Ana são advogados, Bruno é estagiário e Carla (desativada) é do administrativo.
 // O cadastro é por etapas, como o de pessoa: Cliente e responsável, O que foi contratado, Honorários, Divisão, Documento e observações.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
@@ -89,7 +90,7 @@ test.describe('Cadastro de contratos', () => {
     await proxima(page, 'Divisão');
     await page.getByText('20% do que o cliente pagar', { exact: true }).click();
     await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     // Então: 100% − 20% do escritório − 10% do participante
     await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('70%');
@@ -112,10 +113,10 @@ test.describe('Cadastro de contratos', () => {
     await page.getByText('30% do que o cliente pagar', { exact: true }).click();
     // Quando
     await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 2', 'paulo', 'PAULO HENRIQUE SIMULADO');
+    await escolherPessoa(page, 'Participante 2', 'ana teste', 'ANA TESTE LIMA');
     await page.getByRole('textbox', { name: '% do participante 2' }).fill('5');
     await escolherPessoa(page, 'Indicador', 'raimundo', 'RAIMUNDO NONATO ENSAIO');
     await page.getByLabel('% do indicador').fill('10');
@@ -123,8 +124,13 @@ test.describe('Cadastro de contratos', () => {
     await salvarContrato(page);
     // Então
     const cartao = page.getByRole('dialog');
-    await expect(cartao.getByText('CARLA BEATRIZ PROTÓTIPO (10%), PAULO HENRIQUE SIMULADO (5%)')).toBeVisible();
+    await expect(cartao.getByText('BRUNO EXEMPLO SOUZA (10%), ANA TESTE LIMA (5%)')).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
+    // Os participantes são da equipe: ficam com o responsável, antes da situação; o indicador, de fora, fica nas partes.
+    const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
+    expect(blocos.slice(0, 3)).toEqual(['Responsável e participantes', 'Situação', 'Partes']);
+    await expect(cartao.getByRole('link', { name: /BRUNO EXEMPLO SOUZA/ })).toContainText('Participante · 10%');
+    await expect(cartao.getByRole('link', { name: /RAIMUNDO NONATO ENSAIO/ })).toContainText('Indicador · 10%');
   });
 
   test('quando a soma dos percentuais passa de 100%, então a etapa avisa e não segue', async ({ page }) => {
@@ -133,13 +139,58 @@ test.describe('Cadastro de contratos', () => {
     await ateDivisao(page);
     await page.getByText('100% do que o cliente pagar', { exact: true }).click();
     await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'carla', 'CARLA BEATRIZ PROTÓTIPO');
+    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(page.getByText('A soma dos percentuais (escritório, participantes e indicador) passa de 100%.')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Divisão', level: 2 })).toBeVisible();
+  });
+});
+
+test.describe('Função na equipe', () => {
+  test('quando o cadastro abre, então a lista de responsável tem só os advogados da equipe', async ({ page }) => {
+    // Quando
+    await page.goto('/contratos/novo/');
+    // Então (Bruno, estagiário, e Carla, do administrativo, não aparecem)
+    await expect(page.getByLabel('Advogado responsável').getByRole('option')).toHaveText(['Escolha…', 'Mateus Freitas Gonçalves', 'Ana Teste Lima']);
+  });
+
+  test('quando a busca de participante mostra alguém de fora da equipe, então ele vem desligado, com o motivo', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    await ateDivisao(page);
+    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    // Quando
+    await page.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('luciana');
+    // Então
+    const deFora = page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ });
+    await expect(deFora).toBeDisabled();
+    await expect(deFora).toContainText('não é da equipe');
+  });
+
+  test('quando o indicador é de fora da equipe, então ele pode ser escolhido', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    await ateDivisao(page);
+    // Quando
+    await escolherPessoa(page, 'Indicador', 'raimundo', 'RAIMUNDO NONATO ENSAIO');
+    // Então
+    await expect(page.getByLabel('% do indicador')).toBeEnabled();
+  });
+
+  test('dado um contrato cujo responsável é estagiário, quando ele é atualizado, então o responsável continua e o contrato salva', async ({ page }) => {
+    // Dado: o contrato de divórcio (BR08-0004) é do Bruno, que hoje é estagiário
+    await page.goto('/contratos/');
+    await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'Atualizar contrato' }).click();
+    await expect(page.getByLabel('Advogado responsável').getByRole('option', { selected: true })).toHaveText('Bruno Exemplo Souza');
+    // Quando
+    while (!(await page.getByRole('button', { name: 'Salvar alterações' }).isVisible())) await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    // Então
+    await expect(page.getByRole('dialog').getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('equipe do escritório');
   });
 });
 
