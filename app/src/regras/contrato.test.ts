@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
@@ -292,5 +292,21 @@ describe('Etapas do cadastro de contrato', () => {
     const etapa = primeiraEtapaComErro(campos(extra));
     // Então
     expect(etapa).toBe(esperada);
+  });
+});
+
+describe('Papel da pessoa no contrato', () => {
+  const k = { cliente_id: 'p1', responsavel_id: 'u1', indicador_id: 'p3', participantes: ['p2', 'p4'] };
+  it.each([
+    ['o cliente', 'p1', null, ['cliente']],
+    ['um dos participantes', 'p4', null, ['participante']],
+    ['o indicador', 'p3', null, ['indicador']],
+    ['o advogado responsável (pela pessoa ligada ao usuário)', 'p9', 'u1', ['responsavel']],
+    ['alguém de fora do contrato', 'p8', 'u2', []]
+  ])('quando a pessoa é %s, então os papéis são %j', (_caso, pessoa, perfil, esperado) => {
+    // Quando
+    const papeis = papeisNoContrato(k, pessoa, perfil);
+    // Então
+    expect(papeis).toEqual(esperado);
   });
 });

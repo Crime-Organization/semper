@@ -318,6 +318,28 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em contratos e não pode ser excluída.' });
       });
 
+      it('quando se pedem os contratos de uma pessoa, então vêm os dela, com o papel dela em cada um', async () => {
+        // Dado
+        const { id: ana } = await criar(marca());
+        const { id: comoCliente } = await novoContrato();
+        const { id: comoParticipante } = await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 10 }] });
+        const { id: daAna } = await SD.contratoCriar({ cliente_id: ana, responsavel_id: 'u-master', objetos: ['Oposição'], categoria: 'pro_bono' });
+        // Quando
+        const lista = await SD.contratosDaPessoa(ana);
+        // Então
+        expect(Object.fromEntries(lista.map(k => [k.id, k.papeis]))).toEqual({ [daAna]: ['cliente'], [comoParticipante]: ['participante'] });
+        expect(lista.map(k => k.id)).not.toContain(comoCliente);
+      });
+
+      it('quando a pessoa é da equipe, então os contratos em que ela é a responsável também vêm', async () => {
+        // Dado
+        const { id } = await novoContrato({ responsavel_id: 'u-ana' });
+        // Quando
+        const lista = await SD.contratosDaPessoa('p-ana', 'u-ana');
+        // Então
+        expect(lista.find(k => k.id === id)?.papeis).toEqual(['responsavel']);
+      });
+
       it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {
         // Quando
         const contratos = (await SD.colunasListar('contratos')).map(c => c.nome);

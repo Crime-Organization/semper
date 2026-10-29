@@ -1,15 +1,17 @@
-// Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, vínculos, dados,
-// informações sigilosas e histórico de alterações.
+// Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, o que está ligado a ela nos outros
+// módulos (contratos e, depois, demandas, tarefas...), vínculos, dados, informações sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { SD, type AcessoSigilo, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
+import { SD, type AcessoSigilo, type Coluna, type ContratoDaPessoa, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
 import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
+import { ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
 import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
@@ -53,10 +55,21 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     SD.representantesVinculados([id]).then(r => { if (vivo) setRepresentantes(r); }).catch(() => { if (vivo) setRepresentantes([]); });
     return () => { vivo = false; };
   }, [vinculos, ehPJ, id]);
+  // Os contratos ligados à pessoa (como cliente, participante, indicadora ou, se for da equipe, responsável) carregam com
+  // ela, para a quantidade aparecer mesmo com a seção fechada. Só no escritório com o módulo Contratos ligado.
+  const comContratos = !!ctx.escritorio?.modulos?.contratos;
+  const perfilDaPessoa = ctx.equipe.find(m => m.pessoa_id === id)?.id ?? null;
+  const [contratos, setContratos] = useState<ContratoDaPessoa[] | string | null>(null);
+  const carregarContratos = useCallback(async () => {
+    if (!comContratos) return;
+    try { setContratos(await SD.contratosDaPessoa(id, perfilDaPessoa)); } catch (e) { setContratos((e as Error).message); }
+  }, [id, perfilDaPessoa, comContratos]);
+  useEffect(() => { void carregarContratos(); }, [carregarContratos]);
   // Depois de desfazer: mostra a pessoa como ficou.
   useMudancas(d => {
     void carregar();
     void carregarVinculos();
+    void carregarContratos();
     setVersaoHist(v => v + 1);
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
@@ -147,6 +160,13 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
     </section>}
 
+    {comContratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="pessoas.cartao.contratos" padrao
+      contador={Array.isArray(contratos) ? contratos.length : undefined}>
+      {contratos === null ? <Carregando />
+        : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
+        : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
+    </Recolhivel>}
+
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
@@ -192,6 +212,21 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode]
   </div>;
 }
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
+
+// ---------- contratos ----------
+function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pessoaId: string }) {
+  // A situação de cada contrato é o nome da coluna dele no quadro de contratos.
+  const [colunas, setColunas] = useState<Coluna[]>([]);
+  useEffect(() => { SD.colunasListar('contratos').then(setColunas).catch(() => {}); }, []);
+  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO;
+  return <>
+    <ItensLigados vazio="Nenhum contrato ligado a esta pessoa." itens={lista.map(k => ({
+      id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, arquivado: !!k.arquivado_em,
+      detalhe: k.papeis.map(x => PAPEIS_NO_CONTRATO[x]).join(', ') + ' · ' + situacao(k.etapa_id)
+    }))} />
+    <div><BotaoLink forma="mini" to={'/contratos/novo/?cliente=' + pessoaId}><Icone nome="mais" tam={13} /> Novo contrato com esta pessoa como cliente</BotaoLink></div>
+  </>;
+}
 
 // ---------- responsáveis ----------
 function Responsaveis({ p, aoMudar }: { p: Pessoa; aoMudar: (resp: string[]) => void }) {

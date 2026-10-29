@@ -1,7 +1,7 @@
 // Regras do contrato (módulo Contratos): categorias de honorário, número do contrato, valor da parcela,
 // percentuais da divisão, leitura de valores em reais e a validação do cadastro. Tudo puro, sem tela nem banco.
 // As contas seguem as planilhas de receitas do escritório (aba Contratos).
-import type { CategoriaHonorario, Contrato, DadosContrato } from '../dados/tipos';
+import type { CategoriaHonorario, Contrato, DadosContrato, PapelNoContrato } from '../dados/tipos';
 import { OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
@@ -281,3 +281,19 @@ export function errosDaEtapa(etapa: EtapaContrato, c: CamposContrato): Partial<R
 }
 /** Posição da primeira etapa com erro (para voltar a ela ao salvar), ou -1 se pode salvar. */
 export const primeiraEtapaComErro = (c: CamposContrato) => ETAPAS_CONTRATO.findIndex(e => Object.keys(errosDaEtapa(e.id, c)).length > 0);
+
+// ---------- contratos no cartão da pessoa ----------
+export const PAPEIS_NO_CONTRATO: Record<PapelNoContrato, string> = {
+  cliente: 'Cliente', responsavel: 'Responsável', participante: 'Participante', indicador: 'Indicador'
+};
+/** O que confere cada papel: a pessoa (ou o usuário dela, no responsável) no campo certo do contrato. */
+interface PartesDoContrato { cliente_id: string; responsavel_id: string; indicador_id: string | null; participantes: string[] }
+const CONFERE_PAPEL: Record<PapelNoContrato, (k: PartesDoContrato, pessoaId: string, perfilId: string | null) => boolean> = {
+  cliente: (k, p) => k.cliente_id === p,
+  responsavel: (k, _p, perfil) => !!perfil && k.responsavel_id === perfil,
+  participante: (k, p) => k.participantes.includes(p),
+  indicador: (k, p) => k.indicador_id === p
+};
+/** Os papéis da pessoa no contrato, na ordem de PAPEIS_NO_CONTRATO (vazio: ela não está nele). */
+export const papeisNoContrato = (k: PartesDoContrato, pessoaId: string, perfilId: string | null = null) =>
+  (Object.keys(CONFERE_PAPEL) as PapelNoContrato[]).filter(papel => CONFERE_PAPEL[papel](k, pessoaId, perfilId));
