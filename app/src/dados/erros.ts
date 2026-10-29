@@ -21,7 +21,7 @@ const REPETIDO: Regra[] = [
 
 const ERROS: Regra[] = [
   { codigo: '23503', padrao: /perfis_pessoa_fkey/, mensagem: 'Esta pessoa é usuária do sistema e não pode ser excluída.' },
-  { codigo: '23503', padrao: /contratos_(cliente|participante|indicador)_id_fkey/, mensagem: 'Esta pessoa está em contratos e não pode ser excluída.' },
+  { codigo: '23503', padrao: /contratos_(cliente|participante|indicador)_id_fkey|contrato_participantes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em contratos e não pode ser excluída.' },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: 'Você não tem permissão para fazer isso.' },
   { padrao: /permission denied|row-level security/i, mensagem: 'Você não tem permissão para fazer isso.' },

@@ -4,13 +4,13 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
-import { limparObjetos, numeroContrato, siglaAdvogado } from '../regras/contrato';
+import { limparObjetos, numeroContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { normal } from '../regras/texto';
-import { OBJETOS_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -37,8 +37,8 @@ const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atend
 /** Colunas iniciais do quadro de contratos (as mesmas sugestões do banco, banco/009_contratos.sql). */
 const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
 const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO };
-/** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco). */
-type ContratoGuardado = Omit<Contrato, 'cliente' | 'participante' | 'indicador'>;
+/** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
+type ContratoGuardado = Omit<Contrato, 'cliente' | 'participantes' | 'indicador'> & { participantes: ParticipanteGravado[] };
 
 interface Banco {
   pessoas: Pessoa[];
@@ -147,7 +147,7 @@ function contratoNovo(): ContratoGuardado {
   return {
     id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
     valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
-    participante_id: null, participante_percentual: null, indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
+    participantes: [], indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
   };
 }
@@ -161,6 +161,11 @@ bd.historicoContratos ??= [];
 // Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
 bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
+// Sessões abertas antes dos vários participantes: o participante antigo entra na lista (como a migração 012).
+bd.contratos.forEach(k => {
+  const antigo = k as unknown as { participante_id?: string | null; participante_percentual?: number | null };
+  k.participantes ??= antigo.participante_id ? [{ pessoa_id: antigo.participante_id, percentual: antigo.participante_percentual ?? null }] : [];
+});
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -215,7 +220,8 @@ const resumoDe = (id: string | null): PessoaResumida | null => {
   return p ? { id: p.id, codigo: p.codigo, nome: p.nome, tipo: p.tipo, arquivado_em: p.arquivado_em } : null;
 };
 const contratoCompleto = (k: ContratoGuardado): Contrato =>
-  ({ ...k, cliente: resumoDe(k.cliente_id)!, participante: resumoDe(k.participante_id), indicador: resumoDe(k.indicador_id) });
+  ({ ...k, cliente: resumoDe(k.cliente_id)!, participantes: k.participantes.map(p => ({ pessoa: resumoDe(p.pessoa_id)!, percentual: p.percentual })),
+     indicador: resumoDe(k.indicador_id) });
 const contratoLista = (k: ContratoGuardado): ContratoLista => ({
   id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
   responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
@@ -250,7 +256,8 @@ const nomeDaColuna = (id: string | null) => bd.colunas.find(c => c.id === id)?.n
 const nomeDaPessoa = (id: unknown) => bd.pessoas.find(p => p.id === id)?.nome ?? null;
 const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
   cliente_id: ['cliente_id', nomeDaPessoa],
-  participante_id: ['participante_id', nomeDaPessoa],
+  participantes: ['participantes', lista => textoDosParticipantes((lista as ParticipanteGravado[] | null ?? [])
+    .map(p => ({ nome: nomeDaPessoa(p.pessoa_id) ?? 'pessoa excluída', percentual: p.percentual })))],
   indicador_id: ['indicador_id', nomeDaPessoa],
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
@@ -282,10 +289,27 @@ function ajustarObjetos(dados: DadosContrato, atual?: ContratoGuardado): DadosCo
   if (objetos.some(o => o.length > TAMANHO_CONTRATO.objeto)) throw new Error(`Cada objeto do contrato pode ter até ${TAMANHO_CONTRATO.objeto} caracteres.`);
   return { ...dados, objetos, servico: objetos.join('; ') };
 }
+/**
+ * Como o gatilho da migração 012: cada participante do escritório, sem repetir, diferente do indicador, com % de 0 a 100.
+ * Só confere quando a lista ou o indicador mudam.
+ */
+function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): DadosContrato {
+  if (dados.participantes === undefined && dados.indicador_id === undefined) return dados;
+  const lista = dados.participantes ?? atual?.participantes ?? [], indicador = dados.indicador_id ?? atual?.indicador_id ?? null;
+  if (lista.length > PARTICIPANTES_MAXIMOS) throw new Error(`Um contrato pode ter até ${PARTICIPANTES_MAXIMOS} participantes.`);
+  lista.forEach((p, i) => {
+    if (p.percentual !== null && (p.percentual < 0 || p.percentual > 100)) throw new Error('Use um percentual de 0 a 100.');
+    if (p.pessoa_id === indicador) throw new Error('O indicador e os participantes precisam ser pessoas diferentes.');
+    if (lista.findIndex(x => x.pessoa_id === p.pessoa_id) < i) throw new Error('A mesma pessoa aparece duas vezes nos participantes.');
+    if (!bd.pessoas.some(x => x.id === p.pessoa_id)) throw new Error('Participante não encontrado neste escritório.');
+  });
+  return dados.participantes === undefined ? dados : { ...dados, participantes: lista.map(p => ({ pessoa_id: p.pessoa_id, percentual: p.percentual })) };
+}
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
-const temContrato = (pessoaId: string) => bd.contratos!.some(k => [k.cliente_id, k.participante_id, k.indicador_id].includes(pessoaId));
+const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
+  [k.cliente_id, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
 
 export const SD: Dados = {
   sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
@@ -472,14 +496,14 @@ export const SD: Dados = {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
-    const d = ajustarObjetos(dados);
+    const d = ajustarParticipantes(ajustarObjetos(dados));
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
     bd.contratos!.push(k); guardarObjetos(k.objetos); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
-    const k = acharContrato(id), d = ajustarObjetos(dados, k);
+    const k = acharContrato(id), d = ajustarParticipantes(ajustarObjetos(dados, k), k);
     historicoContrato(k, d);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
     guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();

@@ -24,6 +24,8 @@ export const TAMANHO_ESCRITORIO = {
 export const TAMANHO_VINCULO = { nome: 60, inverso: 60, descricao: 300, funcao: 120 };
 /** Contratos: os mesmos do banco (banco/009_contratos.sql e 010_contrato_objetos.sql). */
 export const TAMANHO_CONTRATO = { objeto: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
+/** Quantos participantes um contrato pode ter (o banco recusa mais que isso: banco/012_contrato_participantes.sql). */
+export const PARTICIPANTES_MAXIMOS = 10;
 /** Quantos objetos um contrato pode ter (o banco recusa mais que isso). */
 export const OBJETOS_MAXIMOS = 20;
 /** Quantos objetos da lista do escritório o cadastro de contrato carrega como sugestão. */

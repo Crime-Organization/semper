@@ -4,8 +4,8 @@
 // O número do contrato é dado pelo banco ao salvar e, depois de dado, não muda.
 import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type Contrato, type DadosContrato, type PessoaLista } from '../dados';
-import { OBJETOS_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
+import { SD, type Contrato, type PessoaLista } from '../dados';
+import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
   calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, fmtDinheiro, fmtPercentual,
   lerDinheiro, PERCENTUAIS_ESCRITORIO, validarContrato, type CamposContrato
@@ -21,14 +21,13 @@ import { useTitulo } from '../ui/util';
 import './Contratos.css';
 
 type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
-/** As três pessoas do contrato escolhidas pela busca, e o campo de cada uma no formulário. */
+/** As pessoas únicas do contrato escolhidas pela busca, e o campo de cada uma no formulário (os participantes são uma lista). */
 const PAPEIS = {
   cliente: { campo: 'clienteId', percentual: null },
-  participante: { campo: 'participanteId', percentual: 'participantePercentual' },
   indicador: { campo: 'indicadorId', percentual: 'indicadorPercentual' }
 } as const satisfies Record<string, { campo: keyof CamposContrato; percentual: keyof CamposContrato | null }>;
 type Papel = keyof typeof PAPEIS;
-type CampoTexto = Exclude<keyof CamposContrato, 'objetos'>;
+type CampoTexto = Exclude<keyof CamposContrato, 'objetos' | 'participantes'>;
 
 export default function NovoContrato() {
   const ctx = useCtx();
@@ -39,15 +38,20 @@ export default function NovoContrato() {
   const membros = ctx.equipe.filter(m => m.ativo);
 
   const [c, setC] = useState<CamposContrato>(() => ({ ...CONTRATO_VAZIO, responsavelId: membros.some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : '' }));
-  const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ cliente: null, participante: null, indicador: null });
+  const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ cliente: null, indicador: null });
   const [alvo, setAlvo] = useState<Contrato | null>(null);   // contrato sendo atualizado
   const [pronto, setPronto] = useState(!idAtualizar);
   // Os erros aparecem depois da primeira tentativa de salvar e, daí em diante, acompanham o que se digita.
   const [tentou, setTentou] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  // Cada linha de objeto tem a sua chave, para o React não trocar o que foi digitado ao tirar uma linha do meio.
+  // Cada linha de objeto e de participante tem a sua chave, para o React não trocar o que foi digitado ao tirar uma
+  // linha do meio.
   const [chaves, setChaves] = useState<number[]>([1]);
+  const [chavesPart, setChavesPart] = useState<number[]>([]);
   const proximaChave = useRef(2);
+  // A pessoa escolhida em cada linha de participante (para mostrar o nome) e a linha nova, que recebe o foco.
+  const [participantes, setParticipantes] = useState<Escolhida[]>([]);
+  const [focarParticipante, setFocarParticipante] = useState<number | null>(null);
   const [sugeridos, setSugeridos] = useState<string[]>([]);
   useTitulo(alvo ? 'Atualizar contrato' : 'Novo contrato');
 
@@ -59,9 +63,12 @@ export default function NovoContrato() {
         setAlvo(k);
         const campos = camposDoContrato(k);
         setC(campos);
+        const objetos = campos.objetos.length;
         setChaves(campos.objetos.map((_, i) => i + 1));
-        proximaChave.current = campos.objetos.length + 1;
-        setPessoas({ cliente: k.cliente, participante: k.participante, indicador: k.indicador });
+        setChavesPart(k.participantes.map((_, i) => objetos + 1 + i));
+        proximaChave.current = objetos + k.participantes.length + 1;
+        setParticipantes(k.participantes.map(p => p.pessoa));
+        setPessoas({ cliente: k.cliente, indicador: k.indicador });
       })
       .catch(falha)
       .finally(() => setPronto(true));
@@ -100,6 +107,30 @@ export default function NovoContrato() {
     else if (c.objetos[i].trim() && c.objetos.length < OBJETOS_MAXIMOS) acrescentarObjeto(i);
   }
 
+  // ---------- participantes ----------
+  const mudarParticipante = (i: number, campos: Partial<CamposContrato['participantes'][number]>) =>
+    setC(atual => ({ ...atual, participantes: atual.participantes.map((p, j) => j === i ? { ...p, ...campos } : p) }));
+  // Trocar a pessoa de uma linha mantém o % já digitado.
+  const escolherParticipante = (i: number) => (p: PessoaLista | null) => {
+    setParticipantes(atual => atual.map((x, j) => j === i ? p : x));
+    mudarParticipante(i, { pessoaId: p?.id ?? '' });
+  };
+  function acrescentarParticipante() {
+    const chave = proximaChave.current++;
+    setC(atual => ({ ...atual, participantes: [...atual.participantes, { pessoaId: '', percentual: '' }] }));
+    setParticipantes(atual => [...atual, null]);
+    setChavesPart(atual => [...atual, chave]);
+    setFocarParticipante(chave);
+  }
+  function tirarParticipante(i: number) {
+    setC(atual => ({ ...atual, participantes: atual.participantes.toSpliced(i, 1) }));
+    setParticipantes(atual => atual.toSpliced(i, 1));
+    setChavesPart(atual => atual.toSpliced(i, 1));
+  }
+  // Na busca de cada linha, quem já está no contrato aparece desligado, com o motivo.
+  const jaNoContrato = (i: number) => (p: PessoaLista) => p.id === c.indicadorId ? 'já é o indicador'
+    : c.participantes.some((x, j) => j !== i && x.pessoaId === p.id) ? 'já é participante' : null;
+
   // Quem pode ser responsável: a equipe ativa e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && m.id === c.responsavelId)];
 
@@ -114,9 +145,8 @@ export default function NovoContrato() {
     setOcupado(true);
     try {
       if (alvo) {
-        // Para desfazer: os valores que esta gravação vai trocar.
-        const registro = alvo as unknown as Record<string, unknown>;
-        const antes = Object.fromEntries(Object.keys(dados).map(k => [k, registro[k] ?? null])) as DadosContrato;
+        // Para desfazer: o contrato como estava, no mesmo formato que o cadastro grava.
+        const antes = dadosDoContrato(camposDoContrato(alvo));
         await SD.contratoAtualizar(alvo.id, dados);
         feito('Contrato atualizado.', 'atualização do contrato', async () => {
           await SD.contratoAtualizar(alvo.id, antes);
@@ -161,8 +191,6 @@ export default function NovoContrato() {
   });
   const data = (nome: 'assinadoEm' | 'primeiroPagamento') =>
     texto(nome, { inputMode: 'numeric', placeholder: 'DD/MM/AAAA', onChange: e => mudar({ [nome]: MASCARAS.data(e.target.value) }) });
-  const percentual = (nome: 'participantePercentual' | 'indicadorPercentual', semPessoa: boolean) =>
-    texto(nome, { inputMode: 'decimal', placeholder: '0', disabled: semPessoa });
   const pessoa = (papel: Papel, rotulo: ReactNode, tam: TamanhoNaGrade, desativar?: (p: PessoaLista) => string | null) => {
     const nome = PAPEIS[papel].campo;
     return <div className={'campo-form' + (erros[nome] ? ' com-erro' : '')} style={naGrade(tam)}>
@@ -170,10 +198,11 @@ export default function NovoContrato() {
       {erros[nome] && <span className="erro-campo" role="alert">{erros[nome]}</span>}
     </div>;
   };
-  const calculado = (rotulo: string, valor: string, tam: TamanhoNaGrade) =>
-    <div className="campo-form" style={naGrade(tam)}>
+  const calculado = (rotulo: string, valor: string, tam: TamanhoNaGrade, erro?: string) =>
+    <div className={'campo-form' + (erro ? ' com-erro' : '')} style={naGrade(tam)}>
       <span className="rotulo-campo">{rotulo} <small>calculado</small></span>
       <output className="contrato-calculado" aria-label={rotulo}>{valor || '—'}</output>
+      {erro && <span className="erro-campo" role="alert">{erro}</span>}
     </div>;
 
   const voltar = idAtualizar ? '/contratos/?id=' + idAtualizar : '/contratos/';
@@ -242,13 +271,32 @@ export default function NovoContrato() {
               <option value="">A definir</option>
               {PERCENTUAIS_ESCRITORIO.map(v => <option key={v} value={v}>{v}% do que o cliente pagar</option>)}
             </select>, 'conta PJ')}
-          {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), { m: 6, g: 4 })}
-          {pessoa('participante', 'Participante', { m: 8, g: 9 }, p => p.id === c.indicadorId ? 'já é o indicador' : null)}
-          {campo('participantePercentual', '% do participante', { m: 4, g: 3 }, percentual('participantePercentual', !c.participanteId))}
-          {pessoa('indicador', 'Indicador', { m: 8, g: 9 }, p => p.id === c.participanteId ? 'já é o participante' : null)}
-          {campo('indicadorPercentual', '% do indicador', { m: 4, g: 3 }, percentual('indicadorPercentual', !c.indicadorId))}
+          {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), { m: 6, g: 4 }, erros.divisao)}
+          <div className={'campo-form contrato-participantes' + (erros.participantes ? ' com-erro' : '')} role="group"
+            aria-labelledby="contrato-participantes-rotulo" style={naGrade({})}>
+            <span className="rotulo-campo" id="contrato-participantes-rotulo">Participantes <small>quem trabalha no caso com o responsável, cada um com o seu %</small></span>
+            {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
+              <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
+                desativar={jaNoContrato(i)} focar={chavesPart[i] === focarParticipante} />
+              <label>%
+                <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
+                  aria-invalid={erros.participantes ? true : undefined} onChange={e => mudarParticipante(i, { percentual: e.target.value })} />
+              </label>
+              <button type="button" className="icone-btn" aria-label={`Tirar o participante ${i + 1}`} onClick={() => tirarParticipante(i)}>
+                <Icone nome="fechar" tam={15} />
+              </button>
+            </div>)}
+            <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.participantes.length >= PARTICIPANTES_MAXIMOS} onClick={acrescentarParticipante}>
+              <Icone nome="mais" tam={13} /> Adicionar participante
+            </button></div>
+            {erros.participantes && <span className="erro-campo" role="alert">{erros.participantes}</span>}
+          </div>
+          {pessoa('indicador', 'Indicador', { m: 8, g: 9 }, p => c.participantes.some(x => x.pessoaId === p.id) ? 'já é participante' : null)}
+          {campo('indicadorPercentual', '% do indicador', { m: 4, g: 3 },
+            texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId }))}
         </div>
-        <Nota>O indicador pode ser da equipe ou um parceiro de fora; os dois precisam estar cadastrados em Pessoas.</Nota>
+        <Nota>Todos os percentuais são sobre o total; o responsável fica com o que sobra. O indicador é um só, da equipe ou um
+          parceiro de fora; participantes e indicador precisam estar cadastrados em Pessoas.</Nota>
       </section>
 
       <section className="cartao form-grade" aria-labelledby="tDocumento">

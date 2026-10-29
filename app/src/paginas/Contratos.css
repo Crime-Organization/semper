@@ -14,3 +14,11 @@
 .rotulo-campo small { font-weight: 400; color: var(--muted) }
 .contrato-objetos { gap: 8px }
 .contrato-objetos-lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink); overflow-wrap: anywhere }
+/* Cada participante numa linha: a busca da pessoa, o % e o botão de tirar. No estreito, o % e o botão descem. */
+.linha-participante { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: end }
+.linha-participante > .icone-btn { margin-bottom: 4px }
+@container formulario (max-width: 559px) {
+  .linha-participante { grid-template-columns: minmax(0, 1fr) auto }
+  .linha-participante > :first-child { grid-column: 1 / -1 }
+}
+.contrato-participantes { gap: 10px }

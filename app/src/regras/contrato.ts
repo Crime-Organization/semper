@@ -2,7 +2,7 @@
 // percentuais da divisão, leitura de valores em reais e a validação do cadastro. Tudo puro, sem tela nem banco.
 // As contas seguem as planilhas de receitas do escritório (aba Contratos).
 import type { CategoriaHonorario, Contrato, DadosContrato } from '../dados/tipos';
-import { OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, TAMANHO_CONTRATO } from '../dados/limites';
+import { OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 
@@ -39,11 +39,18 @@ export function valorParcela(valor: number | null, entrada: number | null, parce
   return parcelas > 1 ? centavos((valor - entrada) / (parcelas - 1)) : null;
 }
 
-/** % do responsável: o que sobra depois do participante e do indicador. null se a soma passar de 100%. */
-export function percentualResponsavel(participante: number | null, indicador: number | null): number | null {
-  const resto = 100 - (participante || 0) - (indicador || 0);
+/**
+ * % do responsável: o que sobra do total depois do escritório, dos participantes e do indicador (todos sobre o total,
+ * como a conta da planilha Caixa). null se a soma passar de 100%.
+ */
+export function percentualResponsavel(escritorio: number | null, participantes: (number | null)[], indicador: number | null): number | null {
+  const resto = 100 - (escritorio || 0) - participantes.reduce<number>((soma, p) => soma + (p || 0), 0) - (indicador || 0);
   return resto < 0 ? null : centavos(resto);
 }
+
+/** Participantes por extenso, como no histórico do banco: "NOME (20%), OUTRO NOME". null se não há nenhum. */
+export const textoDosParticipantes = (lista: { nome: string; percentual: number | null }[]) =>
+  lista.map(p => p.nome + (p.percentual === null ? '' : ` (${fmtPercentual(p.percentual)})`)).join(', ') || null;
 
 // ---------- objetos do contrato ----------
 /** Objetos como o banco guarda: sem espaços nas pontas, sem linhas vazias e sem repetir (ignorando maiúsculas e acentos), na ordem escrita. */
@@ -101,8 +108,8 @@ export interface CamposContrato {
   assinadoEm: string;
   primeiroPagamento: string;
   percentualEscritorio: string;
-  participanteId: string;
-  participantePercentual: string;
+  /** Um por linha: a pessoa escolhida e o % digitado. Linhas sem pessoa e sem % são ignoradas. */
+  participantes: { pessoaId: string; percentual: string }[];
   indicadorId: string;
   indicadorPercentual: string;
   documentoUrl: string;
@@ -111,7 +118,7 @@ export interface CamposContrato {
 }
 export const CONTRATO_VAZIO: CamposContrato = {
   clienteId: '', responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
-  primeiroPagamento: '', percentualEscritorio: '', participanteId: '', participantePercentual: '', indicadorId: '', indicadorPercentual: '',
+  primeiroPagamento: '', percentualEscritorio: '', participantes: [], indicadorId: '', indicadorPercentual: '',
   documentoUrl: '', observacoes: '', codigoAntigo: ''
 };
 
@@ -125,7 +132,11 @@ export const MSG_CONTRATO: Partial<Record<keyof CamposContrato, string>> = {
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
 type Conferencia = (c: CamposContrato) => string | null;
-type CampoTexto = Exclude<keyof CamposContrato, 'objetos'>;
+type CampoTexto = Exclude<keyof CamposContrato, 'objetos' | 'participantes'>;
+/** Onde aparece cada erro: um campo do formulário, ou a divisão como um todo (a soma dos percentuais). */
+export type CampoComErro = keyof CamposContrato | 'divisao';
+/** Participantes preenchidos (com pessoa ou com %). */
+const preenchidos = (c: CamposContrato) => c.participantes.filter(p => p.pessoaId || p.percentual.trim());
 const obrigatorio = (campo: CampoTexto): Conferencia => c => String(c[campo]).trim() ? null : MSG_CONTRATO[campo]!;
 const leitura = (ler: (t: string) => unknown, campo: CampoTexto): Conferencia => c => {
   try { ler(c[campo]); return null; } catch (e) { return (e as Error).message; }
@@ -137,7 +148,7 @@ const percentual = (campo: CampoTexto) => leitura(lerPercentual, campo);
 const quieto = <T>(ler: (t: string) => T, t: string) => { try { return ler(t); } catch { return null; } };
 
 /** Regras do cadastro, uma lista por campo (a primeira que falhar dá a mensagem). Campo novo = entrada nova aqui. */
-const CONFERENCIAS: Partial<Record<keyof CamposContrato, Conferencia[]>> = {
+const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
   clienteId: [obrigatorio('clienteId')],
   responsavelId: [obrigatorio('responsavelId')],
   objetos: [
@@ -163,20 +174,23 @@ const CONFERENCIAS: Partial<Record<keyof CamposContrato, Conferencia[]>> = {
   }],
   assinadoEm: [data('assinadoEm')],
   primeiroPagamento: [data('primeiroPagamento')],
-  participantePercentual: [percentual('participantePercentual'),
-    c => quieto(lerPercentual, c.participantePercentual) && !c.participanteId ? 'Escolha o participante deste percentual.' : null],
+  participantes: [
+    c => preenchidos(c).map(p => { try { lerPercentual(p.percentual); return null; } catch (e) { return (e as Error).message; } }).find(Boolean) ?? null,
+    c => preenchidos(c).some(p => !p.pessoaId) ? 'Escolha o participante deste percentual.' : null,
+    c => new Set(preenchidos(c).map(p => p.pessoaId)).size < preenchidos(c).length ? 'A mesma pessoa aparece duas vezes nos participantes.' : null,
+    c => preenchidos(c).length > PARTICIPANTES_MAXIMOS ? `Um contrato pode ter até ${PARTICIPANTES_MAXIMOS} participantes.` : null
+  ],
   indicadorPercentual: [percentual('indicadorPercentual'),
-    c => quieto(lerPercentual, c.indicadorPercentual) && !c.indicadorId ? 'Escolha o indicador deste percentual.' : null,
-    c => percentualResponsavel(quieto(lerPercentual, c.participantePercentual), quieto(lerPercentual, c.indicadorPercentual)) === null
-      ? 'A soma dos percentuais do participante e do indicador passa de 100%.' : null],
-  indicadorId: [c => c.indicadorId && c.indicadorId === c.participanteId ? 'O indicador e o participante precisam ser pessoas diferentes.' : null],
+    c => quieto(lerPercentual, c.indicadorPercentual) && !c.indicadorId ? 'Escolha o indicador deste percentual.' : null],
+  indicadorId: [c => c.indicadorId && c.participantes.some(p => p.pessoaId === c.indicadorId) ? 'O indicador e os participantes precisam ser pessoas diferentes.' : null],
+  divisao: [c => calculadosDoContrato(c).responsavel === null ? 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.' : null],
   documentoUrl: [c => !c.documentoUrl.trim() || /^https?:\/\/\S+$/i.test(c.documentoUrl.trim()) ? null : 'Cole o link completo, começando com https://.']
 };
 
 /** Erros do cadastro, por campo. Vazio: pode salvar. */
-export function validarContrato(c: CamposContrato): Partial<Record<keyof CamposContrato, string>> {
-  const erros: Partial<Record<keyof CamposContrato, string>> = {};
-  for (const [campo, regras] of Object.entries(CONFERENCIAS) as [keyof CamposContrato, Conferencia[]][]) {
+export function validarContrato(c: CamposContrato): Partial<Record<CampoComErro, string>> {
+  const erros: Partial<Record<CampoComErro, string>> = {};
+  for (const [campo, regras] of Object.entries(CONFERENCIAS) as [CampoComErro, Conferencia[]][]) {
     const erro = regras.map(r => r(c)).find(Boolean);
     if (erro) erros[campo] = erro;
   }
@@ -192,7 +206,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
     valor: lerDinheiro(c.valor), entrada: lerDinheiro(c.entrada), parcelas: parcelas ? Number(parcelas) : null, descontos: lerDinheiro(c.descontos),
     assinado_em: lerData(c.assinadoEm), primeiro_pagamento: lerData(c.primeiroPagamento),
     percentual_escritorio: c.percentualEscritorio ? Number(c.percentualEscritorio) : null,
-    participante_id: c.participanteId || null, participante_percentual: c.participanteId ? lerPercentual(c.participantePercentual) : null,
+    participantes: preenchidos(c).map(p => ({ pessoa_id: p.pessoaId, percentual: lerPercentual(p.percentual) })),
     indicador_id: c.indicadorId || null, indicador_percentual: c.indicadorId ? lerPercentual(c.indicadorPercentual) : null,
     documento_url: texto(c.documentoUrl), observacoes: texto(c.observacoes), codigo_antigo: texto(c.codigoAntigo)?.toUpperCase() ?? null
   };
@@ -206,7 +220,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
     valor: dinheiroNoCampo(k.valor), entrada: dinheiroNoCampo(k.entrada), parcelas: k.parcelas ? String(k.parcelas) : '',
     descontos: dinheiroNoCampo(k.descontos), assinadoEm: fmtData(k.assinado_em), primeiroPagamento: fmtData(k.primeiro_pagamento),
     percentualEscritorio: k.percentual_escritorio === null ? '' : String(k.percentual_escritorio),
-    participanteId: k.participante_id || '', participantePercentual: pct(k.participante_percentual),
+    participantes: k.participantes.map(p => ({ pessoaId: p.pessoa.id, percentual: pct(p.percentual) })),
     indicadorId: k.indicador_id || '', indicadorPercentual: pct(k.indicador_percentual),
     documentoUrl: k.documento_url || '', observacoes: k.observacoes || '', codigoAntigo: k.codigo_antigo || ''
   };
@@ -216,7 +230,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
 export const CAMPOS_CONTRATO: Record<string, string> = {
   cliente_id: 'Cliente', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
-  percentual_escritorio: 'Enviado ao escritório', participante_id: 'Participante', participante_percentual: '% do participante',
+  percentual_escritorio: 'Enviado ao escritório', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', observacoes: 'Observações',
   codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
@@ -238,6 +252,7 @@ export function calculadosDoContrato(c: CamposContrato) {
   const parcelas = Number(c.parcelas);
   return {
     parcela: valorParcela(quieto(lerDinheiro, c.valor), quieto(lerDinheiro, c.entrada), Number.isInteger(parcelas) && parcelas > 0 ? parcelas : null),
-    responsavel: percentualResponsavel(quieto(lerPercentual, c.participantePercentual), quieto(lerPercentual, c.indicadorPercentual))
+    responsavel: percentualResponsavel(Number(c.percentualEscritorio) || null, c.participantes.map(p => quieto(lerPercentual, p.percentual)),
+      quieto(lerPercentual, c.indicadorPercentual))
   };
 }

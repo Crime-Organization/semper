@@ -7,7 +7,7 @@ import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
-import type { Contexto, Dados, FiltroContratos, FiltroPessoas, Ordem, Pessoa, RepresentanteVinculado } from './tipos';
+import type { Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Ordem, Participacao, Pessoa, RepresentanteVinculado } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -95,10 +95,14 @@ const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
 const CAMPOS_CONTRATO_LISTA = 'id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
   + `criado_por, criado_em, atualizado_em, cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA})`;
 const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
-  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, participante_id, participante_percentual, indicador_id, indicador_percentual, '
+  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
   + 'documento_url, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
-  + `cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA}), participante:pessoas!contratos_participante_id_fkey(${PESSOA_RESUMIDA}), `
-  + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA})`;
+  + `cliente:pessoas!contratos_cliente_id_fkey(${PESSOA_RESUMIDA}), indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), `
+  + `participacoes:contrato_participantes(percentual, ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
+/** Participantes do contrato na ordem do cadastro (o banco os copia da lista gravada no contrato). */
+type ContratoLido = Omit<Contrato, 'participantes'> & { participacoes: (Participacao & { ordem: number })[] };
+const comParticipantes = ({ participacoes, ...k }: ContratoLido): Contrato =>
+  ({ ...k, participantes: participacoes.toSorted((a, b) => a.ordem - b.ordem).map(({ pessoa, percentual }) => ({ pessoa, percentual })) });
 // Ordem dos contratos ("nome" é o do cliente, copiado no contrato pelo banco). O id no fim desempata a paginação.
 const ORDENS_CONTRATO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('numero', { ascending: false }),
@@ -363,7 +367,7 @@ export const SD: Dados = {
   },
   async contratoObter(id) {
     const { data } = await rodar(sb.from('contratos').select(CAMPOS_CONTRATO).eq('id', id).maybeSingle());
-    return data;
+    return data ? comParticipantes(data) : null;
   },
   // O número (sigla, sequencial e ano) é dado pelo banco ao gravar.
   async contratoCriar(dados) {

@@ -270,6 +270,54 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(lista).toContain('Registro de marca');
       });
 
+      it('quando o contrato tem vários participantes, então voltam na ordem, com os percentuais', async () => {
+        // Dado
+        const { id: ana } = await criar(marca()), { id: bruno } = await criar(marca());
+        // Quando
+        const { id } = await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 20 }, { pessoa_id: bruno, percentual: null }] });
+        // Então
+        const lido = await SD.contratoObter(id);
+        expect(lido!.participantes.map(p => [p.pessoa.id, p.percentual])).toEqual([[ana, 20], [bruno, null]]);
+      });
+
+      it.each([
+        ['a mesma pessoa duas vezes', 'A mesma pessoa aparece duas vezes nos participantes.'],
+        ['um participante que é o indicador', 'O indicador e os participantes precisam ser pessoas diferentes.']
+      ])('quando a lista tem %s, então salvar é recusado com a mensagem em português', async (caso, mensagem) => {
+        // Dado
+        const { id: ana } = await criar(marca());
+        const dados = caso.startsWith('a mesma')
+          ? { participantes: [{ pessoa_id: ana, percentual: 10 }, { pessoa_id: ana, percentual: 5 }] }
+          : { participantes: [{ pessoa_id: ana, percentual: 10 }], indicador_id: ana };
+        // Quando
+        const salvar = novoContrato(dados);
+        // Então
+        await expect(salvar).rejects.toThrow(mensagem);
+      });
+
+      it('quando os participantes mudam, então o histórico mostra os nomes e os percentuais', async () => {
+        // Dado
+        const nome = marca();
+        const { id: ana } = await criar(nome);
+        const { id } = await novoContrato();
+        // Quando
+        await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: ana, percentual: 10.5 }] });
+        // Então
+        const [ultima] = await SD.contratoHistorico(id);
+        expect(ultima.alteracoes).toEqual({ participantes: { de: null, para: `${nome} (10,5%)` } });
+      });
+
+      it('quando a pessoa participa de um contrato, então ela não pode ser excluída', async () => {
+        // Dado
+        const { id: ana } = await criar(marca());
+        await novoContrato({ participantes: [{ pessoa_id: ana, percentual: 10 }] });
+        await SD.pessoasArquivar([ana]);
+        // Quando
+        const r = await SD.pessoasExcluir([ana]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em contratos e não pode ser excluída.' });
+      });
+
       it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {
         // Quando
         const contratos = (await SD.colunasListar('contratos')).map(c => c.nome);

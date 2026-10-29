@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, limparObjetos, percentualResponsavel, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, limparObjetos, percentualResponsavel, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
@@ -58,13 +58,16 @@ describe('Valor da parcela', () => {
 
 describe('Percentual do responsável', () => {
   it.each([
-    [null, null, 100],
-    [20, null, 80],
-    [20, 10, 70],
-    [60, 50, null]
-  ])('quando o participante tem %s%% e o indicador %s%%, então o responsável fica com %s', (participante, indicador, esperado) => {
+    [null, [], null, 100],
+    [20, [], null, 80],
+    [20, [10], 10, 60],
+    [30, [10, 5.5], null, 54.5],
+    [100, [], null, 0],
+    [30, [60], 20, null]
+  ] as [number | null, number[], number | null, number | null][])('quando o escritório tem %s%%, os participantes %j e o indicador %s%%, então o responsável fica com %s',
+  (escritorio, participantes, indicador, esperado) => {
     // Quando
-    const resultado = percentualResponsavel(participante, indicador);
+    const resultado = percentualResponsavel(escritorio, participantes, indicador);
     // Então
     expect(resultado).toBe(esperado);
   });
@@ -144,10 +147,14 @@ describe('Validação do cadastro de contrato', () => {
     ['os descontos passam do valor', { valor: '1.000,00', descontos: '1.500' }, 'descontos', 'Os descontos não podem passar do valor do contrato.'],
     ['as parcelas não são um número inteiro', { parcelas: '2,5' }, 'parcelas', 'Informe de 1 a 360 parcelas.'],
     ['a data de assinatura não existe', { assinadoEm: '31/02/2026' }, 'assinadoEm', 'Data inexistente.'],
-    ['há percentual de participante sem participante', { participantePercentual: '20' }, 'participantePercentual', 'Escolha o participante deste percentual.'],
-    ['a soma dos percentuais passa de 100%', { participanteId: 'p2', participantePercentual: '60', indicadorId: 'p3', indicadorPercentual: '50' },
-      'indicadorPercentual', 'A soma dos percentuais do participante e do indicador passa de 100%.'],
-    ['indicador e participante são a mesma pessoa', { participanteId: 'p2', indicadorId: 'p2' }, 'indicadorId', 'O indicador e o participante precisam ser pessoas diferentes.'],
+    ['há percentual de participante sem participante', { participantes: [{ pessoaId: '', percentual: '20' }] }, 'participantes', 'Escolha o participante deste percentual.'],
+    ['o percentual de um participante não é um número', { participantes: [{ pessoaId: 'p2', percentual: '2o' }] }, 'participantes', 'Use um percentual de 0 a 100.'],
+    ['a mesma pessoa aparece duas vezes', { participantes: [{ pessoaId: 'p2', percentual: '' }, { pessoaId: 'p2', percentual: '5' }] }, 'participantes',
+      'A mesma pessoa aparece duas vezes nos participantes.'],
+    ['a soma com o escritório passa de 100%', { percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '60' }], indicadorId: 'p3', indicadorPercentual: '20' },
+      'divisao', 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.'],
+    ['indicador e participante são a mesma pessoa', { participantes: [{ pessoaId: 'p2', percentual: '' }], indicadorId: 'p2' }, 'indicadorId',
+      'O indicador e os participantes precisam ser pessoas diferentes.'],
     ['o link do documento não é um endereço', { documentoUrl: 'drive.google.com/x' }, 'documentoUrl', 'Cole o link completo, começando com https://.'],
     ['os objetos são só linhas em branco', { objetos: ['  ', ''] }, 'objetos', 'Informe ao menos um objeto do contrato.'],
     ['há mais de 20 objetos', { objetos: Array.from({ length: 21 }, (_, i) => 'Objeto ' + i) }, 'objetos', 'Um contrato pode ter até 20 objetos.'],
@@ -164,26 +171,26 @@ describe('Gravação e leitura do contrato', () => {
   it('quando o formulário é gravado, então os textos viram números, datas e percentuais', () => {
     // Dado
     const c = campos({ ...minimo, objetos: ['Registro de marca', ' ', 'Busca de anterioridade '], valor: 'R$ 5.000,00', entrada: '1.000', parcelas: '5', assinadoEm: '10/03/2026', percentualEscritorio: '30',
-      participanteId: 'p2', participantePercentual: '20', documentoUrl: ' https://drive.google.com/x ', codigoAntigo: 'he62-de74-001/24' });
+      participantes: [{ pessoaId: 'p2', percentual: '20' }, { pessoaId: '', percentual: ' ' }, { pessoaId: 'p4', percentual: '' }], documentoUrl: ' https://drive.google.com/x ', codigoAntigo: 'he62-de74-001/24' });
     // Quando
     const d = dadosDoContrato(c);
     // Então
     expect(d).toMatchObject({ objetos: ['Registro de marca', 'Busca de anterioridade'], servico: 'Registro de marca; Busca de anterioridade',
       valor: 5000, entrada: 1000, parcelas: 5, descontos: null, assinado_em: '2026-03-10', percentual_escritorio: 30,
-      participante_id: 'p2', participante_percentual: 20, indicador_id: null, indicador_percentual: null,
+      participantes: [{ pessoa_id: 'p2', percentual: 20 }, { pessoa_id: 'p4', percentual: null }], indicador_id: null, indicador_percentual: null,
       documento_url: 'https://drive.google.com/x', codigo_antigo: 'HE62-DE74-001/24' });
   });
 
   it('quando um contrato salvo é aberto para atualizar, então os campos voltam formatados', () => {
     // Dado
     const k = { cliente_id: 'p1', responsavel_id: 'u1', objetos: ['Registro de marca', 'Oposição'], servico: 'Registro de marca; Oposição', categoria: 'pro_labore', valor: 5000, entrada: 1000.5,
-      parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30, participante_id: 'p2',
-      participante_percentual: 26.67, indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null, codigo_antigo: null } as Contrato;
+      parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30,
+      participantes: [{ pessoa: { id: 'p2', codigo: 'P2', nome: 'ANA', tipo: 'pf' }, percentual: 26.67 }], indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null, codigo_antigo: null } as Contrato;
     // Quando
     const c = camposDoContrato(k);
     // Então
     expect(c).toMatchObject({ objetos: ['Registro de marca', 'Oposição'], valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
-      percentualEscritorio: '30', participantePercentual: '26,67', indicadorPercentual: '' });
+      percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '26,67' }], indicadorPercentual: '' });
   });
 });
 
@@ -208,14 +215,15 @@ describe('Campos do contrato no cartão e no histórico', () => {
 describe('Valores calculados no cadastro', () => {
   it('quando valor, entrada, parcelas e percentuais estão preenchidos, então mostra a parcela e o % do responsável', () => {
     // Quando
-    const r = calculadosDoContrato(campos({ valor: '5.000,00', entrada: '1.000,00', parcelas: '5', participantePercentual: '20', indicadorPercentual: '10' }));
+    const r = calculadosDoContrato(campos({ valor: '5.000,00', entrada: '1.000,00', parcelas: '5', percentualEscritorio: '20',
+      participantes: [{ pessoaId: 'p2', percentual: '10' }, { pessoaId: 'p3', percentual: '5' }], indicadorPercentual: '10' }));
     // Então
-    expect(r).toEqual({ parcela: 1000, responsavel: 70 });
+    expect(r).toEqual({ parcela: 1000, responsavel: 55 });
   });
 
   it('quando algum campo ainda está pela metade, então ele conta como vazio', () => {
     // Quando
-    const r = calculadosDoContrato(campos({ valor: '5.000,0x', parcelas: '2,5', participantePercentual: '1o' }));
+    const r = calculadosDoContrato(campos({ valor: '5.000,0x', parcelas: '2,5', participantes: [{ pessoaId: 'p2', percentual: '1o' }] }));
     // Então
     expect(r).toEqual({ parcela: null, responsavel: 100 });
   });
@@ -231,5 +239,18 @@ describe('Objetos do contrato', () => {
     const limpos = limparObjetos(objetos);
     // Então
     expect(limpos).toEqual(esperado);
+  });
+});
+
+describe('Participantes por extenso', () => {
+  it.each([
+    ['dois participantes, um sem %', [{ nome: 'ANA', percentual: 20 }, { nome: 'BRUNO', percentual: null }], 'ANA (20%), BRUNO'],
+    ['percentual com casas decimais', [{ nome: 'ANA', percentual: 10.5 }], 'ANA (10,5%)'],
+    ['nenhum participante', [], null]
+  ])('quando há %s, então o texto é como no histórico do banco', (_caso, lista, esperado) => {
+    // Quando
+    const texto = textoDosParticipantes(lista);
+    // Então
+    expect(texto).toBe(esperado);
   });
 });
