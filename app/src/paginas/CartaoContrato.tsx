@@ -1,14 +1,14 @@
 // Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, o cliente e os objetos do contrato (o que
 // vira demanda), em destaque; as ações e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
 // divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
-import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
 import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
+import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
@@ -44,9 +44,19 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
-  const nomesClientes = k.clientes.map((c, i) => <Fragment key={c.id}>{i > 0 && ', '}{linkPessoa(c)}</Fragment>);
-  const nomesParticipantes = k.participantes.length
-    ? k.participantes.map((p, i) => <Fragment key={p.pessoa.id}>{i > 0 && ', '}{linkPessoa(p.pessoa)}</Fragment>) : '—';
+  // O responsável é da equipe (informação interna): fica num bloco próprio, antes da situação, no quadrinho que abre o
+  // cartão da pessoa ligada ao usuário dele. As partes são as pessoas de fora do escritório, cada uma no seu quadrinho.
+  const comPercentual = (papel: string, pct: number | null) => pct === null ? papel : `${papel} · ${fmtPercentual(pct)}`;
+  const pessoaLigada = (pessoa: PessoaResumida, chave: string, detalhe: string): ItemLigado => ({ id: chave + pessoa.id, para: '/pessoas/?id=' + pessoa.id,
+    codigo: pessoa.codigo, titulo: pessoa.nome, detalhe, selo: pessoa.arquivado_em ? 'Arquivada' : undefined });
+  const membro = ctx.equipe.find(m => m.id === k.responsavel_id);
+  const responsavel: ItemLigado = { id: 'responsavel', para: membro?.pessoa_id ? '/pessoas/?id=' + membro.pessoa_id : undefined,
+    titulo: nomeDe(k.responsavel_id), detalhe: 'Advogado responsável · equipe do escritório' };
+  const partes: ItemLigado[] = [
+    ...k.clientes.map(c => pessoaLigada(c, 'cliente-', 'Cliente')),
+    ...k.participantes.map(p => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual))),
+    ...(k.indicador ? [pessoaLigada(k.indicador, 'indicador-', comPercentual('Indicador', k.indicador_percentual))] : [])
+  ];
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
 
   async function arquivar() {
@@ -101,6 +111,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
+    <section className="bloco">
+      <h3>Responsável</h3>
+      <ItensLigados itens={[responsavel]} />
+    </section>
+
     <section className="bloco campos">
       <h3>Situação</h3>
       <select aria-label="Situação do contrato" disabled={!!k.arquivado_em} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
@@ -109,12 +124,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       </select>
     </section>
 
-    <Dados titulo="Partes" preferencia="contratos.cartao.partes" linhas={[
-      [k.clientes.length > 1 ? 'Clientes' : 'Cliente', nomesClientes],
-      ['Responsável', nomeDe(k.responsavel_id)],
-      [k.participantes.length > 1 ? 'Participantes' : 'Participante', nomesParticipantes],
-      ['Indicador', linkPessoa(k.indicador)]
-    ]} />
+    <Recolhivel titulo="Partes" preferencia="contratos.cartao.partes" padrao>
+      <ItensLigados itens={partes} />
+    </Recolhivel>
 
     <Dados titulo="Honorários" preferencia="contratos.cartao.honorarios" linhas={[
       ['Categoria', V('categoria')],
@@ -159,8 +171,6 @@ function Dados({ titulo, preferencia, linhas }: { titulo: string; preferencia: s
   </Recolhivel>;
 }
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
-/** Nome da pessoa com o link para o cartão dela em Pessoas. */
-const linkPessoa = (p: PessoaResumida | null) => p ? <Link className="contrato-link" to={'/pessoas/?id=' + p.id}>{p.nome}</Link> : '—';
 
 // ---------- histórico ----------
 function HistoricoContrato({ id, versao }: { id: string; versao: number }) {

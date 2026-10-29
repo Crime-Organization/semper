@@ -418,13 +418,17 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
 .dados dt { color: var(--muted); padding-right: 12px }
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
-/* Itens de outros módulos ligados a um cadastro (no cartão da pessoa: contratos, demandas, tarefas...). */
+/* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
-.itens-ligados a { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink) }
-.itens-ligados a:hover { border-color: var(--accent); background: var(--accent-tint) }
-.itens-ligados b { font-size: 14px; overflow-wrap: anywhere }
-.itens-ligados small { font-size: 12px; color: var(--muted) }
+.itens-ligados > li { display: flex; align-items: center; gap: 8px }
+.item-ligado { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink); font: inherit; text-align: left }
+:is(a, button).item-ligado { cursor: pointer }
+:is(a, button).item-ligado:hover { border-color: var(--accent); background: var(--accent-tint) }
+:is(a, button).item-ligado:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-color: var(--accent); background: var(--accent-tint) }
+.item-ligado b { font-size: 14px; overflow-wrap: anywhere }
+.item-ligado small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere }
 .item-ligado-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.itens-ligados .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
 .hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
 .hist li { padding: 2px 0 2px 12px; border-left: 2px solid var(--line2); font-size: 14px; line-height: 1.5 }
 .hist .quando { display: block; font-size: 12px; color: var(--muted) }

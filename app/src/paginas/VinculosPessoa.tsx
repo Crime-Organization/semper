@@ -1,14 +1,16 @@
 // Vínculos de uma pessoa com outras (cônjuge, sócio, representante legal...), nos dois sentidos.
-// Fica no cartão da pessoa; clicar no nome abre o cartão da outra pessoa.
+// Fica no cartão da pessoa, cada vínculo num quadrinho (ItensLigados), como toda ligação do sistema; clicar nele abre o
+// cartão da outra pessoa.
 import { useState, type FormEvent } from 'react';
 import { SD, type Pessoa, type PessoaLista, type Vinculo, type VinculoTipo } from '../dados';
-import { estiloBotao, Nota, Selo } from '../ui/base';
+import { estiloBotao, Nota } from '../ui/base';
 import { TAMANHO_VINCULO } from '../dados/limites';
 import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from '../regras/vinculos';
 import { avisar, falha, feito } from '../ui/avisos';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { Icone } from '../ui/Icone';
+import { ItensLigados } from '../ui/ItensLigados';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 
@@ -94,22 +96,14 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
 
   const padrao = opcoes.filter(o => !o.proprio), proprios = opcoes.filter(o => o.proprio);
   return <>
-    {vinculos.length ? <ul className="vinculos">
-      {vinculos.map(v => {
-        const { rotulo, outra: o } = lerVinculo(v, p.id);
-        return <li key={v.id} className="vinculo">
-          <div className="vinculo-texto">
-            <span className="vinculo-tipo">{rotulo}</span>
-            <button type="button" className="vinculo-pessoa" title="Abrir o cartão desta pessoa" onClick={() => aoAbrirPessoa(o.id)}>{o.nome}</button>
-            {o.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-            {v.descricao && <span className="vinculo-obs">{v.descricao}</span>}
-          </div>
-          <button type="button" className="icone-btn" title="Retirar o vínculo" aria-label={`Retirar o vínculo com ${o.nome}`} onClick={() => retirar(v)}>
-            <Icone nome="fechar" tam={14} />
-          </button>
-        </li>;
-      })}
-    </ul> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
+    {vinculos.length ? <ItensLigados itens={vinculos.map(v => {
+      const { rotulo, outra: o } = lerVinculo(v, p.id);
+      return { id: v.id, aoAbrir: () => aoAbrirPessoa(o.id), codigo: rotulo, titulo: o.nome, detalhe: v.descricao ?? undefined,
+        selo: o.arquivado_em ? 'Arquivada' : undefined,
+        acao: <button type="button" className="icone-btn" title="Retirar o vínculo" aria-label={`Retirar o vínculo com ${o.nome}`} onClick={() => retirar(v)}>
+          <Icone nome="fechar" tam={14} />
+        </button> };
+    })} /> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
 
     {formulario
       ? <form className="form-vinculo campos" noValidate onSubmit={vincular}>

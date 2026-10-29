@@ -221,7 +221,7 @@ function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pes
   const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO;
   return <>
     <ItensLigados vazio="Nenhum contrato ligado a esta pessoa." itens={lista.map(k => ({
-      id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, arquivado: !!k.arquivado_em,
+      id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, selo: k.arquivado_em ? 'Arquivado' : undefined,
       detalhe: k.papeis.map(x => PAPEIS_NO_CONTRATO[x]).join(', ') + ' · ' + situacao(k.etapa_id)
     }))} />
     <div><BotaoLink forma="mini" to={'/contratos/novo/?cliente=' + pessoaId}><Icone nome="mais" tam={13} /> Novo contrato com esta pessoa como cliente</BotaoLink></div>

@@ -10,7 +10,7 @@ describe('Itens ligados a um cadastro', () => {
     // Quando
     render(<MemoryRouter><ItensLigados vazio="Nada ligado." itens={[
       { id: 'k1', para: '/contratos/?id=k1', codigo: 'MA96-0001-2026', titulo: 'Registro de marca', detalhe: 'Cliente · Em negociação' },
-      { id: 'k2', para: '/contratos/?id=k2', codigo: 'MA96-0002-2026', titulo: 'Oposição', detalhe: 'Participante · Encerrado', arquivado: true }
+      { id: 'k2', para: '/contratos/?id=k2', codigo: 'MA96-0002-2026', titulo: 'Oposição', detalhe: 'Participante · Encerrado', selo: 'Arquivado' }
     ]} /></MemoryRouter>);
     // Então
     const links = screen.getAllByRole('link');
