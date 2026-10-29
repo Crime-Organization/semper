@@ -1,4 +1,4 @@
-// Cartão do contrato (painel lateral): ações, situação, partes, honorários, divisão, documento,
+// Cartão do contrato (painel lateral): ações, objetos, situação, partes, honorários, divisão, documento,
 // observações e histórico de alterações. Todos os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -77,7 +77,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
       </div>
       <h2>{k.cliente.nome}</h2>
-      <Nota style={{ marginTop: 4 }}>{k.servico}</Nota>
     </header>
 
     <div className="cartao-acoes">
@@ -92,6 +91,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
+
+    <section className="bloco">
+      <h3>Objetos do contrato</h3>
+      <ol className="contrato-objetos-lista" aria-label="Objetos do contrato">{k.objetos.map(o => <li key={o}>{o}</li>)}</ol>
+    </section>
 
     <section className="bloco campos">
       <h3>Situação</h3>

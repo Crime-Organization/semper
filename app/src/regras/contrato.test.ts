@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, percentualResponsavel, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, limparObjetos, percentualResponsavel, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
-const minimo = { clienteId: 'p1', responsavelId: 'u1', servico: 'Registro de marca', categoria: 'pro_labore' as const };
+const minimo = { clienteId: 'p1', responsavelId: 'u1', objetos: ['Registro de marca'], categoria: 'pro_labore' as const };
 
 describe('Número do contrato', () => {
   it.each([
@@ -128,7 +128,7 @@ describe('Validação do cadastro de contrato', () => {
     // Então
     expect(erros).toEqual({
       clienteId: 'Escolha o cliente.', responsavelId: 'Escolha o advogado responsável.',
-      servico: 'Informe o serviço (objeto do contrato).', categoria: 'Escolha a categoria de honorário.'
+      objetos: 'Informe ao menos um objeto do contrato.', categoria: 'Escolha a categoria de honorário.'
     });
   });
 
@@ -148,7 +148,10 @@ describe('Validação do cadastro de contrato', () => {
     ['a soma dos percentuais passa de 100%', { participanteId: 'p2', participantePercentual: '60', indicadorId: 'p3', indicadorPercentual: '50' },
       'indicadorPercentual', 'A soma dos percentuais do participante e do indicador passa de 100%.'],
     ['indicador e participante são a mesma pessoa', { participanteId: 'p2', indicadorId: 'p2' }, 'indicadorId', 'O indicador e o participante precisam ser pessoas diferentes.'],
-    ['o link do documento não é um endereço', { documentoUrl: 'drive.google.com/x' }, 'documentoUrl', 'Cole o link completo, começando com https://.']
+    ['o link do documento não é um endereço', { documentoUrl: 'drive.google.com/x' }, 'documentoUrl', 'Cole o link completo, começando com https://.'],
+    ['os objetos são só linhas em branco', { objetos: ['  ', ''] }, 'objetos', 'Informe ao menos um objeto do contrato.'],
+    ['há mais de 20 objetos', { objetos: Array.from({ length: 21 }, (_, i) => 'Objeto ' + i) }, 'objetos', 'Um contrato pode ter até 20 objetos.'],
+    ['um objeto passa de 300 caracteres', { objetos: ['x'.repeat(301)] }, 'objetos', 'Cada objeto do contrato pode ter até 300 caracteres.']
   ])('quando %s, então o campo avisa o que corrigir', (_caso, extra, campo, mensagem) => {
     // Quando
     const erros = validarContrato(campos({ ...minimo, ...extra }));
@@ -160,25 +163,26 @@ describe('Validação do cadastro de contrato', () => {
 describe('Gravação e leitura do contrato', () => {
   it('quando o formulário é gravado, então os textos viram números, datas e percentuais', () => {
     // Dado
-    const c = campos({ ...minimo, valor: 'R$ 5.000,00', entrada: '1.000', parcelas: '5', assinadoEm: '10/03/2026', percentualEscritorio: '30',
+    const c = campos({ ...minimo, objetos: ['Registro de marca', ' ', 'Busca de anterioridade '], valor: 'R$ 5.000,00', entrada: '1.000', parcelas: '5', assinadoEm: '10/03/2026', percentualEscritorio: '30',
       participanteId: 'p2', participantePercentual: '20', documentoUrl: ' https://drive.google.com/x ', codigoAntigo: 'he62-de74-001/24' });
     // Quando
     const d = dadosDoContrato(c);
     // Então
-    expect(d).toMatchObject({ valor: 5000, entrada: 1000, parcelas: 5, descontos: null, assinado_em: '2026-03-10', percentual_escritorio: 30,
+    expect(d).toMatchObject({ objetos: ['Registro de marca', 'Busca de anterioridade'], servico: 'Registro de marca; Busca de anterioridade',
+      valor: 5000, entrada: 1000, parcelas: 5, descontos: null, assinado_em: '2026-03-10', percentual_escritorio: 30,
       participante_id: 'p2', participante_percentual: 20, indicador_id: null, indicador_percentual: null,
       documento_url: 'https://drive.google.com/x', codigo_antigo: 'HE62-DE74-001/24' });
   });
 
   it('quando um contrato salvo é aberto para atualizar, então os campos voltam formatados', () => {
     // Dado
-    const k = { cliente_id: 'p1', responsavel_id: 'u1', servico: 'Registro de marca', categoria: 'pro_labore', valor: 5000, entrada: 1000.5,
+    const k = { cliente_id: 'p1', responsavel_id: 'u1', objetos: ['Registro de marca', 'Oposição'], servico: 'Registro de marca; Oposição', categoria: 'pro_labore', valor: 5000, entrada: 1000.5,
       parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30, participante_id: 'p2',
       participante_percentual: 26.67, indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null, codigo_antigo: null } as Contrato;
     // Quando
     const c = camposDoContrato(k);
     // Então
-    expect(c).toMatchObject({ valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
+    expect(c).toMatchObject({ objetos: ['Registro de marca', 'Oposição'], valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
       percentualEscritorio: '30', participantePercentual: '26,67', indicadorPercentual: '' });
   });
 });
@@ -214,5 +218,18 @@ describe('Valores calculados no cadastro', () => {
     const r = calculadosDoContrato(campos({ valor: '5.000,0x', parcelas: '2,5', participantePercentual: '1o' }));
     // Então
     expect(r).toEqual({ parcela: null, responsavel: 100 });
+  });
+});
+
+describe('Objetos do contrato', () => {
+  it.each([
+    ['espaços nas pontas e linhas vazias', ['  Registro de marca ', '', '   ', 'Oposição'], ['Registro de marca', 'Oposição']],
+    ['o mesmo objeto escrito de outro jeito', ['Registro de marca', 'REGISTRO DE MARCA', 'oposicao', 'Oposição'], ['Registro de marca', 'oposicao']],
+    ['nenhum objeto', [''], []]
+  ])('quando a lista tem %s, então fica como o banco guarda', (_caso, objetos, esperado) => {
+    // Quando
+    const limpos = limparObjetos(objetos);
+    // Então
+    expect(limpos).toEqual(esperado);
   });
 });

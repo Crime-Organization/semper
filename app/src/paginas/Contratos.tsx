@@ -130,7 +130,7 @@ export default function Contratos() {
 
   return <>
     <PaginaModulo titulo="Contratos" contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
-      busca={{ placeholder: 'Buscar cliente, número, serviço…', aoBuscar: termo => mudarFiltro({ termo }) }}
+      busca={{ placeholder: 'Buscar cliente, número, objeto…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('contratos.responsavel', responsavel); },

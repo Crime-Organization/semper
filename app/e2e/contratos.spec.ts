@@ -15,7 +15,7 @@ async function escolherPessoa(page: Page, campo: string, busca: string, nome: st
 async function preencherObrigatorios(page: Page) {
   await page.goto('/contratos/novo/');
   await escolherPessoa(page, 'Cliente', 'luciana', 'LUCIANA ROCHA AMOSTRA');
-  await page.getByLabel('Serviço (objeto do contrato)').fill('Registro de marca no INPI');
+  await page.getByRole('combobox', { name: 'Objeto 1' }).fill('Registro de marca no INPI');
   await page.getByLabel('Categoria de honorário').selectOption({ label: 'Pró-labore' });
 }
 
@@ -42,7 +42,7 @@ test.describe('Cadastro de contratos', () => {
     await page.getByRole('button', { name: 'Salvar contrato' }).click();
     // Então
     await expect(page.getByText('Escolha o cliente.')).toBeVisible();
-    await expect(page.getByText('Informe o serviço (objeto do contrato).')).toBeVisible();
+    await expect(page.getByText('Informe ao menos um objeto do contrato.')).toBeVisible();
     await expect(page.getByText('Escolha a categoria de honorário.')).toBeVisible();
     await expect(page).toHaveURL(/\/contratos\/novo\/$/);
   });
@@ -59,6 +59,36 @@ test.describe('Cadastro de contratos', () => {
     // Então
     await expect(page.getByRole('status', { name: 'Valor da parcela' })).toHaveText(/1\.000,00/);
     await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('80%');
+  });
+});
+
+test.describe('Objetos do contrato', () => {
+  test('quando a pessoa acrescenta objetos e tira um, então o contrato salvo mostra os que ficaram, na ordem', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    // Quando: Enter no último objeto abre uma linha nova
+    await page.getByRole('combobox', { name: 'Objeto 1' }).press('Enter');
+    await page.getByRole('combobox', { name: 'Objeto 2' }).fill('Oposição');
+    await page.getByRole('button', { name: 'Adicionar objeto' }).click();
+    await page.getByRole('combobox', { name: 'Objeto 3' }).fill('Busca de anterioridade');
+    await page.getByRole('button', { name: 'Tirar o objeto 2' }).click();
+    await page.getByRole('button', { name: 'Salvar contrato' }).click();
+    // Então
+    const objetos = page.getByRole('dialog').getByRole('list', { name: 'Objetos do contrato' }).getByRole('listitem');
+    await expect(objetos).toHaveText(['Registro de marca no INPI', 'Busca de anterioridade']);
+    await expect(page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' })).toContainText('Registro de marca no INPI; Busca de anterioridade');
+  });
+
+  test('quando um contrato é salvo, então os objetos dele aparecem como sugestão no próximo cadastro', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    await page.getByRole('combobox', { name: 'Objeto 1' }).fill('Notificação extrajudicial');
+    await page.getByRole('button', { name: 'Salvar contrato' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    // Quando
+    await page.goto('/contratos/novo/');
+    // Então
+    await expect(page.getByRole('option', { name: 'Notificação extrajudicial', includeHidden: true })).toHaveCount(1);
   });
 });
 
