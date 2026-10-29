@@ -1,5 +1,6 @@
-// Cartão do contrato (painel lateral): ações, objetos, situação, partes, honorários, divisão, documento,
-// observações e histórico de alterações. Todos os campos aparecem, mesmo vazios.
+// Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, o cliente e os objetos do contrato (o que
+// vira demanda), em destaque; as ações e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
+// divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { Fragment, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Contrato, type Historico, type PessoaResumida } from '../dados';
@@ -80,6 +81,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
       </div>
       <h2>{k.cliente.nome}</h2>
+      <div className="contrato-objetos-destaque">
+        <span className="rotulo-caps" id="objetos-do-contrato">{k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'}</span>
+        <ol aria-labelledby="objetos-do-contrato">{k.objetos.map(o => <li key={o}>{o}</li>)}</ol>
+      </div>
     </header>
 
     <div className="cartao-acoes">
@@ -95,11 +100,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco">
-      <h3>Objetos do contrato</h3>
-      <ol className="contrato-objetos-lista" aria-label="Objetos do contrato">{k.objetos.map(o => <li key={o}>{o}</li>)}</ol>
-    </section>
-
     <section className="bloco campos">
       <h3>Situação</h3>
       <select aria-label="Situação do contrato" disabled={!!k.arquivado_em} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
@@ -108,14 +108,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       </select>
     </section>
 
-    <Dados titulo="Partes" linhas={[
+    <Dados titulo="Partes" preferencia="contratos.cartao.partes" linhas={[
       ['Cliente', linkPessoa(k.cliente)],
       ['Responsável', nomeDe(k.responsavel_id)],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', nomesParticipantes],
       ['Indicador', linkPessoa(k.indicador)]
     ]} />
 
-    <Dados titulo="Honorários" linhas={[
+    <Dados titulo="Honorários" preferencia="contratos.cartao.honorarios" linhas={[
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],
       ['Entrada', V('entrada')],
@@ -126,24 +126,19 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Primeiro pagamento', V('primeiro_pagamento')]
     ]} />
 
-    <Dados titulo="Divisão" linhas={[
+    <Dados titulo="Divisão" preferencia="contratos.cartao.divisao" linhas={[
       ['Enviado ao escritório', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
     ]} />
 
-    <section className="bloco">
-      <h3>Documento</h3>
+    <Recolhivel titulo="Documento e observações" preferencia="contratos.cartao.documento" padrao>
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
-    </section>
-
-    <section className="bloco">
-      <h3>Observações</h3>
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
-    </section>
+    </Recolhivel>
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico">
       <HistoricoContrato id={k.id} versao={versaoHist} />
@@ -156,11 +151,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   </>;
 }
 
-function Dados({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode][] }) {
-  return <section className="bloco">
-    <h3>{titulo}</h3>
+/** Tópico do cartão que recolhe, como em Pessoas; começa aberto e cada usuário guarda a sua escolha. */
+function Dados({ titulo, preferencia, linhas }: { titulo: string; preferencia: string; linhas: [string, ReactNode][] }) {
+  return <Recolhivel titulo={titulo} preferencia={preferencia} padrao>
     <dl className="dados">{linhas.map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
-  </section>;
+  </Recolhivel>;
 }
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
 /** Nome da pessoa com o link para o cartão dela em Pessoas. */

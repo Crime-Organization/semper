@@ -2,7 +2,7 @@
 .tabela-contratos td:nth-child(2) { min-width: 240px; max-width: 360px }
 /* O serviço pode ser longo: até duas linhas na tabela e no quadro. */
 .contrato-servico { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere }
-.contrato-calculado { font-size: 15px; font-weight: 700; color: var(--ink); min-height: 44px; display: flex; align-items: center; font-variant-numeric: tabular-nums }
+.contrato-calculado { font-size: 15px; font-weight: 700; color: var(--ink); min-height: 48px; display: flex; align-items: center; font-variant-numeric: tabular-nums }
 .contrato-salvar { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap }
 .contrato-link { color: var(--accent-ink); font-weight: 700; border-bottom: 1px solid currentColor; overflow-wrap: anywhere }
 .contrato-obs { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: var(--ink); margin: 0 }
@@ -13,7 +13,12 @@
 .rotulo-campo { font-size: 13px; font-weight: 700; color: var(--text) }
 .rotulo-campo small { font-weight: 400; color: var(--muted) }
 .contrato-objetos { gap: 8px }
-.contrato-objetos-lista { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--ink); overflow-wrap: anywhere }
+/* Objetos do contrato em destaque no topo do cartão, logo abaixo do cliente: é o que vira demanda. */
+.contrato-objetos-destaque { margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 3px solid var(--accent); background: var(--accent-tint); display: flex; flex-direction: column; gap: 6px }
+.contrato-objetos-destaque .rotulo-caps { color: var(--accent-ink) }
+.contrato-objetos-destaque ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 16px; font-weight: 700; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere }
+/* No cartão do quadro, o objeto vem logo depois do número, na cor do texto. */
+.kcartao .contrato-servico { color: var(--text); font-size: 13px; font-weight: 700 }
 /* Cada participante numa linha: a busca da pessoa, o % e o botão de tirar. No estreito, o % e o botão descem. */
 .linha-participante { display: grid; grid-template-columns: minmax(0, 1fr) 120px auto; gap: 10px; align-items: end }
 .linha-participante > .icone-btn { margin-bottom: 4px }
@@ -22,3 +27,16 @@
   .linha-participante > :first-child { grid-column: 1 / -1 }
 }
 .contrato-participantes { gap: 10px }
+/* Cadastro por etapas (no visual do cadastro de pessoa). */
+.pergunta .rot small.calculado { font-size: 13px; font-weight: 400; color: var(--muted) }
+.lista-objetos { display: flex; flex-direction: column; gap: 8px }
+.lista-objetos .linha-campo > .icone-btn { align-self: center; flex-shrink: 0 }
+/* A busca de pessoa com o tamanho e o rótulo dos outros campos da etapa. */
+.campo-busca label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink) }
+.campo-busca input { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font-size: 16px; font-weight: 400; color: var(--ink) }
+.campo-busca input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
+.campo-busca .escolhida { height: 48px; font-size: 16px }
+.pergunta.erro .campo-busca input { border-color: var(--erro); outline-color: var(--erro) }
+.linha-participante label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 700; color: var(--ink) }
+.grade-indicador { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 14px; align-items: start }
+@container formulario (max-width: 559px) { .grade-indicador { grid-template-columns: minmax(0, 1fr) } }

@@ -1,18 +1,19 @@
-// Cadastro de contrato numa página só (também usado para atualizar: /contratos/novo/?id=...).
-// Os quatro campos obrigatórios vêm primeiro; os demais ficam sempre à mostra, sem obrigar. O contrato tem um ou mais
-// objetos, um por linha, com as sugestões da lista do escritório.
-// O número do contrato é dado pelo banco ao salvar e, depois de dado, não muda.
-import { useEffect, useRef, useState, type FormEvent, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
+// Cadastro de contrato por etapas, no modelo do cadastro de pessoa (também usado para atualizar: /contratos/novo/?id=...):
+// cliente e responsável; o que foi contratado (objetos e categoria); honorários; divisão; documento e observações.
+// Cada etapa só segue com os campos dela certos (regras/contrato.ts, ETAPAS_CONTRATO). O número do contrato é dado pelo
+// banco ao salvar e, depois de dado, não muda.
+import { useEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Contrato, type PessoaLista } from '../dados';
 import { OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
-  calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, fmtDinheiro, fmtPercentual,
-  lerDinheiro, PERCENTUAIS_ESCRITORIO, validarContrato, type CamposContrato
+  calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
+  fmtDinheiro, fmtPercentual, lerDinheiro, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
+  type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
 import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
-import { Aviso, Carregando, estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '../ui/base';
+import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -28,6 +29,8 @@ const PAPEIS = {
 } as const satisfies Record<string, { campo: keyof CamposContrato; percentual: keyof CamposContrato | null }>;
 type Papel = keyof typeof PAPEIS;
 type CampoTexto = Exclude<keyof CamposContrato, 'objetos' | 'participantes'>;
+/** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
+const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 
 export default function NovoContrato() {
   const ctx = useCtx();
@@ -41,8 +44,9 @@ export default function NovoContrato() {
   const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ cliente: null, indicador: null });
   const [alvo, setAlvo] = useState<Contrato | null>(null);   // contrato sendo atualizado
   const [pronto, setPronto] = useState(!idAtualizar);
-  // Os erros aparecem depois da primeira tentativa de salvar e, daí em diante, acompanham o que se digita.
-  const [tentou, setTentou] = useState(false);
+  const [passo, setPasso] = useState(0);
+  // Os erros de uma etapa aparecem depois da primeira tentativa de seguir e, daí em diante, acompanham o que se digita.
+  const [conferidas, setConferidas] = useState<ReadonlySet<EtapaContrato>>(new Set());
   const [ocupado, setOcupado] = useState(false);
   // Cada linha de objeto e de participante tem a sua chave, para o React não trocar o que foi digitado ao tirar uma
   // linha do meio.
@@ -76,16 +80,48 @@ export default function NovoContrato() {
   }, []);
   // Os objetos já usados no escritório aparecem como sugestão enquanto se digita (sem elas, o cadastro segue igual).
   useEffect(() => { SD.objetosSugeridos().then(setSugeridos).catch(() => {}); }, []);
+  // A cada etapa, o foco vai para o primeiro campo dela.
+  useEffect(() => {
+    const t = setTimeout(() => document.querySelector<HTMLElement>(CAMPOS_DA_ETAPA)?.focus({ preventScroll: true }), 0);
+    return () => clearTimeout(t);
+  }, [passo, pronto]);
 
-  const erros = tentou ? validarContrato(c) : {};
+  const etapa = ETAPAS_CONTRATO[passo];
+  const ultimo = passo === ETAPAS_CONTRATO.length - 1;
+  const todos = validarContrato(c);
+  const conferidos = new Set(ETAPAS_CONTRATO.filter(e => conferidas.has(e.id)).flatMap(e => e.campos));
+  const erros: Partial<Record<CampoComErro, string>> = Object.fromEntries(Object.entries(todos).filter(([campo]) => conferidos.has(campo as CampoComErro)));
   const calculados = calculadosDoContrato(c);
   const mudar = (campos: Partial<CamposContrato>) => setC(atual => ({ ...atual, ...campos }));
-  // Tirar o participante ou o indicador tira também o percentual dele.
+  // Tirar o indicador tira também o percentual dele.
   const escolher = (papel: Papel) => (p: PessoaLista | null) => {
     const { campo, percentual } = PAPEIS[papel];
     setPessoas(x => ({ ...x, [papel]: p }));
     mudar({ [campo]: p?.id ?? '', ...(percentual && !p ? { [percentual]: '' } : {}) });
   };
+
+  // ---------- etapas ----------
+  function irPara(i: number) {
+    setPasso(i);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  const focarErro = () => requestAnimationFrame(() =>
+    document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+  function avancar() {
+    setConferidas(x => new Set(x).add(etapa.id));
+    if (Object.keys(errosDaEtapa(etapa.id, c)).length) { focarErro(); return; }
+    if (ultimo) void salvar(); else irPara(passo + 1);
+  }
+  // Enter: vai para o próximo campo da etapa ou para a próxima etapa. A busca de pessoa e os objetos tratam o Enter deles.
+  function teclar(e: KeyboardEvent<HTMLFormElement>) {
+    const el = e.target as HTMLElement;
+    if (e.key !== 'Enter' || e.defaultPrevented || el.tagName === 'TEXTAREA' || el.tagName === 'BUTTON') return;
+    e.preventDefault();
+    const campos = [...document.querySelectorAll<HTMLElement>(CAMPOS_DA_ETAPA)].filter(x => x.offsetParent !== null && !x.hasAttribute('disabled'));
+    const i = campos.indexOf(el);
+    if (i >= 0 && i < campos.length - 1) campos[i + 1].focus(); else avancar();
+  }
+
   // ---------- objetos ----------
   const idObjeto = (i: number) => 'contrato-objeto-' + chaves[i];
   const mudarObjeto = (i: number, v: string) => setC(atual => ({ ...atual, objetos: atual.objetos.map((o, j) => j === i ? v : o) }));
@@ -134,11 +170,14 @@ export default function NovoContrato() {
   // Quem pode ser responsável: a equipe ativa e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && m.id === c.responsavelId)];
 
-  async function salvar(e: FormEvent) {
-    e.preventDefault();
-    setTentou(true);
-    if (Object.keys(validarContrato(c)).length) {
-      requestAnimationFrame(() => document.querySelector<HTMLElement>('.com-erro input, .com-erro select, .com-erro textarea')?.focus());
+  // ---------- envio ----------
+  async function salvar() {
+    // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
+    const comErro = primeiraEtapaComErro(c);
+    if (comErro >= 0) {
+      setConferidas(new Set(ETAPAS_CONTRATO.map(e => e.id)));
+      irPara(comErro);
+      focarErro();
       return;
     }
     const dados = dadosDoContrato(c);
@@ -155,8 +194,8 @@ export default function NovoContrato() {
         navegar('/contratos/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o contrato novo entra na primeira coluna do quadro.
-        const etapa = etapaInicial || (await SD.colunasListar('contratos')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
-        const r = await SD.contratoCriar({ ...dados, etapa_id: etapa, etapa_ordem: etapa ? ordemNoFim() : null });
+        const coluna = etapaInicial || (await SD.colunasListar('contratos')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
+        const r = await SD.contratoCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Contrato ${r.codigo} cadastrado.`, 'cadastro do contrato', async () => {
           await SD.contratosArquivar([r.id], true);
           const x = await SD.contratosExcluir([r.id]);
@@ -172,149 +211,154 @@ export default function NovoContrato() {
   }
 
   // ---------- pedaços do formulário ----------
-  // Cada campo diz quantas das 12 colunas ocupa (veja naGrade). O id liga o rótulo e o erro ao campo.
-  const id = (nome: CampoTexto) => 'contrato-' + nome;
-  const obrigatorio = <span className="req" aria-hidden="true">*</span>;
-  const campo = (nome: CampoTexto, rotulo: ReactNode, tam: TamanhoNaGrade, entrada: ReactNode, dica?: string) =>
-    <div className={'campo-form' + (erros[nome] ? ' com-erro' : '')} style={naGrade(tam)}>
-      <label htmlFor={id(nome)}>{rotulo}{dica && <small> {dica}</small>}</label>
-      {entrada}
-      {erros[nome] && <span className="erro-campo" id={id(nome) + '-erro'} role="alert">{erros[nome]}</span>}
-    </div>;
-  const acessivel = (nome: CampoTexto) => ({ id: id(nome), 'aria-invalid': erros[nome] ? true : undefined, 'aria-describedby': erros[nome] ? id(nome) + '-erro' : undefined });
-  const texto = (nome: CampoTexto, props: InputHTMLAttributes<HTMLInputElement> = {}) =>
-    <input type="text" {...acessivel(nome)} value={c[nome]} onChange={e => mudar({ [nome]: e.target.value })} {...props} />;
+  const req = <span className="req" aria-hidden="true">*</span>;
+  const texto = (nome: CampoTexto, props: InputHTMLAttributes<HTMLInputElement> = {}, dica = false) =>
+    <input type="text" {...propsDoCampo(nome, { dica, erro: erros[nome] })} value={c[nome]} onChange={e => mudar({ [nome]: e.target.value })} {...props} />;
   // Valor em reais: ao sair do campo, fica no formato 1.500,00 (se der para ler).
-  const dinheiro = (nome: 'valor' | 'entrada' | 'descontos') => texto(nome, {
+  const dinheiro = (nome: 'valor' | 'entrada' | 'descontos', dica = false) => texto(nome, {
     inputMode: 'decimal', placeholder: '0,00',
-    onBlur: e => { try { mudar({ [nome]: dinheiroNoCampo(lerDinheiro(e.target.value)) }); } catch { /* o erro aparece ao salvar */ } }
-  });
+    onBlur: e => { try { mudar({ [nome]: dinheiroNoCampo(lerDinheiro(e.target.value)) }); } catch { /* o erro aparece ao seguir */ } }
+  }, dica);
   const data = (nome: 'assinadoEm' | 'primeiroPagamento') =>
     texto(nome, { inputMode: 'numeric', placeholder: 'DD/MM/AAAA', onChange: e => mudar({ [nome]: MASCARAS.data(e.target.value) }) });
-  const pessoa = (papel: Papel, rotulo: ReactNode, tam: TamanhoNaGrade, desativar?: (p: PessoaLista) => string | null) => {
-    const nome = PAPEIS[papel].campo;
-    return <div className={'campo-form' + (erros[nome] ? ' com-erro' : '')} style={naGrade(tam)}>
-      <BuscaPessoa rotulo={rotulo} escolhida={pessoas[papel]} aoEscolher={escolher(papel)} desativar={desativar} />
-      {erros[nome] && <span className="erro-campo" role="alert">{erros[nome]}</span>}
+  const radios = (nome: 'categoria' | 'percentualEscritorio', opcoes: [string, string][]) => opcoes.map(([v, t]) =>
+    <label key={v || 'nenhum'}><input type="radio" name={nome} value={v} checked={c[nome] === v} onChange={() => mudar({ [nome]: v })} />{t}</label>);
+  // Busca de pessoa com o visual dos outros campos da etapa (a busca é a mesma de Vínculos e de Equipe).
+  const pessoa = (papel: Papel, rotulo: ReactNode, desativar?: (p: PessoaLista) => string | null) => {
+    const erro = erros[PAPEIS[papel].campo];
+    return <div className={'pergunta' + (erro ? ' erro' : '')}>
+      <div className="campo-busca"><BuscaPessoa rotulo={rotulo} escolhida={pessoas[papel]} aoEscolher={escolher(papel)} desativar={desativar} /></div>
+      {erro && <span className="msg-erro" role="alert">{erro}</span>}
     </div>;
   };
-  const calculado = (rotulo: string, valor: string, tam: TamanhoNaGrade, erro?: string) =>
-    <div className={'campo-form' + (erro ? ' com-erro' : '')} style={naGrade(tam)}>
-      <span className="rotulo-campo">{rotulo} <small>calculado</small></span>
+  const calculado = (rotulo: string, valor: string, erro?: string) =>
+    <div className={'pergunta' + (erro ? ' erro' : '')}>
+      <span className="rot">{rotulo} <small className="calculado">calculado</small></span>
       <output className="contrato-calculado" aria-label={rotulo}>{valor || '—'}</output>
-      {erro && <span className="erro-campo" role="alert">{erro}</span>}
+      {erro && <span className="msg-erro" role="alert">{erro}</span>}
     </div>;
 
+  const CONTEUDO: Record<EtapaContrato, () => ReactNode> = {
+    partes: () => <>
+      {pessoa('cliente', <span>Cliente{req}</span>)}
+      <Campo rotulo="Advogado responsável" para="responsavelId" obrigatorio erro={erros.responsavelId}
+        dica={alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.'}>
+        <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
+          <option value="">Escolha…</option>
+          {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+        </select>
+      </Campo>
+      <Campo rotulo="Código antigo" para="codigoAntigo" dica="Das planilhas, se houver (ex.: HE62-DE74-001/24)." erro={erros.codigoAntigo}>
+        {texto('codigoAntigo', { maxLength: TAMANHO_CONTRATO.codigo_antigo, className: 'caixa-alta' }, true)}
+      </Campo>
+      {!alvo && <Nota>O número é dado ao salvar: a sigla do responsável, o número do contrato no ano (a contagem recomeça em janeiro) e o ano.
+        Depois de dado, ele não muda.</Nota>}
+    </>,
+    objetos: () => <>
+      <div className={'pergunta' + (erros.objetos ? ' erro' : '')} role="group" aria-labelledby="objetos-rotulo">
+        <span className="rot" id="objetos-rotulo">Objetos do contrato{req}</span>
+        <p className="dica">Um por linha. Enter abre a linha seguinte; os já usados no escritório aparecem como sugestão.</p>
+        <div className="lista-objetos">{c.objetos.map((o, i) => <div className="linha-campo" key={chaves[i]}>
+          <input type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} list="objetos-sugeridos" maxLength={TAMANHO_CONTRATO.objeto}
+            placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} value={o} aria-invalid={erros.objetos ? true : undefined}
+            aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onChange={e => mudarObjeto(i, e.target.value)} onKeyDown={e => teclarObjeto(e, i)} />
+          {c.objetos.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o objeto ${i + 1}`} onClick={() => tirarObjeto(i)}><Icone nome="fechar" tam={15} /></button>}
+        </div>)}</div>
+        <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.objetos.length >= OBJETOS_MAXIMOS} onClick={() => acrescentarObjeto()}>
+          <Icone nome="mais" tam={13} /> Adicionar objeto
+        </button></div>
+        {erros.objetos && <span className="msg-erro" id="objetos-erro" role="alert">{erros.objetos}</span>}
+        <datalist id="objetos-sugeridos">{sugeridos.map(o => <option key={o} value={o}>{o}</option>)}</datalist>
+      </div>
+      <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>
+    </>,
+    honorarios: () => <>
+      <div className="grade-campos">
+        <Campo rotulo="Valor do contrato" para="valor" erro={erros.valor}>{dinheiro('valor')}</Campo>
+        <Campo rotulo="Entrada" para="entrada" erro={erros.entrada}>{dinheiro('entrada')}</Campo>
+      </div>
+      <div className="grade-campos">
+        <Campo rotulo="Parcelas" para="parcelas" erro={erros.parcelas}>{texto('parcelas', { inputMode: 'numeric', placeholder: '1' })}</Campo>
+        {calculado('Valor da parcela', fmtDinheiro(calculados.parcela))}
+        <Campo rotulo="Descontos" para="descontos" erro={erros.descontos}>{dinheiro('descontos')}</Campo>
+      </div>
+      <div className="grade-campos">
+        <Campo rotulo="Assinado em" para="assinadoEm" erro={erros.assinadoEm}>{data('assinadoEm')}</Campo>
+        <Campo rotulo="Primeiro pagamento" para="primeiroPagamento" erro={erros.primeiroPagamento}>{data('primeiroPagamento')}</Campo>
+      </div>
+      <Nota>Com entrada, ela conta como a primeira parcela: as demais dividem o que sobra.</Nota>
+    </>,
+    divisao: () => <>
+      <Escolhas rotulo="Enviado ao escritório" dica="Quanto do que o cliente pagar vai para a conta PJ." erro={erros.percentualEscritorio}>
+        {radios('percentualEscritorio', [['', 'A definir'], ...PERCENTUAIS_ESCRITORIO.map(v => [String(v), `${v}% do que o cliente pagar`] as [string, string])])}
+      </Escolhas>
+      {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
+      <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
+        <span className="rot" id="participantes-rotulo">Participantes</span>
+        <p className="dica">Quem trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
+        {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
+          <div className="campo-busca">
+            <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
+              desativar={jaNoContrato(i)} focar={chavesPart[i] === focarParticipante} />
+          </div>
+          <label>%
+            <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
+              aria-invalid={erros.participantes ? true : undefined} onChange={e => mudarParticipante(i, { percentual: e.target.value })} />
+          </label>
+          <button type="button" className="icone-btn" aria-label={`Tirar o participante ${i + 1}`} onClick={() => tirarParticipante(i)}>
+            <Icone nome="fechar" tam={15} />
+          </button>
+        </div>)}
+        <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.participantes.length >= PARTICIPANTES_MAXIMOS} onClick={acrescentarParticipante}>
+          <Icone nome="mais" tam={13} /> Adicionar participante
+        </button></div>
+        {erros.participantes && <span className="msg-erro" role="alert">{erros.participantes}</span>}
+      </div>
+      <div className="grade-indicador">
+        {pessoa('indicador', 'Indicador', p => c.participantes.some(x => x.pessoaId === p.id) ? 'já é participante' : null)}
+        <Campo rotulo="% do indicador" para="indicadorPercentual" erro={erros.indicadorPercentual}>
+          {texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId })}
+        </Campo>
+      </div>
+      <Nota>O indicador é um só, da equipe ou um parceiro de fora. Participantes e indicador precisam estar cadastrados em Pessoas.</Nota>
+    </>,
+    documento: () => <>
+      <Campo rotulo="Link do contrato no Drive" para="documentoUrl" erro={erros.documentoUrl}>
+        {texto('documentoUrl', { inputMode: 'url', maxLength: TAMANHO_CONTRATO.documento_url, placeholder: 'https://drive.google.com/…' })}
+      </Campo>
+      <Campo rotulo="Observações" para="observacoes">
+        <textarea {...propsDoCampo('observacoes')} maxLength={TAMANHO_CONTRATO.observacoes} value={c.observacoes} onChange={e => mudar({ observacoes: e.target.value })} />
+      </Campo>
+    </>
+  };
+
   const voltar = idAtualizar ? '/contratos/?id=' + idAtualizar : '/contratos/';
-  return <div className="miolo">
+  const total = ETAPAS_CONTRATO.length;
+  return <div className="passos">
     <header>
       <p className="olho"><Link to={voltar}>Contratos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar contrato' : 'Novo contrato'}<span className="ponto">.</span></h1>
-      {!alvo && <p className="lead">O número é dado ao salvar: a sigla do responsável, o número do contrato no ano (a contagem recomeça em janeiro) e o ano. Depois de dado, ele não muda.</p>}
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando o contrato <b>{alvo.codigo}</b> de <b>{alvo.cliente.nome}</b>. O número não muda, e as informações anteriores ficam no histórico.</Aviso>}
-
-    {!pronto ? <Carregando /> : <form className="contrato-form campos" noValidate autoComplete="off" onSubmit={salvar}>
-      <section className="cartao form-grade" aria-labelledby="tContrato">
-        <TituloSecao id="tContrato">Contrato</TituloSecao>
-        <div className="grade-form">
-          {pessoa('cliente', <>Cliente{obrigatorio}</>, { m: 12, g: 7 })}
-          {campo('responsavelId', <>Advogado responsável{obrigatorio}</>, { m: 6, g: 5 },
-            <select {...acessivel('responsavelId')} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
-              <option value="">Escolha…</option>
-              {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-            </select>)}
-          <div className={'campo-form contrato-objetos' + (erros.objetos ? ' com-erro' : '')} role="group" aria-labelledby="contrato-objetos-rotulo" style={naGrade({})}>
-            <span className="rotulo-campo" id="contrato-objetos-rotulo">Objetos do contrato{obrigatorio} <small>um por linha; cada um vira uma demanda quando o contrato for assinado</small></span>
-            {c.objetos.map((o, i) => <div className="linha-campo" key={chaves[i]}>
-              <input type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} list="objetos-sugeridos" maxLength={TAMANHO_CONTRATO.objeto}
-                placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} value={o} aria-invalid={erros.objetos ? true : undefined}
-                aria-describedby={erros.objetos ? 'contrato-objetos-erro' : undefined} onChange={e => mudarObjeto(i, e.target.value)} onKeyDown={e => teclarObjeto(e, i)} />
-              {c.objetos.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o objeto ${i + 1}`} onClick={() => tirarObjeto(i)}><Icone nome="fechar" tam={15} /></button>}
-            </div>)}
-            <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.objetos.length >= OBJETOS_MAXIMOS} onClick={() => acrescentarObjeto()}>
-              <Icone nome="mais" tam={13} /> Adicionar objeto
-            </button></div>
-            {erros.objetos && <span className="erro-campo" id="contrato-objetos-erro" role="alert">{erros.objetos}</span>}
-            <datalist id="objetos-sugeridos">{sugeridos.map(o => <option key={o} value={o}>{o}</option>)}</datalist>
-          </div>
-          {campo('categoria', <>Categoria de honorário{obrigatorio}</>, { m: 6, g: 4 },
-            <select {...acessivel('categoria')} value={c.categoria} onChange={e => mudar({ categoria: e.target.value as CamposContrato['categoria'] })}>
-              <option value="">Escolha…</option>
-              {Object.entries(CATEGORIAS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>)}
-          {campo('codigoAntigo', 'Código antigo', { m: 6, g: 4 }, texto('codigoAntigo', { maxLength: TAMANHO_CONTRATO.codigo_antigo, className: 'caixa-alta' }), 'das planilhas, se houver')}
-        </div>
-        <Nota>{alvo ? 'Trocar o responsável não muda o número do contrato.'
-          : 'A sigla do número vem do nome e do CPF do responsável, do cadastro dele em Pessoas.'}</Nota>
-      </section>
-
-      <section className="cartao form-grade" aria-labelledby="tHonorarios">
-        <TituloSecao id="tHonorarios">Honorários</TituloSecao>
-        <div className="grade-form">
-          {campo('valor', 'Valor do contrato', { m: 6, g: 3 }, dinheiro('valor'))}
-          {campo('entrada', 'Entrada', { m: 6, g: 3 }, dinheiro('entrada'))}
-          {campo('parcelas', 'Parcelas', { p: 6, m: 4, g: 2 }, texto('parcelas', { inputMode: 'numeric', placeholder: '1' }))}
-          {calculado('Valor da parcela', fmtDinheiro(calculados.parcela), { p: 6, m: 4, g: 2 })}
-          {campo('descontos', 'Descontos', { m: 4, g: 2 }, dinheiro('descontos'))}
-          {campo('assinadoEm', 'Assinado em', { p: 6, m: 6, g: 3 }, data('assinadoEm'))}
-          {campo('primeiroPagamento', 'Primeiro pagamento', { p: 6, m: 6, g: 3 }, data('primeiroPagamento'))}
-        </div>
-        <Nota>Com entrada, ela conta como a primeira parcela: as demais dividem o que sobra.</Nota>
-      </section>
-
-      <section className="cartao form-grade" aria-labelledby="tDivisao">
-        <TituloSecao id="tDivisao">Divisão</TituloSecao>
-        <div className="grade-form">
-          {campo('percentualEscritorio', 'Enviado ao escritório', { m: 6, g: 4 },
-            <select {...acessivel('percentualEscritorio')} value={c.percentualEscritorio} onChange={e => mudar({ percentualEscritorio: e.target.value })}>
-              <option value="">A definir</option>
-              {PERCENTUAIS_ESCRITORIO.map(v => <option key={v} value={v}>{v}% do que o cliente pagar</option>)}
-            </select>, 'conta PJ')}
-          {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), { m: 6, g: 4 }, erros.divisao)}
-          <div className={'campo-form contrato-participantes' + (erros.participantes ? ' com-erro' : '')} role="group"
-            aria-labelledby="contrato-participantes-rotulo" style={naGrade({})}>
-            <span className="rotulo-campo" id="contrato-participantes-rotulo">Participantes <small>quem trabalha no caso com o responsável, cada um com o seu %</small></span>
-            {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
-              <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
-                desativar={jaNoContrato(i)} focar={chavesPart[i] === focarParticipante} />
-              <label>%
-                <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
-                  aria-invalid={erros.participantes ? true : undefined} onChange={e => mudarParticipante(i, { percentual: e.target.value })} />
-              </label>
-              <button type="button" className="icone-btn" aria-label={`Tirar o participante ${i + 1}`} onClick={() => tirarParticipante(i)}>
-                <Icone nome="fechar" tam={15} />
-              </button>
-            </div>)}
-            <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.participantes.length >= PARTICIPANTES_MAXIMOS} onClick={acrescentarParticipante}>
-              <Icone nome="mais" tam={13} /> Adicionar participante
-            </button></div>
-            {erros.participantes && <span className="erro-campo" role="alert">{erros.participantes}</span>}
-          </div>
-          {pessoa('indicador', 'Indicador', { m: 8, g: 9 }, p => c.participantes.some(x => x.pessoaId === p.id) ? 'já é participante' : null)}
-          {campo('indicadorPercentual', '% do indicador', { m: 4, g: 3 },
-            texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId }))}
-        </div>
-        <Nota>Todos os percentuais são sobre o total; o responsável fica com o que sobra. O indicador é um só, da equipe ou um
-          parceiro de fora; participantes e indicador precisam estar cadastrados em Pessoas.</Nota>
-      </section>
-
-      <section className="cartao form-grade" aria-labelledby="tDocumento">
-        <TituloSecao id="tDocumento">Documento e observações</TituloSecao>
-        <div className="grade-form">
-          {campo('documentoUrl', 'Link do contrato no Drive', {}, texto('documentoUrl', { type: 'url', inputMode: 'url', maxLength: TAMANHO_CONTRATO.documento_url, placeholder: 'https://drive.google.com/…' }))}
-          {campo('observacoes', 'Observações', {},
-            <textarea {...acessivel('observacoes')} maxLength={TAMANHO_CONTRATO.observacoes} value={c.observacoes} onChange={e => mudar({ observacoes: e.target.value })} />)}
-        </div>
-      </section>
-
-      {tentou && Object.keys(erros).length > 0 && <Aviso tipo="erro">Confira os campos marcados antes de salvar.</Aviso>}
-      <div className="contrato-salvar">
-        <Link className={estiloBotao()} to={voltar}>Cancelar</Link>
-        <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>
-          {ocupado ? 'Salvando…' : alvo ? 'Salvar alterações' : 'Salvar contrato'}
-        </button>
+    {!pronto ? <Carregando /> : <>
+      <div className="passos-topo">
+        <span>Etapa {passo + 1} de {total}</span>
+        <div className="progresso"><i style={{ width: Math.round(100 * passo / (total - 1)) + '%' }} /></div>
       </div>
-    </form>}
+
+      <form className="form-grade" noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
+        <section className="etapa ativa" key={etapa.id} aria-labelledby="etapa-titulo">
+          <header><h2 id="etapa-titulo">{etapa.titulo}</h2><p>{etapa.texto}</p></header>
+          {CONTEUDO[etapa.id]()}
+        </section>
+
+        <div className="navegar">
+          <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>
+          <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado} onClick={avancar}>
+            {ocupado ? 'Salvando…' : ultimo ? (alvo ? 'Salvar alterações' : 'Salvar contrato') : 'Próxima'}
+          </button>
+        </div>
+      </form>
+    </>}
   </div>;
 }
