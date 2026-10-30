@@ -305,6 +305,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth }
 .coluna { flex: 0 0 284px; display: flex; flex-direction: column; max-height: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
 .coluna.sem-etapa { background: var(--soft2) }
+/* Coluna-marco (ex.: a do contrato assinado): cor própria, para se ver de longe qual é o ponto do fluxo. */
+.coluna.coluna-marco { background: var(--accent-tint); border-color: var(--accent) }
+.coluna-marco .coluna-topo h3 { color: var(--accent-ink) }
+.coluna-marco-selo { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent) }
+.kmenu-nota { margin: 0; padding: 6px 12px 8px; max-width: 260px; font-size: 12px; line-height: 1.45; color: var(--muted) }
 .coluna-topo { display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 14px; flex-shrink: 0 }
 .coluna-topo h3 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .coluna-n { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--line) }

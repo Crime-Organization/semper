@@ -6,6 +6,7 @@ import { SD, type Coluna, type ContextoAtivo, type Modulo, type Ordem } from '..
 import { falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
+import { podeExcluirColuna } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
 export interface Quadro {
@@ -148,7 +149,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     nomeDe: id => colunas.find(c => c.id === id)?.nome || '',
     podeReordenar: ctx.ehAdmin,
     podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,
-    podeExcluir: () => ctx.ehAdmin,
+    podeExcluir: c => podeExcluirColuna(c, ctx.ehAdmin),
     criar, ocultar, renomear, excluir, posicionar, mover
   };
 }

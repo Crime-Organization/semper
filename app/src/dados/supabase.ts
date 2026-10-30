@@ -431,7 +431,7 @@ export const SD: Dados = {
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {
     const [{ data: colunas }, { data: ocultas }] = await Promise.all([
-      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por').eq('modulo', modulo).order('ordem')),
+      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco').eq('modulo', modulo).order('ordem')),
       rodar(sb.from('quadro_colunas_ocultas').select('coluna_id'))
     ]);
     const o = new Set(ocultas.map((x: { coluna_id: string }) => x.coluna_id));
@@ -454,7 +454,7 @@ export const SD: Dados = {
   async colunaOrdenar(id, ordem) { await rodar(sb.from('quadro_colunas').update({ ordem }).eq('id', id)); },
   async colunaExcluir(id) {
     const { data } = await rodar(sb.from('quadro_colunas').delete().eq('id', id).select('id'));
-    if (!data.length) throw new Error('Só administradores excluem colunas.');
+    if (!data.length) throw new Error('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
   },
 
   // ---------- equipe e administração ----------

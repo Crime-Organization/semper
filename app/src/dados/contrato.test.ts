@@ -364,6 +364,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.contratoObter(id))!.clientes.map(c => c.id)).toEqual([ana]);
       });
 
+      it('quando as colunas de contratos são listadas, então a do contrato assinado é a coluna-marco e não pode ser excluída', async () => {
+        // Dado
+        const colunas = await SD.colunasListar('contratos');
+        const marco = colunas.find(c => c.marco === 'assinado')!;
+        // Quando
+        const excluir = SD.colunaExcluir(marco.id);
+        // Então
+        expect(marco.nome).toBe('Assinado / em andamento');
+        expect(colunas.filter(c => c.marco)).toHaveLength(1);
+        await expect(excluir).rejects.toThrow('a coluna-marco não pode ser excluída');
+        expect((await SD.colunasListar('contratos')).some(c => c.id === marco.id)).toBe(true);
+      });
+
       it('quando as colunas de contratos são listadas, então são as do quadro de contratos, não as de pessoas', async () => {
         // Quando
         const contratos = (await SD.colunasListar('contratos')).map(c => c.nome);
