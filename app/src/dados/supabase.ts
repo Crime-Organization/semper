@@ -2,19 +2,21 @@
 // As telas usam só o objeto SD (veja dados/index.ts); o contrato está em dados/tipos.ts.
 import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
+import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { caminhoDaFoto } from '../regras/foto';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { CartaoComListas, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { CartaoComListas, Membro, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
-// Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
+// Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
 // logado continua logado.
 const URL_BASE = MARCA.supabaseUrl.replace(/\/+$/, '');
@@ -38,6 +40,16 @@ const comSessao: typeof fetch = async (entrada, init) => {
 };
 const db = new PostgrestClient(URL_BASE + '/rest/v1', { fetch: comSessao });
 const sb = { auth, from: (tabela: string) => db.from(tabela), rpc: (nome: string, args?: Record<string, unknown>) => db.rpc(nome, args) };
+/** A pasta privada das fotos da equipe (supabase/migrations/20261030150000_foto_do_perfil.sql). */
+const fotos = new StorageClient(URL_BASE + '/storage/v1', {}, comSessao).from('fotos-da-equipe');
+/** Por quanto tempo vale o link de uma foto, em segundos: um dia (a cada entrada, as bolinhas pedem links novos). */
+const LINK_DA_FOTO = 24 * 60 * 60;
+/** Links das fotos, na ordem dos caminhos (null onde não houver). */
+async function linksDasFotos(caminhos: string[]): Promise<(string | null)[]> {
+  if (!caminhos.length) return [];
+  const { data } = await rodar(fotos.createSignedUrls(caminhos, LINK_DA_FOTO));
+  return (data as { signedUrl: string | null }[]).map(l => l.signedUrl);
+}
 let ctx: Contexto | null = null;
 
 // Resposta do Supabase: devolve os dados ou lança o erro já traduzido. O banco responde em formato
@@ -263,10 +275,16 @@ export const SD: Dados = {
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
     ]);
+    // A foto pequena de quem tem foto, para as bolinhas (um pedido só para a equipe toda).
+    const membros = (equipe || []) as (Membro & { perfil_profissional: { foto_em: string | null } | { foto_em: string | null }[] | null })[];
+    const fotoEm = (m: typeof membros[number]) => [m.perfil_profissional].flat()[0]?.foto_em ?? null;
+    const comFoto = membros.filter(fotoEm);
+    const links = await linksDasFotos(comFoto.map(m => caminhoDaFoto(perfil.escritorio_id, m.id, FOTO_PEQUENA))).catch(() => []);
+    const fotoDe = new Map(comFoto.map((m, i) => [m.id, links[i] ?? null]));
     ctx = {
-      usuario: s.user, perfil, escritorio, equipe: equipe || [],
+      usuario: s.user, perfil, escritorio, equipe: membros.map(({ perfil_profissional: _p, ...m }) => ({ ...m, foto: fotoDe.get(m.id) ?? null })),
       ehAdmin: ['master', 'admin'].includes(perfil.papel), ehMaster: perfil.papel === 'master'
     };
     return ctx;
@@ -653,6 +671,31 @@ export const SD: Dados = {
   async perfilProfissionalSalvar(perfilId, campos) {
     const { data } = await rodar(sb.from('perfil_profissional').update(campos).eq('perfil_id', perfilId).select('perfil_id'));
     if (!data.length) await rodar(sb.from('perfil_profissional').insert({ perfil_id: perfilId, ...campos }));
+  },
+
+  // ---------- foto do perfil ----------
+  async fotoDoPerfil(perfilId) {
+    const { data } = await rodar(sb.from('perfil_profissional').select('foto_em').eq('perfil_id', perfilId));
+    const em = data[0]?.foto_em;
+    if (!em || !ctx?.perfil) return null;
+    const [grande, pequena] = await linksDasFotos([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(ctx!.perfil!.escritorio_id, perfilId, lado)));
+    return grande && pequena ? { grande, pequena, em } : null;
+  },
+  // Os dois arquivos primeiro; a data no perfil só depois que os dois chegaram.
+  async fotoSalvar(perfilId, grande, pequena) {
+    if (!ctx?.perfil) throw new Error('Entre de novo para enviar a foto.');
+    const opcoes = { contentType: 'image/avif', upsert: true, cacheControl: '3600' };
+    for (const [lado, arquivo] of [[FOTO_GRANDE, grande], [FOTO_PEQUENA, pequena]] as const) {
+      await rodar(fotos.upload(caminhoDaFoto(ctx.perfil.escritorio_id, perfilId, lado), arquivo, opcoes));
+    }
+    const foto_em = new Date().toISOString();
+    const { data } = await rodar(sb.from('perfil_profissional').update({ foto_em }).eq('perfil_id', perfilId).select('perfil_id'));
+    if (!data.length) await rodar(sb.from('perfil_profissional').insert({ perfil_id: perfilId, foto_em }));
+  },
+  async fotoRemover(perfilId) {
+    if (!ctx?.perfil) throw new Error('Entre de novo para tirar a foto.');
+    await rodar(sb.from('perfil_profissional').update({ foto_em: null }).eq('perfil_id', perfilId));
+    await rodar(fotos.remove([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(ctx!.perfil!.escritorio_id, perfilId, lado))));
   },
 
   // ---------- listas das demandas e das tarefas ----------

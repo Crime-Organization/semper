@@ -8,12 +8,14 @@ import { Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao } from '../ui/
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
+import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
 import './Configuracoes.css';
 
 export default function PaginaMinhaConta() {
   useTitulo('Minha conta');
   const { ctx, recarregar } = useSessao();
+  const eu = ctx.equipe.find(m => m.id === ctx.perfil.id) ?? ctx.perfil;
   return <div className="miolo">
     <header>
       <h1 className="titulo">Minha conta<span className="ponto">.</span></h1>
@@ -22,6 +24,10 @@ export default function PaginaMinhaConta() {
     <MinhaConta aoSalvar={() => recarregar(false)} />
     <section aria-labelledby="tPerfil" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tPerfil">Perfil profissional</TituloSecao>
+      <section className="cartao config campos foto-cartao" aria-labelledby="tFoto">
+        <h3 className="perfil-bloco" id="tFoto">Foto</h3>
+        <FotoDoPerfil membro={eu} />
+      </section>
       <FormularioDoPerfil perfilId={ctx.perfil.id} nome={ctx.perfil.nome} podePublicar={ctx.ehAdmin} />
     </section>
   </div>;

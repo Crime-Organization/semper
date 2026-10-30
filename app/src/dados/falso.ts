@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, CartaoComListas, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -15,7 +15,7 @@ import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/taref
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
+import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -28,7 +28,7 @@ const agora = () => new Date().toISOString();
 const eu = 'u-master';
 
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
 const EQUIPE: MembroFalso[] = [
   { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
@@ -78,6 +78,8 @@ interface Banco {
   listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
+  fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
   perfisProfissionais?: PerfilProfissional[];
   tarefas?: TarefaGuardada[];
@@ -321,6 +323,13 @@ const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
   recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
 };
 const erro = (t: string) => Promise.reject(new Error(t));
+/** O arquivo como data: URL, para guardar na aba (o banco fictício não tem pasta de arquivos). */
+async function dataUrl(arquivo: Blob) {
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  let texto = '';
+  for (const b of bytes) texto += String.fromCharCode(b);
+  return `data:${arquivo.type};base64,${btoa(texto)}`;
+}
 // Como no banco: o vínculo incluído ou retirado entra no histórico das duas pessoas.
 function historicoVinculo(v: NonNullable<Banco['vinculos']>[number], incluido: boolean) {
   const t = bd.tiposVinculo!.find(x => x.id === v.tipo_id)!, obs = v.descricao ? ` (${v.descricao})` : '';
@@ -722,7 +731,7 @@ export const SD: Dados = {
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true }, ...bd.escritorio! },
-      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
+      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: true, ehMaster: true
     };
     return espera(c);
   },
@@ -1097,6 +1106,20 @@ export const SD: Dados = {
   },
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
     .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
+
+  // ---------- foto do perfil (como supabase/migrations/20261030150000_foto_do_perfil.sql) ----------
+  fotoDoPerfil: perfilId => espera(bd.fotos?.[perfilId] ?? null),
+  async fotoSalvar(perfilId, grande, pequena) {
+    if (!EQUIPE.some(m => m.id === perfilId)) return erro('Usuário não encontrado.');
+    if ([grande, pequena].some(a => a.type !== 'image/avif' || a.size > FOTO_MAXIMA)) return erro('A foto precisa ser AVIF, com até 2 MB.');
+    const [g, p] = await Promise.all([grande, pequena].map(dataUrl));
+    (bd.fotos ??= {})[perfilId] = { grande: g, pequena: p, em: agora() };
+    gravar(); return espera(undefined);
+  },
+  async fotoRemover(perfilId) {
+    if (bd.fotos) delete bd.fotos[perfilId];
+    gravar(); return espera(undefined);
+  },
 
   // ---------- perfil profissional (como supabase/migrations/20261030140000_perfil_profissional.sql) ----------
   perfilProfissional: perfilId => espera((bd.perfisProfissionais ??= []).find(p => p.perfil_id === perfilId) ?? perfilVazio(perfilId)),

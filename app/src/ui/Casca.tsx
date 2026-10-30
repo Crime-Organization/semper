@@ -79,7 +79,8 @@ export function Casca({ children }: { children: ReactNode }) {
         <CronometrosAtivos />
         <div className="side-rodape">
           <div className="usuario">
-            <Avatar p={p} tam={32} />
+            {/* A bolinha vem da equipe, que traz a foto. */}
+            <Avatar p={ctx.equipe.find(m => m.id === p.id) ?? p} tam={32} />
             <div style={{ minWidth: 0 }}>
               <b>{p.nome}</b><span className="arroba">@{p.usuario}</span>
               <span className={'papel' + (p.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[p.papel]}</span>

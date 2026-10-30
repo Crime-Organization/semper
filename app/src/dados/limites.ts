@@ -82,3 +82,10 @@ export const TAMANHO_PERFIL = { nome_exibicao: 120, cargo: 120, bio_curta: 300, 
 export const LINHAS_DO_PERFIL = 30;
 /** Maior posição na página da equipe do site. */
 export const ORDEM_NO_SITE_MAXIMA = 9999;
+
+/** Foto do perfil (supabase/migrations/20261030150000_foto_do_perfil.sql): o lado, em pixels, de cada um dos dois arquivos AVIF redondos. */
+/** A grande vai para a página do advogado no site; a pequena, para as bolinhas do sistema. */
+export const FOTO_GRANDE = 1000;
+export const FOTO_PEQUENA = 150;
+/** Maior arquivo de foto que a pasta aceita (2 MB, como o banco). */
+export const FOTO_MAXIMA = 2 * 1024 * 1024;

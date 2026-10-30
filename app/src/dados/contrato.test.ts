@@ -944,6 +944,39 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Foto do perfil', () => {
+      const avif = (texto: string) => new Blob([texto], { type: 'image/avif' });
+
+      it('quando alguém ainda não tem foto, então não há foto e a bolinha fica sem ela', async () => {
+        // Quando
+        const foto = await SD.fotoDoPerfil('u-bruno');
+        // Então
+        expect(foto).toBeNull();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-bruno')?.foto ?? null).toBeNull();
+      });
+
+      it('quando a foto é salva, então vêm os dois arquivos, e a bolinha da pessoa passa a ter a pequena', async () => {
+        // Quando
+        await SD.fotoSalvar('u-ana', avif('grande'), avif('pequena'));
+        // Então
+        const foto = await SD.fotoDoPerfil('u-ana');
+        expect(foto?.grande).toBeTruthy();
+        expect(foto?.pequena).toBeTruthy();
+        expect(foto?.em).toBeTruthy();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-ana')?.foto).toBe(foto?.pequena);
+      });
+
+      it('quando a foto é tirada, então os arquivos somem e a bolinha volta às iniciais', async () => {
+        // Dado
+        await SD.fotoSalvar('u-ana', avif('grande'), avif('pequena'));
+        // Quando
+        await SD.fotoRemover('u-ana');
+        // Então
+        expect(await SD.fotoDoPerfil('u-ana')).toBeNull();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-ana')?.foto ?? null).toBeNull();
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

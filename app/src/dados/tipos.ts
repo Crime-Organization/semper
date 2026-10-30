@@ -30,6 +30,8 @@ export interface Membro {
   ativo?: boolean;
   cor?: string | null;
   pessoa_id?: string | null;
+  /** Link da foto pequena (150×150, redonda), para as bolinhas; sem foto, as bolinhas mostram as iniciais. */
+  foto?: string | null;
 }
 
 /** Dados da instituição: cada escritório tem os seus, editados pelo administrador em Configurações. */
@@ -611,6 +613,19 @@ export interface DadosPerfilProfissional {
   perfilProfissionalSalvar(perfilId: string, campos: CamposDoPerfil): Promise<void>;
 }
 
+/** A foto do perfil: os links dos dois AVIF redondos (valem por pouco tempo) e quando ela foi trocada. */
+export interface FotoDoPerfil { grande: string; pequena: string; em: string }
+
+/** Foto do perfil (supabase/migrations/20261030150000_foto_do_perfil.sql): pasta privada, só a equipe do escritório vê. */
+export interface DadosFotos {
+  /** A foto de alguém da equipe, ou null se ainda não tem. */
+  fotoDoPerfil(perfilId: string): Promise<FotoDoPerfil | null>;
+  /** Grava a própria foto ou, para administradores, a de alguém da equipe: os dois AVIF já redondos (1000 e 150). */
+  fotoSalvar(perfilId: string, grande: Blob, pequena: Blob): Promise<void>;
+  /** Tira a foto: apaga os dois arquivos, e as bolinhas voltam às iniciais. */
+  fotoRemover(perfilId: string): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -664,4 +679,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos {}

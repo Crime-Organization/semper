@@ -1,5 +1,5 @@
-// Avatares ("carinhas") da equipe: iniciais sobre uma cor fixa por pessoa.
-import type { CSSProperties } from 'react';
+// Avatares ("carinhas") da equipe: a foto redonda de cada um (150×150) ou, sem foto, as iniciais sobre uma cor fixa por pessoa.
+import { useState, type CSSProperties } from 'react';
 import type { Membro } from '../dados';
 
 const PALETA = ['#5B6B7F', '#7A5C61', '#4F6D5A', '#8A6E3D', '#5E5A7A', '#3F6E73', '#7A4E3B', '#55617A'];
@@ -17,6 +17,13 @@ const tamanho = (tam: number) => ({ '--av': tam + 'px' }) as CSSProperties;
 
 export function Avatar({ p, tam = 28 }: { p?: Partial<Membro> | null; tam?: number }) {
   const nome = p?.nome || 'Usuário removido';
+  // O link da foto vale por um dia: se não abrir (venceu, ou a foto foi tirada), voltam as iniciais.
+  const [semFoto, setSemFoto] = useState<string | null>(null);
+  if (p?.foto && semFoto !== p.foto) {
+    return <span className="avatar com-foto" style={tamanho(tam)} title={nome} role="img" aria-label={nome}>
+      <img src={p.foto} alt="" width={tam} height={tam} loading="lazy" decoding="async" onError={() => setSemFoto(p.foto ?? null)} />
+    </span>;
+  }
   return <span className="avatar" style={{ ...tamanho(tam), background: corDe(p) }} title={nome} aria-label={nome}>{iniciais(p?.nome)}</span>;
 }
 

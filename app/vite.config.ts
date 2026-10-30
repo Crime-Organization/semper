@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 // nenhum teste fale com o banco de verdade. Em qualquer outro modo, os dados vêm do banco de verdade.
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // O conversor AVIF da foto do perfil carrega o próprio .wasm ao lado do código: não pode ser reempacotado pelo Vite.
+  optimizeDeps: { exclude: ['@jsquash/avif'] },
   resolve: {
     alias: {
       '@dados-impl': fileURLToPath(new URL(mode === 'falso' || mode === 'test' ? './src/dados/falso.ts' : './src/dados/supabase.ts', import.meta.url))

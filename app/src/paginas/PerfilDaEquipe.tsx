@@ -5,6 +5,7 @@ import { Avatar } from '../ui/Avatar';
 import { Aviso, BotaoLink } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
 import './Configuracoes.css';
 
@@ -20,6 +21,12 @@ export default function PerfilDaEquipe() {
       <h1 className="titulo perfil-da-equipe">{membro && <Avatar p={membro} tam={40} />}{membro ? membro.nome : 'Perfil profissional'}<span className="ponto">.</span></h1>
       <p className="lead">Perfil profissional: a base da página desta pessoa no site do escritório. Você pode completar ou corrigir, e decidir se ele aparece no site.</p>
     </header>
-    {membro ? <FormularioDoPerfil perfilId={membro.id} nome={membro.nome} podePublicar /> : <Aviso tipo="erro">Essa pessoa não está na equipe do escritório.</Aviso>}
+    {membro ? <>
+      <section className="cartao config campos foto-cartao" aria-labelledby="tFoto">
+        <h3 className="perfil-bloco" id="tFoto">Foto</h3>
+        <FotoDoPerfil membro={membro} />
+      </section>
+      <FormularioDoPerfil perfilId={membro.id} nome={membro.nome} podePublicar />
+    </> : <Aviso tipo="erro">Essa pessoa não está na equipe do escritório.</Aviso>}
   </div>;
 }
