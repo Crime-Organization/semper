@@ -10,7 +10,7 @@ import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_S
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
+import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -159,6 +159,7 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
 const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
@@ -524,6 +525,38 @@ export const SD: Dados = {
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
   },
+
+  // ---------- listas das demandas ----------
+  async listasDaDemanda(demandaId) {
+    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_DEMANDA}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
+      .eq('demanda_id', demandaId).order('ordem').order('criado_em'));
+    return (data as ListaDaDemanda[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
+  },
+  // No fim da demanda: depois da maior posição que já existe. Os itens vêm na ordem dada.
+  async listaCriar(demandaId, nome, itens = []) {
+    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq('demanda_id', demandaId).order('ordem', { ascending: false }).limit(1));
+    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ demanda_id: demandaId, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
+      .select(CAMPOS_LISTA_DEMANDA).single());
+    const { data: criados } = itens.length
+      ? await rodar(sb.from('demanda_lista_itens').insert(itens.map((texto, i) => ({ lista_id: lista.id, texto, ordem: i + 1 }))).select(CAMPOS_ITEM_LISTA))
+      : { data: [] };
+    return { ...lista, itens: (criados as ItemDaLista[]).toSorted((a, b) => a.ordem - b.ordem) };
+  },
+  async listaAtualizar(id, campos) { await rodar(sb.from('demanda_listas').update(campos).eq('id', id)); },
+  async listaExcluir(id) { await rodar(sb.from('demanda_listas').delete().eq('id', id)); },
+  async itemCriar(listaId, texto) {
+    const { data: ultimo } = await rodar(sb.from('demanda_lista_itens').select('ordem').eq('lista_id', listaId).order('ordem', { ascending: false }).limit(1));
+    const { data } = await rodar(sb.from('demanda_lista_itens').insert({ lista_id: listaId, texto, ordem: (ultimo[0]?.ordem ?? 0) + 1 })
+      .select(CAMPOS_ITEM_LISTA).single());
+    return data;
+  },
+  // Marcar manda a hora daqui, mas quem vale é o banco (ele anota a hora dele e quem marcou).
+  async itemAtualizar(id, { feito, ...campos }) {
+    const mudar = feito === undefined ? campos : { ...campos, feito_em: feito ? new Date().toISOString() : null };
+    const { data } = await rodar(sb.from('demanda_lista_itens').update(mudar).eq('id', id).select(CAMPOS_ITEM_LISTA).single());
+    return data;
+  },
+  async itemExcluir(id) { await rodar(sb.from('demanda_lista_itens').delete().eq('id', id)); },
 
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {

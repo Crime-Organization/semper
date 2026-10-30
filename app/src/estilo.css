@@ -344,7 +344,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .ocultas .rotulo-caps { flex-basis: 100% }
 .chip-oculta { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px; color: var(--text2); cursor: pointer }
 .chip-oculta:hover { border-color: var(--faint) }
-.kmenu { position: absolute; z-index: 60; min-width: 220px; padding: 6px; background: var(--superficie); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.2); display: flex; flex-direction: column }
+.kmenu { position: absolute; z-index: 75; min-width: 220px; padding: 6px; background: var(--superficie); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 36px rgba(0,0,0,.2); display: flex; flex-direction: column }
 .kmenu button { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
 .kmenu button:hover, .kmenu button:focus-visible { background: var(--soft); outline: 0 }
 .kmenu button.perigo { color: var(--erro) }

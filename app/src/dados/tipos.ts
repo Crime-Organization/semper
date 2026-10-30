@@ -425,6 +425,26 @@ export interface DadosDemandas {
   demandasDoContrato(contratoId: string): Promise<DemandaLigada[]>;
 }
 
+/** Item de uma lista da demanda: feito_em e feito_por são dados pelo banco ao marcar. */
+export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
+/** Lista da demanda (como as do Trello), com os itens na ordem. */
+export interface ListaDaDemanda { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
+
+/** Listas das demandas (banco/018_listas_das_demandas.sql): quem vê a demanda vê e mexe nas listas dela. */
+export interface DadosListas {
+  /** As listas da demanda, na ordem, cada uma com os itens na ordem. */
+  listasDaDemanda(demandaId: string): Promise<ListaDaDemanda[]>;
+  /** Cria a lista no fim da demanda, já com os itens (na ordem dada), se vierem. */
+  listaCriar(demandaId: string, nome: string, itens?: string[]): Promise<ListaDaDemanda>;
+  listaAtualizar(id: string, campos: Partial<Pick<ListaDaDemanda, 'nome' | 'ordem'>>): Promise<void>;
+  listaExcluir(id: string): Promise<void>;
+  /** Cria o item no fim da lista. */
+  itemCriar(listaId: string, texto: string): Promise<ItemDaLista>;
+  /** feito: marca (o banco anota quando e quem) ou desmarca. */
+  itemAtualizar(id: string, campos: Partial<Pick<ItemDaLista, 'texto' | 'prazo' | 'ordem'>> & { feito?: boolean }): Promise<ItemDaLista>;
+  itemExcluir(id: string): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -478,4 +498,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas {}

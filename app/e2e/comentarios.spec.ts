@@ -19,6 +19,7 @@ test.describe('Comentários com @', () => {
     // Quando
     await caixa.fill('Pedir os documentos a @br');
     await page.getByRole('option', { name: /Bruno Exemplo Souza/ }).click();
+    await expect(caixa).toHaveValue('Pedir os documentos a @bruno.souza ');
     await caixa.press('End');
     await caixa.pressSequentially('até sexta.');
     await page.getByRole('button', { name: 'Comentar' }).click();

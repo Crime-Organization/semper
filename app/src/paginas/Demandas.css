@@ -5,3 +5,18 @@
 /* O contrato escolhido no cadastro, com o botão de tirar. */
 .demanda-contrato-escolhido { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 10px; background: var(--superficie); font-size: 15px; color: var(--ink) }
 .demanda-contrato-escolhido > span { flex: 1; min-width: 0; overflow-wrap: anywhere }
+/* Listas da demanda (como as do Trello): nome, quantos feitos, a barra do progresso, os itens e o campo de item novo. */
+.lista-demanda { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
+.lista-demanda > header { display: flex; align-items: center; gap: 10px }
+.lista-demanda h4 { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 800; color: var(--ink); overflow-wrap: anywhere }
+.lista-progresso { height: 6px; border-radius: 999px; background: var(--soft2); overflow: hidden }
+.lista-progresso > i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .2s }
+.lista-demanda ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.lista-demanda li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--soft) }
+.lista-demanda li:last-child { border-bottom: 0 }
+.lista-demanda li > label { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.45; color: var(--ink); cursor: pointer; padding: 4px 0 }
+.lista-demanda li > label > input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0 }
+.lista-demanda li > label > span { overflow-wrap: anywhere }
+.lista-demanda li.feito > label > span { color: var(--muted); text-decoration: line-through }
+.lista-novo-item { display: flex; gap: 8px }
+.lista-novo-item > input { flex: 1; min-width: 0; height: 36px }

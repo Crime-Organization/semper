@@ -40,6 +40,9 @@ export const TAMANHO_DEMANDA = { titulo: 300, descricao: 4000 };
 export const COLABORADORES_MAXIMOS = 20;
 /** Quantas demandas o cartão de uma pessoa ou de um contrato mostra (as mais novas primeiro). */
 export const DEMANDAS_LIGADAS = 200;
+/** Listas das demandas: nome da lista e texto do item, os mesmos do banco (banco/018_listas_das_demandas.sql). */
+export const TAMANHO_LISTA = 120;
+export const TAMANHO_ITEM = 500;
 /** Quantos contratos (os ativos mais recentes) o cadastro de demanda oferece para ligar. */
 export const CONTRATOS_PARA_LIGAR = 500;
 /** Tamanho de um comentário (o banco recusa mais que isso: banco/016_comentarios.sql). */
