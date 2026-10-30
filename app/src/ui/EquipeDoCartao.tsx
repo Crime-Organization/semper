@@ -1,5 +1,5 @@
 // A equipe de um cartão (tarefa, demanda, contrato...) em bolinhas com as iniciais, à direita dos botões do cartão:
-// primeiro o responsável e, um pouco à parte, os participantes. Clicar numa bolinha mostra o nome completo, o papel e
+// primeiro o responsável e, depois de um pequeno traço, os participantes. Clicar numa bolinha mostra o nome completo, o papel e
 // o link para o cartão da pessoa. Peça comum: todo cartão com equipe a mostra assim.
 import { useState } from 'react';
 import { Link } from 'react-router';
@@ -35,6 +35,7 @@ interface Props {
 export function EquipeDoCartao({ responsavel, participantes }: Props) {
   return <div className="equipe-cartao" role="group" aria-label="Equipe">
     <Bolinha p={responsavel} />
+    {participantes.length > 0 && <span className="equipe-traco" aria-hidden="true" />}
     {participantes.length > 0 && <span className="equipe-participantes">
       {participantes.map(p => <Bolinha key={p.id} p={p} />)}
     </span>}

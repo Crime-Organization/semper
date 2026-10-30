@@ -422,7 +422,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-acoes .btn-sm { padding: 0 14px; gap: 6px }
 /* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
    parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. */
-.equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 14px }
+.equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 10px }
+/* O traço entre o responsável e os participantes: metade da altura da bolinha, para separar sem pesar. */
+.equipe-traco { width: 1px; height: 18px; border-radius: 1px; background: var(--line2) }
 .equipe-participantes { display: inline-flex; align-items: center }
 .equipe-participantes .equipe-bolinha + .equipe-bolinha { margin-left: -8px }
 .equipe-bolinha { display: inline-flex; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; box-shadow: 0 0 0 2px var(--superficie) }
