@@ -81,7 +81,7 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
     Promise.all(moverNaLista(l.itens, i, passo).map(m => SD.itemAtualizar(m.id, { ordem: m.ordem }))));
 
   const total = Array.isArray(listas) ? listas.length : undefined;
-  return <Recolhivel titulo="Listas" icone="check" preferencia="demandas.cartao.listas" padrao contador={total}>
+  return <Recolhivel titulo="Listas" icone="check" preferencia="demandas.cartao.listas" contador={total}>
     {listas === null ? <Carregando />
       : typeof listas === 'string' ? <Aviso tipo="erro">{listas}</Aviso>
       : <>

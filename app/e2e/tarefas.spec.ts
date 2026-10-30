@@ -4,13 +4,15 @@
 // e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante e o prazo
 // vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Page } from '@playwright/test';
+import { abrirSecao } from './ajudantes';
 
-/** Abre o cartão de uma tarefa pela tabela. */
-async function abrirTarefa(page: Page, titulo: string) {
+/** Abre o cartão de uma tarefa pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
+async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
   await page.goto('/tarefas/');
   await page.getByRole('button', { name: 'Tabela' }).click();
   await page.getByRole('row').filter({ hasText: titulo }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: titulo, level: 2 })).toBeVisible();
+  for (const secao of secoes) await abrirSecao(page.getByRole('dialog'), secao);
   return page.getByRole('dialog');
 }
 
@@ -36,6 +38,8 @@ test.describe('Cadastro de tarefas', () => {
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     await expect(cartao.getByRole('link', { name: /Mateus Freitas Gonçalves/ })).toContainText('Responsável');
     await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('Participante');
+    await abrirSecao(cartao, 'Pessoas');
+    await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /Notificar o devedor/ })).toContainText('Demanda');
     await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('Para fazer');
@@ -57,6 +61,7 @@ test.describe('Cadastro de tarefas', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     // Quando
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
     await page.getByRole('dialog').getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
     await page.getByLabel('Título').fill('Anexar os documentos');
     await page.getByRole('button', { name: 'Próxima' }).click();
@@ -116,6 +121,7 @@ test.describe('Tarefas ligadas', () => {
     await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     // Então
     const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Tarefas');
     await expect(cartao.getByRole('link', { name: /Emitir a GRU/ })).toContainText('Fazendo');
     await expect(cartao.getByRole('link', { name: /Organizar a pasta/ })).toContainText('Concluída');
   });
@@ -127,13 +133,14 @@ test.describe('Tarefas ligadas', () => {
     await page.getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' }).click();
     // Então
     const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Tarefas');
     await expect(cartao.getByRole('link', { name: /Pedir documentos ao cliente/ })).toContainText('Responsável');
     await expect(cartao.getByRole('link', { name: /Emitir a GRU/ })).toContainText('Participante');
   });
 
   test('quando o comentário da tarefa menciona quem não a vê, então a pessoa aparece desligada na lista do @', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus; o Bruno não está nela e ela não tem demanda
-    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
     // Quando
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Veja isto, @');
     // Então

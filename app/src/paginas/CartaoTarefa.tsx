@@ -125,15 +125,15 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       </select>
     </section>
 
-    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" padrao>
+    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda">
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" padrao contador={t.pessoas.length}>
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" padrao>
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato">
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
     </Recolhivel>
 

@@ -124,16 +124,16 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDaDemanda demandaId={d.id} />
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" padrao>
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaDemanda(d.id)} vazio="Nenhuma tarefa nesta demanda ainda."
         nova={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' }} versao={versaoHist} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" padrao contador={d.clientes.length}>
+    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" padrao>
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato">
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
     </Recolhivel>

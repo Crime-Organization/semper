@@ -2,6 +2,7 @@
 // Comentários com @ nos cartões. No banco fictício, quem está logado é o Mateus (administrador e advogado); a Ana é
 // advogada e o Bruno, estagiário. JOSÉ DA SILVA TESTE já tem um comentário da Ana.
 import { expect, test, type Page } from '@playwright/test';
+import { abrirSecao } from './ajudantes';
 
 /** Abre o cartão de uma linha da tabela do módulo. */
 async function abrirCartao(page: Page, endereco: string, texto: string) {
@@ -15,6 +16,7 @@ test.describe('Comentários com @', () => {
   test('quando alguém comenta marcando um colega pelo @, então o comentário aparece no topo, com a menção destacada', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(page.getByRole('dialog'), 'Comentários');
     const caixa = page.getByRole('textbox', { name: 'Escrever um comentário' });
     // Quando
     await caixa.fill('Pedir os documentos a @br');
@@ -32,6 +34,7 @@ test.describe('Comentários com @', () => {
   test('quando o comentário é num contrato, então quem não é advogado aparece desligado na lista do @', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/contratos/', 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(page.getByRole('dialog'), 'Comentários');
     const caixa = page.getByRole('textbox', { name: 'Escrever um comentário' });
     // Quando
     await caixa.fill('Veja isto, @');
@@ -45,6 +48,7 @@ test.describe('Comentários com @', () => {
   test('quando o autor edita o comentário, então o texto muda e aparece "(editado)"', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(page.getByRole('dialog'), 'Comentários');
     await page.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Primeira versão');
     await page.getByRole('button', { name: 'Comentar' }).click();
     const meu = comentarios(page).filter({ hasText: 'Primeira versão' });
@@ -60,6 +64,7 @@ test.describe('Comentários com @', () => {
   test('quando o administrador apaga o comentário de outra pessoa, então ele some; editar não aparece para ele', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(page.getByRole('dialog'), 'Comentários');
     const daAna = page.getByRole('listitem', { name: 'Comentário de Ana Teste Lima' });
     await expect(daAna.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     // Quando

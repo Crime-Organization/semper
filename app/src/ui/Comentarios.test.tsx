@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comentario, DadosComentarios, Membro } from '../dados';
 import { SecaoComentarios } from './Comentarios';
+import { iniciarPreferencias } from './preferencias';
 
 // A seção usa só as operações de comentários; o mock declara exatamente essas.
 const SD = vi.hoisted(() => ({
@@ -27,6 +28,8 @@ const caixa = () => screen.getByRole('textbox', { name: 'Escrever um comentário
 
 describe('Comentários do cartão', () => {
   beforeEach(() => {
+    // Dado que a pessoa deixou a seção de comentários aberta (toda seção começa recolhida; a escolha fica guardada).
+    iniciarPreferencias({ 'cartao.comentarios': true });
     sessao.ehAdmin = false;
     Object.values(SD).forEach(f => f.mockReset());
     SD.comentariosListar.mockResolvedValue([
