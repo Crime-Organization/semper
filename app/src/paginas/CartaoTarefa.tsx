@@ -98,7 +98,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
         <SeloDoPrazo prazo={t.prazo} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {!editando && <AcoesDoCartao arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{t.titulo}</h2>
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}

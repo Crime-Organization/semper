@@ -429,6 +429,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 }
 .cartao-botao.cartao-editar { background: var(--accent); border-color: var(--accent); color: #fff }
 .cartao-botao.cartao-editar:hover { background: var(--accent-hover) }
+/* Em edição, no lugar dos dois botões: só o texto "Modo de edição", na altura deles. */
+.cartao-modo-edicao { height: 40px; display: inline-flex; align-items: center; color: var(--accent-ink); font-size: 14px; font-weight: 700; white-space: nowrap }
 /* Edição no cartão: todas as etapas do cadastro de uma vez, com títulos menores, e o rodapé preso ao pé do cartão. */
 .edicao-cartao { display: flex; flex-direction: column; gap: 28px }
 .edicao-cartao .etapa { gap: 20px; padding-top: 22px; border-top: 1px solid var(--line) }
