@@ -45,6 +45,19 @@ test.describe('Comentários com @', () => {
     await expect(page.getByRole('option', { name: /Ana Teste Lima/ })).toHaveAttribute('aria-disabled', 'false');
   });
 
+  test('quando a lista do @ abre, então cada pessoa tem a bolinha redonda das iniciais, do tamanho normal', async ({ page }) => {
+    // Dado: a seção de comentários aberta (se a pessoa a deixou recolhida, abre)
+    await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
+    const secao = page.getByRole('dialog').getByRole('button', { name: /^Comentários/ });
+    if (await secao.getAttribute('aria-expanded') === 'false') await secao.click();
+    // Quando
+    await page.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Veja isto, @');
+    // Então
+    const bolinha = page.getByRole('option', { name: /Bruno Exemplo Souza/ }).getByLabel('Bruno Exemplo Souza', { exact: true });
+    const medida = await bolinha.boundingBox();
+    expect(Math.round(medida!.width)).toBe(Math.round(medida!.height));
+  });
+
   test('quando o autor edita o comentário, então o texto muda e aparece "(editado)"', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
