@@ -732,6 +732,64 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Tempo nas tarefas', () => {
+      // Quem está logado é o Mateus (administrador): vê os registros de todos.
+      const novaTarefa = async (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        (await SD.tarefaCriar({ titulo: 'Com tempo', responsavel_id: 'u-master', ...extra })).id;
+
+      it('quando o cronômetro grava um período, então ele só cresce e entra no tempo da tarefa', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        // Quando
+        const id = await SD.tempoIniciar(tarefa, new Date().toISOString(), 60);
+        await SD.tempoGravar(id, 300);
+        const diminuir = SD.tempoGravar(id, 100);
+        // Então
+        await expect(diminuir).rejects.toThrow('O tempo contado não diminui: para corrigir, faça um ajuste.');
+        expect(await SD.tempoDaTarefa(tarefa)).toMatchObject({ total: 300, equipe: [{ perfil_id: 'u-master', percentual: 100 }],
+          registros: [{ id, segundos: 300, ajuste: false }] });
+      });
+
+      it('quando a pessoa ajusta o tempo, então precisa de motivo, e o ajuste fica registrado e entra no total', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        await SD.tempoIniciar(tarefa, new Date().toISOString(), 600);
+        // Quando
+        const semMotivo = SD.tempoAjustar(tarefa, -120, '  ');
+        await SD.tempoAjustar(tarefa, -120, 'Contei a mais');
+        // Então
+        await expect(semMotivo).rejects.toThrow('Diga o motivo do ajuste');
+        const tempo = await SD.tempoDaTarefa(tarefa);
+        expect(tempo.total).toBe(480);
+        expect(tempo.registros.find(r => r.ajuste)).toMatchObject({ segundos: -120, motivo: 'Contei a mais' });
+      });
+
+      it('quando a tarefa chega à coluna das concluídas, então ganha a data de conclusão; ao sair, perde', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        const colunas = await SD.colunasListar('tarefas');
+        const fim = colunas.find(c => c.marco === 'concluido')!, inicio = colunas.find(c => c.marco === 'inicio')!;
+        // Quando
+        await SD.tarefaMover(tarefa, fim.id, 1);
+        const concluida = (await SD.tarefaObter(tarefa))!.concluida_em;
+        await SD.tarefaMover(tarefa, inicio.id, 1);
+        // Então
+        expect(concluida).toBeTruthy();
+        expect((await SD.tarefaObter(tarefa))!.concluida_em).toBeNull();
+      });
+
+      it('quando a demanda tem tarefas com tempo, então o tempo dela é a soma', async () => {
+        // Dado
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Com tarefas', responsavel_id: 'u-master' });
+        const a = await novaTarefa({ demanda_id: demanda }), b = await novaTarefa({ demanda_id: demanda });
+        // Quando
+        await SD.tempoIniciar(a, new Date().toISOString(), 600);
+        await SD.tempoIniciar(b, new Date().toISOString(), 900);
+        // Então
+        expect(await SD.tempoDaDemanda(demanda)).toBe(1500);
+      });
+    });
+
     describe('Listas das demandas', () => {
       const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' })).id;
 

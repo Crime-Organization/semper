@@ -165,7 +165,7 @@ const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, particip
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
-  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico)';
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
@@ -186,6 +186,7 @@ const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, 
 const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(TAREFAS_LIGADAS);
 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
+const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
 const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
@@ -612,6 +613,30 @@ export const SD: Dados = {
   async tarefasDoContrato(contratoId) {
     const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('contrato_id', contratoId)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
+  },
+
+  // ---------- tempo nas tarefas ----------
+  async tempoIniciar(tarefaId, inicio, segundos) {
+    const { data } = await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, inicio, segundos, perfil_id: uid() }).select('id').single());
+    return data.id;
+  },
+  async tempoGravar(id, segundos) { await rodar(sb.from('tarefa_tempos').update({ segundos }).eq('id', id)); },
+  async tempoAjustar(tarefaId, segundos, motivo) {
+    await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, segundos, ajuste: true, motivo: motivo.trim(), perfil_id: uid() }));
+  },
+  // Os registros que a regra de leitura deixa ver (os da pessoa; os de todos, para administradores) e o resumo da
+  // equipe, que o banco calcula sem abrir as durações de cada um.
+  async tempoDaTarefa(tarefaId) {
+    const [{ data: registros }, { data: resumo }] = await Promise.all([
+      rodar(sb.from('tarefa_tempos').select(CAMPOS_TEMPO).eq('tarefa_id', tarefaId).order('inicio')),
+      rodar(sb.rpc('resumo_do_tempo', { p_tarefa: tarefaId }))
+    ]);
+    const linhas = resumo as { perfil_id: string | null; percentual: number; total: number }[];
+    return { registros, equipe: linhas.map(l => ({ perfil_id: l.perfil_id, percentual: Number(l.percentual) })), total: Number(linhas[0]?.total ?? 0) };
+  },
+  async tempoDaDemanda(demandaId) {
+    const { data } = await rodar(sb.rpc('tempo_da_demanda', { p_demanda: demandaId }));
+    return Number(data ?? 0);
   },
 
   // ---------- listas das demandas ----------

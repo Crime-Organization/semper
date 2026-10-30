@@ -324,6 +324,8 @@ export interface Tarefa {
   criado_em: string;
   atualizado_por: string | null;
   atualizado_em: string;
+  /** Quando a tarefa chegou à coluna das concluídas (null: não está concluída). */
+  concluida_em: string | null;
   pessoas: PessoaResumida[];
   /** A demanda, se quem vê a tarefa também pode abri-la; senão null (e fica só o código). */
   demanda: DemandaDaTarefa | null;
@@ -504,6 +506,38 @@ export interface DadosTarefas {
   tarefasDoContrato(contratoId: string): Promise<TarefaLigada[]>;
 }
 
+/** Um registro de tempo de alguém numa tarefa: contado pelo cronômetro, ou ajustado à mão (com motivo). */
+export interface RegistroDeTempo {
+  id: number;
+  perfil_id: string | null;   // null: o usuário foi removido do sistema
+  /** Quando o período começou a ser contado (no ajuste, quando foi feito). */
+  inicio: string;
+  segundos: number;           // no ajuste, pode ser negativo
+  ajuste: boolean;
+  motivo: string | null;
+}
+/** O tempo de uma tarefa, como quem pergunta pode ver. */
+export interface TempoDaTarefa {
+  /** Os registros que a pessoa pode ver: os dela; os de todos, para administradores. */
+  registros: RegistroDeTempo[];
+  /** A parte de cada um no total da equipe, em %, de quem tem tempo na tarefa (sem as durações). */
+  equipe: { perfil_id: string | null; percentual: number }[];
+  /** O total da equipe, em segundos. */
+  total: number;
+}
+/** Tempo nas tarefas (supabase/migrations/20261030120000_tempo_nas_tarefas.sql): o cronômetro e os ajustes. */
+export interface DadosTempo {
+  /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
+  tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;
+  /** Grava os segundos do período (só cresce). */
+  tempoGravar(id: number, segundos: number): Promise<void>;
+  /** Ajuste à mão, para mais ou para menos, sempre com motivo (fica registrado como ajuste). */
+  tempoAjustar(tarefaId: string, segundos: number, motivo: string): Promise<void>;
+  tempoDaTarefa(tarefaId: string): Promise<TempoDaTarefa>;
+  /** A soma do tempo das tarefas da demanda (o esforço aproximado dela), para quem vê a demanda. */
+  tempoDaDemanda(demandaId: string): Promise<number>;
+}
+
 /** Item de uma lista da demanda: feito_em e feito_por são dados pelo banco ao marcar. */
 export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
 /** Lista da demanda (como as do Trello), com os itens na ordem. */
@@ -589,4 +623,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo {}

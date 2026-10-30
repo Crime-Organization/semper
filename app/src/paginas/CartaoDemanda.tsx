@@ -23,6 +23,7 @@ import { dataCurta, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
 import { CartoesLigados } from './CartoesLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDaDemanda } from './ListasDaDemanda';
 
 interface Props {
@@ -128,6 +129,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaDemanda(d.id)} vazio="Nenhuma tarefa nesta demanda ainda."
         nova={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' }} versao={versaoHist} />
+      <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>

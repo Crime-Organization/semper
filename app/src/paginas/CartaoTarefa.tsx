@@ -1,6 +1,6 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo, o título e o prazo em
 // destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
-// recolhe (demanda, pessoas, contrato, comentários, histórico).
+// recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da situação, o cronômetro (TempoNaTarefa).
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
@@ -22,6 +22,7 @@ import { dataCurta, relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoPrazo } from './Demandas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { TempoNaTarefa } from './TempoNaTarefa';
 
 interface Props {
   id: string;
@@ -83,7 +84,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       feito(etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`, 'mudança de situação',
         async () => { await SD.tarefaMover(t!.id, de, ordemDe); });
       aoMudar(); setVersaoHist(v => v + 1);
-      if (t!.demanda && await oferecerConcluirDemanda(t!.id, etapa)) await carregar();
+      // Relê a tarefa: chegar ou sair da coluna das concluídas muda a data de conclusão (e o resumo do tempo).
+      await carregar();
+      if (t!.demanda) await oferecerConcluirDemanda(t!.id, etapa);
     } catch (e) { falha(e); }
   }
 
@@ -124,6 +127,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
+
+    <TempoNaTarefa t={t} />
 
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda">
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}

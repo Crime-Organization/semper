@@ -46,6 +46,13 @@ export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
 export const TAREFAS_LIGADAS = 200;
 /** Quantas demandas (as ativas mais recentes) o cadastro de tarefa oferece para ligar. */
 export const DEMANDAS_PARA_LIGAR = 500;
+/** Tempo nas tarefas, em segundos (exigidos pelo banco: supabase/migrations/20261030120000_tempo_nas_tarefas.sql). */
+/** Um período contado pelo cronômetro tem até 12 horas; passou disso, começa outro. */
+export const PERIODO_MAXIMO = 12 * 60 * 60;
+/** Um ajuste à mão vai de -24 a +24 horas. */
+export const AJUSTE_MAXIMO = 24 * 60 * 60;
+/** Tamanho do motivo do ajuste. */
+export const TAMANHO_MOTIVO = 300;
 /** Listas das demandas: nome da lista e texto do item, os mesmos do banco (banco/018_listas_das_demandas.sql). */
 export const TAMANHO_LISTA = 120;
 export const TAMANHO_ITEM = 500;
