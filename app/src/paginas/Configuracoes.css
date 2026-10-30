@@ -9,3 +9,12 @@
 .config-logo-texto .nota { margin: 0 }
 .config-logo-texto .acoes { display: flex; gap: 8px; flex-wrap: wrap }
 .config-salvar { display: flex; justify-content: flex-end }
+
+/* Perfil profissional (Minha conta e Equipe): usa o mesmo formulário em cartões das Configurações. */
+.campos label.perfil-no-site { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; color: var(--ink) }
+.campos label.perfil-no-site input { width: 18px; height: 18px; accent-color: var(--accent) }
+.config-salvar { align-items: center; gap: 14px; flex-wrap: wrap }
+.config-salvar .nota { margin: 0 }
+.titulo.perfil-da-equipe { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+/* Os blocos do perfil ficam abaixo do título "Perfil profissional": o título de cada um é menor que o dele. */
+.perfil-profissional h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink) }

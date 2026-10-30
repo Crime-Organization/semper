@@ -573,6 +573,44 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
+/** Inscrição na OAB: o número e a seccional (UF). */
+export interface InscricaoOab { numero: string; uf: string }
+/** Uma formação: curso, instituição e ano (ou período). */
+export interface Formacao { curso: string; instituicao: string; ano: string }
+/** Uma experiência: cargo, onde e o período. */
+export interface Experiencia { cargo: string; lugar: string; periodo: string }
+/** Uma publicação: título, onde saiu, ano e o link (opcional). */
+export interface Publicacao { titulo: string; onde: string; ano: string; link: string }
+/** Uma rede social além do LinkedIn (ex.: Instagram) e o link. */
+export interface RedeSocial { nome: string; link: string }
+/**
+ * Perfil profissional de alguém da equipe: a base das páginas da equipe no site do escritório (o CMS), do currículo
+ * e da importação do Lattes. Textos vazios são "". "Aparecer no site" e a ordem, só administradores mudam.
+ */
+export interface PerfilProfissional {
+  perfil_id: string;
+  nome_exibicao: string; cargo: string;
+  oab: InscricaoOab[]; areas: string[];
+  bio_curta: string; biografia: string;
+  formacao: Formacao[]; idiomas: string[];
+  experiencia: Experiencia[]; associacoes: string[];
+  publicacoes: Publicacao[]; lattes: string;
+  email_publico: string; telefone_publico: string; linkedin: string; redes: RedeSocial[];
+  no_site: boolean; ordem_no_site: number | null;
+  /** Quando foi salvo pela última vez (null: ainda não foi preenchido). */
+  atualizado_em: string | null;
+}
+/** O que se grava do perfil: tudo, menos de quem é e a data. */
+export type CamposDoPerfil = Omit<PerfilProfissional, 'perfil_id' | 'atualizado_em'>;
+
+/** Perfis profissionais (supabase/migrations/20261030140000_perfil_profissional.sql): a equipe vê os do escritório. */
+export interface DadosPerfilProfissional {
+  /** O perfil de alguém da equipe; vazio (perfilVazio em regras/perfilProfissional.ts) se ainda não foi preenchido. */
+  perfilProfissional(perfilId: string): Promise<PerfilProfissional>;
+  /** Grava o próprio perfil ou, para administradores, o de alguém da equipe. "Aparecer no site" e a ordem, só administradores. */
+  perfilProfissionalSalvar(perfilId: string, campos: CamposDoPerfil): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -626,4 +664,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional {}

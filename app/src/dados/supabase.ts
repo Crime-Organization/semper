@@ -4,6 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
@@ -188,6 +189,8 @@ const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
 const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas, bio_curta, biografia, formacao, idiomas, experiencia, associacoes, '
+  + 'publicacoes, lattes, email_publico, telefone_publico, linkedin, redes, no_site, ordem_no_site, atualizado_em';
 /** A coluna de demanda_listas que liga a lista ao cartão dela. */
 const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
@@ -639,6 +642,17 @@ export const SD: Dados = {
   async tempoDaDemanda(demandaId) {
     const { data } = await rodar(sb.rpc('tempo_da_demanda', { p_demanda: demandaId }));
     return Number(data ?? 0);
+  },
+
+  // ---------- perfil profissional ----------
+  async perfilProfissional(perfilId) {
+    const { data } = await rodar(sb.from('perfil_profissional').select(CAMPOS_PERFIL_PROFISSIONAL).eq('perfil_id', perfilId));
+    return data[0] ?? perfilVazio(perfilId);
+  },
+  // Altera se já existe; se não, cria. (O upsert do Supabase mandaria também perfil_id, que ninguém altera.)
+  async perfilProfissionalSalvar(perfilId, campos) {
+    const { data } = await rodar(sb.from('perfil_profissional').update(campos).eq('perfil_id', perfilId).select('perfil_id'));
+    if (!data.length) await rodar(sb.from('perfil_profissional').insert({ perfil_id: perfilId, ...campos }));
   },
 
   // ---------- listas das demandas e das tarefas ----------

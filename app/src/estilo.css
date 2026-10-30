@@ -129,6 +129,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .grade-form .erro-campo { font-size: 13px; color: var(--erro) }
 .grade-form .com-erro input, .grade-form .com-erro select { border-color: var(--erro) }
 @container formulario (max-width: 420px) { .grade-form .grupo-campo { flex-wrap: wrap } .grade-form .grupo-campo .btn { width: 100% } }
+/* Linhas que se acrescentam e se tiram (ui/base/LinhasRepetidas.tsx): os campos de cada linha dividem as colunas
+   como os outros do formulário; o botão de tirar fica no fim da linha. */
+.grade-form .linhas-repetidas { gap: 8px }
+.linhas-repetidas > .rot { font-size: 13px; font-weight: 700; color: var(--text) }
+.linhas-repetidas > .dica { margin: 0; font-size: 13px; color: var(--muted) }
+.linhas-repetidas ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.linhas-repetidas li { display: flex; gap: 8px; align-items: center }
+.linhas-repetidas li > .grade-form { flex: 1; min-width: 0; gap: 8px }
+.linhas-repetidas li > .icone-btn { flex-shrink: 0 }
 
 /* ---------- avisos ---------- */
 .aviso { padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5 }

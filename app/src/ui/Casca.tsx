@@ -86,7 +86,7 @@ export function Casca({ children }: { children: ReactNode }) {
             </div>
           </div>
           <nav className="nav" aria-label="Conta">
-            <Link to="/inicio/#conta"><Icone nome="conta" /><span>Minha conta</span></Link>
+            <Link to="/minha-conta/"><Icone nome="conta" /><span>Minha conta</span></Link>
             <button type="button" title="Trocar entre automático, claro e escuro" onClick={trocarTema}><Icone nome="tema" /><span>Tema: {TEMAS[tema]}</span></button>
             <button type="button" onClick={sair}><Icone nome="sair" /><span>Sair</span></button>
           </nav>

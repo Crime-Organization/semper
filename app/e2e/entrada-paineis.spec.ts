@@ -70,7 +70,7 @@ test.describe('Painéis da tela de entrada', () => {
 test.describe('Verificação em duas etapas', () => {
   test('quando a conta tem a verificação ativa, então a entrada pede o código e só entra com ele', async ({ page }) => {
     // Dado: a verificação ativada em Minha conta (no banco fictício, o código é sempre 123456)
-    await page.goto('/inicio/');
+    await page.goto('/minha-conta/');
     await page.getByRole('button', { name: 'Ativar verificação em duas etapas' }).click();
     await page.getByLabel('Código do aplicativo').fill('123456');
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();
@@ -92,7 +92,7 @@ test.describe('Verificação em duas etapas', () => {
 
   test('quando a pessoa está no painel do código e escolhe outra conta, então volta para entrar', async ({ page }) => {
     // Dado
-    await page.goto('/inicio/');
+    await page.goto('/minha-conta/');
     await page.getByRole('button', { name: 'Ativar verificação em duas etapas' }).click();
     await page.getByLabel('Código do aplicativo').fill('123456');
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();

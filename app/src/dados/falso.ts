@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, CartaoComListas, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, CartaoComListas, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -13,6 +13,7 @@ import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comen
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { tempoPorPessoa } from '../regras/cronometro';
+import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
 import { DIA } from '../ui/tempos';
@@ -77,6 +78,8 @@ interface Banco {
   listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  /** Perfis profissionais da equipe (perfil_profissional no banco). */
+  perfisProfissionais?: PerfilProfissional[];
   tarefas?: TarefaGuardada[];
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
   tempos?: (RegistroDeTempo & { tarefa_id: string })[];
@@ -1094,6 +1097,21 @@ export const SD: Dados = {
   },
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
     .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
+
+  // ---------- perfil profissional (como supabase/migrations/20261030140000_perfil_profissional.sql) ----------
+  perfilProfissional: perfilId => espera((bd.perfisProfissionais ??= []).find(p => p.perfil_id === perfilId) ?? perfilVazio(perfilId)),
+  async perfilProfissionalSalvar(perfilId, campos) {
+    const membro = EQUIPE.find(m => m.id === perfilId);
+    if (!membro) return erro('Usuário não encontrado.');
+    const [problema] = Object.values(errosDoPerfil(campos));
+    if (problema) return erro(problema);
+    // Quem entra no banco fictício é administrador: grava o perfil de qualquer um e liga "aparecer no site".
+    const antes = (bd.perfisProfissionais ??= []).find(x => x.perfil_id === perfilId);
+    const p = { ...limparPerfil(campos), perfil_id: perfilId, atualizado_em: agora() };
+    bd.perfisProfissionais = [...bd.perfisProfissionais.filter(x => x.perfil_id !== perfilId), p];
+    auditar('perfil_profissional', antes ? 'alteracao' : 'inclusao', { id: perfilId, nome: membro.nome });
+    gravar(); return espera(undefined);
+  },
 
   // ---------- listas das demandas e das tarefas (como banco/018_listas_das_demandas.sql e a migração 20261030130000) ----------
   listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),

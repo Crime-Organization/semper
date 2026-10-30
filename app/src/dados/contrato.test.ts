@@ -6,6 +6,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados } from './tipos';
+import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -912,6 +913,34 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         const [lista] = await SD.listasDoCartao('demandas', demanda);
         expect(lista.itens.map(i => i.texto)).toEqual(['Procuração']);
+      });
+    });
+
+    describe('Perfil profissional', () => {
+      it('quando ninguém preencheu o perfil, então ele vem vazio e fora do site', async () => {
+        // Quando
+        const perfil = await SD.perfilProfissional('u-bruno');
+        // Então
+        expect(perfil).toMatchObject({ perfil_id: 'u-bruno', cargo: '', oab: [], no_site: false, atualizado_em: null });
+      });
+
+      it('quando o perfil é salvo e salvo de novo, então volta como foi gravado por último, limpo', async () => {
+        // Dado
+        const campos = camposDoPerfil(perfilVazio('u-ana'));
+        await SD.perfilProfissionalSalvar('u-ana', { ...campos, cargo: 'Advogada' });
+        // Quando
+        await SD.perfilProfissionalSalvar('u-ana', { ...campos, cargo: ' Sócia ', oab: [{ numero: '123.456', uf: 'mg' }], areas: ['Marcas'], no_site: true, ordem_no_site: 2 });
+        // Então
+        const lido = await SD.perfilProfissional('u-ana');
+        expect(lido).toMatchObject({ cargo: 'Sócia', oab: [{ numero: '123.456', uf: 'MG' }], areas: ['Marcas'], no_site: true, ordem_no_site: 2 });
+        expect(lido.atualizado_em).not.toBeNull();
+      });
+
+      it('quando um link do perfil não começa com http, então salvar é recusado', async () => {
+        // Quando
+        const salvar = SD.perfilProfissionalSalvar('u-ana', { ...camposDoPerfil(perfilVazio('u-ana')), linkedin: 'javascript:alert(1)' });
+        // Então
+        await expect(salvar).rejects.toThrow('Cole o link completo, começando com https://.');
       });
     });
 
