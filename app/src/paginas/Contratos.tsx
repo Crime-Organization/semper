@@ -4,18 +4,19 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
-import { POR_PAGINA } from '../dados/limites';
+import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
-import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { BotaoDuplo } from '../ui/Botoes';
+import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
+import { SecaoArquivados } from '../ui/SecaoArquivados';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
+import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
@@ -76,41 +77,32 @@ export default function Contratos() {
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
   }, [visao, f.termo, f.categoria, f.responsavel, recarga]);
 
+  // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
+  const [totalArquivados, setTotalArquivados] = useState<number | null>(null);
+  useEffect(() => {
+    if (visao !== 'tabela') return;
+    let vivo = true;
+    SD.contratosListar({ ...f, situacao: 'arquivados', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivados(r.total); }).catch(() => {});
+    return () => { vivo = false; };
+  // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
+  }, [visao, f.termo, f.categoria, f.responsavel, recarga]);
+  const arquivados = (pagina: number, porPagina: number) => SD.contratosListar({ ...f, situacao: 'arquivados', ordem: 'recentes', pagina, porPagina });
+
   const filtrado = !!(f.termo || f.categoria || f.responsavel);
   const mudarFiltro = (campos: Partial<FiltroContratos>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
-    if (v === 'kanban' && f.situacao === 'arquivados') {
-      mudarFiltro({ situacao: 'ativos' });
-      avisar('O quadro mostra só os contratos ativos.', 'ok');
-    }
     setVisao(v);
     salvarPreferencia('contratos.visao', v);
     selecao.limpar();
   }
-  function mudarSituacao(valor: string) {
-    const situacao = valor === 'arquivados' ? 'arquivados' : 'ativos';
-    mudarFiltro({ situacao });
-    if (situacao === 'arquivados' && visao === 'kanban') { setVisao('tabela'); avisar('Os arquivados aparecem só na tabela.', 'ok'); }
-  }
-
   // ---------- ações em lote ----------
-  async function arquivarLote(arquivar: boolean) {
+  async function arquivarLote() {
     const lista = [...selecao.selecionadas];
     try {
-      const q = await SD.contratosArquivar(lista, arquivar);
+      const q = await SD.contratosArquivar(lista, true);
       const quantos = q === 1 ? '1 contrato' : q + ' contratos';
-      feito(arquivar ? `${plural(q, 'contrato arquivado', 'contratos arquivados')}.` : `${plural(q, 'contrato voltou', 'contratos voltaram')} para os ativos.`,
-        arquivar ? `arquivamento de ${quantos}` : `desarquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, !arquivar); });
-      selecao.limpar(); recarregar();
-    } catch (e) { falha(e); }
-  }
-  async function excluirLote() {
-    try {
-      const r = await SD.contratosExcluir([...selecao.selecionadas]);
-      avisar(r.naoExcluidas
-        ? `${plural(r.excluidas, 'excluído', 'excluídos')}. ${plural(r.naoExcluidas, 'não pôde ser excluído', 'não puderam ser excluídos')}: ${r.motivo}`
-        : `${plural(r.excluidas, 'contrato excluído', 'contratos excluídos')} definitivamente.`, r.naoExcluidas ? 'erro' : 'ok');
+      feito(`${plural(q, 'contrato arquivado', 'contratos arquivados')}.`, `arquivamento de ${quantos}`, async () => { await SD.contratosArquivar(lista, false); });
       selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }
@@ -118,16 +110,13 @@ export default function Contratos() {
   const n = selecao.quantas;
   const lote = visao === 'tabela' && n > 0 ? <>
     <span><b>{n}</b> {n === 1 ? 'selecionado' : 'selecionados'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
-    <span className="acoes-lote">{f.situacao === 'ativos'
-      ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
-      : <>
-        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(false)}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
-        <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${n}`} aoConfirmar={excluirLote}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
-      </>}</span>
+    <span className="acoes-lote">
+      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={arquivarLote}><Icone nome="arquivo" tam={15} /> Arquivar</button>
+    </span>
   </> : null;
 
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
-  const contador = total === null ? null : f.situacao === 'arquivados' ? plural(total, 'arquivado', 'arquivados') : plural(total, 'ativo', 'ativos');
+  const contador = total === null ? null : plural(total, 'ativo', 'ativos');
 
   return <>
     <PaginaModulo titulo="Contratos" contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
@@ -137,8 +126,7 @@ export default function Contratos() {
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('contratos.responsavel', responsavel); },
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'categoria', rotulo: 'Categoria de honorário', valor: f.categoria || '', aoMudar: categoria => mudarFiltro({ categoria }),
-          opcoes: [['', 'Todas as categorias'], ...Object.entries(CATEGORIAS)] },
-        { id: 'situacao', rotulo: 'Arquivo', valor: f.situacao || 'ativos', aoMudar: mudarSituacao, opcoes: [['ativos', 'Ativos'], ['arquivados', 'Arquivados']] }
+          opcoes: [['', 'Todas as categorias'], ...Object.entries(CATEGORIAS)] }
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
@@ -147,18 +135,29 @@ export default function Contratos() {
           recarga={[recarga, f.termo, f.categoria, f.responsavel].join('|')}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.contratosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, 30)}
           ordemDe={k => k.etapa_ordem}
+          arquivados={deslocamento => arquivados(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
           cartao={(k, ordemDaColuna) => <CartaoKanban k={k} ordem={ordemDaColuna} />}
           endereco={k => endereco(k.id)}
           aoAbrir={k => abrir(k.id)}
-          aoMover={async (k, { de, para, ordem, ordemAnterior }) => {
+          aoMover={async (k, m) => {
+            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.contratosArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.contratoMover(id, etapa, ordem) };
+            if (await moverNoArquivo(k.codigo, k.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO)) { recarregar(); return; }
+            const { de, para, ordem, ordemAnterior } = m;
             await SD.contratoMover(k.id, para, ordem);
             const voltar = async () => { await SD.contratoMover(k.id, de, ordemAnterior); };
             if (de !== para) feito(`${k.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/contratos/novo/' + (colunaId ? '?etapa=' + colunaId : ''))} />
-        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
-          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+        : <>
+          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
+          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
+          <SecaoArquivados<ContratoLista> modulo="contratos" nome={{ um: 'contrato', varios: 'contratos', feminino: false }} total={totalArquivados}
+            versao={recarga} aoMudar={recarregar} listar={pagina => arquivados(pagina, POR_PAGINA)}
+            arquivar={(ids, a) => SD.contratosArquivar(ids, a)} excluir={ids => SD.contratosExcluir(ids)}
+            tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivados', pagina: numeroDaPagina }} ordem="recentes"
+              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
+        </>}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
       <CartaoContrato key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} />

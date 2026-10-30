@@ -3,20 +3,21 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
-import { POR_PAGINA } from '../dados/limites';
+import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
+import { SecaoArquivados } from '../ui/SecaoArquivados';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
+import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
@@ -26,6 +27,9 @@ import { dataDaOrdem, useOrdem } from '../ui/ordem';
 import { baixarArquivo, dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoPessoa } from './CartaoPessoa';
 import './Pessoas.css';
+
+/** A preferência que guarda se a seção "Arquivados" das pessoas está aberta (a mesma de SecaoArquivados). */
+const ARQUIVADAS_ABERTA = 'pessoas.arquivados';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
 
@@ -41,10 +45,14 @@ export default function Pessoas() {
   const [f, setF] = useState<FiltroPessoas>(() => {
     let responsavel = params.get('responsavel') === 'eu' ? eu : lerPreferencia('pessoas.responsavel', '');
     if (responsavel && !ctx.equipe.some(m => m.id === responsavel)) responsavel = '';
-    return { termo: '', tipo: '', responsavel, situacao: params.get('situacao') === 'arquivadas' ? 'arquivadas' : 'ativas', pagina: 0 };
+    return { termo: '', tipo: '', responsavel, situacao: 'ativas', pagina: 0 };
   });
-  const [visao, setVisao] = useState<Visao>(() =>
-    (params.get('visao') || lerPreferencia('pessoas.visao', 'tabela')) === 'kanban' && params.get('situacao') !== 'arquivadas' ? 'kanban' : 'tabela');
+  // O atalho "Arquivadas" do Início (?situacao=arquivadas) abre a tabela com a seção dos arquivados aberta.
+  const [verArquivadas] = useState(() => params.get('situacao') === 'arquivadas');
+  const [visao, setVisao] = useState<Visao>(() => {
+    if (verArquivadas) { salvarPreferencia(ARQUIVADAS_ABERTA, true); return 'tabela'; }
+    return (params.get('visao') || lerPreferencia('pessoas.visao', 'tabela')) === 'kanban' ? 'kanban' : 'tabela';
+  });
   // Ordem escolhida (cada visualização tem a sua). Na tabela, mudar a ordem volta para a primeira página.
   // Ordem da tabela (controle "Ordenar" da barra; mudar volta para a primeira página). No quadro, cada
   // coluna tem a sua, no menu da coluna.
@@ -88,53 +96,50 @@ export default function Pessoas() {
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
   }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
 
+  // Quantas arquivadas há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
+  const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
+  useEffect(() => {
+    if (visao !== 'tabela') return;
+    let vivo = true;
+    SD.pessoasListar({ ...f, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
+    return () => { vivo = false; };
+  // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
+  }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
+  const arquivadas = (pagina: number, porPagina: number) => SD.pessoasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
+  // Vindo do atalho do Início, a tela já desce até os arquivados.
+  useEffect(() => {
+    if (!verArquivadas) return;
+    const t = setTimeout(() => document.querySelector('.secao-arquivados')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 0);
+    return () => clearTimeout(t);
+  }, [verArquivadas]);
+
   const filtrado = !!(f.termo || f.tipo || f.responsavel);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
-    if (v === 'kanban' && f.situacao === 'arquivadas') {
-      mudarFiltro({ situacao: 'ativas' });
-      avisar('O quadro mostra só as pessoas ativas.', 'ok');
-    }
     setVisao(v);
     salvarPreferencia('pessoas.visao', v);
     selecao.limpar();
   }
-  function mudarSituacao(valor: string) {
-    const situacao = valor === 'arquivadas' ? 'arquivadas' : 'ativas';
-    mudarFiltro({ situacao });
-    if (situacao === 'arquivadas' && visao === 'kanban') { setVisao('tabela'); avisar('As arquivadas aparecem só na tabela.', 'ok'); }
-  }
-
   // ---------- ações em lote ----------
-  async function arquivarLote(arquivar: boolean) {
+  async function arquivarLote() {
     const lista = [...selecao.selecionadas];
     try {
-      const q = await SD.pessoasArquivar(lista, arquivar);
+      const q = await SD.pessoasArquivar(lista, true);
       const quantas = q === 1 ? '1 pessoa' : q + ' pessoas';
-      feito(arquivar ? `${plural(q, 'pessoa arquivada', 'pessoas arquivadas')}.` : `${plural(q, 'pessoa voltou', 'pessoas voltaram')} para as ativas.`,
-        arquivar ? `arquivamento de ${quantas}` : `desarquivamento de ${quantas}`, async () => { await SD.pessoasArquivar(lista, !arquivar); });
-      selecao.limpar(); recarregar();
-    } catch (e) { falha(e); }
-  }
-  async function excluirLote() {
-    try {
-      const r = await SD.pessoasExcluir([...selecao.selecionadas]);
-      avisar(r.naoExcluidas
-        ? `${r.excluidas} excluída(s). ${r.naoExcluidas} não pôde(puderam) ser excluída(s): ${r.motivo || 'só quem cadastrou ou um administrador exclui.'}`
-        : `${plural(r.excluidas, 'pessoa excluída', 'pessoas excluídas')} definitivamente.`, r.naoExcluidas ? 'erro' : 'ok');
+      feito(`${plural(q, 'pessoa arquivada', 'pessoas arquivadas')}.`, `arquivamento de ${quantas}`, async () => { await SD.pessoasArquivar(lista, false); });
       selecao.limpar(); recarregar();
     } catch (e) { falha(e); }
   }
   // ---------- exportar ----------
-  // Leva as pessoas da lista como ela está filtrada (busca, tipo, responsável, situação) para o Google Contatos.
+  // Leva as pessoas ativas da lista como ela está filtrada (busca, tipo, responsável) para o Google Contatos.
   // Só administradores: é a base inteira de clientes saindo do sistema.
   async function exportarGoogle() {
     const quantas = visao === 'tabela' && tabela ? plural(tabela.total, 'pessoa', 'pessoas') : 'as pessoas';
     const escolha = await janela<'com' | 'sem'>({
       titulo: 'Exportar para o Google Contatos',
       corpo: <>
-        <p>Gera um arquivo CSV com {quantas} desta lista{filtrado || f.situacao === 'arquivadas' ? ', com os filtros escolhidos' : ''}. No Google Contatos, use "Importar" e escolha o arquivo.</p>
+        <p>Gera um arquivo CSV com {quantas} desta lista{filtrado ? ', com os filtros escolhidos' : ''}. No Google Contatos, use "Importar" e escolha o arquivo.</p>
         <div className="opcoes-janela" role="radiogroup" aria-label="Descrição dos contatos">
           <label><input type="radio" name="descricao" value="com" defaultChecked />
             <span>Com a qualificação na descrição<small>Nome, telefones, e-mails, aniversário e a qualificação completa.</small></span></label>
@@ -166,17 +171,14 @@ export default function Pessoas() {
   const n = selecao.quantas;
   const lote = visao === 'tabela' && n > 0 ? <>
     <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
-    <span className="acoes-lote">{f.situacao === 'ativas'
-      ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
-      : <>
-        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(false)}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
-        <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${n}`} aoConfirmar={excluirLote}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
-      </>}</span>
+    <span className="acoes-lote">
+      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={arquivarLote}><Icone nome="arquivo" tam={15} /> Arquivar</button>
+    </span>
   </> : null;
 
   // Contador ao lado do título: quantas pessoas a lista mostra (com a busca e os filtros).
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
-  const contador = total === null ? null : f.situacao === 'arquivadas' ? plural(total, 'arquivada', 'arquivadas') : plural(total, 'ativa', 'ativas');
+  const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
   return <>
     <PaginaModulo titulo="Pessoas" contador={contador} acao={{ rotulo: 'Nova pessoa', para: '/pessoas/nova/' }}
@@ -186,8 +188,7 @@ export default function Pessoas() {
           opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente contato']] },
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('pessoas.responsavel', responsavel); },
-          opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
-        { id: 'situacao', rotulo: 'Situação', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
+          opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] }
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle }] : undefined}
@@ -197,18 +198,29 @@ export default function Pessoas() {
           recarga={[recarga, f.termo, f.tipo, f.responsavel].join('|')}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
+          arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
           cartao={(p, ordemDaColuna) => <CartaoKanban p={p} ordem={ordemDaColuna} />}
           endereco={p => endereco(p.id)}
           aoAbrir={p => abrir(p.id)}
-          aoMover={async (p, { de, para, ordem, ordemAnterior }) => {
+          aoMover={async (p, m) => {
+            const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.pessoasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.pessoaMover(id, etapa, ordem) };
+            if (await moverNoArquivo(p.nome, p.id, m, noArquivo, id => quadro.nomeDe(id) || 'Sem etapa')) { recarregar(); return; }
+            const { de, para, ordem, ordemAnterior } = m;
             await SD.pessoaMover(p.id, para, ordem);
             const voltar = async () => { await SD.pessoaMover(p.id, de, ordemAnterior); };
             if (de !== para) feito(`${p.nome} foi para "${quadro.nomeDe(para) || 'Sem etapa'}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/pessoas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
-        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} etapa={quadro.nomeDe}
-          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+        : <>
+          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} etapa={quadro.nomeDe}
+          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
+          <SecaoArquivados<PessoaLista> modulo="pessoas" nome={{ um: 'pessoa', varios: 'pessoas', feminino: true }} total={totalArquivadas}
+            versao={recarga} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
+            arquivar={(ids, a) => SD.pessoasArquivar(ids, a)} excluir={ids => SD.pessoasExcluir(ids)}
+            tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
+              filtrado={filtrado} selecao={sel} etapa={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
+        </>}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
       <CartaoPessoa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} aoAbrirPessoa={abrir} />

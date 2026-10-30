@@ -1,7 +1,7 @@
 // Quadro kanban comum a todos os módulos, no modelo do Trello: as colunas ocupam a altura da tela
 // e cada lista rola dentro da própria coluna. As colunas vêm de useColunas(); o módulo só diz como
 // carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
-// no menu da coluna.
+// no menu da coluna. Com "arquivados", a última coluna é a fixa "Arquivados" (ui/quadro/arquivo.ts).
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Coluna, Ordem, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
@@ -13,6 +13,7 @@ import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { TAMANHO_COLUNA } from '../../dados/limites';
 import { MARCOS } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
+import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { ordemNoFim } from './posicao';
 import { Carregando, estiloBotao } from '../base';
 import { numero } from '../util';
@@ -35,6 +36,11 @@ interface Props<T extends { id: string }> {
   aoMover: (item: T, m: Movimento) => Promise<void>;
   /** Botão "Adicionar" no pé de cada coluna. */
   aoAdicionar?: (colunaId: string | null) => void;
+  /**
+   * Itens arquivados, a partir de "deslocamento" (os mais recentes primeiro): com isto, o quadro mostra a coluna fixa
+   * "Arquivados" no fim. Os movimentos que entram ou saem dela chegam a aoMover com ARQUIVADOS em "para" ou "de".
+   */
+  arquivados?: (deslocamento: number) => Promise<Pagina<T>>;
 }
 
 interface Lista<T> { itens: T[]; total: number; erro?: string }
@@ -72,7 +78,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const ocultas = quadro.colunas.filter(c => c.oculta);
   // Fora da ordem manual, o cartão ainda muda de coluna, mas entra no lugar que a ordem da coluna
   // define, e não dá para mudar a posição dentro dela.
-  const manualEm = (id: string | null) => p.current.quadro.ordemDe(id) === 'manual';
+  const manualEm = (id: string | null) => id !== ARQUIVADOS && p.current.quadro.ordemDe(id) === 'manual';
 
   // A altura vem só do layout (estilo.css, "com-quadro"): o quadro preenche o que sobra da tela.
   useEffect(() => {
@@ -85,7 +91,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const g = mais ? geracao.current[k] : (geracao.current[k] = (geracao.current[k] || 0) + 1);
     const atual = listasRef.current[k];
     try {
-      const { linhas, total } = await p.current.carregar(id, mais && atual ? atual.itens.length : 0, p.current.quadro.ordemDe(id));
+      const deslocamento = mais && atual ? atual.itens.length : 0;
+      const { linhas, total } = id === ARQUIVADOS ? await p.current.arquivados!(deslocamento)
+        : await p.current.carregar(id, deslocamento, p.current.quadro.ordemDe(id));
       if (geracao.current[k] !== g) return;   // chegou depois de uma recarga mais nova
       if (!mais) linhas.forEach(l => { delete ordens.current[l.id]; });
       setListas(l => ({ ...l, [k]: { itens: mais ? [...(l[k]?.itens || []), ...linhas] : linhas, total } }));
@@ -101,6 +109,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     if (!quadro.pronto) return;
     void carregar(null);
     idsVisiveis.split(',').filter(Boolean).forEach(id => carregar(id));
+    if (p.current.arquivados) void carregar(ARQUIVADOS);
   }, [quadro.pronto, idsVisiveis, props.recarga, carregar]);
 
   // Coluna que mudou de ordem é relida sozinha.
@@ -175,7 +184,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   // ---------- arrastar colunas ----------
   // Primeira coluna (das que podem ser movidas) cujo meio está à direita do ponteiro.
   function colunaDepoisDe(x: number) {
-    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('.coluna[data-coluna]:not(.sem-etapa):not(.arrastando-col)')];
+    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('.coluna[data-coluna]:not(.sem-etapa):not(.coluna-arquivados):not(.arrastando-col)')];
     return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.coluna ?? 'fim';
   }
 
@@ -191,15 +200,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     }
   }
 
-  function coluna(c: Coluna | null) {
-    const id = c ? c.id : null, k = chave(id), nome = c ? c.nome : quadro.rotuloSemEtapa;
+  // A coluna Arquivados é fixa: não se move, não tem menu nem "Adicionar", e mostra os mais recentes primeiro.
+  function coluna(c: Coluna | null, arquivo = false) {
+    const id = arquivo ? ARQUIVADOS : c ? c.id : null, k = chave(id), nome = arquivo ? ROTULO_ARQUIVADOS : c ? c.nome : quadro.rotuloSemEtapa;
     const l = listas[k];
     const aqui = alvo?.k === k;
     const reordena = !!c && quadro.podeReordenar;
-    const ordem = quadro.ordemDe(id), manual = ordem === 'manual';
+    const ordem: Ordem = arquivo ? 'recentes' : quadro.ordemDe(id), manual = ordem === 'manual';
     const marcador = aqui && manual;
     const marco = c?.marco ? MARCOS[c.marco] : null;
-    return <section className={'coluna' + (c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
+    return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -211,13 +221,14 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); } : undefined}>
         <h3 title={marco ? `${nome}: ${marco.explicacao}` : nome}>{nome}</h3>
         {marco && <span className="coluna-marco-selo" title={marco.explicacao} aria-label={`Coluna-marco: ${marco.rotulo}`}><Icone nome="check" tam={13} /></span>}
+        {arquivo && <span className="coluna-marco-selo" title="Arraste um cartão para cá para arquivar; arraste daqui para outra coluna para desarquivar." aria-hidden="true"><Icone nome="arquivo" tam={13} /></span>}
         <span className="coluna-n">{l ? numero(l.total) : '…'}</span>
-        <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
+        {!arquivo && <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
           onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
           <Icone nome="pontos" tam={16} />
-        </button>
+        </button>}
       </header>
-      {!manual && <p className="coluna-ordem" title="Ordem desta lista (muda no menu da coluna)">{ORDENS[ordem]}</p>}
+      {!manual && !arquivo && <p className="coluna-ordem" title="Ordem desta lista (muda no menu da coluna)">{ORDENS[ordem]}</p>}
       <div className="coluna-lista" role="list" aria-label={nome}
         onDragOver={e => {
           if (!arrasto.current) return;
@@ -253,7 +264,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         {l && l.itens.length < l.total && <button type="button" className="coluna-carregar" onClick={() => carregar(id, true)}>
           Carregar mais ({numero(l.total - l.itens.length)})
         </button>}
-        {props.aoAdicionar && <button type="button" className="coluna-add" onClick={() => props.aoAdicionar!(id)}><Icone nome="mais" tam={15} /> Adicionar</button>}
+        {props.aoAdicionar && !arquivo && <button type="button" className="coluna-add" onClick={() => props.aoAdicionar!(id)}><Icone nome="mais" tam={15} /> Adicionar</button>}
       </footer>
     </section>;
   }
@@ -286,6 +297,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         {coluna(c)}
       </Fragment>)}
       {antesDeCol === 'fim' && <div className="kmarcador-col" />}
+      {props.arquivados && <Fragment key="arquivados">{coluna(null, true)}</Fragment>}
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>

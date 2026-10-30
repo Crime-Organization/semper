@@ -295,6 +295,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .lote { border: 1px solid var(--dark-borda); position: sticky; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; padding: 12px 14px 12px 22px; border-radius: 16px; background: var(--dark); color: #FBFBF9; box-shadow: 0 12px 36px rgba(0,0,0,.22) }
 .lote b { font-size: 20px; font-weight: 900 }
 .lote .acoes-lote { display: flex; gap: 8px; flex-wrap: wrap }
+/* Arquivados embaixo da tabela (<SecaoArquivados>): a seção separada da tabela de cima, e a barra das ações nos
+   selecionados (desarquivar, excluir) logo acima da tabela deles. */
+.secao-arquivados { margin-top: 28px }
+.arquivados { display: flex; flex-direction: column; gap: 12px }
+.arquivados-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 14px; border: 1px solid var(--line2); border-radius: 12px; background: var(--soft); font-size: 14px; color: var(--ink) }
+/* A coluna fixa "Arquivados" no fim do quadro: mais apagada que as outras. */
+.coluna.coluna-arquivados { background: transparent; border-style: dashed }
 .lote .mini { background: #2C2A26; color: #FBFBF9; border-color: rgba(255,255,255,.25) }
 .lote .mini:hover:not(:disabled) { background: #3a3833 }
 .lote .mini.perigo { color: #FFB4AB; border-color: rgba(255,180,171,.5) }
