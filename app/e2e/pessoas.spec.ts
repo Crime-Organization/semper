@@ -85,3 +85,26 @@ test.describe('Lista de pessoas', () => {
     await expect(page.getByRole('table')).toBeVisible();
   });
 });
+
+test.describe('Cartão da pessoa', () => {
+  test('quando o cartão abre, então "Copiar qualificação" fica junto do texto da qualificação, e não nas ações do topo', async ({ page, context }) => {
+    // Dado
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.goto('/pessoas/');
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    const cartao = page.getByRole('dialog');
+    const copiar = cartao.getByRole('button', { name: 'Copiar qualificação' });
+    // Então: o botão vem depois do título "Qualificação" e do texto, bem abaixo de "Atualizar cadastro"
+    const [titulo, botao, atualizar] = await Promise.all([
+      cartao.getByRole('heading', { name: 'Qualificação' }).boundingBox(), copiar.boundingBox(),
+      cartao.getByRole('link', { name: 'Atualizar cadastro' }).boundingBox()
+    ]);
+    expect(botao!.y).toBeGreaterThan(titulo!.y);
+    expect(botao!.y).toBeGreaterThan(atualizar!.y + atualizar!.height);
+    // Quando
+    await copiar.click();
+    // Então
+    await expect(page.getByText('Qualificação copiada.')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('JOSÉ DA SILVA TESTE');
+  });
+});

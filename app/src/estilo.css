@@ -414,17 +414,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }
-/* Ações do cartão numa linha só. Quando o painel fica estreito (zoom, celular), as ações secundárias
-   viram botões redondos só com o ícone, na ordem: primeiro Arquivar, depois Copiar. O nome continua como dica. */
+/* Ações do cartão numa linha só. Quando o painel fica estreito (zoom, celular), Arquivar vira botão redondo só
+   com o ícone. O nome continua como dica. */
 .cartao-acoes { display: flex; flex-wrap: wrap; gap: 6px }
+/* Copiar a qualificação, logo abaixo do texto dela, com a nota ao lado. */
+.qualificacao-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
 .cartao-acoes .btn-sm { padding: 0 14px; gap: 6px }
 @container (max-width: 520px) {
   .cartao-acoes .acao-arquivar { width: 36px; padding: 0 }
   .cartao-acoes .acao-arquivar .acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
-}
-@container (max-width: 430px) {
-  .cartao-acoes .acao-copiar { width: 36px; padding: 0 }
-  .cartao-acoes .acao-copiar .acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
 }
 /* Pessoa arquivada: aviso com a exclusão logo abaixo do texto. O botão cresce para a direita ao pedir
    confirmação, então o segundo clique cai no mesmo lugar do primeiro. */

@@ -125,12 +125,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
     </header>
 
-    {/* Ações numa linha só. Em espaço estreito, Copiar e Arquivar viram botões redondos só com o ícone (estilo.css, "cartao-acoes"). */}
+    {/* Ações numa linha só. Em espaço estreito, Arquivar vira botão redondo só com o ícone (estilo.css, "cartao-acoes"). */}
     <div className="cartao-acoes">
       <BotaoLink variante="principal" pequeno to={'/pessoas/nova/?id=' + p.id}><Icone nome="editar" tam={15} /> Atualizar cadastro</BotaoLink>
-      {textoQual && <button type="button" className={estiloBotao({ pequeno: true }, 'acao-copiar')} title="Copiar qualificação" aria-label="Copiar qualificação" onClick={copiar}>
-        <Icone nome="copiar" tam={15} /><span className="acao-rotulo">Copiar qualificação</span>
-      </button>}
       <Botao pequeno className="acao-arquivar" title={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
         <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
       </Botao>
@@ -158,7 +155,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     {textoQual && <section className="bloco">
       <h3><Icone nome="texto" tam={14} />Qualificação</h3>
       <div className="qualificacao" ref={qual}>{textoQual}</div>
-      <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
+      {/* O botão fica junto do texto que ele copia. */}
+      <div className="qualificacao-acoes">
+        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={copiar}><Icone nome="copiar" tam={13} /> Copiar qualificação</button>
+        <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
+      </div>
     </section>}
 
     {comContratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="pessoas.cartao.contratos" padrao
