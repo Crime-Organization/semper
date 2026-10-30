@@ -17,6 +17,7 @@ import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
+import { ListasDaDemanda } from './ListasDaDemanda';
 
 interface Props {
   id: string;
@@ -118,6 +119,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
+
+    <ListasDaDemanda demandaId={d.id} />
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" padrao contador={d.clientes.length}>
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}

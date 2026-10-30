@@ -93,3 +93,54 @@ test.describe('Demandas ligadas', () => {
     await expect(page.getByRole('option', { name: /Ana Teste Lima/ })).toHaveAttribute('aria-disabled', 'false');
   });
 });
+
+test.describe('Listas da demanda', () => {
+  test('quando a pessoa cria uma lista, acrescenta itens e marca um, então a lista mostra o progresso', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    // Quando
+    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('textbox').fill('Documentos do cliente');
+    await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('button', { name: 'Salvar' }).click();
+    const lista = cartao.getByRole('region', { name: 'Lista Documentos do cliente' });
+    const novo = lista.getByRole('textbox', { name: 'Novo item da lista Documentos do cliente' });
+    await novo.fill('Procuração');
+    await novo.press('Enter');
+    await novo.fill('Contrato social');
+    await novo.press('Enter');
+    await lista.getByRole('checkbox', { name: 'Procuração' }).check();
+    // Então
+    await expect(lista).toContainText('1 de 2');
+    await expect(lista.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
+    await expect(lista.getByRole('checkbox', { name: 'Procuração' })).toBeChecked();
+  });
+
+  test('quando a pessoa põe uma data de entrega num item e o sobe, então a data aparece e o item vai para cima', async ({ page }) => {
+    // Dado: "Registro de marca" tem a lista "Pessoa jurídica" com três itens
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    const lista = cartao.getByRole('region', { name: 'Lista Pessoa jurídica' });
+    // Quando
+    await lista.getByRole('button', { name: 'Ações do item Atos constitutivos' }).click();
+    await page.getByRole('menuitem', { name: 'Data de entrega' }).click();
+    const janela = page.getByRole('dialog', { name: /Data de entrega/ });
+    await janela.getByRole('textbox').fill('10/11/2030');
+    await janela.getByRole('button', { name: 'Salvar' }).click();
+    await lista.getByRole('button', { name: 'Ações do item Atos constitutivos' }).click();
+    await page.getByRole('menuitem', { name: 'Subir' }).click();
+    // Então
+    await expect(lista.getByRole('listitem').filter({ hasText: 'Atos constitutivos' })).toContainText('10/11/2030');
+    await expect.poll(async () => (await lista.getByRole('listitem').allTextContents()).findIndex(t => t.includes('Atos constitutivos'))).toBe(1);
+  });
+
+  test('quando a pessoa exclui uma lista e confirma, então ela some do cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    // Quando
+    await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
+    await page.getByRole('menuitem', { name: 'Excluir lista' }).click();
+    await page.getByRole('dialog', { name: 'Excluir a lista?' }).getByRole('button', { name: 'Excluir lista' }).click();
+    // Então
+    await expect(cartao.getByRole('region', { name: 'Lista Pessoa jurídica' })).toHaveCount(0);
+    await expect(cartao.getByText('Nenhuma lista ainda.', { exact: false })).toBeVisible();
+  });
+});

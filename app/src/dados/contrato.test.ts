@@ -616,6 +616,58 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Listas das demandas', () => {
+      const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' })).id;
+
+      it('quando uma lista é criada com itens, então ela vem no fim da demanda, com os itens na ordem, por fazer', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar(demanda, 'Primeira');
+        // Quando
+        await SD.listaCriar(demanda, '  Pessoa jurídica ', ['Atos constitutivos', 'Quadro de sócios']);
+        // Então
+        const listas = await SD.listasDaDemanda(demanda);
+        expect(listas.map(l => l.nome)).toEqual(['Primeira', 'Pessoa jurídica']);
+        expect(listas[1].itens.map(i => [i.texto, i.feito_em])).toEqual([['Atos constitutivos', null], ['Quadro de sócios', null]]);
+      });
+
+      it('quando um item é marcado, então fica com a hora e quem marcou; desmarcado, perde os dois', async () => {
+        // Dado
+        const lista = await SD.listaCriar(await novaDemanda(), 'Documentos');
+        const item = await SD.itemCriar(lista.id, 'Procuração');
+        // Quando
+        const marcado = await SD.itemAtualizar(item.id, { feito: true });
+        const desmarcado = await SD.itemAtualizar(item.id, { feito: false });
+        // Então
+        expect(marcado.feito_em).not.toBeNull();
+        expect(marcado.feito_por).toBe('u-master');
+        expect(desmarcado).toMatchObject({ feito_em: null, feito_por: null });
+      });
+
+      it('quando o item ganha data de entrega e muda de posição, e a lista é renomeada, então voltam assim', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        const lista = await SD.listaCriar(demanda, 'Documentos', ['A', 'B']);
+        // Quando
+        await SD.itemAtualizar(lista.itens[0].id, { prazo: '2030-11-10', ordem: 3 });
+        await SD.listaAtualizar(lista.id, { nome: 'Documentos do cliente' });
+        // Então
+        const [lida] = await SD.listasDaDemanda(demanda);
+        expect(lida.nome).toBe('Documentos do cliente');
+        expect(lida.itens.map(i => [i.texto, i.prazo])).toEqual([['B', null], ['A', '2030-11-10']]);
+      });
+
+      it('quando a lista é excluída, então os itens vão junto', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        const lista = await SD.listaCriar(demanda, 'Para apagar', ['Item']);
+        // Quando
+        await SD.listaExcluir(lista.id);
+        // Então
+        expect(await SD.listasDaDemanda(demanda)).toEqual([]);
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, ItemDaLista, ListaDaDemanda, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -12,7 +12,7 @@ import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDo
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -69,6 +69,8 @@ interface Banco {
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
   contratosComDemandas?: string[];
+  listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
+  itensDeLista?: (ItemDaLista & { lista_id: string })[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
 type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
@@ -211,6 +213,17 @@ if (!bd.demandas) {
   ];
 }
 bd.contratosComDemandas ??= [];
+// Uma lista de exemplo na demanda "Registro de marca": os documentos de pessoa jurídica, um já entregue.
+if (!bd.listas) {
+  const d = bd.demandas.find(x => x.titulo === 'Registro de marca'), lista = novoId();
+  bd.listas = d ? [{ id: lista, demanda_id: d.id, nome: 'Pessoa jurídica', ordem: 1, criado_em: agora() }] : [];
+  bd.itensDeLista = d ? [
+    { id: novoId(), lista_id: lista, texto: 'Comprovante de inscrição e de situação cadastral', prazo: null, feito_em: agora(), feito_por: 'u-ana', ordem: 1 },
+    { id: novoId(), lista_id: lista, texto: 'Quadro de sócios e administradores', prazo: dataDaqui(3), feito_em: null, feito_por: null, ordem: 2 },
+    { id: novoId(), lista_id: lista, texto: 'Atos constitutivos', prazo: null, feito_em: null, feito_por: null, ordem: 3 }
+  ] : [];
+}
+bd.itensDeLista ??= [];
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
@@ -423,6 +436,23 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
+// ---------- listas das demandas ----------
+const itemLido = ({ lista_id: _l, ...i }: NonNullable<Banco['itensDeLista']>[number]): ItemDaLista => i;
+const listaLida = ({ demanda_id: _d, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDaDemanda =>
+  ({ ...l, itens: bd.itensDeLista!.filter(i => i.lista_id === l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido) });
+/** Como as regras do banco: nome e texto sem espaços nas pontas e não vazios, no tamanho de cada um. */
+function nomeDaLista(nome: string) {
+  const n = nome.trim();
+  if (!n) throw new Error('Dê um nome à lista.');
+  if (n.length > TAMANHO_LISTA) throw new Error(`O nome da lista pode ter até ${TAMANHO_LISTA} caracteres.`);
+  return n;
+}
+function textoDoItem(texto: string) {
+  const t = texto.trim();
+  if (!t) throw new Error('Escreva o item.');
+  if (t.length > TAMANHO_ITEM) throw new Error(`O item pode ter até ${TAMANHO_ITEM} caracteres.`);
+  return t;
+}
 /**
  * Como os gatilhos da migração 010: objetos limpos e "servico" igual a eles. Quem grava só o texto (a versão anterior
  * do site) tem os objetos tirados dele, separados por ";".
@@ -776,6 +806,9 @@ export const SD: Dados = {
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
+      const listas = new Set(bd.listas!.filter(l => l.demanda_id === id).map(l => l.id));
+      bd.listas = bd.listas!.filter(l => !listas.has(l.id));
+      bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
       auditar('demandas', 'exclusao', d); excluidas++;
     });
     gravar();
@@ -792,6 +825,40 @@ export const SD: Dados = {
   demandasDoContrato: contratoId => espera(bd.demandas!.filter(d => d.contrato_id === contratoId)
     .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
     .slice(0, DEMANDAS_LIGADAS).map(d => ({ ...demandaLigada('', null)(d), papeis: [] }))),
+
+  // ---------- listas das demandas (como banco/018_listas_das_demandas.sql) ----------
+  listasDaDemanda: demandaId => espera(bd.listas!.filter(l => l.demanda_id === demandaId).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
+  async listaCriar(demandaId, nome, itens = []) {
+    acharDemanda(demandaId);
+    const ordem = Math.max(0, ...bd.listas!.filter(l => l.demanda_id === demandaId).map(l => l.ordem)) + 1;
+    const l = { id: novoId(), demanda_id: demandaId, nome: nomeDaLista(nome), ordem, criado_em: agora() };
+    bd.listas!.push(l);
+    itens.forEach((texto, i) => bd.itensDeLista!.push({ id: novoId(), lista_id: l.id, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem: i + 1 }));
+    gravar(); return espera(listaLida(l));
+  },
+  async listaAtualizar(id, { nome, ordem }) {
+    const l = bd.listas!.find(x => x.id === id); if (!l) return erro('Lista não encontrada.');
+    Object.assign(l, nome === undefined ? {} : { nome: nomeDaLista(nome) }, ordem === undefined ? {} : { ordem }); gravar();
+  },
+  async listaExcluir(id) {
+    bd.listas = bd.listas!.filter(l => l.id !== id); bd.itensDeLista = bd.itensDeLista!.filter(i => i.lista_id !== id); gravar();
+  },
+  async itemCriar(listaId, texto) {
+    if (!bd.listas!.some(l => l.id === listaId)) return erro('Lista não encontrada.');
+    const ordem = Math.max(0, ...bd.itensDeLista!.filter(i => i.lista_id === listaId).map(i => i.ordem)) + 1;
+    const item = { id: novoId(), lista_id: listaId, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem };
+    bd.itensDeLista!.push(item); gravar();
+    return espera(itemLido(item));
+  },
+  // Como o gatilho preparar: marcar anota agora e quem marcou; mexer num item já feito não troca isso; desmarcar apaga os dois.
+  async itemAtualizar(id, { feito, texto, ...campos }) {
+    const item = bd.itensDeLista!.find(x => x.id === id); if (!item) return erro('Item não encontrado.');
+    Object.assign(item, campos, texto === undefined ? {} : { texto: textoDoItem(texto) });
+    if (feito === false) Object.assign(item, { feito_em: null, feito_por: null });
+    if (feito && !item.feito_em) Object.assign(item, { feito_em: agora(), feito_por: eu });
+    gravar(); return espera(itemLido(item));
+  },
+  async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
 
   // ---------- quadros: cada módulo tem as suas colunas ----------
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)
