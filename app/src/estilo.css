@@ -402,7 +402,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .lista-sugestoes li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 14px }
 .lista-sugestoes li[aria-selected="true"] { background: var(--accent-tint) }
 .lista-sugestoes li[aria-disabled="true"] { opacity: .55; cursor: not-allowed }
-.lista-sugestoes li > span { flex: 1; min-width: 0; overflow-wrap: anywhere }
+/* O texto da linha ocupa o que sobra; a bolinha das iniciais (também um span) fica do tamanho dela. */
+.lista-sugestoes li > span:not(.avatar) { flex: 1; min-width: 0; overflow-wrap: anywhere }
 .lista-sugestoes small { color: var(--muted) }
 .lista-comentarios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px }
 .comentario { display: flex; gap: 10px; align-items: flex-start }
