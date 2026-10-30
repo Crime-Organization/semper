@@ -155,12 +155,14 @@ test.describe('Editar no cartão', () => {
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
+    await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'Demanda e contrato' })).toBeVisible();
     await edicao.getByLabel('Prazo').fill('15112030');
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(edicao).toHaveCount(0);
+    await expect(cartao.getByText('Modo de edição')).toHaveCount(0);
     await expect(page).toHaveURL(/\/tarefas\/\?id=/);
     await expect(cartao).toContainText('Prazo: 15/11/2030');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();

@@ -130,7 +130,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
         {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
-        {!editando && <AcoesDoCartao arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}

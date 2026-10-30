@@ -105,7 +105,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo><span className="codigo">{k.codigo}</span>
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {!editando && <AcoesDoCartao arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       <div className="contrato-objetos-destaque">

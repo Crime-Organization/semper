@@ -9,7 +9,7 @@ describe('Ações no topo do cartão', () => {
   it('quando o cartão está ativo, então há Arquivar e Editar, e cada um chama a sua ação', async () => {
     // Dado
     const aoArquivar = vi.fn(), aoEditar = vi.fn();
-    render(<AcoesDoCartao arquivado={false} aoArquivar={aoArquivar} aoEditar={aoEditar} />);
+    render(<AcoesDoCartao arquivado={false} editando={false} aoArquivar={aoArquivar} aoEditar={aoEditar} />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Editar' }));
     await userEvent.click(screen.getByRole('button', { name: 'Arquivar' }));
@@ -20,9 +20,19 @@ describe('Ações no topo do cartão', () => {
 
   it('quando o cartão está arquivado, então o botão é Desarquivar', () => {
     // Quando
-    render(<AcoesDoCartao arquivado aoArquivar={() => {}} aoEditar={() => {}} />);
+    render(<AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} />);
     // Então
     expect(screen.getByRole('button', { name: 'Desarquivar' })).toBeInTheDocument();
+  });
+});
+
+describe('Cartão em edição', () => {
+  it('quando o cartão está em edição, então no lugar dos botões aparece só o aviso "Modo de edição"', () => {
+    // Quando
+    render(<AcoesDoCartao arquivado={false} editando aoArquivar={() => {}} aoEditar={() => {}} />);
+    // Então
+    expect(screen.getByRole('status')).toHaveTextContent('Modo de edição');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
 

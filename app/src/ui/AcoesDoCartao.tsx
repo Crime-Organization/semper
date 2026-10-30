@@ -20,6 +20,8 @@ export interface EdicaoNoCartao {
 
 interface PropsAcoes {
   arquivado: boolean;
+  /** Em edição, no lugar dos botões fica só o aviso "Modo de edição", em texto (Cancelar e Salvar estão no pé do cartão). */
+  editando: boolean;
   aoArquivar: () => unknown;
   aoEditar: () => void;
 }
@@ -28,12 +30,16 @@ interface PropsAcoes {
  * No painel ao lado (e na janela estreita), os botões vão para a linha dos botões do painel, lado a lado com o formato e
  * o "X"; na janela larga, ficam na linha dos selos do cartão, encostados à direita do conteúdo.
  */
-export function AcoesDoCartao({ arquivado, aoArquivar, aoEditar }: PropsAcoes) {
+export function AcoesDoCartao({ arquivado, editando, aoArquivar, aoEditar }: PropsAcoes) {
   const noPainel = useContext(BotoesNoPainel);
   const arquivar = arquivado ? 'Desarquivar' : 'Arquivar';
   const botoes = <span className="cartao-topo-acoes">
-    <Botao className="cartao-botao" aria-label={arquivar} title={arquivar} onClick={aoArquivar}><Icone nome="arquivo" tam={ICONE_DO_TOPO} /></Botao>
-    <button type="button" className="cartao-botao cartao-editar" aria-label="Editar" title="Editar" onClick={aoEditar}><Icone nome="editar" tam={ICONE_DO_TOPO} /></button>
+    {editando
+      ? <span className="cartao-modo-edicao" role="status">Modo de edição</span>
+      : <>
+        <Botao className="cartao-botao" aria-label={arquivar} title={arquivar} onClick={aoArquivar}><Icone nome="arquivo" tam={ICONE_DO_TOPO} /></Botao>
+        <button type="button" className="cartao-botao cartao-editar" aria-label="Editar" title="Editar" onClick={aoEditar}><Icone nome="editar" tam={ICONE_DO_TOPO} /></button>
+      </>}
   </span>;
   return noPainel ? createPortal(botoes, noPainel) : botoes;
 }
