@@ -1,6 +1,7 @@
 // Seção que recolhe e expande (cartões de pessoa, contrato, demanda...). O conteúdo só é montado
 // quando aberto: nada é consultado no banco enquanto a seção está fechada.
-// Com "preferencia", a escolha de cada usuário fica guardada e vale na próxima vez. Toda seção tem ícone.
+// Toda seção começa recolhida. Com "preferencia", a escolha de cada usuário (aberta ou fechada) fica guardada e vale
+// na próxima vez. Toda seção tem ícone.
 import { useId, useState, type ReactNode } from 'react';
 import { Icone, type NomeIcone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
@@ -8,16 +9,15 @@ import { lerPreferencia, salvarPreferencia } from './preferencias';
 interface Props {
   titulo: string;
   icone: NomeIcone;
-  /** Chave da preferência que guarda se a seção fica aberta. Sem ela, a seção sempre começa como "padrao". */
+  /** Chave da preferência que guarda se a seção fica aberta. Sem ela, a seção sempre começa recolhida. */
   preferencia?: string;
-  padrao?: boolean;
   /** Quantidade mostrada ao lado do título (ex.: quantos vínculos), visível mesmo com a seção fechada. */
   contador?: number;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, padrao = false, contador, children }: Props) {
-  const [aberto, setAberto] = useState(() => preferencia ? lerPreferencia(preferencia, padrao) : padrao);
+export function Recolhivel({ titulo, icone, preferencia, contador, children }: Props) {
+  const [aberto, setAberto] = useState(() => preferencia ? lerPreferencia(preferencia, false) : false);
   const id = useId();
   const alternar = () => {
     setAberto(!aberto);

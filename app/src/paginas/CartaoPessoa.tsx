@@ -163,19 +163,19 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       </div>
     </section>}
 
-    {comContratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="pessoas.cartao.contratos" padrao
+    {comContratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="pessoas.cartao.contratos"
       contador={Array.isArray(contratos) ? contratos.length : undefined}>
       {contratos === null ? <Carregando />
         : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
         : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" padrao>
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas">
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
         nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" padrao>
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa."
         nova={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }} />
     </Recolhivel>}

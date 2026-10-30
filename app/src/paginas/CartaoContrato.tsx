@@ -130,7 +130,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       </select>
     </section>
 
-    <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" padrao>
+    <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes">
       <ItensLigados itens={partes} />
     </Recolhivel>
 
@@ -152,19 +152,19 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
     ]} />
 
-    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento" padrao>
+    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento">
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
     </Recolhivel>
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" padrao>
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas">
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhuma demanda ainda. Elas nascem quando o contrato chega à coluna do contrato assinado."
         nova={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }} versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" padrao>
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato."
         nova={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }} />
     </Recolhivel>}
@@ -182,9 +182,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   </>;
 }
 
-/** Tópico do cartão que recolhe, como em Pessoas; começa aberto e cada usuário guarda a sua escolha. */
+/** Tópico do cartão que recolhe, como em Pessoas; começa recolhido e cada usuário guarda a sua escolha. */
 function Dados({ titulo, icone, preferencia, linhas }: { titulo: string; icone: NomeIcone; preferencia: string; linhas: [string, ReactNode][] }) {
-  return <Recolhivel titulo={titulo} icone={icone} preferencia={preferencia} padrao>
+  return <Recolhivel titulo={titulo} icone={icone} preferencia={preferencia}>
     <dl className="dados">{linhas.map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
   </Recolhivel>;
 }

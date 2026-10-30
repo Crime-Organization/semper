@@ -3,7 +3,7 @@
 // Na equipe, Mateus e Ana são advogados, Bruno é estagiário e Carla (desativada) é do administrativo.
 // O cadastro é por etapas, como o de pessoa: Cliente e responsável, O que foi contratado, Honorários, Divisão, Documento e observações.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir } from './ajudantes';
+import { abrir, abrirSecao } from './ajudantes';
 
 const ANO = new Date().getFullYear();
 
@@ -124,6 +124,8 @@ test.describe('Cadastro de contratos', () => {
     await salvarContrato(page);
     // Então
     const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Divisão');
+    await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByText('BRUNO EXEMPLO SOUZA (10%), ANA TESTE LIMA (5%)')).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
     // Os participantes são da equipe: ficam com o responsável, antes da situação; o indicador, de fora, fica nas partes.
@@ -277,18 +279,18 @@ test.describe('Contrato salvo', () => {
     await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
   });
 
-  test('quando a pessoa recolhe um tópico do cartão, então ele continua recolhido no próximo contrato', async ({ page }) => {
+  test('quando a pessoa abre um tópico do cartão, que começa recolhido, então ele continua aberto no próximo contrato', async ({ page }) => {
     // Dado
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
     const honorarios = page.getByRole('dialog').getByRole('button', { name: 'Honorários' });
-    await expect(honorarios).toHaveAttribute('aria-expanded', 'true');
+    await expect(honorarios).toHaveAttribute('aria-expanded', 'false');
     // Quando
     await honorarios.click();
     await page.getByRole('dialog').getByRole('button', { name: 'Fechar' }).click();
     await page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' }).click();
     // Então
-    await expect(page.getByRole('dialog').getByRole('button', { name: 'Honorários' })).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'Honorários' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('quando se busca pelo código antigo da planilha, então o contrato é encontrado', async ({ page }) => {
@@ -327,6 +329,7 @@ test.describe('Contratos no cartão da pessoa', () => {
     // Quando
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('button', { name: /Contratos/ })).toContainText('1');
+    await abrirSecao(cartao, 'Contratos');
     const contrato = cartao.getByRole('link', { name: new RegExp(`MA96-0001-${ANO}`) });
     await expect(contrato).toContainText('Cliente · Assinado / em andamento');
     await contrato.click();
@@ -341,6 +344,7 @@ test.describe('Contratos no cartão da pessoa', () => {
     await page.getByRole('searchbox').fill('luciana');
     await page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' }).click();
     const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Contratos');
     await expect(cartao.getByText('Nenhum contrato ligado a esta pessoa.')).toBeVisible();
     // Quando
     await cartao.getByRole('link', { name: 'Novo contrato com esta pessoa como cliente' }).click();
@@ -368,6 +372,7 @@ test.describe('Contrato com mais de um cliente', () => {
     await page.goto('/pessoas/');
     await page.getByRole('searchbox').fill('paulo henrique');
     await page.getByRole('row').filter({ hasText: 'PAULO HENRIQUE SIMULADO' }).click();
+    await abrirSecao(page.getByRole('dialog'), 'Contratos');
     await expect(page.getByRole('dialog').getByRole('link', { name: /Divórcio consensual/ })).toContainText('Cliente');
   });
 });
@@ -378,6 +383,7 @@ test.describe('Ligações em quadrinhos', () => {
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
     const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ })).toContainText('Cliente');
     await expect(cartao.getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('equipe do escritório');
     // O responsável é da equipe: vem antes da situação e fora das partes (as pessoas de fora do escritório).

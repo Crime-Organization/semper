@@ -66,7 +66,7 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao }: {
   // Na janela no centro, a coluna da direita; no painel ao lado, uma seção recolhível como as outras do cartão.
   return coluna
     ? createPortal(<section className="bloco comentarios-coluna" aria-labelledby={titulo}><h3 id={titulo}><Icone nome="comentario" tam={14} />Comentários</h3>{conteudo}</section>, coluna)
-    : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" padrao contador={lista?.length}>{conteudo}</Recolhivel>;
+    : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length}>{conteudo}</Recolhivel>;
 }
 
 function ItemComentario({ c, modulo, motivoSemMencao, aoEditar, aoExcluir }: {

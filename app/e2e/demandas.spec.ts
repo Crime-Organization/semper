@@ -3,13 +3,15 @@
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
 // devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Page } from '@playwright/test';
+import { abrirSecao } from './ajudantes';
 
-/** Abre o cartão de um item do quadro ou da tabela pelo texto. */
-async function abrirDemanda(page: Page, titulo: string) {
+/** Abre o cartão de uma demanda pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
+async function abrirDemanda(page: Page, titulo: string, ...secoes: string[]) {
   await page.goto('/demandas/');
   await page.getByRole('button', { name: 'Tabela' }).click();
   await page.getByRole('row').filter({ hasText: titulo }).click();
   await expect(page.getByRole('dialog').getByRole('heading', { name: titulo, level: 2 })).toBeVisible();
+  for (const secao of secoes) await abrirSecao(page.getByRole('dialog'), secao);
   return page.getByRole('dialog');
 }
 
@@ -33,6 +35,7 @@ test.describe('Cadastro de demandas', () => {
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     await expect(cartao.getByRole('link', { name: /Mateus Freitas Gonçalves/ })).toContainText('Responsável');
     await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('Colaborador');
+    await abrirSecao(cartao, 'Clientes');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente');
     await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Para fazer');
   });
@@ -57,10 +60,13 @@ test.describe('Demandas automáticas', () => {
     // Quando
     await contrato.getByLabel('Situação do contrato').selectOption({ label: 'Assinado / em andamento' });
     // Então
+    await abrirSecao(contrato, 'Demandas');
     await expect(contrato.getByRole('link', { name: /Ação de cobrança/ })).toContainText('Para fazer');
     await contrato.getByRole('link', { name: /Ação de cobrança/ }).click();
     const demanda = page.getByRole('dialog');
     await expect(demanda.getByRole('heading', { name: 'Ação de cobrança', level: 2 })).toBeVisible();
+    await abrirSecao(demanda, 'Clientes');
+    await abrirSecao(demanda, 'Contrato');
     await expect(demanda.getByRole('link', { name: /MARIA APARECIDA EXEMPLO/ })).toContainText('Cliente');
     await expect(demanda.getByRole('link', { name: /Ação de cobrança/ })).toContainText('Contrato');
   });
@@ -72,6 +78,7 @@ test.describe('Demandas ligadas', () => {
     await page.goto('/pessoas/');
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
     // Então
+    await abrirSecao(page.getByRole('dialog'), 'Demandas');
     await expect(page.getByRole('dialog').getByRole('link', { name: /Registro de marca/ }).filter({ hasText: 'Fazendo' })).toContainText('Cliente');
   });
 
@@ -84,7 +91,7 @@ test.describe('Demandas ligadas', () => {
 
   test('quando o comentário da demanda menciona quem não participa dela, então a pessoa aparece desligada na lista do @', async ({ page }) => {
     // Dado: "Busca de anterioridade" é do Mateus, sem colaboradores; a Ana é administradora e vê todas
-    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Comentários');
     // Quando
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Veja isto, @');
     // Então
@@ -97,7 +104,7 @@ test.describe('Demandas ligadas', () => {
 test.describe('Listas da demanda', () => {
   test('quando a pessoa cria uma lista, acrescenta itens e marca um, então a lista mostra o progresso', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Listas');
     // Quando
     await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
     await page.getByRole('menuitem', { name: 'Lista em branco' }).click();
@@ -118,7 +125,7 @@ test.describe('Listas da demanda', () => {
 
   test('quando a pessoa põe uma data de entrega num item e o sobe, então a data aparece e o item vai para cima', async ({ page }) => {
     // Dado: "Registro de marca" tem a lista "Pessoa jurídica" com três itens
-    const cartao = await abrirDemanda(page, 'Registro de marca');
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
     const lista = cartao.getByRole('region', { name: 'Lista Pessoa jurídica' });
     // Quando
     await lista.getByRole('button', { name: 'Ações do item Atos constitutivos' }).click();
@@ -135,7 +142,7 @@ test.describe('Listas da demanda', () => {
 
   test('quando a pessoa exclui uma lista e confirma, então ela some do cartão', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Registro de marca');
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
     // Quando
     await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
     await page.getByRole('menuitem', { name: 'Excluir lista' }).click();
@@ -161,7 +168,7 @@ test.describe('Modelos de lista', () => {
 
   test('quando a pessoa escolhe um modelo em "Adicionar lista", então a lista entra na demanda com um clique, sem itens marcados', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Listas');
     // Quando
     await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
     await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
@@ -173,7 +180,7 @@ test.describe('Modelos de lista', () => {
 
   test('quando a pessoa salva uma lista da demanda como modelo, então ele passa a aparecer nos modelos', async ({ page }) => {
     // Dado: "Registro de marca" tem a lista "Pessoa jurídica"
-    const cartao = await abrirDemanda(page, 'Registro de marca');
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
     // Quando
     await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
     await page.getByRole('menuitem', { name: 'Salvar como modelo' }).click();
