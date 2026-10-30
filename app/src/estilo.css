@@ -369,6 +369,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-painel.centro .cartao-conteudo { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) }
 /* O conteúdo do cartão se ajusta à largura dele, não à da janela toda (que inclui a coluna). */
 .cartao-painel.centro .cartao-corpo { overflow-y: auto; container-type: inline-size }
+/* A janela do cadastro novo: no centro, mais estreita e sem a coluna dos comentários. */
+.cartao-painel.centro.sem-coluna { width: min(860px, calc(100vw - 32px)) }
+.cartao-painel.centro.sem-coluna .cartao-conteudo { grid-template-columns: minmax(0, 1fr) }
 .cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
 .comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
 /* Janela estreita: a coluna dos comentários desce para baixo do cartão. */
@@ -383,7 +386,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-botao:hover { background: var(--soft) }
 /* No celular o cartão ocupa a tela toda nos dois formatos: não há o que escolher. */
 @media (max-width: 640px) {
-  .cartao-painel.centro { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; transform: translateY(16px) }
+  .cartao-painel.centro, .cartao-painel.centro.sem-coluna { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; transform: translateY(16px) }
   .cartao-painel.centro.on { transform: none }
   .cartao-formato { display: none }
 }

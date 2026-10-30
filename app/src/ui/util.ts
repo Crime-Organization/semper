@@ -22,6 +22,11 @@ export function relativo(iso?: string | null) {
 export const numero = (n: number) => n.toLocaleString('pt-BR');
 
 
+/** Volta ao começo do cadastro em etapas, na página ou na janela do cadastro (onde quem rola é a janela, não a página). */
+export function subirAoCadastro() {
+  document.querySelector('.passos')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+}
+
 /** Título da aba do navegador: "Pessoas · SEMPER". null deixa como está (ex.: o formulário aberto dentro de um cartão). */
 export function useTitulo(nome: string | null) {
   useEffect(() => { if (nome !== null) document.title = `${nome} · ${MARCA.nome}`; }, [nome]);

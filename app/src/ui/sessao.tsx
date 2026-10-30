@@ -1,6 +1,6 @@
 // Quem está logado. As telas internas ficam dentro de <ExigirLogin>, que carrega o contexto (perfil,
 // escritório e equipe) uma vez e o entrega por useCtx(); sem sessão, leva à entrada.
-import { createContext, Suspense, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, Suspense, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { SD, type ContextoAtivo } from '../dados';
 import { iniciarPreferencias } from './preferencias';
@@ -25,7 +25,8 @@ export const useCtx = () => useSessao().ctx;
 
 const RENOVAR_APOS = 10 * MINUTO;   // relê a equipe e o próprio acesso ao trocar de tela depois de 10 min
 
-export function ExigirLogin() {
+/** "janela": o que se abre por cima das telas internas e também precisa de quem está logado (o cadastro novo, em App.tsx). */
+export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
   const [ctx, setCtx] = useState<ContextoAtivo | null>(null);
   const [erro, setErro] = useState('');
   const navegar = useNavigate();
@@ -60,5 +61,6 @@ export function ExigirLogin() {
   if (!ctx) return null;
   return <SessaoCtx.Provider value={{ ctx, recarregar: (forcar = true) => carregar(forcar) }}>
     <Casca><Suspense fallback={<div className="miolo"><Carregando /></div>}><Outlet /></Suspense></Casca>
+    {janela}
   </SessaoCtx.Provider>;
 }

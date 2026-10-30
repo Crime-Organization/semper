@@ -346,10 +346,11 @@ test.describe('Contratos no cartão da pessoa', () => {
     await expect(cartao.getByText('Nenhum contrato ligado a esta pessoa.')).toBeVisible();
     // Quando
     await cartao.getByRole('link', { name: 'Novo contrato com esta pessoa como cliente' }).click();
-    // Então
-    await expect(page.getByRole('heading', { name: 'Cliente e responsável', level: 2 })).toBeVisible();
-    await expect(page.getByText('LUCIANA ROCHA AMOSTRA')).toBeVisible();
-    await expect(page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveText('Trocar');
+    // Então: o cadastro abre numa janela sobre o cartão, com a pessoa já escolhida
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await expect(cadastro.getByRole('heading', { name: 'Cliente e responsável', level: 2 })).toBeVisible();
+    await expect(cadastro.getByText('LUCIANA ROCHA AMOSTRA')).toBeVisible();
+    await expect(cadastro.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ })).toHaveText('Trocar');
   });
 });
 

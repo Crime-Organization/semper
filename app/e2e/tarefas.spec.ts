@@ -64,13 +64,14 @@ test.describe('Cadastro de tarefas', () => {
     // Quando
     await abrirSecao(page.getByRole('dialog'), 'Tarefas');
     await page.getByRole('dialog').getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
-    await page.getByLabel('Título').fill('Anexar os documentos');
-    await page.getByRole('button', { name: 'Próxima' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Título').fill('Anexar os documentos');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
     // Então
-    await expect(page.getByRole('group', { name: 'Pessoas ligadas' })).toContainText('JOSÉ DA SILVA TESTE');
-    await page.getByRole('button', { name: 'Próxima' }).click();
-    await expect(page.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
-    await expect(page.getByText(/MA96-0001/)).toBeVisible();
+    await expect(cadastro.getByRole('group', { name: 'Pessoas ligadas' })).toContainText('JOSÉ DA SILVA TESTE');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await expect(cadastro.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
+    await expect(cadastro.getByText(/MA96-0001/)).toBeVisible();
   });
 });
 
@@ -111,6 +112,39 @@ test.describe('Quadro de tarefas', () => {
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await expect(page.getByRole('row').filter({ hasText: 'Registro de marca' })).toContainText('Concluído');
+  });
+});
+
+test.describe('Cadastro numa janela', () => {
+  test('quando a pessoa clica em "Nova tarefa" no quadro, então o cadastro abre numa janela sobre ele e, ao salvar, mostra o cartão da tarefa nova', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Quando
+    await page.getByRole('link', { name: 'Nova tarefa' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await expect(page.getByRole('list', { name: 'Para fazer', exact: true })).toBeVisible();
+    await cadastro.getByLabel('Título').fill('Ligar para o cliente');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Salvar tarefa' }).click();
+    // Então
+    await expect(cadastro).toHaveCount(0);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Ligar para o cliente', level: 2 })).toBeVisible();
+    await expect(page.getByRole('list', { name: 'Para fazer', exact: true }).getByRole('listitem').filter({ hasText: 'Ligar para o cliente' })).toBeVisible();
+  });
+
+  test('quando a pessoa fecha a janela do cadastro, então volta à página de onde veio, sem salvar', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('link', { name: 'Nova pessoa' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await expect(cadastro.getByRole('heading', { name: 'Qual é o tipo de cadastro?' })).toBeVisible();
+    // Quando
+    await cadastro.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    await expect(cadastro).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pessoas\/$/);
   });
 });
 
