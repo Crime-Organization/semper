@@ -9,14 +9,16 @@ import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Rep
 import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Botao, BotaoDuplo } from '../ui/Botoes';
+import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
 import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
+import NovaPessoa from './NovaPessoa';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
 import { VinculosPessoa } from './VinculosPessoa';
@@ -37,6 +39,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   const [p, setP] = useState<Pessoa | null | undefined>(undefined);   // undefined: carregando; null: não existe
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
+  const [editando, setEditando] = useState(false);
   const [versaoSig, setVersaoSig] = useState(0);
   const qual = useRef<HTMLDivElement>(null);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
@@ -115,24 +119,25 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     else avisar('Selecionei o texto: use Ctrl+C para copiar.');
   }
 
+  function terminarEdicao(salvou: boolean) {
+    setEditando(false);
+    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+  }
+
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
         {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
+        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
     </header>
 
-    {/* Ações numa linha só. Em espaço estreito, Arquivar vira botão redondo só com o ícone (estilo.css, "cartao-acoes"). */}
-    <div className="cartao-acoes">
-      <BotaoLink variante="principal" pequeno to={'/pessoas/nova/?id=' + p.id}><Icone nome="editar" tam={15} /> Atualizar cadastro</BotaoLink>
-      <Botao pequeno className="acao-arquivar" title={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={p.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
-        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{p.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
-      </Botao>
-    </div>
+    {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
+
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Pessoa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
@@ -214,6 +219,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <span>Cadastrada em {dataCurta(p.criado_em)}{p.criado_por ? ' por ' + nomeDe(p.criado_por) : ''}</span>
       <span>Atualizada {relativo(p.atualizado_em)}</span>
     </footer>
+    </>}
   </>;
 }
 

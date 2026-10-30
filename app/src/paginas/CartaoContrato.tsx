@@ -5,8 +5,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
 import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
@@ -15,7 +15,9 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
+import NovoContrato from './NovoContrato';
 import { dataCurta, dataHora, relativo } from '../ui/util';
 
 interface Props {
@@ -32,6 +34,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const [k, setK] = useState<Contrato | null | undefined>(undefined);   // undefined: carregando; null: não existe
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
+  const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.contratoObter(id).then(x => { setK(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
@@ -90,12 +94,18 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
 
+  function terminarEdicao(salvou: boolean) {
+    setEditando(false);
+    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+  }
+
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo><span className="codigo">{k.codigo}</span>
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
+        <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       <div className="contrato-objetos-destaque">
@@ -104,11 +114,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       </div>
     </header>
 
+    {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao }} /> : <>
+
     <div className="cartao-acoes">
-      <BotaoLink variante="principal" pequeno to={'/contratos/novo/?id=' + k.id}><Icone nome="editar" tam={15} /> Atualizar contrato</BotaoLink>
-      <Botao pequeno className="acao-arquivar" title={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
-        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{k.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
-      </Botao>
       <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
     </div>
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
@@ -175,6 +183,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Criado em {dataCurta(k.criado_em)}{k.criado_por ? ' por ' + nomeDe(k.criado_por) : ''}</span>
       <span>Atualizado {relativo(k.atualizado_em)}</span>
     </footer>
+    </>}
   </>;
 }
 

@@ -14,6 +14,7 @@ import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { Aviso, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
 import { ETAPAS } from './novaPessoa/etapas';
@@ -24,11 +25,11 @@ type Campos = CamposCadastro;
 
 let seq = 0;
 const linha = (v = ''): Linha => ({ k: ++seq, v });
-export default function NovaPessoa() {
+export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
   const [params] = useSearchParams();
-  const idAtualizar = params.get('id');
+  const idAtualizar = edicao?.id ?? params.get('id');
   const etapaInicial = params.get('etapa');
   const membros = ctx.equipe.filter(m => m.ativo);
 
@@ -56,7 +57,7 @@ export default function NovaPessoa() {
   const botaoCNPJ = useRef<HTMLButtonElement>(null);
   const botaoCEP = useRef<HTMLButtonElement>(null);
   const verificacao = useRef<{ doc: string | null; promessa: Promise<boolean> | null }>({ doc: null, promessa: null });
-  useTitulo(alvo ? 'Atualizar cadastro' : 'Cadastro de pessoa');
+  useTitulo(edicao ? null : alvo ? 'Atualizar cadastro' : 'Cadastro de pessoa');
 
   // Muda campos (e apaga o erro de cada campo mudado).
   function mudar(campos: Partial<Campos>) {
@@ -246,6 +247,14 @@ export default function NovaPessoa() {
     mudar(n);
   }
 
+  // No cartão, todas as etapas aparecem de uma vez: cada uma faz logo o ajuste que faria ao entrar (ex.: a linha do telefone).
+  function prepararTodas() {
+    for (const e of fluxo(cRef.current)) {
+      const ajustes = ETAPAS[e].aoEntrar?.(cRef.current, { entidadeDoCadastro: alvoRef.current?.tipo_entidade, novaLinha: () => linha() });
+      if (ajustes && Object.keys(ajustes).length) mudar(ajustes);
+    }
+  }
+
   async function entrarAtualizacao(id: string, mesclar: boolean) {
     const p = await SD.pessoaObter(id);
     if (!p) throw new Error('Cadastro não encontrado.');
@@ -254,7 +263,7 @@ export default function NovaPessoa() {
     preencher(p, mesclar);
   }
   useEffect(() => {
-    if (idAtualizar) entrarAtualizacao(idAtualizar, false).catch(falha).finally(() => setPronto(true));
+    if (idAtualizar) entrarAtualizacao(idAtualizar, false).then(() => { if (edicao) prepararTodas(); }).catch(falha).finally(() => setPronto(true));
   // oxlint-disable-next-line react/exhaustive-deps -- carrega o cadastro a atualizar uma vez só, ao abrir o formulário
   }, []);
 
@@ -311,7 +320,7 @@ export default function NovaPessoa() {
           await SD.pessoaAtualizar(atual.id, antes, respAntes);
           return { tipo: 'pessoaAtualizada', id: atual.id };
         });
-        navegar('/pessoas/?id=' + r.id);
+        if (edicao) edicao.aoTerminar(true); else navegar('/pessoas/?id=' + r.id);
       } else {
         if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
@@ -339,6 +348,18 @@ export default function NovaPessoa() {
     if (!ok) return;
     if (passoRef.current === fluxo(cRef.current).length - 1 && cRef.current.tipo) return salvar();
     irPara(passoRef.current + 1);
+  }
+
+  // No cartão: confere todas as etapas, na ordem (a primeira com erro mostra o erro), e só então salva.
+  async function salvarTudo() {
+    if (ocupadoRef.current) return;
+    ocupadoRef.current = true;
+    setOcupado('validando');
+    let ok = true;
+    for (const e of fluxo(cRef.current)) if (!(ok = await validar(e))) break;
+    setOcupado(false);
+    ocupadoRef.current = false;
+    if (ok) await salvar();
   }
 
   // Enter: vai para o próximo campo da etapa ou para a próxima etapa.
@@ -398,6 +419,14 @@ export default function NovaPessoa() {
     opcoesResp, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
   };
   const Atual = ETAPAS[etapa].Componente;
+
+  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
+  if (edicao) return !pronto ? <Carregando />
+    : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
+    : <form className="edicao-cartao" noValidate autoComplete="off" aria-label="Editar cadastro" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
+      <FormularioCtx.Provider value={formulario}>{etapas.map(e => { const Componente = ETAPAS[e].Componente; return <Componente key={e} />; })}</FormularioCtx.Provider>
+      <RodapeDaEdicao ocupado={!!ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvarTudo()} />
+    </form>;
 
   return <div className="passos">
     <header>

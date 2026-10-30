@@ -22,6 +22,7 @@ import { ordemNoFim } from '../ui/quadro/posicao';
 import { normal } from '../regras/texto';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import './Contratos.css';
 
 type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
@@ -34,11 +35,11 @@ type CampoTexto = Exclude<keyof CamposContrato, 'clientes' | 'objetos' | 'partic
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
 
-export default function NovoContrato() {
+export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
   const [params] = useSearchParams();
-  const idAtualizar = params.get('id');
+  const idAtualizar = edicao?.id ?? params.get('id');
   const etapaInicial = params.get('etapa');
 
   // Quem é advogado já vem como responsável.
@@ -65,7 +66,7 @@ export default function NovoContrato() {
   const [participantes, setParticipantes] = useState<Escolhida[]>([]);
   const [focarParticipante, setFocarParticipante] = useState<number | null>(null);
   const [sugeridos, setSugeridos] = useState<string[]>([]);
-  useTitulo(alvo ? 'Atualizar contrato' : 'Novo contrato');
+  useTitulo(edicao ? null : alvo ? 'Atualizar contrato' : 'Novo contrato');
 
   useEffect(() => {
     if (!idAtualizar) return;
@@ -127,6 +128,7 @@ export default function NovoContrato() {
   const focarErro = () => requestAnimationFrame(() =>
     document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   function avancar() {
+    if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
     if (Object.keys(errosDaEtapa(etapa.id, c)).length) { focarErro(); return; }
     if (ultimo) void salvar(); else irPara(passo + 1);
@@ -221,7 +223,7 @@ export default function NovoContrato() {
     const comErro = primeiraEtapaComErro(c);
     if (comErro >= 0) {
       setConferidas(new Set(ETAPAS_CONTRATO.map(e => e.id)));
-      irPara(comErro);
+      if (!edicao) irPara(comErro);
       focarErro();
       return;
     }
@@ -236,7 +238,7 @@ export default function NovoContrato() {
           await SD.contratoAtualizar(alvo.id, antes);
           return { tipo: 'contratoAtualizado', id: alvo.id };
         });
-        navegar('/contratos/?id=' + alvo.id);
+        if (edicao) edicao.aoTerminar(true); else navegar('/contratos/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o contrato novo entra na primeira coluna do quadro.
         const coluna = etapaInicial || (await SD.colunasListar('contratos')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
@@ -389,6 +391,17 @@ export default function NovoContrato() {
       </Campo>
     </>
   };
+
+  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
+  if (edicao) return !pronto ? <Carregando />
+    : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
+    : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar contrato" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
+      {ETAPAS_CONTRATO.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
+        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+        {CONTEUDO[e.id]()}
+      </section>)}
+      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+    </form>;
 
   const voltar = idAtualizar ? '/contratos/?id=' + idAtualizar : '/contratos/';
   const total = ETAPAS_CONTRATO.length;

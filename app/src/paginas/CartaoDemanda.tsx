@@ -7,8 +7,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
 import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda } from '../regras/demanda';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -16,7 +16,9 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
+import NovaDemanda from './NovaDemanda';
 import { dataCurta, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
 import { CartoesLigados } from './CartoesLigados';
@@ -37,6 +39,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   const [d, setD] = useState<Demanda | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
+  const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.demandaObter(id).then(x => { setD(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
@@ -81,22 +85,26 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
 
+  function terminarEdicao(salvou: boolean) {
+    setEditando(false);
+    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+  }
+
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
         <SeloDoPrazo prazo={d.prazo} />
         {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+        <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{d.titulo}</h2>
       {d.descricao && <p className="demanda-descricao">{d.descricao}</p>}
     </header>
 
+    {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
+
     <div className="cartao-acoes">
-      <BotaoLink variante="principal" pequeno to={'/demandas/nova/?id=' + d.id}><Icone nome="editar" tam={15} /> Atualizar demanda</BotaoLink>
-      <Botao pequeno className="acao-arquivar" title={d.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={d.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
-        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{d.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
-      </Botao>
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, d.responsavel_id, 'Responsável')}
         participantes={d.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
@@ -141,5 +149,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Criada em {dataCurta(d.criado_em)}{d.criado_por ? ' por ' + nomeDe(d.criado_por) : ''}</span>
       <span>Atualizada {relativo(d.atualizado_em)}</span>
     </footer>
+    </>}
   </>;
 }

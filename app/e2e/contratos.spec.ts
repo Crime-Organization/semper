@@ -186,11 +186,10 @@ test.describe('Função na equipe', () => {
     // Dado: o contrato de divórcio (BR08-0004) é do Bruno, que hoje é estagiário
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
-    await page.getByRole('dialog').getByRole('link', { name: 'Atualizar contrato' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
     await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option', { selected: true })).toHaveText('Bruno Exemplo Souza');
     // Quando
-    while (!(await page.getByRole('button', { name: 'Salvar alterações' }).isVisible())) await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(page.getByRole('dialog').getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
   });
@@ -264,11 +263,10 @@ test.describe('Contrato salvo', () => {
     await page.goto('/inicio/');
     await abrir(page, 'Contratos');
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
-    await page.getByRole('dialog').getByRole('link', { name: 'Atualizar contrato' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
     // Quando
     await page.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
-    while (!(await page.getByRole('button', { name: 'Salvar alterações' }).isVisible())) await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Salvar', exact: true }).click();
     await page.getByRole('dialog').getByLabel('Situação do contrato').selectOption({ label: 'Encerrado' });
     // Então
     const cartao = page.getByRole('dialog');
