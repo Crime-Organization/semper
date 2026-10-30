@@ -13,7 +13,7 @@ import { falha, feito } from '../ui/avisos';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
-import { useTitulo } from '../ui/util';
+import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { Aviso, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
@@ -83,7 +83,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     setPasso(novo);
     const ajustes = ETAPAS[f[novo]].aoEntrar?.(cRef.current, { entidadeDoCadastro: alvoRef.current?.tipo_entidade, novaLinha: () => linha() });
     if (ajustes && Object.keys(ajustes).length) mudar(ajustes);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    subirAoCadastro();
   }
   useEffect(() => {
     const t = setTimeout(() => document.querySelector<HTMLElement>('.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select')

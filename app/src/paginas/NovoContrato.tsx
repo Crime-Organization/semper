@@ -21,7 +21,7 @@ import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { normal } from '../regras/texto';
 import { useCtx } from '../ui/sessao';
-import { useTitulo } from '../ui/util';
+import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import './Contratos.css';
 
@@ -123,7 +123,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   // ---------- etapas ----------
   function irPara(i: number) {
     setPasso(i);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    subirAoCadastro();
   }
   const focarErro = () => requestAnimationFrame(() =>
     document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));

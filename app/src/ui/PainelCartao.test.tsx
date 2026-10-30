@@ -66,3 +66,28 @@ describe('Formato do cartão', () => {
     expect(aoFechar).toHaveBeenCalledOnce();
   });
 });
+
+describe('Janela do cadastro novo', () => {
+  beforeEach(() => { iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' }); });
+
+  it('quando abre, então fica no centro mesmo para quem prefere o cartão ao lado, sem o botão de trocar', () => {
+    // Quando
+    render(<PainelCartao soNoCentro aoFechar={() => {}}><h1>Nova pessoa</h1></PainelCartao>);
+    // Então
+    expect(screen.getByRole('dialog')).toHaveClass('centro');
+    expect(screen.queryByRole('button', { name: /Abrir/ })).not.toBeInTheDocument();
+  });
+
+  it('quando a pessoa clica fora, então não fecha (perderia o que digitou); o X fecha', async () => {
+    // Dado
+    const aoFechar = vi.fn();
+    render(<PainelCartao soNoCentro aoFechar={aoFechar}><h1>Nova pessoa</h1></PainelCartao>);
+    // Quando: o clique cai no véu, o fundo escurecido logo antes da janela
+    await userEvent.click(screen.getByRole('dialog').previousElementSibling!);
+    const depoisDoClique = aoFechar.mock.calls.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Fechar' }));
+    // Então
+    expect(depoisDoClique).toBe(0);
+    expect(aoFechar).toHaveBeenCalledOnce();
+  });
+});

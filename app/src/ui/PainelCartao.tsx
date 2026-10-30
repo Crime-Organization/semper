@@ -3,6 +3,8 @@
 // módulos, em qualquer aparelho). Esc ou clique fora fecham (se não houver janela aberta).
 // Na janela no centro há uma coluna à direita, para os comentários: ColunaDoCartao diz onde ela está (no painel ao lado,
 // não há coluna, e os comentários ficam numa seção do cartão).
+// Com "soNoCentro" (o cadastro novo, numa janela sobre a página), é sempre a janela no centro, sem a coluna e sem a
+// troca, e o clique fora não fecha.
 import { createContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icone, type NomeIcone } from './Icone';
@@ -41,9 +43,11 @@ const formatoGuardado = (): FormatoCartao => {
   return f in FORMATOS ? f as FormatoCartao : 'lado';
 };
 
-export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; children: ReactNode }) {
+export function PainelCartao({ aoFechar, soNoCentro = false, children }: { aoFechar: () => void; soNoCentro?: boolean; children: ReactNode }) {
   const [on, setOn] = useState(false);
-  const [formato, setFormato] = useState(formatoGuardado);
+  const [escolhido, setFormato] = useState(formatoGuardado);
+  const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
+  const comColuna = formato === 'centro' && !soNoCentro;
   const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const [vaga, setVaga] = useState<HTMLElement | null>(null);
   const estreita = useEstreita();
@@ -64,20 +68,21 @@ export function PainelCartao({ aoFechar, children }: { aoFechar: () => void; chi
   }
   const { rotulo, icone } = FORMATOS[formato];
   return createPortal(<>
-    <div className={'veu' + (on ? ' on' : '')} onClick={() => fechar.current()} />
-    <aside className={`cartao-painel ${formato}` + (on ? ' on' : '')} role="dialog" aria-modal="true" tabIndex={-1} ref={painel}>
+    {/* No cadastro, um clique fora não fecha (perderia o que foi digitado): só o X ou o Esc. */}
+    <div className={'veu' + (on ? ' on' : '')} onClick={() => { if (!soNoCentro) fechar.current(); }} />
+    <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? 'Cadastro' : undefined} tabIndex={-1} ref={painel}>
       <div className="cartao-botoes">
         <span className="cartao-botoes-do-cartao" ref={setVaga} />
-        <button type="button" className="cartao-botao cartao-formato" aria-label={rotulo} title={rotulo} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>
+        {!soNoCentro && <button type="button" className="cartao-botao cartao-formato" aria-label={rotulo} title={rotulo} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>}
         <button type="button" className="cartao-botao" aria-label="Fechar" onClick={() => fechar.current()}><Icone nome="fechar" tam={18} /></button>
       </div>
       <div className="cartao-conteudo">
-        <ColunaDoCartao.Provider value={formato === 'centro' ? coluna : null}>
+        <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
           <BotoesNoPainel.Provider value={formato === 'lado' || estreita ? vaga : null}>
             <div className="cartao-corpo">{children}</div>
           </BotoesNoPainel.Provider>
         </ColunaDoCartao.Provider>
-        {formato === 'centro' && <div className="cartao-coluna" ref={setColuna} />}
+        {comColuna && <div className="cartao-coluna" ref={setColuna} />}
       </div>
     </aside>
   </>, document.body);
