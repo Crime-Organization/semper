@@ -1,6 +1,8 @@
 // Formato dos dados trocados entre as telas e a camada de dados (dados/supabase.ts e dados/falso.ts).
 
 export type Papel = 'master' | 'admin' | 'usuario';
+/** O que a pessoa faz no escritório. Diferente do papel: administrador é quem gere o sistema; administrativo é uma função. */
+export type Funcao = 'advogado' | 'administrativo' | 'estagiario';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
 export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro';
 
@@ -11,6 +13,7 @@ export interface Perfil {
   nome: string;
   usuario: string;
   papel: Papel;
+  funcao: Funcao;
   ativo: boolean;
   cor: string | null;
   oab: string | null;
@@ -23,6 +26,7 @@ export interface Membro {
   nome: string;
   usuario?: string;
   papel?: Papel;
+  funcao?: Funcao;
   ativo?: boolean;
   cor?: string | null;
   pessoa_id?: string | null;
@@ -239,7 +243,7 @@ export interface FiltroContratos {
 }
 
 export interface Usuario {
-  id: string; nome: string; usuario: string; papel: Papel; ativo: boolean; pessoa_id: string | null; email: string;
+  id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
 }
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
@@ -368,6 +372,8 @@ export interface DadosEquipe {
   /** Link novo para um convite pendente (o anterior deixa de valer). Devolve o código. */
   conviteNovoLink(id: string): Promise<string>;
   equipeDefinirPapel(perfilId: string, papel: Papel): Promise<void>;
+  /** Só administradores; fica no registro de ações. */
+  equipeDefinirFuncao(perfilId: string, funcao: Funcao): Promise<void>;
   equipeDefinirAtivo(perfilId: string, ativo: boolean): Promise<void>;
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
@@ -379,4 +385,26 @@ export interface DadosEquipe {
   escritorioSalvar(dados: Omit<DadosEscritorio, 'logo'> & { logo?: string | null }): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe {}
+/** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
+export type ModuloComentado = 'pessoas' | 'contratos';
+export interface Comentario {
+  id: string;
+  autor_id: string | null;   // null: o usuário foi removido do sistema
+  texto: string;
+  mencoes: string[];         // perfis marcados com @ (o banco acha no texto)
+  criado_em: string;
+  editado_em: string | null;
+}
+
+/** Comentários dos cartões, com @ (banco/016_comentarios.sql). */
+export interface DadosComentarios {
+  /** Os comentários do cartão, do mais novo para o mais antigo. */
+  comentariosListar(modulo: ModuloComentado, cartaoId: string): Promise<Comentario[]>;
+  comentarioCriar(modulo: ModuloComentado, cartaoId: string, texto: string): Promise<Comentario>;
+  /** Só quem escreveu. */
+  comentarioEditar(id: string, texto: string): Promise<Comentario>;
+  /** Quem escreveu ou um administrador. */
+  comentarioExcluir(id: string): Promise<void>;
+}
+
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios {}

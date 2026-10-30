@@ -7,6 +7,7 @@ import { ordemNoFim } from '../ui/quadro/posicao';
 import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
+import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
@@ -142,7 +143,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </div>}
 
     <section className="bloco campos">
-      <h3>Etapa do atendimento</h3>
+      <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
       <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
         <option value="">Sem etapa</option>
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
@@ -150,12 +151,12 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </section>
 
     <section className="bloco">
-      <h3>Responsáveis</h3>
+      <h3><Icone nome="conta" tam={14} />Responsáveis</h3>
       <Responsaveis p={p} aoMudar={resp => { setP({ ...p, resp: resp.map(perfil_id => ({ perfil_id })) }); aoMudar(); }} />
     </section>
 
     {textoQual && <section className="bloco">
-      <h3>Qualificação</h3>
+      <h3><Icone nome="texto" tam={14} />Qualificação</h3>
       <div className="qualificacao" ref={qual}>{textoQual}</div>
       <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
     </section>}
@@ -173,7 +174,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
-    <Recolhivel titulo="Dados do cadastro" preferencia="pessoas.cartao.dados">
+    <Recolhivel titulo="Dados do cadastro" icone="cadastro" preferencia="pessoas.cartao.dados">
       <Grupo titulo="Identificação" linhas={[['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')],
         ['Nacionalidade', p.nacionalidade], ['Profissão', p.profissao], ['Estado civil', V('estado_civil')], ['RG', p.rg], ['Expedição do RG', V('rg_expedicao')]]} />
       <Grupo titulo="Filiação e nascimento" linhas={[['Mãe', p.nome_mae], ['Pai', p.nome_pai], ['Nascimento', V('nascimento')],
@@ -190,6 +191,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     <Recolhivel titulo="Informações sigilosas" icone="cadeado">
       <Sigilos p={p} versao={versaoSig} aoMudar={() => setVersaoSig(v => v + 1)} />
     </Recolhivel>
+
+    <SecaoComentarios modulo="pessoas" cartaoId={p.id} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.cartao.historico">
       <HistoricoPessoa id={p.id} versao={versaoHist} />

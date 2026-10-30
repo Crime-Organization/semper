@@ -362,20 +362,55 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .veu.on { opacity: 1 }
 .cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0; container-type: inline-size }
 .cartao-painel.on { transform: none; opacity: 1 }
-/* Janela no centro da tela, como no Trello (cada usuário escolhe no botão do cartão). Presa ao alto: quando uma seção
-   abre, ela cresce para baixo, sem pular. */
-.cartao-painel.centro { top: 32px; bottom: auto; left: 50%; right: auto; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, 16px) }
+/* Janela no centro da tela, como no Trello (cada usuário escolhe no botão do cartão): o cartão à esquerda e os
+   comentários na coluna da direita, cada lado com a sua rolagem. */
+.cartao-painel.centro { top: 32px; bottom: auto; left: 50%; right: auto; width: min(1100px, calc(100vw - 32px)); height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, 16px); display: flex; flex-direction: column; overflow: hidden }
 .cartao-painel.centro.on { transform: translateX(-50%) }
+.cartao-painel.centro .cartao-conteudo { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) }
+/* O conteúdo do cartão se ajusta à largura dele, não à da janela toda (que inclui a coluna). */
+.cartao-painel.centro .cartao-corpo { overflow-y: auto; container-type: inline-size }
+.cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
+.comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
+/* Janela estreita: a coluna dos comentários desce para baixo do cartão. */
+@media (max-width: 900px) {
+  .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto }
+  .cartao-painel.centro .cartao-corpo { overflow: visible }
+  .cartao-coluna { border-left: 0; border-top: 1px solid var(--line) }
+}
 /* O botão de formato e o "X" ficam presos ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
 .cartao-botoes { position: sticky; top: 14px; margin: 14px 14px -54px auto; z-index: 2; width: max-content; display: flex; gap: 8px }
 .cartao-botao { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
 /* No celular o cartão ocupa a tela toda nos dois formatos: não há o que escolher. */
 @media (max-width: 640px) {
-  .cartao-painel.centro { inset: 0; width: auto; max-height: none; border: 0; border-radius: 0; transform: translateY(16px) }
+  .cartao-painel.centro { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; transform: translateY(16px) }
   .cartao-painel.centro.on { transform: none }
   .cartao-formato { display: none }
 }
+
+/* ---------- comentários do cartão (ui/Comentarios.tsx) ---------- */
+.comentarios { display: flex; flex-direction: column; gap: 16px }
+.caixa-comentario { display: flex; flex-direction: column; gap: 8px }
+.caixa-comentario-campo { position: relative }
+.caixa-comentario-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
+/* Lista de sugestões (CampoComSugestoes e o @ dos comentários): logo abaixo do campo, da largura dele, por cima do
+   que vem depois, com o texto inteiro. */
+.campo-sugestoes { position: relative }
+.linha-campo > .campo-sugestoes { flex: 1; min-width: 0 }
+.campo-sugestoes > input { width: 100% }
+.lista-sugestoes { max-height: 300px; overflow-y: auto; position: absolute; z-index: 3; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--superficie); border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12) }
+.lista-sugestoes li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 14px }
+.lista-sugestoes li[aria-selected="true"] { background: var(--accent-tint) }
+.lista-sugestoes li[aria-disabled="true"] { opacity: .55; cursor: not-allowed }
+.lista-sugestoes li > span { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.lista-sugestoes small { color: var(--muted) }
+.lista-comentarios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px }
+.comentario { display: flex; gap: 10px; align-items: flex-start }
+.comentario-miolo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
+.comentario-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 14px; color: var(--ink) }
+.comentario-texto { margin: 0; padding: 10px 12px; background: var(--soft); border-radius: 10px; font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere }
+.mencao { color: var(--accent-ink); font-weight: 700; background: var(--accent-tint); border-radius: 4px; padding: 0 2px }
+.comentario-acoes { display: flex; gap: 14px; font-size: 13px }
 .cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }

@@ -6,6 +6,7 @@ import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } fro
 import { POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
+import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -56,7 +57,7 @@ export default function Pessoas() {
   const [erroTabela, setErroTabela] = useState('');
 
   // O cartão aberto fica na URL (?id=...), para o link levar direto à pessoa.
-  const { aberto, abrir, fechar } = useCartaoNaUrl();
+  const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   useEffect(() => {
     if (['visao', 'responsavel', 'situacao'].some(k => params.has(k))) setParams(aberto ? { id: aberto } : {}, { replace: true });
   // oxlint-disable-next-line react/exhaustive-deps -- limpa endereços antigos uma vez só, ao abrir a tela
@@ -197,6 +198,7 @@ export default function Pessoas() {
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
           cartao={(p, ordemDaColuna) => <CartaoKanban p={p} ordem={ordemDaColuna} />}
+          endereco={p => endereco(p.id)}
           aoAbrir={p => abrir(p.id)}
           aoMover={async (p, { de, para, ordem, ordemAnterior }) => {
             await SD.pessoaMover(p.id, para, ordem);
@@ -206,7 +208,7 @@ export default function Pessoas() {
           }}
           aoAdicionar={colunaId => navegar('/pessoas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} etapa={quadro.nomeDe}
-          aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
       <CartaoPessoa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} aoAbrirPessoa={abrir} />
@@ -236,11 +238,12 @@ interface PropsTabela {
   filtrado: boolean;
   selecao: Selecao;
   etapa: (id: string | null) => string;
+  endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -260,16 +263,15 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, aoAbrir, aoP
         <th scope="col">Pessoa</th><th scope="col">Telefone</th><th scope="col">Município</th>
         <th scope="col">Etapa</th><th scope="col">Responsáveis</th><th scope="col">{porCadastro ? 'Cadastrada' : 'Atualizada'}</th>
       </tr></thead>
-      <tbody>{linhas.map(p => <tr key={p.id} className={'clicavel' + (selecionadas.has(p.id) ? ' marcada' : '')}
-        onClick={e => { if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) aoAbrir(p.id); }}>
+      <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><div className="nome">{p.nome}</div><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>
         <td><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(p.criado_em) : relativo(p.atualizado_em)}</td>
-      </tr>)}</tbody>
+      </LinhaQueAbre>)}</tbody>
     </table></div>
     <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />
   </div>;

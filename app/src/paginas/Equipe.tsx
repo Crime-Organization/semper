@@ -1,11 +1,12 @@
-// Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, papéis,
+// Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, funções, papéis,
 // desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
-import { SD, type Convite, type ConviteCriado, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
+import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
 import { REGISTRO_DE_ACOES } from '../dados/limites';
+import { FUNCOES } from '../regras/equipe';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -25,7 +26,7 @@ export default function Equipe() {
 const TABELAS: Record<string, string> = {
   pessoas: 'cadastro de pessoa', pessoa_responsaveis: 'responsáveis de', pessoa_sigilos: 'informação sigilosa de',
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
-  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato'
+  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato', comentarios: 'um comentário'
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou' };
 // O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
@@ -66,6 +67,14 @@ function PainelEquipe() {
     try {
       await SD.equipeDefinirPapel(u.id, papel);
       feito(`${u.nome} agora é ${PAPEIS[papel].toLowerCase()}.`, 'troca de papel', async () => { await SD.equipeDefinirPapel(u.id, antes); void recarregar(true); });
+      mudouEquipe();
+    } catch (e) { falha(e); void carregar(); }
+  }
+  async function trocarFuncao(u: Usuario, funcao: Funcao) {
+    const antes = u.funcao;
+    try {
+      await SD.equipeDefinirFuncao(u.id, funcao);
+      feito(`Função de ${u.nome}: ${FUNCOES[funcao]}.`, 'troca de função', async () => { await SD.equipeDefinirFuncao(u.id, antes); mudouEquipe(); });
       mudouEquipe();
     } catch (e) { falha(e); void carregar(); }
   }
@@ -110,8 +119,9 @@ function PainelEquipe() {
 
     <section aria-labelledby="tUsu" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tUsu">Usuários</TituloSecao>
+      <Nota style={{ marginTop: -6 }}>A função diz o que cada um faz no escritório: só advogados são responsáveis por contratos, e os participantes de um contrato são sempre da equipe. O papel diz quem administra o sistema.</Nota>
       <div className="tabela"><table>
-        <thead><tr><th scope="col">Usuário</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col">Último acesso</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
+        <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
         <tbody>
           {!usuarios && <tr><td colSpan={5} className="carregando">Carregando…</td></tr>}
           {usuarios && !usuarios.length && <tr><td colSpan={5} className="nota">Nenhum usuário.</td></tr>}
@@ -119,13 +129,18 @@ function PainelEquipe() {
             const gerir = podeGerir(u);
             return <tr key={u.id}>
               <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario} · {u.email}</div></div></div></td>
+              <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
+                {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
+              </select></td>
               <td>{gerir && ctx.ehMaster
                 ? <select className="filtro" style={{ height: 36 }} aria-label={`Papel de ${u.nome}`} value={u.papel} onChange={e => trocarPapel(u, e.target.value as Papel)}>
                   {(['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
                 </select>
                 : <span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span>}</td>
-              <td>{!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}</td>
-              <td style={{ whiteSpace: 'nowrap' }}>{u.ultimo_acesso ? dataHora(u.ultimo_acesso) : <span className="nota">Nunca entrou</span>}</td>
+              <td><div className="situacao-usuario">
+                {!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}
+                <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>
+              </div></td>
               <td><div className="td-acoes">
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
@@ -216,7 +231,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   return <section aria-labelledby="tConv" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <TituloSecao id="tConv">Dar acesso a uma pessoa</TituloSecao>
     <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Nota>Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha.</Nota>
+      <Nota>Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha. Quem entra começa com a função de advogado; ajuste na lista de usuários.</Nota>
       <form className="form-convite" noValidate onSubmit={liberar}>
         <div><BuscaPessoa rotulo="Pessoa" escolhida={escolhida} aoEscolher={escolher} placeholder="Busque pelo nome ou CPF"
           desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>

@@ -4,13 +4,14 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
-  Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
+  AcessoSigilo, Coluna, Comentario, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
+import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { CLIENTES_MAXIMOS, COMENTARIOS_DO_CARTAO, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -25,10 +26,10 @@ const eu = 'u-master';
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
 type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
 const EQUIPE: MembroFalso[] = [
-  { id: 'u-master', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
-  { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
-  { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
-  { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
+  { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
+  { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
+  { id: 'u-bruno', funcao: 'estagiario', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
+  { id: 'u-carla', funcao: 'administrativo', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
 ];
 const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atendimento', 'Atendimento em andamento',
   'Levantamento de informações', 'Orçamento solicitado', 'Orçamento em andamento', 'Orçamento enviado', 'Enviar carta proposta',
@@ -60,6 +61,7 @@ interface Banco {
   historicoContratos?: (Historico & { contrato_id: string })[];
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
+  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
 }
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -170,6 +172,9 @@ bd.contratos.forEach(k => {
   const antigo = k as unknown as { participante_id?: string | null; participante_percentual?: number | null };
   k.participantes ??= antigo.participante_id ? [{ pessoa_id: antigo.participante_id, percentual: antigo.participante_percentual ?? null }] : [];
 });
+// Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
+bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
+  mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -320,9 +325,25 @@ function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): D
     if (p.pessoa_id === indicador) throw new Error('O indicador e os participantes precisam ser pessoas diferentes.');
     if (lista.findIndex(x => x.pessoa_id === p.pessoa_id) < i) throw new Error('A mesma pessoa aparece duas vezes nos participantes.');
     if (!bd.pessoas.some(x => x.id === p.pessoa_id)) throw new Error('Participante não encontrado neste escritório.');
+    if (!EQUIPE.some(m => m.pessoa_id === p.pessoa_id) && !atual?.participantes.some(x => x.pessoa_id === p.pessoa_id))
+      throw new Error('O participante precisa ser alguém da equipe do escritório.');
   });
   return dados.participantes === undefined ? dados : { ...dados, participantes: lista.map(p => ({ pessoa_id: p.pessoa_id, percentual: p.percentual })) };
 }
+/** Como o gatilho da migração 015: o responsável é sempre um advogado da equipe (conferido ao criar e ao trocar). */
+function conferirResponsavel(id: string | undefined) {
+  if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
+}
+/** Como o gatilho preparar do banco: o texto sem espaços nas pontas e as menções achadas nele; em contratos, só advogados. */
+function prepararComentario(modulo: ModuloComentado, bruto: string) {
+  const texto = bruto.trim();
+  if (!texto) throw new Error('Escreva o comentário.');
+  const mencoes = mencoesNoTexto(texto, EQUIPE);
+  const negado = mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)).sort((a, b) => a.nome.localeCompare(b.nome))[0];
+  if (negado) throw new Error(mencaoNegada(negado.nome));
+  return { texto, mencoes: mencoes.map(m => m.id) };
+}
+const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
@@ -344,7 +365,7 @@ export const SD: Dados = {
     const c: Contexto = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
-        papel: 'master', ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
+        papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
     };
@@ -426,6 +447,7 @@ export const SD: Dados = {
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
       bd.vinculos = bd.vinculos!.filter(v => !ligados.includes(v));
       ligados.forEach(v => historicoVinculo(v, false));
@@ -512,6 +534,7 @@ export const SD: Dados = {
   // O sequencial é o maior número que existe no ano, mais um: o número do último contrato excluído volta a ser usado.
   async contratoCriar(dados) {
     const resp = EQUIPE.find(m => m.id === dados.responsavel_id);
+    conferirResponsavel(dados.responsavel_id);
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
@@ -521,7 +544,9 @@ export const SD: Dados = {
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
-    const k = acharContrato(id), d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
+    const k = acharContrato(id);
+    if (dados.responsavel_id !== undefined && dados.responsavel_id !== k.responsavel_id) conferirResponsavel(dados.responsavel_id);
+    const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     historicoContrato(k, d);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
     guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();
@@ -542,6 +567,7 @@ export const SD: Dados = {
       if (!k || !k.arquivado_em) return;
       bd.contratos = bd.contratos!.filter(x => x.id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       auditar('contratos', 'exclusao', k); excluidas++;
     });
     gravar();
@@ -580,6 +606,29 @@ export const SD: Dados = {
     gravar();
   },
 
+  // ---------- comentários (como o gatilho e as regras de banco/016_comentarios.sql) ----------
+  comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId)
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, COMENTARIOS_DO_CARTAO).map(comentarioLido)),
+  async comentarioCriar(modulo, cartaoId, texto) {
+    const existe = modulo === 'pessoas' ? bd.pessoas.some(p => p.id === cartaoId) : bd.contratos!.some(k => k.id === cartaoId);
+    if (!existe) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto), criado_em: agora(), editado_em: null };
+    bd.comentarios!.push(c); gravar();
+    return espera(comentarioLido(c));
+  },
+  async comentarioEditar(id, texto) {
+    const c = bd.comentarios!.find(x => x.id === id);
+    if (!c || c.autor_id !== eu) return erro('Só quem escreveu o comentário pode editá-lo.');
+    Object.assign(c, prepararComentario(c.modulo, texto), { editado_em: agora() }); gravar();
+    return espera(comentarioLido(c));
+  },
+  async comentarioExcluir(id) {
+    const c = bd.comentarios!.find(x => x.id === id);
+    // Quem está logado no banco fictício é o master: apaga os de qualquer autor.
+    if (!c) return erro('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
+    bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
+  },
+
   equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
@@ -591,6 +640,10 @@ export const SD: Dados = {
   conviteNovoLink: () => espera(codigoConvite()),
   async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
+  async equipeDefinirFuncao(id, funcao) {
+    const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
+    m.funcao = funcao; auditar('perfis', 'alteracao', { id, nome: m.nome }); gravar();
+  },
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),

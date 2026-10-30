@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_PAGINA } from '../dados/limites';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
+import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -33,7 +34,7 @@ export default function Contratos() {
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const quadro = useColunas('contratos', ctx, SEM_SITUACAO);
-  const { aberto, abrir, fechar } = useCartaoNaUrl();
+  const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
   const [f, setF] = useState<FiltroContratos>(() => {
@@ -147,6 +148,7 @@ export default function Contratos() {
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.contratosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, 30)}
           ordemDe={k => k.etapa_ordem}
           cartao={(k, ordemDaColuna) => <CartaoKanban k={k} ordem={ordemDaColuna} />}
+          endereco={k => endereco(k.id)}
           aoAbrir={k => abrir(k.id)}
           aoMover={async (k, { de, para, ordem, ordemAnterior }) => {
             await SD.contratoMover(k.id, para, ordem);
@@ -156,7 +158,7 @@ export default function Contratos() {
           }}
           aoAdicionar={colunaId => navegar('/contratos/novo/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
-          aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
       <CartaoContrato key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} />
@@ -187,11 +189,12 @@ interface PropsTabela {
   filtrado: boolean;
   selecao: Selecao;
   situacao: (id: string | null) => string;
+  endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -211,17 +214,16 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, aoAbrir, 
         <th scope="col">Cliente</th><th scope="col">Contrato</th><th scope="col">Categoria</th><th scope="col">Valor</th>
         <th scope="col">Situação</th><th scope="col">Responsável</th><th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
       </tr></thead>
-      <tbody>{linhas.map(k => <tr key={k.id} className={'clicavel' + (selecionadas.has(k.id) ? ' marcada' : '')}
-        onClick={e => { if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) aoAbrir(k.id); }}>
+      <tbody>{linhas.map(k => <LinhaQueAbre key={k.id} para={endereco(k.id)} aoAbrir={() => aoAbrir(k.id)} marcada={selecionadas.has(k.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} onChange={e => marcar([k.id], e.target.checked)} /></td>
-        <td><div className="nome">{clientesPorExtenso(k.cliente_nome)}</div><div className="sub contrato-servico">{k.servico}</div></td>
+        <td><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}><span className="codigo">{k.codigo}</span>{k.codigo_antigo && <div className="sub">antigo: {k.codigo_antigo}</div>}</td>
         <td>{CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtDinheiro(k.valor)}</td>
         <td><span className="etapa-txt">{situacao(k.etapa_id)}</span></td>
         <td><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(k.criado_em) : relativo(k.atualizado_em)}</td>
-      </tr>)}</tbody>
+      </LinhaQueAbre>)}</tbody>
     </table></div>
     <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />
   </div>;

@@ -11,12 +11,15 @@ import {
   fmtDinheiro, fmtPercentual, lerDinheiro, nomesPorExtenso, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
+import { motivoParaNaoParticipar, opcoesDeResponsavel } from '../regras/equipe';
 import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
+import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { normal } from '../regras/texto';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import './Contratos.css';
@@ -37,9 +40,11 @@ export default function NovoContrato() {
   const [params] = useSearchParams();
   const idAtualizar = params.get('id');
   const etapaInicial = params.get('etapa');
-  const membros = ctx.equipe.filter(m => m.ativo);
 
-  const [c, setC] = useState<CamposContrato>(() => ({ ...CONTRATO_VAZIO, responsavelId: membros.some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : '' }));
+  // Quem é advogado já vem como responsável.
+  const [c, setC] = useState<CamposContrato>(() => ({
+    ...CONTRATO_VAZIO, responsavelId: opcoesDeResponsavel(ctx.equipe).some(m => m.id === ctx.perfil.id) ? ctx.perfil.id : ''
+  }));
   const [pessoas, setPessoas] = useState<Record<Papel, Escolhida>>({ indicador: null });
   // A pessoa escolhida em cada linha de cliente (para mostrar o nome), a chave de cada linha e a linha nova, que recebe o foco.
   const [clientes, setClientes] = useState<Escolhida[]>([null]);
@@ -149,6 +154,11 @@ export default function NovoContrato() {
     setC(atual => ({ ...atual, objetos: atual.objetos.toSpliced(i, 1) }));
     setChaves(atual => atual.toSpliced(i, 1));
   }
+  // As sugestões de cada linha: os objetos do escritório, menos os que já estão nas outras linhas.
+  const sugestoesDoObjeto = (i: number) => {
+    const escolhidos = new Set(c.objetos.filter((o, j) => j !== i && o.trim()).map(normal));
+    return sugeridos.filter(o => !escolhidos.has(normal(o))).map(valor => ({ valor }));
+  };
   // Enter num objeto vai para o próximo; no último preenchido, abre uma linha nova.
   function teclarObjeto(e: KeyboardEvent<HTMLInputElement>, i: number) {
     if (e.key !== 'Enter') return;
@@ -200,8 +210,10 @@ export default function NovoContrato() {
   const jaNoContrato = (i: number) => (p: PessoaLista) => p.id === c.indicadorId ? 'já é o indicador'
     : c.participantes.some((x, j) => j !== i && x.pessoaId === p.id) ? 'já é participante' : null;
 
-  // Quem pode ser responsável: a equipe ativa e quem já é o responsável (mesmo desativado, para não sair sem querer).
-  const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && m.id === c.responsavelId)];
+  // Quem pode ser responsável: os advogados da equipe e quem já é o responsável (para não sair sem querer).
+  const opcoesResp = opcoesDeResponsavel(ctx.equipe, c.responsavelId);
+  // Participante é sempre alguém da equipe; quem não é aparece desligado na busca, com o motivo.
+  const podeParticipar = (i: number) => (p: PessoaLista) => jaNoContrato(i)(p) ?? motivoParaNaoParticipar(ctx.equipe, p.id);
 
   // ---------- envio ----------
   async function salvar() {
@@ -289,7 +301,7 @@ export default function NovoContrato() {
         {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
       </div>
       <Campo rotulo="Advogado responsável" para="responsavelId" obrigatorio erro={erros.responsavelId}
-        dica={alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.'}>
+        dica={(alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.') + ' Só advogados da equipe.'}>
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
           <option value="">Escolha…</option>
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
@@ -306,16 +318,15 @@ export default function NovoContrato() {
         <span className="rot" id="objetos-rotulo">Objetos do contrato{req}</span>
         <p className="dica">Um por linha. Enter abre a linha seguinte; os já usados no escritório aparecem como sugestão.</p>
         <div className="lista-objetos">{c.objetos.map((o, i) => <div className="linha-campo" key={chaves[i]}>
-          <input type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} list="objetos-sugeridos" maxLength={TAMANHO_CONTRATO.objeto}
-            placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} value={o} aria-invalid={erros.objetos ? true : undefined}
-            aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onChange={e => mudarObjeto(i, e.target.value)} onKeyDown={e => teclarObjeto(e, i)} />
+          <CampoComSugestoes type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} maxLength={TAMANHO_CONTRATO.objeto}
+            placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} valor={o} aoMudar={v => mudarObjeto(i, v)} sugestoes={sugestoesDoObjeto(i)}
+            aria-invalid={erros.objetos ? true : undefined} aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onKeyDown={e => teclarObjeto(e, i)} />
           {c.objetos.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o objeto ${i + 1}`} onClick={() => tirarObjeto(i)}><Icone nome="fechar" tam={15} /></button>}
         </div>)}</div>
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.objetos.length >= OBJETOS_MAXIMOS} onClick={() => acrescentarObjeto()}>
           <Icone nome="mais" tam={13} /> Adicionar objeto
         </button></div>
         {erros.objetos && <span className="msg-erro" id="objetos-erro" role="alert">{erros.objetos}</span>}
-        <datalist id="objetos-sugeridos">{sugeridos.map(o => <option key={o} value={o}>{o}</option>)}</datalist>
       </div>
       <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>
     </>,
@@ -342,11 +353,11 @@ export default function NovoContrato() {
       {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
       <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
         <span className="rot" id="participantes-rotulo">Participantes</span>
-        <p className="dica">Quem trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
+        <p className="dica">Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
         {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
-              desativar={jaNoContrato(i)} focar={chavesPart[i] === focarParticipante} />
+              desativar={podeParticipar(i)} focar={chavesPart[i] === focarParticipante} />
           </div>
           <label>%
             <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
@@ -367,7 +378,7 @@ export default function NovoContrato() {
           {texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId })}
         </Campo>
       </div>
-      <Nota>O indicador é um só, da equipe ou um parceiro de fora. Participantes e indicador precisam estar cadastrados em Pessoas.</Nota>
+      <Nota>Os participantes são sempre da equipe. O indicador é um só e pode ser qualquer pessoa, da equipe ou um parceiro de fora. Todos precisam estar cadastrados em Pessoas.</Nota>
     </>,
     documento: () => <>
       <Campo rotulo="Link do contrato no Drive" para="documentoUrl" erro={erros.documentoUrl}>
