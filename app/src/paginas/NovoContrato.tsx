@@ -16,8 +16,10 @@ import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
+import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { normal } from '../regras/texto';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import './Contratos.css';
@@ -152,6 +154,11 @@ export default function NovoContrato() {
     setC(atual => ({ ...atual, objetos: atual.objetos.toSpliced(i, 1) }));
     setChaves(atual => atual.toSpliced(i, 1));
   }
+  // As sugestões de cada linha: os objetos do escritório, menos os que já estão nas outras linhas.
+  const sugestoesDoObjeto = (i: number) => {
+    const escolhidos = new Set(c.objetos.filter((o, j) => j !== i && o.trim()).map(normal));
+    return sugeridos.filter(o => !escolhidos.has(normal(o))).map(valor => ({ valor }));
+  };
   // Enter num objeto vai para o próximo; no último preenchido, abre uma linha nova.
   function teclarObjeto(e: KeyboardEvent<HTMLInputElement>, i: number) {
     if (e.key !== 'Enter') return;
@@ -311,16 +318,15 @@ export default function NovoContrato() {
         <span className="rot" id="objetos-rotulo">Objetos do contrato{req}</span>
         <p className="dica">Um por linha. Enter abre a linha seguinte; os já usados no escritório aparecem como sugestão.</p>
         <div className="lista-objetos">{c.objetos.map((o, i) => <div className="linha-campo" key={chaves[i]}>
-          <input type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} list="objetos-sugeridos" maxLength={TAMANHO_CONTRATO.objeto}
-            placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} value={o} aria-invalid={erros.objetos ? true : undefined}
-            aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onChange={e => mudarObjeto(i, e.target.value)} onKeyDown={e => teclarObjeto(e, i)} />
+          <CampoComSugestoes type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} maxLength={TAMANHO_CONTRATO.objeto}
+            placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} valor={o} aoMudar={v => mudarObjeto(i, v)} sugestoes={sugestoesDoObjeto(i)}
+            aria-invalid={erros.objetos ? true : undefined} aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onKeyDown={e => teclarObjeto(e, i)} />
           {c.objetos.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o objeto ${i + 1}`} onClick={() => tirarObjeto(i)}><Icone nome="fechar" tam={15} /></button>}
         </div>)}</div>
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.objetos.length >= OBJETOS_MAXIMOS} onClick={() => acrescentarObjeto()}>
           <Icone nome="mais" tam={13} /> Adicionar objeto
         </button></div>
         {erros.objetos && <span className="msg-erro" id="objetos-erro" role="alert">{erros.objetos}</span>}
-        <datalist id="objetos-sugeridos">{sugeridos.map(o => <option key={o} value={o}>{o}</option>)}</datalist>
       </div>
       <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>
     </>,

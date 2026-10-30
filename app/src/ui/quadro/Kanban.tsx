@@ -5,6 +5,7 @@
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type { Coluna, Ordem, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
+import { CampoComSugestoes } from '../CampoComSugestoes';
 import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
@@ -65,7 +66,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const [nova, setNova] = useState('');
   const [criando, setCriando] = useState(false);
   const campoNova = useRef<HTMLInputElement>(null);
-  const idNova = useId(), idSugestoes = useId();
+  const idNova = useId();
 
   const visiveis = quadro.colunas.filter(c => !c.oculta);
   const ocultas = quadro.colunas.filter(c => c.oculta);
@@ -288,11 +289,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>
-          <input id={idNova} ref={campoNova} list={idSugestoes} maxLength={TAMANHO_COLUNA} placeholder="Nome da coluna" value={nova} onChange={e => setNova(e.target.value)} />
-          <datalist id={idSugestoes}>
-            {ocultas.map(c => <option key={c.id} value={c.nome}>oculta</option>)}
-            {quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(s => <option key={s} value={s} />)}
-          </datalist>
+          <CampoComSugestoes id={idNova} ref={campoNova} maxLength={TAMANHO_COLUNA} placeholder="Nome da coluna" valor={nova} aoMudar={setNova}
+            sugestoes={[...ocultas.map(c => ({ valor: c.nome, detalhe: 'oculta' })), ...quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(valor => ({ valor }))]} />
           <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={criando}>Criar coluna</button>
         </form>
         {ocultas.length > 0 && <div className="ocultas">

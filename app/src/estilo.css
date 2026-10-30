@@ -393,12 +393,17 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .caixa-comentario { display: flex; flex-direction: column; gap: 8px }
 .caixa-comentario-campo { position: relative }
 .caixa-comentario-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
-/* A lista do @ abre logo abaixo do texto, por cima do que vem depois. */
-.lista-mencao { position: absolute; z-index: 3; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--superficie); border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12) }
-.lista-mencao li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 14px }
-.lista-mencao li[aria-selected="true"] { background: var(--accent-tint) }
-.lista-mencao li[aria-disabled="true"] { opacity: .55; cursor: not-allowed }
-.lista-mencao small { color: var(--muted) }
+/* Lista de sugestões (CampoComSugestoes e o @ dos comentários): logo abaixo do campo, da largura dele, por cima do
+   que vem depois, com o texto inteiro. */
+.campo-sugestoes { position: relative }
+.linha-campo > .campo-sugestoes { flex: 1; min-width: 0 }
+.campo-sugestoes > input { width: 100% }
+.lista-sugestoes { max-height: 300px; overflow-y: auto; position: absolute; z-index: 3; top: 100%; left: 0; right: 0; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--superficie); border: 1px solid var(--line2); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.12) }
+.lista-sugestoes li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 14px }
+.lista-sugestoes li[aria-selected="true"] { background: var(--accent-tint) }
+.lista-sugestoes li[aria-disabled="true"] { opacity: .55; cursor: not-allowed }
+.lista-sugestoes li > span { flex: 1; min-width: 0; overflow-wrap: anywhere }
+.lista-sugestoes small { color: var(--muted) }
 .lista-comentarios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px }
 .comentario { display: flex; gap: 10px; align-items: flex-start }
 .comentario-miolo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
