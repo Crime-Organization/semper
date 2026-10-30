@@ -221,8 +221,38 @@ test.describe('Objetos do contrato', () => {
     await page.goto('/contratos/novo/');
     await escolherPessoa(page, 'Cliente', 'luciana', 'LUCIANA ROCHA AMOSTRA');
     await proxima(page, 'O que foi contratado');
+    await page.getByRole('combobox', { name: 'Objeto 1' }).fill('notif');
     // Então
-    await expect(page.getByRole('option', { name: 'Notificação extrajudicial', includeHidden: true })).toHaveCount(1);
+    await expect(page.getByRole('option', { name: 'Notificação extrajudicial' })).toBeVisible();
+  });
+
+  test('quando a pessoa escolhe uma sugestão pelo teclado, então ela vai para o campo e não é sugerida de novo na linha seguinte', async ({ page }) => {
+    // Dado ("Busca de anterioridade" já foi usado em contratos do escritório)
+    await preencherObrigatorios(page);
+    await page.getByRole('combobox', { name: 'Objeto 1' }).press('Enter');
+    const segundo = page.getByRole('combobox', { name: 'Objeto 2' });
+    await segundo.fill('busca');
+    // Quando
+    await segundo.press('ArrowDown');
+    await segundo.press('Enter');
+    // Então
+    await expect(segundo).toHaveValue('Busca de anterioridade');
+    await segundo.press('Enter');
+    await page.getByRole('combobox', { name: 'Objeto 3' }).fill('busca');
+    await expect(page.getByRole('option', { name: 'Busca de anterioridade' })).toHaveCount(0);
+  });
+
+  test('quando as sugestões aparecem, então a lista tem a largura do campo e mostra o texto inteiro', async ({ page }) => {
+    // Dado
+    await preencherObrigatorios(page);
+    const campo = page.getByRole('combobox', { name: 'Objeto 1' });
+    // Quando
+    await campo.fill('indeniza');
+    // Então
+    const lista = page.getByRole('listbox', { name: 'Sugestões' });
+    await expect(lista.getByRole('option', { name: 'Ação de indenização por danos morais' })).toBeVisible();
+    const [caixa, sugestoes] = await Promise.all([campo.boundingBox(), lista.boundingBox()]);
+    expect(Math.round(sugestoes!.width)).toBe(Math.round(caixa!.width));
   });
 });
 

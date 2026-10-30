@@ -38,6 +38,8 @@ export const CONTRATOS_DA_PESSOA = 200;
 export const TAMANHO_COMENTARIO = 5000;
 /** Quantos comentários um cartão mostra (os mais novos primeiro). */
 export const COMENTARIOS_DO_CARTAO = 200;
+/** Sugestões mostradas enquanto se digita (objetos do contrato, nome da coluna...). */
+export const ACHADAS_DA_SUGESTAO = 8;
 /** Colegas mostrados na lista do @ enquanto se digita um comentário. */
 export const ACHADOS_DA_MENCAO = 8;
 /** Número máximo de parcelas de um contrato (o banco aceita de 1 a 360). */

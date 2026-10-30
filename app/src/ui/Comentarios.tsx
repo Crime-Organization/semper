@@ -145,7 +145,7 @@ function CaixaComentario({ modulo, rotulo, botao, valor, aoMudar, aoEnviar, aoCa
       aria-activedescendant={aberta ? `${listaId}-${destaque}` : undefined}
       onChange={e => mudar(e.target.value, e.target.selectionStart)} onKeyDown={teclar}
       onClick={e => setMencao(mencaoSendoDigitada(valor, e.currentTarget.selectionStart))} onBlur={() => setMencao(null)} />
-    {aberta && <ul className="lista-mencao" role="listbox" id={listaId} aria-label="Mencionar alguém da equipe">
+    {aberta && <ul className="lista-sugestoes" role="listbox" id={listaId} aria-label="Mencionar alguém da equipe">
       {opcoes.map((m, i) => {
         const porque = motivo(m);
         return <li key={m.id} id={`${listaId}-${i}`} role="option" aria-selected={i === destaque} aria-disabled={!!porque}
