@@ -16,6 +16,7 @@ const REPETIDO: Regra[] = [
   { padrao: /convites_email_pendente/, mensagem: 'Este e-mail já tem um convite pendente.' },
   { padrao: /pessoa_vinculos_unico/, mensagem: 'Essas duas pessoas já têm esse vínculo.' },
   { padrao: /vinculo_tipos_unico/, mensagem: 'Esse tipo de vínculo já existe.' },
+  { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de lista com esse nome.' },
   { mensagem: 'Esse registro já existe.' }
 ];
 

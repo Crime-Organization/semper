@@ -15,6 +15,7 @@ const Contratos = lazy(() => import('./paginas/Contratos'));
 const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
+const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
@@ -46,6 +47,7 @@ export function App() {
           <Route path="contratos/novo" element={<FormularioContrato />} />
           <Route path="demandas" element={<Demandas />} />
           <Route path="demandas/nova" element={<FormularioDemanda />} />
+          <Route path="modelos-de-lista" element={<ModelosDeLista />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="configuracoes" element={<Configuracoes />} />
         </Route>
