@@ -20,6 +20,7 @@ import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -32,11 +33,11 @@ const rotuloDoContrato = (k: Pick<ContratoLista, 'codigo' | 'cliente_nome' | 'se
 const rotuloDaDemanda = (d: Pick<DemandaLista, 'codigo' | 'titulo' | 'cliente_nome'>) =>
   [d.codigo, d.titulo, d.cliente_nome && clientesPorExtenso(d.cliente_nome)].filter(Boolean).join(' · ');
 
-export default function NovaTarefa() {
+export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
   const [params] = useSearchParams();
-  const idAtualizar = params.get('id'), etapaInicial = params.get('etapa');
+  const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const pessoaInicial = params.get('pessoa'), demandaInicial = params.get('demanda'), contratoInicial = params.get('contrato');
 
   // Quem cadastra já vem como responsável.
@@ -57,7 +58,7 @@ export default function NovaTarefa() {
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
   const [buscaDemanda, setBuscaDemanda] = useState('');
   const [buscaContrato, setBuscaContrato] = useState('');
-  useTitulo(alvo ? 'Atualizar tarefa' : 'Nova tarefa');
+  useTitulo(edicao ? null : alvo ? 'Atualizar tarefa' : 'Nova tarefa');
 
   // As pessoas de uma vez (ao abrir uma tarefa salva, ou ao escolher uma demanda com clientes).
   function porPessoas(lista: PessoaResumida[]) {
@@ -120,6 +121,7 @@ export default function NovaTarefa() {
   const focarErro = () => requestAnimationFrame(() =>
     document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   function avancar() {
+    if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
     if (Object.keys(errosDaEtapaTarefa(etapa.id, c)).length) { focarErro(); return; }
     if (ultimo) void salvar(); else irPara(passo + 1);
@@ -181,7 +183,7 @@ export default function NovaTarefa() {
     const comErro = primeiraEtapaComErroTarefa(c);
     if (comErro >= 0) {
       setConferidas(new Set(ETAPAS_TAREFA.map(e => e.id)));
-      irPara(comErro);
+      if (!edicao) irPara(comErro);
       focarErro();
       return;
     }
@@ -196,7 +198,7 @@ export default function NovaTarefa() {
           await SD.tarefaAtualizar(alvo.id, antes);
           return { tipo: 'tarefaAtualizada', id: alvo.id };
         });
-        navegar('/tarefas/?id=' + alvo.id);
+        if (edicao) edicao.aoTerminar(true); else navegar('/tarefas/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, a tarefa nova entra na primeira coluna do quadro ("Para fazer").
         const coluna = etapaInicial || (await SD.colunasListar('tarefas')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
@@ -274,6 +276,17 @@ export default function NovaTarefa() {
         </Campo>}
     </>
   };
+
+  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
+  if (edicao) return !pronto ? <Carregando />
+    : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
+    : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar tarefa" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
+      {ETAPAS_TAREFA.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
+        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+        {CONTEUDO[e.id]()}
+      </section>)}
+      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+    </form>;
 
   const voltar = idAtualizar ? '/tarefas/?id=' + idAtualizar : '/tarefas/';
   const total = ETAPAS_TAREFA.length;

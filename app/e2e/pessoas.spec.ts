@@ -94,10 +94,10 @@ test.describe('Cartão da pessoa', () => {
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
     const cartao = page.getByRole('dialog');
     const copiar = cartao.getByRole('button', { name: 'Copiar qualificação' });
-    // Então: o botão vem depois do título "Qualificação" e do texto, bem abaixo de "Atualizar cadastro"
+    // Então: o botão vem depois do título "Qualificação" e do texto, bem abaixo do lápis do topo
     const [titulo, botao, atualizar] = await Promise.all([
       cartao.getByRole('heading', { name: 'Qualificação' }).boundingBox(), copiar.boundingBox(),
-      cartao.getByRole('link', { name: 'Atualizar cadastro' }).boundingBox()
+      cartao.getByRole('button', { name: 'Editar' }).boundingBox()
     ]);
     expect(botao!.y).toBeGreaterThan(titulo!.y);
     expect(botao!.y).toBeGreaterThan(atualizar!.y + atualizar!.height);

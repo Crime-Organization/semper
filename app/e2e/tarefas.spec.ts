@@ -114,6 +114,40 @@ test.describe('Quadro de tarefas', () => {
   });
 });
 
+test.describe('Editar no cartão', () => {
+  test('quando a pessoa clica no lápis, muda o prazo e salva, então o cartão mostra o prazo novo sem sair dele, e dá para desfazer', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
+    await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toBeVisible();
+    await expect(edicao.getByRole('heading', { name: 'Demanda e contrato' })).toBeVisible();
+    await edicao.getByLabel('Prazo').fill('15112030');
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(edicao).toHaveCount(0);
+    await expect(page).toHaveURL(/\/tarefas\/\?id=/);
+    await expect(cartao).toContainText('Prazo: 15/11/2030');
+    await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
+  });
+
+  test('quando o título fica vazio, então salvar mostra o erro e continua editando; cancelar deixa como estava', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
+    // Quando
+    await edicao.getByLabel('Título').fill('');
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(edicao.getByText('Dê um título à tarefa.')).toBeVisible();
+    await edicao.getByRole('button', { name: 'Cancelar' }).click();
+    await expect(edicao).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
+  });
+});
+
 test.describe('Equipe da tarefa', () => {
   test('quando a pessoa clica na bolinha de alguém da equipe, então vê o nome e o papel, e abre o cartão da pessoa', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante

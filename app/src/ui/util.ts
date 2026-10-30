@@ -22,9 +22,9 @@ export function relativo(iso?: string | null) {
 export const numero = (n: number) => n.toLocaleString('pt-BR');
 
 
-/** Título da aba do navegador: "Pessoas · SEMPER". */
-export function useTitulo(nome: string) {
-  useEffect(() => { document.title = `${nome} · ${MARCA.nome}`; }, [nome]);
+/** Título da aba do navegador: "Pessoas · SEMPER". null deixa como está (ex.: o formulário aberto dentro de um cartão). */
+export function useTitulo(nome: string | null) {
+  useEffect(() => { if (nome !== null) document.title = `${nome} · ${MARCA.nome}`; }, [nome]);
 }
 
 /** Valor que só muda depois de um tempo parado (ex.: busca enquanto digita). */

@@ -6,8 +6,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa } from '../regras/tarefa';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -15,7 +15,9 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
+import NovaTarefa from './NovaTarefa';
 import { dataCurta, relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoPrazo } from './Demandas';
@@ -35,6 +37,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const [t, setT] = useState<Tarefa | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
+  const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.tarefaObter(id).then(x => { setT(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
@@ -83,22 +87,26 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
 
+  function terminarEdicao(salvou: boolean) {
+    setEditando(false);
+    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+  }
+
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
         <SeloDoPrazo prazo={t.prazo} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+        {!editando && <AcoesDoCartao arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{t.titulo}</h2>
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
     </header>
 
+    {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
+
     <div className="cartao-acoes">
-      <BotaoLink variante="principal" pequeno to={'/tarefas/nova/?id=' + t.id}><Icone nome="editar" tam={15} /> Atualizar tarefa</BotaoLink>
-      <Botao pequeno className="acao-arquivar" title={t.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={t.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
-        <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{t.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
-      </Botao>
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, t.responsavel_id, 'Responsável')}
         participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
@@ -139,5 +147,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Criada em {dataCurta(t.criado_em)}{t.criado_por ? ' por ' + nomeDe(t.criado_por) : ''}</span>
       <span>Atualizada {relativo(t.atualizado_em)}</span>
     </footer>
+    </>}
   </>;
 }

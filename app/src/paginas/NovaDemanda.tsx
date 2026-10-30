@@ -19,6 +19,7 @@ import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -28,11 +29,11 @@ const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="check
 /** Como o contrato aparece na busca e no campo: número, clientes e objetos. */
 const rotuloDoContrato = (k: Pick<ContratoLista, 'codigo' | 'cliente_nome' | 'servico'>) => `${k.codigo} · ${clientesPorExtenso(k.cliente_nome)} · ${k.servico}`;
 
-export default function NovaDemanda() {
+export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
   const [params] = useSearchParams();
-  const idAtualizar = params.get('id'), etapaInicial = params.get('etapa');
+  const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const clienteInicial = params.get('cliente'), contratoInicial = params.get('contrato');
 
   // Quem cadastra já vem como responsável.
@@ -51,7 +52,7 @@ export default function NovaDemanda() {
   // Os contratos que se pode ligar (os ativos mais recentes) e o texto digitado na busca.
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
   const [buscaContrato, setBuscaContrato] = useState('');
-  useTitulo(alvo ? 'Atualizar demanda' : 'Nova demanda');
+  useTitulo(edicao ? null : alvo ? 'Atualizar demanda' : 'Nova demanda');
 
   useEffect(() => {
     SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR }).then(r => setContratos(r.linhas)).catch(() => {});
@@ -101,6 +102,7 @@ export default function NovaDemanda() {
   const focarErro = () => requestAnimationFrame(() =>
     document.querySelector('.etapa.ativa .pergunta.erro')?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   function avancar() {
+    if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
     if (Object.keys(errosDaEtapaDemanda(etapa.id, c)).length) { focarErro(); return; }
     if (ultimo) void salvar(); else irPara(passo + 1);
@@ -156,7 +158,7 @@ export default function NovaDemanda() {
     const comErro = primeiraEtapaComErroDemanda(c);
     if (comErro >= 0) {
       setConferidas(new Set(ETAPAS_DEMANDA.map(e => e.id)));
-      irPara(comErro);
+      if (!edicao) irPara(comErro);
       focarErro();
       return;
     }
@@ -171,7 +173,7 @@ export default function NovaDemanda() {
           await SD.demandaAtualizar(alvo.id, antes);
           return { tipo: 'demandaAtualizada', id: alvo.id };
         });
-        navegar('/demandas/?id=' + alvo.id);
+        if (edicao) edicao.aoTerminar(true); else navegar('/demandas/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, a demanda nova entra na primeira coluna do quadro ("Para fazer").
         const coluna = etapaInicial || (await SD.colunasListar('demandas')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
@@ -249,6 +251,17 @@ export default function NovaDemanda() {
         </Campo>}
     </>
   };
+
+  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
+  if (edicao) return !pronto ? <Carregando />
+    : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
+    : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar demanda" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
+      {ETAPAS_DEMANDA.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
+        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+        {CONTEUDO[e.id]()}
+      </section>)}
+      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+    </form>;
 
   const voltar = idAtualizar ? '/demandas/?id=' + idAtualizar : '/demandas/';
   const total = ETAPAS_DEMANDA.length;
