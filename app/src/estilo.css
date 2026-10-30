@@ -423,6 +423,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .qualificacao-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
 /* Arquivar e Editar (<AcoesDoCartao>): botões redondos na ponta direita da linha dos selos, ao lado dos do painel. */
 .cartao-topo-acoes { margin-left: auto; display: flex; gap: 8px }
+/* No painel ao lado (e na janela estreita), eles entram na linha dos botões do painel: a cabeça do cartão reserva o
+   lugar dos quatro. Na janela larga, os do painel ficam sobre a coluna dos comentários, e a cabeça não reserva nada. */
+.cartao-botoes-do-cartao { display: contents }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-cabeca :is(.linha, h2) { padding-right: 184px }
+@media (min-width: 901px) {
+  .cartao-painel.centro .cartao-cabeca :is(.linha, h2) { padding-right: 0 }
+}
 .cartao-botao.cartao-editar { background: var(--accent); border-color: var(--accent); color: #fff }
 .cartao-botao.cartao-editar:hover { background: var(--accent-hover) }
 /* Edição no cartão: todas as etapas do cadastro de uma vez, com títulos menores, e o rodapé preso ao pé do cartão. */
@@ -433,7 +440,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .edicao-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 /* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
    parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. */
-.equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 14px }
+.equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 10px }
+/* O traço entre o responsável e os participantes: metade da altura da bolinha, para separar sem pesar. */
+.equipe-traco { width: 1px; height: 18px; border-radius: 1px; background: var(--line2) }
 .equipe-participantes { display: inline-flex; align-items: center }
 .equipe-participantes .equipe-bolinha + .equipe-bolinha { margin-left: -8px }
 .equipe-bolinha { display: inline-flex; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; box-shadow: 0 0 0 2px var(--superficie) }
