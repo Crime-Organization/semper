@@ -16,6 +16,8 @@ const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
+const Tarefas = lazy(() => import('./paginas/Tarefas'));
+const NovaTarefa = lazy(() => import('./paginas/NovaTarefa'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
@@ -31,6 +33,10 @@ function FormularioContrato() {
 function FormularioDemanda() {
   const { key } = useLocation();
   return <NovaDemanda key={key} />;
+}
+function FormularioTarefa() {
+  const { key } = useLocation();
+  return <NovaTarefa key={key} />;
 }
 
 export function App() {
@@ -48,6 +54,8 @@ export function App() {
           <Route path="demandas" element={<Demandas />} />
           <Route path="demandas/nova" element={<FormularioDemanda />} />
           <Route path="modelos-de-lista" element={<ModelosDeLista />} />
+          <Route path="tarefas" element={<Tarefas />} />
+          <Route path="tarefas/nova" element={<FormularioTarefa />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="configuracoes" element={<Configuracoes />} />
         </Route>

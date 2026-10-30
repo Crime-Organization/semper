@@ -1,0 +1,236 @@
+// Tarefas: as partes menores do trabalho (ex.: "Emitir a GRU", numa demanda de registro de marca), com responsável,
+// participantes, prazo e, se houver, a demanda, o contrato e as pessoas a que se ligam. Tabela com ações em lote,
+// quadro (Para fazer, Fazendo, Aguardando retorno, Concluída) e o cartão de cada uma. A estrutura da página vem de
+// <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { SD, type FiltroTarefas, type Ordem, type Pagina, type TarefaLista } from '../dados';
+import { POR_PAGINA } from '../dados/limites';
+import { clientesPorExtenso } from '../regras/contrato';
+import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
+import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
+import { Avatares } from '../ui/Avatar';
+import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
+import { BotaoDuplo } from '../ui/Botoes';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
+import { Icone } from '../ui/Icone';
+import { PainelCartao } from '../ui/PainelCartao';
+import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
+import { Paginacao } from '../ui/Paginacao';
+import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
+import { Kanban } from '../ui/quadro/Kanban';
+import { useColunas } from '../ui/quadro/useColunas';
+import { useCtx } from '../ui/sessao';
+import { dataDaOrdem, useOrdem } from '../ui/ordem';
+import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
+import { useSelecao, type Selecao } from '../ui/useSelecao';
+import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
+import { CartaoTarefa } from './CartaoTarefa';
+import { oferecerConcluirDemanda } from './concluirDemanda';
+import { SeloDoPrazo } from './Demandas';
+import './Contratos.css';
+import './Demandas.css';
+
+const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
+/** O código e as ligações da tarefa numa linha: "C0FFEE12 · demanda D3A1F09C · contrato MA96-0001-2026". */
+const ligacoes = (t: TarefaLista) =>
+  [t.demanda_codigo && 'demanda ' + t.demanda_codigo, t.contrato_codigo && 'contrato ' + t.contrato_codigo].filter(Boolean).join(' · ');
+
+export default function Tarefas() {
+  useTitulo('Tarefas');
+  const ctx = useCtx();
+  const eu = ctx.perfil.id;
+  const navegar = useNavigate();
+  const quadro = useColunas('tarefas', ctx, SEM_SITUACAO_TAREFA);
+  const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
+  const selecao = useSelecao();
+
+  const [f, setF] = useState<FiltroTarefas>(() => {
+    let pessoa = lerPreferencia('tarefas.pessoa', '');
+    if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
+    return { termo: '', pessoa, situacao: 'ativas', pagina: 0 };
+  });
+  const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('tarefas.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
+  // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
+  const ordem = useOrdem('tarefas', 'tabela');
+  const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
+  const [recarga, setRecarga] = useState(0);
+  const recarregar = () => setRecarga(n => n + 1);
+  const [tabela, setTabela] = useState<Pagina<TarefaLista> | null>(null);
+  const [erroTabela, setErroTabela] = useState('');
+
+  // Tarefa desfeita no formulário depois de salva: fecha o cartão da tarefa que deixou de existir.
+  useMudancas(t => {
+    recarregar();
+    if (t.tipo === 'tarefaCriada' && t.id === aberto) fechar();
+  });
+
+  useEffect(() => {
+    if (visao !== 'tabela') return;
+    let vivo = true;
+    SD.tarefasListar({ ...f, ordem: ordem.valor, porPagina: POR_PAGINA })
+      .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
+      .catch(e => { if (vivo) setErroTabela((e as Error).message); });
+    return () => { vivo = false; };
+  }, [visao, f, ordem.valor, recarga]);
+
+  // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
+  const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
+  useEffect(() => {
+    if (visao !== 'kanban') return;
+    let vivo = true;
+    SD.tarefasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
+    return () => { vivo = false; };
+  // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
+  }, [visao, f.termo, f.pessoa, recarga]);
+
+  const filtrado = !!(f.termo || f.pessoa);
+  const mudarFiltro = (campos: Partial<FiltroTarefas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
+
+  function trocarVisao(v: Visao) {
+    if (v === 'kanban' && f.situacao === 'arquivadas') {
+      mudarFiltro({ situacao: 'ativas' });
+      avisar('O quadro mostra só as tarefas ativas.', 'ok');
+    }
+    setVisao(v);
+    salvarPreferencia('tarefas.visao', v);
+    selecao.limpar();
+  }
+  function mudarSituacao(valor: string) {
+    const situacao = valor === 'arquivadas' ? 'arquivadas' : 'ativas';
+    mudarFiltro({ situacao });
+    if (situacao === 'arquivadas' && visao === 'kanban') { setVisao('tabela'); avisar('As arquivadas aparecem só na tabela.', 'ok'); }
+  }
+
+  // ---------- ações em lote ----------
+  async function arquivarLote(arquivar: boolean) {
+    const lista = [...selecao.selecionadas];
+    try {
+      const q = await SD.tarefasArquivar(lista, arquivar);
+      const quantas = q === 1 ? '1 tarefa' : q + ' tarefas';
+      feito(arquivar ? `${plural(q, 'tarefa arquivada', 'tarefas arquivadas')}.` : `${plural(q, 'tarefa voltou', 'tarefas voltaram')} para as ativas.`,
+        arquivar ? `arquivamento de ${quantas}` : `desarquivamento de ${quantas}`, async () => { await SD.tarefasArquivar(lista, !arquivar); });
+      selecao.limpar(); recarregar();
+    } catch (e) { falha(e); }
+  }
+  async function excluirLote() {
+    try {
+      const r = await SD.tarefasExcluir([...selecao.selecionadas]);
+      avisar(r.naoExcluidas
+        ? `${plural(r.excluidas, 'excluída', 'excluídas')}. ${plural(r.naoExcluidas, 'não pôde ser excluída', 'não puderam ser excluídas')}: ${r.motivo}`
+        : `${plural(r.excluidas, 'tarefa excluída', 'tarefas excluídas')} definitivamente.`, r.naoExcluidas ? 'erro' : 'ok');
+      selecao.limpar(); recarregar();
+    } catch (e) { falha(e); }
+  }
+
+  const n = selecao.quantas;
+  const lote = visao === 'tabela' && n > 0 ? <>
+    <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
+    <span className="acoes-lote">{f.situacao === 'ativas'
+      ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(true)}><Icone nome="arquivo" tam={15} /> Arquivar</button>
+      : <>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => arquivarLote(false)}><Icone nome="arquivo" tam={15} /> Desarquivar</button>
+        <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${n}`} aoConfirmar={excluirLote}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>
+      </>}</span>
+  </> : null;
+
+  const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
+  const contador = total === null ? null : f.situacao === 'arquivadas' ? plural(total, 'arquivada', 'arquivadas') : plural(total, 'ativa', 'ativas');
+
+  return <>
+    <PaginaModulo titulo="Tarefas" contador={contador} acao={{ rotulo: 'Nova tarefa', para: '/tarefas/nova/' }}
+      busca={{ placeholder: 'Buscar título, pessoa, código, demanda…', aoBuscar: termo => mudarFiltro({ termo }) }}
+      filtros={[
+        { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
+          aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('tarefas.pessoa', pessoa); },
+          opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        { id: 'situacao', rotulo: 'Arquivo', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
+      ]}
+      ordem={visao === 'tabela' ? ordenacao : undefined}
+      visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
+      {visao === 'kanban'
+        ? <Kanban<TarefaLista> quadro={quadro}
+          recarga={[recarga, f.termo, f.pessoa].join('|')}
+          carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
+          ordemDe={t => t.etapa_ordem}
+          cartao={(t, ordemDaColuna) => <CartaoKanban t={t} ordem={ordemDaColuna} />}
+          endereco={t => endereco(t.id)}
+          aoAbrir={t => abrir(t.id)}
+          aoMover={async (t, { de, para, ordem, ordemAnterior }) => {
+            await SD.tarefaMover(t.id, para, ordem);
+            const voltar = async () => { await SD.tarefaMover(t.id, de, ordemAnterior); };
+            if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
+            else registrarDesfazer('mudança de posição do cartão', voltar);
+            if (de !== para && t.demanda_codigo) void oferecerConcluirDemanda(t.id, para);
+          }}
+          aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
+        : <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
+          endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />}
+    </PaginaModulo>
+    {aberto && <PainelCartao aoFechar={fechar}>
+      <CartaoTarefa key={aberto} id={aberto} quadro={quadro} aoMudar={recarregar} aoFechar={fechar} />
+    </PainelCartao>}
+  </>;
+}
+
+function CartaoKanban({ t, ordem }: { t: TarefaLista; ordem: Ordem }) {
+  const ctx = useCtx();
+  const data = dataDaOrdem(ordem, t);
+  return <>
+    <div className="kt">{t.titulo}</div>
+    <div className="km">
+      <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
+      {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
+      <SeloDoPrazo prazo={t.prazo} />
+      {data && <span>{data}</span>}
+    </div>
+    <div className="kp"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} tam={24} /></div>
+  </>;
+}
+
+interface PropsTabela {
+  pagina: Pagina<TarefaLista> | null;
+  erro: string;
+  f: FiltroTarefas;
+  ordem: Ordem;
+  filtrado: boolean;
+  selecao: Selecao;
+  situacao: (id: string | null) => string;
+  endereco: (id: string) => string;
+  aoAbrir: (id: string) => void;
+  aoPaginar: (pagina: number) => void;
+}
+
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco, aoAbrir, aoPaginar }: PropsTabela) {
+  const ctx = useCtx();
+  if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
+  if (!pagina) return <Carregando />;
+  const { linhas, total } = pagina;
+  if (!linhas.length) return <Vazio>{filtrado ? 'Nenhuma tarefa encontrada com esses filtros.'
+    : f.situacao === 'arquivadas' ? 'Nenhuma tarefa arquivada.'
+    : <>Nenhuma tarefa ainda. <BotaoLink forma="link" to="/tarefas/nova/">Cadastre a primeira</BotaoLink>, ou crie pelo cartão de uma demanda.</>}</Vazio>;
+
+  const { selecionadas, marcar } = selecao;
+  const todas = linhas.every(t => selecionadas.has(t.id));
+  // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
+  const porCadastro = ordem === 'novos' || ordem === 'antigos';
+  return <div>
+    <div className="tabela tabela-demandas"><table>
+      <thead><tr>
+        <th className="td-check"><input type="checkbox" aria-label="Selecionar todas desta página" checked={todas} onChange={e => marcar(linhas.map(t => t.id), e.target.checked)} /></th>
+        <th scope="col">Tarefa</th><th scope="col">Prazo</th><th scope="col">Situação</th><th scope="col">Pessoas</th>
+        <th scope="col">{porCadastro ? 'Criada' : 'Atualizada'}</th>
+      </tr></thead>
+      <tbody>{linhas.map(t => <LinhaQueAbre key={t.id} para={endereco(t.id)} aoAbrir={() => aoAbrir(t.id)} marcada={selecionadas.has(t.id)}>
+        <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} onChange={e => marcar([t.id], e.target.checked)} /></td>
+        <td><NomeDaLinha>{t.titulo}</NomeDaLinha>
+          <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
+        <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} /> : <span className="nota">—</span>}</td>
+        <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
+        <td><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} /></td>
+        <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(t.criado_em) : relativo(t.atualizado_em)}</td>
+      </LinhaQueAbre>)}</tbody>
+    </table></div>
+    <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />
+  </div>;
+}

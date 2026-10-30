@@ -295,6 +295,65 @@ export interface FiltroDemandas {
   porPagina?: number;
 }
 
+/**
+ * Tarefa: a parte menor de um trabalho (ex.: "Emitir a GRU", numa demanda de registro de marca). O código (curto e
+ * aleatório) é dado pelo banco. Pode ser ligada a pessoas, a uma demanda e a um contrato, ou ser avulsa. Quem não é
+ * administrador vê só as tarefas que criou, de que é responsável ou participante, e as das demandas que vê.
+ */
+export interface Tarefa {
+  id: string;
+  codigo: string;
+  titulo: string;
+  descricao: string | null;
+  prazo: string | null;            // aaaa-mm-dd
+  responsavel_id: string;          // perfil
+  participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
+  pessoa_nome: string;
+  demanda_id: string | null;
+  /** O código da demanda, que aparece mesmo para quem não pode abrir a demanda. */
+  demanda_codigo: string | null;
+  contrato_id: string | null;
+  /** O número do contrato, que aparece mesmo para quem não pode abrir o contrato. */
+  contrato_codigo: string | null;
+  etapa_id: string | null;
+  etapa_ordem: number | null;
+  arquivado_em: string | null;
+  arquivado_por: string | null;
+  criado_por: string | null;
+  criado_em: string;
+  atualizado_por: string | null;
+  atualizado_em: string;
+  pessoas: PessoaResumida[];
+  /** A demanda, se quem vê a tarefa também pode abri-la; senão null (e fica só o código). */
+  demanda: DemandaDaTarefa | null;
+  /** O contrato, se quem vê a tarefa também pode abri-lo; senão null (e fica só o número). */
+  contrato: { id: string; codigo: string; servico: string } | null;
+}
+/** O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). */
+export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+/** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
+export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
+/** Tarefa como aparece em outro cartão (da pessoa, da demanda ou do contrato), com o papel da pessoa nela. */
+export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+  papeis: PapelNaTarefa[];
+}
+/** Campos que o cadastro de tarefa grava. */
+export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'responsavel_id'
+  | 'participantes' | 'demanda_id' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+/** Linha das listagens de tarefas (tabela e quadro). */
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
+  | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'>;
+export interface FiltroTarefas {
+  termo?: string;
+  /** Um usuário da equipe: as tarefas em que ele é o responsável ou um participante. */
+  pessoa?: string;
+  situacao?: 'ativas' | 'arquivadas';
+  ordem?: Ordem;
+  pagina?: number;
+  porPagina?: number;
+}
+
 export interface Usuario {
   id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
@@ -425,6 +484,26 @@ export interface DadosDemandas {
   demandasDoContrato(contratoId: string): Promise<DemandaLigada[]>;
 }
 
+/** Tarefas. Na ordem "nome", a lista vai pelo título. */
+export interface DadosTarefas {
+  tarefasListar(f?: FiltroTarefas): Promise<Pagina<TarefaLista>>;
+  tarefasDaEtapa(etapaId: string | null, f?: FiltroTarefas, deslocamento?: number, limite?: number): Promise<Pagina<TarefaLista>>;
+  tarefaObter(id: string): Promise<Tarefa | null>;
+  tarefaCriar(dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
+  tarefaAtualizar(id: string, dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
+  tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
+  tarefasExcluir(ids: string[]): Promise<Exclusao>;
+  tarefaMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  tarefaHistorico(id: string): Promise<Historico[]>;
+  /** Tarefas em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também as em que é responsável ou participante. */
+  tarefasDaPessoa(pessoaId: string, perfilId?: string | null): Promise<TarefaLigada[]>;
+  /** Tarefas da demanda, na ordem do quadro (quem vê a demanda vê todas elas). */
+  tarefasDaDemanda(demandaId: string): Promise<TarefaLigada[]>;
+  /** Tarefas ligadas ao contrato que quem está logado pode ver. */
+  tarefasDoContrato(contratoId: string): Promise<TarefaLigada[]>;
+}
+
 /** Item de uma lista da demanda: feito_em e feito_por são dados pelo banco ao marcar. */
 export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
 /** Lista da demanda (como as do Trello), com os itens na ordem. */
@@ -489,7 +568,7 @@ export interface DadosEquipe {
 }
 
 /** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
-export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas';
+export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas';
 export interface Comentario {
   id: string;
   autor_id: string | null;   // null: o usuário foi removido do sistema
@@ -510,4 +589,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas {}

@@ -6,11 +6,12 @@ import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
+import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
+import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
+import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -96,7 +97,7 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id' };
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
@@ -142,8 +143,8 @@ const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, responsavel_id, co
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(id, codigo, servico)`;
 type DemandaLida = Omit<Demanda, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
 const comClientes = ({ clientela, ...d }: DemandaLida): Demanda => ({ ...d, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
-// Ordem das demandas ("nome" é o título). O id no fim desempata a paginação.
-const ORDENS_DEMANDA: Record<Ordem, (q: Livre) => Livre> = {
+// Ordem das demandas e das tarefas ("nome" é o título). O id no fim desempata a paginação.
+const ORDENS_PELO_TITULO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
   nome: q => q.order('titulo'),
   nome_desc: q => q.order('titulo', { ascending: false }),
@@ -151,7 +152,7 @@ const ORDENS_DEMANDA: Record<Ordem, (q: Livre) => Livre> = {
   antigos: q => q.order('criado_em', { ascending: true }),
   recentes: q => q.order('atualizado_em', { ascending: false })
 };
-const ordenarDemandas = (q: Livre, ordem: Ordem) => ORDENS_DEMANDA[ordem](q).order('id');
+const ordenarPeloTitulo = (q: Livre, ordem: Ordem) => ORDENS_PELO_TITULO[ordem](q).order('id');
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
@@ -159,6 +160,31 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+// ---------- tarefas ----------
+const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
+  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
+// A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
+  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
+  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico)';
+type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
+const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
+function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
+  q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
+type TarefaParaLigar = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'participantes'>
+  & { pessoas: string[] };
+const CAMPOS_TAREFA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, participantes, pessoas';
+const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, responsavel_id, participantes, ...t }: TarefaParaLigar): TarefaLigada =>
+  ({ ...t, papeis: pessoaId ? papeisNaTarefa({ pessoas, responsavel_id, participantes }, pessoaId, perfilId) : [] });
+// Na ordem do quadro (como as demandas do contrato).
+const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(TAREFAS_LIGADAS);
+
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
@@ -473,13 +499,13 @@ export const SD: Dados = {
   async demandasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     const q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
-    const { data, count } = await rodar(ordenarDemandas(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
+    const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     let q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
-    const { data, count } = await rodar(ordenarDemandas(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
   },
   async demandaObter(id) {
@@ -525,6 +551,67 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).eq('contrato_id', contratoId)
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
+  },
+
+  // ---------- tarefas ----------
+  async tarefasListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarTarefas(sb.from('tarefas').select(CAMPOS_TAREFA_LISTA, { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    let q = filtrarTarefas(sb.from('tarefas').select(CAMPOS_TAREFA_LISTA, { count: 'exact' }), f);
+    q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
+    const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async tarefaObter(id) {
+    const { data } = await rodar(sb.from('tarefas').select(CAMPOS_TAREFA).eq('id', id).maybeSingle());
+    return data ? comPessoas(data) : null;
+  },
+  // O código é dado pelo banco ao gravar.
+  async tarefaCriar(dados) {
+    const { data } = await rodar(sb.from('tarefas').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    return data;
+  },
+  async tarefaAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('tarefas').update(dados).eq('id', id).select('id, codigo').single());
+    return data;
+  },
+  async tarefasArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('tarefas')
+      .update({ arquivado_em: arquivar ? new Date().toISOString() : null, arquivado_por: arquivar ? uid() : null })
+      .in('id', ids).select('id'));
+    return data.length;
+  },
+  async tarefasExcluir(ids) {
+    const { data } = await rodar(sb.from('tarefas').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só tarefas arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
+  },
+  async tarefaMover(id, etapaId, ordem) {
+    await rodar(sb.from('tarefas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+  },
+  async tarefaHistorico(id) {
+    const { data } = await rodar(sb.from('tarefa_historico').select('id, alteracoes, feito_por, em')
+      .eq('tarefa_id', id).order('em', { ascending: false }).limit(100));
+    return data;
+  },
+  // Responsável e participante numa consulta (pelo usuário); pessoa ligada pela lista de pessoas (vem de tarefa_pessoas).
+  async tarefasDaPessoa(pessoaId, perfilId = null) {
+    const filtros = [`pessoas.cs.{${pessoaId}}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`, `participantes.cs.{${perfilId}}`] : [])];
+    const { data } = await rodar(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).or(filtros.join(','))
+      .order('criado_em', { ascending: false }).limit(TAREFAS_LIGADAS));
+    return (data as TarefaParaLigar[]).map(tarefaLigada(pessoaId, perfilId));
+  },
+  async tarefasDaDemanda(demandaId) {
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('demanda_id', demandaId)));
+    return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
+  },
+  async tarefasDoContrato(contratoId) {
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('contrato_id', contratoId)));
+    return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
 
   // ---------- listas das demandas ----------
