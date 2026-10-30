@@ -36,8 +36,9 @@ test.describe('Cadastro de tarefas', () => {
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'Mandar a notificação' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
-    await expect(cartao.getByRole('link', { name: /Mateus Freitas Gonçalves/ })).toContainText('Responsável');
-    await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('Participante');
+    const equipe = cartao.getByRole('group', { name: 'Equipe' });
+    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável' })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante' })).toBeVisible();
     await abrirSecao(cartao, 'Pessoas');
     await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
@@ -110,6 +111,23 @@ test.describe('Quadro de tarefas', () => {
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await expect(page.getByRole('row').filter({ hasText: 'Registro de marca' })).toContainText('Concluído');
+  });
+});
+
+test.describe('Equipe da tarefa', () => {
+  test('quando a pessoa clica na bolinha de alguém da equipe, então vê o nome e o papel, e abre o cartão da pessoa', async ({ page }) => {
+    // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const bolinhas = cartao.getByRole('group', { name: 'Equipe' }).getByRole('button');
+    await expect(bolinhas).toHaveText(['AL', 'MG']);
+    // Quando
+    await bolinhas.first().click();
+    const ficha = page.getByRole('dialog', { name: 'Ana Teste Lima' });
+    await expect(ficha).toContainText('Responsável');
+    await ficha.getByRole('link', { name: 'Abrir o cartão da pessoa' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'ANA TESTE LIMA' })).toBeVisible();
   });
 });
 
