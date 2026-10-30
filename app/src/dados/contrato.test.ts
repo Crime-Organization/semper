@@ -616,6 +616,122 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Tarefas', () => {
+      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        SD.tarefaCriar({ titulo: 'Emitir a GRU', responsavel_id: 'u-ana', ...extra });
+
+      it('quando uma tarefa é criada, então ganha um código curto, e o responsável não fica entre os participantes', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        // Quando
+        const { id, codigo } = await novaTarefa({ titulo: '  Pedir documentos  ', participantes: ['u-bruno', 'u-ana', 'u-bruno'], pessoas: [pessoa, pessoa] });
+        // Então
+        expect(codigo).toMatch(/^[0-9A-F]{8}$/);
+        expect(await SD.tarefaObter(id)).toMatchObject({ titulo: 'Pedir documentos', responsavel_id: 'u-ana', participantes: ['u-bruno'],
+          pessoas: [{ id: pessoa }], demanda: null, contrato: null });
+      });
+
+      it('quando a tarefa é ligada a uma demanda, então guarda o código dela e aparece entre as tarefas da demanda', async () => {
+        // Dado
+        const { id: demanda, codigo } = await SD.demandaCriar({ titulo: 'Registro', responsavel_id: 'u-master' });
+        // Quando
+        const { id } = await novaTarefa({ demanda_id: demanda });
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ demanda_codigo: codigo, demanda: { id: demanda, codigo, titulo: 'Registro' } });
+        expect((await SD.tarefasDaDemanda(demanda)).map(t => t.id)).toEqual([id]);
+      });
+
+      it('quando a demanda é excluída, então as tarefas dela ficam, só desligadas', async () => {
+        // Dado
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Registro', responsavel_id: 'u-master' });
+        const { id } = await novaTarefa({ demanda_id: demanda });
+        // Quando
+        await SD.demandasArquivar([demanda]);
+        await SD.demandasExcluir([demanda]);
+        // Então
+        expect(await SD.tarefaObter(id)).toMatchObject({ demanda_id: null, demanda_codigo: null, demanda: null });
+      });
+
+      it('quando se pedem as tarefas de uma pessoa, então vêm as dela, com o papel dela em cada uma', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const { id: ligada } = await novaTarefa({ pessoas: [pessoa] });
+        const { id: comoParticipante } = await novaTarefa({ participantes: ['u-bruno'] });
+        // Quando
+        const daPessoa = await SD.tarefasDaPessoa(pessoa);
+        const doBruno = await SD.tarefasDaPessoa('p-bruno', 'u-bruno');
+        // Então
+        expect(daPessoa.map(t => [t.id, t.papeis])).toEqual([[ligada, ['pessoa']]]);
+        expect(doBruno.find(t => t.id === comoParticipante)?.papeis).toEqual(['participante']);
+      });
+
+      it('quando a tarefa muda, então o histórico mostra os nomes', async () => {
+        // Dado
+        const { id } = await novaTarefa();
+        // Quando
+        await SD.tarefaAtualizar(id, { responsavel_id: 'u-bruno', participantes: ['u-ana'] });
+        // Então
+        const [ultima] = await SD.tarefaHistorico(id);
+        expect(ultima.alteracoes).toEqual({ responsavel_id: { de: 'Ana Teste Lima', para: 'Bruno Exemplo Souza' }, participantes: { de: null, para: 'Ana Teste Lima' } });
+      });
+
+      it('quando o comentário da tarefa menciona quem não a vê, então é recusado; quem vê a demanda ligada pode', async () => {
+        // Dado (a tarefa é da Ana, numa demanda em que o Bruno colabora)
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Registro', responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+        const { id: avulsa } = await novaTarefa();
+        const { id: daDemanda } = await novaTarefa({ demanda_id: demanda });
+        // Quando
+        const [deFora, peloQuadro] = await Promise.allSettled([
+          SD.comentarioCriar('tarefas', avulsa, 'Veja, @bruno.souza'), SD.comentarioCriar('tarefas', daDemanda, 'Veja, @bruno.souza')
+        ]);
+        // Então
+        expect(deFora).toMatchObject({ status: 'rejected', reason: { message: 'Não é possível mencionar Bruno Exemplo Souza nesta tarefa: inclua essa pessoa como participante antes.' } });
+        expect(peloQuadro).toMatchObject({ status: 'fulfilled', value: { mencoes: ['u-bruno'] } });
+      });
+
+      it('quando a pessoa está numa tarefa, então ela não pode ser excluída', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        await novaTarefa({ pessoas: [pessoa] });
+        await SD.pessoasArquivar([pessoa]);
+        // Quando
+        const r = await SD.pessoasExcluir([pessoa]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em tarefas e não pode ser excluída.' });
+      });
+
+      it('quando a tarefa está ativa, então não é excluída; arquivada, é', async () => {
+        // Dado
+        const { id } = await novaTarefa();
+        // Quando
+        const ativa = await SD.tarefasExcluir([id]);
+        await SD.tarefasArquivar([id]);
+        const arquivada = await SD.tarefasExcluir([id]);
+        // Então
+        expect([ativa.excluidas, arquivada.excluidas]).toEqual([0, 1]);
+        expect(await SD.tarefaObter(id)).toBeNull();
+      });
+
+      it('quando a tarefa vai para outra coluna, então continua lá ao ser lida de novo, e a coluna entra no histórico', async () => {
+        // Dado
+        const { id } = await novaTarefa();
+        const fazendo = (await SD.colunasListar('tarefas')).find(c => c.nome === 'Fazendo')!;
+        // Quando
+        await SD.tarefaMover(id, fazendo.id, 1);
+        // Então
+        expect((await SD.tarefasDaEtapa(fazendo.id)).linhas.map(t => t.id)).toContain(id);
+        expect((await SD.tarefaHistorico(id))[0].alteracoes).toEqual({ etapa: { de: null, para: 'Fazendo' } });
+      });
+
+      it('quando as colunas de tarefas são listadas, então "Para fazer" e "Concluída" são as colunas-marco', async () => {
+        // Quando
+        const colunas = await SD.colunasListar('tarefas');
+        // Então
+        expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluída', 'concluido']]);
+      });
+    });
+
     describe('Listas das demandas', () => {
       const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' })).id;
 

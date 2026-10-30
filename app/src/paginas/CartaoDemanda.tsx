@@ -1,9 +1,9 @@
 // Cartão da demanda (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de contrato: no topo, o
 // título e o prazo em destaque; as ações, a equipe da demanda (responsável e colaboradores) e a situação; depois, cada
-// tópico numa seção que recolhe (detalhes, clientes, contrato, comentários, histórico).
+// tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 import { useCallback, useEffect, useState } from 'react';
-import { SD, type Demanda, type Historico, type PessoaResumida } from '../dados';
+import { SD, type Demanda, type PessoaResumida } from '../dados';
 import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda } from '../regras/demanda';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
@@ -15,8 +15,10 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
-import { dataCurta, dataHora, relativo } from '../ui/util';
+import { dataCurta, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
+import { CartoesLigados } from './CartoesLigados';
+import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDaDemanda } from './ListasDaDemanda';
 
 interface Props {
@@ -122,6 +124,11 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDaDemanda demandaId={d.id} />
 
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" padrao>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaDemanda(d.id)} vazio="Nenhuma tarefa nesta demanda ainda."
+        nova={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' }} versao={versaoHist} />
+    </Recolhivel>}
+
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" padrao contador={d.clientes.length}>
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
     </Recolhivel>
@@ -134,7 +141,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={motivoSemMencaoNaDemanda(d)} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.cartao.historico">
-      <HistoricoDemanda id={d.id} versao={versaoHist} />
+      <HistoricoDoCartao carregar={() => SD.demandaHistorico(d.id)} campos={CAMPOS_DEMANDA} valor={valorLegivelDemanda} versao={versaoHist} />
     </Recolhivel>
 
     <footer className="cartao-rodape">
@@ -142,28 +149,4 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(d.atualizado_em)}</span>
     </footer>
   </>;
-}
-
-// ---------- histórico ----------
-function HistoricoDemanda({ id, versao }: { id: string; versao: number }) {
-  const ctx = useCtx();
-  const [hist, setHist] = useState<Historico[] | string | null>(null);
-  const nomeDe = (pid: string) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
-  useEffect(() => {
-    let vivo = true;
-    SD.demandaHistorico(id).then(h => { if (vivo) setHist(h); }).catch(e => { if (vivo) setHist((e as Error).message); });
-    return () => { vivo = false; };
-  }, [id, versao]);
-
-  if (hist === null) return <Carregando />;
-  if (typeof hist === 'string') return <Aviso tipo="erro">{hist}</Aviso>;
-  if (!hist.length) return <Nota>Nenhuma alteração desde o cadastro.</Nota>;
-  return <ol className="hist">{hist.map(h => <li key={h.id}>
-    <span className="quando">{dataHora(h.em)} · {h.feito_por ? nomeDe(h.feito_por) : 'Sistema'}</span>
-    {Object.entries(h.alteracoes).map(([campo, v]) => {
-      if (campo === 'arquivado_em') return <div key={campo}>{v.para ? 'Arquivada' : 'Desarquivada'}</div>;
-      const de = valorLegivelDemanda(campo, v.de), para = valorLegivelDemanda(campo, v.para);
-      return <div key={campo}><b>{CAMPOS_DEMANDA[campo] || campo}:</b> {de !== '—' && <><span className="de">{de}</span> → </>}{para}</div>;
-    })}
-  </li>)}</ol>;
 }

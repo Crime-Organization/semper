@@ -18,7 +18,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
-import { DemandasLigadas } from './DemandasLigadas';
+import { CartoesLigados } from './CartoesLigados';
 import { VinculosPessoa } from './VinculosPessoa';
 
 interface Props {
@@ -171,8 +171,13 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" padrao>
-      <DemandasLigadas carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
         nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" padrao>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa."
+        nova={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>

@@ -4,15 +4,16 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
+import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO } from './limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -40,7 +41,9 @@ const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atend
 const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
 /** Colunas iniciais do quadro de demandas (banco/017_demandas.sql): a primeira e a última são colunas-marco. */
 const SITUACOES_DEMANDA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluído'];
-const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA };
+/** Colunas iniciais do quadro de tarefas (banco/020_tarefas.sql): a primeira e a última são colunas-marco. */
+const SITUACOES_TAREFA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluída'];
+const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA, tarefas: SITUACOES_TAREFA };
 /** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
 type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
 
@@ -72,9 +75,13 @@ interface Banco {
   listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  tarefas?: TarefaGuardada[];
+  historicoTarefas?: (Historico & { tarefa_id: string })[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
 type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
+/** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
+type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato'> & { pessoas: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
 const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
@@ -164,6 +171,14 @@ function demandaNova(): DemandaGuardada {
     criado_em: agora(), atualizado_por: null, atualizado_em: agora()
   };
 }
+/** Tarefa com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
+function tarefaNova(): TarefaGuardada {
+  return {
+    id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
+    contrato_id: null, contrato_codigo: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
+    criado_em: agora(), atualizado_por: null, atualizado_em: agora()
+  };
+}
 /** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd). */
 const dataDaqui = (dias: number) => new Date(Date.now() + dias * DIA).toISOString().slice(0, 10);
 /** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
@@ -231,6 +246,25 @@ bd.modelos ??= [
   { id: novoId(), nome: 'Documentos de pessoa jurídica', itens: ['Comprovante de inscrição e de situação cadastral', 'Quadro de sócios e administradores', 'Atos constitutivos'],
     criado_por: 'u-ana', atualizado_em: agora() }
 ];
+// Colunas de tarefas: "Para fazer" e "Concluída" são as colunas-marco (como a migração 020).
+if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
+  bd.colunas.push(...SITUACOES_TAREFA.map((nome, i) => ({ id: 't' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'tarefas' as const,
+    marco: i === 0 ? 'inicio' as const : i === SITUACOES_TAREFA.length - 1 ? 'concluido' as const : null })));
+}
+bd.historicoTarefas ??= [];
+// Tarefas de exemplo: três da demanda "Registro de marca" (uma já concluída) e uma avulsa, da Ana, com o prazo vencido.
+if (!bd.tarefas) {
+  const d = bd.demandas.find(x => x.titulo === 'Registro de marca');
+  const daDemanda = d ? { demanda_id: d.id, demanda_codigo: d.codigo, contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, pessoas: [...d.clientes] } : {};
+  bd.tarefas = [
+    { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '5E1A7C20', titulo: 'Organizar a pasta', responsavel_id: 'u-bruno', etapa_id: 't4', etapa_ordem: 1 },
+    { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: 'C0FFEE12', titulo: 'Emitir a GRU', responsavel_id: 'u-master', participantes: ['u-bruno'],
+      etapa_id: 't2', etapa_ordem: 1, prazo: dataDaqui(2) },
+    { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '9B3D4E51', titulo: 'Pedir documentos ao cliente', responsavel_id: 'u-bruno', etapa_id: 't1', etapa_ordem: 1 },
+    { ...tarefaNova(), id: novoId(), codigo: 'F00D1234', titulo: 'Renovar a procuração', descricao: 'A procuração vence este mês.', responsavel_id: 'u-ana',
+      participantes: ['u-master'], etapa_id: 't1', etapa_ordem: 2, prazo: dataDaqui(-1), criado_por: 'u-ana' }
+  ];
+}
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
@@ -363,7 +397,9 @@ function filtrarDemandas(f: FiltroDemandas = {}) {
     && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
     && (!t || buscaDemanda(d).includes(t)));
 }
-const ORDENS_DEMANDA: Record<Ordem, (a: DemandaGuardada, b: DemandaGuardada) => number> = {
+/** Ordem das demandas e das tarefas ("nome" é o título). */
+type PeloTitulo = Pick<DemandaGuardada, 'titulo' | 'etapa_ordem' | 'criado_em' | 'atualizado_em'>;
+const ORDENS_PELO_TITULO: Record<Ordem, (a: PeloTitulo, b: PeloTitulo) => number> = {
   manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.criado_em.localeCompare(a.criado_em),
   nome: (a, b) => a.titulo.localeCompare(b.titulo),
   nome_desc: (a, b) => b.titulo.localeCompare(a.titulo),
@@ -443,6 +479,96 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
+// ---------- tarefas ----------
+const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
+  const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
+  const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
+  return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
+    demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
+      colaboradores: d.colaboradores } : null,
+    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
+};
+const tarefaLista = (t: TarefaGuardada): TarefaLista => ({
+  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, responsavel_id: t.responsavel_id, participantes: t.participantes,
+  pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
+  etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em
+});
+const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
+function filtrarTarefas(f: FiltroTarefas = {}) {
+  const t = termo(f.termo);
+  return bd.tarefas!.filter(x => (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)
+    && (!f.pessoa || x.responsavel_id === f.pessoa || x.participantes.includes(f.pessoa))
+    && (!t || buscaTarefa(x).includes(t)));
+}
+const acharTarefa = (id: string) => {
+  const t = bd.tarefas!.find(x => x.id === id);
+  if (!t) throw new Error('Tarefa não encontrada.');
+  return t;
+};
+/**
+ * Como o gatilho preparar da migração 020: título limpo; pessoas do escritório, sem repetir; responsável e participantes
+ * da equipe, sem repetir e sem o responsável entre os participantes; os códigos da demanda e do contrato copiados.
+ */
+function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
+  const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados };
+  if (t.titulo !== undefined) {
+    t.titulo = t.titulo.trim();
+    if (!t.titulo) throw new Error('Dê um título à tarefa.');
+  }
+  if (t.pessoas !== undefined) {
+    t.pessoas = [...new Set(t.pessoas.filter(Boolean))];
+    if (t.pessoas.length > CLIENTES_MAXIMOS) throw new Error(`Uma tarefa pode ter até ${CLIENTES_MAXIMOS} pessoas ligadas.`);
+    if (t.pessoas.some(id => !bd.pessoas.some(p => p.id === id))) throw new Error('Pessoa não encontrada neste escritório.');
+  }
+  const responsavel = t.responsavel_id ?? atual?.responsavel_id;
+  if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
+  if (t.participantes !== undefined || t.responsavel_id !== undefined) {
+    const lista = [...new Set((t.participantes ?? atual?.participantes ?? []).filter(Boolean))].filter(id => id !== responsavel);
+    if (lista.some(id => !EQUIPE.some(m => m.id === id))) throw new Error('O participante precisa ser alguém da equipe do escritório.');
+    if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`);
+    t.participantes = lista;
+  }
+  if (t.demanda_id !== undefined) {
+    const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
+    if (t.demanda_id && !d) throw new Error('Demanda não encontrada neste escritório.');
+    t.demanda_codigo = d?.codigo ?? null;
+  }
+  if (t.contrato_id !== undefined) {
+    const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
+    if (t.contrato_id && !k) throw new Error('Contrato não encontrado neste escritório.');
+    t.contrato_codigo = k?.codigo ?? null;
+  }
+  return t;
+}
+// Do responsável, dos participantes, das pessoas, da demanda, do contrato e da coluna, o histórico guarda os nomes (como no banco).
+const NOME_NO_HISTORICO_TAREFA: Record<string, [string, (v: unknown) => unknown]> = {
+  responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
+  participantes: ['participantes', nomesDaEquipe],
+  pessoas: ['pessoas', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
+  demanda_id: ['demanda', id => bd.demandas!.find(d => d.id === id)?.codigo ?? null],
+  contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
+  etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
+};
+const FORA_DO_HISTORICO_TAREFA = new Set(['etapa_ordem', 'arquivado_por', 'demanda_codigo', 'contrato_codigo']);
+/** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico da tarefa. */
+function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
+  const atual = t as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
+  Object.entries(dados).forEach(([campo, v]) => {
+    if (!FORA_DO_HISTORICO_TAREFA.has(campo) && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
+      const [chave, nome] = NOME_NO_HISTORICO_TAREFA[campo] ?? [campo, (x: unknown) => x];
+      alt[chave] = { de: nome(atual[campo] ?? null), para: nome(v ?? null) };
+    }
+  });
+  if (Object.keys(alt).length) bd.historicoTarefas!.unshift({ id: Date.now() + Math.random(), tarefa_id: t.id, alteracoes: alt, feito_por: eu, em: agora() });
+}
+const tarefaLigada = (pessoaId: string, perfilId: string | null) => (t: TarefaGuardada): TarefaLigada => ({
+  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, etapa_id: t.etapa_id, arquivado_em: t.arquivado_em, criado_em: t.criado_em,
+  papeis: pessoaId ? papeisNaTarefa(t, pessoaId, perfilId) : []
+});
+/** Na ordem do quadro (como as demandas do contrato). */
+const tarefasNaOrdemDoQuadro = (lista: TarefaGuardada[]) => lista
+  .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
+  .slice(0, TAREFAS_LIGADAS).map(tarefaLigada('', null));
 // ---------- modelos de lista ----------
 /** Como o gatilho preparar e o índice de nome único: nome limpo e sem repetir; itens limpos, sem linhas vazias. */
 function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, id?: string) {
@@ -534,13 +660,19 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const demanda = modulo === 'demandas' ? bd.demandas!.find(d => d.id === cartaoId) : null;
   const deFora = demanda ? primeiro(mencoes.filter(m => !veADemanda(demanda, m))) : null;
   if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
+  // Na tarefa: só quem a vê (quem está nela ou vê a demanda ligada a ela).
+  const tarefa = modulo === 'tarefas' ? bd.tarefas!.find(t => t.id === cartaoId) : null;
+  const daTarefa = tarefa ? bd.demandas!.find(d => d.id === tarefa.demanda_id) ?? null : null;
+  const foraDaTarefa = tarefa ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa))) : null;
+  if (foraDaTarefa) throw new Error(mencaoNegadaNaTarefa(foraDaTarefa.nome));
   return { texto, mencoes: mencoes.map(m => m.id) };
 }
 /** O cartão de cada módulo existe? (No banco, a ligação do comentário com o cartão.) */
 const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
   pessoas: id => bd.pessoas.some(p => p.id === id),
   contratos: id => bd.contratos!.some(k => k.id === id),
-  demandas: id => bd.demandas!.some(d => d.id === id)
+  demandas: id => bd.demandas!.some(d => d.id === id),
+  tarefas: id => bd.tarefas!.some(t => t.id === id)
 };
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
@@ -565,7 +697,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
     };
     return espera(c);
@@ -646,6 +778,7 @@ export const SD: Dados = {
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       if (bd.demandas!.some(d => d.clientes.includes(id))) { motivo = 'Esta pessoa está em demandas e não pode ser excluída.'; return; }
+      if (bd.tarefas!.some(t => t.pessoas.includes(id))) { motivo = 'Esta pessoa está em tarefas e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
@@ -769,6 +902,7 @@ export const SD: Dados = {
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
+      bd.tarefas!.forEach(t => { if (t.contrato_id === id) Object.assign(t, { contrato_id: null, contrato_codigo: null }); });
       auditar('contratos', 'exclusao', k); excluidas++;
     });
     gravar();
@@ -792,11 +926,11 @@ export const SD: Dados = {
   // ---------- demandas ----------
   demandasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const r = filtrarDemandas(f).sort(ORDENS_DEMANDA[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
+    const r = filtrarDemandas(f).sort(ORDENS_PELO_TITULO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
     return espera({ linhas: r.slice(de, de + por).map(demandaLista), total: r.length });
   },
   demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    const r = filtrarDemandas(f).filter(d => (d.etapa_id || null) === (etapaId || null)).sort(ORDENS_DEMANDA[f.ordem || 'manual']);
+    const r = filtrarDemandas(f).filter(d => (d.etapa_id || null) === (etapaId || null)).sort(ORDENS_PELO_TITULO[f.ordem || 'manual']);
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(demandaLista), total: r.length });
   },
   demandaObter: id => { const d = bd.demandas!.find(x => x.id === id); return espera(d ? demandaCompleta(d) : null); },
@@ -828,6 +962,8 @@ export const SD: Dados = {
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
+      // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
+      bd.tarefas!.forEach(t => { if (t.demanda_id === id) Object.assign(t, { demanda_id: null, demanda_codigo: null }); });
       const listas = new Set(bd.listas!.filter(l => l.demanda_id === id).map(l => l.id));
       bd.listas = bd.listas!.filter(l => !listas.has(l.id));
       bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
@@ -847,6 +983,61 @@ export const SD: Dados = {
   demandasDoContrato: contratoId => espera(bd.demandas!.filter(d => d.contrato_id === contratoId)
     .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
     .slice(0, DEMANDAS_LIGADAS).map(d => ({ ...demandaLigada('', null)(d), papeis: [] }))),
+
+  // ---------- tarefas (como banco/020_tarefas.sql) ----------
+  tarefasListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const r = filtrarTarefas(f).sort(ORDENS_PELO_TITULO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
+    return espera({ linhas: r.slice(de, de + por).map(tarefaLista), total: r.length });
+  },
+  tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    const r = filtrarTarefas(f).filter(t => (t.etapa_id || null) === (etapaId || null)).sort(ORDENS_PELO_TITULO[f.ordem || 'manual']);
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(tarefaLista), total: r.length });
+  },
+  tarefaObter: id => { const t = bd.tarefas!.find(x => x.id === id); return espera(t ? tarefaCompleta(t) : null); },
+  async tarefaCriar(dados) {
+    const t: TarefaGuardada = { ...tarefaNova(), ...prepararTarefa({ pessoas: [], participantes: [], ...dados }) as Partial<TarefaGuardada>, id: novoId(), codigo: codigo() };
+    bd.tarefas!.push(t); auditar('tarefas', 'inclusao', t); gravar();
+    return espera({ id: t.id, codigo: t.codigo });
+  },
+  async tarefaAtualizar(id, dados) {
+    const t = acharTarefa(id), novos = prepararTarefa(dados, t);
+    historicoTarefa(t, novos);
+    Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('tarefas', 'alteracao', t); gravar();
+    return espera({ id, codigo: t.codigo });
+  },
+  async tarefasArquivar(ids, arquivar = true) {
+    ids.forEach(id => {
+      const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
+      historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
+      Object.assign(t, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+    });
+    gravar(); return espera(ids.length);
+  },
+  async tarefasExcluir(ids) {
+    let excluidas = 0;
+    ids.forEach(id => {
+      const t = bd.tarefas!.find(x => x.id === id);
+      if (!t || !t.arquivado_em) return;
+      bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
+      bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
+      auditar('tarefas', 'exclusao', t); excluidas++;
+    });
+    gravar();
+    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só tarefas arquivadas podem ser excluídas.' : '' });
+  },
+  async tarefaMover(id, etapaId, ordem) {
+    const t = acharTarefa(id);
+    historicoTarefa(t, { etapa_id: etapaId });
+    Object.assign(t, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
+  },
+  tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
+  tarefasDaPessoa: (pessoaId, perfilId = null) => espera(bd.tarefas!.map(tarefaLigada(pessoaId, perfilId)).filter(t => t.papeis.length)
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, TAREFAS_LIGADAS)),
+  tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.demanda_id === demandaId))),
+  tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.contrato_id === contratoId))),
 
   // ---------- listas das demandas (como banco/018_listas_das_demandas.sql) ----------
   listasDaDemanda: demandaId => espera(bd.listas!.filter(l => l.demanda_id === demandaId).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
