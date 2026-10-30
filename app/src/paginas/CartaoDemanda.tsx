@@ -24,7 +24,7 @@ import { SeloDoPrazo } from './Demandas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
-import { ListasDaDemanda } from './ListasDaDemanda';
+import { ListasDoCartao } from './ListasDoCartao';
 
 interface Props {
   id: string;
@@ -124,7 +124,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       </select>
     </section>
 
-    <ListasDaDemanda demandaId={d.id} />
+    <ListasDoCartao modulo="demandas" id={d.id} />
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />

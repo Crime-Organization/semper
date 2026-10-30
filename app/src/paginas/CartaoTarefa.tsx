@@ -22,6 +22,7 @@ import { dataCurta, relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoPrazo } from './Demandas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { ListasDoCartao } from './ListasDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 
 interface Props {
@@ -129,6 +130,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     </section>
 
     <TempoNaTarefa t={t} />
+
+    <ListasDoCartao modulo="tarefas" id={t.id} />
 
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda">
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}

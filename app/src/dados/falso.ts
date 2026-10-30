@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, CartaoComListas, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -73,7 +73,8 @@ interface Banco {
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
   contratosComDemandas?: string[];
-  listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
+  /** Cada lista é de uma demanda ou de uma tarefa (demanda_listas no banco). */
+  listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
   tarefas?: TarefaGuardada[];
@@ -599,9 +600,14 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
   }
   return m;
 }
-// ---------- listas das demandas ----------
+// ---------- listas das demandas e das tarefas ----------
+/** De cada cartão com listas: o campo que liga a lista a ele e como achá-lo (erro se não existe). */
+const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id'; achar: (id: string) => unknown }> = {
+  demandas: { campo: 'demanda_id', achar: acharDemanda },
+  tarefas: { campo: 'tarefa_id', achar: acharTarefa },
+};
 const itemLido = ({ lista_id: _l, ...i }: NonNullable<Banco['itensDeLista']>[number]): ItemDaLista => i;
-const listaLida = ({ demanda_id: _d, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDaDemanda =>
+const listaLida = ({ demanda_id: _d, tarefa_id: _t, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDoCartao =>
   ({ ...l, itens: bd.itensDeLista!.filter(i => i.lista_id === l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido) });
 /** Como as regras do banco: nome e texto sem espaços nas pontas e não vazios, no tamanho de cada um. */
 function nomeDaLista(nome: string) {
@@ -1039,6 +1045,9 @@ export const SD: Dados = {
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
+      const listas = new Set(bd.listas!.filter(l => l.tarefa_id === id).map(l => l.id));
+      bd.listas = bd.listas!.filter(l => !listas.has(l.id));
+      bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
       auditar('tarefas', 'exclusao', t); excluidas++;
     });
     gravar();
@@ -1086,12 +1095,13 @@ export const SD: Dados = {
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
     .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
 
-  // ---------- listas das demandas (como banco/018_listas_das_demandas.sql) ----------
-  listasDaDemanda: demandaId => espera(bd.listas!.filter(l => l.demanda_id === demandaId).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
-  async listaCriar(demandaId, nome, itens = []) {
-    acharDemanda(demandaId);
-    const ordem = Math.max(0, ...bd.listas!.filter(l => l.demanda_id === demandaId).map(l => l.ordem)) + 1;
-    const l = { id: novoId(), demanda_id: demandaId, nome: nomeDaLista(nome), ordem, criado_em: agora() };
+  // ---------- listas das demandas e das tarefas (como banco/018_listas_das_demandas.sql e a migração 20261030130000) ----------
+  listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
+  async listaCriar(modulo, id, nome, itens = []) {
+    const { campo, achar } = CARTAO_DA_LISTA[modulo];
+    achar(id);
+    const ordem = Math.max(0, ...bd.listas!.filter(l => l[campo] === id).map(l => l.ordem)) + 1;
+    const l = { id: novoId(), [campo]: id, nome: nomeDaLista(nome), ordem, criado_em: agora() };
     bd.listas!.push(l);
     itens.forEach((texto, i) => bd.itensDeLista!.push({ id: novoId(), lista_id: l.id, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem: i + 1 }));
     gravar(); return espera(listaLida(l));

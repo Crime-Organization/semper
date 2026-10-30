@@ -367,3 +367,30 @@ test.describe('Tarefas ligadas', () => {
     await expect(page.getByRole('option', { name: /Ana Teste Lima/ })).toHaveAttribute('aria-disabled', 'false');
   });
 });
+
+test.describe('Listas da tarefa', () => {
+  test('quando a tarefa ainda não tem listas, então o cartão mostra a seção "Listas" com o convite para criar uma', async ({ page }) => {
+    // Quando
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    // Então
+    await expect(cartao.getByText('Nenhuma lista ainda. Use listas para os documentos e os passos da tarefa.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toBeVisible();
+  });
+
+  test('quando a pessoa escolhe um modelo em "Adicionar lista" e marca um item, então a lista fica na tarefa, com o progresso, ao reabrir', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    // Quando
+    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
+    const lista = cartao.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    await expect(lista.getByRole('checkbox')).toHaveCount(2);
+    await lista.getByRole('checkbox').first().check();
+    await expect(lista).toContainText('1 de 2');
+    // Então
+    const reaberto = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    const deNovo = reaberto.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    await expect(deNovo).toContainText('1 de 2');
+    await expect(deNovo.getByRole('checkbox').first()).toBeChecked();
+  });
+});

@@ -11,7 +11,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { CartaoComListas, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -187,7 +187,9 @@ const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, 
 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
-const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+/** A coluna de demanda_listas que liga a lista ao cartão dela. */
+const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
 const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
@@ -639,17 +641,18 @@ export const SD: Dados = {
     return Number(data ?? 0);
   },
 
-  // ---------- listas das demandas ----------
-  async listasDaDemanda(demandaId) {
-    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_DEMANDA}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
-      .eq('demanda_id', demandaId).order('ordem').order('criado_em'));
-    return (data as ListaDaDemanda[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
+  // ---------- listas das demandas e das tarefas ----------
+  async listasDoCartao(modulo, id) {
+    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_CARTAO}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
+      .eq(DONO_DA_LISTA[modulo], id).order('ordem').order('criado_em'));
+    return (data as ListaDoCartao[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
   },
-  // No fim da demanda: depois da maior posição que já existe. Os itens vêm na ordem dada.
-  async listaCriar(demandaId, nome, itens = []) {
-    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq('demanda_id', demandaId).order('ordem', { ascending: false }).limit(1));
-    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ demanda_id: demandaId, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
-      .select(CAMPOS_LISTA_DEMANDA).single());
+  // No fim das listas do cartão: depois da maior posição que já existe. Os itens vêm na ordem dada.
+  async listaCriar(modulo, id, nome, itens = []) {
+    const dono = DONO_DA_LISTA[modulo];
+    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq(dono, id).order('ordem', { ascending: false }).limit(1));
+    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ [dono]: id, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
+      .select(CAMPOS_LISTA_CARTAO).single());
     const { data: criados } = itens.length
       ? await rodar(sb.from('demanda_lista_itens').insert(itens.map((texto, i) => ({ lista_id: lista.id, texto, ordem: i + 1 }))).select(CAMPOS_ITEM_LISTA))
       : { data: [] };

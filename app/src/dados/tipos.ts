@@ -538,18 +538,21 @@ export interface DadosTempo {
   tempoDaDemanda(demandaId: string): Promise<number>;
 }
 
-/** Item de uma lista da demanda: feito_em e feito_por são dados pelo banco ao marcar. */
+/** Item de uma lista: feito_em e feito_por são dados pelo banco ao marcar. */
 export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
-/** Lista da demanda (como as do Trello), com os itens na ordem. */
-export interface ListaDaDemanda { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
+/** Cartões que têm listas. */
+export type CartaoComListas = Extract<Modulo, 'demandas' | 'tarefas'>;
+/** Lista de uma demanda ou de uma tarefa (como as do Trello), com os itens na ordem. */
+export interface ListaDoCartao { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
 
-/** Listas das demandas (banco/018_listas_das_demandas.sql): quem vê a demanda vê e mexe nas listas dela. */
+/** Listas das demandas e das tarefas (banco/018_listas_das_demandas.sql e supabase/migrations/20261030130000_listas_nas_tarefas.sql):
+ * quem vê a demanda ou a tarefa vê e mexe nas listas dela. */
 export interface DadosListas {
-  /** As listas da demanda, na ordem, cada uma com os itens na ordem. */
-  listasDaDemanda(demandaId: string): Promise<ListaDaDemanda[]>;
-  /** Cria a lista no fim da demanda, já com os itens (na ordem dada), se vierem. */
-  listaCriar(demandaId: string, nome: string, itens?: string[]): Promise<ListaDaDemanda>;
-  listaAtualizar(id: string, campos: Partial<Pick<ListaDaDemanda, 'nome' | 'ordem'>>): Promise<void>;
+  /** As listas da demanda ou da tarefa, na ordem, cada uma com os itens na ordem. */
+  listasDoCartao(modulo: CartaoComListas, id: string): Promise<ListaDoCartao[]>;
+  /** Cria a lista no fim das listas do cartão, já com os itens (na ordem dada), se vierem. */
+  listaCriar(modulo: CartaoComListas, id: string, nome: string, itens?: string[]): Promise<ListaDoCartao>;
+  listaAtualizar(id: string, campos: Partial<Pick<ListaDoCartao, 'nome' | 'ordem'>>): Promise<void>;
   listaExcluir(id: string): Promise<void>;
   /** Cria o item no fim da lista. */
   itemCriar(listaId: string, texto: string): Promise<ItemDaLista>;
@@ -558,7 +561,7 @@ export interface DadosListas {
   itemExcluir(id: string): Promise<void>;
 }
 
-/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda. */
+/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda ou a tarefa. */
 export interface ModeloDeLista { id: string; nome: string; itens: string[]; criado_por: string | null; atualizado_em: string }
 
 /** Modelos de lista (banco/019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
