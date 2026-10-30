@@ -584,3 +584,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   .linha-campo > .btn { flex: 1 }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important } }
+/* No menu, quando alguma tarefa está com o cronômetro contando: quantas e "Pausar todos" (Casca.tsx). */
+.cronometros-ativos { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-tint); color: var(--accent-ink); font-size: 13px; font-weight: 700 }
+.cronometros-ativos > span { display: inline-flex; align-items: center; gap: 6px }

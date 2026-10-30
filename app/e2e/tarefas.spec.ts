@@ -185,26 +185,59 @@ test.describe('Editar no cartão', () => {
 });
 
 test.describe('Cronômetro da tarefa', () => {
-  test('quando a pessoa abre uma tarefa ativa, então o cronômetro conta o tempo dela; ao pausar, para', async ({ page }) => {
+  test('quando a pessoa abre uma tarefa, então o cronômetro não começa sozinho; a tecla T inicia e pausa', async ({ page }) => {
     // Dado: "Renovar a procuração" não tem tempo registrado
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const relogio = cartao.getByRole('timer');
-    // Quando
-    await page.clock.runFor(65_000);
-    // Então
-    await expect(relogio).toHaveText('0:01:05');
-    await expect(cartao.getByText('contando')).toBeVisible();
-    await cartao.getByRole('button', { name: 'Pausar' }).click();
     await page.clock.runFor(30_000);
-    await expect(relogio).toHaveText('0:01:05');
+    await expect(relogio).toHaveText('0:00:00');
+    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveAttribute('aria-keyshortcuts', 'T');
+    // Quando
+    await page.keyboard.press('t');
+    await page.clock.runFor(65_000);
+    // Então (o relógio de verdade também anda alguns segundos enquanto o teste roda)
+    await expect(relogio).toHaveText(/^0:01:0\d$/);
+    await expect(cartao.getByText('contando')).toBeVisible();
+    await page.keyboard.press('t');
     await expect(cartao.getByText('pausado')).toBeVisible();
+    const parado = await relogio.textContent();
+    await page.clock.runFor(30_000);
+    await expect(relogio).toHaveText(parado!);
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /Retomar/ })).toBeVisible();
+  });
+
+  test('quando a pessoa digita um T num comentário, então é só a letra, e o cronômetro não começa', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
+    // Quando
+    await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).pressSequentially('Tudo certo');
+    // Então
+    await expect(cartao.getByText('pausado')).toBeVisible();
+  });
+
+  test('quando uma tarefa está contando numa aba, então as outras mostram no menu, e "Pausar todos" a pausa', async ({ page, context }) => {
+    // Dado: a tarefa contando nesta aba
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: /Iniciar/ }).click();
+    await expect(cartao.getByText('contando')).toBeVisible();
+    // Quando: em outra aba
+    const outra = await context.newPage();
+    await outra.goto('/tarefas/');
+    const aviso = outra.getByRole('status').filter({ hasText: '1 tarefa contando' });
+    await expect(aviso).toBeVisible();
+    await aviso.getByRole('button', { name: 'Pausar todos' }).click();
+    // Então
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(aviso).toHaveCount(0);
   });
 
   test('quando passam 10 minutos sem mexer e a pessoa responde "Não estava", então o tempo desde o aviso não conta', async ({ page }) => {
     // Dado
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await page.keyboard.press('t');
     // Quando
     await page.clock.runFor(10 * 60_000);
     const pergunta = page.getByRole('dialog', { name: 'Você ainda está aqui?' });
@@ -212,14 +245,13 @@ test.describe('Cronômetro da tarefa', () => {
     await page.clock.runFor(5 * 60_000);
     await pergunta.getByRole('button', { name: 'Não estava' }).click();
     // Então
-    await expect(cartao.getByRole('timer')).toHaveText('0:10:00');
+    await expect(cartao.getByRole('timer')).toHaveText(/^0:10:0\d$/);
   });
 
   test('quando a pessoa ajusta o próprio tempo com um motivo, então o tempo muda e o ajuste fica registrado', async ({ page }) => {
     // Dado: o Mateus tem 1 h 20 min em "Emitir a GRU"
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Emitir a GRU');
-    await cartao.getByRole('button', { name: 'Pausar' }).click();
     // Quando
     await cartao.getByRole('button', { name: 'Ajustar meu tempo' }).click();
     const janela = page.getByRole('dialog', { name: 'Ajustar meu tempo' });
@@ -232,11 +264,14 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(cartao.getByText(/Mateus Freitas Gonçalves: −20 min · Contei a mais/)).toBeVisible();
   });
 
-  test('quando a tarefa está concluída, então o cronômetro não começa sozinho e o cartão mostra o esforço da equipe', async ({ page }) => {
+  test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {
     // Quando: "Organizar a pasta" está concluída, com 40 min do Bruno
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
+    await page.keyboard.press('t');
     // Então
-    await expect(cartao.getByRole('button', { name: 'Contar meu tempo' })).toBeVisible();
+    await expect(cartao.getByText('Tarefa concluída: a contagem encerrou.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
     await expect(cartao).toContainText('Total da equipe: 40 min');
     await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toContainText('Bruno Exemplo Souza100%');
   });

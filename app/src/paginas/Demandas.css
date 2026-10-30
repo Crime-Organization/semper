@@ -44,3 +44,5 @@
 .tempo-ajustes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px }
 /* A janela do ajuste: o tanto e o motivo, um embaixo do outro. */
 .ajuste-tempo { display: flex; flex-direction: column; gap: 14px }
+/* A tecla do atalho, dentro do botão do cronômetro. */
+.cronometro kbd { margin-left: 6px; padding: 0 5px; border: 1px solid var(--line2); border-radius: 4px; font: inherit; font-size: 11px; font-weight: 700; color: var(--muted) }

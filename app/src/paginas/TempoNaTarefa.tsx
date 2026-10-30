@@ -1,5 +1,5 @@
-// O tempo no cartão da tarefa: o cronômetro de quem está com o cartão aberto ("Seu tempo nesta tarefa", com Pausar e
-// Retomar), o ajuste à mão com motivo e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
+// O tempo no cartão da tarefa: o cronômetro de quem está com o cartão aberto ("Seu tempo nesta tarefa": Iniciar,
+// Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type Tarefa, type TempoDaTarefa } from '../dados';
@@ -12,7 +12,7 @@ import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { dataCurta } from '../ui/util';
-import { useCronometro } from './useCronometro';
+import { TECLA_DO_CRONOMETRO, useCronometro } from './useCronometro';
 
 export function TempoNaTarefa({ t }: { t: Tarefa }) {
   const ctx = useCtx();
@@ -20,8 +20,8 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
   const [tempo, setTempo] = useState<TempoDaTarefa | string | null>(null);
   const carregar = useCallback(() => SD.tempoDaTarefa(t.id).then(setTempo).catch(e => setTempo((e as Error).message)), [t.id]);
   useEffect(() => { void carregar(); }, [carregar]);
-  // Conta sozinho na tarefa ativa; na arquivada ou concluída, só se a pessoa pedir.
-  const relogio = useCronometro(t.id, !t.arquivado_em && !t.concluida_em, () => { void carregar(); });
+  // Só conta quando a pessoa inicia; na tarefa concluída, a contagem já encerrou.
+  const relogio = useCronometro(t, !t.concluida_em, () => { void carregar(); });
 
   if (tempo === null) return <Carregando />;
   if (typeof tempo === 'string') return <Aviso tipo="erro">{tempo}</Aviso>;
@@ -61,9 +61,12 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
     <div className="cronometro">
       <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>
       <span className={'cronometro-situacao' + (relogio.contando ? ' contando' : '')}>{relogio.contando ? 'contando' : 'pausado'}</span>
-      {relogio.contando
-        ? <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void relogio.pausar()}>Pausar</button>
-        : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={relogio.retomar}>{meu ? 'Retomar' : 'Contar meu tempo'}</button>}
+      {t.concluida_em
+        ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
+        : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={relogio.alternar}
+          title={`Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`} aria-keyshortcuts={TECLA_DO_CRONOMETRO.toUpperCase()}>
+          {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'} <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd>
+        </button>}
       <button type="button" className={estiloBotao({ forma: 'link' })} onClick={ajustar}>Ajustar meu tempo</button>
     </div>
     {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
