@@ -1,0 +1,7 @@
+/* Demandas: tabela, quadro, cartão e cadastro (o resto vem de Contratos.css e estilo.css) */
+.tabela-demandas td:nth-child(2) { min-width: 260px; max-width: 420px }
+/* A descrição logo abaixo do título, no topo do cartão. */
+.demanda-descricao { margin: 8px 0 0; font-size: 15px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere }
+/* O contrato escolhido no cadastro, com o botão de tirar. */
+.demanda-contrato-escolhido { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 10px; background: var(--superficie); font-size: 15px; color: var(--ink) }
+.demanda-contrato-escolhido > span { flex: 1; min-width: 0; overflow-wrap: anywhere }

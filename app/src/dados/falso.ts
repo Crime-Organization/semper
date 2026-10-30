@@ -4,14 +4,15 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
+import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COMENTARIOS_DO_CARTAO, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -37,7 +38,9 @@ const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atend
   'Pendência/observações', 'Pendente tratamento', 'Não conversão'];
 /** Colunas iniciais do quadro de contratos (as mesmas sugestões do banco, banco/009_contratos.sql). */
 const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
-const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO };
+/** Colunas iniciais do quadro de demandas (banco/017_demandas.sql): a primeira e a última são colunas-marco. */
+const SITUACOES_DEMANDA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluído'];
+const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA };
 /** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
 type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
 
@@ -62,7 +65,13 @@ interface Banco {
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
   comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
+  demandas?: DemandaGuardada[];
+  historicoDemandas?: (Historico & { demanda_id: string })[];
+  /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
+  contratosComDemandas?: string[];
 }
+/** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
+type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
 const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
@@ -144,6 +153,16 @@ function sementeContratos(): ContratoGuardado[] {
     }];
   });
 }
+/** Demanda com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
+function demandaNova(): DemandaGuardada {
+  return {
+    id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', colaboradores: [], clientes: [], contrato_id: null,
+    contrato_codigo: null, objeto: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
+    criado_em: agora(), atualizado_por: null, atualizado_em: agora()
+  };
+}
+/** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd). */
+const dataDaqui = (dias: number) => new Date(Date.now() + dias * DIA).toISOString().slice(0, 10);
 /** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function contratoNovo(): ContratoGuardado {
   return {
@@ -172,6 +191,26 @@ bd.contratos.forEach(k => {
   const antigo = k as unknown as { participante_id?: string | null; participante_percentual?: number | null };
   k.participantes ??= antigo.participante_id ? [{ pessoa_id: antigo.participante_id, percentual: antigo.participante_percentual ?? null }] : [];
 });
+// Colunas de demandas: "Para fazer" e "Concluído" são as colunas-marco (como a migração 017).
+if (!bd.colunas.some(c => c.modulo === 'demandas')) {
+  bd.colunas.push(...SITUACOES_DEMANDA.map((nome, i) => ({ id: 'd' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'demandas' as const,
+    marco: i === 0 ? 'inicio' as const : i === SITUACOES_DEMANDA.length - 1 ? 'concluido' as const : null })));
+}
+bd.historicoDemandas ??= [];
+if (!bd.demandas) {
+  const k = bd.contratos.find(x => x.servico.startsWith('Registro de marca'))!;
+  const avulsa = bd.pessoas.find(p => p.nome === 'MARIA APARECIDA EXEMPLO')!;
+  bd.contratosComDemandas = [k.id];
+  bd.demandas = [
+    { ...demandaNova(), id: novoId(), codigo: 'D3A1F09C', titulo: 'Registro de marca', objeto: 'Registro de marca', responsavel_id: k.responsavel_id,
+      clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: 'd2', etapa_ordem: 1, colaboradores: ['u-bruno'], prazo: dataDaqui(7) },
+    { ...demandaNova(), id: novoId(), codigo: '7B42C0DE', titulo: 'Busca de anterioridade', objeto: 'Busca de anterioridade', responsavel_id: k.responsavel_id,
+      clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: 'd1', etapa_ordem: 1 },
+    { ...demandaNova(), id: novoId(), codigo: 'A90E5B13', titulo: 'Notificar o devedor', descricao: 'Mandar a notificação extrajudicial antes da ação.',
+      responsavel_id: 'u-bruno', colaboradores: ['u-ana'], clientes: avulsa ? [avulsa.id] : [], etapa_id: 'd1', etapa_ordem: 2, prazo: dataDaqui(-2), criado_por: 'u-bruno' }
+  ];
+}
+bd.contratosComDemandas ??= [];
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
@@ -285,6 +324,105 @@ function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) 
   });
   if (Object.keys(alt).length) bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: k.id, alteracoes: alt, feito_por: eu, em: agora() });
 }
+// ---------- demandas ----------
+const nomesDosClientes = (ids: string[]) => ids.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
+const demandaCompleta = (d: DemandaGuardada): Demanda => {
+  const k = d.contrato_id ? bd.contratos!.find(x => x.id === d.contrato_id) : null;
+  return { ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes),
+    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
+};
+const demandaLista = (d: DemandaGuardada): DemandaLista => ({
+  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
+  cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
+  arquivado_em: d.arquivado_em, criado_por: d.criado_por, criado_em: d.criado_em, atualizado_em: d.atualizado_em
+});
+const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
+function filtrarDemandas(f: FiltroDemandas = {}) {
+  const t = termo(f.termo);
+  return bd.demandas!.filter(d => (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
+    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
+    && (!t || buscaDemanda(d).includes(t)));
+}
+const ORDENS_DEMANDA: Record<Ordem, (a: DemandaGuardada, b: DemandaGuardada) => number> = {
+  manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.criado_em.localeCompare(a.criado_em),
+  nome: (a, b) => a.titulo.localeCompare(b.titulo),
+  nome_desc: (a, b) => b.titulo.localeCompare(a.titulo),
+  novos: (a, b) => b.criado_em.localeCompare(a.criado_em),
+  antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
+  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
+};
+const acharDemanda = (id: string) => {
+  const d = bd.demandas!.find(x => x.id === id);
+  if (!d) throw new Error('Demanda não encontrada.');
+  return d;
+};
+/**
+ * Como o gatilho preparar da migração 017: título limpo; clientes do escritório, sem repetir; responsável e colaboradores
+ * da equipe, sem repetir e sem o responsável entre os colaboradores; o número do contrato copiado.
+ */
+function prepararDemanda(dados: DadosDemanda, atual?: DemandaGuardada): DadosDemanda & { contrato_codigo?: string | null } {
+  const d: DadosDemanda & { contrato_codigo?: string | null } = { ...dados };
+  if (d.titulo !== undefined) {
+    d.titulo = d.titulo.trim();
+    if (!d.titulo) throw new Error('Dê um título à demanda.');
+  }
+  if (d.clientes !== undefined) {
+    d.clientes = [...new Set(d.clientes.filter(Boolean))];
+    if (d.clientes.length > CLIENTES_MAXIMOS) throw new Error(`Uma demanda pode ter até ${CLIENTES_MAXIMOS} clientes.`);
+    if (d.clientes.some(id => !bd.pessoas.some(p => p.id === id))) throw new Error('Cliente não encontrado neste escritório.');
+  }
+  const responsavel = d.responsavel_id ?? atual?.responsavel_id;
+  if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
+  if (d.colaboradores !== undefined || d.responsavel_id !== undefined) {
+    const lista = [...new Set((d.colaboradores ?? atual?.colaboradores ?? []).filter(Boolean))].filter(id => id !== responsavel);
+    if (lista.some(id => !EQUIPE.some(m => m.id === id))) throw new Error('O colaborador precisa ser alguém da equipe do escritório.');
+    if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma demanda pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`);
+    d.colaboradores = lista;
+  }
+  if (d.contrato_id !== undefined) {
+    const k = d.contrato_id ? bd.contratos!.find(x => x.id === d.contrato_id) : null;
+    if (d.contrato_id && !k) throw new Error('Contrato não encontrado neste escritório.');
+    d.contrato_codigo = k?.codigo ?? null;
+  }
+  return d;
+}
+// Do responsável, dos colaboradores, dos clientes, do contrato e da coluna, o histórico guarda os nomes (como no banco).
+const nomesDaEquipe = (ids: unknown) => (ids as string[] | null ?? []).map(id => EQUIPE.find(m => m.id === id)?.nome ?? 'usuário removido').join(', ') || null;
+const NOME_NO_HISTORICO_DEMANDA: Record<string, [string, (v: unknown, d: DemandaGuardada) => unknown]> = {
+  responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
+  colaboradores: ['colaboradores', nomesDaEquipe],
+  clientes: ['clientes', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
+  contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
+  etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
+};
+const FORA_DO_HISTORICO_DEMANDA = new Set(['etapa_ordem', 'arquivado_por', 'contrato_codigo']);
+/** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico da demanda. */
+function historicoDemanda(d: DemandaGuardada, dados: Record<string, unknown>) {
+  const atual = d as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
+  Object.entries(dados).forEach(([campo, v]) => {
+    if (!FORA_DO_HISTORICO_DEMANDA.has(campo) && JSON.stringify(atual[campo] ?? null) !== JSON.stringify(v ?? null)) {
+      const [chave, nome] = NOME_NO_HISTORICO_DEMANDA[campo] ?? [campo, (x: unknown) => x];
+      alt[chave] = { de: nome(atual[campo] ?? null, d), para: nome(v ?? null, d) };
+    }
+  });
+  if (Object.keys(alt).length) bd.historicoDemandas!.unshift({ id: Date.now() + Math.random(), demanda_id: d.id, alteracoes: alt, feito_por: eu, em: agora() });
+}
+/**
+ * Como o gatilho demandas_automaticas da migração 017: o contrato que chega à coluna-marco "assinado" ganha uma demanda
+ * por objeto, em "Para fazer", com os clientes e o responsável dele. Uma vez só por contrato.
+ */
+function demandasDoContratoAssinado(k: ContratoGuardado) {
+  const assinado = bd.colunas.find(c => c.id === k.etapa_id)?.marco === 'assinado';
+  if (!assinado || bd.contratosComDemandas!.includes(k.id)) return;
+  bd.contratosComDemandas!.push(k.id);
+  const inicio = bd.colunas.find(c => c.modulo === 'demandas' && c.marco === 'inicio')?.id ?? null, base = Date.now() / 1000;
+  k.objetos.forEach((objeto, i) => bd.demandas!.push({ ...demandaNova(), id: novoId(), codigo: codigo(), titulo: objeto, objeto,
+    responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 }));
+}
+const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: DemandaGuardada): DemandaLigada => ({
+  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
+  papeis: papeisNaDemanda(d, pessoaId, perfilId)
+});
 /**
  * Como os gatilhos da migração 010: objetos limpos e "servico" igual a eles. Quem grava só o texto (a versão anterior
  * do site) tem os objetos tirados dele, separados por ";".
@@ -335,14 +473,23 @@ function conferirResponsavel(id: string | undefined) {
   if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
 }
 /** Como o gatilho preparar do banco: o texto sem espaços nas pontas e as menções achadas nele; em contratos, só advogados. */
-function prepararComentario(modulo: ModuloComentado, bruto: string) {
+function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: string) {
   const texto = bruto.trim();
   if (!texto) throw new Error('Escreva o comentário.');
-  const mencoes = mencoesNoTexto(texto, EQUIPE);
-  const negado = mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)).sort((a, b) => a.nome.localeCompare(b.nome))[0];
+  const mencoes = mencoesNoTexto(texto, EQUIPE), primeiro = (lista: typeof mencoes) => lista.sort((a, b) => a.nome.localeCompare(b.nome))[0];
+  const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
   if (negado) throw new Error(mencaoNegada(negado.nome));
+  const demanda = modulo === 'demandas' ? bd.demandas!.find(d => d.id === cartaoId) : null;
+  const deFora = demanda ? primeiro(mencoes.filter(m => !veADemanda(demanda, m))) : null;
+  if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
   return { texto, mencoes: mencoes.map(m => m.id) };
 }
+/** O cartão de cada módulo existe? (No banco, a ligação do comentário com o cartão.) */
+const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
+  pessoas: id => bd.pessoas.some(p => p.id === id),
+  contratos: id => bd.contratos!.some(k => k.id === id),
+  demandas: id => bd.demandas!.some(d => d.id === id)
+};
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
@@ -366,7 +513,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
     };
     return espera(c);
@@ -446,6 +593,7 @@ export const SD: Dados = {
       if (!p || !p.arquivado_em) return;
       if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
+      if (bd.demandas!.some(d => d.clientes.includes(id))) { motivo = 'Esta pessoa está em demandas e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
@@ -540,7 +688,7 @@ export const SD: Dados = {
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
-    bd.contratos!.push(k); guardarObjetos(k.objetos); auditar('contratos', 'inclusao', k); gravar();
+    bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
@@ -549,7 +697,7 @@ export const SD: Dados = {
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     historicoContrato(k, d);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
-    guardarObjetos(k.objetos); auditar('contratos', 'alteracao', k); gravar();
+    guardarObjetos(k.objetos); demandasDoContratoAssinado(k); auditar('contratos', 'alteracao', k); gravar();
     return espera({ id, codigo: k.codigo });
   },
   async contratosArquivar(ids, arquivar = true) {
@@ -568,6 +716,7 @@ export const SD: Dados = {
       bd.contratos = bd.contratos!.filter(x => x.id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
+      bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       auditar('contratos', 'exclusao', k); excluidas++;
     });
     gravar();
@@ -578,7 +727,7 @@ export const SD: Dados = {
     if ((k.etapa_id || null) !== (etapaId || null)) {
       bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
     }
-    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
+    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k); gravar();
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id)),
   objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
@@ -587,6 +736,62 @@ export const SD: Dados = {
     .filter(x => x.papeis.length)
     .sort((a, b) => b.k.criado_em.localeCompare(a.k.criado_em))
     .map(({ k, papeis }) => ({ id: k.id, codigo: k.codigo, servico: k.servico, etapa_id: k.etapa_id, arquivado_em: k.arquivado_em, criado_em: k.criado_em, papeis }))),
+
+  // ---------- demandas ----------
+  demandasListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const r = filtrarDemandas(f).sort(ORDENS_DEMANDA[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
+    return espera({ linhas: r.slice(de, de + por).map(demandaLista), total: r.length });
+  },
+  demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    const r = filtrarDemandas(f).filter(d => (d.etapa_id || null) === (etapaId || null)).sort(ORDENS_DEMANDA[f.ordem || 'manual']);
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(demandaLista), total: r.length });
+  },
+  demandaObter: id => { const d = bd.demandas!.find(x => x.id === id); return espera(d ? demandaCompleta(d) : null); },
+  async demandaCriar(dados) {
+    const d: DemandaGuardada = { ...demandaNova(), ...prepararDemanda({ clientes: [], colaboradores: [], ...dados }) as Partial<DemandaGuardada>, id: novoId(), codigo: codigo() };
+    bd.demandas!.push(d); auditar('demandas', 'inclusao', d); gravar();
+    return espera({ id: d.id, codigo: d.codigo });
+  },
+  async demandaAtualizar(id, dados) {
+    const d = acharDemanda(id), novos = prepararDemanda(dados, d);
+    historicoDemanda(d, novos);
+    Object.assign(d, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('demandas', 'alteracao', d); gravar();
+    return espera({ id, codigo: d.codigo });
+  },
+  async demandasArquivar(ids, arquivar = true) {
+    ids.forEach(id => {
+      const d = bd.demandas!.find(x => x.id === id); if (!d) return;
+      historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
+      Object.assign(d, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
+    });
+    gravar(); return espera(ids.length);
+  },
+  async demandasExcluir(ids) {
+    let excluidas = 0;
+    ids.forEach(id => {
+      const d = bd.demandas!.find(x => x.id === id);
+      if (!d || !d.arquivado_em) return;
+      bd.demandas = bd.demandas!.filter(x => x.id !== id);
+      bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
+      auditar('demandas', 'exclusao', d); excluidas++;
+    });
+    gravar();
+    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só demandas arquivadas podem ser excluídas.' : '' });
+  },
+  async demandaMover(id, etapaId, ordem) {
+    const d = acharDemanda(id);
+    historicoDemanda(d, { etapa_id: etapaId });
+    Object.assign(d, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
+  },
+  demandaHistorico: id => espera(bd.historicoDemandas!.filter(h => h.demanda_id === id)),
+  demandasDaPessoa: (pessoaId, perfilId = null) => espera(bd.demandas!.map(demandaLigada(pessoaId, perfilId)).filter(d => d.papeis.length)
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, DEMANDAS_LIGADAS)),
+  demandasDoContrato: contratoId => espera(bd.demandas!.filter(d => d.contrato_id === contratoId)
+    .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
+    .slice(0, DEMANDAS_LIGADAS).map(d => ({ ...demandaLigada('', null)(d), papeis: [] }))),
 
   // ---------- quadros: cada módulo tem as suas colunas ----------
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)
@@ -610,16 +815,15 @@ export const SD: Dados = {
   comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId)
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, COMENTARIOS_DO_CARTAO).map(comentarioLido)),
   async comentarioCriar(modulo, cartaoId, texto) {
-    const existe = modulo === 'pessoas' ? bd.pessoas.some(p => p.id === cartaoId) : bd.contratos!.some(k => k.id === cartaoId);
-    if (!existe) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
-    const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto), criado_em: agora(), editado_em: null };
+    if (!CARTAO_EXISTE[modulo](cartaoId)) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto, cartaoId), criado_em: agora(), editado_em: null };
     bd.comentarios!.push(c); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioEditar(id, texto) {
     const c = bd.comentarios!.find(x => x.id === id);
     if (!c || c.autor_id !== eu) return erro('Só quem escreveu o comentário pode editá-lo.');
-    Object.assign(c, prepararComentario(c.modulo, texto), { editado_em: agora() }); gravar();
+    Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioExcluir(id) {

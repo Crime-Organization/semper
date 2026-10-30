@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dataCurta, dataHora, numero, relativo } from './util';
+import { dataCurta, dataHora, hojeISO, numero, relativo } from './util';
 
 describe('Datas na tela', () => {
   it('quando a data vem do banco, então aparece como dia/mês/ano no fuso de Brasília', () => {
@@ -15,6 +15,13 @@ describe('Datas na tela', () => {
     const mostrada = dataHora('2026-10-28T13:45:00Z');
     // Então
     expect(mostrada).toBe('28/10/2026, 10:45');
+  });
+
+  it('quando se pede o dia de hoje, então vem como o banco guarda as datas, no fuso de quem usa', () => {
+    // Quando (23h de 28/10 em Brasília já é 29/10 em UTC)
+    const hoje = hojeISO(new Date('2026-10-29T02:00:00Z'));
+    // Então
+    expect(hoje).toBe('2026-10-28');
   });
 
   it.each([[null], [undefined], ['']])('quando não há data (%j), então não aparece nada', vazia => {

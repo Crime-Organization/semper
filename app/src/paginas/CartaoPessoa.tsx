@@ -18,6 +18,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
+import { DemandasLigadas } from './DemandasLigadas';
 import { VinculosPessoa } from './VinculosPessoa';
 
 interface Props {
@@ -167,6 +168,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {contratos === null ? <Carregando />
         : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
         : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" padrao>
+      <DemandasLigadas carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
+        nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>

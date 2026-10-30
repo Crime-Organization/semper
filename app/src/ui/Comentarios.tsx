@@ -16,7 +16,11 @@ import { Recolhivel } from './Recolhivel';
 import { useCtx } from './sessao';
 import { dataHora, relativo } from './util';
 
-export function SecaoComentarios({ modulo, cartaoId }: { modulo: ModuloComentado; cartaoId: string }) {
+export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao }: {
+  modulo: ModuloComentado; cartaoId: string;
+  /** Regra a mais de quem pode ser mencionado, que depende do cartão (ex.: só quem vê a demanda). */
+  motivoSemMencao?: (m: Membro) => string | null;
+}) {
   const coluna = useContext(ColunaDoCartao);
   const titulo = useId();
   const [lista, setLista] = useState<Comentario[] | null>(null);
@@ -52,11 +56,11 @@ export function SecaoComentarios({ modulo, cartaoId }: { modulo: ModuloComentado
   }
 
   const conteudo = <div className="comentarios">
-    <CaixaComentario modulo={modulo} rotulo="Escrever um comentário" botao="Comentar" valor={rascunho} aoMudar={setRascunho} aoEnviar={comentar} />
+    <CaixaComentario modulo={modulo} motivoSemMencao={motivoSemMencao} rotulo="Escrever um comentário" botao="Comentar" valor={rascunho} aoMudar={setRascunho} aoEnviar={comentar} />
     {lista === null ? <Carregando />
       : !lista.length ? <Nota>Nenhum comentário ainda. Escreva acima e use @ para chamar alguém da equipe.</Nota>
       : <ol className="lista-comentarios" aria-label="Comentários do cartão">
-        {lista.map(c => <ItemComentario key={c.id} c={c} modulo={modulo} aoEditar={editar} aoExcluir={excluir} />)}
+        {lista.map(c => <ItemComentario key={c.id} c={c} modulo={modulo} motivoSemMencao={motivoSemMencao} aoEditar={editar} aoExcluir={excluir} />)}
       </ol>}
   </div>;
   // Na janela no centro, a coluna da direita; no painel ao lado, uma seção recolhível como as outras do cartão.
@@ -65,8 +69,8 @@ export function SecaoComentarios({ modulo, cartaoId }: { modulo: ModuloComentado
     : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" padrao contador={lista?.length}>{conteudo}</Recolhivel>;
 }
 
-function ItemComentario({ c, modulo, aoEditar, aoExcluir }: {
-  c: Comentario; modulo: ModuloComentado; aoEditar: (id: string, texto: string) => Promise<boolean>; aoExcluir: (id: string) => Promise<void>;
+function ItemComentario({ c, modulo, motivoSemMencao, aoEditar, aoExcluir }: {
+  c: Comentario; modulo: ModuloComentado; motivoSemMencao?: (m: Membro) => string | null; aoEditar: (id: string, texto: string) => Promise<boolean>; aoExcluir: (id: string) => Promise<void>;
 }) {
   const ctx = useCtx();
   const [editando, setEditando] = useState<string | null>(null);
@@ -83,7 +87,7 @@ function ItemComentario({ c, modulo, aoEditar, aoExcluir }: {
         <span className="nota" title={dataHora(c.criado_em)}>{relativo(c.criado_em)}{c.editado_em && ' (editado)'}</span>
       </div>
       {editando !== null
-        ? <CaixaComentario modulo={modulo} rotulo="Editar o comentário" botao="Salvar" valor={editando} aoMudar={setEditando} aoEnviar={salvar}
+        ? <CaixaComentario modulo={modulo} motivoSemMencao={motivoSemMencao} rotulo="Editar o comentário" botao="Salvar" valor={editando} aoMudar={setEditando} aoEnviar={salvar}
           aoCancelar={() => setEditando(null)} focar />
         : <p className="comentario-texto">{trechosDoComentario(c.texto, ctx.equipe).map((t, i) => t.membro
           ? <span key={i} className="mencao" title={t.membro.nome}>{t.texto}</span>
@@ -97,8 +101,8 @@ function ItemComentario({ c, modulo, aoEditar, aoExcluir }: {
 }
 
 /** A caixa de texto do comentário, com a lista do @: setas escolhem, Enter ou Tab marcam, Esc fecha; Ctrl+Enter envia. */
-function CaixaComentario({ modulo, rotulo, botao, valor, aoMudar, aoEnviar, aoCancelar, focar }: {
-  modulo: ModuloComentado; rotulo: string; botao: string; valor: string; aoMudar: (v: string) => void;
+function CaixaComentario({ modulo, motivoSemMencao, rotulo, botao, valor, aoMudar, aoEnviar, aoCancelar, focar }: {
+  modulo: ModuloComentado; motivoSemMencao?: (m: Membro) => string | null; rotulo: string; botao: string; valor: string; aoMudar: (v: string) => void;
   aoEnviar: () => Promise<void>; aoCancelar?: () => void; focar?: boolean;
 }) {
   const ctx = useCtx();
@@ -107,7 +111,7 @@ function CaixaComentario({ modulo, rotulo, botao, valor, aoMudar, aoEnviar, aoCa
   const [mencao, setMencao] = useState<{ inicio: number; termo: string } | null>(null);
   const [destaque, setDestaque] = useState(0);
   const opcoes = mencao ? membrosParaMencionar(ctx.equipe, mencao.termo, ACHADOS_DA_MENCAO) : [];
-  const motivo = (m: Membro) => MOTIVO_SEM_MENCAO[modulo](m);
+  const motivo = (m: Membro) => MOTIVO_SEM_MENCAO[modulo](m) ?? motivoSemMencao?.(m) ?? null;
   useEffect(() => { if (focar) campo.current?.focus(); }, [focar]);
 
   function mudar(texto: string, cursor: number) {

@@ -7,6 +7,8 @@ import type { Papel } from '../dados';
 export const PAPEIS: Record<Papel, string> = { master: 'Master', admin: 'Administrador', usuario: 'Usuário' };
 
 export const dataCurta = (iso?: string | null) => iso ? new Date(iso).toLocaleDateString('pt-BR') : '';
+/** Hoje, no fuso de quem usa, como o banco guarda as datas sem hora (aaaa-mm-dd). */
+export const hojeISO = (agora = new Date()) => `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
 export const dataHora = (iso?: string | null) => iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '';
 export function relativo(iso?: string | null) {
   if (!iso) return '';

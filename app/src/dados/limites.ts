@@ -34,6 +34,14 @@ export const OBJETOS_MAXIMOS = 20;
 export const OBJETOS_SUGERIDOS = 1000;
 /** Quantos contratos o cartão de uma pessoa mostra (os mais novos primeiro). */
 export const CONTRATOS_DA_PESSOA = 200;
+/** Demandas: os mesmos do banco (banco/017_demandas.sql). */
+export const TAMANHO_DEMANDA = { titulo: 300, descricao: 4000 };
+/** Quantos colaboradores uma demanda pode ter (o banco recusa mais que isso). */
+export const COLABORADORES_MAXIMOS = 20;
+/** Quantas demandas o cartão de uma pessoa ou de um contrato mostra (as mais novas primeiro). */
+export const DEMANDAS_LIGADAS = 200;
+/** Quantos contratos (os ativos mais recentes) o cadastro de demanda oferece para ligar. */
+export const CONTRATOS_PARA_LIGAR = 500;
 /** Tamanho de um comentário (o banco recusa mais que isso: banco/016_comentarios.sql). */
 export const TAMANHO_COMENTARIO = 5000;
 /** Quantos comentários um cartão mostra (os mais novos primeiro). */
