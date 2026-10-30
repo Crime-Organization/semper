@@ -149,6 +149,7 @@ export default function Demandas() {
           opcoes: [['', 'Todas as demandas'], [eu, 'Comigo (responsável ou colaborador)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'situacao', rotulo: 'Arquivo', valor: f.situacao || 'ativas', aoMudar: mudarSituacao, opcoes: [['ativas', 'Ativas'], ['arquivadas', 'Arquivadas']] }
       ]}
+      mais={[{ rotulo: 'Modelos de lista', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'

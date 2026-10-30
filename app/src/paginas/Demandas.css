@@ -20,3 +20,11 @@
 .lista-demanda li.feito > label > span { color: var(--muted); text-decoration: line-through }
 .lista-novo-item { display: flex; gap: 8px }
 .lista-novo-item > input { flex: 1; min-width: 0; height: 36px }
+/* Modelos de lista: cada modelo num cartão, com os itens numerados; o editor (nome e itens, um por linha). */
+.modelos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px }
+.modelo { display: flex; flex-direction: column; gap: 10px; height: 100% }
+.modelo > header { display: flex; align-items: baseline; gap: 10px }
+.modelo h2 { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); overflow-wrap: anywhere }
+.modelo ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text); overflow-wrap: anywhere }
+.modelo-form { display: flex; flex-direction: column; gap: 14px }
+.modelo-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto }

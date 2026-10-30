@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, ItemDaLista, ListaDaDemanda, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -12,7 +12,7 @@ import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDo
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA } from './limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -71,6 +71,7 @@ interface Banco {
   contratosComDemandas?: string[];
   listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
+  modelos?: ModeloDeLista[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
 type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
@@ -224,6 +225,12 @@ if (!bd.listas) {
   ] : [];
 }
 bd.itensDeLista ??= [];
+// Dois modelos de exemplo, com os documentos do modelo do Trello do escritório.
+bd.modelos ??= [
+  { id: novoId(), nome: 'Documentos de pessoa física', itens: ['Documento pessoal', 'Comprovante de residência'], criado_por: 'u-ana', atualizado_em: agora() },
+  { id: novoId(), nome: 'Documentos de pessoa jurídica', itens: ['Comprovante de inscrição e de situação cadastral', 'Quadro de sócios e administradores', 'Atos constitutivos'],
+    criado_por: 'u-ana', atualizado_em: agora() }
+];
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
@@ -436,6 +443,21 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
+// ---------- modelos de lista ----------
+/** Como o gatilho preparar e o índice de nome único: nome limpo e sem repetir; itens limpos, sem linhas vazias. */
+function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, id?: string) {
+  const m: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>> = {};
+  if (campos.nome !== undefined) {
+    m.nome = nomeDaLista(campos.nome);
+    if (bd.modelos!.some(x => x.id !== id && normal(x.nome) === normal(m.nome))) throw new Error('Já existe um modelo de lista com esse nome.');
+  }
+  if (campos.itens !== undefined) {
+    m.itens = campos.itens.map(i => i.trim()).filter(Boolean);
+    if (m.itens.length > ITENS_DO_MODELO) throw new Error(`Um modelo pode ter até ${ITENS_DO_MODELO} itens.`);
+    if (m.itens.some(i => i.length > TAMANHO_ITEM)) throw new Error(`Cada item do modelo pode ter até ${TAMANHO_ITEM} caracteres.`);
+  }
+  return m;
+}
 // ---------- listas das demandas ----------
 const itemLido = ({ lista_id: _l, ...i }: NonNullable<Banco['itensDeLista']>[number]): ItemDaLista => i;
 const listaLida = ({ demanda_id: _d, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDaDemanda =>
@@ -859,6 +881,19 @@ export const SD: Dados = {
     gravar(); return espera(itemLido(item));
   },
   async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
+
+  // ---------- modelos de lista (como banco/019_modelos_de_lista.sql) ----------
+  modelosListar: () => espera([...bd.modelos!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
+  async modeloCriar(nome, itens) {
+    const m = { id: novoId(), ...prepararModelo({ nome, itens }), criado_por: eu, atualizado_em: agora() } as ModeloDeLista;
+    bd.modelos!.push(m); gravar(); return espera(m);
+  },
+  async modeloAtualizar(id, campos) {
+    const m = bd.modelos!.find(x => x.id === id); if (!m) return erro('Modelo não encontrado.');
+    Object.assign(m, prepararModelo(campos, id), { atualizado_em: agora() }); gravar();
+  },
+  // Quem está logado no banco fictício é o master: exclui os de qualquer um.
+  async modeloExcluir(id) { bd.modelos = bd.modelos!.filter(m => m.id !== id); gravar(); },
 
   // ---------- quadros: cada módulo tem as suas colunas ----------
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)

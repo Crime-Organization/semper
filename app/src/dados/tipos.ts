@@ -445,6 +445,18 @@ export interface DadosListas {
   itemExcluir(id: string): Promise<void>;
 }
 
+/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda. */
+export interface ModeloDeLista { id: string; nome: string; itens: string[]; criado_por: string | null; atualizado_em: string }
+
+/** Modelos de lista (banco/019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
+export interface DadosModelos {
+  /** Os modelos do escritório, por nome. */
+  modelosListar(): Promise<ModeloDeLista[]>;
+  modeloCriar(nome: string, itens: string[]): Promise<ModeloDeLista>;
+  modeloAtualizar(id: string, campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>): Promise<void>;
+  modeloExcluir(id: string): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -498,4 +510,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos {}

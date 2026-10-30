@@ -10,7 +10,7 @@ import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_S
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
+import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -159,6 +159,7 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
@@ -557,6 +558,21 @@ export const SD: Dados = {
     return data;
   },
   async itemExcluir(id) { await rodar(sb.from('demanda_lista_itens').delete().eq('id', id)); },
+
+  // ---------- modelos de lista ----------
+  async modelosListar() {
+    const { data } = await rodar(sb.from('lista_modelos').select(CAMPOS_MODELO).order('nome'));
+    return data as ModeloDeLista[];
+  },
+  async modeloCriar(nome, itens) {
+    const { data } = await rodar(sb.from('lista_modelos').insert({ nome, itens, criado_por: uid() }).select(CAMPOS_MODELO).single());
+    return data as ModeloDeLista;
+  },
+  async modeloAtualizar(id, campos) { await rodar(sb.from('lista_modelos').update(campos).eq('id', id)); },
+  async modeloExcluir(id) {
+    const { data } = await rodar(sb.from('lista_modelos').delete().eq('id', id).select('id'));
+    if (!data.length) throw new Error('Só quem criou o modelo ou um administrador pode excluí-lo.');
+  },
 
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {

@@ -43,6 +43,8 @@ export const DEMANDAS_LIGADAS = 200;
 /** Listas das demandas: nome da lista e texto do item, os mesmos do banco (banco/018_listas_das_demandas.sql). */
 export const TAMANHO_LISTA = 120;
 export const TAMANHO_ITEM = 500;
+/** Quantos itens um modelo de lista pode ter (o banco recusa mais que isso: banco/019_modelos_de_lista.sql). */
+export const ITENS_DO_MODELO = 100;
 /** Quantos contratos (os ativos mais recentes) o cadastro de demanda oferece para ligar. */
 export const CONTRATOS_PARA_LIGAR = 500;
 /** Tamanho de um comentário (o banco recusa mais que isso: banco/016_comentarios.sql). */

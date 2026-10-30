@@ -1,7 +1,8 @@
 // As listas da demanda, como as do Trello: cada lista com nome, a barra do quanto já foi feito e os itens para marcar,
 // cada um com data de entrega opcional. Listas e itens se renomeiam, mudam de posição e se excluem pelo menu "⋯".
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { SD, type ItemDaLista, type ListaDaDemanda } from '../dados';
+import { useNavigate } from 'react-router';
+import { SD, type ItemDaLista, type ListaDaDemanda, type ModeloDeLista } from '../dados';
 import { TAMANHO_ITEM, TAMANHO_LISTA } from '../dados/limites';
 import { ROTULOS_PRAZO } from '../regras/demanda';
 import { moverNaLista, prazoDoItem, progressoDaLista } from '../regras/listas';
@@ -18,10 +19,14 @@ import { hojeISO } from '../ui/util';
 const SELO_DO_PRAZO = { vencido: 'erro', hoje: 'pend', em_dia: 'arq' } as const;
 /** Menu "⋯" aberto: de qual lista ou item, e o botão em que ele se prende. */
 type MenuAberto = { botao: HTMLElement; lista: ListaDaDemanda; item?: ItemDaLista };
+/** Menu de "Adicionar lista": em branco ou a partir de um modelo (carregados ao abrir). */
+type MenuNova = { botao: HTMLElement; modelos: ModeloDeLista[] | null };
 
 export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
   const [listas, setListas] = useState<ListaDaDemanda[] | string | null>(null);
   const [menu, setMenu] = useState<MenuAberto | null>(null);
+  const [menuNova, setMenuNova] = useState<MenuNova | null>(null);
+  const navegar = useNavigate();
   const carregar = useCallback(() => SD.listasDaDemanda(demandaId).then(setListas).catch(e => setListas((e as Error).message)), [demandaId]);
   useEffect(() => { void carregar(); }, [carregar]);
   /** Faz a mudança e recarrega as listas (o erro aparece no pé da tela). */
@@ -33,6 +38,18 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
       ? atual.map(l => ({ ...l, itens: l.itens.map(i => i.id === item.id ? { ...i, feito_em: feito ? new Date().toISOString() : null } : i) }))
       : atual);
     void mexer(() => SD.itemAtualizar(item.id, { feito }));
+  }
+  function abrirMenuNova(botao: HTMLElement) {
+    setMenuNova({ botao, modelos: null });
+    SD.modelosListar().then(modelos => setMenuNova(m => m && { ...m, modelos })).catch(e => { falha(e); setMenuNova(m => m && { ...m, modelos: [] }); });
+  }
+  // Um clique no modelo: a lista entra na demanda com o nome e os itens dele, sem nenhum marcado.
+  const usarModelo = (m: ModeloDeLista) => mexer(async () => { await SD.listaCriar(demandaId, m.nome, m.itens); avisar(`Lista "${m.nome}" acrescentada.`); });
+  async function salvarComoModelo(l: ListaDaDemanda) {
+    const nome = await pedirTexto('Nome do modelo', l.nome, { maximo: TAMANHO_LISTA });
+    if (!nome) return;
+    try { await SD.modeloCriar(nome, l.itens.map(i => i.texto)); avisar(`Modelo "${nome}" salvo. Ele aparece em "Adicionar lista" em qualquer demanda.`); }
+    catch (e) { falha(e); }
   }
   async function novaLista() {
     const nome = await pedirTexto('Nome da lista', '', { maximo: TAMANHO_LISTA });
@@ -71,8 +88,19 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
         {!listas.length && <Nota>Nenhuma lista ainda. Use listas para os documentos e os passos da demanda.</Nota>}
         {listas.map(l => <Lista key={l.id} lista={l} aoMarcar={marcar}
           aoAcrescentar={texto => mexer(() => SD.itemCriar(l.id, texto))} aoAbrirMenu={(botao, item) => setMenu({ botao, lista: l, item })} />)}
-        <div><button type="button" className={estiloBotao({ forma: 'mini' })} onClick={novaLista}><Icone nome="mais" tam={13} /> Adicionar lista</button></div>
+        <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> Adicionar lista</button></div>
       </>}
+    {menuNova && <MenuFlutuante botao={menuNova.botao} aoFechar={() => setMenuNova(null)} rotulo="Adicionar lista">
+      <button type="button" role="menuitem" onClick={() => { setMenuNova(null); void novaLista(); }}><Icone nome="mais" tam={15} /> Lista em branco</button>
+      {menuNova.modelos === null ? <p className="kmenu-nota">Carregando os modelos…</p>
+        : menuNova.modelos.length ? <>
+          <p className="rotulo-caps kmenu-titulo">Usar um modelo</p>
+          {menuNova.modelos.map(m => <button key={m.id} type="button" role="menuitem" onClick={() => { setMenuNova(null); void usarModelo(m); }}>
+            <Icone nome="check" tam={15} /> {m.nome}
+          </button>)}
+        </> : <p className="kmenu-nota">Nenhum modelo ainda. Salve uma lista como modelo pelo menu dela.</p>}
+      <button type="button" role="menuitem" onClick={() => { setMenuNova(null); navegar('/modelos-de-lista/'); }}><Icone nome="configuracoes" tam={15} /> Gerenciar modelos</button>
+    </MenuFlutuante>}
     {menu && Array.isArray(listas) && (() => {
       const i = listas.findIndex(x => x.id === menu.lista.id), lista = listas[i];
       const fechar = () => setMenu(null);
@@ -80,6 +108,7 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
       if (!lista) return null;
       if (!menu.item) return <MenuFlutuante botao={menu.botao} aoFechar={fechar} rotulo={`Ações da lista ${lista.nome}`}>
         <button type="button" role="menuitem" onClick={agir(() => renomearLista(lista))}><Icone nome="editar" tam={15} /> Renomear</button>
+        <button type="button" role="menuitem" onClick={agir(() => salvarComoModelo(lista))}><Icone nome="copiar" tam={15} /> Salvar como modelo</button>
         {i > 0 && <button type="button" role="menuitem" onClick={agir(() => moverLista(i, -1))}><Icone nome="acima" tam={15} /> Subir</button>}
         {i < listas.length - 1 && <button type="button" role="menuitem" onClick={agir(() => moverLista(i, 1))}><Icone nome="abaixo" tam={15} /> Descer</button>}
         <button type="button" role="menuitem" className="perigo" onClick={agir(() => excluirLista(lista))}><Icone nome="lixeira" tam={15} /> Excluir lista</button>

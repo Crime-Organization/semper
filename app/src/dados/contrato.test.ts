@@ -668,6 +668,53 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Modelos de lista', () => {
+      it('quando um modelo é criado, então ele vem na lista do escritório, por nome, com os itens limpos', async () => {
+        // Dado
+        const nome = 'Modelo ' + marca();
+        // Quando
+        const m = await SD.modeloCriar('  ' + nome + ' ', [' Procuração ', '', 'Contrato social']);
+        // Então
+        const lista = await SD.modelosListar();
+        expect(lista.find(x => x.id === m.id)).toMatchObject({ nome, itens: ['Procuração', 'Contrato social'] });
+        expect(lista.map(x => x.nome)).toEqual(lista.map(x => x.nome).toSorted((a, b) => a.localeCompare(b, 'pt-BR')));
+      });
+
+      it('quando já existe um modelo com o mesmo nome, então criar outro é recusado com a mensagem em português', async () => {
+        // Dado
+        const nome = 'Modelo ' + marca();
+        await SD.modeloCriar(nome, ['A']);
+        // Quando
+        const repetido = SD.modeloCriar(nome.toLowerCase(), ['B']);
+        // Então
+        await expect(repetido).rejects.toThrow('Já existe um modelo de lista com esse nome.');
+      });
+
+      it('quando o modelo é editado, então muda; e excluído, some da lista', async () => {
+        // Dado
+        const m = await SD.modeloCriar('Modelo ' + marca(), ['A']);
+        // Quando
+        await SD.modeloAtualizar(m.id, { itens: ['A', 'B'] });
+        const editado = (await SD.modelosListar()).find(x => x.id === m.id);
+        await SD.modeloExcluir(m.id);
+        // Então
+        expect(editado?.itens).toEqual(['A', 'B']);
+        expect((await SD.modelosListar()).some(x => x.id === m.id)).toBe(false);
+      });
+
+      it('quando um modelo é usado numa demanda e depois muda, então a lista da demanda continua como estava', async () => {
+        // Dado
+        const m = await SD.modeloCriar('Modelo ' + marca(), ['Procuração']);
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Com modelo', responsavel_id: 'u-master' });
+        await SD.listaCriar(demanda, m.nome, m.itens);
+        // Quando
+        await SD.modeloAtualizar(m.id, { itens: ['Outra coisa'] });
+        // Então
+        const [lista] = await SD.listasDaDemanda(demanda);
+        expect(lista.itens.map(i => i.texto)).toEqual(['Procuração']);
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

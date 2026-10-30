@@ -100,6 +100,7 @@ test.describe('Listas da demanda', () => {
     const cartao = await abrirDemanda(page, 'Busca de anterioridade');
     // Quando
     await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await page.getByRole('menuitem', { name: 'Lista em branco' }).click();
     await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('textbox').fill('Documentos do cliente');
     await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('button', { name: 'Salvar' }).click();
     const lista = cartao.getByRole('region', { name: 'Lista Documentos do cliente' });
@@ -142,5 +143,46 @@ test.describe('Listas da demanda', () => {
     // Então
     await expect(cartao.getByRole('region', { name: 'Lista Pessoa jurídica' })).toHaveCount(0);
     await expect(cartao.getByText('Nenhuma lista ainda.', { exact: false })).toBeVisible();
+  });
+});
+
+test.describe('Modelos de lista', () => {
+  test('quando a pessoa cria um modelo, então ele aparece na lista de modelos, com os itens na ordem', async ({ page }) => {
+    // Dado
+    await page.goto('/modelos-de-lista/');
+    // Quando
+    await page.getByRole('button', { name: 'Novo modelo' }).click();
+    await page.getByLabel('Nome do modelo').fill('Documentos do divórcio');
+    await page.getByLabel('Itens').fill('Certidão de casamento\n\nPacto antenupcial\n');
+    await page.getByRole('button', { name: 'Salvar modelo' }).click();
+    // Então
+    await expect(page.getByRole('listitem', { name: 'Modelo Documentos do divórcio' }).getByRole('listitem')).toHaveText(['Certidão de casamento', 'Pacto antenupcial']);
+  });
+
+  test('quando a pessoa escolhe um modelo em "Adicionar lista", então a lista entra na demanda com um clique, sem itens marcados', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    // Quando
+    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
+    // Então
+    const lista = cartao.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    await expect(lista.getByRole('checkbox')).toHaveCount(2);
+    await expect(lista).toContainText('0 de 2');
+  });
+
+  test('quando a pessoa salva uma lista da demanda como modelo, então ele passa a aparecer nos modelos', async ({ page }) => {
+    // Dado: "Registro de marca" tem a lista "Pessoa jurídica"
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    // Quando
+    await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
+    await page.getByRole('menuitem', { name: 'Salvar como modelo' }).click();
+    const janela = page.getByRole('dialog', { name: 'Nome do modelo' });
+    await janela.getByRole('textbox').fill('Documentos da marca');
+    await janela.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByText('Modelo "Documentos da marca" salvo.', { exact: false })).toBeVisible();
+    await page.goto('/modelos-de-lista/');
+    // Então
+    await expect(page.getByRole('listitem', { name: 'Modelo Documentos da marca' }).getByRole('listitem')).toHaveCount(3);
   });
 });

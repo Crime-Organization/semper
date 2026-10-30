@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista } from './listas';
+import { itensDoTexto, moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista, textoDosItens } from './listas';
 
 describe('Listas da demanda', () => {
   it.each([
@@ -53,5 +53,15 @@ describe('Listas da demanda', () => {
     const mudancas = moverNaLista([{ id: 'a', ordem: 1 }, { id: 'b', ordem: 2 }], i, passo);
     // Então
     expect(mudancas).toEqual([]);
+  });
+});
+
+describe('Modelos de lista', () => {
+  it('quando o modelo é escrito um item por linha, então os itens vêm limpos, sem linhas vazias, e voltam ao texto igual', () => {
+    // Quando
+    const itens = itensDoTexto('  Atos constitutivos \n\n  \nQuadro de sócios');
+    // Então
+    expect(itens).toEqual(['Atos constitutivos', 'Quadro de sócios']);
+    expect(textoDosItens(itens)).toBe('Atos constitutivos\nQuadro de sócios');
   });
 });
