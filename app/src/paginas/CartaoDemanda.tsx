@@ -21,8 +21,8 @@ import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { dataCurta, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
-import { CartoesLigados } from './CartoesLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDaDemanda } from './ListasDaDemanda';
 
@@ -127,8 +127,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     <ListasDaDemanda demandaId={d.id} />
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaDemanda(d.id)} vazio="Nenhuma tarefa nesta demanda ainda."
-        nova={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' }} versao={versaoHist} />
+      <TarefasDaDemanda demandaId={d.id} versao={versaoHist} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 

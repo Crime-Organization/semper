@@ -295,16 +295,53 @@ test.describe('Equipe da tarefa', () => {
 });
 
 test.describe('Tarefas ligadas', () => {
-  test('quando alguém abre o cartão da demanda, então vê as tarefas dela, com a situação', async ({ page }) => {
+  test('quando alguém abre o cartão da demanda, então vê as tarefas dela como checklist, com a situação e o progresso', async ({ page }) => {
     // Quando
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     // Então
+    const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
+    await expect(tarefas).toContainText('1 de 3 concluídas');
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toContainText('Fazendo');
+    await expect(tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' })).toBeChecked();
+    await expect(tarefas.getByRole('link', { name: 'Abrir a tarefa Emitir a GRU' })).toHaveAttribute('href', /\/tarefas\/\?id=/);
+  });
+
+  test('quando a pessoa marca as tarefas no checklist da demanda, então elas vão para "Concluída" no quadro, e a última oferece concluir a demanda', async ({ page }) => {
+    // Dado
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     const cartao = page.getByRole('dialog');
     await abrirSecao(cartao, 'Tarefas');
-    await expect(cartao.getByRole('link', { name: /Emitir a GRU/ })).toContainText('Fazendo');
-    await expect(cartao.getByRole('link', { name: /Organizar a pasta/ })).toContainText('Concluída');
+    const tarefas = cartao.getByRole('region', { name: 'Tarefas da demanda' });
+    // Quando
+    await tarefas.getByRole('checkbox', { name: 'Concluir Pedir documentos ao cliente' }).check();
+    await expect(tarefas).toContainText('2 de 3 concluídas');
+    await tarefas.getByRole('checkbox', { name: 'Concluir Emitir a GRU' }).check();
+    await page.getByRole('dialog', { name: 'Concluir a demanda?' }).getByRole('button', { name: 'Concluir a demanda' }).click();
+    // Então
+    await expect(tarefas).toContainText('3 de 3 concluídas');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Concluído');
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await expect(page.getByRole('list', { name: 'Concluída', exact: true }).getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toBeVisible();
+  });
+
+  test('quando a pessoa desmarca uma tarefa concluída no checklist, então ela volta para "Para fazer"', async ({ page }) => {
+    // Dado: "Organizar a pasta" está concluída
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
+    const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
+    // Quando
+    await tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' }).uncheck();
+    // Então
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Organizar a pasta' })).toContainText('Para fazer');
+    await expect(page.getByText('Organizar a pasta voltou para "Para fazer".')).toBeVisible();
   });
 
   test('quando alguém abre o cartão de uma pessoa da equipe, então vê as tarefas dela, com o papel', async ({ page }) => {
