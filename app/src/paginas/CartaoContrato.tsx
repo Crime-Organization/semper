@@ -1,5 +1,5 @@
 // Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, o cliente e os objetos do contrato (o que
-// vira demanda), em destaque; as ações e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
+// vira demanda), em destaque; as ações, com a equipe em bolinhas ao lado, e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
 // divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
@@ -9,6 +9,7 @@ import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
+import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone, type NomeIcone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -46,18 +47,17 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
-  // O responsável e os participantes são da equipe (informação interna): ficam num bloco próprio, antes da situação, cada um
-  // no quadrinho que abre o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e
+  // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
+  // o papel e o link para o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e
   // participantes de fora que já estavam no contrato antes de o participante ser sempre da equipe.
   const comPercentual = (papel: string, pct: number | null) => pct === null ? papel : `${papel} · ${fmtPercentual(pct)}`;
   const pessoaLigada = (pessoa: PessoaResumida, chave: string, detalhe: string): ItemLigado => ({ id: chave + pessoa.id, para: '/pessoas/?id=' + pessoa.id,
     codigo: pessoa.codigo, titulo: pessoa.nome, detalhe, selo: pessoa.arquivado_em ? 'Arquivada' : undefined });
-  const membro = ctx.equipe.find(m => m.id === k.responsavel_id);
-  const responsavel: ItemLigado = { id: 'responsavel', para: membro?.pessoa_id ? '/pessoas/?id=' + membro.pessoa_id : undefined,
-    titulo: nomeDe(k.responsavel_id), detalhe: 'Advogado responsável · equipe do escritório' };
+  const responsavel = naEquipe(ctx.equipe, k.responsavel_id, 'Advogado responsável');
   const participante = (p: Participacao) => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual));
-  const daEquipe = (p: Participacao) => ctx.equipe.some(m => m.pessoa_id === p.pessoa.id);
-  const internos = [responsavel, ...k.participantes.filter(daEquipe).map(participante)];
+  const membroDe = (p: Participacao) => ctx.equipe.find(m => m.pessoa_id === p.pessoa.id);
+  const daEquipe = (p: Participacao) => !!membroDe(p);
+  const participantesDaEquipe = k.participantes.filter(daEquipe).map(p => naEquipe(ctx.equipe, membroDe(p)!.id, comPercentual('Participante', p.percentual)));
   const partes: ItemLigado[] = [
     ...k.clientes.map(c => pessoaLigada(c, 'cliente-', 'Cliente')),
     ...k.participantes.filter(p => !daEquipe(p)).map(participante),
@@ -109,6 +109,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <Botao pequeno className="acao-arquivar" title={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={k.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
         <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{k.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
       </Botao>
+      <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
     </div>
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {k.arquivado_em && <div className="cartao-arquivada">
@@ -116,11 +117,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
-
-    <section className="bloco">
-      <h3><Icone nome="conta" tam={14} />{internos.length > 1 ? 'Responsável e participantes' : 'Responsável'}</h3>
-      <ItensLigados itens={internos} />
-    </section>
 
     <section className="bloco campos">
       <h3><Icone nome="kanban" tam={14} />Situação</h3>

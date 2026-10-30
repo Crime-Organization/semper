@@ -1,5 +1,5 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo, o título e o prazo em
-// destaque; as ações, a equipe da tarefa (responsável e participantes) e a situação; depois, cada tópico numa seção que
+// destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
 // recolhe (demanda, pessoas, contrato, comentários, histórico).
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 import { useCallback, useEffect, useState } from 'react';
@@ -9,6 +9,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
+import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -46,12 +47,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!t) return <Vazio>Esta tarefa não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
-  // Responsável e participantes são da equipe: cada um no quadrinho que abre o cartão da pessoa ligada ao usuário.
-  const daEquipe = (perfilId: string, detalhe: string): ItemLigado => {
-    const m = ctx.equipe.find(x => x.id === perfilId);
-    return { id: detalhe + perfilId, para: m?.pessoa_id ? '/pessoas/?id=' + m.pessoa_id : undefined, titulo: nomeDe(perfilId), detalhe };
-  };
-  const equipe = [daEquipe(t.responsavel_id, 'Responsável'), ...t.participantes.map(p => daEquipe(p, 'Participante'))];
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     selo: p.arquivado_em ? 'Arquivada' : undefined });
   // A demanda e o contrato abrem só para quem pode vê-los; os outros veem o código, sem o link.
@@ -104,6 +99,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <Botao pequeno className="acao-arquivar" title={t.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={t.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
         <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{t.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
       </Botao>
+      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, t.responsavel_id, 'Responsável')}
+        participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {t.arquivado_em && <div className="cartao-arquivada">
@@ -111,11 +108,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         : 'Tarefa arquivada. Só quem cadastrou esta tarefa ou um administrador pode excluí-la.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
-
-    <section className="bloco">
-      <h3><Icone nome="conta" tam={14} />{equipe.length > 1 ? 'Responsável e participantes' : 'Responsável'}</h3>
-      <ItensLigados itens={equipe} />
-    </section>
 
     <section className="bloco campos">
       <h3><Icone nome="kanban" tam={14} />Situação</h3>

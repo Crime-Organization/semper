@@ -1,5 +1,6 @@
 // Cartão da demanda (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de contrato: no topo, o
-// título e o prazo em destaque; as ações, a equipe da demanda (responsável e colaboradores) e a situação; depois, cada
+// título e o prazo em destaque; as ações, com a equipe da demanda em bolinhas ao lado (responsável e colaboradores), e
+// a situação; depois, cada
 // tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 import { useCallback, useEffect, useState } from 'react';
@@ -9,6 +10,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
+import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -47,12 +49,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
-  // Responsável e colaboradores são da equipe: cada um no quadrinho que abre o cartão da pessoa ligada ao usuário.
-  const daEquipe = (perfilId: string, detalhe: string): ItemLigado => {
-    const m = ctx.equipe.find(x => x.id === perfilId);
-    return { id: detalhe + perfilId, para: m?.pessoa_id ? '/pessoas/?id=' + m.pessoa_id : undefined, titulo: nomeDe(perfilId), detalhe };
-  };
-  const equipe = [daEquipe(d.responsavel_id, 'Responsável'), ...d.colaboradores.map(c => daEquipe(c, 'Colaborador'))];
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
@@ -101,6 +97,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <Botao pequeno className="acao-arquivar" title={d.arquivado_em ? 'Desarquivar' : 'Arquivar'} aria-label={d.arquivado_em ? 'Desarquivar' : 'Arquivar'} onClick={arquivar}>
         <Icone nome="arquivo" tam={15} /><span className="acao-rotulo">{d.arquivado_em ? 'Desarquivar' : 'Arquivar'}</span>
       </Botao>
+      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, d.responsavel_id, 'Responsável')}
+        participantes={d.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {d.arquivado_em && <div className="cartao-arquivada">
@@ -108,11 +106,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         : 'Demanda arquivada. Só quem cadastrou esta demanda ou um administrador pode excluí-la.'}</span>
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
-
-    <section className="bloco">
-      <h3><Icone nome="conta" tam={14} />{equipe.length > 1 ? 'Responsável e colaboradores' : 'Responsável'}</h3>
-      <ItensLigados itens={equipe} />
-    </section>
 
     <section className="bloco campos">
       <h3><Icone nome="kanban" tam={14} />Situação</h3>

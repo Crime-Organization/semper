@@ -420,6 +420,18 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Copiar a qualificação, logo abaixo do texto dela, com a nota ao lado. */
 .qualificacao-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px }
 .cartao-acoes .btn-sm { padding: 0 14px; gap: 6px }
+/* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
+   parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. */
+.equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 14px }
+.equipe-participantes { display: inline-flex; align-items: center }
+.equipe-participantes .equipe-bolinha + .equipe-bolinha { margin-left: -8px }
+.equipe-bolinha { display: inline-flex; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; box-shadow: 0 0 0 2px var(--superficie) }
+.equipe-bolinha:hover, .equipe-bolinha:focus-visible, .equipe-bolinha[aria-expanded="true"] { outline: 2px solid var(--accent); outline-offset: 1px; position: relative; z-index: 1 }
+.equipe-ficha { display: flex; align-items: center; gap: 10px; padding: 2px 2px 8px }
+.equipe-ficha > span { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
+.equipe-ficha b { font-size: 15px; color: var(--ink); overflow-wrap: anywhere }
+.equipe-ficha small { font-size: 13px; color: var(--muted) }
+.equipe-ficha-link { font-size: 14px; font-weight: 700; color: var(--accent-ink) }
 @container (max-width: 520px) {
   .cartao-acoes .acao-arquivar { width: 36px; padding: 0 }
   .cartao-acoes .acao-arquivar .acao-rotulo { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }

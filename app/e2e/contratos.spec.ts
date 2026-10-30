@@ -128,10 +128,10 @@ test.describe('Cadastro de contratos', () => {
     await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByText('BRUNO EXEMPLO SOUZA (10%), ANA TESTE LIMA (5%)')).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
-    // Os participantes são da equipe: ficam com o responsável, antes da situação; o indicador, de fora, fica nas partes.
+    // Os participantes são da equipe: ficam em bolinhas com o responsável, ao lado das ações; o indicador, de fora, fica nas partes.
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    expect(blocos.slice(0, 3)).toEqual(['Responsável e participantes', 'Situação', 'Partes']);
-    await expect(cartao.getByRole('link', { name: /BRUNO EXEMPLO SOUZA/ })).toContainText('Participante · 10%');
+    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Partes']);
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 10%' })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /RAIMUNDO NONATO ENSAIO/ })).toContainText('Indicador · 10%');
   });
 
@@ -156,7 +156,7 @@ test.describe('Função na equipe', () => {
     // Quando
     await page.goto('/contratos/novo/');
     // Então (Bruno, estagiário, e Carla, do administrativo, não aparecem)
-    await expect(page.getByLabel('Advogado responsável').getByRole('option')).toHaveText(['Escolha…', 'Mateus Freitas Gonçalves', 'Ana Teste Lima']);
+    await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option')).toHaveText(['Escolha…', 'Mateus Freitas Gonçalves', 'Ana Teste Lima']);
   });
 
   test('quando a busca de participante mostra alguém de fora da equipe, então ele vem desligado, com o motivo', async ({ page }) => {
@@ -187,12 +187,12 @@ test.describe('Função na equipe', () => {
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
     await page.getByRole('dialog').getByRole('link', { name: 'Atualizar contrato' }).click();
-    await expect(page.getByLabel('Advogado responsável').getByRole('option', { selected: true })).toHaveText('Bruno Exemplo Souza');
+    await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option', { selected: true })).toHaveText('Bruno Exemplo Souza');
     // Quando
     while (!(await page.getByRole('button', { name: 'Salvar alterações' }).isVisible())) await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar alterações' }).click();
     // Então
-    await expect(page.getByRole('dialog').getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('equipe do escritório');
+    await expect(page.getByRole('dialog').getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
   });
 });
 
@@ -266,14 +266,14 @@ test.describe('Contrato salvo', () => {
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
     await page.getByRole('dialog').getByRole('link', { name: 'Atualizar contrato' }).click();
     // Quando
-    await page.getByLabel('Advogado responsável').selectOption({ label: 'Ana Teste Lima' });
+    await page.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
     while (!(await page.getByRole('button', { name: 'Salvar alterações' }).isVisible())) await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar alterações' }).click();
     await page.getByRole('dialog').getByLabel('Situação do contrato').selectOption({ label: 'Encerrado' });
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao).toContainText(`MA96-0001-${ANO}`);
-    await expect(cartao.getByRole('link', { name: /Ana Teste Lima/ })).toContainText('equipe do escritório');
+    await expect(cartao.getByRole('button', { name: 'Ana Teste Lima, Advogado responsável' })).toBeVisible();
     await cartao.getByRole('button', { name: /Histórico de alterações/ }).click();
     await expect(cartao.getByText('Situação: Assinado / em andamento → Encerrado')).toBeVisible();
     await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
@@ -378,17 +378,17 @@ test.describe('Contrato com mais de um cliente', () => {
 });
 
 test.describe('Ligações em quadrinhos', () => {
-  test('quando alguém abre um contrato, então o responsável vem antes da situação e cada parte é um quadrinho que abre o cartão da pessoa', async ({ page }) => {
+  test('quando alguém abre um contrato, então o responsável fica em bolinha ao lado das ações e cada parte é um quadrinho que abre o cartão da pessoa', async ({ page }) => {
     // Dado: o contrato de divórcio (BR08-0004) tem dois clientes
     await page.goto('/contratos/');
     await page.getByRole('row').filter({ hasText: 'JOÃO PEDRO FICTÍCIO' }).click();
     const cartao = page.getByRole('dialog');
     await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ })).toContainText('Cliente');
-    await expect(cartao.getByRole('link', { name: /Bruno Exemplo Souza/ })).toContainText('equipe do escritório');
-    // O responsável é da equipe: vem antes da situação e fora das partes (as pessoas de fora do escritório).
+    // O responsável é da equipe: fica em bolinha ao lado das ações, fora das partes (as pessoas de fora do escritório).
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    expect(blocos.slice(0, 3)).toEqual(['Responsável', 'Situação', 'Partes']);
+    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Partes']);
     // Quando
     await cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ }).click();
     // Então
