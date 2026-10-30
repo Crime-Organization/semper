@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { falha } from './avisos';
 import { Botao, BotaoDuplo } from './Botoes';
 import { Carregando, estiloBotao, Nota } from './base';
+import { Icone } from './Icone';
 import { ColunaDoCartao } from './PainelCartao';
 import { Recolhivel } from './Recolhivel';
 import { useCtx } from './sessao';
@@ -60,7 +61,7 @@ export function SecaoComentarios({ modulo, cartaoId }: { modulo: ModuloComentado
   </div>;
   // Na janela no centro, a coluna da direita; no painel ao lado, uma seção recolhível como as outras do cartão.
   return coluna
-    ? createPortal(<section className="bloco comentarios-coluna" aria-labelledby={titulo}><h3 id={titulo}>Comentários</h3>{conteudo}</section>, coluna)
+    ? createPortal(<section className="bloco comentarios-coluna" aria-labelledby={titulo}><h3 id={titulo}><Icone nome="comentario" tam={14} />Comentários</h3>{conteudo}</section>, coluna)
     : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" padrao contador={lista?.length}>{conteudo}</Recolhivel>;
 }
 
