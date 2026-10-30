@@ -242,6 +242,59 @@ export interface FiltroContratos {
   porPagina?: number;
 }
 
+/**
+ * Demanda: uma etapa de um trabalho, na maioria das vezes um objeto do contrato. O código (curto e aleatório) é dado
+ * pelo banco. Quem não é administrador vê só as demandas que criou, de que é responsável ou colaborador.
+ */
+export interface Demanda {
+  id: string;
+  codigo: string;
+  titulo: string;
+  descricao: string | null;
+  prazo: string | null;            // aaaa-mm-dd
+  responsavel_id: string;          // perfil
+  colaboradores: string[];         // perfis da equipe, sem o responsável
+  /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
+  cliente_nome: string;
+  contrato_id: string | null;
+  /** O número do contrato, que aparece mesmo para quem não pode abrir o contrato. */
+  contrato_codigo: string | null;
+  /** O objeto do contrato de que a demanda nasceu (nas automáticas). */
+  objeto: string | null;
+  etapa_id: string | null;
+  etapa_ordem: number | null;
+  arquivado_em: string | null;
+  arquivado_por: string | null;
+  criado_por: string | null;
+  criado_em: string;
+  atualizado_por: string | null;
+  atualizado_em: string;
+  clientes: PessoaResumida[];
+  /** O contrato, se quem vê a demanda também pode abri-lo; senão null (e fica só o número). */
+  contrato: { id: string; codigo: string; servico: string } | null;
+}
+/** Papel de uma pessoa numa demanda (responsável e colaboradores são da equipe, pela pessoa ligada ao usuário). */
+export type PapelNaDemanda = 'cliente' | 'responsavel' | 'colaborador';
+/** Demanda como aparece em outro cartão (da pessoa ou do contrato), com o papel da pessoa nela. */
+export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+  papeis: PapelNaDemanda[];
+}
+/** Campos que o cadastro de demanda grava. */
+export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'responsavel_id'
+  | 'colaboradores' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+/** Linha das listagens de demandas (tabela e quadro). */
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
+  | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'>;
+export interface FiltroDemandas {
+  termo?: string;
+  /** Um usuário da equipe: as demandas em que ele é o responsável ou um colaborador. */
+  pessoa?: string;
+  situacao?: 'ativas' | 'arquivadas';
+  ordem?: Ordem;
+  pagina?: number;
+  porPagina?: number;
+}
+
 export interface Usuario {
   id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
@@ -354,6 +407,24 @@ export interface DadosContratos {
   contratosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ContratoDaPessoa[]>;
 }
 
+/** Demandas. Na ordem "nome", a lista vai pelo título. */
+export interface DadosDemandas {
+  demandasListar(f?: FiltroDemandas): Promise<Pagina<DemandaLista>>;
+  demandasDaEtapa(etapaId: string | null, f?: FiltroDemandas, deslocamento?: number, limite?: number): Promise<Pagina<DemandaLista>>;
+  demandaObter(id: string): Promise<Demanda | null>;
+  demandaCriar(dados: DadosDemanda): Promise<{ id: string; codigo: string }>;
+  demandaAtualizar(id: string, dados: DadosDemanda): Promise<{ id: string; codigo: string }>;
+  demandasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só demandas arquivadas são excluídas (por quem criou ou um administrador). */
+  demandasExcluir(ids: string[]): Promise<Exclusao>;
+  demandaMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  demandaHistorico(id: string): Promise<Historico[]>;
+  /** Demandas em que a pessoa é cliente; com perfilId (a pessoa é da equipe), também as em que é responsável ou colaboradora. */
+  demandasDaPessoa(pessoaId: string, perfilId?: string | null): Promise<DemandaLigada[]>;
+  /** Demandas ligadas ao contrato (as automáticas e as ligadas à mão), que quem está logado pode ver. */
+  demandasDoContrato(contratoId: string): Promise<DemandaLigada[]>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -386,7 +457,7 @@ export interface DadosEquipe {
 }
 
 /** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
-export type ModuloComentado = 'pessoas' | 'contratos';
+export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas';
 export interface Comentario {
   id: string;
   autor_id: string | null;   // null: o usuário foi removido do sistema
@@ -407,4 +478,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas {}

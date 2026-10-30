@@ -509,6 +509,113 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Demandas', () => {
+      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      const novaDemanda = (extra: Parameters<Dados['demandaCriar']>[0] = {}) =>
+        SD.demandaCriar({ titulo: 'Pedido de registro de marca', responsavel_id: 'u-ana', ...extra });
+      const colunaAssinado = async () => (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!;
+
+      it('quando uma demanda é criada, então ganha um código curto, e o responsável não fica entre os colaboradores', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        // Quando
+        const { id, codigo } = await novaDemanda({ titulo: '  Notificar o devedor  ', colaboradores: ['u-bruno', 'u-ana', 'u-bruno'], clientes: [cliente, cliente] });
+        // Então
+        expect(codigo).toMatch(/^[0-9A-F]{8}$/);
+        expect(await SD.demandaObter(id)).toMatchObject({ titulo: 'Notificar o devedor', responsavel_id: 'u-ana', colaboradores: ['u-bruno'],
+          clientes: [{ id: cliente }], contrato: null });
+      });
+
+      it('quando o responsável não é da equipe, então salvar é recusado com a mensagem em português', async () => {
+        // Quando
+        const salvar = novaDemanda({ responsavel_id: 'u-de-fora' });
+        // Então
+        await expect(salvar).rejects.toThrow('O responsável precisa ser alguém da equipe do escritório.');
+      });
+
+      it('quando um contrato vai para a coluna "assinado", então nasce uma demanda por objeto, uma vez só', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        const { id: k } = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca', 'Oposição'], categoria: 'pro_labore' });
+        const assinado = await colunaAssinado();
+        // Quando
+        await SD.contratoMover(k, assinado.id, 1);
+        await SD.contratoMover(k, null, 1);
+        await SD.contratoMover(k, assinado.id, 1);
+        // Então
+        const ligadas = await SD.demandasDoContrato(k);
+        expect(ligadas.map(d => d.titulo)).toEqual(['Registro de marca', 'Oposição']);
+        const primeira = await SD.demandaObter(ligadas[0].id);
+        const inicio = (await SD.colunasListar('demandas')).find(c => c.marco === 'inicio')!;
+        expect(primeira).toMatchObject({ responsavel_id: 'u-master', clientes: [{ id: cliente }], contrato: { id: k }, etapa_id: inicio.id });
+      });
+
+      it('quando se pedem as demandas de uma pessoa, então vêm as dela, com o papel dela em cada uma', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        const { id: comoCliente } = await novaDemanda({ clientes: [cliente] });
+        const { id: comoColaborador } = await novaDemanda({ colaboradores: ['u-bruno'] });
+        // Quando
+        const doCliente = await SD.demandasDaPessoa(cliente);
+        const doBruno = await SD.demandasDaPessoa('p-bruno', 'u-bruno');
+        // Então
+        expect(doCliente.map(d => [d.id, d.papeis])).toEqual([[comoCliente, ['cliente']]]);
+        expect(doBruno.find(d => d.id === comoColaborador)?.papeis).toEqual(['colaborador']);
+      });
+
+      it('quando a demanda muda, então o histórico mostra os nomes', async () => {
+        // Dado
+        const { id } = await novaDemanda();
+        // Quando
+        await SD.demandaAtualizar(id, { responsavel_id: 'u-bruno', titulo: 'Outro título' });
+        // Então
+        const [ultima] = await SD.demandaHistorico(id);
+        expect(ultima.alteracoes).toEqual({ responsavel_id: { de: 'Ana Teste Lima', para: 'Bruno Exemplo Souza' }, titulo: { de: 'Pedido de registro de marca', para: 'Outro título' } });
+      });
+
+      it('quando o comentário da demanda menciona quem não está nela, então é recusado; quem está nela pode', async () => {
+        // Dado (a demanda é da Ana, com o Bruno de fora; o Mateus, administrador, vê todas)
+        const { id } = await novaDemanda();
+        // Quando
+        const [deFora, daDemanda] = await Promise.allSettled([
+          SD.comentarioCriar('demandas', id, 'Veja, @bruno.souza'), SD.comentarioCriar('demandas', id, 'Veja, @ana.lima')
+        ]);
+        // Então
+        expect(deFora).toMatchObject({ status: 'rejected', reason: { message: 'Não é possível mencionar Bruno Exemplo Souza nesta demanda: inclua essa pessoa como colaboradora antes.' } });
+        expect(daDemanda).toMatchObject({ status: 'fulfilled', value: { mencoes: ['u-ana'] } });
+      });
+
+      it('quando a pessoa é cliente de uma demanda, então ela não pode ser excluída', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        await novaDemanda({ clientes: [cliente] });
+        await SD.pessoasArquivar([cliente]);
+        // Quando
+        const r = await SD.pessoasExcluir([cliente]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em demandas e não pode ser excluída.' });
+      });
+
+      it('quando a demanda está ativa, então não é excluída; arquivada, é', async () => {
+        // Dado
+        const { id } = await novaDemanda();
+        // Quando
+        const ativa = await SD.demandasExcluir([id]);
+        await SD.demandasArquivar([id]);
+        const arquivada = await SD.demandasExcluir([id]);
+        // Então
+        expect([ativa.excluidas, arquivada.excluidas]).toEqual([0, 1]);
+        expect(await SD.demandaObter(id)).toBeNull();
+      });
+
+      it('quando as colunas de demandas são listadas, então "Para fazer" e "Concluído" são as colunas-marco', async () => {
+        // Quando
+        const colunas = await SD.colunasListar('demandas');
+        // Então
+        expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluído', 'concluido']]);
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

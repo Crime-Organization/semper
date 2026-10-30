@@ -13,6 +13,8 @@ const Pessoas = lazy(() => import('./paginas/Pessoas'));
 const NovaPessoa = lazy(() => import('./paginas/NovaPessoa'));
 const Contratos = lazy(() => import('./paginas/Contratos'));
 const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
+const Demandas = lazy(() => import('./paginas/Demandas'));
+const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
@@ -24,6 +26,10 @@ function FormularioPessoa() {
 function FormularioContrato() {
   const { key } = useLocation();
   return <NovoContrato key={key} />;
+}
+function FormularioDemanda() {
+  const { key } = useLocation();
+  return <NovaDemanda key={key} />;
 }
 
 export function App() {
@@ -38,6 +44,8 @@ export function App() {
           <Route path="pessoas/nova" element={<FormularioPessoa />} />
           <Route path="contratos" element={<Contratos />} />
           <Route path="contratos/novo" element={<FormularioContrato />} />
+          <Route path="demandas" element={<Demandas />} />
+          <Route path="demandas/nova" element={<FormularioDemanda />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="configuracoes" element={<Configuracoes />} />
         </Route>

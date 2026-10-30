@@ -36,7 +36,7 @@ export function Casca({ children }: { children: ReactNode }) {
     avisar(`Tema: ${TEMAS[proximo]}${proximo === 'auto' ? ' (segue o aparelho)' : ''}.`);
   };
   const sair = async () => { await SD.sair(); navegar('/entrar/'); };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'equipe' | 'configuracoes', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
@@ -62,6 +62,10 @@ export function Casca({ children }: { children: ReactNode }) {
           {ctx.escritorio?.modulos?.contratos && <div className="nav-linha">
             {item('/contratos/', 'contratos', 'Contratos')}
             <Link className="nav-mais" to="/contratos/novo/" aria-label="Cadastrar contrato" title="Cadastrar contrato"><Icone nome="mais" tam={15} /></Link>
+          </div>}
+          {ctx.escritorio?.modulos?.demandas && <div className="nav-linha">
+            {item('/demandas/', 'demandas', 'Demandas')}
+            <Link className="nav-mais" to="/demandas/nova/" aria-label="Cadastrar demanda" title="Cadastrar demanda"><Icone nome="mais" tam={15} /></Link>
           </div>}
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}

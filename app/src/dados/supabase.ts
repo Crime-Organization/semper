@@ -6,10 +6,11 @@ import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
+import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
+import { papeisNaDemanda } from '../regras/demanda';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, FiltroContratos, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
+import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, FiltroContratos, FiltroDemandas, FiltroPessoas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -95,7 +96,7 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id' };
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
@@ -131,6 +132,38 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+
+// ---------- demandas ----------
+const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
+  + 'arquivado_em, criado_por, criado_em, atualizado_em';
+// O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
+const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
+  + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(id, codigo, servico)`;
+type DemandaLida = Omit<Demanda, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
+const comClientes = ({ clientela, ...d }: DemandaLida): Demanda => ({ ...d, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
+// Ordem das demandas ("nome" é o título). O id no fim desempata a paginação.
+const ORDENS_DEMANDA: Record<Ordem, (q: Livre) => Livre> = {
+  manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
+  nome: q => q.order('titulo'),
+  nome_desc: q => q.order('titulo', { ascending: false }),
+  novos: q => q.order('criado_em', { ascending: false }),
+  antigos: q => q.order('criado_em', { ascending: true }),
+  recentes: q => q.order('atualizado_em', { ascending: false })
+};
+const ordenarDemandas = (q: Livre, ordem: Ordem) => ORDENS_DEMANDA[ordem](q).order('id');
+function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
+  q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
+type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
+  & { clientes: string[] };
+const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
+const ligada = (pessoaId: string, perfilId: string | null) => ({ clientes, responsavel_id, colaboradores, ...d }: DemandaParaLigar): DemandaLigada =>
+  ({ ...d, papeis: papeisNaDemanda({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) });
 
 export const SD: Dados = {
   // ---------- sessão ----------
@@ -432,6 +465,64 @@ export const SD: Dados = {
   async objetosSugeridos() {
     const { data } = await rodar(sb.from('objeto_sugestoes').select('descricao').order('descricao').limit(OBJETOS_SUGERIDOS));
     return data.map((x: { descricao: string }) => x.descricao);
+  },
+
+  // ---------- demandas ----------
+  async demandasListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarDemandas(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    let q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
+    q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
+    const { data, count } = await rodar(ordenarDemandas(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async demandaObter(id) {
+    const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA).eq('id', id).maybeSingle());
+    return data ? comClientes(data) : null;
+  },
+  // O código é dado pelo banco ao gravar.
+  async demandaCriar(dados) {
+    const { data } = await rodar(sb.from('demandas').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    return data;
+  },
+  async demandaAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('demandas').update(dados).eq('id', id).select('id, codigo').single());
+    return data;
+  },
+  async demandasArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('demandas')
+      .update({ arquivado_em: arquivar ? new Date().toISOString() : null, arquivado_por: arquivar ? uid() : null })
+      .in('id', ids).select('id'));
+    return data.length;
+  },
+  async demandasExcluir(ids) {
+    const { data } = await rodar(sb.from('demandas').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só demandas arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
+  },
+  async demandaMover(id, etapaId, ordem) {
+    await rodar(sb.from('demandas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+  },
+  async demandaHistorico(id) {
+    const { data } = await rodar(sb.from('demanda_historico').select('id, alteracoes, feito_por, em')
+      .eq('demanda_id', id).order('em', { ascending: false }).limit(100));
+    return data;
+  },
+  // Responsável e colaborador numa consulta (pelo usuário); cliente pela lista de clientes (vem de demanda_clientes).
+  async demandasDaPessoa(pessoaId, perfilId = null) {
+    const filtros = [`clientes.cs.{${pessoaId}}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`, `colaboradores.cs.{${perfilId}}`] : [])];
+    const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).or(filtros.join(','))
+      .order('criado_em', { ascending: false }).limit(DEMANDAS_LIGADAS));
+    return (data as DemandaParaLigar[]).map(ligada(pessoaId, perfilId));
+  },
+  async demandasDoContrato(contratoId) {
+    const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).eq('contrato_id', contratoId)
+      .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
+    return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
   },
 
   // ---------- quadros (kanban) ----------
