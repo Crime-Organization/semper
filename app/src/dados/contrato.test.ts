@@ -831,6 +831,31 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Ligação com a conta Google', () => {
+      it('quando nenhuma conta foi ligada, então não há ligação, e desligar não dá erro', async () => {
+        // Quando
+        await SD.ligacaoGoogleDesligar();
+        // Então
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+
+      it('quando a ligação começa, então ainda não há conta ligada: o endereço leva um estado de 64 letras e números', async () => {
+        // Quando
+        const endereco = await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/');
+        // Então
+        expect(endereco).toMatch(/estado=[0-9a-f]{64}(&|$)/);
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+
+      it('quando a conclusão traz um estado que não existe, então nada é ligado e o resultado é "expirado"', async () => {
+        // Quando
+        const resultado = await SD.ligacaoGoogleConcluir('f'.repeat(64), 'qualquer');
+        // Então
+        expect(resultado).toBe('expirado');
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando
