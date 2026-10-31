@@ -120,7 +120,7 @@ function PainelEquipe() {
     <section aria-labelledby="tUsu" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tUsu">Usuários</TituloSecao>
       <Nota style={{ marginTop: -6 }}>A função diz o que cada um faz no escritório: só advogados são responsáveis por contratos, e os participantes de um contrato são sempre da equipe. O papel diz quem administra o sistema.</Nota>
-      <div className="tabela"><table>
+      <div className="tabela"><table className="tabela-usuarios">
         <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
         <tbody>
           {!usuarios && <tr><td colSpan={5} className="carregando">Carregando…</td></tr>}
@@ -128,7 +128,7 @@ function PainelEquipe() {
           {lista.map(u => {
             const gerir = podeGerir(u);
             return <tr key={u.id}>
-              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario} · {u.email}</div></div></div></td>
+              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div></div></div></td>
               <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
                 {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
               </select></td>
