@@ -127,4 +127,41 @@ describe('Exportar contatos para o Google', () => {
       expect(c['First Name']).toBe('PADARIA, PÃES & CIA "BOA"');
     });
   });
+
+  describe('Dada uma pessoa com nome que a planilha leria como fórmula', () => {
+    const gerar = () => ler(csvContatosGoogle([pessoa({ nome: '=1+1 MARIA', telefones: ['(38) 99999-1234'] })], { comQualificacao: false }))[0];
+
+    it('quando o arquivo é gerado, então o nome ganha o apóstrofo na frente', () => {
+      // Quando
+      const c = gerar();
+      // Então
+      expect(c['First Name']).toBe("'=1+1 MARIA");
+    });
+
+    it('quando o arquivo é gerado, então o telefone com "+" sai sem apóstrofo', () => {
+      // Quando
+      const c = gerar();
+      // Então
+      expect(c['Phone 1 - Value']).toBe('+55 38 99999-1234');
+    });
+  });
+
+  describe('Dado um telefone que a planilha leria como fórmula', () => {
+    it.each([
+      ['+HYPERLINK("http://x.example/123456789012","clique")'],
+      ['-1+1234567890+SUM(A1)']
+    ])('quando o telefone é %j, então sai com o apóstrofo na frente', telefone => {
+      // Quando
+      const c = ler(csvContatosGoogle([pessoa({ telefones: [telefone] })], { comQualificacao: false }))[0];
+      // Então
+      expect(c['Phone 1 - Value']).toBe(`'${telefone}`);
+    });
+
+    it('quando o telefone é estrangeiro, então sai como foi digitado, sem apóstrofo', () => {
+      // Quando
+      const c = ler(csvContatosGoogle([pessoa({ telefones: ['+1 415 555 0100'] })], { comQualificacao: false }))[0];
+      // Então
+      expect(c['Phone 1 - Value']).toBe('+1 415 555 0100');
+    });
+  });
 });

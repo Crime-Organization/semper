@@ -1,6 +1,7 @@
 // Regras de cadastro de pessoas: listas do formulário, formatos, validação e qualificação.
 // Não depende do banco: serve ao formulário, ao cartão e às listagens.
 import type { DadosPessoa, TipoPessoa } from '../dados/tipos';
+import { normal } from './texto';
 
 export const TIPOS: Record<TipoPessoa, string> = { pf: 'Pessoa física', pj: 'Pessoa jurídica', contato: 'Somente contato' };
 
@@ -47,6 +48,11 @@ export const ENTIDADES: Record<string, string[]> = {
     'Órgão de Direção Regional de Partido Político', 'Plano de Benefícios de Previdência Complementar Fechada',
     'Serviço Notarial e Registral (Cartório)', 'Serviço Social Autônomo', 'Candidato a Cargo Político Eletivo']
 };
+/** Nomes que a Receita usa para tipos de entidade que a lista escreve de outro jeito. */
+const ALIAS_NATUREZA: Record<string, string> = {
+  'Empresário (Individual)': 'Empresário(a) Individual',
+  'Empresa Simples de Inovação - Inova Simples': 'Empresa Simples de Inovação'
+};
 
 export const PORTES: Record<string, string> = { me: 'Microempresa', epp: 'Empresa de pequeno porte', medio: 'Empresa de médio porte', grande: 'Empresa de grande porte' };
 
@@ -80,7 +86,8 @@ export const CAMPOS: Record<string, string> = {
   abertura: 'Data de abertura', representantes: 'Representante(s) legal(is)', documento: 'CPF/CNPJ', cep: 'CEP',
   logradouro: 'Logradouro', numero: 'Número', complemento: 'Complemento', bairro: 'Bairro', municipio: 'Município',
   uf: 'UF', telefones: 'Telefones', emails: 'E-mails', lgpd_base: 'Base legal (LGPD)',
-  lgpd_consentimento: 'Data do consentimento', etapa: 'Etapa do atendimento', arquivado_em: 'Arquivamento', vinculo: 'Vínculo'
+  lgpd_consentimento: 'Data do consentimento', etapa: 'Etapa do atendimento', arquivado_em: 'Arquivamento', vinculo: 'Vínculo',
+  observacoes: 'Observações', pendencias: 'Pendências', referencia: 'Referência', cadastrado_em: 'Data de cadastro'
 };
 
 // ---------- formatos ----------
@@ -103,7 +110,11 @@ export const fmtCNPJ = (v: Texto) => {
   return FORMATO_CNPJ.test(d) ? d.replace(/(\w{2})(\w{3})(\w{3})(\w{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? '');
 };
 export const fmtDocumento = (v: Texto) => { const d = limparDocumento(v); return d.length === 14 ? fmtCNPJ(d) : /^\d{11}$/.test(d) ? fmtCPF(d) : String(v ?? ''); };
-export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
+/** Dígitos do CEP. */
+export const DIGITOS_DO_CEP = 8;
+/** Telefone com DDD: de 10 dígitos (fixo: DDD + 8) a 13 (+55, DDD e celular com o 9). */
+const TELEFONE_MINIMO = 10, TELEFONE_MAXIMO = 13;
+export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === DIGITOS_DO_CEP ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
 // Tira o código do Brasil (+55) de um número só com dígitos, quando ele vem com DDD e número completos.
 const sem55 = (d: string) => (d.length === 12 || d.length === 13) && d.startsWith('55') ? d.slice(2) : d;
 // Celular antigo, de 8 dígitos (começa com 6 a 9), ganha o 9 da frente: (16) 8201-0240 -> (16) 98201-0240.
@@ -129,18 +140,72 @@ export function variantesTelefone(v: Texto) {
   return d.length === 11 && d[2] === '9' && /[6-9]/.test(d[3]) ? [d, d.slice(0, 2) + d.slice(3)] : [d];
 }
 export const fmtData = (iso: Texto) => { if (!iso) return ''; const [a, m, d] = String(iso).slice(0, 10).split('-'); return d && m && a ? `${d}/${m}/${a}` : ''; };
+/** Anos aceitos numa data do cadastro: fora deles, a data foi digitada errado. */
+const ANO_MINIMO = 1850, ANO_MAXIMO = 2200;
+/** Dia, mês e ano -> "aaaa-mm-dd"; lança erro se o dia não existe (31/02) ou se o ano está fora dos aceitos. */
+function dataISO(d: number, mes: number, a: number) {
+  const data = new Date(Date.UTC(a, mes - 1, d));
+  if (data.getUTCFullYear() !== a || data.getUTCMonth() !== mes - 1 || data.getUTCDate() !== d || a < ANO_MINIMO || a > ANO_MAXIMO) {
+    throw new Error('Data inexistente.');
+  }
+  return `${String(a).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
 // "dd/mm/aaaa" -> "aaaa-mm-dd" (ou null se vazia; lança erro se inválida)
 export function lerData(txt: Texto) {
   const t = String(txt ?? '').trim();
   if (!t) return null;
   const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
   if (!m) throw new Error('Use o formato DD/MM/AAAA.');
-  const [d, mes, a] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const data = new Date(Date.UTC(a, mes - 1, d));
-  if (data.getUTCFullYear() !== a || data.getUTCMonth() !== mes - 1 || data.getUTCDate() !== d || a < 1850 || a > 2200) {
-    throw new Error('Data inexistente.');
+  return dataISO(Number(m[1]), Number(m[2]), Number(m[3]));
+}
+/** Formatos de data aceitos de um arquivo (planilha): cada um diz onde estão o dia, o mês e o ano. */
+const FORMATOS_DE_DATA: { formato: RegExp; partes: (m: RegExpMatchArray) => [string, string, string] }[] = [
+  { formato: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, partes: m => [m[1], m[2], m[3]] },   // DD/MM/AAAA ou D/M/AAAA
+  { formato: /^(\d{4})-(\d{2})-(\d{2})$/, partes: m => [m[3], m[2], m[1]] }            // AAAA-MM-DD
+];
+/** Data de um arquivo: DD/MM/AAAA, D/M/AAAA ou AAAA-MM-DD -> "aaaa-mm-dd" (null se vazia; lança erro se inválida, como lerData). */
+export function lerDataFlexivel(txt: Texto) {
+  const t = String(txt ?? '').trim();
+  if (!t) return null;
+  for (const { formato, partes } of FORMATOS_DE_DATA) {
+    const m = t.match(formato);
+    if (m) { const [d, mes, a] = partes(m).map(Number); return dataISO(d, mes, a); }
   }
-  return `${String(a).padStart(4, '0')}-${String(mes).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  throw new Error('Use o formato DD/MM/AAAA ou AAAA-MM-DD.');
+}
+/** Hora dada a uma data sem hora: meio-dia em UTC, que cai no mesmo dia em todos os fusos do Brasil. */
+const HORA_DA_DATA_SEM_HORA = 'T12:00:00.000Z';
+/** Fuso de uma data e hora escrita sem fuso: o horário de Brasília (sem horário de verão desde 2019). */
+export const FUSO_PADRAO = '-03:00';
+/** Data, "T" ou espaço, hora (HH:MM, HH:MM:SS, com ou sem frações de segundo) e, se houver, o fuso (Z, -03:00 ou -0300). */
+const DATA_E_HORA = /^(\S+?)[T ]([01]?\d|2[0-3]):([0-5]\d)(?::([0-5]\d)(?:\.(\d+))?)?\s*(Z|[+-]\d{2}:?\d{2})?$/i;
+/** Casas das frações de segundo na data ISO (milissegundos). */
+const CASAS_DOS_MILISSEGUNDOS = 3;
+/** O fuso escrito na hora no formato ISO: sem fuso, o de Brasília; "z" vira "Z"; "-0300" vira "-03:00". */
+function fusoDaHora(zona: string | undefined) {
+  if (!zona) return FUSO_PADRAO;
+  if (zona.toUpperCase() === 'Z') return 'Z';
+  return zona.replace(/^([+-]\d{2}):?(\d{2})$/, '$1:$2');
+}
+/**
+ * Data e hora de cadastro vinda de um arquivo -> ISO completa ("2019-03-15T13:22:33.000Z"). Aceita só a data (como
+ * lerDataFlexivel; vira meio-dia UTC) ou data e hora (ISO ou "DD/MM/AAAA HH:MM:SS"; sem fuso, vale o de Brasília).
+ * Null se vazia; lança erro se inválida.
+ */
+export function lerDataHora(txt: Texto) {
+  const t = String(txt ?? '').trim();
+  if (!t) return null;
+  const m = t.match(DATA_E_HORA);
+  if (!m) {
+    if (/\d:\d/.test(t)) throw new Error('Hora inexistente.');
+    return `${lerDataFlexivel(t)}${HORA_DA_DATA_SEM_HORA}`;
+  }
+  const [, data, hora, minuto, segundo = '00', fracao = '', zona] = m;
+  const fuso = fusoDaHora(zona);
+  const ms = fracao.padEnd(CASAS_DOS_MILISSEGUNDOS, '0').slice(0, CASAS_DOS_MILISSEGUNDOS);
+  const instante = new Date(`${lerDataFlexivel(data)}T${hora.padStart(2, '0')}:${minuto}:${segundo}.${ms}${fuso}`);
+  if (Number.isNaN(instante.getTime())) throw new Error('Hora inexistente.');
+  return instante.toISOString();
 }
 
 // Máscaras enquanto digita
@@ -196,10 +261,17 @@ export function cnpjComLetrasNaBusca(texto: Texto) {
   return CNPJ_MASCARADO_PARCIAL.test(t) || (/^[0-9A-Za-z.\-/]+$/.test(t) && cnpjValido(d)) ? d.toLowerCase() : null;
 }
 export const emailValido = (v: Texto) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v ?? '').trim());
+/** Sigla de uma das 27 UFs, em maiúsculas ou minúsculas ("mg" vale). */
+export const ufValida = (v: Texto) => UFS.includes(String(v ?? '').trim().toUpperCase());
+/** CEP com os 8 dígitos (com ou sem traço). Vazio não é válido: quem aceita CEP em branco confere isso antes. */
+export const cepValido = (v: Texto) => dig(v).length === DIGITOS_DO_CEP;
+/** Telefone com DDD: de 10 a 13 dígitos (com ou sem o +55). Vazio não é válido. */
+export const telefoneValido = (v: Texto) => { const n = dig(v).length; return n >= TELEFONE_MINIMO && n <= TELEFONE_MAXIMO; };
 
 // ---------- texto ----------
 type Qualificavel = DadosPessoa & { nome?: string | null };
-const espacos = (t: Texto) => String(t ?? '').replace(/\s+/g, ' ').trim();
+/** Espaços seguidos (e quebras de linha) viram um só; sem espaço nas pontas. */
+export const espacos = (t: Texto) => String(t ?? '').replace(/\s+/g, ' ').trim();
 // "Sociedade Empresária Limitada" -> "sociedade empresária limitada" (mantém siglas como MEI); tudo em maiúsculas vira minúsculas.
 const minusculas = (t: Texto) => {
   const s = espacos(t);
@@ -224,6 +296,16 @@ export function nomeProprio(t: Texto) {
 
 /** Empresário individual e MEI: a pessoa jurídica é a própria pessoa, e o texto concorda com o gênero dela. */
 export const ehIndividual = (tipoEntidade: Texto) => /^(Microempreendedor\(a\) Individual \(MEI\)|Empresári[oa](\(a\))? Individual)$/i.test(espacos(tipoEntidade));
+
+/** Quem guarda gênero, por tipo de cadastro: pessoa física sempre; pessoa jurídica só se for MEI ou empresário individual. */
+const GENERO_POR_TIPO: Record<TipoPessoa, (tipoEntidade: Texto) => boolean> = {
+  pf: () => true,
+  pj: ehIndividual,
+  contato: () => false
+};
+/** O cadastro pode ter gênero (a mesma regra do formulário: pessoa física ou empresa individual). */
+export const generoPermitido = (p: { tipo?: TipoPessoa | null; tipo_entidade?: Texto }) =>
+  !!p.tipo && GENERO_POR_TIPO[p.tipo](p.tipo_entidade);
 
 // Concordância como na planilha do escritório: com o gênero informado, "o(a)" e "(a)" viram a forma certa, inclusive no que
 // foi digitado ("agricultor(a)", "Empresário(a) Individual"). Sem gênero, o texto fica com "(a)".
@@ -327,11 +409,90 @@ export function qualificacao(p: Qualificavel | null | undefined, opcoes: OpcoesQ
   return rep ? `${texto}, ${rep}` : texto;
 }
 
-// ---------- consulta de CNPJ (publica.cnpj.ws) ----------
-const ALIAS_NATUREZA: Record<string, string> = {
-  'Empresário (Individual)': 'Empresário(a) Individual',
-  'Empresa Simples de Inovação - Inova Simples': 'Empresa Simples de Inovação'
+// ---------- campos do cadastro a partir de texto livre (arquivos e planilhas) ----------
+// Cada leitura compara o texto com normal() (sem acento, maiúscula nem espaço nas pontas) e devolve a chave do cadastro,
+// ou null quando o texto não encaixa. As tabelas são Map, para um texto como "constructor" não achar nada por engano.
+export const tabela = <T>(pares: [string, T][]) => new Map(pares.map(([texto, valor]): [string, T] => [normal(texto), valor]));
+
+const GENERO_POR_TEXTO = tabela<'m' | 'f'>([['m', 'm'], ['masc', 'm'], ['masculino', 'm'], ['f', 'f'], ['fem', 'f'], ['feminino', 'f']]);
+/** "F", "Feminino", "masc." -> 'f' ou 'm'; o resto, null. */
+export const generoDoTexto = (t: Texto) => GENERO_POR_TEXTO.get(normal(t).replace(/\.$/, '')) ?? null;
+
+// A chave, a chave com espaço ("uniao estavel") e as três formas de ESTADO_CIVIL ("casada", "casado(a)", "viúva"…).
+const ESTADO_CIVIL_POR_TEXTO = tabela(Object.entries(ESTADO_CIVIL)
+  .flatMap(([chave, formas]) => [chave, chave.replace(/_/g, ' '), ...formas].map((f): [string, string] => [f, chave])));
+/** "Casada", "casado(a)", "União estável", "viúva" -> chave de ESTADO_CIVIL; o resto, null. */
+export const estadoCivilDoTexto = (t: Texto) => ESTADO_CIVIL_POR_TEXTO.get(normal(t)) ?? null;
+
+/** Porte por extenso: o primeiro trecho achado decide ("Empresa de Pequeno Porte" -> epp; "Demais" não acha nenhum). */
+const PORTES_POR_TEXTO: [string, string][] = [['micro', 'me'], ['pequen', 'epp'], ['medi', 'medio'], ['grande', 'grande']];
+/** A própria chave, também abreviada com pontos ("ME", "M.E.", "EPP"). */
+const PORTE_POR_SIGLA = tabela(Object.keys(PORTES).map((chave): [string, string] => [chave, chave]));
+/** "ME", "M.E.", "EPP", "Microempresa", "Empresa de médio porte" -> chave de PORTES; o resto, null. */
+export function porteDoTexto(t: Texto) {
+  const n = normal(t);
+  if (!n) return null;
+  return PORTE_POR_SIGLA.get(n.replace(/[^a-z]/g, '')) ?? PORTES_POR_TEXTO.find(([trecho]) => n.includes(trecho))?.[1] ?? null;
+}
+
+const NATUREZA_POR_TEXTO = tabela([
+  ...Object.entries(NATUREZAS).flatMap(([chave, rotulo]) => [chave, chave.replace(/_/g, ' '), rotulo].map((f): [string, string] => [f, chave])),
+  ['sem fins lucrativos', 'sem_fins']
+]);
+/** "publica", "Administração pública", "sem fins lucrativos" -> chave de NATUREZAS; o resto, null. */
+export const naturezaDoTexto = (t: Texto) => NATUREZA_POR_TEXTO.get(normal(t)) ?? null;
+
+/** Código da natureza jurídica que a Receita põe antes do nome ("213-5 - Empresário (Individual)"). */
+const CODIGO_DA_RECEITA = /^\d{1,3}-\d\s*-\s*/;
+/** Siglas aceitas no lugar do nome do tipo de entidade. */
+const SIGLAS_DE_ENTIDADE: Record<string, string> = { MEI: 'Microempreendedor(a) Individual (MEI)' };
+// Cada nome da lista vale também flexionado ("Empresário Individual", "Empresária Individual"), como a Receita escreve e pela sigla.
+const ENTIDADE_POR_TEXTO = tabela([
+  ...Object.values(ENTIDADES).flat()
+    .flatMap(nome => [nome, flexionar(nome, 'm'), flexionar(nome, 'f')].map((f): [string, string] => [f, nome])),
+  ...Object.entries(ALIAS_NATUREZA), ...Object.entries(SIGLAS_DE_ENTIDADE)
+]);
+/** Texto livre ("municipio", "Empresária Individual", "MEI", "213-5 - Empresário (Individual)") -> o nome exato da lista ENTIDADES; o resto, null. */
+export const entidadeDoTexto = (t: Texto) => ENTIDADE_POR_TEXTO.get(normal(String(t ?? '').trim().replace(CODIGO_DA_RECEITA, ''))) ?? null;
+
+/** Natureza de cada tipo de entidade da lista, pelo nome exato e pelo nome que a Receita usa (ALIAS_NATUREZA). */
+const NATUREZA_DA_ENTIDADE = new Map<string, string>(
+  Object.entries(ENTIDADES).flatMap(([natureza, nomes]) => nomes.map((nome): [string, string] => [nome, natureza])));
+for (const [alias, nome] of Object.entries(ALIAS_NATUREZA)) NATUREZA_DA_ENTIDADE.set(alias, NATUREZA_DA_ENTIDADE.get(nome) ?? '');
+/** Natureza jurídica (chave de NATUREZAS) de um tipo de entidade escrito como na lista ou como a Receita escreve; senão, null. */
+export const naturezaDaEntidade = (tipoEntidade: Texto) => NATUREZA_DA_ENTIDADE.get(String(tipoEntidade ?? '').trim()) || null;
+
+/** Campos do cadastro que podem ficar vazios (null). */
+type CampoAnulavel = { [K in keyof DadosPessoa]-?: null extends DadosPessoa[K] ? K : never }[keyof DadosPessoa];
+const CAMPOS_PF: CampoAnulavel[] = ['genero', 'nacionalidade', 'profissao', 'estado_civil', 'rg', 'rg_expedicao', 'nome_mae', 'nome_pai',
+  'nascimento', 'nascimento_municipio', 'nascimento_uf'];
+const CAMPOS_PJ: CampoAnulavel[] = ['natureza', 'tipo_entidade', 'nome_fantasia', 'porte', 'abertura', 'representantes'];
+const CAMPOS_ENDERECO: CampoAnulavel[] = ['cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf'];
+/**
+ * Campos próprios de cada tipo de cadastro, como no formulário; os dos outros tipos ficam vazios. O gênero é da pessoa
+ * física e, na pessoa jurídica, só do MEI e do empresário individual (generoPermitido).
+ */
+export const CAMPOS_DO_TIPO: Record<TipoPessoa, readonly CampoAnulavel[]> = {
+  pf: [...CAMPOS_PF, ...CAMPOS_ENDERECO],
+  pj: [...CAMPOS_PJ, ...CAMPOS_ENDERECO, 'genero'],
+  contato: []
 };
+const CAMPOS_DE_ALGUM_TIPO = [...new Set(Object.values(CAMPOS_DO_TIPO).flat())];
+/**
+ * O cadastro só com os campos do seu tipo, como o formulário grava (coletar() em NovaPessoa): os campos dos outros
+ * tipos ficam null (pessoa física sem natureza; somente contato sem endereço) e o gênero só fica onde generoPermitido
+ * deixa. Documento, contatos e LGPD não mudam. Sem tipo, devolve uma cópia igual.
+ */
+export function ajustarAoTipo(d: DadosPessoa): DadosPessoa {
+  const r: DadosPessoa = { ...d };
+  if (!d.tipo) return r;
+  const proprios = new Set(CAMPOS_DO_TIPO[d.tipo]);
+  for (const campo of CAMPOS_DE_ALGUM_TIPO) if (!proprios.has(campo)) r[campo] = null;
+  if (!generoPermitido(r)) r.genero = null;
+  return r;
+}
+
+// ---------- consulta de CNPJ (publica.cnpj.ws) ----------
 const REPRESENTANTES = ['Administrador', 'Diretor', 'Presidente', 'Sócio-Administrador', 'Sócio Ostensivo', 'Sócio Comanditado',
   'Titular Pessoa Física Residente ou Domiciliado no Brasil', 'Produtor Rural', 'Conselheiro de Administração',
   'Administrador Residente ou Domiciliado no Exterior', 'Diretor Residente ou Domiciliado no Exterior',
@@ -362,12 +523,11 @@ export interface RespostaCNPJws {
 // Converte a resposta da API em campos do cadastro.
 export function deCNPJws(data: RespostaCNPJws): DadosCNPJ {
   const est = data.estabelecimento || {};
-  let tipoEnt = String(data.natureza_juridica?.descricao || '').replace(/^\d{1,3}-\d\s*-\s*/, '').trim();
+  let tipoEnt = String(data.natureza_juridica?.descricao || '').replace(CODIGO_DA_RECEITA, '').trim();
   tipoEnt = ALIAS_NATUREZA[tipoEnt] || tipoEnt;
   if (tipoEnt === 'Empresário(a) Individual' && (data.simples?.mei === 'Sim')) tipoEnt = 'Microempreendedor(a) Individual (MEI)';
-  const natureza = Object.keys(ENTIDADES).find(k => ENTIDADES[k].includes(tipoEnt)) || null;
-  const porteApi = String(data.porte?.descricao || '').toLowerCase();
-  let porte = porteApi.includes('micro') ? 'me' : porteApi.includes('pequeno') ? 'epp' : porteApi.includes('médio') || porteApi.includes('medio') ? 'medio' : porteApi.includes('grande') ? 'grande' : null;
+  const natureza = naturezaDaEntidade(tipoEnt);
+  let porte = porteDoTexto(data.porte?.descricao);
   if (!porte && tipoEnt !== 'Microempreendedor(a) Individual (MEI)' && (data.simples?.simples === 'Sim')) porte = 'me';
   const representantes = (data.socios || [])
     .filter(s => REPRESENTANTES.includes(String(s.qualificacao_socio?.descricao || '').trim()))

@@ -2,7 +2,9 @@
 // tipo de pessoa percorre e a validação de cada etapa. Tudo puro, sem tela nem banco: a conferência de CPF/CNPJ
 // já cadastrado (que depende do banco) é pedida de volta pelo resultado, em "documento".
 import type { TipoPessoa } from '../dados/tipos';
-import { cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, fmtCNPJ, lerData, limparDocumento } from './pessoa';
+import {
+  cepValido, cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, fmtCNPJ, lerData, limparDocumento, telefoneValido
+} from './pessoa';
 
 export type Etapa = 's-tipo' | 's-ident' | 's-pf' | 's-entidade' | 's-empresa' | 's-endereco' | 's-contato';
 /** Linha de uma lista do formulário (telefones, e-mails); k identifica a linha na tela. */
@@ -103,13 +105,13 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
   's-endereco': a => {
     const { r, marcar } = conferir();
     const cep = dig(a.cep);
-    marcar('cep', !cep || cep.length === 8);
+    marcar('cep', !cep || cepValido(cep));
     return r;
   },
   's-contato': a => {
     const { r, marcar, data } = conferir();
     const tels = a.telefones.map(t => dig(t.v)).filter(Boolean);
-    marcar('telefones', tels.length > 0 && tels.every(t => t.length >= 10 && t.length <= 13), tels.length ? 'Confira os telefones: use DDD + número.' : undefined);
+    marcar('telefones', tels.length > 0 && tels.every(telefoneValido), tels.length ? 'Confira os telefones: use DDD + número.' : undefined);
     marcar('emails', a.emails.map(x => x.v.trim()).filter(Boolean).every(emailValido));
     if (a.lgpdBase === 'consentimento') data(a.lgpdData, 'lgpdData');
     return r;
