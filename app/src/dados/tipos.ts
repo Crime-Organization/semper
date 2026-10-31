@@ -536,6 +536,19 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
+/** A conta Google ligada ao escritório (supabase/migrations/20261031120000_ligacao_google.sql). Nunca traz a autorização. */
+export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_em: string; ligado_por: string | null }
+
+/** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
+export interface DadosLigacoes {
+  /** A conta Google ligada ao escritório, ou null. */
+  ligacaoGoogle(): Promise<LigacaoGoogle | null>;
+  /** Começa a ligação: devolve o endereço para onde o navegador vai (o servidor do SEMPER, que leva ao Google). */
+  ligacaoGoogleIniciar(voltarPara: string): Promise<string>;
+  /** Desliga a conta Google do escritório (apaga a ligação e a autorização guardada). */
+  ligacaoGoogleDesligar(): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -589,4 +602,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosLigacoes {}

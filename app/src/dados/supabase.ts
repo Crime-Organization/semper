@@ -11,7 +11,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -709,6 +709,18 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('comentarios').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
   },
+
+  // ---------- ligação com a conta Google ----------
+  async ligacaoGoogle() {
+    const linhas = await rpc('ligacao_google') as LigacaoGoogle[];
+    return linhas[0] ?? null;
+  },
+  // O banco cria o pedido (só administradores) e devolve o "estado"; o navegador vai à função do servidor, que leva ao Google.
+  async ligacaoGoogleIniciar(voltarPara) {
+    const estado = await rpc('ligacao_google_iniciar', { p_voltar_para: voltarPara }) as string;
+    return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  async ligacaoGoogleDesligar() { await rpc('ligacao_google_desligar'); },
 
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (banco/015): a função de cada um vem dos perfis.

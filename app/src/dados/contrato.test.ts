@@ -831,6 +831,24 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Ligação com a conta Google', () => {
+      it('quando nenhuma conta foi ligada, então não há ligação, e desligar não dá erro', async () => {
+        // Quando
+        await SD.ligacaoGoogleDesligar();
+        // Então
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+
+      it('quando a ligação começa, então devolve o endereço para onde o navegador vai', async () => {
+        // Quando
+        const endereco = await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/');
+        // Então (o banco de verdade leva à função do servidor; o fictício volta já com a conta ligada)
+        expect(endereco).toMatch(/google-conectar\?estado=[0-9a-f]{64}$|\/configuracoes\/\?google=ligado$/);
+        await SD.ligacaoGoogleDesligar();
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

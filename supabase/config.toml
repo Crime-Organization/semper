@@ -412,3 +412,11 @@ enabled = true
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# Funções da ligação com a conta Google (#164): o navegador chega nelas vindo do Google, sem a sessão do SEMPER.
+# Quem garante o pedido é o "estado" de uso único, conferido no banco; por isso não exigem o login (JWT).
+[functions.google-conectar]
+verify_jwt = false
+
+[functions.google-retorno]
+verify_jwt = false

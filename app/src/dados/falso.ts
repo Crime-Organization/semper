@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -75,6 +75,8 @@ interface Banco {
   listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
+  ligacaoGoogle?: LigacaoGoogle | null;
   tarefas?: TarefaGuardada[];
   historicoTarefas?: (Historico & { tarefa_id: string })[];
 }
@@ -1144,6 +1146,22 @@ export const SD: Dados = {
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
+  // ---------- ligação com a conta Google (sem Google: a "volta" já vem como ligada) ----------
+  ligacaoGoogle: () => espera(bd.ligacaoGoogle ?? null),
+  async ligacaoGoogleIniciar(voltarPara) {
+    bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
+    auditar('ligacoes', 'inclusao', { id: 'google', nome: 'contato@exemplo.com' });
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google', 'ligado');
+    return espera(volta.pathname + volta.search);
+  },
+  async ligacaoGoogleDesligar() {
+    if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    bd.ligacaoGoogle = null;
+    gravar(); return espera(undefined);
+  },
+
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;
     bd.escritorio = { ...atual, ...dados, logo: dados.logo === undefined ? atual.logo : dados.logo };
