@@ -1,9 +1,10 @@
 // Meu tempo trabalhado: quanto a pessoa trabalhou em cada tarefa num período (esta semana, este mês, o mês passado ou
 // as datas que escolher), com o total. Abre pelo menu "⋯" de Tarefas. Os administradores escolhem de quem ver; os
-// outros veem só o próprio tempo. O tempo vem do cronômetro das tarefas e dos ajustes.
+// outros veem só o próprio tempo. O tempo vem do cronômetro das tarefas e dos ajustes. Vai em horas, minutos e segundos
+// (0:01:30): com só os minutos, a soma das linhas não bateria com o total.
 import { useEffect, useState } from 'react';
 import { SD, type TempoNaTarefaDoPeriodo } from '../dados';
-import { fmtDuracao } from '../regras/cronometro';
+import { fmtRelogio } from '../regras/cronometro';
 import { intervaloDoPeriodo, PERIODOS, periodoPorExtenso, totalDoPeriodo, type Periodo } from '../regras/meuTempo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Aviso, BotaoLink, Carregando, naGrade, Nota, TituloSecao, Vazio } from '../ui/base';
@@ -74,7 +75,7 @@ export default function MeuTempo() {
       : <section className="meu-tempo" aria-labelledby="tMeuTempo">
         <div className="secao-topo">
           <TituloSecao id="tMeuTempo">{periodo === 'intervalo' ? 'No período' : PERIODOS[periodo]}, {periodoPorExtenso(intervalo)}</TituloSecao>
-          {Array.isArray(linhas) && linhas.length > 0 && <p className="meu-tempo-total" role="status">Total: <b>{fmtDuracao(total)}</b></p>}
+          {Array.isArray(linhas) && linhas.length > 0 && <p className="meu-tempo-total" role="status">Total: <b>{fmtRelogio(total)}</b></p>}
         </div>
         {linhas === null ? <Carregando />
           : typeof linhas === 'string' ? <Aviso tipo="erro">{linhas}</Aviso>
@@ -84,11 +85,11 @@ export default function MeuTempo() {
             <tbody>{linhas.map(l => <LinhaQueAbre key={l.tarefa_id} para={'/tarefas/?id=' + l.tarefa_id}>
               <td><NomeDaLinha>{l.titulo}</NomeDaLinha><div className="sub">{l.codigo}{l.arquivada ? ' · arquivada' : ''}</div></td>
               <td>{l.demanda_codigo || '—'}</td>
-              <td className="num">{fmtDuracao(l.segundos)}</td>
+              <td className="num">{fmtRelogio(l.segundos)}</td>
             </LinhaQueAbre>)}</tbody>
-            <tfoot><tr><th scope="row" colSpan={2}>Total</th><td className="num">{fmtDuracao(total)}</td></tr></tfoot>
+            <tfoot><tr><th scope="row" colSpan={2}>Total</th><td className="num">{fmtRelogio(total)}</td></tr></tfoot>
           </table></div>}
-        <Nota>Cada período do cronômetro conta no dia em que começou; os ajustes, no dia em que foram feitos.</Nota>
+        <Nota>Em horas, minutos e segundos. Cada período do cronômetro conta no dia em que começou; os ajustes, no dia em que foram feitos.</Nota>
       </section>}
   </div>;
 }

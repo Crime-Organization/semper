@@ -527,7 +527,6 @@ export interface TempoDaTarefa {
   /** O total da equipe, em segundos. */
   total: number;
 }
-/** Tempo nas tarefas (supabase/migrations/20261030120000_tempo_nas_tarefas.sql): o cronômetro e os ajustes. */
 /** O tempo de uma pessoa numa tarefa, num período ("Meu tempo trabalhado"). */
 export interface TempoNaTarefaDoPeriodo {
   tarefa_id: string; codigo: string; titulo: string; demanda_codigo: string | null; arquivada: boolean;
@@ -535,6 +534,7 @@ export interface TempoNaTarefaDoPeriodo {
   segundos: number;
 }
 
+/** Tempo nas tarefas (supabase/migrations/20261030120000_tempo_nas_tarefas.sql): o cronômetro e os ajustes. */
 export interface DadosTempo {
   /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
   tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;

@@ -29,9 +29,9 @@ test.describe('Meu tempo trabalhado', () => {
     // Então
     await expect(page.getByRole('heading', { name: 'Meu tempo trabalhado', level: 1 })).toBeVisible();
     const tabela = page.getByRole('table', { name: 'Tempo por tarefa' });
-    await expect(tabela.getByRole('row').filter({ hasText: 'Emitir a GRU' })).toContainText('1 h 20 min');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Emitir a GRU' })).toContainText('1:20:00');
     await expect(tabela.getByRole('row').filter({ hasText: 'Organizar a pasta' })).toHaveCount(0);
-    await expect(page.getByRole('status').filter({ hasText: 'Total' })).toHaveText('Total: 1 h 20 min');
+    await expect(page.getByRole('status').filter({ hasText: 'Total' })).toHaveText('Total: 1:20:00');
   });
 
   test('quando o administrador escolhe outra pessoa da equipe, então vê o tempo dela, com o ajuste descontado', async ({ page }) => {
@@ -43,9 +43,9 @@ test.describe('Meu tempo trabalhado', () => {
     // Então
     await expect(page.getByRole('heading', { name: 'Tempo de Bruno Exemplo Souza', level: 1 })).toBeVisible();
     const linhas = page.getByRole('table', { name: 'Tempo por tarefa' }).getByRole('row');
-    await expect(linhas.filter({ hasText: 'Emitir a GRU' })).toContainText('40 min');
-    await expect(linhas.filter({ hasText: 'Organizar a pasta' })).toContainText('40 min');
-    await expect(page.getByRole('status').filter({ hasText: 'Total' })).toHaveText('Total: 1 h 20 min');
+    await expect(linhas.filter({ hasText: 'Emitir a GRU' })).toContainText('0:40:00');
+    await expect(linhas.filter({ hasText: 'Organizar a pasta' })).toContainText('0:40:00');
+    await expect(page.getByRole('status').filter({ hasText: 'Total' })).toHaveText('Total: 1:20:00');
   });
 
   test('quando não há tempo no período, então a página diz que não há nada registrado', async ({ page }) => {
