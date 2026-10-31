@@ -528,6 +528,13 @@ export interface TempoDaTarefa {
   total: number;
 }
 /** Tempo nas tarefas (supabase/migrations/20261030120000_tempo_nas_tarefas.sql): o cronômetro e os ajustes. */
+/** O tempo de uma pessoa numa tarefa, num período ("Meu tempo trabalhado"). */
+export interface TempoNaTarefaDoPeriodo {
+  tarefa_id: string; codigo: string; titulo: string; demanda_codigo: string | null; arquivada: boolean;
+  /** A soma dos períodos contados e dos ajustes, nunca negativa. */
+  segundos: number;
+}
+
 export interface DadosTempo {
   /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
   tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;
@@ -538,6 +545,12 @@ export interface DadosTempo {
   tempoDaTarefa(tarefaId: string): Promise<TempoDaTarefa>;
   /** A soma do tempo das tarefas da demanda (o esforço aproximado dela), para quem vê a demanda. */
   tempoDaDemanda(demandaId: string): Promise<number>;
+  /**
+   * O tempo de uma pessoa em cada tarefa, entre duas datas (AAAA-MM-DD; "ate" não entra), da maior para a menor.
+   * Cada período conta no dia em que começou; o ajuste, no dia em que foi feito. O próprio tempo, ou o de qualquer um
+   * para administradores (para os outros, vem vazio). Só as tarefas que quem pede vê.
+   */
+  tempoPorTarefa(perfilId: string, de: string, ate: string): Promise<TempoNaTarefaDoPeriodo[]>;
 }
 
 /** Item de uma lista: feito_em e feito_por são dados pelo banco ao marcar. */

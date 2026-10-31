@@ -135,6 +135,7 @@ export default function Tarefas() {
           opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] }
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
+      mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<TarefaLista> quadro={quadro}

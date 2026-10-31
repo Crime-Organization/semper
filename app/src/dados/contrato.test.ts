@@ -7,6 +7,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
+import { DIA } from '../ui/tempos';
+import { hojeISO } from '../ui/util';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -730,6 +732,48 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const colunas = await SD.colunasListar('tarefas');
         // Então
         expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluída', 'concluido']]);
+      });
+    });
+
+    describe('Meu tempo trabalhado', () => {
+      const novaTarefa = async (titulo: string) => (await SD.tarefaCriar({ titulo, responsavel_id: 'u-master' })).id;
+
+      it('quando a pessoa tem tempo em tarefas no período, então vem cada tarefa com a soma, da maior para a menor, e o que está fora fica de fora', async () => {
+        // Dado
+        const [menor, maior] = [await novaTarefa('Menor ' + marca()), await novaTarefa('Maior ' + marca())];
+        await SD.tempoIniciar(menor, '2030-01-10T13:00:00.000Z', 600);
+        await SD.tempoIniciar(maior, '2030-01-11T13:00:00.000Z', 1200);
+        await SD.tempoIniciar(maior, '2030-01-12T13:00:00.000Z', 300);
+        await SD.tempoIniciar(menor, '2030-02-10T13:00:00.000Z', 999);
+        // Quando
+        const linhas = await SD.tempoPorTarefa('u-master', '2030-01-01', '2030-02-01');
+        // Então
+        expect(linhas.map(l => [l.tarefa_id, l.segundos])).toEqual([[maior, 1500], [menor, 600]]);
+        expect(linhas[0]).toMatchObject({ arquivada: false });
+      });
+
+      it('quando o fim do período é um dia, então esse dia não entra', async () => {
+        // Dado
+        const tarefa = await novaTarefa('Limite ' + marca());
+        await SD.tempoIniciar(tarefa, '2031-03-04T13:00:00.000Z', 600);
+        // Quando
+        const antes = await SD.tempoPorTarefa('u-master', '2031-03-01', '2031-03-04');
+        const comODia = await SD.tempoPorTarefa('u-master', '2031-03-01', '2031-03-05');
+        // Então
+        expect(antes).toEqual([]);
+        expect(comODia.map(l => l.segundos)).toEqual([600]);
+      });
+
+      it('quando um ajuste zera o tempo da tarefa, então ela sai da lista', async () => {
+        // Dado: o ajuste conta no dia em que é feito, então o período contado também é de hoje
+        const tarefa = await novaTarefa('Zerada ' + marca());
+        await SD.tempoIniciar(tarefa, new Date().toISOString(), 300);
+        await SD.tempoAjustar(tarefa, -300, 'Contei por engano');
+        const hoje = hojeISO(), amanha = hojeISO(new Date(Date.now() + DIA));
+        // Quando
+        const linhas = await SD.tempoPorTarefa('u-master', hoje, amanha);
+        // Então
+        expect(linhas.some(l => l.tarefa_id === tarefa)).toBe(false);
       });
     });
 

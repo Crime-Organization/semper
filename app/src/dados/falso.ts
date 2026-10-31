@@ -14,6 +14,7 @@ import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/de
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
+import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
 import { DIA } from '../ui/tempos';
@@ -1106,6 +1107,20 @@ export const SD: Dados = {
   },
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
     .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
+  // Como public.tempo_por_tarefa (supabase/migrations/20261030160000_meu_tempo.sql). Quem entra no fictício é administrador.
+  tempoPorTarefa(perfilId, de, ate) {
+    const [desde, antes] = [inicioDoDia(de), inicioDoDia(ate)];
+    const somas = new Map<string, number>();
+    for (const r of bd.tempos!) {
+      const inicio = new Date(r.inicio).toISOString();
+      if (r.perfil_id === perfilId && inicio >= desde && inicio < antes) somas.set(r.tarefa_id, (somas.get(r.tarefa_id) ?? 0) + r.segundos);
+    }
+    const linhas = [...somas].flatMap(([tarefaId, segundos]) => {
+      const t = bd.tarefas!.find(x => x.id === tarefaId);
+      return t && segundos > 0 ? [{ tarefa_id: t.id, codigo: t.codigo, titulo: t.titulo, demanda_codigo: t.demanda_codigo, arquivada: !!t.arquivado_em, segundos }] : [];
+    });
+    return espera(linhas.sort((a, b) => b.segundos - a.segundos || a.titulo.localeCompare(b.titulo, 'pt-BR')));
+  },
 
   // ---------- foto do perfil (como supabase/migrations/20261030150000_foto_do_perfil.sql) ----------
   fotoDoPerfil: perfilId => espera(bd.fotos?.[perfilId] ?? null),

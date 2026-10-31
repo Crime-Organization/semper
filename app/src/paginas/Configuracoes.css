@@ -39,3 +39,14 @@ h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink
 .campos label.foto-zoom input { height: auto; padding: 0; border: 0; background: none; accent-color: var(--accent) }
 .foto-previa { display: flex; gap: 12px; align-items: center }
 .foto-previa canvas { width: 72px; height: 72px; border-radius: 999px; background: var(--soft); flex-shrink: 0 }
+
+/* Meu tempo trabalhado (MeuTempo.tsx): o total em destaque ao lado do título do período. */
+.meu-tempo { display: flex; flex-direction: column; gap: 14px }
+.meu-tempo-total { margin: 0; font-size: 15px; color: var(--text) }
+.meu-tempo-total b { font-size: 20px; font-weight: 900; color: var(--ink) }
+.meu-tempo tfoot th, .meu-tempo tfoot td { font-weight: 900; color: var(--ink); border-top: 1px solid var(--line2) }
+.meu-tempo tfoot th { text-align: left }
+.meu-tempo .num { text-align: right }
+/* Três colunas curtas: a tabela cabe na largura do celular, sem rolar para o lado e esconder o tempo. */
+.meu-tempo .tabela table { min-width: 0 }
+.meu-tempo td:first-child { overflow-wrap: anywhere }

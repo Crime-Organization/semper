@@ -6,6 +6,7 @@ import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
+import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
@@ -14,7 +15,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { CartaoComListas, Membro, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -660,6 +661,11 @@ export const SD: Dados = {
   async tempoDaDemanda(demandaId) {
     const { data } = await rodar(sb.rpc('tempo_da_demanda', { p_demanda: demandaId }));
     return Number(data ?? 0);
+  },
+  // Os dias viram instantes no fuso do aparelho: "esta semana" é a semana de quem está olhando.
+  async tempoPorTarefa(perfilId, de, ate) {
+    const { data } = await rodar(sb.rpc('tempo_por_tarefa', { p_perfil: perfilId, p_de: inicioDoDia(de), p_ate: inicioDoDia(ate) }));
+    return (data as TempoNaTarefaDoPeriodo[]).map(l => ({ ...l, segundos: Number(l.segundos) }));
   },
 
   // ---------- perfil profissional ----------

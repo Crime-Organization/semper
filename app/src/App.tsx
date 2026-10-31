@@ -21,6 +21,7 @@ const Demandas = lazy(() => import('./paginas/Demandas'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
 const Tarefas = lazy(() => import('./paginas/Tarefas'));
+const MeuTempo = lazy(() => import('./paginas/MeuTempo'));
 const NovaTarefa = lazy(() => import('./paginas/NovaTarefa'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
 const PerfilDaEquipe = lazy(() => import('./paginas/PerfilDaEquipe'));
@@ -94,6 +95,7 @@ function Rotas() {
           <Route path="demandas" element={<Demandas />} />
           <Route path="modelos-de-lista" element={<ModelosDeLista />} />
           <Route path="tarefas" element={<Tarefas />} />
+          <Route path="tarefas/meu-tempo" element={<MeuTempo />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="equipe/perfil" element={<PerfilDaEquipe />} />
           <Route path="minha-conta" element={<MinhaConta />} />
