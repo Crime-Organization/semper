@@ -4,7 +4,7 @@
 import { useRef, useState, type ChangeEvent, type FormEvent, type InputHTMLAttributes, type ReactNode, type Ref } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type DadosEscritorio } from '../dados';
-import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
+import { cnpjValido, dig, emailValido, fmtCEP, fmtCNPJ, limparDocumento, MASCARAS, nomeProprio, UFS } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { TAMANHO_ESCRITORIO } from '../dados/limites';
 import { avisar, falha, feito } from '../ui/avisos';
@@ -33,7 +33,7 @@ function paraSalvar(f: Form): Omit<DadosEscritorio, 'logo'> {
   const t = (v: string) => v.trim() || null;
   const site = f.site.trim();
   return {
-    nome: f.nome.trim(), cnpj: dig(f.cnpj) || null, oab_registro: t(f.oab_registro), cep: dig(f.cep) || null,
+    nome: f.nome.trim(), cnpj: limparDocumento(f.cnpj) || null, oab_registro: t(f.oab_registro), cep: dig(f.cep) || null,
     logradouro: t(f.logradouro), numero: t(f.numero), complemento: t(f.complemento), bairro: t(f.bairro), municipio: t(f.municipio),
     uf: f.uf || null, telefone: dig(f.telefone) || null, email: f.email.trim().toLowerCase() || null,
     site: site ? (/^https?:\/\//i.test(site) ? site : 'https://' + site) : null
@@ -194,7 +194,7 @@ function Instituicao() {
           {campo('nome', 'Nome do escritório', { maxLength: TAMANHO_ESCRITORIO.nome, autoComplete: 'organization', required: true, tam: { g: 8 } })}
           {campo('oab_registro', 'Registro na OAB', { placeholder: 'da sociedade, ex.: OAB/MG 1.234', maxLength: TAMANHO_ESCRITORIO.oab_registro, tam: { m: 5, g: 4 } })}
           {campo('cnpj', 'CNPJ', {
-            inputMode: 'numeric', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)), tam: { m: 7, g: 8 },
+            autoCapitalize: 'characters', onChange: e => mudar('cnpj', MASCARAS.cnpj(e.target.value)), tam: { m: 7, g: 8 },
             junto: <button type="button" className={estiloBotao()} onClick={preencherCNPJ} disabled={buscando === 'cnpj'}>{buscando === 'cnpj' ? 'Consultando…' : 'Preencher pelo CNPJ'}</button>
           })}
         </div>

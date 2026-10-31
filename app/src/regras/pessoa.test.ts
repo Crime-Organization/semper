@@ -3,11 +3,37 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
-  fmtTelefone, lerData, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone
+  cnpjComLetrasNaBusca, cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
+  fmtTelefone, lerData, limparDocumento, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone
 } from './pessoa';
 
 describe('Documentos', () => {
+  describe('Dado um CNPJ com letras', () => {
+    it('quando o documento é limpo, então fica só com letras e números, em maiúsculas', () => {
+      // Quando / Então
+      expect(limparDocumento(' 12.abc.345/01de-35 ')).toBe('12ABC34501DE35');
+      expect(limparDocumento('529.982.247-25')).toBe('52998224725');
+    });
+
+    it('quando é mostrado, então aparece com a máscara de sempre; o CPF continua igual', () => {
+      // Quando / Então
+      expect(fmtCNPJ('12ABC34501DE35')).toBe('12.ABC.345/01DE-35');
+      expect(fmtDocumento('12ABC34501DE35')).toBe('12.ABC.345/01DE-35');
+      expect(fmtDocumento('52998224725')).toBe('529.982.247-25');
+    });
+
+    it('quando é digitado na busca, com ou sem máscara, então vira o texto que a busca do banco guarda', () => {
+      // Quando / Então
+      expect(cnpjComLetrasNaBusca('12.ABC.345/01DE-35')).toBe('12abc34501de35');
+      expect(cnpjComLetrasNaBusca('12abc34501de35')).toBe('12abc34501de35');
+      expect(cnpjComLetrasNaBusca('11.222.333/0001-81')).toBeNull();
+      expect(cnpjComLetrasNaBusca('Maria das Dores')).toBeNull();
+      // Um nome que, sem o espaço, tem o tamanho de um CNPJ continua sendo buscado como texto.
+      expect(cnpjComLetrasNaBusca('CONTRATO 1A2B34')).toBeNull();
+      expect(cnpjComLetrasNaBusca('12.ABC.345/01DE-36')).toBeNull();
+    });
+  });
+
   describe('Dado um CPF', () => {
     it.each([
       ['529.982.247-25', true],
@@ -24,7 +50,14 @@ describe('Documentos', () => {
   describe('Dado um CNPJ', () => {
     it.each([
       ['11.222.333/0001-81', true],
-      ['11.222.333/0001-82', false]
+      ['11.222.333/0001-82', false],
+      // CNPJ com letras (alfanumérico, emitido desde julho de 2026): o exemplo da Receita.
+      ['12.ABC.345/01DE-35', true],
+      ['12ABC34501DE35', true],
+      ['12.abc.345/01de-35', true],
+      ['12.ABC.345/01DE-36', false],
+      ['12.ABC.345/01DE-3X', false],
+      ['AA.AAA.AAA/AAAA-00', false]
     ])('quando o CNPJ é %s, então a validação dá %s', (cnpj, valido) => {
       // Quando
       const resultado = cnpjValido(cnpj);
@@ -37,6 +70,8 @@ describe('Documentos', () => {
     it.each([
       ['cpf', '52998224725', '529.982.247-25'],
       ['cnpj', '11222333000181', '11.222.333/0001-81'],
+      ['cnpj', '12abc34501de35', '12.ABC.345/01DE-35'],
+      ['cnpj', '12.ABC', '12.ABC'],
       ['telefone', '38999991234', '(38) 99999-1234'],
       ['data', '10051980', '10/05/1980']
     ] as const)('quando se digita %s "%s", então o campo mostra "%s"', (campo, digitado, esperado) => {

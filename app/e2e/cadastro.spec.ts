@@ -4,17 +4,19 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const CNPJ_LIVRE = '12.345.678/0001-95';   // válido e fora da semente do banco fictício
+/** CNPJ com letras (alfanumérico, emitido desde julho de 2026): o exemplo da Receita, válido. */
+const CNPJ_COM_LETRAS = '12.ABC.345/01DE-35';
 
 const proxima = (page: Page) => page.getByRole('button', { name: 'Próxima' }).click();
 const etapa = (page: Page, titulo: string) => expect(page.getByRole('heading', { level: 2, name: titulo })).toBeVisible();
 
 /** Tipo pessoa jurídica, nome, CNPJ e natureza empresarial; para na etapa do tipo de entidade. */
-async function comecarEmpresa(page: Page, nome: string) {
+async function comecarEmpresa(page: Page, nome: string, cnpj = CNPJ_LIVRE.replace(/\D/g, '')) {
   await page.goto('/pessoas/nova/');
   await page.getByText('Pessoa jurídica', { exact: true }).click();
   await etapa(page, 'Dados da empresa');
   await page.getByLabel('Nome').fill(nome);
-  await page.getByLabel('CNPJ').fill(CNPJ_LIVRE.replace(/\D/g, ''));
+  await page.getByLabel('CNPJ').fill(cnpj);
   await page.getByLabel('Natureza jurídica').selectOption({ label: 'Entidades empresariais' });
   await proxima(page);
   await etapa(page, 'Entidades empresariais');
@@ -41,6 +43,27 @@ test.describe('Cadastro de pessoa jurídica', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('searchbox').fill('padaria contrato');
     await expect(page.getByRole('row').filter({ hasText: 'PADARIA CONTRATO E2E LTDA' })).toContainText(CNPJ_LIVRE);
+  });
+
+  test('quando o CNPJ tem letras, mesmo digitado em minúsculas e sem máscara, então é aceito, formatado e achado na busca', async ({ page }) => {
+    // Dado
+    await comecarEmpresa(page, 'empresa alfanumerica e2e ltda', '12abc34501de35');
+    await page.getByText('Sociedade Empresária Limitada', { exact: true }).click();
+    await proxima(page);
+    await etapa(page, 'Pessoa jurídica');
+    await expect(page.getByLabel('CNPJ')).toHaveValue(CNPJ_COM_LETRAS);
+    await proxima(page);
+    await etapa(page, 'Endereço');
+    await proxima(page);
+    await page.getByRole('textbox', { name: 'Telefone' }).fill('3832220001');
+    // Quando
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('searchbox').fill(CNPJ_COM_LETRAS);
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'EMPRESA ALFANUMERICA E2E LTDA' })).toContainText(CNPJ_COM_LETRAS);
   });
 
   test('quando a empresa é MEI e o gênero do titular não foi escolhido, então a etapa pede o gênero', async ({ page }) => {

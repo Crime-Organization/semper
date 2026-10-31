@@ -6,7 +6,7 @@ import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa
 import { ordemNoFim } from '../ui/quadro/posicao';
 import {
   cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
-  fmtCPF, fmtData, fmtTelefone, lerData, MASCARAS, telefoneNormal, UFS, variantesTelefone
+  fmtCPF, fmtData, fmtTelefone, lerData, limparDocumento, MASCARAS, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { falha, feito } from '../ui/avisos';
@@ -172,7 +172,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
 
   // ---------- consultas ----------
   async function buscarCNPJ() {
-    const d = dig(cRef.current.cnpjBusca);
+    const d = limparDocumento(cRef.current.cnpjBusca);
     if (!cnpjValido(d)) { marcarErro('cnpjBusca', d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.'); return; }
     if (!(await verificarDocumento(d))) return;
     try {
@@ -289,7 +289,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         genero: ehIndividual(a.entidade) ? a.genero || null : null,
         natureza: nat, tipo_entidade: nat && ENTIDADES[nat]?.includes(a.entidade) ? a.entidade : null,
         nome_fantasia: maius(a.fantasia), porte: a.porte || null, abertura: lerData(a.abertura),
-        representantes: maius(a.representantes), documento: dig(a.cnpj) || dig(a.cnpjBusca) || null
+        representantes: maius(a.representantes), documento: limparDocumento(a.cnpj) || limparDocumento(a.cnpjBusca) || null
       });
     }
     if (t !== 'contato') Object.assign(d, {

@@ -17,6 +17,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     const criar = (nome: string, extra: Parameters<Dados['pessoaCriar']>[0] = {}) => SD.pessoaCriar({ tipo: 'pf', nome, ...extra });
 
     describe('Pessoas', () => {
+      it('quando uma empresa com CNPJ com letras é cadastrada, então ela é achada pelo documento e pela busca, com ou sem máscara', async () => {
+        // Dado
+        const { id } = await criar('EMPRESA ALFANUMERICA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' });
+        // Quando
+        const porDocumento = await SD.pessoaPorDocumento('12ABC34501DE35');
+        const [comMascara, semMascara] = await Promise.all(['12.ABC.345/01DE-35', '12abc34501de35'].map(termo => SD.pessoasListar({ termo })));
+        // Então
+        expect(porDocumento?.id).toBe(id);
+        expect(comMascara.linhas.map(p => p.id)).toContain(id);
+        expect(semMascara.linhas.map(p => p.id)).toContain(id);
+        await expect(criar('OUTRA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' })).rejects.toThrow('Já existe um cadastro com este CPF/CNPJ.');
+      });
+
       it('quando uma pessoa é criada, então ela pode ser lida de volta com o que foi gravado e um código', async () => {
         // Quando
         const { id, codigo } = await criar('MARIA CONTRATO', { documento: '28625587887', telefones: ['38999990000'] });

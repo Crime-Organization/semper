@@ -68,6 +68,15 @@ describe('Validação de cada etapa', () => {
       expect(r.documento).toBeUndefined();
     });
 
+    it('quando o CNPJ tem letras e é válido, então pede a conferência no banco em maiúsculas e já preenche a etapa da empresa', () => {
+      // Quando
+      const r = VALIDACAO['s-ident'](campos({ tipo: 'pj', nome: 'EMPRESA', cnpjBusca: '12.abc.345/01de-35' }));
+      // Então
+      expect(r.erros).toEqual({});
+      expect(r.documento).toBe('12ABC34501DE35');
+      expect(r.ajustes.cnpj).toBe('12.ABC.345/01DE-35');
+    });
+
     it('quando o CNPJ é válido, então pede a conferência no banco e já preenche o CNPJ da etapa da empresa', () => {
       // Quando
       const r = VALIDACAO['s-ident'](campos({ tipo: 'pj', nome: 'EMPRESA', cnpjBusca: '12.345.678/0001-95' }));

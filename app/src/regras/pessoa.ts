@@ -86,9 +86,19 @@ export const CAMPOS: Record<string, string> = {
 // ---------- formatos ----------
 type Texto = string | number | null | undefined;
 export const dig = (v: Texto) => String(v ?? '').replace(/\D/g, '');
+/**
+ * CPF ou CNPJ só com letras e números, em maiúsculas. Desde julho de 2026 a Receita emite CNPJ com letras nos 12
+ * primeiros caracteres (CNPJ alfanumérico); por isso o documento não pode passar pelo dig(), que apaga as letras.
+ */
+export const limparDocumento = (v: Texto) => String(v ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '');
+/** CNPJ completo: 12 letras ou números e os 2 dígitos verificadores (sempre números). */
+const FORMATO_CNPJ = /^[0-9A-Z]{12}[0-9]{2}$/;
 export const fmtCPF = (v: Texto) => { const d = dig(v); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : String(v ?? ''); };
-export const fmtCNPJ = (v: Texto) => { const d = dig(v); return d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? ''); };
-export const fmtDocumento = (v: Texto) => { const d = dig(v); return d.length === 14 ? fmtCNPJ(d) : d.length === 11 ? fmtCPF(d) : String(v ?? ''); };
+export const fmtCNPJ = (v: Texto) => {
+  const d = limparDocumento(v);
+  return FORMATO_CNPJ.test(d) ? d.replace(/(\w{2})(\w{3})(\w{3})(\w{4})(\d{2})/, '$1.$2.$3/$4-$5') : String(v ?? '');
+};
+export const fmtDocumento = (v: Texto) => { const d = limparDocumento(v); return d.length === 14 ? fmtCNPJ(d) : /^\d{11}$/.test(d) ? fmtCPF(d) : String(v ?? ''); };
 export const fmtCEP = (v: Texto) => { const d = dig(v); return d.length === 8 ? d.replace(/(\d{5})(\d{3})/, '$1-$2') : String(v ?? ''); };
 // Tira o código do Brasil (+55) de um número só com dígitos, quando ele vem com DDD e número completos.
 const sem55 = (d: string) => (d.length === 12 || d.length === 13) && d.startsWith('55') ? d.slice(2) : d;
@@ -133,7 +143,11 @@ export function lerData(txt: Texto) {
 export type Mascara = 'cpf' | 'cnpj' | 'cep' | 'data' | 'telefone';
 export const MASCARAS: Record<Mascara, (v: string) => string> = {
   cpf: v => { const d = dig(v).slice(0, 11); return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); },
-  cnpj: v => { const d = dig(v).slice(0, 14); return d.replace(/^(\d{2})(\d)/, '$1.$2').replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3').replace(/\.(\d{3})(\d)/, '.$1/$2').replace(/(\d{4})(\d)/, '$1-$2'); },
+  // Letras e números (CNPJ alfanumérico), em maiúsculas; os dois últimos (dígitos verificadores) são sempre números.
+  cnpj: v => {
+    const d = limparDocumento(v).slice(0, 14);
+    return d.replace(/^(\w{2})(\w)/, '$1.$2').replace(/^(\w{2})\.(\w{3})(\w)/, '$1.$2.$3').replace(/\.(\w{3})(\w)/, '.$1/$2').replace(/(\w{4})(\w)/, '$1-$2');
+  },
   cep: v => dig(v).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'),
   data: v => dig(v).slice(0, 8).replace(/(\d{2})(\d)/, '$1/$2').replace(/(\d{2})(\d)/, '$1/$2'),
   telefone: v => {
@@ -150,16 +164,28 @@ export function cpfValido(v: Texto) {
   const calc = (n: number) => { let s = 0; for (let i = 0; i < n; i++) s += Number(d[i]) * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
   return calc(9) === Number(d[9]) && calc(10) === Number(d[10]);
 }
+/** Valor de cada caractere no cálculo do dígito verificador do CNPJ: o código ASCII menos 48 (0 a 9 valem 0 a 9; A vale 17… Z vale 42). */
+const valorNoCNPJ = (c: string) => c.charCodeAt(0) - '0'.charCodeAt(0);
+/** CNPJ só com números ou com letras (CNPJ alfanumérico): os mesmos pesos, com o valor de cada caractere. */
 export function cnpjValido(v: Texto) {
-  const d = dig(v);
-  if (d.length !== 14 || /^(\d)\1{13}$/.test(d)) return false;
+  const d = limparDocumento(v);
+  if (!FORMATO_CNPJ.test(d) || /^(.)\1{13}$/.test(d)) return false;
   const calc = (n: number) => {
     const pesos = n === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
-    const s = pesos.reduce((t, p, i) => t + Number(d[i]) * p, 0);
+    const s = pesos.reduce((t, p, i) => t + valorNoCNPJ(d[i]) * p, 0);
     const r = s % 11;
     return r < 2 ? 0 : 11 - r;
   };
   return calc(12) === Number(d[12]) && calc(13) === Number(d[13]);
+}
+/**
+ * Na busca: um CNPJ com letras digitado com ou sem a máscara (12.ABC.345/01DE-35) vira o texto que o banco guarda na busca
+ * (minúsculo, sem pontuação). Só vale sem espaços e com os dígitos verificadores certos: um nome como "CONTRATO 1A2B34"
+ * (14 letras e números, tirando o espaço) continua sendo buscado como texto. Devolve null nos outros casos.
+ */
+export function cnpjComLetrasNaBusca(texto: Texto) {
+  const t = String(texto ?? '').trim(), d = limparDocumento(t);
+  return /^[0-9A-Za-z.\-/]+$/.test(t) && /[A-Z]/.test(d) && cnpjValido(d) ? d.toLowerCase() : null;
 }
 export const emailValido = (v: Texto) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v ?? '').trim());
 

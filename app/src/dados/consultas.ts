@@ -1,9 +1,9 @@
 // Consultas a serviços de fora do SEMPER: CNPJ na Receita (publica.cnpj.ws) e CEP (BrasilAPI, com o ViaCEP de reserva).
 // Aqui fica só a conversa com a internet e os erros em português; a conversão das respostas está em regras/pessoa.ts.
-import { deBrasilAPI, deCNPJws, deViaCEP, dig, type RespostaBrasilAPI, type RespostaCNPJws, type RespostaViaCEP } from '../regras/pessoa';
+import { deBrasilAPI, deCNPJws, deViaCEP, dig, limparDocumento, type RespostaBrasilAPI, type RespostaCNPJws, type RespostaViaCEP } from '../regras/pessoa';
 
 export async function consultarCNPJ(cnpj: string) {
-  const d = dig(cnpj);
+  const d = limparDocumento(cnpj);
   const r = await fetch(`https://publica.cnpj.ws/cnpj/${d}`);
   if (r.status === 404) throw new Error('CNPJ não encontrado na Receita.');
   if (r.status === 429) throw new Error('Muitas consultas seguidas. Aguarde um minuto e tente de novo.');

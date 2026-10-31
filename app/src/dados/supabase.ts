@@ -3,7 +3,7 @@
 import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { MARCA } from '../marca';
-import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
@@ -69,6 +69,8 @@ function ordenar(q: Livre, ordem: Ordem) {
 function termoBusca(texto?: string) {
   const t = String(texto || '').trim();
   if (!t) return '';
+  const cnpj = cnpjComLetrasNaBusca(t);
+  if (cnpj) return cnpj;
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
   return normal(t).replace(/[%_\\]/g, m => '\\' + m);
 }

@@ -4,7 +4,7 @@
 import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
 import { AO_ENTRAR, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
-import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, NATUREZAS, PORTES } from '../../regras/pessoa';
+import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
 import { Campo, Dica, Escolhas, estiloBotao } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { useFormulario } from './formulario';
@@ -32,7 +32,7 @@ function EtapaIdentificacao() {
       <Campo rotulo="CNPJ" para="cnpjBusca" obrigatorio erro={erroDe('cnpjBusca')} depois={retorno(retornoCNPJ)}
         dica="Clique em Buscar para trazer os dados da Receita, ou siga e preencha manualmente.">
         <div className="linha-campo">
-          {texto('cnpjBusca', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true })}
+          {texto('cnpjBusca', { mascara: 'cnpj', placeholder: '00.000.000/0000-00' })}
           <Botao variante="escuro" ref={botaoCNPJ} ocupadoTexto="Buscando…" onClick={buscarCNPJ}>Buscar</Botao>
         </div>
       </Campo>
@@ -104,8 +104,8 @@ function EtapaEmpresa() {
     <Escolhas rotulo="Porte" dica="Nos casos de MEI, não é preciso marcar.">{radios('porte', Object.entries(PORTES))}</Escolhas>
     <div className="grade-campos">
       <Campo rotulo="CNPJ" para="cnpj" obrigatorio erro={erroDe('cnpj')}>
-        {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', numerico: true, aoSair: () => {
-          const d = dig(cRef.current.cnpj);
+        {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', aoSair: () => {
+          const d = limparDocumento(cRef.current.cnpj);
           if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
         } })}
       </Campo>
