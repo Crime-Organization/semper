@@ -2,9 +2,12 @@
 // Se algum falhar, a publicação para e o site no ar continua como estava.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
+import type { DadosPessoa } from '../dados/tipos';
 import {
-  cnpjComLetrasNaBusca, cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual, emailValido, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento,
-  fmtTelefone, lerData, limparDocumento, MASCARAS, nomeProprio, qualificacao, telefoneNormal, valorLegivel, variantesTelefone
+  ajustarAoTipo, CAMPOS, CAMPOS_DO_TIPO, cepValido, cnpjComLetrasNaBusca, cnpjValido, cpfValido, deBrasilAPI, deCNPJws, deViaCEP, dig, ehIndividual,
+  emailValido, entidadeDoTexto, estadoCivilDoTexto, faltaNoveCelular, fmtCEP, fmtCNPJ, fmtCPF, fmtData, fmtDocumento, fmtTelefone, generoDoTexto,
+  generoPermitido, lerData, lerDataFlexivel, lerDataHora, limparDocumento, MASCARAS, naturezaDaEntidade, naturezaDoTexto, nomeProprio, porteDoTexto,
+  qualificacao, telefoneNormal, telefoneValido, ufValida, valorLegivel, variantesTelefone
 } from './pessoa';
 
 describe('Documentos', () => {
@@ -495,5 +498,350 @@ describe('Endereço a partir do CEP', () => {
     const endereco = converter({});
     // Então
     expect(endereco).toEqual({ logradouro: '', bairro: '', municipio: '', uf: '' });
+  });
+});
+
+describe('Porte e natureza na consulta de CNPJ', () => {
+  const sociedade = (porte: string, simples?: string) => ({
+    razao_social: 'Padaria Modelo Ltda', natureza_juridica: { descricao: '206-2 - Sociedade Empresária Limitada' },
+    porte: { descricao: porte }, simples: simples ? { simples } : undefined
+  });
+
+  it.each([
+    ['Micro Empresa', 'me'],
+    ['Empresa de Pequeno Porte', 'epp'],
+    ['Demais', null]
+  ])('quando a Receita diz que o porte é "%s", então o porte do cadastro é %j', (porte, esperado) => {
+    // Quando
+    const x = deCNPJws(sociedade(porte));
+    // Então
+    expect(x.porte).toBe(esperado);
+    expect(x.natureza).toBe('empresarial');
+    expect(x.tipo_entidade).toBe('Sociedade Empresária Limitada');
+  });
+
+  it('quando o porte é "Demais" mas a empresa é do Simples, então o porte é microempresa', () => {
+    // Quando
+    const x = deCNPJws(sociedade('Demais', 'Sim'));
+    // Então
+    expect(x.porte).toBe('me');
+  });
+
+  it('quando a natureza é Município, então o cadastro é da administração pública', () => {
+    // Quando
+    const x = deCNPJws({ razao_social: 'Município de Exemplo', natureza_juridica: { descricao: '124-4 - Município' } });
+    // Então
+    expect(x.natureza).toBe('publica');
+    expect(x.tipo_entidade).toBe('Município');
+  });
+
+  it('quando a natureza não está na lista, então fica sem natureza e sem tipo de entidade', () => {
+    // Quando
+    const x = deCNPJws({ razao_social: 'Exemplo', natureza_juridica: { descricao: '999-9 - Natureza Inventada' } });
+    // Então
+    expect(x.natureza).toBeNull();
+    expect(x.tipo_entidade).toBe('');
+  });
+});
+
+describe('Campos do cadastro a partir de texto livre', () => {
+  describe('Dado um gênero escrito numa planilha', () => {
+    it.each([
+      ['F', 'f'], ['feminino', 'f'], ['Fem', 'f'], ['Masculino', 'm'], ['masc.', 'm'], [' m ', 'm'],
+      ['outro', null], ['', null], [null, null], ['constructor', null]
+    ])('quando o texto é %j, então o gênero é %j', (texto, esperado) => {
+      // Quando
+      const genero = generoDoTexto(texto);
+      // Então
+      expect(genero).toBe(esperado);
+    });
+  });
+
+  describe('Dado um estado civil escrito numa planilha', () => {
+    it.each([
+      ['Casada', 'casado'], ['casado(a)', 'casado'], ['CASADO', 'casado'], ['Viúva', 'viuvo'], ['viuvo', 'viuvo'],
+      ['União estável', 'uniao_estavel'], ['em união estável', 'uniao_estavel'], ['uniao_estavel', 'uniao_estavel'],
+      ['DIVORCIADA', 'divorciado'], ['separado(a)', 'separado'], ['solteira', 'solteiro'], ['noivo', null], ['', null]
+    ])('quando o texto é %j, então o estado civil é %j', (texto, esperado) => {
+      // Quando
+      const estado = estadoCivilDoTexto(texto);
+      // Então
+      expect(estado).toBe(esperado);
+    });
+  });
+
+  describe('Dado um porte escrito numa planilha', () => {
+    it.each([
+      ['ME', 'me'], ['Microempresa', 'me'], ['M.E.', 'me'], ['EPP', 'epp'], ['Empresa de pequeno porte', 'epp'],
+      ['Empresa de médio porte', 'medio'], ['medio', 'medio'], ['Grande', 'grande'], ['Demais', null], ['', null]
+    ])('quando o texto é %j, então o porte é %j', (texto, esperado) => {
+      // Quando
+      const porte = porteDoTexto(texto);
+      // Então
+      expect(porte).toBe(esperado);
+    });
+  });
+
+  describe('Dada uma natureza jurídica escrita numa planilha', () => {
+    it.each([
+      ['publica', 'publica'], ['Administração Pública', 'publica'], ['sem_fins', 'sem_fins'], ['sem fins lucrativos', 'sem_fins'],
+      ['Entidades sem fins lucrativos', 'sem_fins'], ['empresarial', 'empresarial'], ['Entidades empresariais', 'empresarial'],
+      ['privada', null], ['', null]
+    ])('quando o texto é %j, então a natureza é %j', (texto, esperado) => {
+      // Quando
+      const natureza = naturezaDoTexto(texto);
+      // Então
+      expect(natureza).toBe(esperado);
+    });
+  });
+
+  describe('Dado um tipo de entidade escrito numa planilha', () => {
+    it.each([
+      ['municipio', 'Município'],
+      ['SOCIEDADE EMPRESÁRIA LIMITADA', 'Sociedade Empresária Limitada'],
+      ['Empresária Individual', 'Empresário(a) Individual'],
+      ['empresario individual', 'Empresário(a) Individual'],
+      ['MEI', 'Microempreendedor(a) Individual (MEI)'],
+      ['Microempreendedor Individual (MEI)', 'Microempreendedor(a) Individual (MEI)'],
+      ['213-5 - Empresário (Individual)', 'Empresário(a) Individual'],
+      ['Ltda', null],
+      ['', null]
+    ])('quando o texto é %j, então o tipo de entidade é %j, como na lista', (texto, esperado) => {
+      // Quando
+      const entidade = entidadeDoTexto(texto);
+      // Então
+      expect(entidade).toBe(esperado);
+    });
+  });
+
+  describe('Dado um tipo de entidade da lista', () => {
+    it.each([
+      ['Município', 'publica'],
+      ['Sociedade Empresária Limitada', 'empresarial'],
+      ['Associação Privada', 'sem_fins'],
+      ['Empresário (Individual)', 'empresarial'],
+      ['Empresa Simples de Inovação - Inova Simples', 'empresarial'],
+      ['Entidade Inventada', null],
+      ['', null]
+    ])('quando o tipo é %j, então a natureza é %j', (tipo, esperado) => {
+      // Quando
+      const natureza = naturezaDaEntidade(tipo);
+      // Então
+      expect(natureza).toBe(esperado);
+    });
+
+    it('quando o tipo vem de texto livre ("Município"), então a natureza deduzida é a pública', () => {
+      // Quando
+      const natureza = naturezaDaEntidade(entidadeDoTexto('Município'));
+      // Então
+      expect(natureza).toBe('publica');
+    });
+  });
+});
+
+describe('Validação de UF, CEP e telefone', () => {
+  it.each([
+    ['MG', true], ['mg', true], [' sp ', true], ['XX', false], ['Minas', false], ['', false]
+  ])('quando a UF é %j, então a validação dá %s', (uf, valida) => {
+    // Quando
+    const resultado = ufValida(uf);
+    // Então
+    expect(resultado).toBe(valida);
+  });
+
+  it.each([
+    ['39400-000', true], ['39400000', true], ['3940', false], ['394000001', false], ['', false]
+  ])('quando o CEP é %j, então a validação dá %s', (cep, valido) => {
+    // Quando
+    const resultado = cepValido(cep);
+    // Então
+    expect(resultado).toBe(valido);
+  });
+
+  it.each([
+    ['(38) 3222-0000', true], ['38999991234', true], ['+55 (38) 99999-1234', true],
+    ['99999-1234', false], ['55 38 99999-12345', false], ['', false]
+  ])('quando o telefone é %j, então a validação dá %s', (telefone, valido) => {
+    // Quando
+    const resultado = telefoneValido(telefone);
+    // Então
+    expect(resultado).toBe(valido);
+  });
+});
+
+describe('Datas vindas de um arquivo', () => {
+  describe('Dada uma data de planilha', () => {
+    it.each([
+      ['1/2/2000', '2000-02-01'],
+      ['01/02/2000', '2000-02-01'],
+      ['2000-02-01', '2000-02-01'],
+      [' 15/03/2019 ', '2019-03-15']
+    ])('quando a data é "%s", então vira %s', (digitada, esperada) => {
+      // Quando
+      const data = lerDataFlexivel(digitada);
+      // Então
+      expect(data).toBe(esperada);
+    });
+
+    it('quando a data está vazia, então fica sem data', () => {
+      // Quando / Então
+      expect(lerDataFlexivel('')).toBeNull();
+      expect(lerDataFlexivel(null)).toBeNull();
+    });
+
+    it.each([
+      ['31/02/2000', 'Data inexistente.'],
+      ['2000-13-01', 'Data inexistente.'],
+      ['01/01/1700', 'Data inexistente.'],
+      ['1/2/00', 'Use o formato DD/MM/AAAA ou AAAA-MM-DD.'],
+      ['01.02.2000', 'Use o formato DD/MM/AAAA ou AAAA-MM-DD.']
+    ])('quando a data é "%s", então o erro é "%s"', (digitada, erro) => {
+      // Quando
+      const ler = () => lerDataFlexivel(digitada);
+      // Então
+      expect(ler).toThrow(erro);
+    });
+  });
+
+  describe('Dada a data de cadastro de uma planilha', () => {
+    it.each([
+      ['15/03/2019', '2019-03-15T12:00:00.000Z'],
+      ['2019-03-15', '2019-03-15T12:00:00.000Z'],
+      ['2019-03-15T10:22:33Z', '2019-03-15T10:22:33.000Z'],
+      ['2019-03-15T10:22:33z', '2019-03-15T10:22:33.000Z'],
+      ['2019-03-15T10:22:33.5-03:00', '2019-03-15T13:22:33.500Z'],
+      ['2019-03-15T23:30:00-0300', '2019-03-16T02:30:00.000Z'],
+      ['2019-03-15 10:22', '2019-03-15T13:22:00.000Z'],
+      ['15/03/2019 9:05:07', '2019-03-15T12:05:07.000Z']
+    ])('quando o texto é "%s", então vira a data e hora %s', (digitada, esperada) => {
+      // Quando
+      const instante = lerDataHora(digitada);
+      // Então
+      expect(instante).toBe(esperada);
+    });
+
+    it('quando só tem a data, então a data continua a mesma no horário de Brasília', () => {
+      // Quando
+      const instante = lerDataHora('15/03/2019')!;
+      // Então
+      expect(new Date(instante).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })).toBe('15/03/2019');
+    });
+
+    it('quando está vazia, então fica sem data', () => {
+      // Quando / Então
+      expect(lerDataHora('  ')).toBeNull();
+    });
+
+    it.each([
+      ['2019-03-15T25:00', 'Hora inexistente.'],
+      ['31/02/2019 10:00', 'Data inexistente.'],
+      ['ontem', 'Use o formato DD/MM/AAAA ou AAAA-MM-DD.']
+    ])('quando o texto é "%s", então o erro é "%s"', (digitada, erro) => {
+      // Quando
+      const ler = () => lerDataHora(digitada);
+      // Então
+      expect(ler).toThrow(erro);
+    });
+  });
+});
+
+describe('Campos de cada tipo de cadastro', () => {
+  describe('Dado o gênero', () => {
+    it.each([
+      [{ tipo: 'pf' as const }, true],
+      [{ tipo: 'pj' as const, tipo_entidade: 'Microempreendedor(a) Individual (MEI)' }, true],
+      [{ tipo: 'pj' as const, tipo_entidade: 'Empresário(a) Individual' }, true],
+      [{ tipo: 'pj' as const, tipo_entidade: 'Sociedade Empresária Limitada' }, false],
+      [{ tipo: 'pj' as const }, false],
+      [{ tipo: 'contato' as const }, false],
+      [{}, false]
+    ])('quando o cadastro é %j, então "pode ter gênero" dá %s', (cadastro, pode) => {
+      // Quando
+      const resultado = generoPermitido(cadastro);
+      // Então
+      expect(resultado).toBe(pode);
+    });
+  });
+
+  it('quando a pessoa física vem com campos de pessoa jurídica, então eles ficam vazios e os dela continuam', () => {
+    // Dado
+    const d: DadosPessoa = {
+      tipo: 'pf', nome: 'MARIA EXEMPLO DA SILVA', genero: 'f', documento: '52998224725', profissao: 'professora',
+      natureza: 'empresarial', tipo_entidade: 'Sociedade Empresária Limitada', porte: 'me', municipio: 'Montes Claros', telefones: ['(38) 3222-0000']
+    };
+    // Quando
+    const r = ajustarAoTipo(d);
+    // Então
+    expect(r).toMatchObject({ natureza: null, tipo_entidade: null, nome_fantasia: null, porte: null, abertura: null, representantes: null });
+    expect(r).toMatchObject({ genero: 'f', documento: '52998224725', profissao: 'professora', municipio: 'Montes Claros', telefones: ['(38) 3222-0000'] });
+  });
+
+  it('quando a sociedade vem com gênero e campos de pessoa física, então eles ficam vazios', () => {
+    // Dado
+    const d: DadosPessoa = {
+      tipo: 'pj', nome: 'PADARIA MODELO LTDA', genero: 'f', profissao: 'padeira', nascimento: '1980-02-01',
+      natureza: 'empresarial', tipo_entidade: 'Sociedade Empresária Limitada', documento: '11222333000181', uf: 'MG'
+    };
+    // Quando
+    const r = ajustarAoTipo(d);
+    // Então
+    expect(r).toMatchObject({ genero: null, profissao: null, nascimento: null, estado_civil: null });
+    expect(r).toMatchObject({ tipo_entidade: 'Sociedade Empresária Limitada', documento: '11222333000181', uf: 'MG' });
+  });
+
+  it('quando o MEI vem com gênero, então o gênero fica', () => {
+    // Quando
+    const r = ajustarAoTipo({ tipo: 'pj', nome: 'FULANA EXEMPLO', genero: 'f', tipo_entidade: 'Microempreendedor(a) Individual (MEI)' });
+    // Então
+    expect(r.genero).toBe('f');
+  });
+
+  it('quando é somente contato, então fica sem endereço nem campos de pessoa, mas com documento e contatos', () => {
+    // Dado
+    const d: DadosPessoa = {
+      tipo: 'contato', nome: 'JOÃO EXEMPLO', genero: 'm', profissao: 'motorista', municipio: 'Montes Claros', cep: '39400000',
+      documento: '11144477735', emails: ['joao@exemplo.com'], lgpd_base: 'contrato'
+    };
+    // Quando
+    const r = ajustarAoTipo(d);
+    // Então
+    expect(r).toMatchObject({ genero: null, profissao: null, municipio: null, cep: null, tipo_entidade: null });
+    expect(r).toMatchObject({ documento: '11144477735', emails: ['joao@exemplo.com'], lgpd_base: 'contrato' });
+  });
+
+  it('quando o cadastro não tem tipo, então volta igual, sem mudar o original', () => {
+    // Dado
+    const d: DadosPessoa = { nome: 'SEM TIPO', profissao: 'professora' };
+    // Quando
+    const r = ajustarAoTipo(d);
+    // Então
+    expect(r).toEqual(d);
+    expect(r).not.toBe(d);
+  });
+
+  it('quando o cadastro é ajustado, então o original não muda', () => {
+    // Dado
+    const d: DadosPessoa = { tipo: 'pf', nome: 'MARIA', porte: 'me' };
+    // Quando
+    ajustarAoTipo(d);
+    // Então
+    expect(d.porte).toBe('me');
+  });
+
+  it('quando se comparam os campos de cada tipo, então só o gênero e o endereço são comuns à pessoa física e à jurídica', () => {
+    // Quando
+    const comuns = CAMPOS_DO_TIPO.pf.filter(c => CAMPOS_DO_TIPO.pj.includes(c));
+    // Então
+    expect([...comuns].sort()).toEqual(['bairro', 'cep', 'complemento', 'genero', 'logradouro', 'municipio', 'numero', 'uf']);
+    expect(CAMPOS_DO_TIPO.contato).toEqual([]);
+  });
+});
+
+describe('Rótulos dos campos', () => {
+  it.each([
+    ['observacoes', 'Observações'], ['pendencias', 'Pendências'], ['referencia', 'Referência'], ['cadastrado_em', 'Data de cadastro']
+  ])('quando o campo é %s, então o rótulo é "%s"', (campo, rotulo) => {
+    // Quando / Então
+    expect(CAMPOS[campo]).toBe(rotulo);
   });
 });

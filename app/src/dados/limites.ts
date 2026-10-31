@@ -89,3 +89,17 @@ export const FOTO_GRANDE = 1000;
 export const FOTO_PEQUENA = 150;
 /** Maior arquivo de foto que a pasta aceita (2 MB, como o banco). */
 export const FOTO_MAXIMA = 2 * 1024 * 1024;
+
+// ---------- Importar pessoas de um arquivo CSV (regras/importacao.ts) ----------
+/** Linhas gravadas por chamada ao banco. */
+export const LOTE_DA_IMPORTACAO = 200;
+/** Maior lote que o banco aceita numa chamada (exigido pelo banco: a função pessoas_importar recusa mais que isso). */
+export const LOTE_MAXIMO_DA_IMPORTACAO = 500;
+/** Maior arquivo aceito na importação (10 MB): a tela confere o tamanho antes de ler. */
+export const TAMANHO_MAXIMO_DO_ARQUIVO = 10 * 1024 * 1024;
+/** Mais linhas que isso num arquivo de importação: o arquivo é recusado (divida em partes). */
+export const LINHAS_MAXIMAS_DA_IMPORTACAO = 20000;
+/** Observações do cadastro de pessoa (exigido pelo banco: coluna pessoas.observacoes). */
+export const TAMANHO_OBSERVACOES = 4000;
+/** Referência de origem de uma pessoa importada, como "site-12" (exigido pelo banco: coluna pessoas.referencia). */
+export const TAMANHO_REFERENCIA = 100;

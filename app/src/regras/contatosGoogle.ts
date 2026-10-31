@@ -1,6 +1,7 @@
 // Pessoas no formato do Google Contatos: o mesmo CSV que o Google exporta e aceita em "Importar".
 // Nome, telefones, e-mails, aniversário e, se pedido, a qualificação na descrição.
 import type { Pessoa } from '../dados/tipos';
+import { escreverCSV } from './csv';
 import { celularCompleto, qualificacao, type Representante } from './pessoa';
 
 // Colunas na ordem em que o Google exporta. Telefones e e-mails ganham colunas (Phone 4, 5…) quando alguém tem mais de 3.
@@ -30,7 +31,11 @@ export function telefoneGoogle(v: string) {
 const celular = (t: string) => /^\+55 \d{2} 9\d{4}-\d{4}$/.test(t);
 // Aniversário do contato: nascimento (pessoa física) ou data de criação (pessoa jurídica), como na planilha do escritório.
 const aniversario = (p: Pessoa) => (p.tipo === 'pj' ? p.abertura : p.nascimento) || '';
-const campo = (v: string) => /[",\r\n]|^\s|\s$/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+// Telefones ("+55 38 …") começam com "+": nas colunas de telefone, só o número de verdade (+, algarismos, espaços,
+// parênteses e traços) fica sem a proteção contra fórmula; qualquer outro texto ganha o apóstrofo como as demais colunas.
+const COLUNA_DE_TELEFONE = /^Phone \d+ - Value$/;
+const TELEFONE_COM_MAIS = /^\+\d[\d\s()-]*$/;
+const telefoneIsento = (coluna: string, valor: string) => COLUNA_DE_TELEFONE.test(coluna) && TELEFONE_COM_MAIS.test(valor);
 
 /** representantes: por id da pessoa jurídica, quem a representa (entra na qualificação dela). */
 export function csvContatosGoogle(pessoas: Pessoa[], { comQualificacao, representantes = {} }: { comQualificacao: boolean; representantes?: Record<string, Representante[]> }) {
@@ -47,7 +52,7 @@ export function csvContatosGoogle(pessoas: Pessoa[], { comQualificacao, represen
     };
     telefones.forEach((t, i) => { v[`Phone ${i + 1} - Label`] = celular(t) ? 'Mobile' : ''; v[`Phone ${i + 1} - Value`] = t; });
     emails.forEach((e, i) => { v[`E-mail ${i + 1} - Value`] = e; });
-    return cab.map(k => campo(v[k] || '')).join(',');
+    return cab.map(k => v[k] || '');
   });
-  return [cab.join(','), ...linhas].join('\r\n') + '\r\n';
+  return escreverCSV([cab, ...linhas], { separador: ',', bom: false, protegerFormulas: { exceto: (c, v) => telefoneIsento(cab[c], v) } });
 }
