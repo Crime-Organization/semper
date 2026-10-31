@@ -2,7 +2,7 @@
 // tipo de pessoa percorre e a validação de cada etapa. Tudo puro, sem tela nem banco: a conferência de CPF/CNPJ
 // já cadastrado (que depende do banco) é pedida de volta pelo resultado, em "documento".
 import type { TipoPessoa } from '../dados/tipos';
-import { cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, fmtCNPJ, lerData } from './pessoa';
+import { cnpjValido, cpfValido, dig, ehIndividual, emailValido, ENTIDADES, fmtCNPJ, lerData, limparDocumento } from './pessoa';
 
 export type Etapa = 's-tipo' | 's-ident' | 's-pf' | 's-entidade' | 's-empresa' | 's-endereco' | 's-contato';
 /** Linha de uma lista do formulário (telefones, e-mails); k identifica a linha na tela. */
@@ -54,7 +54,12 @@ function conferir() {
   const data = (valor: string, campo: string) => { try { lerData(valor); } catch (e) { r.erros[campo] = (e as Error).message; } };
   return { r, marcar, data, certo: () => !Object.keys(r.erros).length };
 }
-const documentoInvalido = (d: string, rotulo: 'CPF' | 'CNPJ') => d ? `${rotulo} inválido: confira os números.` : `Informe o ${rotulo}.`;
+/** Mensagem do documento inválido: o CNPJ pode ter letras (CNPJ alfanumérico); o CPF, só números. */
+export const DOCUMENTO_INVALIDO: Record<'CPF' | 'CNPJ', string> = {
+  CPF: 'CPF inválido: confira os números.',
+  CNPJ: 'CNPJ inválido: confira as letras e os números.'
+};
+const documentoInvalido = (d: string, rotulo: 'CPF' | 'CNPJ') => d ? DOCUMENTO_INVALIDO[rotulo] : `Informe o ${rotulo}.`;
 
 /** Validação de cada etapa (padrão State: cada etapa sabe se está certa). */
 export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
@@ -69,7 +74,7 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
     r.ajustes.nome = nome;
     marcar('nome', !!nome);
     if (a.tipo === 'pj') {
-      const d = dig(a.cnpjBusca);
+      const d = limparDocumento(a.cnpjBusca);
       marcar('cnpjBusca', cnpjValido(d), documentoInvalido(d, 'CNPJ'));
       if (certo()) { if (!a.cnpj) r.ajustes.cnpj = fmtCNPJ(d); r.documento = d; }
     }
@@ -89,7 +94,7 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
   's-empresa': a => {
     const { r, marcar, data, certo } = conferir();
     if (ehIndividual(a.entidade)) marcar('genero', !!a.genero, 'Selecione o gênero do(a) titular (usado na concordância da qualificação).');
-    const d = dig(a.cnpj);
+    const d = limparDocumento(a.cnpj);
     marcar('cnpj', cnpjValido(d), documentoInvalido(d, 'CNPJ'));
     data(a.abertura, 'abertura');
     if (certo()) r.documento = d;

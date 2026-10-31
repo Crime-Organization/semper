@@ -38,7 +38,7 @@ export interface Membro {
 export interface DadosEscritorio {
   nome: string;
   logo: string | null;          // imagem em data:image/...;base64 (até ~300 KB)
-  cnpj: string | null;          // só números
+  cnpj: string | null;          // letras e números, em maiúsculas, sem pontuação (o CNPJ pode ter letras)
   oab_registro: string | null;  // registro da sociedade na OAB
   logradouro: string | null;
   numero: string | null;

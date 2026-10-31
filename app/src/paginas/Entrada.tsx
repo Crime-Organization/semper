@@ -159,7 +159,7 @@ export default function Entrada() {
     solicitar: {
       titulo: 'Solicitar acesso', aba: 'cliente', enviar: portalEmBreve,
       campos: <>
-        <label>CPF ou CNPJ<input name="documento" inputMode="numeric" autoComplete="off" required /></label>
+        <label>CPF ou CNPJ<input name="documento" autoCapitalize="characters" autoComplete="off" required /></label>
         <label>E-mail<input name="email" type="email" autoComplete="email" required /></label>
         <Dica>Use o e-mail informado no seu cadastro. O advogado responsável analisa o pedido e libera o acesso.</Dica>
         {enviarBotao('Solicitar acesso')}

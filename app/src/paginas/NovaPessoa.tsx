@@ -6,7 +6,7 @@ import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa
 import { ordemNoFim } from '../ui/quadro/posicao';
 import {
   cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
-  fmtCPF, fmtData, fmtTelefone, lerData, MASCARAS, telefoneNormal, UFS, variantesTelefone
+  fmtCPF, fmtData, fmtTelefone, lerData, limparDocumento, MASCARAS, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { falha, feito } from '../ui/avisos';
@@ -16,7 +16,7 @@ import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { Aviso, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
-import { fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
+import { DOCUMENTO_INVALIDO, fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
 import { ETAPAS } from './novaPessoa/etapas';
 import { FormularioCtx, type Formulario, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
 import './NovaPessoa.css';
@@ -172,8 +172,8 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
 
   // ---------- consultas ----------
   async function buscarCNPJ() {
-    const d = dig(cRef.current.cnpjBusca);
-    if (!cnpjValido(d)) { marcarErro('cnpjBusca', d ? 'CNPJ inválido: confira os números.' : 'Informe o CNPJ.'); return; }
+    const d = limparDocumento(cRef.current.cnpjBusca);
+    if (!cnpjValido(d)) { marcarErro('cnpjBusca', d ? DOCUMENTO_INVALIDO.CNPJ : 'Informe o CNPJ.'); return; }
     if (!(await verificarDocumento(d))) return;
     try {
       const x = await consultarCNPJ(d);
@@ -289,7 +289,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         genero: ehIndividual(a.entidade) ? a.genero || null : null,
         natureza: nat, tipo_entidade: nat && ENTIDADES[nat]?.includes(a.entidade) ? a.entidade : null,
         nome_fantasia: maius(a.fantasia), porte: a.porte || null, abertura: lerData(a.abertura),
-        representantes: maius(a.representantes), documento: dig(a.cnpj) || dig(a.cnpjBusca) || null
+        representantes: maius(a.representantes), documento: limparDocumento(a.cnpj) || limparDocumento(a.cnpjBusca) || null
       });
     }
     if (t !== 'contato') Object.assign(d, {

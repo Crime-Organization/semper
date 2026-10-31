@@ -20,6 +20,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     const criar = (nome: string, extra: Parameters<Dados['pessoaCriar']>[0] = {}) => SD.pessoaCriar({ tipo: 'pf', nome, ...extra });
 
     describe('Pessoas', () => {
+      it('quando uma empresa com CNPJ com letras é cadastrada, então ela é achada pelo documento e pela busca, com ou sem máscara', async () => {
+        // Dado
+        const { id } = await criar('EMPRESA ALFANUMERICA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' });
+        // Quando
+        const porDocumento = await SD.pessoaPorDocumento('12ABC34501DE35');
+        const [comMascara, semMascara] = await Promise.all(['12.ABC.345/01DE-35', '12abc34501de35'].map(termo => SD.pessoasListar({ termo })));
+        // Então
+        expect(porDocumento?.id).toBe(id);
+        expect(comMascara.linhas.map(p => p.id)).toContain(id);
+        expect(semMascara.linhas.map(p => p.id)).toContain(id);
+        await expect(criar('OUTRA ' + marca(), { tipo: 'pj', documento: '12ABC34501DE35' })).rejects.toThrow('Já existe um cadastro com este CPF/CNPJ.');
+      });
+
       it('quando uma pessoa é criada, então ela pode ser lida de volta com o que foi gravado e um código', async () => {
         // Quando
         const { id, codigo } = await criar('MARIA CONTRATO', { documento: '28625587887', telefones: ['38999990000'] });
@@ -957,6 +970,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         const [lista] = await SD.listasDoCartao('demandas', demanda);
         expect(lista.itens.map(i => i.texto)).toEqual(['Procuração']);
+      });
+    });
+
+    describe('Dados do escritório', () => {
+      it('quando o CNPJ do escritório tem letras, então é guardado em maiúsculas, sem a pontuação, e volta assim', async () => {
+        // Dado
+        const atual = (await SD.contexto(true))!.escritorio!;
+        // Quando
+        await SD.escritorioSalvar({ ...atual, nome: atual.nome, cnpj: '12.abc.345/01de-35' });
+        // Então
+        expect((await SD.contexto(true))?.escritorio?.cnpj).toBe('12ABC34501DE35');
       });
     });
 
