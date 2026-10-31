@@ -93,6 +93,10 @@ export const dig = (v: Texto) => String(v ?? '').replace(/\D/g, '');
 export const limparDocumento = (v: Texto) => String(v ?? '').toUpperCase().replace(/[^0-9A-Z]/g, '');
 /** CNPJ completo: 12 letras ou números e os 2 dígitos verificadores (sempre números). */
 const FORMATO_CNPJ = /^[0-9A-Z]{12}[0-9]{2}$/;
+/** Um CNPJ (com ou sem máscara) dentro de um texto maior, como "CNPJ nº 12.ABC.345/01DE-35" colado de um documento. */
+const CNPJ_NO_TEXTO = /[0-9A-Za-z]{2}\.?[0-9A-Za-z]{3}\.?[0-9A-Za-z]{3}\/?[0-9A-Za-z]{4}-?\d{2}/;
+/** O começo de um CNPJ digitado com a máscara (12.ABC, 12.ABC.345/01DE…), para a busca achar enquanto se digita. */
+const CNPJ_MASCARADO_PARCIAL = /^[0-9A-Za-z]{2}\.[0-9A-Za-z]{1,3}(\.[0-9A-Za-z]{0,3}(\/[0-9A-Za-z]{0,4}(-\d{0,2})?)?)?$/;
 export const fmtCPF = (v: Texto) => { const d = dig(v); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : String(v ?? ''); };
 export const fmtCNPJ = (v: Texto) => {
   const d = limparDocumento(v);
@@ -144,8 +148,10 @@ export type Mascara = 'cpf' | 'cnpj' | 'cep' | 'data' | 'telefone';
 export const MASCARAS: Record<Mascara, (v: string) => string> = {
   cpf: v => { const d = dig(v).slice(0, 11); return d.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); },
   // Letras e números (CNPJ alfanumérico), em maiúsculas; os dois últimos (dígitos verificadores) são sempre números.
+  // Um CNPJ colado com rótulo ("CNPJ: 12.ABC…") fica só com o número; os dois últimos (verificadores) só aceitam números.
   cnpj: v => {
-    const d = limparDocumento(v).slice(0, 14);
+    const t = String(v ?? '').match(CNPJ_NO_TEXTO)?.[0] ?? v;
+    const limpo = limparDocumento(t).slice(0, 14), d = limpo.slice(0, 12) + limpo.slice(12).replace(/\D/g, '');
     return d.replace(/^(\w{2})(\w)/, '$1.$2').replace(/^(\w{2})\.(\w{3})(\w)/, '$1.$2.$3').replace(/\.(\w{3})(\w)/, '.$1/$2').replace(/(\w{4})(\w)/, '$1-$2');
   },
   cep: v => dig(v).slice(0, 8).replace(/(\d{5})(\d)/, '$1-$2'),
@@ -185,7 +191,9 @@ export function cnpjValido(v: Texto) {
  */
 export function cnpjComLetrasNaBusca(texto: Texto) {
   const t = String(texto ?? '').trim(), d = limparDocumento(t);
-  return /^[0-9A-Za-z.\-/]+$/.test(t) && /[A-Z]/.test(d) && cnpjValido(d) ? d.toLowerCase() : null;
+  if (!/[A-Z]/.test(d)) return null;
+  // O pedaço digitado com a máscara (12.ABC.345) também vale: a busca do banco guarda o documento sem pontuação.
+  return CNPJ_MASCARADO_PARCIAL.test(t) || (/^[0-9A-Za-z.\-/]+$/.test(t) && cnpjValido(d)) ? d.toLowerCase() : null;
 }
 export const emailValido = (v: Texto) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(v ?? '').trim());
 

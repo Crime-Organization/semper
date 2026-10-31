@@ -59,7 +59,7 @@ describe('Validação de cada etapa', () => {
 
     it.each([
       ['', 'Informe o CNPJ.'],
-      ['12345678000196', 'CNPJ inválido: confira os números.']
+      ['12345678000196', 'CNPJ inválido: confira as letras e os números.']
     ])('quando a pessoa jurídica tem o CNPJ "%s", então o erro é "%s"', (cnpjBusca, erro) => {
       // Quando
       const r = VALIDACAO['s-ident'](campos({ tipo: 'pj', nome: 'EMPRESA', cnpjBusca }));

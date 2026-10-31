@@ -3,7 +3,7 @@
 // testar qual é. Etapa nova: um componente aqui, uma validação em regras/cadastro.ts e uma entrada no fluxo().
 import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
-import { AO_ENTRAR, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
+import { AO_ENTRAR, DOCUMENTO_INVALIDO, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
 import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
 import { Campo, Dica, Escolhas, estiloBotao } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
@@ -66,7 +66,7 @@ function EtapaPessoaFisica() {
     <Campo rotulo="CPF" para="cpf" obrigatorio erro={erroDe('cpf')}>
       {texto('cpf', { mascara: 'cpf', placeholder: '000.000.000-00', numerico: true, aoSair: () => {
         const d = dig(cRef.current.cpf);
-        if (cpfValido(d)) void verificarDocumento(d); else if (d) marcarErro('cpf', 'CPF inválido: confira os números.');
+        if (cpfValido(d)) void verificarDocumento(d); else if (d) marcarErro('cpf', DOCUMENTO_INVALIDO.CPF);
       } })}
     </Campo>
     <div className="grade-campos">
@@ -106,7 +106,7 @@ function EtapaEmpresa() {
       <Campo rotulo="CNPJ" para="cnpj" obrigatorio erro={erroDe('cnpj')}>
         {texto('cnpj', { mascara: 'cnpj', placeholder: '00.000.000/0000-00', aoSair: () => {
           const d = limparDocumento(cRef.current.cnpj);
-          if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', 'CNPJ inválido: confira os números.');
+          if (cnpjValido(d)) void verificarDocumento(d); else if (d) marcarErro('cnpj', DOCUMENTO_INVALIDO.CNPJ);
         } })}
       </Campo>
       <Campo rotulo="Data de abertura" para="abertura" erro={erroDe('abertura')}>{data('abertura')}</Campo>

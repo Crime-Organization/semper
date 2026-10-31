@@ -54,7 +54,12 @@ function conferir() {
   const data = (valor: string, campo: string) => { try { lerData(valor); } catch (e) { r.erros[campo] = (e as Error).message; } };
   return { r, marcar, data, certo: () => !Object.keys(r.erros).length };
 }
-const documentoInvalido = (d: string, rotulo: 'CPF' | 'CNPJ') => d ? `${rotulo} inválido: confira os números.` : `Informe o ${rotulo}.`;
+/** Mensagem do documento inválido: o CNPJ pode ter letras (CNPJ alfanumérico); o CPF, só números. */
+export const DOCUMENTO_INVALIDO: Record<'CPF' | 'CNPJ', string> = {
+  CPF: 'CPF inválido: confira os números.',
+  CNPJ: 'CNPJ inválido: confira as letras e os números.'
+};
+const documentoInvalido = (d: string, rotulo: 'CPF' | 'CNPJ') => d ? DOCUMENTO_INVALIDO[rotulo] : `Informe o ${rotulo}.`;
 
 /** Validação de cada etapa (padrão State: cada etapa sabe se está certa). */
 export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {

@@ -30,7 +30,14 @@ describe('Documentos', () => {
       expect(cnpjComLetrasNaBusca('Maria das Dores')).toBeNull();
       // Um nome que, sem o espaço, tem o tamanho de um CNPJ continua sendo buscado como texto.
       expect(cnpjComLetrasNaBusca('CONTRATO 1A2B34')).toBeNull();
-      expect(cnpjComLetrasNaBusca('12.ABC.345/01DE-36')).toBeNull();
+      // No formato da máscara, vale mesmo com o verificador errado: busca sem a pontuação e só não acha ninguém.
+      expect(cnpjComLetrasNaBusca('12.ABC.345/01DE-36')).toBe('12abc34501de36');
+      // Sem máscara, só com o verificador certo (para não confundir com outros textos).
+      expect(cnpjComLetrasNaBusca('12ABC34501DE36')).toBeNull();
+      // Um pedaço digitado com a máscara também acha.
+      expect(cnpjComLetrasNaBusca('12.ABC.345')).toBe('12abc345');
+      expect(cnpjComLetrasNaBusca('12.ABC.345/01DE')).toBe('12abc34501de');
+      expect(cnpjComLetrasNaBusca('a.b@x.com')).toBeNull();
     });
   });
 
@@ -72,6 +79,8 @@ describe('Documentos', () => {
       ['cnpj', '11222333000181', '11.222.333/0001-81'],
       ['cnpj', '12abc34501de35', '12.ABC.345/01DE-35'],
       ['cnpj', '12.ABC', '12.ABC'],
+      ['cnpj', 'CNPJ nº 12.ABC.345/01DE-35', '12.ABC.345/01DE-35'],
+      ['cnpj', '12ABC34501DEXY', '12.ABC.345/01DE'],
       ['telefone', '38999991234', '(38) 99999-1234'],
       ['data', '10051980', '10/05/1980']
     ] as const)('quando se digita %s "%s", então o campo mostra "%s"', (campo, digitado, esperado) => {

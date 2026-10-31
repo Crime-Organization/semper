@@ -844,6 +844,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Dados do escritório', () => {
+      it('quando o CNPJ do escritório tem letras, então é guardado em maiúsculas, sem a pontuação, e volta assim', async () => {
+        // Dado
+        const atual = (await SD.contexto(true))!.escritorio!;
+        // Quando
+        await SD.escritorioSalvar({ ...atual, nome: atual.nome, cnpj: '12.abc.345/01de-35' });
+        // Então
+        expect((await SD.contexto(true))?.escritorio?.cnpj).toBe('12ABC34501DE35');
+      });
+    });
+
     describe('Equipe', () => {
       it('quando o administrador muda a função de alguém, então a lista da equipe e o contexto mostram a função nova', async () => {
         // Quando

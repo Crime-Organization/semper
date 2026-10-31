@@ -88,7 +88,7 @@ test.describe('Cadastro de pessoa jurídica', () => {
     await page.getByLabel('CNPJ').fill('12345678000196');
     await proxima(page);
     // Então
-    await expect(page.getByText('CNPJ inválido: confira os números.')).toBeVisible();
+    await expect(page.getByText('CNPJ inválido: confira as letras e os números.')).toBeVisible();
     await etapa(page, 'Dados da empresa');
   });
 });

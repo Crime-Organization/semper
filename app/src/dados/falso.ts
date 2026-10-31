@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
-import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
@@ -1148,7 +1148,8 @@ export const SD: Dados = {
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;
-    bd.escritorio = { ...atual, ...dados, logo: dados.logo === undefined ? atual.logo : dados.logo };
+    // Como public.escritorio_salvar: o CNPJ só com letras e números, em maiúsculas.
+    bd.escritorio = { ...atual, ...dados, cnpj: limparDocumento(dados.cnpj) || null, logo: dados.logo === undefined ? atual.logo : dados.logo };
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'escritorios', registro_id: 'e1', acao: 'alteracao', resumo: { nome: dados.nome }, feito_por: eu, em: agora() });
     gravar(); await espera(null);
   },
