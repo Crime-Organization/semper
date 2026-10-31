@@ -7,7 +7,7 @@ import {
 
 const ESTADO = 'a'.repeat(64);
 const VOLTA_DO_GOOGLE = 'https://projeto.supabase.co/functions/v1/google-retorno';
-const SITES = ['https://semper.bragaferreira.adv.br', 'http://localhost:8090'];
+const SITES = ['https://semper.app.br', 'http://localhost:8090'];
 /** Um token de sessão de mentira, só com a carga (o login do Supabase é quem confere a assinatura de verdade). */
 const tokenCom = (carga: object) => 'Bearer x.' + btoa(JSON.stringify(carga)).replace(/=+$/, '') + '.y';
 
@@ -26,10 +26,10 @@ describe('Ligação com a conta Google', () => {
   });
 
   it.each([
-    ['o site do SEMPER', 'https://semper.bragaferreira.adv.br/configuracoes/', true],
+    ['o site do SEMPER', 'https://semper.app.br/configuracoes/', true],
     ['o ambiente local', 'http://localhost:8090/configuracoes/', true],
-    ['um site parecido, mas de outro dono', 'https://semper.bragaferreira.adv.br.golpe.com/configuracoes/', false],
-    ['o mesmo site sem https', 'http://semper.bragaferreira.adv.br/configuracoes/', false],
+    ['um site parecido, mas de outro dono', 'https://semper.app.br.golpe.com/configuracoes/', false],
+    ['o mesmo site sem https', 'http://semper.app.br/configuracoes/', false],
     ['um endereço que não é de página', 'javascript:alert(1)', false],
     ['nada', null, false]
   ])('quando a página de volta é %s, então a permissão dá %s', (_caso, volta, permitido) => {
@@ -74,9 +74,9 @@ describe('Ligação com a conta Google', () => {
 
   it('quando a conclusão é chamada de um site do SEMPER, então o navegador recebe a permissão do CORS; de outro site, nenhuma', () => {
     // Quando
-    const doSemper = cabecalhosCors('https://semper.bragaferreira.adv.br', SITES);
+    const doSemper = cabecalhosCors('https://semper.app.br', SITES);
     // Então
-    expect(doSemper['Access-Control-Allow-Origin']).toBe('https://semper.bragaferreira.adv.br');
+    expect(doSemper['Access-Control-Allow-Origin']).toBe('https://semper.app.br');
     expect(doSemper['Access-Control-Allow-Headers']).toContain('authorization');
     expect(cabecalhosCors('https://golpe.com', SITES)).toEqual({});
     expect(cabecalhosCors(null, SITES)).toEqual({});
