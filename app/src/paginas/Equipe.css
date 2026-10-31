@@ -16,5 +16,10 @@
 /* Com os botões numa linha, a tabela precisa de mais espaço que as outras: numa tela estreita, ela rola para o lado com as
    colunas legíveis, em vez de espremer o nome e o e-mail. */
 .tabela table.tabela-usuarios { min-width: 960px }
+/* A quebra em qualquer ponto (acima) deixaria a coluna do usuário estreitíssima, e a tabela a apertaria primeiro: um mínimo
+   que cabe um nome e um e-mail comuns, sem partir no meio. */
+.tabela-usuarios .pessoa-usuario { min-width: 200px }
+/* Cinco colunas e três botões: um pouco menos de folga nas células, para a tabela caber na página do computador. */
+.tabela .tabela-usuarios th, .tabela .tabela-usuarios td { padding-left: 12px; padding-right: 12px }
 /* A situação e, embaixo, o último acesso (numa coluna só, para a tabela caber na página). */
 .situacao-usuario { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
