@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { abrir } from './ajudantes';
 
 test.describe('Equipe e acessos', () => {
@@ -58,6 +58,21 @@ test.describe('Equipe e acessos', () => {
     // Então
     const [secao, tabela] = await Promise.all([usuarios.boundingBox(), usuarios.getByRole('table').boundingBox()]);
     expect(tabela!.width).toBeLessThanOrEqual(secao!.width);
+  });
+
+  test('quando a tela é a de um computador, então os botões de cada usuário ficam numa linha só, na mesma altura do "Você"', async ({ page }) => {
+    // Quando
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const usuarios = page.getByRole('region', { name: 'Usuários' });
+    await expect(usuarios.getByRole('row')).toHaveCount(5);
+    // Então: o meio de cada botão (e do "Você") fica na mesma altura que o do botão Cadastro da mesma linha
+    const meio = async (alvo: Locator) => { const c = (await alvo.boundingBox())!; return Math.round(c.y + c.height / 2); };
+    const ana = usuarios.getByRole('row').filter({ hasText: 'Ana Teste Lima' });
+    expect(await meio(ana.getByRole('button', { name: 'Desativar' }))).toBe(await meio(ana.getByRole('link', { name: 'Cadastro' })));
+    const eu = usuarios.getByRole('row').filter({ hasText: 'Mateus Freitas Gonçalves' });
+    expect(await meio(eu.getByText('Você', { exact: true }))).toBe(await meio(eu.getByRole('link', { name: 'Cadastro' })));
+    const carla = usuarios.getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' });
+    expect(await meio(carla.getByRole('button', { name: 'Reativar' }))).toBe(await meio(carla.getByRole('link', { name: 'Cadastro' })));
   });
 
   test('quando o e-mail de acesso fica vazio, então avisa e não libera', async ({ page }) => {
