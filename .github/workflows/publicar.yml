@@ -103,6 +103,7 @@ jobs:
         env:
           VERSAO: ${{ needs.versao.outputs.versao }}
         run: |
+          # O VERSAO também entra no código (vite.config.ts): a aba aberta compara com o versao.txt e avisa da versão nova.
           npx vite build
           # Para conferir o que está no ar: https://semper.app.br/versao.txt
           printf '%s %s\n' "$VERSAO" "$(git rev-parse --short HEAD)" > dist/versao.txt
