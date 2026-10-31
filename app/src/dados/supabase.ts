@@ -11,7 +11,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -719,6 +719,14 @@ export const SD: Dados = {
   async ligacaoGoogleIniciar(voltarPara) {
     const estado = await rpc('ligacao_google_iniciar', { p_voltar_para: voltarPara }) as string;
     return `${URL_BASE}/functions/v1/google-conectar?estado=${encodeURIComponent(estado)}`;
+  },
+  // A função do servidor confere quem está logado (a sessão vai junto pelo comSessao) e troca o código no Google.
+  async ligacaoGoogleConcluir(estado, codigo) {
+    const r = await comSessao(`${URL_BASE}/functions/v1/google-concluir`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ estado, codigo })
+    });
+    const { resultado } = await r.json().catch(() => ({ resultado: 'erro' })) as { resultado?: ResultadoDaLigacao };
+    return resultado ?? 'erro';
   },
   async ligacaoGoogleDesligar() { await rpc('ligacao_google_desligar'); },
 

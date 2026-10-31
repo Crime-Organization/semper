@@ -57,7 +57,16 @@ test.describe('Conta Google do escritório', () => {
     await expect(page.getByText('Conta Google desligada.', { exact: false })).toBeVisible();
     await expect(google.getByRole('button', { name: 'Conectar conta Google' })).toBeVisible();
     await page.goto('/equipe/');
-    await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('a conta Google do escritório');
+    await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('excluiu a conta Google do escritório');
+  });
+
+  test('quando a volta do Google traz um pedido que não existe (vencido, ou de outra pessoa), então nada é ligado e a página avisa', async ({ page }) => {
+    // Quando
+    await page.goto('/configuracoes/?google_estado=' + 'f'.repeat(64) + '&google_codigo=qualquer');
+    // Então
+    await expect(page.getByText('O pedido de ligação venceu.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Conta Google' }).getByRole('button', { name: 'Conectar conta Google' })).toBeVisible();
+    await expect(page).toHaveURL(/\/configuracoes\/$/);
   });
 
   test('quando a volta do Google traz uma recusa, então a página avisa e limpa o endereço', async ({ page }) => {

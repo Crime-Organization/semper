@@ -839,12 +839,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.ligacaoGoogle()).toBeNull();
       });
 
-      it('quando a ligação começa, então devolve o endereço para onde o navegador vai', async () => {
+      it('quando a ligação começa, então ainda não há conta ligada: o endereço leva um estado de 64 letras e números', async () => {
         // Quando
         const endereco = await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/');
-        // Então (o banco de verdade leva à função do servidor; o fictício volta já com a conta ligada)
-        expect(endereco).toMatch(/google-conectar\?estado=[0-9a-f]{64}$|\/configuracoes\/\?google=ligado$/);
-        await SD.ligacaoGoogleDesligar();
+        // Então
+        expect(endereco).toMatch(/estado=[0-9a-f]{64}(&|$)/);
+        expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+
+      it('quando a conclusão traz um estado que não existe, então nada é ligado e o resultado é "expirado"', async () => {
+        // Quando
+        const resultado = await SD.ligacaoGoogleConcluir('f'.repeat(64), 'qualquer');
+        // Então
+        expect(resultado).toBe('expirado');
         expect(await SD.ligacaoGoogle()).toBeNull();
       });
     });
