@@ -639,6 +639,26 @@ export interface DadosFotos {
   fotoRemover(perfilId: string): Promise<void>;
 }
 
+/** A conta Google ligada ao escritório (supabase/migrations/20261031120000_ligacao_google.sql). Nunca traz a autorização. */
+export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_em: string; ligado_por: string | null }
+/** Como terminou a tentativa de ligar a conta Google (a página de Configurações mostra um aviso para cada um). */
+export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
+
+/** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
+export interface DadosLigacoes {
+  /** A conta Google ligada ao escritório, ou null. */
+  ligacaoGoogle(): Promise<LigacaoGoogle | null>;
+  /** Começa a ligação: devolve o endereço para onde o navegador vai (o servidor do SEMPER, que leva ao Google). */
+  ligacaoGoogleIniciar(voltarPara: string): Promise<string>;
+  /**
+   * Conclui a ligação na volta do Google, com o estado e o código que vieram no endereço. Só conclui para quem pediu a
+   * ligação, ainda administrador do escritório, e uma vez só; senão o resultado é "expirado".
+   */
+  ligacaoGoogleConcluir(estado: string, codigo: string): Promise<ResultadoDaLigacao>;
+  /** Desliga a conta Google do escritório (apaga a ligação e a autorização guardada). */
+  ligacaoGoogleDesligar(): Promise<void>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -692,4 +712,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes {}

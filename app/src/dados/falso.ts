@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -83,6 +83,10 @@ interface Banco {
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
   perfisProfissionais?: PerfilProfissional[];
+  /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
+  ligacaoGoogle?: LigacaoGoogle | null;
+  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
+  pedidosGoogle?: { estado: string; pedido_em: number }[];
   tarefas?: TarefaGuardada[];
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
   tempos?: (RegistroDeTempo & { tarefa_id: string })[];
@@ -331,6 +335,8 @@ async function dataUrl(arquivo: Blob) {
   for (const b of bytes) texto += String.fromCharCode(b);
   return `data:${arquivo.type};base64,${btoa(texto)}`;
 }
+/** O pedido de ligação com o Google vale 10 minutos (como privado.ligacao_pedidos no banco). */
+const VALIDADE_DO_PEDIDO_GOOGLE = 10 * 60 * 1000;
 // Como no banco: o vínculo incluído ou retirado entra no histórico das duas pessoas.
 function historicoVinculo(v: NonNullable<Banco['vinculos']>[number], incluido: boolean) {
   const t = bd.tiposVinculo!.find(x => x.id === v.tipo_id)!, obs = v.descricao ? ` (${v.descricao})` : '';
@@ -1257,6 +1263,32 @@ export const SD: Dados = {
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
+  // ---------- ligação com a conta Google (sem Google: a "volta" já vem como ligada) ----------
+  ligacaoGoogle: () => espera(bd.ligacaoGoogle ?? null),
+  // Como no banco: iniciar só cria o pedido; a "volta do Google" traz o estado e um código, e concluir é que liga.
+  async ligacaoGoogleIniciar(voltarPara) {
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now() }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  async ligacaoGoogleConcluir(estado) {
+    const pedido = (bd.pedidosGoogle ?? []).find(p => p.estado === estado);
+    bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
+    if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
+    bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
+    auditar('ligacoes', 'inclusao', { id: 'google', nome: 'contato@exemplo.com' });
+    gravar(); return espera('ligado' as const);
+  },
+  async ligacaoGoogleDesligar() {
+    if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    bd.ligacaoGoogle = null;
+    gravar(); return espera(undefined);
+  },
+
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;
     bd.escritorio = { ...atual, ...dados, logo: dados.logo === undefined ? atual.logo : dados.logo };
