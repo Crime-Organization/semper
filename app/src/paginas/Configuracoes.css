@@ -10,6 +10,47 @@
 .config-logo-texto .acoes { display: flex; gap: 8px; flex-wrap: wrap }
 .config-salvar { display: flex; justify-content: flex-end }
 
+/* Perfil profissional (Minha conta e Equipe): usa o mesmo formulário em cartões das Configurações. */
+.campos label.perfil-no-site { flex-direction: row; align-items: center; gap: 10px; min-height: 44px; font-size: 15px; color: var(--ink) }
+.campos label.perfil-no-site input { width: 18px; height: 18px; accent-color: var(--accent) }
+.config-salvar { align-items: center; gap: 14px; flex-wrap: wrap }
+.config-salvar .nota { margin: 0 }
+.titulo.perfil-da-equipe { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+/* Os blocos do perfil (a foto e os cartões do formulário) ficam abaixo do título "Perfil profissional": o título de cada um é menor que o dele. */
+h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink) }
+
+/* Foto do perfil (FotoDoPerfil.tsx): a foto atual, ou a janela do corte com a máscara redonda e a prévia da bolinha. */
+.foto-perfil { display: flex; gap: 18px; align-items: center; flex-wrap: wrap }
+.foto-atual { width: 120px; height: 120px; border-radius: 999px; object-fit: cover; background: var(--soft); flex-shrink: 0 }
+.foto-texto { flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; min-width: 0 }
+.foto-texto .nota, .foto-controles .nota { margin: 0 }
+.foto-perfil .acoes { display: flex; gap: 8px; flex-wrap: wrap }
+.foto-baixar { margin: 0; font-size: 13px; color: var(--muted) }
+.foto-baixar a { color: var(--accent-ink); font-weight: 700 }
+.foto-cortando { align-items: flex-start }
+.foto-janela { position: relative; flex-shrink: 0; overflow: hidden; border-radius: 12px; background: var(--soft2); cursor: grab; touch-action: none; user-select: none }
+.foto-janela:active { cursor: grabbing }
+.foto-janela:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.foto-janela img { position: absolute; left: 0; top: 0; max-width: none; transform-origin: 0 0; pointer-events: none }
+/* Fora do círculo, a foto escurece: o que fica claro é o que vai para o arquivo. */
+.foto-mascara { position: absolute; inset: 0; border-radius: 999px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .55); outline: 2px solid rgba(255, 255, 255, .8); pointer-events: none }
+.foto-controles { flex: 1 1 240px; display: flex; flex-direction: column; gap: 14px; min-width: 0 }
+.campos label.foto-zoom { max-width: 320px }
+.campos label.foto-zoom input { height: auto; padding: 0; border: 0; background: none; accent-color: var(--accent) }
+.foto-previa { display: flex; gap: 12px; align-items: center }
+.foto-previa canvas { width: 72px; height: 72px; border-radius: 999px; background: var(--soft); flex-shrink: 0 }
+
+/* Meu tempo trabalhado (MeuTempo.tsx): o total em destaque ao lado do título do período. */
+.meu-tempo { display: flex; flex-direction: column; gap: 14px }
+.meu-tempo-total { margin: 0; font-size: 15px; color: var(--text) }
+.meu-tempo-total b { font-size: 20px; font-weight: 900; color: var(--ink) }
+.meu-tempo tfoot th, .meu-tempo tfoot td { font-weight: 900; color: var(--ink); border-top: 1px solid var(--line2) }
+.meu-tempo tfoot th { text-align: left }
+.meu-tempo .num { text-align: right }
+/* Três colunas curtas: a tabela cabe na largura do celular, sem rolar para o lado e esconder o tempo. */
+.meu-tempo .tabela table { min-width: 0 }
+.meu-tempo td:first-child { overflow-wrap: anywhere }
+
 /* Conta Google do escritório (LigacaoGoogle.tsx): fora do formulário, logo depois dele. */
 .config-google { display: flex; flex-direction: column; gap: 12px; margin-top: 18px }
 .config-google .nota { margin: 0 }

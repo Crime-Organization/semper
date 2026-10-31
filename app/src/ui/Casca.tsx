@@ -6,6 +6,8 @@ import { SD } from '../dados';
 import { Avatar } from './Avatar';
 import { Icone } from './Icone';
 import { avisar } from './avisos';
+import { estiloBotao } from './base';
+import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { useSessao } from './sessao';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
 import { PAPEIS } from './util';
@@ -74,16 +76,18 @@ export function Casca({ children }: { children: ReactNode }) {
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>
+        <CronometrosAtivos />
         <div className="side-rodape">
           <div className="usuario">
-            <Avatar p={p} tam={32} />
+            {/* A bolinha vem da equipe, que traz a foto. */}
+            <Avatar p={ctx.equipe.find(m => m.id === p.id) ?? p} tam={32} />
             <div style={{ minWidth: 0 }}>
               <b>{p.nome}</b><span className="arroba">@{p.usuario}</span>
               <span className={'papel' + (p.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[p.papel]}</span>
             </div>
           </div>
           <nav className="nav" aria-label="Conta">
-            <Link to="/inicio/#conta"><Icone nome="conta" /><span>Minha conta</span></Link>
+            <Link to="/minha-conta/"><Icone nome="conta" /><span>Minha conta</span></Link>
             <button type="button" title="Trocar entre automático, claro e escuro" onClick={trocarTema}><Icone nome="tema" /><span>Tema: {TEMAS[tema]}</span></button>
             <button type="button" onClick={sair}><Icone nome="sair" /><span>Sair</span></button>
           </nav>
@@ -92,4 +96,18 @@ export function Casca({ children }: { children: ReactNode }) {
       <main className="conteudo">{children}</main>
     </div>
   </>;
+}
+
+/**
+ * No menu, quando alguma tarefa está com o cronômetro contando (nesta aba ou em outra): quantas e o botão
+ * "Pausar todos", que pausa todas de uma vez.
+ */
+function CronometrosAtivos() {
+  const ativos = Object.values(cronometrosAtivos.usar());
+  if (!ativos.length) return null;
+  const titulos = ativos.map(a => a.titulo).join(', ');
+  return <div className="cronometros-ativos" role="status" title={titulos}>
+    <span><Icone nome="relogio" tam={15} /> {ativos.length === 1 ? '1 tarefa contando' : `${ativos.length} tarefas contando`}</span>
+    <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={pausarTodos}>Pausar todos</button>
+  </div>;
 }

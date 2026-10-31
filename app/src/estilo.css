@@ -129,6 +129,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .grade-form .erro-campo { font-size: 13px; color: var(--erro) }
 .grade-form .com-erro input, .grade-form .com-erro select { border-color: var(--erro) }
 @container formulario (max-width: 420px) { .grade-form .grupo-campo { flex-wrap: wrap } .grade-form .grupo-campo .btn { width: 100% } }
+/* Linhas que se acrescentam e se tiram (ui/base/LinhasRepetidas.tsx): os campos de cada linha dividem as colunas
+   como os outros do formulário; o botão de tirar fica no fim da linha. */
+.grade-form .linhas-repetidas { gap: 8px }
+.linhas-repetidas > .rot { font-size: 13px; font-weight: 700; color: var(--text) }
+.linhas-repetidas > .dica { margin: 0; font-size: 13px; color: var(--muted) }
+.linhas-repetidas ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.linhas-repetidas li { display: flex; gap: 8px; align-items: center }
+.linhas-repetidas li > .grade-form { flex: 1; min-width: 0; gap: 8px }
+.linhas-repetidas li > .icone-btn { flex-shrink: 0 }
 
 /* ---------- avisos ---------- */
 .aviso { padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5 }
@@ -175,6 +184,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* ---------- avatares ---------- */
 .avatar { width: var(--av, 28px); height: var(--av, 28px); border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; font-size: calc(var(--av, 28px) * .38); font-weight: 900; letter-spacing: .02em; line-height: 1; user-select: none }
 .avatar.mais { background: var(--line2); color: var(--text) }
+/* Com foto: a imagem já vem redonda e de fundo transparente (AVIF 150×150); o fundo suave aparece só enquanto carrega. */
+.avatar.com-foto { background: var(--soft); overflow: hidden }
+.avatar.com-foto img { display: block; width: 100%; height: 100%; border-radius: 999px; object-fit: cover }
 .avatares { display: inline-flex; align-items: center }
 .avatares .avatar { box-shadow: 0 0 0 2px var(--superficie) }
 .avatares .avatar + .avatar { margin-left: -6px }
@@ -584,3 +596,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   .linha-campo > .btn { flex: 1 }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important } }
+/* No menu, quando alguma tarefa está com o cronômetro contando: quantas e "Pausar todos" (Casca.tsx). */
+.cronometros-ativos { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-tint); color: var(--accent-ink); font-size: 13px; font-weight: 700 }
+.cronometros-ativos > span { display: inline-flex; align-items: center; gap: 6px }

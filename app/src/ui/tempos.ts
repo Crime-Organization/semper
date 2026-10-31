@@ -10,3 +10,10 @@ export const DURACAO_AVISO = { ok: 3.5 * SEGUNDO, comAcao: 8 * SEGUNDO, erro: 6 
 export const ESPERA_AO_DIGITAR = 300;
 /** Excluir em dois cliques: quanto tempo o pedido de confirmação fica valendo. */
 export const PRAZO_PARA_CONFIRMAR = 4 * SEGUNDO;
+
+/** Cronômetro das tarefas: sem mexer por este tempo, aparece "Você ainda está aqui?". */
+export const INATIVIDADE_DO_CRONOMETRO = 10 * MINUTO;
+/** Cronômetro das tarefas: de quanto em quanto tempo o período que está sendo contado é gravado no banco. */
+export const GRAVAR_TEMPO_A_CADA = MINUTO;
+/** Cronômetro das tarefas: de quanto em quanto tempo o relógio do cartão anda e confere a inatividade. */
+export const TIQUE_DO_CRONOMETRO = SEGUNDO;

@@ -64,7 +64,7 @@ export default function ModelosDeLista() {
     <header>
       <p className="olho"><Link to="/demandas/">Demandas</Link></p>
       <h1 className="titulo">Modelos de lista<span className="ponto">.</span></h1>
-      <p className="lead">Listas prontas para usar nas demandas com um clique, em "Adicionar lista". Mudar um modelo não muda as listas já feitas com ele.</p>
+      <p className="lead">Listas prontas para usar nas demandas e nas tarefas com um clique, em "Adicionar lista". Mudar um modelo não muda as listas já feitas com ele.</p>
     </header>
     {!edicao && <div><button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setEdicao({ id: null, nome: '', texto: '' })}>
       <Icone nome="mais" tam={15} /> Novo modelo
@@ -72,7 +72,7 @@ export default function ModelosDeLista() {
     {edicao && !edicao.id && formulario}
     {modelos === null ? <Carregando />
       : typeof modelos === 'string' ? <Aviso tipo="erro">{modelos}</Aviso>
-      : !modelos.length ? <Vazio>Nenhum modelo ainda. Crie o primeiro, ou salve uma lista de uma demanda como modelo.</Vazio>
+      : !modelos.length ? <Vazio>Nenhum modelo ainda. Crie o primeiro, ou salve como modelo uma lista de uma demanda ou de uma tarefa.</Vazio>
       : <ul className="modelos" aria-label="Modelos de lista">{modelos.map(m => edicao?.id === m.id
         ? <li key={m.id}>{formulario}</li>
         : <li key={m.id} aria-label={`Modelo ${m.nome}`}><Cartao className="modelo">

@@ -6,6 +6,9 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados } from './tipos';
+import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
+import { DIA } from '../ui/tempos';
+import { hojeISO } from '../ui/util';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -732,24 +735,124 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
-    describe('Listas das demandas', () => {
+    describe('Meu tempo trabalhado', () => {
+      const novaTarefa = async (titulo: string) => (await SD.tarefaCriar({ titulo, responsavel_id: 'u-master' })).id;
+
+      it('quando a pessoa tem tempo em tarefas no período, então vem cada tarefa com a soma, da maior para a menor, e o que está fora fica de fora', async () => {
+        // Dado
+        const [menor, maior] = [await novaTarefa('Menor ' + marca()), await novaTarefa('Maior ' + marca())];
+        await SD.tempoIniciar(menor, '2030-01-10T13:00:00.000Z', 600);
+        await SD.tempoIniciar(maior, '2030-01-11T13:00:00.000Z', 1200);
+        await SD.tempoIniciar(maior, '2030-01-12T13:00:00.000Z', 300);
+        await SD.tempoIniciar(menor, '2030-02-10T13:00:00.000Z', 999);
+        // Quando
+        const linhas = await SD.tempoPorTarefa('u-master', '2030-01-01', '2030-02-01');
+        // Então
+        expect(linhas.map(l => [l.tarefa_id, l.segundos])).toEqual([[maior, 1500], [menor, 600]]);
+        expect(linhas[0]).toMatchObject({ arquivada: false });
+      });
+
+      it('quando o fim do período é um dia, então esse dia não entra', async () => {
+        // Dado
+        const tarefa = await novaTarefa('Limite ' + marca());
+        await SD.tempoIniciar(tarefa, '2031-03-04T13:00:00.000Z', 600);
+        // Quando
+        const antes = await SD.tempoPorTarefa('u-master', '2031-03-01', '2031-03-04');
+        const comODia = await SD.tempoPorTarefa('u-master', '2031-03-01', '2031-03-05');
+        // Então
+        expect(antes).toEqual([]);
+        expect(comODia.map(l => l.segundos)).toEqual([600]);
+      });
+
+      it('quando um ajuste zera o tempo da tarefa, então ela sai da lista', async () => {
+        // Dado: o ajuste conta no dia em que é feito, então o período contado também é de hoje
+        const tarefa = await novaTarefa('Zerada ' + marca());
+        await SD.tempoIniciar(tarefa, new Date().toISOString(), 300);
+        await SD.tempoAjustar(tarefa, -300, 'Contei por engano');
+        const hoje = hojeISO(), amanha = hojeISO(new Date(Date.now() + DIA));
+        // Quando
+        const linhas = await SD.tempoPorTarefa('u-master', hoje, amanha);
+        // Então
+        expect(linhas.some(l => l.tarefa_id === tarefa)).toBe(false);
+      });
+    });
+
+    describe('Tempo nas tarefas', () => {
+      // Quem está logado é o Mateus (administrador): vê os registros de todos.
+      const novaTarefa = async (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
+        (await SD.tarefaCriar({ titulo: 'Com tempo', responsavel_id: 'u-master', ...extra })).id;
+
+      it('quando o cronômetro grava um período, então ele só cresce e entra no tempo da tarefa', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        // Quando
+        const id = await SD.tempoIniciar(tarefa, new Date().toISOString(), 60);
+        await SD.tempoGravar(id, 300);
+        const diminuir = SD.tempoGravar(id, 100);
+        // Então
+        await expect(diminuir).rejects.toThrow('O tempo contado não diminui: para corrigir, faça um ajuste.');
+        expect(await SD.tempoDaTarefa(tarefa)).toMatchObject({ total: 300, equipe: [{ perfil_id: 'u-master', percentual: 100 }],
+          registros: [{ id, segundos: 300, ajuste: false }] });
+      });
+
+      it('quando a pessoa ajusta o tempo, então precisa de motivo, e o ajuste fica registrado e entra no total', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        await SD.tempoIniciar(tarefa, new Date().toISOString(), 600);
+        // Quando
+        const semMotivo = SD.tempoAjustar(tarefa, -120, '  ');
+        await SD.tempoAjustar(tarefa, -120, 'Contei a mais');
+        // Então
+        await expect(semMotivo).rejects.toThrow('Diga o motivo do ajuste');
+        const tempo = await SD.tempoDaTarefa(tarefa);
+        expect(tempo.total).toBe(480);
+        expect(tempo.registros.find(r => r.ajuste)).toMatchObject({ segundos: -120, motivo: 'Contei a mais' });
+      });
+
+      it('quando a tarefa chega à coluna das concluídas, então ganha a data de conclusão; ao sair, perde', async () => {
+        // Dado
+        const tarefa = await novaTarefa();
+        const colunas = await SD.colunasListar('tarefas');
+        const fim = colunas.find(c => c.marco === 'concluido')!, inicio = colunas.find(c => c.marco === 'inicio')!;
+        // Quando
+        await SD.tarefaMover(tarefa, fim.id, 1);
+        const concluida = (await SD.tarefaObter(tarefa))!.concluida_em;
+        await SD.tarefaMover(tarefa, inicio.id, 1);
+        // Então
+        expect(concluida).toBeTruthy();
+        expect((await SD.tarefaObter(tarefa))!.concluida_em).toBeNull();
+      });
+
+      it('quando a demanda tem tarefas com tempo, então o tempo dela é a soma', async () => {
+        // Dado
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Com tarefas', responsavel_id: 'u-master' });
+        const a = await novaTarefa({ demanda_id: demanda }), b = await novaTarefa({ demanda_id: demanda });
+        // Quando
+        await SD.tempoIniciar(a, new Date().toISOString(), 600);
+        await SD.tempoIniciar(b, new Date().toISOString(), 900);
+        // Então
+        expect(await SD.tempoDaDemanda(demanda)).toBe(1500);
+      });
+    });
+
+    describe('Listas das demandas e das tarefas', () => {
       const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' })).id;
 
       it('quando uma lista é criada com itens, então ela vem no fim da demanda, com os itens na ordem, por fazer', async () => {
         // Dado
         const demanda = await novaDemanda();
-        await SD.listaCriar(demanda, 'Primeira');
+        await SD.listaCriar('demandas', demanda, 'Primeira');
         // Quando
-        await SD.listaCriar(demanda, '  Pessoa jurídica ', ['Atos constitutivos', 'Quadro de sócios']);
+        await SD.listaCriar('demandas', demanda, '  Pessoa jurídica ', ['Atos constitutivos', 'Quadro de sócios']);
         // Então
-        const listas = await SD.listasDaDemanda(demanda);
+        const listas = await SD.listasDoCartao('demandas', demanda);
         expect(listas.map(l => l.nome)).toEqual(['Primeira', 'Pessoa jurídica']);
         expect(listas[1].itens.map(i => [i.texto, i.feito_em])).toEqual([['Atos constitutivos', null], ['Quadro de sócios', null]]);
       });
 
       it('quando um item é marcado, então fica com a hora e quem marcou; desmarcado, perde os dois', async () => {
         // Dado
-        const lista = await SD.listaCriar(await novaDemanda(), 'Documentos');
+        const lista = await SD.listaCriar('demandas', await novaDemanda(), 'Documentos');
         const item = await SD.itemCriar(lista.id, 'Procuração');
         // Quando
         const marcado = await SD.itemAtualizar(item.id, { feito: true });
@@ -763,12 +866,12 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando o item ganha data de entrega e muda de posição, e a lista é renomeada, então voltam assim', async () => {
         // Dado
         const demanda = await novaDemanda();
-        const lista = await SD.listaCriar(demanda, 'Documentos', ['A', 'B']);
+        const lista = await SD.listaCriar('demandas', demanda, 'Documentos', ['A', 'B']);
         // Quando
         await SD.itemAtualizar(lista.itens[0].id, { prazo: '2030-11-10', ordem: 3 });
         await SD.listaAtualizar(lista.id, { nome: 'Documentos do cliente' });
         // Então
-        const [lida] = await SD.listasDaDemanda(demanda);
+        const [lida] = await SD.listasDoCartao('demandas', demanda);
         expect(lida.nome).toBe('Documentos do cliente');
         expect(lida.itens.map(i => [i.texto, i.prazo])).toEqual([['B', null], ['A', '2030-11-10']]);
       });
@@ -776,11 +879,37 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando a lista é excluída, então os itens vão junto', async () => {
         // Dado
         const demanda = await novaDemanda();
-        const lista = await SD.listaCriar(demanda, 'Para apagar', ['Item']);
+        const lista = await SD.listaCriar('demandas', demanda, 'Para apagar', ['Item']);
         // Quando
         await SD.listaExcluir(lista.id);
         // Então
-        expect(await SD.listasDaDemanda(demanda)).toEqual([]);
+        expect(await SD.listasDoCartao('demandas', demanda)).toEqual([]);
+      });
+
+      it('quando uma lista é criada na tarefa, então ela vem só na tarefa, com os itens, e marca como na demanda', async () => {
+        // Dado
+        const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' });
+        const demanda = await novaDemanda();
+        // Quando
+        const lista = await SD.listaCriar('tarefas', tarefa, ' Documentos ', ['Procuração', 'Contrato social']);
+        const marcado = await SD.itemAtualizar(lista.itens[0].id, { feito: true });
+        // Então
+        const [lida] = await SD.listasDoCartao('tarefas', tarefa);
+        expect(lida).toMatchObject({ nome: 'Documentos' });
+        expect(lida.itens.map(i => i.texto)).toEqual(['Procuração', 'Contrato social']);
+        expect(marcado.feito_por).toBe('u-master');
+        expect(await SD.listasDoCartao('demandas', demanda)).toEqual([]);
+      });
+
+      it('quando a tarefa arquivada é excluída, então as listas dela vão junto', async () => {
+        // Dado
+        const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Para excluir', responsavel_id: 'u-master' });
+        await SD.listaCriar('tarefas', tarefa, 'Documentos', ['Procuração']);
+        await SD.tarefasArquivar([tarefa]);
+        // Quando
+        await SD.tarefasExcluir([tarefa]);
+        // Então
+        expect(await SD.listasDoCartao('tarefas', tarefa)).toEqual([]);
       });
     });
 
@@ -822,12 +951,73 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Dado
         const m = await SD.modeloCriar('Modelo ' + marca(), ['Procuração']);
         const { id: demanda } = await SD.demandaCriar({ titulo: 'Com modelo', responsavel_id: 'u-master' });
-        await SD.listaCriar(demanda, m.nome, m.itens);
+        await SD.listaCriar('demandas', demanda, m.nome, m.itens);
         // Quando
         await SD.modeloAtualizar(m.id, { itens: ['Outra coisa'] });
         // Então
-        const [lista] = await SD.listasDaDemanda(demanda);
+        const [lista] = await SD.listasDoCartao('demandas', demanda);
         expect(lista.itens.map(i => i.texto)).toEqual(['Procuração']);
+      });
+    });
+
+    describe('Perfil profissional', () => {
+      it('quando ninguém preencheu o perfil, então ele vem vazio e fora do site', async () => {
+        // Quando
+        const perfil = await SD.perfilProfissional('u-bruno');
+        // Então
+        expect(perfil).toMatchObject({ perfil_id: 'u-bruno', cargo: '', oab: [], no_site: false, atualizado_em: null });
+      });
+
+      it('quando o perfil é salvo e salvo de novo, então volta como foi gravado por último, limpo', async () => {
+        // Dado
+        const campos = camposDoPerfil(perfilVazio('u-ana'));
+        await SD.perfilProfissionalSalvar('u-ana', { ...campos, cargo: 'Advogada' });
+        // Quando
+        await SD.perfilProfissionalSalvar('u-ana', { ...campos, cargo: ' Sócia ', oab: [{ numero: '123.456', uf: 'mg' }], areas: ['Marcas'], no_site: true, ordem_no_site: 2 });
+        // Então
+        const lido = await SD.perfilProfissional('u-ana');
+        expect(lido).toMatchObject({ cargo: 'Sócia', oab: [{ numero: '123.456', uf: 'MG' }], areas: ['Marcas'], no_site: true, ordem_no_site: 2 });
+        expect(lido.atualizado_em).not.toBeNull();
+      });
+
+      it('quando um link do perfil não começa com http, então salvar é recusado', async () => {
+        // Quando
+        const salvar = SD.perfilProfissionalSalvar('u-ana', { ...camposDoPerfil(perfilVazio('u-ana')), linkedin: 'javascript:alert(1)' });
+        // Então
+        await expect(salvar).rejects.toThrow('Cole o link completo, começando com https://.');
+      });
+    });
+
+    describe('Foto do perfil', () => {
+      const avif = (texto: string) => new Blob([texto], { type: 'image/avif' });
+
+      it('quando alguém ainda não tem foto, então não há foto e a bolinha fica sem ela', async () => {
+        // Quando
+        const foto = await SD.fotoDoPerfil('u-bruno');
+        // Então
+        expect(foto).toBeNull();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-bruno')?.foto ?? null).toBeNull();
+      });
+
+      it('quando a foto é salva, então vêm os dois arquivos, e a bolinha da pessoa passa a ter a pequena', async () => {
+        // Quando
+        await SD.fotoSalvar('u-ana', avif('grande'), avif('pequena'));
+        // Então
+        const foto = await SD.fotoDoPerfil('u-ana');
+        expect(foto?.grande).toBeTruthy();
+        expect(foto?.pequena).toBeTruthy();
+        expect(foto?.em).toBeTruthy();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-ana')?.foto).toBe(foto?.pequena);
+      });
+
+      it('quando a foto é tirada, então os arquivos somem e a bolinha volta às iniciais', async () => {
+        // Dado
+        await SD.fotoSalvar('u-ana', avif('grande'), avif('pequena'));
+        // Quando
+        await SD.fotoRemover('u-ana');
+        // Então
+        expect(await SD.fotoDoPerfil('u-ana')).toBeNull();
+        expect((await SD.contexto(true))?.equipe.find(m => m.id === 'u-ana')?.foto ?? null).toBeNull();
       });
     });
 

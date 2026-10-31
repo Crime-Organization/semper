@@ -2,18 +2,22 @@
 // As telas usam só o objeto SD (veja dados/index.ts); o contrato está em dados/tipos.ts.
 import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
+import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
 import { telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { caminhoDaFoto } from '../regras/foto';
+import { inicioDoDia } from '../regras/meuTempo';
+import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDaDemanda, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
-// Só as duas partes do Supabase que o SEMPER usa (login e banco), montadas como o supabase-js faz:
+// Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
 // logado continua logado.
 const URL_BASE = MARCA.supabaseUrl.replace(/\/+$/, '');
@@ -37,6 +41,16 @@ const comSessao: typeof fetch = async (entrada, init) => {
 };
 const db = new PostgrestClient(URL_BASE + '/rest/v1', { fetch: comSessao });
 const sb = { auth, from: (tabela: string) => db.from(tabela), rpc: (nome: string, args?: Record<string, unknown>) => db.rpc(nome, args) };
+/** A pasta privada das fotos da equipe (supabase/migrations/20261030150000_foto_do_perfil.sql). */
+const fotos = new StorageClient(URL_BASE + '/storage/v1', {}, comSessao).from('fotos-da-equipe');
+/** Por quanto tempo vale o link de uma foto, em segundos: um dia (a cada entrada, as bolinhas pedem links novos). */
+const LINK_DA_FOTO = 24 * 60 * 60;
+/** Links das fotos, na ordem dos caminhos (null onde não houver). */
+async function linksDasFotos(caminhos: string[]): Promise<(string | null)[]> {
+  if (!caminhos.length) return [];
+  const { data } = await rodar(fotos.createSignedUrls(caminhos, LINK_DA_FOTO));
+  return (data as { signedUrl: string | null }[]).map(l => l.signedUrl);
+}
 let ctx: Contexto | null = null;
 
 // Resposta do Supabase: devolve os dados ou lança o erro já traduzido. O banco responde em formato
@@ -165,7 +179,7 @@ const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, particip
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
-  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico)';
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
@@ -186,7 +200,12 @@ const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, 
 const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(TAREFAS_LIGADAS);
 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
-const CAMPOS_LISTA_DEMANDA = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
+const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas, bio_curta, biografia, formacao, idiomas, experiencia, associacoes, '
+  + 'publicacoes, lattes, email_publico, telefone_publico, linkedin, redes, no_site, ordem_no_site, atualizado_em';
+/** A coluna de demanda_listas que liga a lista ao cartão dela. */
+const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
 const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
@@ -257,10 +276,16 @@ export const SD: Dados = {
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
     ]);
+    // A foto pequena de quem tem foto, para as bolinhas (um pedido só para a equipe toda).
+    const membros = (equipe || []) as (Membro & { perfil_profissional: { foto_em: string | null } | { foto_em: string | null }[] | null })[];
+    const fotoEm = (m: typeof membros[number]) => [m.perfil_profissional].flat()[0]?.foto_em ?? null;
+    const comFoto = membros.filter(fotoEm);
+    const links = await linksDasFotos(comFoto.map(m => caminhoDaFoto(perfil.escritorio_id, m.id, FOTO_PEQUENA))).catch(() => []);
+    const fotoDe = new Map(comFoto.map((m, i) => [m.id, links[i] ?? null]));
     ctx = {
-      usuario: s.user, perfil, escritorio, equipe: equipe || [],
+      usuario: s.user, perfil, escritorio, equipe: membros.map(({ perfil_profissional: _p, ...m }) => ({ ...m, foto: fotoDe.get(m.id) ?? null })),
       ehAdmin: ['master', 'admin'].includes(perfil.papel), ehMaster: perfil.papel === 'master'
     };
     return ctx;
@@ -614,17 +639,83 @@ export const SD: Dados = {
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
 
-  // ---------- listas das demandas ----------
-  async listasDaDemanda(demandaId) {
-    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_DEMANDA}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
-      .eq('demanda_id', demandaId).order('ordem').order('criado_em'));
-    return (data as ListaDaDemanda[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
+  // ---------- tempo nas tarefas ----------
+  async tempoIniciar(tarefaId, inicio, segundos) {
+    const { data } = await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, inicio, segundos, perfil_id: uid() }).select('id').single());
+    return data.id;
   },
-  // No fim da demanda: depois da maior posição que já existe. Os itens vêm na ordem dada.
-  async listaCriar(demandaId, nome, itens = []) {
-    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq('demanda_id', demandaId).order('ordem', { ascending: false }).limit(1));
-    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ demanda_id: demandaId, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
-      .select(CAMPOS_LISTA_DEMANDA).single());
+  async tempoGravar(id, segundos) { await rodar(sb.from('tarefa_tempos').update({ segundos }).eq('id', id)); },
+  async tempoAjustar(tarefaId, segundos, motivo) {
+    await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, segundos, ajuste: true, motivo: motivo.trim(), perfil_id: uid() }));
+  },
+  // Os registros que a regra de leitura deixa ver (os da pessoa; os de todos, para administradores) e o resumo da
+  // equipe, que o banco calcula sem abrir as durações de cada um.
+  async tempoDaTarefa(tarefaId) {
+    const [{ data: registros }, { data: resumo }] = await Promise.all([
+      rodar(sb.from('tarefa_tempos').select(CAMPOS_TEMPO).eq('tarefa_id', tarefaId).order('inicio')),
+      rodar(sb.rpc('resumo_do_tempo', { p_tarefa: tarefaId }))
+    ]);
+    const linhas = resumo as { perfil_id: string | null; percentual: number; total: number }[];
+    return { registros, equipe: linhas.map(l => ({ perfil_id: l.perfil_id, percentual: Number(l.percentual) })), total: Number(linhas[0]?.total ?? 0) };
+  },
+  async tempoDaDemanda(demandaId) {
+    const { data } = await rodar(sb.rpc('tempo_da_demanda', { p_demanda: demandaId }));
+    return Number(data ?? 0);
+  },
+  // Os dias viram instantes no fuso do aparelho: "esta semana" é a semana de quem está olhando.
+  async tempoPorTarefa(perfilId, de, ate) {
+    const { data } = await rodar(sb.rpc('tempo_por_tarefa', { p_perfil: perfilId, p_de: inicioDoDia(de), p_ate: inicioDoDia(ate) }));
+    return (data as TempoNaTarefaDoPeriodo[]).map(l => ({ ...l, segundos: Number(l.segundos) }));
+  },
+
+  // ---------- perfil profissional ----------
+  async perfilProfissional(perfilId) {
+    const { data } = await rodar(sb.from('perfil_profissional').select(CAMPOS_PERFIL_PROFISSIONAL).eq('perfil_id', perfilId));
+    return data[0] ?? perfilVazio(perfilId);
+  },
+  // Altera se já existe; se não, cria. (O upsert do Supabase mandaria também perfil_id, que ninguém altera.)
+  async perfilProfissionalSalvar(perfilId, campos) {
+    const { data } = await rodar(sb.from('perfil_profissional').update(campos).eq('perfil_id', perfilId).select('perfil_id'));
+    if (!data.length) await rodar(sb.from('perfil_profissional').insert({ perfil_id: perfilId, ...campos }));
+  },
+
+  // ---------- foto do perfil ----------
+  async fotoDoPerfil(perfilId) {
+    const { data } = await rodar(sb.from('perfil_profissional').select('foto_em').eq('perfil_id', perfilId));
+    const em = data[0]?.foto_em;
+    if (!em || !ctx?.perfil) return null;
+    const [grande, pequena] = await linksDasFotos([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(ctx!.perfil!.escritorio_id, perfilId, lado)));
+    return grande && pequena ? { grande, pequena, em } : null;
+  },
+  // Os dois arquivos primeiro; a data no perfil só depois que os dois chegaram.
+  async fotoSalvar(perfilId, grande, pequena) {
+    if (!ctx?.perfil) throw new Error('Entre de novo para enviar a foto.');
+    const opcoes = { contentType: 'image/avif', upsert: true, cacheControl: '3600' };
+    for (const [lado, arquivo] of [[FOTO_GRANDE, grande], [FOTO_PEQUENA, pequena]] as const) {
+      await rodar(fotos.upload(caminhoDaFoto(ctx.perfil.escritorio_id, perfilId, lado), arquivo, opcoes));
+    }
+    const foto_em = new Date().toISOString();
+    const { data } = await rodar(sb.from('perfil_profissional').update({ foto_em }).eq('perfil_id', perfilId).select('perfil_id'));
+    if (!data.length) await rodar(sb.from('perfil_profissional').insert({ perfil_id: perfilId, foto_em }));
+  },
+  async fotoRemover(perfilId) {
+    if (!ctx?.perfil) throw new Error('Entre de novo para tirar a foto.');
+    await rodar(sb.from('perfil_profissional').update({ foto_em: null }).eq('perfil_id', perfilId));
+    await rodar(fotos.remove([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(ctx!.perfil!.escritorio_id, perfilId, lado))));
+  },
+
+  // ---------- listas das demandas e das tarefas ----------
+  async listasDoCartao(modulo, id) {
+    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_CARTAO}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
+      .eq(DONO_DA_LISTA[modulo], id).order('ordem').order('criado_em'));
+    return (data as ListaDoCartao[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
+  },
+  // No fim das listas do cartão: depois da maior posição que já existe. Os itens vêm na ordem dada.
+  async listaCriar(modulo, id, nome, itens = []) {
+    const dono = DONO_DA_LISTA[modulo];
+    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq(dono, id).order('ordem', { ascending: false }).limit(1));
+    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ [dono]: id, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
+      .select(CAMPOS_LISTA_CARTAO).single());
     const { data: criados } = itens.length
       ? await rodar(sb.from('demanda_lista_itens').insert(itens.map((texto, i) => ({ lista_id: lista.id, texto, ordem: i + 1 }))).select(CAMPOS_ITEM_LISTA))
       : { data: [] };

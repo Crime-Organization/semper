@@ -30,6 +30,8 @@ export interface Membro {
   ativo?: boolean;
   cor?: string | null;
   pessoa_id?: string | null;
+  /** Link da foto pequena (150×150, redonda), para as bolinhas; sem foto, as bolinhas mostram as iniciais. */
+  foto?: string | null;
 }
 
 /** Dados da instituição: cada escritório tem os seus, editados pelo administrador em Configurações. */
@@ -324,6 +326,8 @@ export interface Tarefa {
   criado_em: string;
   atualizado_por: string | null;
   atualizado_em: string;
+  /** Quando a tarefa chegou à coluna das concluídas (null: não está concluída). */
+  concluida_em: string | null;
   pessoas: PessoaResumida[];
   /** A demanda, se quem vê a tarefa também pode abri-la; senão null (e fica só o código). */
   demanda: DemandaDaTarefa | null;
@@ -504,18 +508,66 @@ export interface DadosTarefas {
   tarefasDoContrato(contratoId: string): Promise<TarefaLigada[]>;
 }
 
-/** Item de uma lista da demanda: feito_em e feito_por são dados pelo banco ao marcar. */
-export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
-/** Lista da demanda (como as do Trello), com os itens na ordem. */
-export interface ListaDaDemanda { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
+/** Um registro de tempo de alguém numa tarefa: contado pelo cronômetro, ou ajustado à mão (com motivo). */
+export interface RegistroDeTempo {
+  id: number;
+  perfil_id: string | null;   // null: o usuário foi removido do sistema
+  /** Quando o período começou a ser contado (no ajuste, quando foi feito). */
+  inicio: string;
+  segundos: number;           // no ajuste, pode ser negativo
+  ajuste: boolean;
+  motivo: string | null;
+}
+/** O tempo de uma tarefa, como quem pergunta pode ver. */
+export interface TempoDaTarefa {
+  /** Os registros que a pessoa pode ver: os dela; os de todos, para administradores. */
+  registros: RegistroDeTempo[];
+  /** A parte de cada um no total da equipe, em %, de quem tem tempo na tarefa (sem as durações). */
+  equipe: { perfil_id: string | null; percentual: number }[];
+  /** O total da equipe, em segundos. */
+  total: number;
+}
+/** O tempo de uma pessoa numa tarefa, num período ("Meu tempo trabalhado"). */
+export interface TempoNaTarefaDoPeriodo {
+  tarefa_id: string; codigo: string; titulo: string; demanda_codigo: string | null; arquivada: boolean;
+  /** A soma dos períodos contados e dos ajustes, nunca negativa. */
+  segundos: number;
+}
 
-/** Listas das demandas (banco/018_listas_das_demandas.sql): quem vê a demanda vê e mexe nas listas dela. */
+/** Tempo nas tarefas (supabase/migrations/20261030120000_tempo_nas_tarefas.sql): o cronômetro e os ajustes. */
+export interface DadosTempo {
+  /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
+  tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;
+  /** Grava os segundos do período (só cresce). */
+  tempoGravar(id: number, segundos: number): Promise<void>;
+  /** Ajuste à mão, para mais ou para menos, sempre com motivo (fica registrado como ajuste). */
+  tempoAjustar(tarefaId: string, segundos: number, motivo: string): Promise<void>;
+  tempoDaTarefa(tarefaId: string): Promise<TempoDaTarefa>;
+  /** A soma do tempo das tarefas da demanda (o esforço aproximado dela), para quem vê a demanda. */
+  tempoDaDemanda(demandaId: string): Promise<number>;
+  /**
+   * O tempo de uma pessoa em cada tarefa, entre duas datas (AAAA-MM-DD; "ate" não entra), da maior para a menor.
+   * Cada período conta no dia em que começou; o ajuste, no dia em que foi feito. O próprio tempo, ou o de qualquer um
+   * para administradores (para os outros, vem vazio). Só as tarefas que quem pede vê.
+   */
+  tempoPorTarefa(perfilId: string, de: string, ate: string): Promise<TempoNaTarefaDoPeriodo[]>;
+}
+
+/** Item de uma lista: feito_em e feito_por são dados pelo banco ao marcar. */
+export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
+/** Cartões que têm listas. */
+export type CartaoComListas = Extract<Modulo, 'demandas' | 'tarefas'>;
+/** Lista de uma demanda ou de uma tarefa (como as do Trello), com os itens na ordem. */
+export interface ListaDoCartao { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
+
+/** Listas das demandas e das tarefas (banco/018_listas_das_demandas.sql e supabase/migrations/20261030130000_listas_nas_tarefas.sql):
+ * quem vê a demanda ou a tarefa vê e mexe nas listas dela. */
 export interface DadosListas {
-  /** As listas da demanda, na ordem, cada uma com os itens na ordem. */
-  listasDaDemanda(demandaId: string): Promise<ListaDaDemanda[]>;
-  /** Cria a lista no fim da demanda, já com os itens (na ordem dada), se vierem. */
-  listaCriar(demandaId: string, nome: string, itens?: string[]): Promise<ListaDaDemanda>;
-  listaAtualizar(id: string, campos: Partial<Pick<ListaDaDemanda, 'nome' | 'ordem'>>): Promise<void>;
+  /** As listas da demanda ou da tarefa, na ordem, cada uma com os itens na ordem. */
+  listasDoCartao(modulo: CartaoComListas, id: string): Promise<ListaDoCartao[]>;
+  /** Cria a lista no fim das listas do cartão, já com os itens (na ordem dada), se vierem. */
+  listaCriar(modulo: CartaoComListas, id: string, nome: string, itens?: string[]): Promise<ListaDoCartao>;
+  listaAtualizar(id: string, campos: Partial<Pick<ListaDoCartao, 'nome' | 'ordem'>>): Promise<void>;
   listaExcluir(id: string): Promise<void>;
   /** Cria o item no fim da lista. */
   itemCriar(listaId: string, texto: string): Promise<ItemDaLista>;
@@ -524,7 +576,7 @@ export interface DadosListas {
   itemExcluir(id: string): Promise<void>;
 }
 
-/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda. */
+/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda ou a tarefa. */
 export interface ModeloDeLista { id: string; nome: string; itens: string[]; criado_por: string | null; atualizado_em: string }
 
 /** Modelos de lista (banco/019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
@@ -534,6 +586,57 @@ export interface DadosModelos {
   modeloCriar(nome: string, itens: string[]): Promise<ModeloDeLista>;
   modeloAtualizar(id: string, campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>): Promise<void>;
   modeloExcluir(id: string): Promise<void>;
+}
+
+/** Inscrição na OAB: o número e a seccional (UF). */
+export interface InscricaoOab { numero: string; uf: string }
+/** Uma formação: curso, instituição e ano (ou período). */
+export interface Formacao { curso: string; instituicao: string; ano: string }
+/** Uma experiência: cargo, onde e o período. */
+export interface Experiencia { cargo: string; lugar: string; periodo: string }
+/** Uma publicação: título, onde saiu, ano e o link (opcional). */
+export interface Publicacao { titulo: string; onde: string; ano: string; link: string }
+/** Uma rede social além do LinkedIn (ex.: Instagram) e o link. */
+export interface RedeSocial { nome: string; link: string }
+/**
+ * Perfil profissional de alguém da equipe: a base das páginas da equipe no site do escritório (o CMS), do currículo
+ * e da importação do Lattes. Textos vazios são "". "Aparecer no site" e a ordem, só administradores mudam.
+ */
+export interface PerfilProfissional {
+  perfil_id: string;
+  nome_exibicao: string; cargo: string;
+  oab: InscricaoOab[]; areas: string[];
+  bio_curta: string; biografia: string;
+  formacao: Formacao[]; idiomas: string[];
+  experiencia: Experiencia[]; associacoes: string[];
+  publicacoes: Publicacao[]; lattes: string;
+  email_publico: string; telefone_publico: string; linkedin: string; redes: RedeSocial[];
+  no_site: boolean; ordem_no_site: number | null;
+  /** Quando foi salvo pela última vez (null: ainda não foi preenchido). */
+  atualizado_em: string | null;
+}
+/** O que se grava do perfil: tudo, menos de quem é e a data. */
+export type CamposDoPerfil = Omit<PerfilProfissional, 'perfil_id' | 'atualizado_em'>;
+
+/** Perfis profissionais (supabase/migrations/20261030140000_perfil_profissional.sql): a equipe vê os do escritório. */
+export interface DadosPerfilProfissional {
+  /** O perfil de alguém da equipe; vazio (perfilVazio em regras/perfilProfissional.ts) se ainda não foi preenchido. */
+  perfilProfissional(perfilId: string): Promise<PerfilProfissional>;
+  /** Grava o próprio perfil ou, para administradores, o de alguém da equipe. "Aparecer no site" e a ordem, só administradores. */
+  perfilProfissionalSalvar(perfilId: string, campos: CamposDoPerfil): Promise<void>;
+}
+
+/** A foto do perfil: os links dos dois AVIF redondos (valem por pouco tempo) e quando ela foi trocada. */
+export interface FotoDoPerfil { grande: string; pequena: string; em: string }
+
+/** Foto do perfil (supabase/migrations/20261030150000_foto_do_perfil.sql): pasta privada, só a equipe do escritório vê. */
+export interface DadosFotos {
+  /** A foto de alguém da equipe, ou null se ainda não tem. */
+  fotoDoPerfil(perfilId: string): Promise<FotoDoPerfil | null>;
+  /** Grava a própria foto ou, para administradores, a de alguém da equipe: os dois AVIF já redondos (1000 e 150). */
+  fotoSalvar(perfilId: string, grande: Blob, pequena: Blob): Promise<void>;
+  /** Tira a foto: apaga os dois arquivos, e as bolinhas voltam às iniciais. */
+  fotoRemover(perfilId: string): Promise<void>;
 }
 
 /** A conta Google ligada ao escritório (supabase/migrations/20261031120000_ligacao_google.sql). Nunca traz a autorização. */
@@ -609,4 +712,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosLigacoes {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes {}
