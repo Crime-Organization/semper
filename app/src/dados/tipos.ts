@@ -111,15 +111,27 @@ export interface Pessoa {
   criado_em: string;
   atualizado_por: string | null;
   atualizado_em: string;
+  /** Importação que criou o cadastro (Pessoas > Importar pessoas); null = cadastrado no SEMPER. Só o banco grava. */
+  importacao_id: string | null;
+  /** Código de origem do cadastro importado ("site-12"): importar o mesmo arquivo de novo não duplica. Só o banco grava. */
+  referencia: string | null;
+  observacoes: string | null;
+  /** O que falta resolver no cadastro; lista vazia = nada pendente. */
+  pendencias: Pendencia[];
   resp: { perfil_id: string }[];
 }
 
+/** O que falta resolver num cadastro (importado). Os mesmos valores da regra "check" de pessoas.pendencias no banco. */
+export type Pendencia = 'documento_invalido' | 'conferir';
+
 /** Campos que a tela de cadastro grava (o resto é do banco). */
-export type DadosPessoa = Partial<Omit<Pessoa, 'id' | 'codigo' | 'resp' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em'>>;
+export type DadosPessoa = Partial<Omit<Pessoa, 'id' | 'codigo' | 'resp' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em'
+  | 'importacao_id' | 'referencia'>>;
 
 /** Linha das listagens (tabela, kanban, início). */
 export type PessoaLista = Pick<Pessoa, 'id' | 'codigo' | 'tipo' | 'nome' | 'nome_fantasia' | 'documento' | 'telefones' | 'emails'
-  | 'municipio' | 'uf' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'resp'>;
+  | 'municipio' | 'uf' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'resp'
+  | 'pendencias' | 'importacao_id'>;
 
 /** Ordem das listas de qualquer módulo: "manual" é a do quadro (arrastando os cartões); as outras valem para quadro e tabela. */
 export type Ordem = 'manual' | 'nome' | 'nome_desc' | 'novos' | 'antigos' | 'recentes';
@@ -131,10 +143,14 @@ export interface FiltroPessoas {
   tipo?: string;
   responsavel?: string;
   situacao?: 'ativas' | 'arquivadas';
+  /** Só as importadas ou só as com pendência. */
+  marca?: MarcaPessoas;
   ordem?: Ordem;
   pagina?: number;
   porPagina?: number;
 }
+/** Marcas do filtro de Pessoas: criadas por uma importação, ou com alguma pendência. */
+export type MarcaPessoas = 'importadas' | 'pendentes';
 
 export interface Pagina<T> { linhas: T[]; total: number }
 
@@ -367,7 +383,8 @@ export interface Convite { id: string; email: string; nome: string; papel: Papel
 export type ConviteCriado = Convite & { codigo?: string };
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number } | null; feito_por: string | null; em: string;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number } | null;
+  feito_por: string | null; em: string;
 }
 
 export interface Exclusao { excluidas: number; naoExcluidas: number; motivo: string }
@@ -659,6 +676,50 @@ export interface DadosLigacoes {
   ligacaoGoogleDesligar(): Promise<void>;
 }
 
+/** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */
+export interface ItemImportacao {
+  /** Número da linha no arquivo (para as mensagens de erro). */
+  linha: number;
+  referencia: string | null;
+  /** Cadastro que já existe e vai ser completado; null = pessoa nova. */
+  existente_id: string | null;
+  /** Pessoa nova: o cadastro todo. Existente: só o que completa (completarVazios). */
+  dados: DadosPessoa;
+  /** Data antiga de cadastro (ISO); null = agora. Só vale para pessoa nova; no futuro ou antes de 1900, o banco usa agora. */
+  criado_em: string | null;
+  /** Ids de perfil dos responsáveis a acrescentar (nenhum é tirado). */
+  responsaveis: string[];
+  /** Pessoa nova: a observação toda. Existente: o texto a ACRESCENTAR ao que já está lá (null = nada novo). */
+  observacoes: string | null;
+  /** Pessoa nova: as pendências. Existente: as que se juntam às que já estão lá. */
+  pendencias: Pendencia[];
+}
+/** O que um lote gravou: quantas pessoas novas, quantas completadas e o cadastro de cada linha. */
+export interface ResultadoLote { criadas: number; completadas: number; ids: { linha: number; id: string }[] }
+/** Uma importação (tabela importacoes): quem fez, quando e quantas pessoas. Criadas e incompletas o banco conta ao concluir. */
+export interface Importacao {
+  id: string; descricao: string; arquivo: string | null; criadas: number; completadas: number; incompletas: number;
+  feito_por: string | null; iniciada_em: string; concluida_em: string | null;
+}
+
+/** Importação de pessoas de um arquivo CSV (supabase/migrations/20261031200000_importar_pessoas.sql). Só administradores. */
+export interface DadosImportacao {
+  /** Cadastros completos (com os responsáveis), inclusive arquivados, achados pelos CPF/CNPJ ou pelas referências do arquivo. */
+  pessoasParaImportar(chaves: { documentos: string[]; referencias: string[] }): Promise<Pessoa[]>;
+  /** Abre a importação; devolve o id dela. A descrição fica só na importação (não vai ao registro de ações): só contagens, sem dados pessoais. */
+  importacaoIniciar(descricao: string, arquivo: string | null): Promise<string>;
+  /**
+   * Grava um lote (até LOTE_MAXIMO_DA_IMPORTACAO linhas): tudo ou nada. Se uma linha falha, nada do lote entra, e o
+   * erro diz só o número da linha e o motivo ("Linha 12: já existe um cadastro com este CPF/CNPJ ou esta referência.").
+   */
+  pessoasImportar(importacaoId: string, lote: ItemImportacao[]): Promise<ResultadoLote>;
+  /**
+   * Fecha a importação (uma vez só) e grava a linha-resumo no registro de ações, só com números. Criadas e incompletas
+   * o banco conta; completadas é o que o site informa (a soma dos lotes).
+   */
+  importacaoConcluir(importacaoId: string, completadas: number): Promise<Importacao>;
+}
+
 /** Colunas dos quadros (kanban). */
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
@@ -712,4 +773,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao {}

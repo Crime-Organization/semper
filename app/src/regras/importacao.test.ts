@@ -1,16 +1,17 @@
 // Testes da importação de pessoas por arquivo CSV. Padrão Dado / Quando / Então: veja app/TESTES.md.
 // Só dados fictícios.
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { Membro } from '../dados/tipos';
+import type { Membro, Pessoa } from '../dados/tipos';
 import { TAMANHO_OBSERVACOES, TAMANHO_PESSOA, TAMANHO_REFERENCIA } from '../dados/limites';
-import { CAMPOS } from './pessoa';
+import { CAMPOS, ENTIDADES, naturezaDaEntidade } from './pessoa';
 import { escreverCSV, lerCSV } from './csv';
 import {
   acharResponsavel, classificar, COLUNAS_IMPORTACAO, completarVazios, DECISOES, DICA_ARQUIVADA, emLotes, juntarObservacoes,
   juntarResponsaveis, lerImportacao, modeloImportacao, NOME_DO_MODELO, nomesDeResponsaveis, normalizarLinha, opcoesDaLinha,
   PENDENCIAS, planejar, REFERENCIA_DO_EXEMPLO, resumir, ROTULO_DECISAO, textoDaObservacao,
   type ChaveImportacao, type Classificacao, type ContextoImportacao, type Decisao, type MapaResponsaveis,
-  type PessoaExistente, type PessoaImportada
+  type PessoaImportada
 } from './importacao';
 
 const CTX: ContextoImportacao = { hoje: '2026-10-31', lgpdPadrao: 'contrato' };
@@ -24,7 +25,7 @@ const avisos = (p: PessoaImportada, campo?: ChaveImportacao) => p.problemas.filt
 const erros = (p: PessoaImportada) => p.problemas.filter(x => x.gravidade === 'erro');
 
 /** Um cadastro que já existe, com tudo vazio menos o que o teste passar. */
-function existente(extra: Partial<PessoaExistente> = {}): PessoaExistente {
+function existente(extra: Partial<Pessoa> = {}): Pessoa {
   return {
     id: 'p-1', codigo: '1', tipo: 'pf', nome: 'MARIA EXEMPLO DA SILVA', genero: null, nacionalidade: null, profissao: null,
     estado_civil: null, rg: null, rg_expedicao: null, nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null,
@@ -32,7 +33,7 @@ function existente(extra: Partial<PessoaExistente> = {}): PessoaExistente {
     documento: CPF, cep: null, logradouro: null, numero: null, complemento: null, bairro: null, municipio: null, uf: null,
     telefones: [], emails: [], lgpd_base: 'contrato', lgpd_consentimento: null, etapa_id: null, etapa_ordem: null,
     arquivado_em: null, arquivado_por: null, criado_por: 'u-master', criado_em: '2020-01-01T12:00:00.000Z', atualizado_por: null,
-    atualizado_em: '2020-01-01T12:00:00.000Z', resp: [], referencia: null, observacoes: null, pendencias: [], ...extra
+    atualizado_em: '2020-01-01T12:00:00.000Z', resp: [], importacao_id: null, referencia: null, observacoes: null, pendencias: [], ...extra
   };
 }
 
@@ -724,6 +725,20 @@ describe('Completar um cadastro que já existe', () => {
     expect(mudancas).toEqual({});
   });
 
+  it('quando a lista de naturezas do banco (privado.natureza_da_entidade) é lida, então ela é a mesma de ENTIDADES', () => {
+    // Dado: a lista que o banco usa para completar o tipo de entidade, tirada da migração
+    const sql = readFileSync(new URL('../../../supabase/migrations/20261031200000_importar_pessoas.sql', import.meta.url), 'utf8');
+    const bloco = sql.split('create function privado.natureza_da_entidade')[1].split('$$;')[0];
+    const doBanco = [...bloco.matchAll(/\('(\w+)', array\[([^\]]+)\]\)/g)]
+      .flatMap(([, natureza, nomes]) => [...nomes.matchAll(/'((?:[^']|'')+)'/g)].map(([, nome]): [string, string] => [nome.replace(/''/g, "'"), natureza]));
+    // Quando
+    const naturezaNoSite = doBanco.map(([nome]) => naturezaDaEntidade(nome));
+    // Então: cada nome do banco tem a natureza que o site dá, e todo tipo de entidade da lista está lá
+    expect(naturezaNoSite).toEqual(doBanco.map(([, natureza]) => natureza));
+    const nomesDoBanco = new Set(doBanco.map(([nome]) => nome));
+    expect(Object.values(ENTIDADES).flat().filter(nome => !nomesDoBanco.has(nome))).toEqual([]);
+  });
+
   it('quando o cadastro não tem base legal, então ela entra com a data do consentimento', () => {
     // Dado
     const atual = existente({ lgpd_base: null });
@@ -890,7 +905,7 @@ describe('Classificar as linhas', () => {
 });
 
 describe('Planejar a gravação', () => {
-  const planejarTudo = (linhas: PessoaImportada[], existentes: PessoaExistente[], decisoes: Record<number, Decisao> = {}) =>
+  const planejarTudo = (linhas: PessoaImportada[], existentes: Pessoa[], decisoes: Record<number, Decisao> = {}) =>
     planejar(linhas, classificar(linhas, existentes, MAPA), decisoes, MAPA);
 
   it('quando a linha é nova, então o item leva o cadastro, a data antiga, os responsáveis ligados, a observação e as pendências', () => {

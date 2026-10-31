@@ -1,7 +1,7 @@
 // Peças básicas do SEMPER (o design system em código; veja DESIGN.md). Cada uma gera o mesmo HTML e as mesmas
 // classes que as telas já usam, com as cores e os tamanhos de estilo.css: trocar a marcação de uma tela por elas
 // não muda a aparência. Comportamento (ocupado, dois cliques) fica em ../Botoes.tsx, que aceita o mesmo estilo.
-import { useId, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
+import { useId, type ComponentProps, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { estiloBotao, type EstiloBotao } from './botao';
 
@@ -106,4 +106,63 @@ export function Carregando({ children = 'Carregando…' }: { children?: ReactNod
 /** Lista vazia: o que aparece quando não há nada para mostrar (e, de preferência, como acrescentar o primeiro). */
 export function Vazio({ children }: { children: ReactNode }) {
   return <div className="vazio">{children}</div>;
+}
+
+export interface Aba<T extends string> {
+  id: T;
+  rotulo: ReactNode;
+  /** Quantos itens a aba tem (ex.: "Novos 120"); fica num selo ao lado do rótulo. */
+  contador?: number;
+}
+/** Setas, Home e End levam de uma aba a outra (a aba escolhida já é mostrada), como pede o padrão de abas da WAI-ARIA. */
+const TECLAS_DAS_ABAS: Record<string, (atual: number, quantas: number) => number> = {
+  ArrowRight: (atual, quantas) => (atual + 1) % quantas,
+  ArrowLeft: (atual, quantas) => (atual - 1 + quantas) % quantas,
+  Home: () => 0,
+  End: (_atual, quantas) => quantas - 1
+};
+interface PropsAbas<T extends string> {
+  /** Nome do grupo de abas, para o leitor de tela (ex.: "Conferência"). */
+  rotulo: string;
+  abas: readonly Aba<T>[];
+  atual: T;
+  aoTrocar: (id: T) => void;
+  /**
+   * O id do painel (role="tabpanel") que mostra a aba escolhida: as abas apontam para ele (aria-controls), e ele se
+   * liga à aba escolhida com aria-labelledby={idDaAba(painel, atual)}.
+   */
+  painel?: string;
+}
+/** O id de uma aba das Abas ligadas ao painel (para o aria-labelledby do painel). */
+export const idDaAba = (painel: string, aba: string) => `${painel}-aba-${aba}`;
+/**
+ * Abas (como "Equipe" e "Sou cliente" na entrada): uma é a escolhida, e a tela mostra o conteúdo dela logo abaixo.
+ * Só a aba escolhida entra na ordem do Tab; as setas passam às outras.
+ */
+export function Abas<T extends string>({ rotulo, abas, atual, aoTrocar, painel }: PropsAbas<T>) {
+  function tecla(e: KeyboardEvent<HTMLDivElement>) {
+    const proxima = TECLAS_DAS_ABAS[e.key];
+    if (!proxima || !abas.length) return;
+    e.preventDefault();
+    const indice = proxima(Math.max(0, abas.findIndex(a => a.id === atual)), abas.length);
+    aoTrocar(abas[indice].id);
+    e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]')[indice]?.focus();
+  }
+  return <div className="abas" role="tablist" aria-label={rotulo} onKeyDown={tecla}>
+    {abas.map(a => <button key={a.id} type="button" role="tab" aria-selected={a.id === atual} tabIndex={a.id === atual ? 0 : -1}
+      id={painel && idDaAba(painel, a.id)} aria-controls={painel} onClick={() => aoTrocar(a.id)}>
+      {a.rotulo}{a.contador !== undefined && <> <span className="recolher-contador num">{a.contador.toLocaleString('pt-BR')}</span></>}
+    </button>)}
+  </div>;
+}
+
+/** Percentual inteiro de valor em maximo, entre 0 e 100 (com máximo zero, 0). */
+export const percentual = (valor: number, maximo: number) => maximo > 0 ? Math.round(100 * Math.min(Math.max(valor, 0), maximo) / maximo) : 0;
+/** Barra de progresso (ex.: "Gravadas 400 de 1.234"): o leitor de tela ouve o percentual e a conta. */
+export function Progresso({ rotulo, valor, maximo }: { rotulo: string; valor: number; maximo: number }) {
+  const feito = percentual(valor, maximo);
+  return <div className="progresso" role="progressbar" aria-label={rotulo} aria-valuemin={0} aria-valuemax={100} aria-valuenow={feito}
+    aria-valuetext={`${valor.toLocaleString('pt-BR')} de ${maximo.toLocaleString('pt-BR')}`}>
+    <i style={{ width: feito + '%' }} />
+  </div>;
 }

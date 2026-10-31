@@ -103,3 +103,8 @@ export const LINHAS_MAXIMAS_DA_IMPORTACAO = 20000;
 export const TAMANHO_OBSERVACOES = 4000;
 /** Referência de origem de uma pessoa importada, como "site-12" (exigido pelo banco: coluna pessoas.referencia). */
 export const TAMANHO_REFERENCIA = 100;
+/** Quantos CPF/CNPJ e referências vão em cada busca dos cadastros que o arquivo já tem (pessoas_para_importar): cada
+ *  um acha no máximo um cadastro, e o Supabase devolve no máximo 1.000 linhas por consulta. */
+export const CHAVES_POR_CONSULTA = 500;
+/** Descrição e nome do arquivo de uma importação (o banco corta no tamanho: função importacao_iniciar). */
+export const TAMANHO_IMPORTACAO = { descricao: 200, arquivo: 200 };
