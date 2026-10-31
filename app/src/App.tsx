@@ -9,6 +9,7 @@ import { Carregando } from './ui/base';
 import { PainelCartao } from './ui/PainelCartao';
 import { Janelas } from './ui/janela';
 import { ExigirLogin } from './ui/sessao';
+import { AvisoDeVersaoNova } from './ui/versaoNova';
 
 const Home = lazy(() => import('./paginas/Home'));
 const Entrada = lazy(() => import('./paginas/Entrada'));
@@ -119,6 +120,6 @@ export function App() {
   return <BrowserRouter>
     <Rotas />
     <Janelas />
-    <Avisos />
+    <Avisos><AvisoDeVersaoNova /></Avisos>
   </BrowserRouter>;
 }

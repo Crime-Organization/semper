@@ -1,6 +1,6 @@
 // Avisos rápidos, desfazer (Ctrl+Z) e o sinal de "dados mudaram".
 // Funções comuns (não dependem de componente): qualquer tela chama avisar(), falha() ou feito().
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { criarLoja } from './loja';
 import { DURACAO_AVISO } from './tempos';
 
@@ -86,14 +86,15 @@ function teclaDesfazer(e: KeyboardEvent) {
   desfazerUltimo();
 }
 
-/** Área dos avisos (uma só, na raiz do app). Também liga o Ctrl+Z. */
-export function Avisos() {
+/** Área dos avisos (uma só, na raiz do app). Também liga o Ctrl+Z. children: avisos fixos, que ficam acima dos rápidos. */
+export function Avisos({ children }: { children?: ReactNode }) {
   const lista = avisos.usar();
   useEffect(() => {
     document.addEventListener('keydown', teclaDesfazer);
     return () => document.removeEventListener('keydown', teclaDesfazer);
   }, []);
   return <div id="avisos" role="status">
+    {children}
     {lista.map(a => <div key={a.id} className={`toast ${a.tipo}${a.saindo ? ' sai' : ''}`}>
       {a.texto}
       {a.acao && <button type="button" className="toast-acao" onClick={() => { removerAviso(a.id); a.acao!.fn(); }}>{a.acao.rotulo}</button>}
