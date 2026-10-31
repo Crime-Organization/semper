@@ -11,7 +11,10 @@
    coluna a largura dos botões juntos; numa tela estreita, a tabela rola para o lado, como as outras. */
 .td-acoes { display: flex; gap: 6px; justify-content: flex-end; align-items: center; flex-wrap: nowrap; white-space: nowrap }
 .pessoa-usuario { display: flex; align-items: center; gap: 10px }
-/* Um e-mail comprido quebra a linha em vez de alargar a tabela além da página (e criar a barra de rolagem). */
+/* O @usuário e o e-mail em linhas separadas: cada um quebra só se for comprido demais, em vez de partir o e-mail no meio. */
 .pessoa-usuario .sub { overflow-wrap: anywhere }
+/* Com os botões numa linha, a tabela precisa de mais espaço que as outras: numa tela estreita, ela rola para o lado com as
+   colunas legíveis, em vez de espremer o nome e o e-mail. */
+.tabela table.tabela-usuarios { min-width: 960px }
 /* A situação e, embaixo, o último acesso (numa coluna só, para a tabela caber na página). */
 .situacao-usuario { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
