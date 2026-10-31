@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url';
 // nenhum teste fale com o banco de verdade. Em qualquer outro modo, os dados vêm do banco de verdade.
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // A versão desta compilação, para o aviso de versão nova (ui/versaoNova.tsx). Vem da variável VERSAO, que só a rotina
+  // "Publicar o SEMPER" preenche (a mesma do versao.txt); no npm run dev, no banco fictício e nos testes fica vazia.
+  define: { __VERSAO__: JSON.stringify(mode === 'test' ? '' : process.env.VERSAO ?? '') },
   // O conversor AVIF da foto do perfil carrega o próprio .wasm ao lado do código: não pode ser reempacotado pelo Vite.
   optimizeDeps: { exclude: ['@jsquash/avif'] },
   resolve: {

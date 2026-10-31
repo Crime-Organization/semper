@@ -17,3 +17,6 @@ export const INATIVIDADE_DO_CRONOMETRO = 10 * MINUTO;
 export const GRAVAR_TEMPO_A_CADA = MINUTO;
 /** Cronômetro das tarefas: de quanto em quanto tempo o relógio do cartão anda e confere a inatividade. */
 export const TIQUE_DO_CRONOMETRO = SEGUNDO;
+
+/** Aviso de versão nova: de quanto em quanto tempo a aba aberta confere a versão que está no ar (/versao.txt). */
+export const CONFERIR_VERSAO_A_CADA = 5 * MINUTO;
