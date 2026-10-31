@@ -28,3 +28,21 @@
 .modelo ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text); overflow-wrap: anywhere }
 .modelo-form { display: flex; flex-direction: column; gap: 14px }
 .modelo-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto }
+/* Cronômetro no cartão da tarefa (TempoNaTarefa): o relógio grande, se está contando e os botões, numa linha. */
+.cronometro { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px }
+.cronometro-relogio { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
+.cronometro-situacao { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted) }
+.cronometro-situacao.contando { color: var(--accent-ink); font-weight: 700 }
+.cronometro-situacao.contando::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--accent) }
+/* O esforço da equipe: o total, a parte de cada um e, para administradores, os ajustes. */
+.tempo-equipe { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
+.tempo-equipe-total { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text) }
+.tempo-equipe-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
+.tempo-equipe-lista li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; font-size: 14px; color: var(--ink) }
+.tempo-ajustes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text) }
+.tempo-ajustes p { margin: 0 }
+.tempo-ajustes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px }
+/* A janela do ajuste: o tanto e o motivo, um embaixo do outro. */
+.ajuste-tempo { display: flex; flex-direction: column; gap: 14px }
+/* A tecla do atalho, dentro do botão do cronômetro. */
+.cronometro kbd { margin-left: 6px; padding: 0 5px; border: 1px solid var(--line2); border-radius: 4px; font: inherit; font-size: 11px; font-weight: 700; color: var(--muted) }

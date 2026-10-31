@@ -184,6 +184,99 @@ test.describe('Editar no cartão', () => {
   });
 });
 
+test.describe('Cronômetro da tarefa', () => {
+  test('quando a pessoa abre uma tarefa, então o cronômetro não começa sozinho; a tecla T inicia e pausa', async ({ page }) => {
+    // Dado: "Renovar a procuração" não tem tempo registrado
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const relogio = cartao.getByRole('timer');
+    await page.clock.runFor(30_000);
+    await expect(relogio).toHaveText('0:00:00');
+    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveAttribute('aria-keyshortcuts', 'T');
+    // Quando
+    await page.keyboard.press('t');
+    await page.clock.runFor(65_000);
+    // Então (o relógio de verdade também anda alguns segundos enquanto o teste roda)
+    await expect(relogio).toHaveText(/^0:01:0\d$/);
+    await expect(cartao.getByText('contando')).toBeVisible();
+    await page.keyboard.press('t');
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    const parado = await relogio.textContent();
+    await page.clock.runFor(30_000);
+    await expect(relogio).toHaveText(parado!);
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /Retomar/ })).toBeVisible();
+  });
+
+  test('quando a pessoa digita um T num comentário, então é só a letra, e o cronômetro não começa', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
+    // Quando
+    await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).pressSequentially('Tudo certo');
+    // Então
+    await expect(cartao.getByText('pausado')).toBeVisible();
+  });
+
+  test('quando uma tarefa está contando numa aba, então as outras mostram no menu, e "Pausar todos" a pausa', async ({ page, context }) => {
+    // Dado: a tarefa contando nesta aba
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: /Iniciar/ }).click();
+    await expect(cartao.getByText('contando')).toBeVisible();
+    // Quando: em outra aba
+    const outra = await context.newPage();
+    await outra.goto('/tarefas/');
+    const aviso = outra.getByRole('status').filter({ hasText: '1 tarefa contando' });
+    await expect(aviso).toBeVisible();
+    await aviso.getByRole('button', { name: 'Pausar todos' }).click();
+    // Então
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(aviso).toHaveCount(0);
+  });
+
+  test('quando passam 10 minutos sem mexer e a pessoa responde "Não estava", então o tempo desde o aviso não conta', async ({ page }) => {
+    // Dado
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await page.keyboard.press('t');
+    // Quando
+    await page.clock.runFor(10 * 60_000);
+    const pergunta = page.getByRole('dialog', { name: 'Você ainda está aqui?' });
+    await expect(pergunta).toBeVisible();
+    await page.clock.runFor(5 * 60_000);
+    await pergunta.getByRole('button', { name: 'Não estava' }).click();
+    // Então
+    await expect(cartao.getByRole('timer')).toHaveText(/^0:10:0\d$/);
+  });
+
+  test('quando a pessoa ajusta o próprio tempo com um motivo, então o tempo muda e o ajuste fica registrado', async ({ page }) => {
+    // Dado: o Mateus tem 1 h 20 min em "Emitir a GRU"
+    await page.clock.install();
+    const cartao = await abrirTarefa(page, 'Emitir a GRU');
+    // Quando
+    await cartao.getByRole('button', { name: 'Ajustar meu tempo' }).click();
+    const janela = page.getByRole('dialog', { name: 'Ajustar meu tempo' });
+    await janela.getByLabel('Quanto').fill('-20min');
+    await janela.getByLabel('Motivo').fill('Contei a mais');
+    await janela.getByRole('button', { name: 'Salvar ajuste' }).click();
+    // Então
+    await expect(page.getByText('Tempo ajustado: −20 min.')).toBeVisible();
+    await expect(cartao.getByRole('timer')).toHaveText('1:00:00');
+    await expect(cartao.getByText(/Mateus Freitas Gonçalves: −20 min · Contei a mais/)).toBeVisible();
+  });
+
+  test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {
+    // Quando: "Organizar a pasta" está concluída, com 40 min do Bruno
+    const cartao = await abrirTarefa(page, 'Organizar a pasta');
+    await page.keyboard.press('t');
+    // Então
+    await expect(cartao.getByText('Tarefa concluída: a contagem encerrou.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
+    await expect(cartao).toContainText('Total da equipe: 40 min');
+    await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toContainText('Bruno Exemplo Souza100%');
+  });
+});
+
 test.describe('Equipe da tarefa', () => {
   test('quando a pessoa clica na bolinha de alguém da equipe, então vê o nome e o papel, e abre o cartão da pessoa', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
@@ -202,16 +295,53 @@ test.describe('Equipe da tarefa', () => {
 });
 
 test.describe('Tarefas ligadas', () => {
-  test('quando alguém abre o cartão da demanda, então vê as tarefas dela, com a situação', async ({ page }) => {
+  test('quando alguém abre o cartão da demanda, então vê as tarefas dela como checklist, com a situação e o progresso', async ({ page }) => {
     // Quando
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     // Então
+    const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
+    await expect(tarefas).toContainText('1 de 3 concluídas');
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toContainText('Fazendo');
+    await expect(tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' })).toBeChecked();
+    await expect(tarefas.getByRole('link', { name: 'Abrir a tarefa Emitir a GRU' })).toHaveAttribute('href', /\/tarefas\/\?id=/);
+  });
+
+  test('quando a pessoa marca as tarefas no checklist da demanda, então elas vão para "Concluída" no quadro, e a última oferece concluir a demanda', async ({ page }) => {
+    // Dado
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
     const cartao = page.getByRole('dialog');
     await abrirSecao(cartao, 'Tarefas');
-    await expect(cartao.getByRole('link', { name: /Emitir a GRU/ })).toContainText('Fazendo');
-    await expect(cartao.getByRole('link', { name: /Organizar a pasta/ })).toContainText('Concluída');
+    const tarefas = cartao.getByRole('region', { name: 'Tarefas da demanda' });
+    // Quando
+    await tarefas.getByRole('checkbox', { name: 'Concluir Pedir documentos ao cliente' }).check();
+    await expect(tarefas).toContainText('2 de 3 concluídas');
+    await tarefas.getByRole('checkbox', { name: 'Concluir Emitir a GRU' }).check();
+    await page.getByRole('dialog', { name: 'Concluir a demanda?' }).getByRole('button', { name: 'Concluir a demanda' }).click();
+    // Então
+    await expect(tarefas).toContainText('3 de 3 concluídas');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Concluído');
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await expect(page.getByRole('list', { name: 'Concluída', exact: true }).getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toBeVisible();
+  });
+
+  test('quando a pessoa desmarca uma tarefa concluída no checklist, então ela volta para "Para fazer"', async ({ page }) => {
+    // Dado: "Organizar a pasta" está concluída
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
+    const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
+    // Quando
+    await tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' }).uncheck();
+    // Então
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Organizar a pasta' })).toContainText('Para fazer');
+    await expect(page.getByText('Organizar a pasta voltou para "Para fazer".')).toBeVisible();
   });
 
   test('quando alguém abre o cartão de uma pessoa da equipe, então vê as tarefas dela, com o papel', async ({ page }) => {
@@ -235,5 +365,32 @@ test.describe('Tarefas ligadas', () => {
     await expect(page.getByRole('option', { name: /Bruno Exemplo Souza/ })).toHaveAttribute('aria-disabled', 'true');
     await expect(page.getByRole('option', { name: /Bruno Exemplo Souza/ })).toContainText('não participa');
     await expect(page.getByRole('option', { name: /Ana Teste Lima/ })).toHaveAttribute('aria-disabled', 'false');
+  });
+});
+
+test.describe('Listas da tarefa', () => {
+  test('quando a tarefa ainda não tem listas, então o cartão mostra a seção "Listas" com o convite para criar uma', async ({ page }) => {
+    // Quando
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    // Então
+    await expect(cartao.getByText('Nenhuma lista ainda. Use listas para os documentos e os passos da tarefa.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toBeVisible();
+  });
+
+  test('quando a pessoa escolhe um modelo em "Adicionar lista" e marca um item, então a lista fica na tarefa, com o progresso, ao reabrir', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    // Quando
+    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
+    const lista = cartao.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    await expect(lista.getByRole('checkbox')).toHaveCount(2);
+    await lista.getByRole('checkbox').first().check();
+    await expect(lista).toContainText('1 de 2');
+    // Então
+    const reaberto = await abrirTarefa(page, 'Renovar a procuração', 'Listas');
+    const deNovo = reaberto.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    await expect(deNovo).toContainText('1 de 2');
+    await expect(deNovo.getByRole('checkbox').first()).toBeChecked();
   });
 });

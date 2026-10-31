@@ -46,6 +46,13 @@ export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
 export const TAREFAS_LIGADAS = 200;
 /** Quantas demandas (as ativas mais recentes) o cadastro de tarefa oferece para ligar. */
 export const DEMANDAS_PARA_LIGAR = 500;
+/** Tempo nas tarefas, em segundos (exigidos pelo banco: supabase/migrations/20261030120000_tempo_nas_tarefas.sql). */
+/** Um período contado pelo cronômetro tem até 12 horas; passou disso, começa outro. */
+export const PERIODO_MAXIMO = 12 * 60 * 60;
+/** Um ajuste à mão vai de -24 a +24 horas. */
+export const AJUSTE_MAXIMO = 24 * 60 * 60;
+/** Tamanho do motivo do ajuste. */
+export const TAMANHO_MOTIVO = 300;
 /** Listas das demandas: nome da lista e texto do item, os mesmos do banco (banco/018_listas_das_demandas.sql). */
 export const TAMANHO_LISTA = 120;
 export const TAMANHO_ITEM = 500;
@@ -67,3 +74,18 @@ export const PARCELAS_MAXIMAS = 360;
 /** Nome de coluna do quadro e informação sigilosa (só no formulário). */
 export const TAMANHO_COLUNA = 60;
 export const TAMANHO_SIGILO = 5000;
+
+/** Perfil profissional: tamanho de cada texto (exigidos pelo banco: supabase/migrations/20261030140000_perfil_profissional.sql). */
+/** "item" vale para cada texto das listas (área, idioma, curso, cargo, título...); "link", para cada link. */
+export const TAMANHO_PERFIL = { nome_exibicao: 120, cargo: 120, bio_curta: 300, biografia: 5000, item: 300, link: 500, email: 254, telefone: 30 } as const;
+/** Quantas linhas cada lista do perfil aceita (inscrições, áreas, formação...). */
+export const LINHAS_DO_PERFIL = 30;
+/** Maior posição na página da equipe do site. */
+export const ORDEM_NO_SITE_MAXIMA = 9999;
+
+/** Foto do perfil (supabase/migrations/20261030150000_foto_do_perfil.sql): o lado, em pixels, de cada um dos dois arquivos AVIF redondos. */
+/** A grande vai para a página do advogado no site; a pequena, para as bolinhas do sistema. */
+export const FOTO_GRANDE = 1000;
+export const FOTO_PEQUENA = 150;
+/** Maior arquivo de foto que a pasta aceita (2 MB, como o banco). */
+export const FOTO_MAXIMA = 2 * 1024 * 1024;

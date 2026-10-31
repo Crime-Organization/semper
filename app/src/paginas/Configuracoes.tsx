@@ -11,6 +11,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { LigacaoGoogle } from './LigacaoGoogle';
 import './Configuracoes.css';
 
 export default function Configuracoes() {
@@ -232,5 +233,7 @@ function Instituicao() {
         <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
       </div>
     </form>
+
+    <LigacaoGoogle />
   </div>;
 }

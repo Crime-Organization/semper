@@ -1,8 +1,8 @@
-// As listas da demanda, como as do Trello: cada lista com nome, a barra do quanto já foi feito e os itens para marcar,
+// As listas da demanda ou da tarefa, como as do Trello: cada lista com nome, a barra do quanto já foi feito e os itens para marcar,
 // cada um com data de entrega opcional. Listas e itens se renomeiam, mudam de posição e se excluem pelo menu "⋯".
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
-import { SD, type ItemDaLista, type ListaDaDemanda, type ModeloDeLista } from '../dados';
+import { SD, type CartaoComListas, type ItemDaLista, type ListaDoCartao, type ModeloDeLista } from '../dados';
 import { TAMANHO_ITEM, TAMANHO_LISTA } from '../dados/limites';
 import { ROTULOS_PRAZO } from '../regras/demanda';
 import { moverNaLista, prazoDoItem, progressoDaLista } from '../regras/listas';
@@ -17,17 +17,22 @@ import { hojeISO } from '../ui/util';
 
 /** Cor do selo da data de entrega de um item: vencida em vermelho, para hoje em laranja, em dia neutra. */
 const SELO_DO_PRAZO = { vencido: 'erro', hoje: 'pend', em_dia: 'arq' } as const;
+/** O que muda de um cartão para o outro: o convite da lista vazia. */
+const DO_CARTAO: Record<CartaoComListas, { vazio: string }> = {
+  demandas: { vazio: 'Nenhuma lista ainda. Use listas para os documentos e os passos da demanda.' },
+  tarefas: { vazio: 'Nenhuma lista ainda. Use listas para os documentos e os passos da tarefa.' },
+};
 /** Menu "⋯" aberto: de qual lista ou item, e o botão em que ele se prende. */
-type MenuAberto = { botao: HTMLElement; lista: ListaDaDemanda; item?: ItemDaLista };
+type MenuAberto = { botao: HTMLElement; lista: ListaDoCartao; item?: ItemDaLista };
 /** Menu de "Adicionar lista": em branco ou a partir de um modelo (carregados ao abrir). */
 type MenuNova = { botao: HTMLElement; modelos: ModeloDeLista[] | null };
 
-export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
-  const [listas, setListas] = useState<ListaDaDemanda[] | string | null>(null);
+export function ListasDoCartao({ modulo, id }: { modulo: CartaoComListas; id: string }) {
+  const [listas, setListas] = useState<ListaDoCartao[] | string | null>(null);
   const [menu, setMenu] = useState<MenuAberto | null>(null);
   const [menuNova, setMenuNova] = useState<MenuNova | null>(null);
   const navegar = useNavigate();
-  const carregar = useCallback(() => SD.listasDaDemanda(demandaId).then(setListas).catch(e => setListas((e as Error).message)), [demandaId]);
+  const carregar = useCallback(() => SD.listasDoCartao(modulo, id).then(setListas).catch(e => setListas((e as Error).message)), [modulo, id]);
   useEffect(() => { void carregar(); }, [carregar]);
   /** Faz a mudança e recarrega as listas (o erro aparece no pé da tela). */
   const mexer = async (fn: () => Promise<unknown>) => { try { await fn(); } catch (e) { falha(e); } await carregar(); };
@@ -43,29 +48,29 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
     setMenuNova({ botao, modelos: null });
     SD.modelosListar().then(modelos => setMenuNova(m => m && { ...m, modelos })).catch(e => { falha(e); setMenuNova(m => m && { ...m, modelos: [] }); });
   }
-  // Um clique no modelo: a lista entra na demanda com o nome e os itens dele, sem nenhum marcado.
-  const usarModelo = (m: ModeloDeLista) => mexer(async () => { await SD.listaCriar(demandaId, m.nome, m.itens); avisar(`Lista "${m.nome}" acrescentada.`); });
-  async function salvarComoModelo(l: ListaDaDemanda) {
+  // Um clique no modelo: a lista entra no cartão com o nome e os itens dele, sem nenhum marcado.
+  const usarModelo = (m: ModeloDeLista) => mexer(async () => { await SD.listaCriar(modulo, id, m.nome, m.itens); avisar(`Lista "${m.nome}" acrescentada.`); });
+  async function salvarComoModelo(l: ListaDoCartao) {
     const nome = await pedirTexto('Nome do modelo', l.nome, { maximo: TAMANHO_LISTA });
     if (!nome) return;
-    try { await SD.modeloCriar(nome, l.itens.map(i => i.texto)); avisar(`Modelo "${nome}" salvo. Ele aparece em "Adicionar lista" em qualquer demanda.`); }
+    try { await SD.modeloCriar(nome, l.itens.map(i => i.texto)); avisar(`Modelo "${nome}" salvo. Ele aparece em "Adicionar lista" em qualquer demanda ou tarefa.`); }
     catch (e) { falha(e); }
   }
   async function novaLista() {
     const nome = await pedirTexto('Nome da lista', '', { maximo: TAMANHO_LISTA });
-    if (nome) await mexer(() => SD.listaCriar(demandaId, nome));
+    if (nome) await mexer(() => SD.listaCriar(modulo, id, nome));
   }
-  async function renomearLista(l: ListaDaDemanda) {
+  async function renomearLista(l: ListaDoCartao) {
     const nome = await pedirTexto('Nome da lista', l.nome, { maximo: TAMANHO_LISTA });
     if (nome && nome !== l.nome) await mexer(() => SD.listaAtualizar(l.id, { nome }));
   }
-  async function excluirLista(l: ListaDaDemanda) {
+  async function excluirLista(l: ListaDoCartao) {
     if (await confirmar('Excluir a lista?', `A lista "${l.nome}" e os ${l.itens.length} itens dela serão excluídos.`, 'Excluir lista', true)) {
       await mexer(() => SD.listaExcluir(l.id));
     }
   }
   const moverLista = (i: number, passo: 1 | -1) => mexer(() =>
-    Promise.all(moverNaLista(listas as ListaDaDemanda[], i, passo).map(m => SD.listaAtualizar(m.id, { ordem: m.ordem }))));
+    Promise.all(moverNaLista(listas as ListaDoCartao[], i, passo).map(m => SD.listaAtualizar(m.id, { ordem: m.ordem }))));
   async function editarItem(item: ItemDaLista) {
     const texto = await pedirTexto('Item', item.texto, { maximo: TAMANHO_ITEM, multilinha: true });
     if (texto && texto !== item.texto) await mexer(() => SD.itemAtualizar(item.id, { texto }));
@@ -77,15 +82,15 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
     try { prazo = lerData(texto); } catch (e) { falha(e); return; }
     await mexer(() => SD.itemAtualizar(item.id, { prazo }));
   }
-  const moverItem = (l: ListaDaDemanda, i: number, passo: 1 | -1) => mexer(() =>
+  const moverItem = (l: ListaDoCartao, i: number, passo: 1 | -1) => mexer(() =>
     Promise.all(moverNaLista(l.itens, i, passo).map(m => SD.itemAtualizar(m.id, { ordem: m.ordem }))));
 
   const total = Array.isArray(listas) ? listas.length : undefined;
-  return <Recolhivel titulo="Listas" icone="check" preferencia="demandas.cartao.listas" contador={total}>
+  return <Recolhivel titulo="Listas" icone="check" preferencia={`${modulo}.cartao.listas`} contador={total}>
     {listas === null ? <Carregando />
       : typeof listas === 'string' ? <Aviso tipo="erro">{listas}</Aviso>
       : <>
-        {!listas.length && <Nota>Nenhuma lista ainda. Use listas para os documentos e os passos da demanda.</Nota>}
+        {!listas.length && <Nota>{DO_CARTAO[modulo].vazio}</Nota>}
         {listas.map(l => <Lista key={l.id} lista={l} aoMarcar={marcar}
           aoAcrescentar={texto => mexer(() => SD.itemCriar(l.id, texto))} aoAbrirMenu={(botao, item) => setMenu({ botao, lista: l, item })} />)}
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> Adicionar lista</button></div>
@@ -129,7 +134,7 @@ export function ListasDaDemanda({ demandaId }: { demandaId: string }) {
 }
 
 function Lista({ lista, aoMarcar, aoAcrescentar, aoAbrirMenu }: {
-  lista: ListaDaDemanda; aoMarcar: (item: ItemDaLista, feito: boolean) => void; aoAcrescentar: (texto: string) => Promise<void>;
+  lista: ListaDoCartao; aoMarcar: (item: ItemDaLista, feito: boolean) => void; aoAcrescentar: (texto: string) => Promise<void>;
   aoAbrirMenu: (botao: HTMLElement, item?: ItemDaLista) => void;
 }) {
   const [novo, setNovo] = useState('');

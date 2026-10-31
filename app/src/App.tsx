@@ -21,8 +21,11 @@ const Demandas = lazy(() => import('./paginas/Demandas'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
 const Tarefas = lazy(() => import('./paginas/Tarefas'));
+const MeuTempo = lazy(() => import('./paginas/MeuTempo'));
 const NovaTarefa = lazy(() => import('./paginas/NovaTarefa'));
 const Equipe = lazy(() => import('./paginas/Equipe'));
+const PerfilDaEquipe = lazy(() => import('./paginas/PerfilDaEquipe'));
+const MinhaConta = lazy(() => import('./paginas/MinhaConta'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
 
 // Os formulários recomeçam do zero a cada vez que são abertos (mesmo clicando no "+" de dentro deles).
@@ -92,7 +95,10 @@ function Rotas() {
           <Route path="demandas" element={<Demandas />} />
           <Route path="modelos-de-lista" element={<ModelosDeLista />} />
           <Route path="tarefas" element={<Tarefas />} />
+          <Route path="tarefas/meu-tempo" element={<MeuTempo />} />
           <Route path="equipe" element={<Equipe />} />
+          <Route path="equipe/perfil" element={<PerfilDaEquipe />} />
+          <Route path="minha-conta" element={<MinhaConta />} />
           <Route path="configuracoes" element={<Configuracoes />} />
           {CADASTROS.map(([caminho, Formulario]) => <Route key={caminho} path={caminho} element={<Formulario />} />)}
         </Route>

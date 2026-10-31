@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDaDemanda, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -12,8 +12,11 @@ import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDo
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
+import { tempoPorPessoa } from '../regras/cronometro';
+import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
+import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
+import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -26,7 +29,7 @@ const agora = () => new Date().toISOString();
 const eu = 'u-master';
 
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
 const EQUIPE: MembroFalso[] = [
   { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
@@ -72,10 +75,21 @@ interface Banco {
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
   contratosComDemandas?: string[];
-  listas?: (Omit<ListaDaDemanda, 'itens'> & { demanda_id: string; criado_em: string })[];
+  /** Cada lista é de uma demanda ou de uma tarefa (demanda_listas no banco). */
+  listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
+  fotos?: Record<string, FotoDoPerfil>;
+  /** Perfis profissionais da equipe (perfil_profissional no banco). */
+  perfisProfissionais?: PerfilProfissional[];
+  /** A conta Google ligada ao escritório (privado.ligacoes no banco). */
+  ligacaoGoogle?: LigacaoGoogle | null;
+  /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
+  pedidosGoogle?: { estado: string; pedido_em: number }[];
   tarefas?: TarefaGuardada[];
+  /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
+  tempos?: (RegistroDeTempo & { tarefa_id: string })[];
   historicoTarefas?: (Historico & { tarefa_id: string })[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
@@ -176,7 +190,7 @@ function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
     contrato_id: null, contrato_codigo: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
-    criado_em: agora(), atualizado_por: null, atualizado_em: agora()
+    criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
   };
 }
 /** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd). */
@@ -257,13 +271,25 @@ if (!bd.tarefas) {
   const d = bd.demandas.find(x => x.titulo === 'Registro de marca');
   const daDemanda = d ? { demanda_id: d.id, demanda_codigo: d.codigo, contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, pessoas: [...d.clientes] } : {};
   bd.tarefas = [
-    { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '5E1A7C20', titulo: 'Organizar a pasta', responsavel_id: 'u-bruno', etapa_id: 't4', etapa_ordem: 1 },
+    { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '5E1A7C20', titulo: 'Organizar a pasta', responsavel_id: 'u-bruno', etapa_id: 't4', etapa_ordem: 1,
+      concluida_em: agora() },
     { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: 'C0FFEE12', titulo: 'Emitir a GRU', responsavel_id: 'u-master', participantes: ['u-bruno'],
       etapa_id: 't2', etapa_ordem: 1, prazo: dataDaqui(2) },
     { ...tarefaNova(), ...daDemanda, id: novoId(), codigo: '9B3D4E51', titulo: 'Pedir documentos ao cliente', responsavel_id: 'u-bruno', etapa_id: 't1', etapa_ordem: 1 },
     { ...tarefaNova(), id: novoId(), codigo: 'F00D1234', titulo: 'Renovar a procuração', descricao: 'A procuração vence este mês.', responsavel_id: 'u-ana',
       participantes: ['u-master'], etapa_id: 't1', etapa_ordem: 2, prazo: dataDaqui(-1), criado_por: 'u-ana' }
   ];
+}
+// Sessões abertas antes do cronômetro: a tarefa já concluída ganha a data de conclusão (como a migração do tempo).
+bd.tarefas.forEach(t => { t.concluida_em ??= bd.colunas.find(c => c.id === t.etapa_id)?.marco === 'concluido' ? t.atualizado_em : null; });
+// Tempo de exemplo: "Emitir a GRU" (Mateus e Bruno) e "Organizar a pasta", concluída, com um ajuste do Bruno.
+if (!bd.tempos) {
+  const por = (titulo: string) => bd.tarefas!.find(t => t.titulo === titulo)?.id;
+  const gru = por('Emitir a GRU'), pasta = por('Organizar a pasta');
+  const contado = (id: number, tarefa_id: string, perfil_id: string, minutos: number) =>
+    ({ id, tarefa_id, perfil_id, inicio: new Date(Date.now() - DIA).toISOString(), segundos: minutos * 60, ajuste: false, motivo: null });
+  bd.tempos = gru && pasta ? [contado(1, gru, 'u-master', 80), contado(2, gru, 'u-bruno', 40), contado(3, pasta, 'u-bruno', 50),
+    { id: 4, tarefa_id: pasta, perfil_id: 'u-bruno', inicio: agora(), segundos: -10 * 60, ajuste: true, motivo: 'Esqueci de pausar no almoço.' }] : [];
 }
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
@@ -304,6 +330,15 @@ const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
   recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
 };
 const erro = (t: string) => Promise.reject(new Error(t));
+/** O arquivo como data: URL, para guardar na aba (o banco fictício não tem pasta de arquivos). */
+async function dataUrl(arquivo: Blob) {
+  const bytes = new Uint8Array(await arquivo.arrayBuffer());
+  let texto = '';
+  for (const b of bytes) texto += String.fromCharCode(b);
+  return `data:${arquivo.type};base64,${btoa(texto)}`;
+}
+/** O pedido de ligação com o Google vale 10 minutos (como privado.ligacao_pedidos no banco). */
+const VALIDADE_DO_PEDIDO_GOOGLE = 10 * 60 * 1000;
 // Como no banco: o vínculo incluído ou retirado entra no histórico das duas pessoas.
 function historicoVinculo(v: NonNullable<Banco['vinculos']>[number], incluido: boolean) {
   const t = bd.tiposVinculo!.find(x => x.id === v.tipo_id)!, obs = v.descricao ? ` (${v.descricao})` : '';
@@ -586,9 +621,14 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
   }
   return m;
 }
-// ---------- listas das demandas ----------
+// ---------- listas das demandas e das tarefas ----------
+/** De cada cartão com listas: o campo que liga a lista a ele e como achá-lo (erro se não existe). */
+const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id'; achar: (id: string) => unknown }> = {
+  demandas: { campo: 'demanda_id', achar: acharDemanda },
+  tarefas: { campo: 'tarefa_id', achar: acharTarefa },
+};
 const itemLido = ({ lista_id: _l, ...i }: NonNullable<Banco['itensDeLista']>[number]): ItemDaLista => i;
-const listaLida = ({ demanda_id: _d, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDaDemanda =>
+const listaLida = ({ demanda_id: _d, tarefa_id: _t, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDoCartao =>
   ({ ...l, itens: bd.itensDeLista!.filter(i => i.lista_id === l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido) });
 /** Como as regras do banco: nome e texto sem espaços nas pontas e não vazios, no tamanho de cada um. */
 function nomeDaLista(nome: string) {
@@ -700,7 +740,7 @@ export const SD: Dados = {
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true }, ...bd.escritorio! },
-      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => r), ehAdmin: true, ehMaster: true
+      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: true, ehMaster: true
     };
     return espera(c);
   },
@@ -1025,6 +1065,10 @@ export const SD: Dados = {
       bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
+      bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
+      const listas = new Set(bd.listas!.filter(l => l.tarefa_id === id).map(l => l.id));
+      bd.listas = bd.listas!.filter(l => !listas.has(l.id));
+      bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
       auditar('tarefas', 'exclusao', t); excluidas++;
     });
     gravar();
@@ -1033,7 +1077,9 @@ export const SD: Dados = {
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
     historicoTarefa(t, { etapa_id: etapaId });
-    Object.assign(t, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
+    // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
+    const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
+    Object.assign(t, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora(), concluida_em: concluida ? t.concluida_em ?? agora() : null }); gravar();
   },
   tarefaHistorico: id => espera(bd.historicoTarefas!.filter(h => h.tarefa_id === id)),
   tarefasDaPessoa: (pessoaId, perfilId = null) => espera(bd.tarefas!.map(tarefaLigada(pessoaId, perfilId)).filter(t => t.papeis.length)
@@ -1041,12 +1087,85 @@ export const SD: Dados = {
   tarefasDaDemanda: demandaId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.demanda_id === demandaId))),
   tarefasDoContrato: contratoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.contrato_id === contratoId))),
 
-  // ---------- listas das demandas (como banco/018_listas_das_demandas.sql) ----------
-  listasDaDemanda: demandaId => espera(bd.listas!.filter(l => l.demanda_id === demandaId).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
-  async listaCriar(demandaId, nome, itens = []) {
-    acharDemanda(demandaId);
-    const ordem = Math.max(0, ...bd.listas!.filter(l => l.demanda_id === demandaId).map(l => l.ordem)) + 1;
-    const l = { id: novoId(), demanda_id: demandaId, nome: nomeDaLista(nome), ordem, criado_em: agora() };
+  // ---------- tempo nas tarefas (como supabase/migrations/20261030120000_tempo_nas_tarefas.sql) ----------
+  async tempoIniciar(tarefaId, inicio, segundos) {
+    acharTarefa(tarefaId);
+    const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
+    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio, segundos, ajuste: false, motivo: null }); gravar();
+    return espera(id);
+  },
+  async tempoGravar(id, segundos) {
+    const r = bd.tempos!.find(x => x.id === id && x.perfil_id === eu && !x.ajuste);
+    if (!r) return;
+    if (segundos < r.segundos) return erro('O tempo contado não diminui: para corrigir, faça um ajuste.');
+    r.segundos = segundos; gravar();
+  },
+  async tempoAjustar(tarefaId, segundos, motivo) {
+    acharTarefa(tarefaId);
+    if (!motivo.trim()) return erro('Diga o motivo do ajuste (ele fica registrado).');
+    const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
+    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio: agora(), segundos, ajuste: true, motivo: motivo.trim() }); gravar();
+  },
+  // Quem está logado no banco fictício é administrador: vê os registros de todos (como a regra de leitura do banco).
+  tempoDaTarefa: tarefaId => {
+    const registros = bd.tempos!.filter(r => r.tarefa_id === tarefaId).sort((a, b) => a.inicio.localeCompare(b.inicio));
+    const porPessoa = [...tempoPorPessoa(registros)].filter(([, s]) => s > 0), total = porPessoa.reduce((s, [, x]) => s + x, 0);
+    const equipe = porPessoa.map(([perfil_id, s]) => ({ perfil_id, percentual: Math.round(1000 * s / total) / 10 })).sort((a, b) => b.percentual - a.percentual);
+    return espera({ registros: registros.map(({ tarefa_id: _t, ...r }) => r), equipe, total });
+  },
+  tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
+    .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),
+  // Como public.tempo_por_tarefa (supabase/migrations/20261030160000_meu_tempo.sql). Quem entra no fictício é administrador.
+  tempoPorTarefa(perfilId, de, ate) {
+    const [desde, antes] = [inicioDoDia(de), inicioDoDia(ate)];
+    const somas = new Map<string, number>();
+    for (const r of bd.tempos!) {
+      const inicio = new Date(r.inicio).toISOString();
+      if (r.perfil_id === perfilId && inicio >= desde && inicio < antes) somas.set(r.tarefa_id, (somas.get(r.tarefa_id) ?? 0) + r.segundos);
+    }
+    const linhas = [...somas].flatMap(([tarefaId, segundos]) => {
+      const t = bd.tarefas!.find(x => x.id === tarefaId);
+      return t && segundos > 0 ? [{ tarefa_id: t.id, codigo: t.codigo, titulo: t.titulo, demanda_codigo: t.demanda_codigo, arquivada: !!t.arquivado_em, segundos }] : [];
+    });
+    return espera(linhas.sort((a, b) => b.segundos - a.segundos || a.titulo.localeCompare(b.titulo, 'pt-BR')));
+  },
+
+  // ---------- foto do perfil (como supabase/migrations/20261030150000_foto_do_perfil.sql) ----------
+  fotoDoPerfil: perfilId => espera(bd.fotos?.[perfilId] ?? null),
+  async fotoSalvar(perfilId, grande, pequena) {
+    if (!EQUIPE.some(m => m.id === perfilId)) return erro('Usuário não encontrado.');
+    if ([grande, pequena].some(a => a.type !== 'image/avif' || a.size > FOTO_MAXIMA)) return erro('A foto precisa ser AVIF, com até 2 MB.');
+    const [g, p] = await Promise.all([grande, pequena].map(dataUrl));
+    (bd.fotos ??= {})[perfilId] = { grande: g, pequena: p, em: agora() };
+    gravar(); return espera(undefined);
+  },
+  async fotoRemover(perfilId) {
+    if (bd.fotos) delete bd.fotos[perfilId];
+    gravar(); return espera(undefined);
+  },
+
+  // ---------- perfil profissional (como supabase/migrations/20261030140000_perfil_profissional.sql) ----------
+  perfilProfissional: perfilId => espera((bd.perfisProfissionais ??= []).find(p => p.perfil_id === perfilId) ?? perfilVazio(perfilId)),
+  async perfilProfissionalSalvar(perfilId, campos) {
+    const membro = EQUIPE.find(m => m.id === perfilId);
+    if (!membro) return erro('Usuário não encontrado.');
+    const [problema] = Object.values(errosDoPerfil(campos));
+    if (problema) return erro(problema);
+    // Quem entra no banco fictício é administrador: grava o perfil de qualquer um e liga "aparecer no site".
+    const antes = (bd.perfisProfissionais ??= []).find(x => x.perfil_id === perfilId);
+    const p = { ...limparPerfil(campos), perfil_id: perfilId, atualizado_em: agora() };
+    bd.perfisProfissionais = [...bd.perfisProfissionais.filter(x => x.perfil_id !== perfilId), p];
+    auditar('perfil_profissional', antes ? 'alteracao' : 'inclusao', { id: perfilId, nome: membro.nome });
+    gravar(); return espera(undefined);
+  },
+
+  // ---------- listas das demandas e das tarefas (como banco/018_listas_das_demandas.sql e a migração 20261030130000) ----------
+  listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
+  async listaCriar(modulo, id, nome, itens = []) {
+    const { campo, achar } = CARTAO_DA_LISTA[modulo];
+    achar(id);
+    const ordem = Math.max(0, ...bd.listas!.filter(l => l[campo] === id).map(l => l.ordem)) + 1;
+    const l = { id: novoId(), [campo]: id, nome: nomeDaLista(nome), ordem, criado_em: agora() };
     bd.listas!.push(l);
     itens.forEach((texto, i) => bd.itensDeLista!.push({ id: novoId(), lista_id: l.id, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem: i + 1 }));
     gravar(); return espera(listaLida(l));
@@ -1146,6 +1265,32 @@ export const SD: Dados = {
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
+  // ---------- ligação com a conta Google (sem Google: a "volta" já vem como ligada) ----------
+  ligacaoGoogle: () => espera(bd.ligacaoGoogle ?? null),
+  // Como no banco: iniciar só cria o pedido; a "volta do Google" traz o estado e um código, e concluir é que liga.
+  async ligacaoGoogleIniciar(voltarPara) {
+    const estado = Array.from(crypto.getRandomValues(new Uint8Array(32)), b => b.toString(16).padStart(2, '0')).join('');
+    bd.pedidosGoogle = [...(bd.pedidosGoogle ?? []), { estado, pedido_em: Date.now() }];
+    gravar();
+    const volta = new URL(voltarPara, location.origin);
+    volta.searchParams.set('google_estado', estado);
+    volta.searchParams.set('google_codigo', 'codigo-de-teste');
+    return espera(volta.pathname + volta.search);
+  },
+  async ligacaoGoogleConcluir(estado) {
+    const pedido = (bd.pedidosGoogle ?? []).find(p => p.estado === estado);
+    bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
+    if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
+    bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
+    auditar('ligacoes', 'inclusao', { id: 'google', nome: 'contato@exemplo.com' });
+    gravar(); return espera('ligado' as const);
+  },
+  async ligacaoGoogleDesligar() {
+    if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    bd.ligacaoGoogle = null;
+    gravar(); return espera(undefined);
+  },
+
   async escritorioSalvar(dados) {
     const atual = bd.escritorio!;
     // Como public.escritorio_salvar: o CNPJ só com letras e números, em maiúsculas.
