@@ -86,7 +86,7 @@ export function CamposDoProcesso() {
       </tr>)}</tbody>
     </table></div> : <Nota>Nenhum campo criado ainda.</Nota>}
 
-    {edicao ? <form className="campos form-grade" noValidate aria-label={edicao.id ? 'Mudar campo' : 'Novo campo'} onSubmit={salvar}>
+    {edicao ? <form className="config-campos-form" noValidate aria-label={edicao.id ? 'Mudar campo' : 'Novo campo'} onSubmit={salvar}>
       <Campo rotulo="Nome do campo" para="campo-nome" obrigatorio erro={erros.nome}>
         <input type="text" {...propsDoCampo('campo-nome', { erro: erros.nome })} maxLength={TAMANHO_CAMPO.nome} value={form.nome} onChange={e => mudar({ nome: e.target.value })} />
       </Campo>
