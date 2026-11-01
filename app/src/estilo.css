@@ -575,7 +575,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .escolhas.coluna-unica { grid-template-columns: 1fr }
 .escolhas label { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: var(--superficie); cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
 .escolhas label:hover { border-color: var(--faint) }
-.escolhas input { position: absolute; opacity: 0; pointer-events: none }
+.escolhas input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
 .escolhas label::before { content: ''; width: 18px; height: 18px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--line2); background: var(--superficie); transition: .15s }
 .escolhas.multipla label::before { border-radius: 5px }
 .escolhas label:has(input:checked) { border-color: var(--accent); background: var(--accent-tint); font-weight: 700; box-shadow: inset 0 0 0 1px var(--accent) }

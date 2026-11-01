@@ -10,7 +10,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
@@ -212,7 +212,10 @@ const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
 const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
-const SO_ADMIN_NO_CALENDARIO = 'Só os administradores mudam o calendário.';
+/** Nenhuma linha mudou: quem não é administrador não pode mudar; para o administrador, outro já tinha excluído (a tela só recarrega). */
+const conferirAdminNoCalendario = (linhas: unknown[]) => {
+  if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam o calendário.');
+};
 const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
 const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas, bio_curta, biografia, formacao, idiomas, experiencia, associacoes, '
@@ -794,15 +797,21 @@ export const SD: Dados = {
   },
   async orgaoAtualizar(id, campos) {
     const { data } = await rodar(sb.from('orgaos').update(campos).eq('id', id).select('id'));
-    if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+    conferirAdminNoCalendario(data);
   },
   async orgaoExcluir(id) {
     const { data } = await rodar(sb.from('orgaos').delete().eq('id', id).select('id'));
-    if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+    conferirAdminNoCalendario(data);
   },
+  // Em partes: um prazo longo pede vários anos, e cada dia lançado é uma linha por órgão.
   async diasListar(de, ate) {
-    const { data } = await rodar(sb.from('dias_sem_expediente').select(CAMPOS_DIA).gte('data', de).lte('data', ate).order('data'));
-    return data as DiaLancado[];
+    const todos: DiaLancado[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('dias_sem_expediente').select(CAMPOS_DIA).gte('data', de).lte('data', ate)
+        .order('data').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...data);
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
   },
   // O mesmo dia para o mesmo órgão (ou para todos) substitui o que havia: a regra dias_sem_expediente_unico do banco.
   async diasLancar(linhas) {
@@ -814,7 +823,7 @@ export const SD: Dados = {
   async diasExcluir(ids) {
     for (let i = 0; i < ids.length; i += IDS_POR_EXCLUSAO) {
       const { data } = await rodar(sb.from('dias_sem_expediente').delete().in('id', ids.slice(i, i + IDS_POR_EXCLUSAO)).select('id'));
-      if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+      conferirAdminNoCalendario(data);
     }
   },
 

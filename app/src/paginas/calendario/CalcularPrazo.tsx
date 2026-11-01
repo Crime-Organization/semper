@@ -21,6 +21,7 @@ export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: num
   const [dias, setDias] = useState(String(DIAS_INICIAIS));
   const [contagem, setContagem] = useState<Contagem>('corridos');
   const [disponibilizacao, setDisponibilizacao] = useState(false);
+  const [semRecesso, setSemRecesso] = useState(false);
   const [lancados, setLancados] = useState<{ chave: string; dias: DiaLancado[] } | string | null>(null);
 
   const orgao = orgaos.find(o => o.id === orgaoId) ?? null;
@@ -45,12 +46,21 @@ export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: num
     setContagem(orgaos.find(o => o.id === id)?.contagem_padrao ?? 'corridos');
   }
 
+  const seguindoRecesso = !!orgao?.recesso;
   let resultado: PrazoContado | string | null = null;
+  // O último dia se o prazo não se suspender no recesso, quando ele muda: é a data mais curta, a que não pode passar em branco.
+  let foraDoRecesso: string | null = null;
   if (erro) resultado = erro;
   else if (typeof lancados === 'string') resultado = lancados;
   else if (lancados?.chave === chave) {
+    const contar = (opcoes: { semRecesso: boolean }) =>
+      contarPrazo({ intimacao, dias: numero, contagem, disponibilizacao, semExpediente: diasDoOrgao(orgao, lancados.dias, anos!, opcoes) });
     try {
-      resultado = contarPrazo({ intimacao, dias: numero, contagem, disponibilizacao, semExpediente: diasDoOrgao(orgao, lancados.dias, anos!) });
+      resultado = contar({ semRecesso: semRecesso && seguindoRecesso });
+      if (seguindoRecesso && !semRecesso) {
+        const final = contar({ semRecesso: true }).final;
+        if (final !== resultado.final) foraDoRecesso = final;
+      }
     } catch (e) { resultado = (e as Error).message; }
   }
 
@@ -84,20 +94,25 @@ export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: num
       <input type="checkbox" checked={disponibilizacao} onChange={e => setDisponibilizacao(e.target.checked)} />
       Saiu no Diário eletrônico: a data acima é a da disponibilização, e a publicação é o dia útil seguinte
     </label>
+    {seguindoRecesso && <label className="calc-dje">
+      <input type="checkbox" checked={semRecesso} onChange={e => setSemRecesso(e.target.checked)} />
+      Este prazo não se suspende no recesso (réu preso, Lei Maria da Penha, medida urgente, prazo de direito material)
+    </label>}
 
     <div className="calc-resultado" role="status" aria-live="polite" aria-label="Resultado do prazo">
       {resultado === null ? <Nota>Calculando…</Nota>
         : typeof resultado === 'string' ? <Aviso tipo="info">{resultado}</Aviso>
-        : <Resultado prazo={resultado} contagem={contagem} orgao={orgao} />}
+        : <Resultado prazo={resultado} contagem={contagem} orgao={orgao} foraDoRecesso={foraDoRecesso} />}
     </div>
     <Nota>O cálculo usa o calendário abaixo. Confira sempre no tribunal: uma portaria nova pode mudar o prazo.</Nota>
   </section>;
 }
 
-function Resultado({ prazo, contagem, orgao }: { prazo: PrazoContado; contagem: Contagem; orgao: Orgao | null }) {
+function Resultado({ prazo, contagem, orgao, foraDoRecesso }: { prazo: PrazoContado; contagem: Contagem; orgao: Orgao | null; foraDoRecesso: string | null }) {
   const pulos = pulosEmPeriodos(prazo.pulados);
   return <Cartao className="calc-final">
     <p className="calc-ultimo">Último dia: <b>{porExtenso(prazo.final)}</b></p>
+    {foraDoRecesso && <Aviso tipo="info">Este prazo atravessa o recesso. Se ele não se suspender (réu preso, Lei Maria da Penha, medida urgente, prazo de direito material), o último dia é {porExtenso(foraDoRecesso)}.</Aviso>}
     <dl className="calc-datas">
       <div><dt>Publicação</dt><dd>{porExtenso(prazo.publicacao)}</dd></div>
       <div><dt>Primeiro dia contado</dt><dd>{porExtenso(prazo.inicio)}</dd></div>

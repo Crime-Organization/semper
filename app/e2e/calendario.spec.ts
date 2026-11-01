@@ -64,6 +64,33 @@ test.describe('Feriados e prazos', () => {
     await expect(ultimoDia(page)).toContainText('segunda-feira, 28/12/2026');
   });
 
+  test('quando o prazo atravessa o recesso, então a tela avisa o último dia se ele não se suspender; com a opção marcada, esse passa a ser o último dia', async ({ page }) => {
+    // Dado: intimação em 17/12/2026, 5 dias corridos, no TJMG
+    await page.goto('/calendario/');
+    await calcular(page, 'TJMG (Tribunal de Justiça de Minas Gerais)', '2026-12-17', 5, 'Dias corridos');
+    const resultado = page.getByRole('status', { name: 'Resultado do prazo' });
+    // Então
+    await expect(ultimoDia(page)).toContainText('segunda-feira, 25/01/2027');
+    await expect(resultado).toContainText('Se ele não se suspender (réu preso, Lei Maria da Penha, medida urgente, prazo de direito material), o último dia é terça-feira, 22/12/2026.');
+    // Quando
+    await page.getByRole('checkbox', { name: /não se suspende no recesso/ }).check();
+    // Então
+    await expect(ultimoDia(page)).toContainText('terça-feira, 22/12/2026');
+    await expect(resultado).not.toContainText('Se ele não se suspender');
+  });
+
+  test('quando a página abre no celular, então ela não rola para os lados', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 375, height: 812 });
+    // Quando
+    await page.goto('/calendario/');
+    await expect(page.getByRole('heading', { name: 'Feriados e prazos', level: 1 })).toBeVisible();
+    await expect(page.getByRole('status', { name: 'Resultado do prazo' }).getByText('Último dia:')).toBeVisible();
+    // Então
+    const largura = await page.evaluate(() => ({ pagina: document.documentElement.scrollWidth, tela: document.documentElement.clientWidth }));
+    expect(largura.pagina).toBeLessThanOrEqual(largura.tela);
+  });
+
   test('quando o administrador exclui um dia lançado, então ele sai do calendário', async ({ page }) => {
     // Dado
     await page.goto('/calendario/');

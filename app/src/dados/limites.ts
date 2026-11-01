@@ -120,3 +120,5 @@ export const ANOS_DO_CALENDARIO = { de: 2000, ate: 2100 };
 export const DIAS_POR_LANCAMENTO = 366;
 /** Quantos dias lançados se excluem por vez (os ids vão no endereço da consulta, que não pode ficar grande demais). */
 export const IDS_POR_EXCLUSAO = 100;
+/** Quantas linhas o Supabase devolve por consulta, no máximo (max_rows em supabase/config.toml): além disso, busca-se em partes. */
+export const LINHAS_POR_CONSULTA = 1000;

@@ -16,7 +16,8 @@ describe('Órgãos do escritório', () => {
     ['TJMG', { recesso: true, justica_federal: false }],
     ['trf6', { recesso: true, justica_federal: true }],
     ['TRT3', { recesso: true, justica_federal: false }],
-    ['STJ', { recesso: true, justica_federal: false }],
+    ['STJ', { recesso: true, justica_federal: true }],
+    ['TST', { recesso: true, justica_federal: true }],
     ['INPI', { recesso: false, justica_federal: false }],
     ['INSS', { recesso: false, justica_federal: false }]
   ])('quando o órgão novo é %s, então já vem com o que ele costuma seguir', (sigla, segue) => {
@@ -234,5 +235,31 @@ describe('Para mostrar', () => {
       { de: '2027-01-07', ate: '2027-01-20', motivo: 'Recesso forense (prazos suspensos)' },
       { de: '2027-01-23', ate: '2027-01-24', motivo: 'fim de semana' }
     ]);
+  });
+});
+
+describe('Prazo que não se suspende no recesso', () => {
+  const contar = (o: Orgao, intimacao: string, dias: number, opcoes: { semRecesso: boolean }, contagem: 'corridos' | 'uteis' = 'corridos') =>
+    contarPrazo({ intimacao, dias, contagem, semExpediente: diasDoOrgao(o, [], anosDoPrazo(intimacao, dias), opcoes) });
+
+  it('quando o processo tem réu preso (CPP, art. 798-A), então o prazo corre durante o recesso e vence nele', () => {
+    // Dado: intimação em 17/12/2026, 5 dias corridos, TJMG
+    // Então
+    expect(contar(TJMG, '2026-12-17', 5, { semRecesso: false }).final).toBe('2027-01-25');
+    expect(contar(TJMG, '2026-12-17', 5, { semRecesso: true }).final).toBe('2026-12-22');
+  });
+
+  it('quando o prazo é de direito material, então o recesso não o estica', () => {
+    // Dado: mandado de segurança, 120 dias da ciência em 03/11/2026, TJMG
+    // Então
+    expect(contar(TJMG, '2026-11-03', 120, { semRecesso: true }).final).toBe('2027-03-03');
+  });
+
+  it('quando o órgão também segue a Justiça Federal, então os feriados dela continuam valendo', () => {
+    // Dado: intimação em 17/12/2026, 5 dias úteis, TRF6: os feriados de 20/12 a 06/01 não contam, sem o recesso
+    const prazoFederal = contar(TRF6, '2026-12-17', 5, { semRecesso: true }, 'uteis');
+    // Então: 18/12, depois 07/01, 08/01, 11/01 e 12/01
+    expect(prazoFederal.final).toBe('2027-01-12');
+    expect(prazoFederal.pulados).toContainEqual({ data: '2026-12-21', motivo: 'Feriado da Justiça Federal (20/12 a 06/01)' });
   });
 });

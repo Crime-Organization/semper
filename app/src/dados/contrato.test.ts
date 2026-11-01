@@ -1050,6 +1050,31 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(SD.diasLancar([{ data: '2031-07-04', motivo: ' ', tipo: 'feriado', orgao_id: null }])).rejects.toThrow('formato inválido');
         await expect(SD.diasLancar([{ data: '1999-07-04', motivo: 'X', tipo: 'feriado', orgao_id: null }])).rejects.toThrow('formato inválido');
       });
+
+      it('quando há mais de mil dias lançados no período, então todos vêm, sem cortar o fim', async () => {
+        // Dado: 366 dias para 3 órgãos (mais do que o Supabase devolve numa consulta só)
+        const orgaos = await Promise.all([novoOrgao(sigla()), novoOrgao(sigla()), novoOrgao(sigla())]);
+        const datas = Array.from({ length: 366 }, (_, i) => new Date(Date.UTC(2040, 0, 1 + i)).toISOString().slice(0, 10));
+        await SD.diasLancar(orgaos.flatMap(o => datas.map(data => ({ data, motivo: 'Portaria longa', tipo: 'suspensao' as const, orgao_id: o.id }))));
+        // Quando
+        const dias = await SD.diasListar('2040-01-01', '2040-12-31');
+        // Então
+        expect(dias).toHaveLength(1098);
+        expect(dias.at(-1)?.data).toBe('2040-12-31');
+      });
+
+      it('quando outro administrador já excluiu os dias ou o órgão, então excluir de novo não dá erro', async () => {
+        // Dado
+        const o = await novoOrgao(sigla());
+        await SD.diasLancar([{ data: '2033-03-01', motivo: 'Portaria', tipo: 'suspensao', orgao_id: o.id }]);
+        const [dia] = await SD.diasListar('2033-03-01', '2033-03-01');
+        await SD.diasExcluir([dia.id]);
+        await SD.orgaoExcluir(o.id);
+        // Então
+        await expect(SD.diasExcluir([dia.id])).resolves.toBeUndefined();
+        await expect(SD.orgaoExcluir(o.id)).resolves.toBeUndefined();
+        await expect(SD.orgaoAtualizar(o.id, { praxe: true })).resolves.toBeUndefined();
+      });
     });
 
     describe('Dados do escritório', () => {

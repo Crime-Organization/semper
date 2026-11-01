@@ -16,7 +16,8 @@ const noAno = (ano: number) => (d: DiaSemExpediente) => d.data.startsWith(`${ano
 /** Os calendários prontos que cada órgão segue ou não: o nome na tela, a explicação e os dias de um ano. */
 export const CALENDARIOS_PRONTOS: Record<Segue, { nome: string; explicacao: string; dias: (ano: number) => DiaSemExpediente[] }> = {
   recesso: {
-    nome: 'Recesso forense', explicacao: 'Prazos suspensos de 20/12 a 20/01 (CPC, art. 220); fórum fechado até 06/01.',
+    nome: 'Recesso forense',
+    explicacao: 'Prazos processuais suspensos de 20/12 a 20/01 (CPC, art. 220); fórum fechado até 06/01. Não suspende réu preso, Lei Maria da Penha e medidas urgentes (CPP, art. 798-A), nem prazos de direito material, como os decadenciais.',
     // O recesso começa num ano e termina no seguinte: o ano tem o fim de um e o começo do outro.
     dias: ano => [...recessoForense(ano - 1), ...recessoForense(ano)].filter(noAno(ano))
   },
@@ -25,7 +26,7 @@ export const CALENDARIOS_PRONTOS: Record<Segue, { nome: string; explicacao: stri
     dias: feriadosDePraxe
   },
   justica_federal: {
-    nome: 'Feriados da Justiça Federal', explicacao: 'Os da Lei 5.010/1966, art. 62: Semana Santa, 11/08, 01/11, 08/12 e de 20/12 a 06/01.',
+    nome: 'Feriados da Justiça Federal', explicacao: 'Os da Lei 5.010/1966, art. 62, na Justiça Federal e nos tribunais superiores: Carnaval, Semana Santa, 11/08, 01/11, 08/12 e de 20/12 a 06/01.',
     dias: feriadosDaJusticaFederal
   }
 };
@@ -37,11 +38,11 @@ export const ORIGENS: Record<Origem, string> = {
 
 // ---------- órgãos ----------
 /** O que um órgão novo segue, pela sigla (vale a primeira que casar). Os tribunais seguem o recesso (CPC, art. 220);
- *  a Justiça Federal, também os feriados da Lei 5.010. Os de praxe começam desligados: na dúvida, o prazo calculado
- *  fica mais curto, nunca mais longo. */
+ *  a Justiça Federal e os tribunais superiores, também os feriados da Lei 5.010 (art. 62). Os de praxe começam
+ *  desligados: na dúvida, o prazo calculado fica mais curto, nunca mais longo. */
 const PADROES: { sigla: RegExp; segue: Segue[] }[] = [
-  { sigla: /^TRF\d/, segue: ['recesso', 'justica_federal'] },
-  { sigla: /^(TJ|TRT|TRE|STF|STJ|TST|TSE|STM)/, segue: ['recesso'] }
+  { sigla: /^(TRF\d|STF|STJ|TST|TSE|STM)/, segue: ['recesso', 'justica_federal'] },
+  { sigla: /^(TJ|TRT|TRE)/, segue: ['recesso'] }
 ];
 /** Os campos de um órgão novo com essa sigla, já com o que ele costuma seguir. */
 export function padraoDoOrgao(sigla: string): DadosOrgao {
@@ -64,11 +65,14 @@ export const SIGLAS_SUGERIDAS = [
 // ---------- dias para contar o prazo ----------
 /** Os dias sem expediente de um órgão nos anos dados: os nacionais, os prontos que ele segue e os que o escritório
  *  lançou para ele ou para todos. Sem órgão: só os nacionais e os lançados para todos (nada de recesso, para não
- *  dar um prazo mais longo do que é). */
-export function diasDoOrgao(orgao: Orgao | null, lancados: DiaLancado[], anos: number[]): DiaSemExpediente[] {
+ *  dar um prazo mais longo do que é). semRecesso: o prazo não se suspende no recesso (réu preso, Lei Maria da Penha,
+ *  medida urgente, direito material), que então fica de fora por inteiro: o prazo corre e pode vencer nesses dias,
+ *  no plantão. */
+export function diasDoOrgao(orgao: Orgao | null, lancados: DiaLancado[], anos: number[], { semRecesso = false } = {}): DiaSemExpediente[] {
+  const segue = SEGUE.filter(s => orgao?.[s] && !(semRecesso && s === 'recesso'));
   const prontos = anos.flatMap(ano => [
     ...feriadosNacionais(ano),
-    ...SEGUE.filter(s => orgao?.[s]).flatMap(s => CALENDARIOS_PRONTOS[s].dias(ano))
+    ...segue.flatMap(s => CALENDARIOS_PRONTOS[s].dias(ano))
   ]);
   const doEscritorio = lancados.filter(d => d.orgao_id === null || d.orgao_id === orgao?.id).map(({ data, motivo, tipo }) => ({ data, motivo, tipo }));
   return [...prontos, ...doEscritorio];
@@ -181,8 +185,8 @@ export function linhasDoLancamento(p: PedidoDeLancamento): LinhaDeLancamento[] {
 // ---------- para mostrar ----------
 /** Como cada tipo de dia aparece na tela: o nome curto (no selo) e o que acontece com o fórum e o prazo. */
 export const TIPOS_NA_TELA: Record<TipoSemExpediente, { curto: string; explicacao: string }> = {
-  feriado: { curto: 'Feriado', explicacao: 'O fórum fecha. Em dias corridos, o prazo continua correndo; o fim que cai nele passa para o dia útil seguinte.' },
-  suspensao: { curto: 'Suspensão', explicacao: 'O fórum fecha e o prazo para (ex.: portaria que fecha o fórum).' },
+  feriado: { curto: 'Feriado', explicacao: 'O fórum fecha. Em dias corridos, o prazo continua correndo; o fim que cai nele passa para o dia útil seguinte (ex.: ponto facultativo, portaria que só fecha o fórum).' },
+  suspensao: { curto: 'Suspensão', explicacao: 'O fórum fecha e o prazo para (ex.: portaria que fecha o fórum e diz que os prazos ficam suspensos).' },
   suspensao_com_expediente: { curto: 'Prazos suspensos', explicacao: 'O fórum abre, mas o prazo para (ex.: suspensão de prazos por portaria, com atendimento normal).' }
 };
 

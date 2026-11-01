@@ -746,7 +746,6 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
 }
 // ---------- calendário de feriados e suspensões ----------
 const FORMATO_INVALIDO = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
-const SO_ADMIN_NO_CALENDARIO = 'Só os administradores mudam o calendário.';
 const porSigla = (a: Orgao, b: Orgao) => a.sigla.localeCompare(b.sigla, 'pt-BR');
 /** Como o gatilho preparar_orgao, as regras check e o índice de sigla única da migração. */
 function prepararOrgao(campos: Partial<DadosOrgao>, id?: string): Partial<DadosOrgao> {
@@ -1386,12 +1385,12 @@ export const SD: Dados = {
     const novo = { id: novoId(), ...o, ...prepararOrgao(o) } as Orgao;
     bd.orgaos!.push(novo); gravar(); return espera(novo);
   },
+  // Quem está logado aqui é administrador: um órgão que já não existe (outro administrador excluiu) não dá erro, como no banco.
   async orgaoAtualizar(id, campos) {
-    const o = bd.orgaos!.find(x => x.id === id); if (!o) return erro(SO_ADMIN_NO_CALENDARIO);
+    const o = bd.orgaos!.find(x => x.id === id); if (!o) return;
     Object.assign(o, prepararOrgao(campos, id)); gravar();
   },
   async orgaoExcluir(id) {
-    if (!bd.orgaos!.some(x => x.id === id)) return erro(SO_ADMIN_NO_CALENDARIO);
     bd.orgaos = bd.orgaos!.filter(o => o.id !== id);
     bd.diasLancados = bd.diasLancados!.filter(d => d.orgao_id !== id);   // on delete cascade
     gravar();
