@@ -12,11 +12,11 @@ import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
 import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
-import { MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
+import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { ordemNoFim } from './posicao';
-import { Carregando, estiloBotao } from '../base';
+import { Campo, Carregando, estiloBotao, propsDoCampo } from '../base';
 import { numero } from '../util';
 import type { Quadro } from './useColunas';
 
@@ -75,6 +75,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const [menuGrupo, setMenuGrupo] = useState<{ g: GrupoDeColunas; botao: HTMLElement } | null>(null);
   const [grupoDaNova, setGrupoDaNova] = useState('');
   const [novoGrupo, setNovoGrupo] = useState('');
+  const [criandoGrupo, setCriandoGrupo] = useState(false);
+  // Abrir ou fechar troca o botão do grupo por outro: o foco passa para o novo, para quem usa o teclado não se perder.
+  const focoGrupo = useRef<string | null>(null);
   const idGrupoDaNova = useId(), idNovoGrupo = useId();
   const [nova, setNova] = useState('');
   const [criando, setCriando] = useState(false);
@@ -118,6 +121,13 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     idsVisiveis.split(',').filter(Boolean).forEach(id => carregar(id));
     if (p.current.arquivados) void carregar(ARQUIVADOS);
   }, [quadro.pronto, idsVisiveis, props.recarga, carregar]);
+
+  const estadoDosGrupos = quadro.grupos.map(g => `${g.id}:${quadro.grupoAberto(g)}`).join();
+  useEffect(() => {
+    if (!focoGrupo.current) return;
+    elQuadro.current?.querySelector<HTMLElement>(`[data-grupo-botao="${focoGrupo.current}"]`)?.focus();
+    focoGrupo.current = null;
+  }, [estadoDosGrupos]);
 
   // Coluna que mudou de ordem é relida sozinha.
   const ordensVistas = useRef<Record<string, Ordem>>({});
@@ -210,7 +220,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 
   async function criarGrupo() {
     const nome = novoGrupo.trim().replace(/\s+/g, ' ');
-    if (nome && await quadro.criarGrupo(nome)) setNovoGrupo('');
+    if (!nome) return;
+    setCriandoGrupo(true);
+    if (await quadro.criarGrupo(nome)) setNovoGrupo('');
+    setCriandoGrupo(false);
   }
 
   // A coluna Arquivados é fixa: não se move, não tem menu nem "Adicionar", e mostra os mais recentes primeiro.
@@ -296,9 +309,11 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 
   function grupoDeColunas(g: GrupoDeColunas, b: BlocoDoQuadro<Coluna>) {
     const carregando = b.colunas.some(c => !listas[chave(c.id)]);
-    const n = carregando ? '…' : numero(b.colunas.reduce((soma, c) => soma + (listas[chave(c.id)]?.total ?? 0), 0));
+    const total = carregando ? null : b.colunas.reduce((soma, c) => soma + (listas[chave(c.id)]?.total ?? 0), 0);
+    const n = total === null ? '…' : numero(total);
+    const alternar = () => { focoGrupo.current = g.id; quadro.alternarGrupo(g); };
     if (!quadro.grupoAberto(g)) return <section key={g.id} className="grupo-colunas fechado" aria-label={`Grupo ${g.nome}`}>
-      <button type="button" className="grupo-faixa" aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${n} cartões`} title={`Abrir o grupo ${g.nome}`} onClick={() => quadro.alternarGrupo(g)}>
+      <button type="button" className="grupo-faixa" data-grupo-botao={g.id} aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${cartoesEmPalavras(total, numero)}`} title={`Abrir o grupo ${g.nome}`} onClick={alternar}>
         <Icone nome="seta" tam={14} />
         <span className="grupo-faixa-nome">{g.nome}</span>
         <span className="coluna-n">{n}</span>
@@ -306,7 +321,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     </section>;
     return <section key={g.id} className="grupo-colunas" aria-label={`Grupo ${g.nome}`}>
       <header className="grupo-topo">
-        <button type="button" className="grupo-abrir" aria-expanded aria-label={`Fechar o grupo ${g.nome}`} title={`Fechar o grupo ${g.nome}`} onClick={() => quadro.alternarGrupo(g)}>
+        <button type="button" className="grupo-abrir" data-grupo-botao={g.id} aria-expanded aria-label={`Fechar o grupo ${g.nome}`} title={`Fechar o grupo ${g.nome}`} onClick={alternar}>
           <Icone nome="abaixo" tam={14} /><span>{g.nome}</span>
         </button>
         <span className="coluna-n">{n}</span>
@@ -353,19 +368,19 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>
           <CampoComSugestoes id={idNova} ref={campoNova} maxLength={TAMANHO_COLUNA} placeholder="Nome da coluna" valor={nova} aoMudar={setNova}
             sugestoes={[...ocultas.map(c => ({ valor: c.nome, detalhe: 'oculta' })), ...quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(valor => ({ valor }))]} />
-          {quadro.grupos.length > 0 && <>
-            <label className="rotulo-caps" htmlFor={idGrupoDaNova}>Grupo da coluna</label>
-            <select id={idGrupoDaNova} className="campo" value={grupoDaNova} onChange={e => setGrupoDaNova(e.target.value)}>
+          {quadro.grupos.length > 0 && <Campo rotulo="Grupo da coluna" para={idGrupoDaNova}>
+            <select {...propsDoCampo(idGrupoDaNova)} className="campo" value={grupoDaNova} onChange={e => setGrupoDaNova(e.target.value)}>
               <option value="">Sem grupo</option>
               {quadro.grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
             </select>
-          </>}
+          </Campo>}
           <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={criando}>Criar coluna</button>
         </form>
         {quadro.podeGerirGrupos && <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarGrupo(); }}>
-          <label className="rotulo-caps" htmlFor={idNovoGrupo}>Novo grupo</label>
-          <input id={idNovoGrupo} className="campo" maxLength={TAMANHO_GRUPO} placeholder="Nome do grupo" value={novoGrupo} onChange={e => setNovoGrupo(e.target.value)} />
-          <button type="submit" className={estiloBotao({ pequeno: true })}>Criar grupo</button>
+          <Campo rotulo="Novo grupo" para={idNovoGrupo}>
+            <input {...propsDoCampo(idNovoGrupo)} className="campo" maxLength={TAMANHO_GRUPO} placeholder="Nome do grupo" value={novoGrupo} onChange={e => setNovoGrupo(e.target.value)} />
+          </Campo>
+          <button type="submit" className={estiloBotao({ pequeno: true })} disabled={criandoGrupo}>Criar grupo</button>
         </form>}
         {ocultas.length > 0 && <div className="ocultas">
           <p className="rotulo-caps">Ocultas para você</p>
@@ -376,7 +391,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       </section>
     </div>
     {menu && <MenuColuna c={menu.c} botao={menu.botao} quadro={quadro} aoFechar={() => setMenu(null)} />}
-    {menuGrupo && <MenuGrupo g={menuGrupo.g} botao={menuGrupo.botao} quadro={quadro} aoFechar={() => setMenuGrupo(null)} />}
+    {menuGrupo && <MenuGrupo g={menuGrupo.g} botao={menuGrupo.botao} quadro={quadro} aoFechar={() => setMenuGrupo(null)} aoMudarComeco={() => { focoGrupo.current = menuGrupo.g.id; }} />}
   </div>;
 }
 
@@ -415,14 +430,14 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
 }
 
 // ---------- menu do grupo (só para quem cuida dos grupos) ----------
-function MenuGrupo({ g, botao, quadro, aoFechar }: { g: GrupoDeColunas; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
+function MenuGrupo({ g, botao, quadro, aoFechar, aoMudarComeco }: { g: GrupoDeColunas; botao: HTMLElement; quadro: Quadro; aoFechar: () => void; aoMudarComeco: () => void }) {
   const i = quadro.grupos.findIndex(x => x.id === g.id);
   const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
     {i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
     {i < quadro.grupos.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
     <button type="button" role="menuitem" onClick={agir(() => quadro.renomearGrupo(g))}><Icone nome="editar" tam={15} /> Renomear</button>
-    <button type="button" role="menuitemcheckbox" aria-checked={g.comeca_fechado} onClick={agir(() => quadro.alternarComecoFechado(g))}>
+    <button type="button" role="menuitemcheckbox" aria-checked={g.comeca_fechado} onClick={agir(() => { aoMudarComeco(); return quadro.alternarComecoFechado(g); })}>
       <span className="kmenu-marca">{g.comeca_fechado && <Icone nome="check" tam={15} />}</span>Começa fechado para todos
     </button>
     <button type="button" role="menuitem" className="perigo" onClick={agir(() => quadro.excluirGrupo(g))}><Icone nome="lixeira" tam={15} /> Excluir grupo</button>

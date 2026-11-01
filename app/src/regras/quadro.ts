@@ -43,3 +43,14 @@ export function ordemEntre(anterior: { ordem: number } | undefined, seguinte: { 
   if (anterior) return anterior.ordem + 1;
   return seguinte ? seguinte.ordem - 1 : atual;
 }
+
+/** A coluna do cartão novo quando ninguém escolheu: a coluna-marco de início, se o quadro tem; se não, a primeira da tela. */
+export function colunaDoCartaoNovo<C extends { ordem: number; grupo_id?: string | null; marco?: MarcoColuna | null }>(colunas: C[], grupos: GrupoDeColunas[]): C | null {
+  return colunas.find(c => c.marco === 'inicio') ?? blocosDoQuadro(colunas, grupos).find(b => b.colunas.length)?.colunas[0] ?? null;
+}
+
+/** A quantidade de cartões em palavras, para quem usa leitor de tela (null: ainda carregando). */
+export function cartoesEmPalavras(total: number | null, formatar: (n: number) => string) {
+  if (total === null) return 'carregando';
+  return total === 1 ? '1 cartão' : `${formatar(total)} cartões`;
+}

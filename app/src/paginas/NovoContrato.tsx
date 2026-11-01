@@ -14,6 +14,7 @@ import {
 import { motivoParaNaoParticipar, opcoesDeResponsavel } from '../regras/equipe';
 import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
+import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -241,7 +242,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         if (edicao) edicao.aoTerminar(true); else navegar('/contratos/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o contrato novo entra na primeira coluna do quadro.
-        const coluna = etapaInicial || (await SD.colunasListar('contratos')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
+        const coluna = etapaInicial || await colunaInicial('contratos');
         const r = await SD.contratoCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Contrato ${r.codigo} cadastrado.`, 'cadastro do contrato', async () => {
           await SD.contratosArquivar([r.id], true);

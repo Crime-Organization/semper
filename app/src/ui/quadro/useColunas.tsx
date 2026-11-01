@@ -230,8 +230,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
 
   async function agrupar(c: Coluna, grupoId: string | null) {
     if ((c.grupo_id ?? null) === grupoId) return;
-    const noGrupo = atuais.current.filter(x => (x.grupo_id ?? null) === grupoId);
-    const ordem = (noGrupo.length ? Math.max(...noGrupo.map(x => x.ordem)) : c.ordem) + 1;
+    // Maior que a de todas as colunas (como ao criar): fica no fim do grupo, sem repetir a ordem de outro grupo.
+    const ordem = Math.max(...atuais.current.map(x => x.ordem)) + 1;
     const antes = { grupo_id: c.grupo_id ?? null, ordem: c.ordem };
     try {
       await SD.colunaAgrupar(c.id, grupoId, ordem);

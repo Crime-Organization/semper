@@ -12,6 +12,7 @@ import {
 } from '../regras/demanda';
 import { MASCARAS } from '../regras/pessoa';
 import { falha, feito } from '../ui/avisos';
+import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -175,8 +176,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         });
         if (edicao) edicao.aoTerminar(true); else navegar('/demandas/?id=' + alvo.id);
       } else {
-        // Sem coluna escolhida, a demanda nova entra na primeira coluna do quadro ("Para fazer").
-        const coluna = etapaInicial || (await SD.colunasListar('demandas')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
+        // Sem coluna escolhida, a demanda nova entra na coluna-marco de início ("Para fazer").
+        const coluna = etapaInicial || await colunaInicial('demandas');
         const r = await SD.demandaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Demanda ${r.codigo} cadastrada.`, 'cadastro da demanda', async () => {
           await SD.demandasArquivar([r.id], true);

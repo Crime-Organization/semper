@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { blocosDoQuadro, grupoEstaAberto, MARCOS, ordemEntre, podeExcluirColuna } from './quadro';
+import { blocosDoQuadro, cartoesEmPalavras, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemEntre, podeExcluirColuna } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -57,6 +57,46 @@ describe('Grupos de colunas', () => {
   ])('quando %s, então o grupo aparece como deve', (_caso, comecaFechado, escolhas, aberto) => {
     // Então
     expect(grupoEstaAberto(grupo('g', 1, comecaFechado), escolhas as Record<string, boolean>)).toBe(aberto);
+  });
+
+  describe('Coluna do cartão novo', () => {
+    it('quando o quadro não tem grupos nem marco, então é a de menor ordem', () => {
+      // Então
+      expect(colunaDoCartaoNovo([coluna('b', 2), coluna('a', 1)], [])?.id).toBe('a');
+    });
+
+    it('quando há grupos, então é a primeira da tela: as sem grupo vêm antes, mesmo com ordem maior', () => {
+      // Dado
+      const colunas = [coluna('no-grupo', 1, 'g'), coluna('solta', 9)];
+      // Então
+      expect(colunaDoCartaoNovo(colunas, [grupo('g', 1)])?.id).toBe('solta');
+    });
+
+    it('quando os grupos mudam de lugar, então vale a ordem dos grupos, não a das colunas', () => {
+      // Dado
+      const colunas = [coluna('em-a', 1, 'a'), coluna('em-b', 2, 'b')];
+      // Então
+      expect(colunaDoCartaoNovo(colunas, [grupo('a', 2), grupo('b', 1)])?.id).toBe('em-b');
+    });
+
+    it('quando o quadro tem coluna-marco de início, então é ela, onde quer que esteja', () => {
+      // Dado
+      const colunas = [coluna('solta', 1), { ...coluna('para-fazer', 5, 'g'), marco: 'inicio' as const }];
+      // Então
+      expect(colunaDoCartaoNovo(colunas, [grupo('g', 1)])?.id).toBe('para-fazer');
+    });
+
+    it('quando o quadro não tem colunas, então não há coluna', () => {
+      // Então
+      expect(colunaDoCartaoNovo([], [grupo('g', 1)])).toBeNull();
+    });
+  });
+
+  it.each([
+    [null, 'carregando'], [0, '0 cartões'], [1, '1 cartão'], [2, '2 cartões'], [1200, '1.200 cartões']
+  ])('quando o total é %s, então o texto é "%s"', (total, texto) => {
+    // Então
+    expect(cartoesEmPalavras(total, n => n.toLocaleString('pt-BR'))).toBe(texto);
   });
 
   it.each([

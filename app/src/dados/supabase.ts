@@ -835,7 +835,7 @@ export const SD: Dados = {
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {
     const [{ data: colunas }, { data: ocultas }] = await Promise.all([
-      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco, grupo_id').eq('modulo', modulo).order('ordem')),
+      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco, grupo_id').eq('modulo', modulo).order('ordem').order('id')),
       rodar(sb.from('quadro_colunas_ocultas').select('coluna_id'))
     ]);
     const o = new Set(ocultas.map((x: { coluna_id: string }) => x.coluna_id));
