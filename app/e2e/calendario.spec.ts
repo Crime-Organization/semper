@@ -18,6 +18,7 @@ test.describe('Feriados e prazos', () => {
     // Dado
     await page.goto('/inicio/');
     // Quando
+    await page.getByRole('button', { name: 'Agenda e calendário' }).click();
     await abrir(page, 'Feriados e prazos');
     // Então
     const ano = new Date().getFullYear();
@@ -26,6 +27,15 @@ test.describe('Feriados e prazos', () => {
     const janeiro = page.getByRole('region', { name: `janeiro de ${ano}` });
     await expect(janeiro.getByText('Confraternização Universal')).toBeVisible();
     await expect(janeiro.getByText('Recesso forense: TJMG, TRF6').first()).toBeVisible();
+  });
+
+  test('quando a pessoa está em "Feriados e prazos", então o submenu "Agenda e calendário" já aparece aberto', async ({ page }) => {
+    // Quando
+    await page.goto('/calendario/');
+    // Então
+    const secoes = page.getByRole('navigation', { name: 'Seções' });
+    await expect(secoes.getByRole('button', { name: 'Agenda e calendário' })).toHaveAttribute('aria-expanded', 'true');
+    await expect(secoes.getByRole('link', { name: 'Feriados e prazos', exact: true })).toBeVisible();
   });
 
   test('quando o administrador lança um feriado municipal para o TJMG, então o prazo do TJMG pula esse dia, e o do TRF6 não', async ({ page }) => {

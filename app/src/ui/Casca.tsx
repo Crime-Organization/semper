@@ -11,6 +11,7 @@ import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
 import { useSessao } from './sessao';
+import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
 import { PAPEIS } from './util';
 
@@ -47,7 +48,7 @@ export function Casca({ children }: { children: ReactNode }) {
     await SD.sair();
     navegar('/entrar/');
   };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'calendario' | 'equipe' | 'configuracoes', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
@@ -82,7 +83,9 @@ export function Casca({ children }: { children: ReactNode }) {
             {item('/tarefas/', 'tarefas', 'Tarefas')}
             <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={15} /></Link>
           </div>}
-          {item('/calendario/', 'calendario', 'Feriados e prazos')}
+          <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/calendario']}>
+            <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
+          </SubmenuLateral>
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>

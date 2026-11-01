@@ -204,6 +204,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nav a:hover, .nav button:hover { background: var(--line) }
 .nav a[aria-current="page"] { background: var(--line); font-weight: 700; color: var(--ink) }
 .nav svg { flex-shrink: 0 }
+/* Submenu recolhível (ui/SubmenuLateral.tsx): a seta fica na ponta, e as opções ficam recuadas, alinhadas ao texto do botão. */
+.nav-grupo { display: flex; flex-direction: column; gap: 2px }
+.nav-grupo > button > svg:last-child { margin-left: auto; color: var(--muted) }
+.nav-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 30px }
+.nav-sub[hidden] { display: none }
 .nav-linha { display: flex; align-items: center; gap: 2px }
 .nav-linha > a:first-child { flex: 1; min-width: 0 }
 .nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
