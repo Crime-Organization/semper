@@ -1,6 +1,6 @@
 // Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, funções, papéis,
 // desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
@@ -13,7 +13,7 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao, Vazio } from '../ui/base';
 import { useSessao } from '../ui/sessao';
-import { copiarTexto, dataHora, PAPEIS, relativo, useTitulo } from '../ui/util';
+import { copiarTexto, dataHora, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
 import './Equipe.css';
 
 export default function Equipe() {
@@ -28,7 +28,16 @@ const TABELAS: Record<string, string> = {
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
   pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato', comentarios: 'um comentário', perfil_profissional: 'o perfil profissional de', ligacoes: 'a conta Google do escritório'
 };
-const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou' };
+const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou', importacao: 'importou' };
+const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
+/** Ações sobre muitos cadastros de uma vez (a linha-resumo): contam quantos, em vez de nomear um. As outras dizem quem fez o quê a qual cadastro. */
+const LINHAS_ESPECIAIS: Partial<Record<string, (r: RegistroAuditoria, quem: string) => ReactNode>> = {
+  exportacao: (r, quem) => <>{quem} exportou {cadastros(r.resumo?.quantidade)} {r.resumo?.descricao && <b>({r.resumo.descricao})</b>}</>,
+  // "Ana importou 120 cadastros de pessoas, completou 15; 8 com pendência" (só números: a descrição não vai ao registro)
+  importacao: (r, quem) => <>{quem} importou {cadastros(r.resumo?.quantidade)}
+    {!!r.resumo?.completadas && <>, completou {numero(r.resumo.completadas)}</>}
+    {!!r.resumo?.incompletas && <>; {numero(r.resumo.incompletas)} com pendência</>}</>
+};
 // O link leva o código do convite depois do "#": essa parte não sai do navegador (não fica nos registros do servidor).
 const linkAcesso = (codigo?: string) => location.origin + '/entrar/?primeiro-acesso' + (codigo ? '#convite=' + codigo : '');
 const mensagemConvite = (c: Convite, escritorio?: string, codigo?: string) =>
@@ -176,16 +185,14 @@ function PainelEquipe() {
 
     <section aria-labelledby="tReg" className="registro" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tReg">Registro de ações</TituloSecao>
-      <Nota style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu, leu ou exportou informações (exigência da LGPD). Últimas 60 ações.</Nota>
+      <Nota style={{ marginTop: -6 }}>Quem incluiu, alterou, excluiu, leu, exportou ou importou informações (exigência da LGPD). Últimas 60 ações.</Nota>
       <Cartao>
         {registro === null ? <Carregando />
           : typeof registro === 'string' ? <Aviso tipo="erro">{registro}</Aviso>
           : !registro.length ? <Nota>Nenhuma ação registrada ainda.</Nota>
           : <ol>{registro.map(r => {
-            if (r.acao === 'exportacao') {
-              const q = r.resumo?.quantidade ?? 0;
-              return <li key={r.id}>{nomeDe(r.feito_por)} exportou {q} {q === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'} {r.resumo?.descricao && <b>({r.resumo.descricao})</b>}<span>{dataHora(r.em)}</span></li>;
-            }
+            const especial = LINHAS_ESPECIAIS[r.acao];
+            if (especial) return <li key={r.id}>{especial(r, nomeDe(r.feito_por))}<span>{dataHora(r.em)}</span></li>;
             const alvo = r.resumo?.nome || r.resumo?.email || r.resumo?.codigo || '';
             return <li key={r.id}>{nomeDe(r.feito_por)} {ACOES[r.acao] || r.acao} {TABELAS[r.tabela] || r.tabela} {alvo && <b>{alvo}</b>}<span>{dataHora(r.em)}</span></li>;
           })}</ol>}

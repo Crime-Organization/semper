@@ -10,12 +10,12 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -66,7 +66,14 @@ async function rodar(promessa: PromiseLike<Resposta>): Promise<{ data: Livre; co
 const uid = () => ctx?.usuario?.id;
 
 // ---------- pessoas ----------
-const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, resp:pessoa_responsaveis(perfil_id)';
+const CAMPOS_LISTA = 'id, codigo, tipo, nome, nome_fantasia, documento, telefones, emails, municipio, uf, etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, pendencias, importacao_id, resp:pessoa_responsaveis(perfil_id)';
+/** O cadastro completo, com os responsáveis. */
+const CAMPOS_PESSOA = '*, resp:pessoa_responsaveis(perfil_id)';
+/** O filtro de cada marca de Pessoas (importadas, com pendência). */
+const MARCAS: Record<MarcaPessoas, (q: Livre) => Livre> = {
+  importadas: q => q.not('importacao_id', 'is', null),
+  pendentes: q => q.neq('pendencias', '{}')
+};
 
 // Ordem das listas. O id no fim desempata, para a paginação não repetir nem pular ninguém.
 function ordenar(q: Livre, ordem: Ordem) {
@@ -92,11 +99,12 @@ function filtrar(q: Livre, f: FiltroPessoas = {}) {
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.tipo) q = q.eq('tipo', f.tipo);
   if (f.responsavel) q = q.eq('filtro.perfil_id', f.responsavel);
+  if (f.marca) q = MARCAS[f.marca](q);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
-const selecao = (f: FiltroPessoas) => CAMPOS_LISTA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '');
+const selecao =(f: FiltroPessoas) => CAMPOS_LISTA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '');
 
 async function sincronizarResponsaveis(pessoaId: string, responsaveis?: string[]) {
   if (!Array.isArray(responsaveis)) return;
@@ -317,7 +325,7 @@ export const SD: Dados = {
   async pessoasExportar(f = {}) {
     const lote = 1000, todas: Pessoa[] = [];
     for (let de = 0; ; de += lote) {
-      const q = filtrar(sb.from('pessoas').select('*, resp:pessoa_responsaveis(perfil_id)' + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '')), f);
+      const q = filtrar(sb.from('pessoas').select(CAMPOS_PESSOA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '')), f);
       const { data } = await rodar(ordenar(q, 'nome').range(de, de + lote - 1));
       todas.push(...data);
       if (data.length < lote) return todas;
@@ -334,7 +342,7 @@ export const SD: Dados = {
   },
 
   async pessoaObter(id) {
-    const { data } = await rodar(sb.from('pessoas').select('*, resp:pessoa_responsaveis(perfil_id)').eq('id', id).maybeSingle());
+    const { data } = await rodar(sb.from('pessoas').select(CAMPOS_PESSOA).eq('id', id).maybeSingle());
     return data;
   },
   async pessoaPorDocumento(documento, excetoId) {
@@ -400,6 +408,24 @@ export const SD: Dados = {
     ]);
     return { total, minhas, mes, arquivadas, recentes };
   },
+
+  // ---------- importação de pessoas (supabase/migrations/20261031200000_importar_pessoas.sql) ----------
+  // Os CPF/CNPJ e as referências vão no corpo do pedido (POST), não no endereço; em partes, porque cada consulta
+  // devolve no máximo 1.000 linhas (cada chave acha no máximo um cadastro).
+  async pessoasParaImportar({ documentos, referencias }) {
+    const achadas = new Map<string, Pessoa>();
+    const partes: [string[], string[]][] = [];
+    for (let i = 0; i < documentos.length; i += CHAVES_POR_CONSULTA) partes.push([documentos.slice(i, i + CHAVES_POR_CONSULTA), []]);
+    for (let i = 0; i < referencias.length; i += CHAVES_POR_CONSULTA) partes.push([[], referencias.slice(i, i + CHAVES_POR_CONSULTA)]);
+    for (const [docs, refs] of partes) {
+      const { data } = await rodar(sb.rpc('pessoas_para_importar', { p_documentos: docs, p_referencias: refs }).select(CAMPOS_PESSOA));
+      for (const p of data as Pessoa[]) achadas.set(p.id, p);
+    }
+    return [...achadas.values()];
+  },
+  importacaoIniciar: (descricao, arquivo) => rpc('importacao_iniciar', { p_descricao: descricao, p_arquivo: arquivo }),
+  pessoasImportar: (importacaoId, lote) => rpc('pessoas_importar', { p_importacao: importacaoId, p_lote: lote }),
+  importacaoConcluir: (importacaoId, completadas) => rpc('importacao_concluir', { p_importacao: importacaoId, p_completadas: completadas }),
 
   // ---------- informações sigilosas (só por funções do banco, que registram cada leitura) ----------
   sigilosListar: pessoaId => rpc('sigilos_listar', { p_pessoa: pessoaId }),

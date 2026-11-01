@@ -2,14 +2,14 @@
 // e o cartão de cada pessoa. A estrutura da página vem de <PaginaModulo>.
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { SD, type FiltroPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
+import { SD, type FiltroPessoas, type MarcaPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
 import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
@@ -32,6 +32,9 @@ import './Pessoas.css';
 const ARQUIVADAS_ABERTA = 'pessoas.arquivados';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
+/** O filtro "Situação do cadastro": as criadas por uma importação ou as com alguma pendência (veja ImportarPessoas.tsx). */
+const MARCAS: Record<MarcaPessoas, string> = { importadas: 'Importadas', pendentes: 'Com pendência' };
+const marcaDe = (valor: string) => Object.hasOwn(MARCAS, valor) ? valor as MarcaPessoas : undefined;
 
 export default function Pessoas() {
   useTitulo('Pessoas');
@@ -94,7 +97,7 @@ export default function Pessoas() {
     SD.pessoasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
+  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, recarga]);
 
   // Quantas arquivadas há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -104,7 +107,7 @@ export default function Pessoas() {
     SD.pessoasListar({ ...f, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.tipo, f.responsavel, recarga]);
+  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.pessoasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
   // Vindo do atalho do Início, a tela já desce até os arquivados.
   useEffect(() => {
@@ -113,7 +116,7 @@ export default function Pessoas() {
     return () => clearTimeout(t);
   }, [verArquivadas]);
 
-  const filtrado = !!(f.termo || f.tipo || f.responsavel);
+  const filtrado = !!(f.termo || f.tipo || f.responsavel || f.marca);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
@@ -153,7 +156,7 @@ export default function Pessoas() {
     });
     if (!escolha) return;
     try {
-      const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, situacao: f.situacao });
+      const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, marca: f.marca, situacao: f.situacao });
       if (!pessoas.length) { avisar('Nenhuma pessoa para exportar com esses filtros.', 'erro'); return; }
       // Na qualificação das pessoas jurídicas entra quem as representa (vínculo "Representante legal de").
       const representantes: Record<string, Representante[]> = {};
@@ -188,14 +191,17 @@ export default function Pessoas() {
           opcoes: [['', 'Todos os tipos'], ['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente contato']] },
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('pessoas.responsavel', responsavel); },
-          opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] }
+          opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        { id: 'marca', rotulo: 'Situação do cadastro', valor: f.marca || '', aoMudar: marca => mudarFiltro({ marca: marcaDe(marca) }),
+          opcoes: [['', 'Todos'], ...Object.entries(MARCAS) as [string, string][]] }
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
-      mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle }] : undefined}
+      mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle },
+        { rotulo: 'Importar pessoas', icone: 'subir', aoEscolher: () => navegar('/pessoas/importar/') }] : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.tipo, f.responsavel].join('|')}
+          recarga={[recarga, f.termo, f.tipo, f.responsavel, f.marca].join('|')}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -237,6 +243,7 @@ function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
       {p.municipio && <span>{p.municipio}{p.uf ? '/' + p.uf : ''}</span>}
       {data && <span>{data}</span>}
+      {p.pendencias?.length > 0 && <Selo tipo="pend">Incompleta</Selo>}
     </div>
     {p.resp.length > 0 && <div className="kp"><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} max={4} tam={24} /></div>}
   </>;
@@ -277,7 +284,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, ao
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>

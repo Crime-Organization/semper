@@ -12,6 +12,7 @@ interface Regra {
 // Registro repetido (código 23505): a mensagem depende da restrição que barrou.
 const REPETIDO: Regra[] = [
   { padrao: /pessoas_documento_unico/, mensagem: 'Já existe um cadastro com este CPF/CNPJ.' },
+  { padrao: /pessoas_referencia_unica/, mensagem: 'Já existe um cadastro com esta referência de origem (de uma importação).' },
   { padrao: /quadro_colunas_nome_unico/, mensagem: 'Já existe uma coluna com esse nome neste quadro.' },
   { padrao: /convites_email_pendente/, mensagem: 'Este e-mail já tem um convite pendente.' },
   { padrao: /pessoa_vinculos_unico/, mensagem: 'Essas duas pessoas já têm esse vínculo.' },

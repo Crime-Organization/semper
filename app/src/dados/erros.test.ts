@@ -6,6 +6,7 @@ describe('Erros do banco em português', () => {
   describe('Dado um registro repetido (código 23505 ou "duplicate key")', () => {
     it.each([
       ['pessoas_documento_unico', 'Já existe um cadastro com este CPF/CNPJ.'],
+      ['pessoas_referencia_unica', 'Já existe um cadastro com esta referência de origem (de uma importação).'],
       ['quadro_colunas_nome_unico', 'Já existe uma coluna com esse nome neste quadro.'],
       ['convites_email_pendente', 'Este e-mail já tem um convite pendente.'],
       ['pessoa_vinculos_unico', 'Essas duas pessoas já têm esse vínculo.'],

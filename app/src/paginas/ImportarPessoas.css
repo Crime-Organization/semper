@@ -1,0 +1,8 @@
+/* Importar pessoas (ImportarPessoas.tsx e importarPessoas/) */
+/* As cinco abas da conferência não cabem no celular: rolam de lado dentro da faixa, sem empurrar a janela. */
+.conferencia-abas { max-width: 100%; overflow-x: auto }
+.conferencia-abas .abas button { white-space: nowrap }
+/* Tabelas de três colunas (responsáveis, como preencher): cabem na largura do celular, sem rolar de lado. */
+.tabela-estreita table { min-width: 0 }
+.tabela-estreita th { white-space: normal }
+.tabela-estreita select { width: 100% }

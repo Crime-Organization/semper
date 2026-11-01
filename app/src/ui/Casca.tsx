@@ -8,6 +8,8 @@ import { Icone } from './Icone';
 import { avisar } from './avisos';
 import { estiloBotao } from './base';
 import { cronometrosAtivos, pausarTodos } from './cronometros';
+import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
+import { confirmar } from './janela';
 import { useSessao } from './sessao';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
 import { PAPEIS } from './util';
@@ -37,7 +39,14 @@ export function Casca({ children }: { children: ReactNode }) {
     definirTema(proximo);
     avisar(`Tema: ${TEMAS[proximo]}${proximo === 'auto' ? ' (segue o aparelho)' : ''}.`);
   };
-  const sair = async () => { await SD.sair(); navegar('/entrar/'); };
+  // Sair não recarrega a página: o que fica guardado nela (a importação de pessoas) é esquecido, para quem entrar depois.
+  const sair = async () => {
+    if (estaGravando() && !await confirmar('Sair com a importação gravando?',
+      'Saindo agora, as linhas que faltam não são gravadas (as que já entraram continuam no SEMPER).', 'Sair', true)) return;
+    abandonarGravacao();
+    await SD.sair();
+    navegar('/entrar/');
+  };
   const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 

@@ -5,9 +5,11 @@
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
-  ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo
+  ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
+  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
+import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
@@ -16,7 +18,8 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS } from './limites';
+import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
+  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES } from './limites';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -59,6 +62,8 @@ interface Banco {
   acessos: { pessoa_id: string; perfil_id: string; concedido_em: string }[];
   convites: Convite[];
   auditoria: RegistroAuditoria[];
+  /** Importações de pessoas (tabela importacoes no banco). */
+  importacoes?: Importacao[];
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
   logado: boolean;
   tiposVinculo?: VinculoTipo[];
@@ -117,6 +122,7 @@ function semente(): Banco {
     nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null, natureza: null, tipo_entidade: null,
     nome_fantasia: null, porte: null, abertura: null, representantes: null, documento: null, cep: null, logradouro: null, numero: null,
     complemento: null, bairro: null, municipio: null, uf: null, telefones: [], emails: [], lgpd_base: 'contrato', lgpd_consentimento: null,
+    importacao_id: null, referencia: null, observacoes: null, pendencias: [],
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: 'u-master', criado_em: agora(),
     atualizado_por: null, atualizado_em: agora(), resp: [{ perfil_id: 'u-master' }]
   } as Pessoa, dados));
@@ -294,6 +300,9 @@ if (!bd.tempos) {
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
+// Sessões abertas antes da importação: os cadastros ganham as colunas novas vazias (como a migração da importação).
+bd.pessoas.forEach(p => { p.importacao_id ??= null; p.referencia ??= null; p.observacoes ??= null; p.pendencias ??= []; });
+bd.importacoes ??= [];
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -309,18 +318,119 @@ function termo(texto?: string) {
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
   return normal(t);
 }
+/** O filtro de cada marca de Pessoas (importadas, com pendência), como em supabase.ts. */
+const MARCAS: Record<MarcaPessoas, (p: Pessoa) => boolean> = {
+  importadas: p => !!p.importacao_id,
+  pendentes: p => p.pendencias.length > 0
+};
 function filtrar(f: FiltroPessoas = {}) {
   const t = termo(f.termo);
   return bd.pessoas.filter(p => (f.situacao === 'arquivadas' ? p.arquivado_em : !p.arquivado_em)
     && (!f.tipo || p.tipo === f.tipo)
     && (!f.responsavel || p.resp.some(r => r.perfil_id === f.responsavel))
+    && (!f.marca || MARCAS[f.marca](p))
     && (!t || busca(p).includes(t)));
 }
 const lista = (p: Pessoa): PessoaLista => ({
   id: p.id, codigo: p.codigo, tipo: p.tipo, nome: p.nome, nome_fantasia: p.nome_fantasia, documento: p.documento, telefones: p.telefones,
   emails: p.emails, municipio: p.municipio, uf: p.uf, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em,
-  criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em, resp: p.resp
+  criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em, resp: p.resp, pendencias: p.pendencias,
+  importacao_id: p.importacao_id
 });
+/** Pessoa nova com os padrões do banco, mais o que veio no cadastro. */
+const novaPessoa = (dados: DadosPessoa, extra: Partial<Pessoa> = {}) => Object.assign({ id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(),
+  atualizado_em: agora(), arquivado_em: null, etapa_id: null, etapa_ordem: null, telefones: [], emails: [], importacao_id: null, referencia: null,
+  observacoes: null, pendencias: [] }, dados, extra) as unknown as Pessoa;
+/** Altera um cadastro como o banco: o histórico guarda só o que mudou (menos a ordem no quadro e quem arquivou) e o registro de ações, a alteração. */
+function alterarPessoa(p: Pessoa, dados: DadosPessoa) {
+  const alt: Historico['alteracoes'] = {};
+  const atual = p as unknown as Record<string, unknown>;
+  Object.entries(dados).forEach(([k, v]) => {
+    if (JSON.stringify(atual[k] ?? null) !== JSON.stringify(v ?? null) && k !== 'etapa_ordem' && k !== 'arquivado_por') alt[k] = { de: atual[k] ?? null, para: v ?? null };
+  });
+  Object.assign(p, dados, { atualizado_em: agora(), atualizado_por: eu });
+  if (Object.keys(alt).length) bd.historico.unshift({ id: Date.now() + Math.random(), pessoa_id: p.id, alteracoes: alt, feito_por: eu, em: agora() });
+  auditar('pessoas', 'alteracao', p);
+}
+
+// ---------- importação de pessoas: as mesmas regras de supabase/migrations/20261031200000_importar_pessoas.sql ----------
+/** As colunas que pessoas_importar grava numa pessoa nova (o resto do item é ignorado, como no banco). */
+const COLUNAS_IMPORTADAS: (keyof DadosPessoa)[] = ['tipo', 'nome', 'genero', 'nacionalidade', 'profissao', 'estado_civil', 'rg', 'rg_expedicao',
+  'nome_mae', 'nome_pai', 'nascimento', 'nascimento_municipio', 'nascimento_uf', 'natureza', 'tipo_entidade', 'nome_fantasia', 'porte', 'abertura',
+  'representantes', 'documento', 'cep', 'logradouro', 'numero', 'complemento', 'bairro', 'municipio', 'uf', 'telefones', 'emails', 'lgpd_base',
+  'lgpd_consentimento'];
+const DATAS_DO_CADASTRO: (keyof DadosPessoa)[] = ['rg_expedicao', 'nascimento', 'abertura', 'lgpd_consentimento'];
+/** Os valores aceitos em pendencias (a regra "check" da coluna no banco). */
+const PENDENCIAS_DO_BANCO: ReadonlySet<string> = new Set<Pendencia>(['documento_invalido', 'conferir']);
+/** Data de cadastro antes deste ano foi digitada errado: o banco troca por agora (como a do futuro). */
+const ANO_MINIMO_DO_CADASTRO = 1900;
+/** O erro de uma linha do lote, como privado.erro_da_linha no banco: só o número da linha e o motivo, sem os valores. */
+const ERRO_DA_LINHA = {
+  formato: 'algum valor está em formato inválido.',
+  naoEncontrado: 'cadastro não encontrado.',
+  pendencia: 'algum campo está em formato inválido (pessoas_pendencias_check).',
+  observacao: `a observação passaria de ${TAMANHO_OBSERVACOES.toLocaleString('pt-BR')} caracteres.`,
+  repetido: 'já existe um cadastro com este CPF/CNPJ ou esta referência.',
+  permissao: 'sem permissão para gravar esta linha (confira os responsáveis).'
+};
+type ErroDaLinha = keyof typeof ERRO_DA_LINHA;
+const dataValida = (v: unknown) => v === null || v === undefined
+  || (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().startsWith(v));
+/** A data antiga de cadastro como o banco grava: vazia, no futuro ou antes de 1900, vira agora. */
+function criadoEmDaImportacao(iso: string | null) {
+  const d = iso ? new Date(iso) : null;
+  return d && d.getTime() <= Date.now() && d.getUTCFullYear() >= ANO_MINIMO_DO_CADASTRO ? d.toISOString() : agora();
+}
+/** As pendências juntas, sem repetir, em ordem (como privado.juntar_pendencias no banco). */
+const juntarPendencias = (atuais: Pendencia[], novas: Pendencia[]) => [...new Set([...atuais, ...novas])].sort();
+/** O que já está tomado enquanto o lote é conferido, linha a linha (como o banco, que grava uma linha depois da outra). */
+interface Tomados { documentos: Set<string>; referencias: Set<string>; observacoes: Map<string, string | null> }
+/** O motivo de a linha não poder entrar, na ordem em que o banco confere; null = pode. Marca o que a linha toma. */
+function problemaDaLinha(item: ItemImportacao, t: Tomados): ErroDaLinha | null {
+  if (!DATAS_DO_CADASTRO.every(c => dataValida(item.dados[c]))
+    || (!item.existente_id && item.criado_em && Number.isNaN(Date.parse(item.criado_em)))) return 'formato';
+  const p = item.existente_id ? bd.pessoas.find(x => x.id === item.existente_id) : null;
+  if (item.existente_id && !p) return 'naoEncontrado';
+  if (item.pendencias.some(x => !PENDENCIAS_DO_BANCO.has(x))) return 'pendencia';
+  const observacao = p ? juntarObservacoes(t.observacoes.get(p.id), item.observacoes) : item.observacoes;
+  if ((observacao?.length ?? 0) > TAMANHO_OBSERVACOES) return 'observacao';
+  const documento = p ? completarVazios(p, item.dados).documento : item.dados.documento;
+  const referencia = p ? null : item.referencia;
+  if ((documento && t.documentos.has(documento)) || (referencia && t.referencias.has(referencia))) return 'repetido';
+  if (item.responsaveis.some(id => !EQUIPE.some(m => m.id === id))) return 'permissao';
+  if (documento) t.documentos.add(documento);
+  if (referencia) t.referencias.add(referencia);
+  if (p) t.observacoes.set(p.id, observacao ?? null);
+  return null;
+}
+/** O primeiro problema do lote, sem gravar nada (o lote é tudo ou nada, como a transação do banco); null = pode gravar. */
+function problemaDoLote(lote: ItemImportacao[]): string | null {
+  const t: Tomados = {
+    documentos: new Set(bd.pessoas.flatMap(p => p.documento ? [p.documento] : [])),
+    referencias: new Set(bd.pessoas.flatMap(p => p.referencia ? [p.referencia] : [])),
+    observacoes: new Map(bd.pessoas.map(p => [p.id, p.observacoes]))
+  };
+  for (const item of lote) {
+    const motivo = problemaDaLinha(item, t);
+    if (motivo) return `Linha ${item.linha}: ${ERRO_DA_LINHA[motivo]}`;
+  }
+  return null;
+}
+/** Grava uma linha já conferida: pessoa nova, ou o cadastro existente completado (só os vazios, com completarVazios). */
+function gravarLinha(item: ItemImportacao, importacaoId: string): Pessoa {
+  const existente = item.existente_id ? achar(item.existente_id) : null;
+  if (existente) {
+    alterarPessoa(existente, { ...completarVazios(existente, item.dados), observacoes: juntarObservacoes(existente.observacoes, item.observacoes),
+      pendencias: juntarPendencias(existente.pendencias, item.pendencias) });
+    return existente;
+  }
+  const dados = Object.fromEntries(COLUNAS_IMPORTADAS.map(c => [c, item.dados[c] ?? null])) as DadosPessoa;
+  const p = novaPessoa({ ...dados, telefones: item.dados.telefones ?? [], emails: item.dados.emails ?? [], observacoes: item.observacoes || null,
+    pendencias: juntarPendencias([], item.pendencias) }, { criado_em: criadoEmDaImportacao(item.criado_em), importacao_id: importacaoId,
+    referencia: item.referencia || null, resp: [] });
+  bd.pessoas.push(p); auditar('pessoas', 'inclusao', p);
+  return p;
+}
 const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
   manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.nome.localeCompare(b.nome),
   nome: (a, b) => a.nome.localeCompare(b.nome),
@@ -785,23 +895,16 @@ export const SD: Dados = {
   },
   async pessoaCriar(dados, resp) {
     if (dados.documento && bd.pessoas.some(p => p.documento === dados.documento)) return erro('Já existe um cadastro com este CPF/CNPJ.');
-    const p = Object.assign({ id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_em: agora(), arquivado_em: null,
-      etapa_id: null, etapa_ordem: null, telefones: [], emails: [] }, dados, { resp: (resp || []).map(perfil_id => ({ perfil_id })) }) as unknown as Pessoa;
+    const p = novaPessoa(dados, { resp: (resp || []).map(perfil_id => ({ perfil_id })) });
     bd.pessoas.push(p); auditar('pessoas', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
   },
   async pessoaAtualizar(id, dados, resp) {
     const p = achar(id);
     if (dados.documento && bd.pessoas.some(x => x.documento === dados.documento && x.id !== id)) return erro('Já existe um cadastro com este CPF/CNPJ.');
-    const alt: Historico['alteracoes'] = {};
-    const atual = p as unknown as Record<string, unknown>;
-    Object.entries(dados).forEach(([k, v]) => {
-      if (JSON.stringify(atual[k] ?? null) !== JSON.stringify(v ?? null) && k !== 'etapa_ordem' && k !== 'arquivado_por') alt[k] = { de: atual[k] ?? null, para: v ?? null };
-    });
-    Object.assign(p, dados, { atualizado_em: agora(), atualizado_por: eu });
+    alterarPessoa(p, dados);
     if (Array.isArray(resp)) p.resp = resp.map(perfil_id => ({ perfil_id }));
-    if (Object.keys(alt).length) bd.historico.unshift({ id: Date.now(), pessoa_id: id, alteracoes: alt, feito_por: eu, em: agora() });
-    auditar('pessoas', 'alteracao', p); gravar();
+    gravar();
     return espera({ id, codigo: p.codigo });
   },
   async pessoasArquivar(ids, arquivar = true) {
@@ -847,6 +950,51 @@ export const SD: Dados = {
       arquivadas: bd.pessoas.length - ativas.length,
       recentes: ativas.slice().sort((a, b) => b.atualizado_em.localeCompare(a.atualizado_em)).slice(0, 6).map(lista)
     });
+  },
+
+  // ---------- importação de pessoas (o fictício é sempre administrador) ----------
+  pessoasParaImportar({ documentos, referencias }) {
+    const docs = new Set(documentos), refs = new Set(referencias);
+    return espera(bd.pessoas.filter(p => (p.documento && docs.has(p.documento)) || (p.referencia && refs.has(p.referencia))));
+  },
+  async importacaoIniciar(descricao, arquivo) {
+    const i: Importacao = {
+      id: novoId(), descricao: (descricao.trim() || 'Importação de pessoas').slice(0, TAMANHO_IMPORTACAO.descricao),
+      arquivo: arquivo?.trim().slice(0, TAMANHO_IMPORTACAO.arquivo) || null, criadas: 0, completadas: 0, incompletas: 0, feito_por: eu,
+      iniciada_em: agora(), concluida_em: null
+    };
+    bd.importacoes!.push(i); gravar();
+    return espera(i.id);
+  },
+  // Em duas passadas, para ser tudo ou nada como a transação do banco: confere o lote inteiro, depois grava.
+  async pessoasImportar(importacaoId, lote) {
+    if (!bd.importacoes!.some(i => i.id === importacaoId && i.feito_por === eu && !i.concluida_em)) return erro('Importação não encontrada ou já concluída');
+    if (!Array.isArray(lote) || lote.length > LOTE_MAXIMO_DA_IMPORTACAO) return erro('Lote inválido');
+    const problema = problemaDoLote(lote);
+    if (problema) return erro(problema);
+    const resultado = { criadas: 0, completadas: 0, ids: [] as { linha: number; id: string }[] };
+    for (const item of lote) {
+      const p = gravarLinha(item, importacaoId);
+      resultado[item.existente_id ? 'completadas' : 'criadas']++;
+      // Responsáveis: acrescenta, sem duplicar e sem remover ninguém.
+      for (const perfil_id of item.responsaveis.filter(id => !p.resp.some(r => r.perfil_id === id))) {
+        p.resp.push({ perfil_id }); auditar('pessoa_responsaveis', 'inclusao', { id: p.id });
+      }
+      resultado.ids.push({ linha: item.linha, id: p.id });
+    }
+    gravar();
+    return espera(resultado);
+  },
+  async importacaoConcluir(importacaoId, completadas) {
+    const i = bd.importacoes!.find(x => x.id === importacaoId && x.feito_por === eu && !x.concluida_em);
+    if (!i) return erro('Importação não encontrada ou já concluída');
+    const dela = bd.pessoas.filter(p => p.importacao_id === importacaoId);
+    Object.assign(i, { concluida_em: agora(), criadas: dela.length, incompletas: dela.filter(p => p.pendencias.length).length,
+      completadas: Math.max(completadas || 0, 0) });
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'pessoas', registro_id: i.id, acao: 'importacao', feito_por: eu, em: agora(),
+      resumo: { quantidade: i.criadas, completadas: i.completadas, incompletas: i.incompletas } });
+    gravar();
+    return espera(i);
   },
 
   sigilosListar: pid => espera<Sigilo[]>(bd.sigilos.filter(s => s.pessoa_id === pid)
