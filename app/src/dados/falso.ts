@@ -1778,6 +1778,8 @@ export const SD: Dados = {
   async colunaExcluir(id) {
     if (bd.colunas.find(c => c.id === id)?.marco) return erro('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
     for (const p of bd.processos!) if (p.etapa_id === id) { historicoProcesso(p, { etapa_id: null }); p.etapa_id = null; }
+    for (const d of bd.demandas!) if (d.etapa_id === id) { historicoDemanda(d, { etapa_id: null }); d.etapa_id = null; }
+    for (const t of bd.tarefas!) if (t.etapa_id === id) { historicoTarefa(t, { etapa_id: null }); t.etapa_id = null; }
     bd.colunas = bd.colunas.filter(c => c.id !== id);
     for (const item of [...bd.pessoas, ...bd.contratos!]) if (item.etapa_id === id) item.etapa_id = null;
     gravar();

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Demanda, Membro } from '../dados/tipos';
 import {
   camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
-  primeiraEtapaComErroDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
+  primeiraEtapaComErroDemanda, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
 } from './demanda';
 
 const completa = { ...DEMANDA_VAZIA, titulo: 'Pedido de registro de marca', responsavelId: 'u-ana' };
@@ -58,6 +58,22 @@ describe('Cadastro de demanda', () => {
     // Então
     expect(valorLegivelDemanda('prazo', '2026-11-10')).toBe('10/11/2026');
     expect(valorLegivelDemanda('descricao', null)).toBe('—');
+  });
+});
+
+describe('Sair da demanda', () => {
+  const dados = { responsavel_id: 'u2', colaboradores: ['u3'] };
+
+  it('quando não pode sair, então continua como colaborador', () => {
+    // Então
+    expect(semSairDaDemanda(dados, 'u1', false)).toEqual({ dados: { responsavel_id: 'u2', colaboradores: ['u3', 'u1'] }, ficou: true });
+  });
+
+  it('quando é administrador ou criou a demanda, ou continua nela, então nada muda', () => {
+    // Então
+    expect(semSairDaDemanda(dados, 'u1', true)).toEqual({ dados, ficou: false });
+    expect(semSairDaDemanda(dados, 'u2', false)).toEqual({ dados, ficou: false });
+    expect(semSairDaDemanda(dados, 'u3', false)).toEqual({ dados, ficou: false });
   });
 });
 

@@ -7,7 +7,7 @@ import { SD, type ContratoLista, type Demanda, type PessoaLista } from '../dados
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, TAMANHO_DEMANDA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import {
-  camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, validarDemanda,
+  camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, semSairDaDemanda, validarDemanda,
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
 import { MASCARAS } from '../regras/pessoa';
@@ -169,8 +169,9 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       if (alvo) {
         // Para desfazer: a demanda como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDaDemanda(camposDaDemanda(alvo));
-        await SD.demandaAtualizar(alvo.id, dados);
-        feito('Demanda atualizada.', 'atualização da demanda', async () => {
+        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDaDemanda(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
+        await SD.demandaAtualizar(alvo.id, gravar);
+        feito(ficou ? 'Demanda atualizada. Você continua entre os colaboradores; para sair, peça a outra pessoa da demanda ou a um administrador.' : 'Demanda atualizada.', 'atualização da demanda', async () => {
           await SD.demandaAtualizar(alvo.id, antes);
           return { tipo: 'demandaAtualizada', id: alvo.id };
         });

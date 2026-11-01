@@ -69,6 +69,24 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
   };
 }
 
+/**
+ * Depois de gravar, a pessoa continua vendo a tarefa pela demanda ligada? A demanda que já estava ligada só vem na tarefa
+ * para quem pode abri-la; a escolhida agora veio da lista de quem a vê.
+ */
+export const continuaPelaDemanda = (alvo: Pick<Tarefa, 'demanda_id' | 'demanda'>, demandaDepois: string | null | undefined) =>
+  !!demandaDepois && (demandaDepois !== alvo.demanda_id || !!alvo.demanda);
+
+/**
+ * Quem não é administrador, não criou a tarefa e não vê a demanda ligada só a vê enquanto participa, e o banco recusa a
+ * gravação que o tiraria dela. Por isso, ao passar a tarefa adiante ou sair dos participantes, a pessoa continua como
+ * participante. Quem a vê pela demanda pode sair: o banco deixa (veja continuaPelaDemanda).
+ */
+export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean): { dados: DadosTarefa; ficou: boolean } {
+  const participantes = d.participantes ?? [];
+  if (podeSair || d.responsavel_id === eu || participantes.includes(eu)) return { dados: d, ficou: false };
+  return { dados: { ...d, participantes: [...participantes, eu] }, ficou: true };
+}
+
 /** Campos do formulário a partir de uma tarefa salva (para atualizar). */
 export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), responsavelId: t.responsavel_id,

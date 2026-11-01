@@ -19,7 +19,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 
   ref?: Ref<HTMLInputElement>;
 };
 
-export function CampoComSugestoes({ valor, aoMudar, sugestoes, onKeyDown, onBlur, ref, ...resto }: Props) {
+export function CampoComSugestoes({ valor, aoMudar, sugestoes, onKeyDown, onBlur, ref, type = 'text', ...resto }: Props) {
   const listaId = useId();
   const [aberta, setAberta] = useState(false);
   const [destaque, setDestaque] = useState(-1);
@@ -50,7 +50,7 @@ export function CampoComSugestoes({ valor, aoMudar, sugestoes, onKeyDown, onBlur
   }
 
   return <div className="campo-sugestoes">
-    <input {...resto} ref={ref} role="combobox" value={valor} aria-autocomplete="list" aria-expanded={mostrar}
+    <input {...resto} type={type} ref={ref} role="combobox" value={valor} aria-autocomplete="list" aria-expanded={mostrar}
       aria-controls={mostrar ? listaId : undefined} aria-activedescendant={mostrar && destaque >= 0 ? `${listaId}-${destaque}` : undefined}
       onChange={e => { aoMudar(e.target.value); setAberta(e.target.value.trim() !== ''); setDestaque(-1); }}
       onKeyDown={teclar} onBlur={(e: FocusEvent<HTMLInputElement>) => { setAberta(false); onBlur?.(e); }} />

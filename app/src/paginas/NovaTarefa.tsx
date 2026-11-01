@@ -9,7 +9,7 @@ import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TA
 import { clientesPorExtenso } from '../regras/contrato';
 import { MASCARAS } from '../regras/pessoa';
 import {
-  camposDaTarefa, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, primeiraEtapaComErroTarefa, TAREFA_VAZIA, validarTarefa,
+  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa, TAREFA_VAZIA, validarTarefa,
   type CamposTarefa, type EtapaTarefa
 } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
@@ -194,8 +194,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (alvo) {
         // Para desfazer: a tarefa como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDaTarefa(camposDaTarefa(alvo));
-        await SD.tarefaAtualizar(alvo.id, dados);
-        feito('Tarefa atualizada.', 'atualização da tarefa', async () => {
+        const eu = ctx.perfil.id, podeSair = ctx.ehAdmin || alvo.criado_por === eu || continuaPelaDemanda(alvo, dados.demanda_id);
+        const { dados: gravar, ficou } = semSairDaTarefa(dados, eu, podeSair);
+        await SD.tarefaAtualizar(alvo.id, gravar);
+        feito(ficou ? 'Tarefa atualizada. Você continua entre os participantes; para sair, peça a outra pessoa da tarefa ou a um administrador.' : 'Tarefa atualizada.', 'atualização da tarefa', async () => {
           await SD.tarefaAtualizar(alvo.id, antes);
           return { tipo: 'tarefaAtualizada', id: alvo.id };
         });
