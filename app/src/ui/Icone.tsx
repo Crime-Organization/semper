@@ -7,6 +7,7 @@ const ICONES = {
   contratos: '<path d="M14 3H6a1 1 0 00-1 1v16a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 3v5h5M8.5 12.5h7M8.5 16h4"/>',
   mais: '<path d="M12 5v14M5 12h14"/>',
   equipe: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 16.5a4 4 0 017 0"/>',
+  etiqueta: '<path d="M3 12V5a2 2 0 012-2h7l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
   calendario: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17.5h2"/>',
   configuracoes: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
   conta: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0116 0"/>',

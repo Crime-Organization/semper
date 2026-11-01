@@ -13,6 +13,7 @@ import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/ba
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
+import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetas } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -39,6 +40,7 @@ const marcaDe = (valor: string) => Object.hasOwn(MARCAS, valor) ? valor as Marca
 export default function Pessoas() {
   useTitulo('Pessoas');
   const ctx = useCtx();
+  const etiquetas = useEtiquetas();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -116,7 +118,7 @@ export default function Pessoas() {
     return () => clearTimeout(t);
   }, [verArquivadas]);
 
-  const filtrado = !!(f.termo || f.tipo || f.responsavel || f.marca);
+  const filtrado = !!(f.termo || f.tipo || f.responsavel || f.marca || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
@@ -193,7 +195,8 @@ export default function Pessoas() {
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('pessoas.responsavel', responsavel); },
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'marca', rotulo: 'Situação do cadastro', valor: f.marca || '', aoMudar: marca => mudarFiltro({ marca: marcaDe(marca) }),
-          opcoes: [['', 'Todos'], ...Object.entries(MARCAS) as [string, string][]] }
+          opcoes: [['', 'Todos'], ...Object.entries(MARCAS) as [string, string][]] },
+        ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta }))
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       mais={ctx.ehAdmin ? [{ rotulo: 'Exportar para o Google Contatos', icone: 'baixar', aoEscolher: exportarGoogle },
@@ -201,7 +204,7 @@ export default function Pessoas() {
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.tipo, f.responsavel, f.marca].join('|')}
+          recarga={[recarga, f.termo, f.tipo, f.responsavel, f.marca, f.etiqueta].join('|')}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -238,6 +241,7 @@ function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, p);
   return <>
+    <EtiquetasDoItem etq={p.etq} />
     <div className="kt">{p.nome}</div>
     <div className="km">
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
@@ -284,7 +288,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, ao
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><EtiquetasDoItem etq={p.etq} /><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa } from '../regras/tarefa';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -128,6 +129,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
+
+    <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em} aoMudar={aoMudar} />
 
     <TempoNaTarefa t={t} />
 

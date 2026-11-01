@@ -973,6 +973,105 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Etiquetas', () => {
+      const texto = () => 'E' + Math.random().toString(36).slice(2, 10);
+
+      it('quando uma etiqueta é criada, então vem na lista do escritório; só de cor, com texto nulo', async () => {
+        // Dado
+        const t = texto();
+        // Quando
+        const com = await SD.etiquetaCriar('vermelho', t);
+        const so = await SD.etiquetaCriar('azul', null);
+        // Então
+        const lista = await SD.etiquetasListar();
+        expect(lista.find(e => e.id === com.id)).toMatchObject({ cor: 'vermelho', texto: t });
+        expect(lista.find(e => e.id === so.id)).toMatchObject({ cor: 'azul', texto: null });
+      });
+
+      it('quando o texto ou a etiqueta só de cor repetem, então é recusado com a mensagem em português', async () => {
+        // Dado
+        const t = texto();
+        await SD.etiquetaCriar('vermelho', t);
+        await SD.etiquetaCriar('verde', null);
+        // Então
+        await expect(SD.etiquetaCriar('azul', t.toUpperCase())).rejects.toThrow('Já existe uma etiqueta com esse texto.');
+        await expect(SD.etiquetaCriar('verde', null)).rejects.toThrow('Já existe uma etiqueta só de cor nessa cor.');
+      });
+
+      it('quando a cor não é da paleta ou o texto é vazio, então é recusado', async () => {
+        // Então
+        await expect(SD.etiquetaCriar('turquesa' as 'azul', texto())).rejects.toThrow('formato inválido');
+        await expect(SD.etiquetaCriar('azul', '  ')).rejects.toThrow('formato inválido');
+      });
+
+      it('quando a etiqueta é aplicada, então o item da lista a traz em todos os módulos, e aplicar de novo não repete', async () => {
+        // Dado
+        const e = await SD.etiquetaCriar('roxo', texto());
+        const pessoa = await criar(marca());
+        const { id: demanda } = await SD.demandaCriar({ titulo: 'Com etiqueta', responsavel_id: 'u-master' });
+        const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Com etiqueta', responsavel_id: 'u-master' });
+        // Quando
+        await SD.etiquetaAplicar('pessoas', pessoa.id, e.id);
+        await SD.etiquetaAplicar('pessoas', pessoa.id, e.id);
+        await SD.etiquetaAplicar('demandas', demanda, e.id);
+        await SD.etiquetaAplicar('tarefas', tarefa, e.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('pessoas', pessoa.id)).toEqual([e.id]);
+        expect((await SD.pessoasListar({ etiqueta: e.id })).linhas.map(p => p.etq)).toEqual([[{ etiqueta_id: e.id }]]);
+        expect((await SD.demandasListar({ etiqueta: e.id })).linhas.map(d => d.id)).toEqual([demanda]);
+        expect((await SD.tarefasListar({ etiqueta: e.id })).linhas.map(t => t.id)).toEqual([tarefa]);
+      });
+
+      it('quando a lista filtra por uma etiqueta, então só vêm os cartões com ela, inclusive no quadro, e cada um traz todas as suas', async () => {
+        // Dado
+        const a = await SD.etiquetaCriar('vermelho', texto()), b = await SD.etiquetaCriar('azul', texto());
+        const com = await criar(marca()), sem = await criar(marca());
+        await SD.etiquetaAplicar('pessoas', com.id, a.id);
+        await SD.etiquetaAplicar('pessoas', com.id, b.id);
+        // Quando
+        const { linhas, total } = await SD.pessoasListar({ etiqueta: a.id });
+        const noQuadro = await SD.pessoasDaEtapa(null, { etiqueta: a.id });
+        // Então
+        expect(total).toBe(1);
+        expect(linhas[0].id).toBe(com.id);
+        expect(linhas[0].etq?.map(x => x.etiqueta_id).sort()).toEqual([a.id, b.id].sort());
+        expect(noQuadro.linhas.map(p => p.id)).toEqual([com.id]);
+        expect(noQuadro.linhas.some(p => p.id === sem.id)).toBe(false);
+      });
+
+      it('quando a etiqueta é tirada, então sai só daquele cartão; excluída, sai de todos', async () => {
+        // Dado
+        const e = await SD.etiquetaCriar('rosa', texto());
+        const um = await criar(marca()), outro = await criar(marca());
+        await SD.etiquetaAplicar('pessoas', um.id, e.id);
+        await SD.etiquetaAplicar('pessoas', outro.id, e.id);
+        // Quando
+        await SD.etiquetaTirar('pessoas', um.id, e.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('pessoas', um.id)).toEqual([]);
+        expect(await SD.etiquetasDoCartao('pessoas', outro.id)).toEqual([e.id]);
+        // Quando
+        await SD.etiquetaExcluir(e.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('pessoas', outro.id)).toEqual([]);
+        expect((await SD.etiquetasListar()).some(x => x.id === e.id)).toBe(false);
+        await expect(SD.etiquetaExcluir(e.id)).resolves.toBeUndefined();
+      });
+
+      it('quando a etiqueta é mudada, então vale para todos os cartões; o texto repetido é recusado', async () => {
+        // Dado
+        const t = texto();
+        await SD.etiquetaCriar('verde', t);
+        const e = await SD.etiquetaCriar('cinza', texto());
+        const novo = texto();
+        // Quando
+        await SD.etiquetaAtualizar(e.id, { cor: 'laranja', texto: novo });
+        // Então
+        expect((await SD.etiquetasListar()).find(x => x.id === e.id)).toMatchObject({ cor: 'laranja', texto: novo });
+        await expect(SD.etiquetaAtualizar(e.id, { cor: 'laranja', texto: t })).rejects.toThrow('Já existe uma etiqueta com esse texto.');
+      });
+    });
+
     describe('Grupos de colunas', () => {
       it('quando um grupo é criado, então vem na lista do quadro, na ordem, e começa aberto; os outros quadros não o veem', async () => {
         // Dado

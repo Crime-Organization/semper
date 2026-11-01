@@ -25,7 +25,8 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, childre
     m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button')?.focus();
   }, [botao, painel]);
   useEffect(() => {
-    const fora = (e: MouseEvent) => { if (painel && ref.current?.contains(e.target as Node)) return; fechar.current(); };
+    // composedPath: vale mesmo se o clique tirou da tela o elemento clicado (ex.: o formulário de um painel).
+    const fora = (e: MouseEvent) => { if (painel && e.composedPath().includes(ref.current!)) return; fechar.current(); };
     const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { fechar.current(); botao.focus(); } };
     const t = setTimeout(() => document.addEventListener('click', fora), 0);
     document.addEventListener('keydown', tecla);

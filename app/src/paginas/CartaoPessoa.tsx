@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { SD, type AcessoSigilo, type Coluna, type ContratoDaPessoa, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
 import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
@@ -166,6 +167,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
+
+    <SecaoEtiquetas modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
 
     <section className="bloco">
       <h3><Icone nome="conta" tam={14} />Responsáveis</h3>

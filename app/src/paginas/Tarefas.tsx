@@ -14,6 +14,7 @@ import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
+import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetas } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -40,6 +41,7 @@ const ligacoes = (t: TarefaLista) =>
 export default function Tarefas() {
   useTitulo('Tarefas');
   const ctx = useCtx();
+  const etiquetas = useEtiquetas();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const quadro = useColunas('tarefas', ctx, SEM_SITUACAO_TAREFA);
@@ -96,7 +98,7 @@ export default function Tarefas() {
   }, [visao, f.termo, f.pessoa, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.tarefasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa);
+  const filtrado = !!(f.termo || f.pessoa || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroTarefas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
 
   function trocarVisao(v: Visao) {
@@ -132,14 +134,15 @@ export default function Tarefas() {
       filtros={[
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('tarefas.pessoa', pessoa); },
-          opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] }
+          opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta }))
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<TarefaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.pessoa].join('|')}
+          recarga={[recarga, f.termo, f.pessoa, f.etiqueta].join('|')}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={t => t.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -177,6 +180,7 @@ function CartaoKanban({ t, ordem }: { t: TarefaLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, t);
   return <>
+    <EtiquetasDoItem etq={t.etq} />
     <div className="kt">{t.titulo}</div>
     <div className="km">
       <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
@@ -223,7 +227,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
       </tr></thead>
       <tbody>{linhas.map(t => <LinhaQueAbre key={t.id} para={endereco(t.id)} aoAbrir={() => aoAbrir(t.id)} marcada={selecionadas.has(t.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} onChange={e => marcar([t.id], e.target.checked)} /></td>
-        <td><NomeDaLinha>{t.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={t.etq} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>

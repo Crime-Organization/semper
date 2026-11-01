@@ -6,7 +6,7 @@
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
-  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, GrupoDeColunas, Orgao
+  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -20,7 +20,8 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES } from './limites';
-import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
+import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
+import { CORES } from '../regras/etiquetas';
 import { padraoDoOrgao } from '../regras/calendario';
 import { TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA } from '../ui/tempos';
@@ -92,6 +93,9 @@ interface Banco {
   diasLancados?: DiaLancado[];
   /** Grupos de colunas dos quadros (quadro_grupos no banco). */
   gruposDeColunas?: (GrupoDeColunas & { modulo: Modulo })[];
+  /** Etiquetas do escritório e as ligações com os cartões (etiquetas e pessoa_etiquetas, contrato_etiquetas... no banco). */
+  etiquetas?: Etiqueta[];
+  etiquetasAplicadas?: { modulo: ModuloComEtiquetas; cartao_id: string; etiqueta_id: string }[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -282,6 +286,8 @@ bd.orgaos ??= [
 ];
 bd.diasLancados ??= [];
 bd.gruposDeColunas ??= [];
+bd.etiquetas ??= [];
+bd.etiquetasAplicadas ??= [];
 // Colunas de tarefas: "Para fazer" e "Concluída" são as colunas-marco (como a migração 020).
 if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
   bd.colunas.push(...SITUACOES_TAREFA.map((nome, i) => ({ id: 't' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'tarefas' as const,
@@ -345,6 +351,7 @@ function filtrar(f: FiltroPessoas = {}) {
     && (!f.tipo || p.tipo === f.tipo)
     && (!f.responsavel || p.resp.some(r => r.perfil_id === f.responsavel))
     && (!f.marca || MARCAS[f.marca](p))
+    && (!f.etiqueta || temEtiqueta('pessoas', p.id, f.etiqueta))
     && (!t || busca(p).includes(t)));
 }
 const lista = (p: Pessoa): PessoaLista => ({
@@ -501,6 +508,7 @@ function filtrarContratos(f: FiltroContratos = {}) {
   return bd.contratos!.filter(k => (f.situacao === 'arquivados' ? k.arquivado_em : !k.arquivado_em)
     && (!f.responsavel || k.responsavel_id === f.responsavel)
     && (!f.categoria || k.categoria === f.categoria)
+    && (!f.etiqueta || temEtiqueta('contratos', k.id, f.etiqueta))
     && (!t || buscaContrato(k).includes(t)));
 }
 // Na ordem "nome", vale o nome do cliente; nos empates, o contrato mais novo primeiro.
@@ -558,6 +566,7 @@ function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
   return bd.demandas!.filter(d => (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
     && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
+    && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta))
     && (!t || buscaDemanda(d).includes(t)));
 }
 /** Ordem das demandas e das tarefas ("nome" é o título). */
@@ -661,6 +670,7 @@ function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
   return bd.tarefas!.filter(x => (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)
     && (!f.pessoa || x.responsavel_id === f.pessoa || x.participantes.includes(f.pessoa))
+    && (!f.etiqueta || temEtiqueta('tarefas', x.id, f.etiqueta))
     && (!t || buscaTarefa(x).includes(t)));
 }
 const acharTarefa = (id: string) => {
@@ -746,6 +756,21 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
     if (m.itens.some(i => i.length > TAMANHO_ITEM)) throw new Error(`Cada item do modelo pode ter até ${TAMANHO_ITEM} caracteres.`);
   }
   return m;
+}
+// ---------- etiquetas ----------
+const temEtiqueta = (modulo: ModuloComEtiquetas, cartaoId: string, etiquetaId: string) =>
+  bd.etiquetasAplicadas!.some(a => a.modulo === modulo && a.cartao_id === cartaoId && a.etiqueta_id === etiquetaId);
+/** Como a ligação etq: do banco: o item da lista vem com as etiquetas dele. */
+const comEtq = <T extends { id: string }, R>(modulo: ModuloComEtiquetas, item: (x: T) => R) => (x: T) => ({
+  ...item(x), etq: bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === x.id).map(({ etiqueta_id }) => ({ etiqueta_id }))
+});
+/** Como as regras check e os índices únicos da migração. */
+function conferirEtiqueta({ cor, texto }: Pick<Etiqueta, 'cor' | 'texto'>, id?: string) {
+  const invalido = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
+  if (!CORES.includes(cor) || (texto !== null && (!texto.trim() || texto.length > TAMANHO_ETIQUETA))) throw new Error(invalido);
+  const outras = bd.etiquetas!.filter(e => e.id !== id);
+  if (texto !== null && outras.some(e => e.texto !== null && normal(e.texto) === normal(texto))) throw new Error('Já existe uma etiqueta com esse texto.');
+  if (texto === null && outras.some(e => e.texto === null && e.cor === cor)) throw new Error('Já existe uma etiqueta só de cor nessa cor.');
 }
 // ---------- grupos de colunas ----------
 /** Como as regras check e o índice de nome único: o nome limpo, sem repetir no quadro. */
@@ -927,13 +952,13 @@ export const SD: Dados = {
     let r = filtrar(f);
     r = r.sort(ORDENS[f.ordem && f.ordem !== 'manual' ? f.ordem : 'nome']);
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    return espera({ linhas: r.slice(de, de + por).map(lista), total: r.length });
+    return espera({ linhas: r.slice(de, de + por).map(comEtq('pessoas', lista)), total: r.length });
   },
   pessoasExportar: (f = {}) => espera(filtrar(f).sort(ORDENS.nome)),
   async pessoasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrar(f).filter(p => (p.etapa_id || null) === (etapaId || null))
       .sort(ORDENS[f.ordem || 'manual']);
-    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(lista), total: r.length });
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('pessoas', lista)), total: r.length });
   },
   pessoaObter: id => espera(bd.pessoas.find(p => p.id === id) || null),
   pessoaPorDocumento: (doc, exceto) => {
@@ -1000,7 +1025,7 @@ export const SD: Dados = {
     return espera({
       total: ativas.length, minhas: ativas.filter(p => p.resp.some(r => r.perfil_id === eu)).length, mes: ativas.length,
       arquivadas: bd.pessoas.length - ativas.length,
-      recentes: ativas.slice().sort((a, b) => b.atualizado_em.localeCompare(a.atualizado_em)).slice(0, 6).map(lista)
+      recentes: ativas.slice().sort((a, b) => b.atualizado_em.localeCompare(a.atualizado_em)).slice(0, 6).map(comEtq('pessoas', lista))
     });
   },
 
@@ -1098,11 +1123,11 @@ export const SD: Dados = {
   async contratosListar(f = {}) {
     const r = filtrarContratos(f).sort(ORDENS_CONTRATO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    return espera({ linhas: r.slice(de, de + por).map(contratoLista), total: r.length });
+    return espera({ linhas: r.slice(de, de + por).map(comEtq('contratos', contratoLista)), total: r.length });
   },
   async contratosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrarContratos(f).filter(k => (k.etapa_id || null) === (etapaId || null)).sort(ORDENS_CONTRATO[f.ordem || 'manual']);
-    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(contratoLista), total: r.length });
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('contratos', contratoLista)), total: r.length });
   },
   contratoObter: id => { const k = bd.contratos!.find(x => x.id === id); return espera(k ? contratoCompleto(k) : null); },
   // Como o gatilho do banco: o número vem da sigla do responsável (CPF no cadastro dele), do sequencial do ano e do ano.
@@ -1169,11 +1194,11 @@ export const SD: Dados = {
   demandasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     const r = filtrarDemandas(f).sort(ORDENS_PELO_TITULO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
-    return espera({ linhas: r.slice(de, de + por).map(demandaLista), total: r.length });
+    return espera({ linhas: r.slice(de, de + por).map(comEtq('demandas', demandaLista)), total: r.length });
   },
   demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrarDemandas(f).filter(d => (d.etapa_id || null) === (etapaId || null)).sort(ORDENS_PELO_TITULO[f.ordem || 'manual']);
-    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(demandaLista), total: r.length });
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('demandas', demandaLista)), total: r.length });
   },
   demandaObter: id => { const d = bd.demandas!.find(x => x.id === id); return espera(d ? demandaCompleta(d) : null); },
   async demandaCriar(dados) {
@@ -1230,11 +1255,11 @@ export const SD: Dados = {
   tarefasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     const r = filtrarTarefas(f).sort(ORDENS_PELO_TITULO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
-    return espera({ linhas: r.slice(de, de + por).map(tarefaLista), total: r.length });
+    return espera({ linhas: r.slice(de, de + por).map(comEtq('tarefas', tarefaLista)), total: r.length });
   },
   tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
     const r = filtrarTarefas(f).filter(t => (t.etapa_id || null) === (etapaId || null)).sort(ORDENS_PELO_TITULO[f.ordem || 'manual']);
-    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(tarefaLista), total: r.length });
+    return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('tarefas', tarefaLista)), total: r.length });
   },
   tarefaObter: id => { const t = bd.tarefas!.find(x => x.id === id); return espera(t ? tarefaCompleta(t) : null); },
   async tarefaCriar(dados) {
@@ -1393,6 +1418,33 @@ export const SD: Dados = {
     gravar(); return espera(itemLido(item));
   },
   async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
+
+  // ---------- etiquetas (como supabase/migrations/20261101131705_etiquetas.sql) ----------
+  etiquetasListar: () => espera(bd.etiquetas!),
+  async etiquetaCriar(cor, texto) {
+    conferirEtiqueta({ cor, texto });
+    const e: Etiqueta = { id: novoId(), cor, texto, criado_por: eu };
+    bd.etiquetas!.push(e); gravar(); return espera(e);
+  },
+  async etiquetaAtualizar(id, campos) {
+    const e = bd.etiquetas!.find(x => x.id === id); if (!e) return;
+    conferirEtiqueta(campos, id);
+    Object.assign(e, campos); gravar();
+  },
+  async etiquetaExcluir(id) {
+    bd.etiquetas = bd.etiquetas!.filter(e => e.id !== id);
+    bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => a.etiqueta_id !== id);   // on delete cascade
+    gravar();
+  },
+  etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id).map(a => a.etiqueta_id)),
+  async etiquetaAplicar(modulo, id, etiquetaId) {
+    if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
+    if (!temEtiqueta(modulo, id, etiquetaId)) { bd.etiquetasAplicadas!.push({ modulo, cartao_id: id, etiqueta_id: etiquetaId }); gravar(); }
+  },
+  async etiquetaTirar(modulo, id, etiquetaId) {
+    bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === modulo && a.cartao_id === id && a.etiqueta_id === etiquetaId));
+    gravar();
+  },
 
   // ---------- calendário (como supabase/migrations/20261101112711_calendario_de_prazos.sql) ----------
   orgaosListar: () => espera([...bd.orgaos!].sort(porSigla)),
