@@ -231,7 +231,7 @@ const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
 const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
 const CAMPOS_GRUPO = 'id, nome, ordem, comeca_fechado';
-const CAMPOS_ETIQUETA = 'id, cor, texto, criado_por';
+const CAMPOS_ETIQUETA = 'id, cor, texto, criado_por, sistema';
 /** Nenhuma linha mudou: quem não é administrador só muda as etiquetas que criou; para o administrador, outro já tinha excluído. */
 const conferirDonoDaEtiqueta = (linhas: unknown[]) => {
   if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só quem criou a etiqueta ou um administrador pode mudá-la.');
@@ -843,6 +843,17 @@ export const SD: Dados = {
   async etiquetaTirar(modulo, id, etiquetaId) {
     const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
     await rodar(sb.from(tabela).delete().eq(coluna, id).eq('etiqueta_id', etiquetaId));
+  },
+  async etiquetaAplicarEmLote(modulo, ids, etiquetaId) {
+    const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
+    await rodar(sb.from(tabela).upsert(ids.map(id => ({ [coluna]: id, etiqueta_id: etiquetaId })), { onConflict: `${coluna},etiqueta_id`, ignoreDuplicates: true }));
+  },
+  // Em partes, para o endereço da consulta não ficar grande demais.
+  async etiquetaTirarEmLote(modulo, ids, etiquetaId) {
+    const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
+    for (let i = 0; i < ids.length; i += IDS_POR_EXCLUSAO) {
+      await rodar(sb.from(tabela).delete().in(coluna, ids.slice(i, i + IDS_POR_EXCLUSAO)).eq('etiqueta_id', etiquetaId));
+    }
   },
 
   // ---------- calendário de feriados e suspensões ----------

@@ -371,9 +371,11 @@ function alterarPessoa(p: Pessoa, dados: DadosPessoa) {
   Object.entries(dados).forEach(([k, v]) => {
     if (JSON.stringify(atual[k] ?? null) !== JSON.stringify(v ?? null) && k !== 'etapa_ordem' && k !== 'arquivado_por') alt[k] = { de: atual[k] ?? null, para: v ?? null };
   });
+  const tinhaPendencia = p.pendencias.length > 0;
   Object.assign(p, dados, { atualizado_em: agora(), atualizado_por: eu });
   if (Object.keys(alt).length) bd.historico.unshift({ id: Date.now() + Math.random(), pessoa_id: p.id, alteracoes: alt, feito_por: eu, em: agora() });
   auditar('pessoas', 'alteracao', p);
+  etiquetaDaPendencia(p, tinhaPendencia);
 }
 
 // ---------- importação de pessoas: as mesmas regras de supabase/migrations/20261031200000_importar_pessoas.sql ----------
@@ -452,6 +454,8 @@ function gravarLinha(item: ItemImportacao, importacaoId: string): Pessoa {
     pendencias: juntarPendencias([], item.pendencias) }, { criado_em: criadoEmDaImportacao(item.criado_em), importacao_id: importacaoId,
     referencia: item.referencia || null, resp: [] });
   bd.pessoas.push(p); auditar('pessoas', 'inclusao', p);
+  ligarEtiqueta('pessoas', p.id, etiquetaDoSistema('importada').id);
+  etiquetaDaPendencia(p, false);
   return p;
 }
 const ORDENS: Record<Ordem, (a: Pessoa, b: Pessoa) => number> = {
@@ -764,6 +768,45 @@ const temEtiqueta = (modulo: ModuloComEtiquetas, cartaoId: string, etiquetaId: s
 const comEtq = <T extends { id: string }, R>(modulo: ModuloComEtiquetas, item: (x: T) => R) => (x: T) => ({
   ...item(x), etq: bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === x.id).map(({ etiqueta_id }) => ({ etiqueta_id }))
 });
+/** Os dados das etiquetas do sistema (privado.etiqueta_do_sistema na migração 20261101141419). */
+const ETIQUETAS_DO_SISTEMA: Record<NonNullable<Etiqueta['sistema']>, Pick<Etiqueta, 'cor' | 'texto'>> = {
+  importada: { cor: 'azul', texto: 'Importada' },
+  incompleta: { cor: 'laranja', texto: 'Incompleta' }
+};
+/** A etiqueta do tipo pedido: a que já existe, a que o escritório criou com o mesmo texto, ou uma nova. */
+function etiquetaDoSistema(sistema: NonNullable<Etiqueta['sistema']>): Etiqueta {
+  const { cor, texto } = ETIQUETAS_DO_SISTEMA[sistema];
+  const existente = bd.etiquetas!.find(e => e.sistema === sistema) ?? bd.etiquetas!.find(e => e.texto !== null && normal(e.texto) === normal(texto));
+  if (existente) { existente.sistema = sistema; return existente; }
+  const nova: Etiqueta = { id: novoId(), cor, texto, criado_por: null, sistema };
+  bd.etiquetas!.push(nova);
+  return nova;
+}
+function ligarEtiqueta(modulo: ModuloComEtiquetas, cartaoId: string, etiquetaId: string) {
+  if (!temEtiqueta(modulo, cartaoId, etiquetaId)) bd.etiquetasAplicadas!.push({ modulo, cartao_id: cartaoId, etiqueta_id: etiquetaId });
+}
+function desligarEtiqueta(modulo: ModuloComEtiquetas, cartaoId: string, etiquetaId: string) {
+  bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === modulo && a.cartao_id === cartaoId && a.etiqueta_id === etiquetaId));
+}
+/** Como o gatilho etiquetas da migração: as pendências comandam "Incompleta". */
+function etiquetaDaPendencia(p: Pessoa, tinhaPendencia: boolean) {
+  const temPendencia = p.pendencias.length > 0;
+  if (temPendencia && !tinhaPendencia) ligarEtiqueta('pessoas', p.id, etiquetaDoSistema('incompleta').id);
+  if (!temPendencia && tinhaPendencia) desligarEtiqueta('pessoas', p.id, etiquetaDoSistema('incompleta').id);
+}
+const ehIncompleta = (modulo: ModuloComEtiquetas, etiquetaId: string) =>
+  modulo === 'pessoas' && bd.etiquetas!.find(e => e.id === etiquetaId)?.sistema === 'incompleta';
+/** Como os gatilhos da migração: aplicar "Incompleta" deixa a pessoa a conferir; tirar, conferida. */
+function aplicarEtiqueta(modulo: ModuloComEtiquetas, id: string, etiquetaId: string) {
+  ligarEtiqueta(modulo, id, etiquetaId);
+  const p = bd.pessoas.find(x => x.id === id);
+  if (p && ehIncompleta(modulo, etiquetaId) && !p.pendencias.length) alterarPessoa(p, { pendencias: ['conferir'] });
+}
+function tirarEtiqueta(modulo: ModuloComEtiquetas, id: string, etiquetaId: string) {
+  desligarEtiqueta(modulo, id, etiquetaId);
+  const p = bd.pessoas.find(x => x.id === id);
+  if (p && ehIncompleta(modulo, etiquetaId) && p.pendencias.length) alterarPessoa(p, { pendencias: [] });
+}
 /** Como as regras check e os índices únicos da migração. */
 function conferirEtiqueta({ cor, texto }: Pick<Etiqueta, 'cor' | 'texto'>, id?: string) {
   const invalido = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
@@ -1432,6 +1475,7 @@ export const SD: Dados = {
     Object.assign(e, campos); gravar();
   },
   async etiquetaExcluir(id) {
+    if (bd.etiquetas!.find(e => e.id === id)?.sistema) return;   // a regra "apagar" não alcança as do sistema
     bd.etiquetas = bd.etiquetas!.filter(e => e.id !== id);
     bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => a.etiqueta_id !== id);   // on delete cascade
     gravar();
@@ -1439,12 +1483,14 @@ export const SD: Dados = {
   etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id).map(a => a.etiqueta_id)),
   async etiquetaAplicar(modulo, id, etiquetaId) {
     if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
-    if (!temEtiqueta(modulo, id, etiquetaId)) { bd.etiquetasAplicadas!.push({ modulo, cartao_id: id, etiqueta_id: etiquetaId }); gravar(); }
+    aplicarEtiqueta(modulo, id, etiquetaId); gravar();
   },
-  async etiquetaTirar(modulo, id, etiquetaId) {
-    bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === modulo && a.cartao_id === id && a.etiqueta_id === etiquetaId));
-    gravar();
+  async etiquetaTirar(modulo, id, etiquetaId) { tirarEtiqueta(modulo, id, etiquetaId); gravar(); },
+  async etiquetaAplicarEmLote(modulo, ids, etiquetaId) {
+    if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
+    ids.forEach(id => aplicarEtiqueta(modulo, id, etiquetaId)); gravar();
   },
+  async etiquetaTirarEmLote(modulo, ids, etiquetaId) { ids.forEach(id => tirarEtiqueta(modulo, id, etiquetaId)); gravar(); },
 
   // ---------- calendário (como supabase/migrations/20261101112711_calendario_de_prazos.sql) ----------
   orgaosListar: () => espera([...bd.orgaos!].sort(porSigla)),
