@@ -11,6 +11,7 @@ describe('Erros do banco em português', () => {
       ['convites_email_pendente', 'Este e-mail já tem um convite pendente.'],
       ['pessoa_vinculos_unico', 'Essas duas pessoas já têm esse vínculo.'],
       ['vinculo_tipos_unico', 'Esse tipo de vínculo já existe.'],
+      ['orgaos_sigla_unica', 'Já existe um órgão com essa sigla.'],
       ['outra_restricao', 'Esse registro já existe.']
     ])('quando a restrição é %s, então a mensagem é "%s"', (restricao, esperada) => {
       // Quando

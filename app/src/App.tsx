@@ -29,6 +29,7 @@ const Equipe = lazy(() => import('./paginas/Equipe'));
 const PerfilDaEquipe = lazy(() => import('./paginas/PerfilDaEquipe'));
 const MinhaConta = lazy(() => import('./paginas/MinhaConta'));
 const Configuracoes = lazy(() => import('./paginas/Configuracoes'));
+const Calendario = lazy(() => import('./paginas/Calendario'));
 
 // Os formulários recomeçam do zero a cada vez que são abertos (mesmo clicando no "+" de dentro deles).
 function FormularioPessoa() {
@@ -104,6 +105,7 @@ function Rotas() {
           <Route path="modelos-de-lista" element={<ModelosDeLista />} />
           <Route path="tarefas" element={<Tarefas />} />
           <Route path="tarefas/meu-tempo" element={<MeuTempo />} />
+          <Route path="calendario" element={<Calendario />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="equipe/perfil" element={<PerfilDaEquipe />} />
           <Route path="minha-conta" element={<MinhaConta />} />

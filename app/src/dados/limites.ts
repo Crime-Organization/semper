@@ -108,3 +108,15 @@ export const TAMANHO_REFERENCIA = 100;
 export const CHAVES_POR_CONSULTA = 500;
 /** Descrição e nome do arquivo de uma importação (o banco corta no tamanho: função importacao_iniciar). */
 export const TAMANHO_IMPORTACAO = { descricao: 200, arquivo: 200 };
+
+// ---------- Calendário de feriados e suspensões (regras/calendario.ts) ----------
+/** Sigla e nome do órgão (exigidos pelo banco: supabase/migrations/20261101112711_calendario_de_prazos.sql). */
+export const TAMANHO_ORGAO = { sigla: 20, nome: 120 };
+/** Motivo de um dia sem expediente lançado pelo escritório (exigido pelo banco, mesma migração). */
+export const TAMANHO_DIA = { motivo: 120 };
+/** Os anos que o calendário aceita (exigidos pelo banco, mesma migração: datas fora deles são recusadas). */
+export const ANOS_DO_CALENDARIO = { de: 2000, ate: 2100 };
+/** Quantos dias seguidos cabem num lançamento (um ano). */
+export const DIAS_POR_LANCAMENTO = 366;
+/** Quantos dias lançados se excluem por vez (os ids vão no endereço da consulta, que não pode ficar grande demais). */
+export const IDS_POR_EXCLUSAO = 100;

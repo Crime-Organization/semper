@@ -973,6 +973,85 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Calendário de feriados e suspensões', () => {
+      const novoOrgao = (sigla: string) => SD.orgaoCriar({ sigla, nome: null, contagem_padrao: 'corridos', recesso: true, praxe: false, justica_federal: false });
+      const sigla = () => 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
+
+      it('quando um órgão é criado, então vem na lista por sigla, em maiúsculas e sem nome vazio', async () => {
+        // Dado
+        const s = sigla();
+        // Quando
+        const o = await SD.orgaoCriar({ sigla: ` ${s.toLowerCase()} `, nome: '  ', contagem_padrao: 'uteis', recesso: true, praxe: true, justica_federal: false });
+        // Então
+        expect(o).toMatchObject({ sigla: s, nome: null, contagem_padrao: 'uteis', recesso: true, praxe: true, justica_federal: false });
+        const lista = await SD.orgaosListar();
+        expect(lista.find(x => x.id === o.id)?.sigla).toBe(s);
+        expect(lista.map(x => x.sigla)).toEqual(lista.map(x => x.sigla).sort((a, b) => a.localeCompare(b, 'pt-BR')));
+      });
+
+      it('quando já existe um órgão com a mesma sigla, então criar outro é recusado com a mensagem em português', async () => {
+        // Dado
+        const s = sigla();
+        await novoOrgao(s);
+        // Quando
+        const repetido = novoOrgao(s.toLowerCase());
+        // Então
+        await expect(repetido).rejects.toThrow('Já existe um órgão com essa sigla.');
+      });
+
+      it('quando o órgão muda o que segue, então a mudança fica gravada', async () => {
+        // Dado
+        const o = await novoOrgao(sigla());
+        // Quando
+        await SD.orgaoAtualizar(o.id, { praxe: true, contagem_padrao: 'uteis', nome: 'Tribunal de exemplo' });
+        // Então
+        expect((await SD.orgaosListar()).find(x => x.id === o.id)).toMatchObject({ praxe: true, contagem_padrao: 'uteis', nome: 'Tribunal de exemplo' });
+      });
+
+      it('quando os dias são lançados, então vêm por data no período pedido; lançar de novo o mesmo dia e órgão substitui', async () => {
+        // Dado
+        const o = await novoOrgao(sigla());
+        // Quando
+        const gravados = await SD.diasLancar([
+          { data: '2031-07-04', motivo: 'Feriado municipal', tipo: 'feriado', orgao_id: o.id },
+          { data: '2031-07-03', motivo: 'Portaria', tipo: 'suspensao', orgao_id: null }
+        ]);
+        await SD.diasLancar([{ data: '2031-07-04', motivo: 'Aniversário da cidade', tipo: 'suspensao', orgao_id: o.id }]);
+        // Então
+        expect(gravados).toBe(2);
+        const dias = await SD.diasListar('2031-07-01', '2031-07-31');
+        expect(dias.map(({ data, motivo, tipo, orgao_id }) => ({ data, motivo, tipo, orgao_id }))).toEqual([
+          { data: '2031-07-03', motivo: 'Portaria', tipo: 'suspensao', orgao_id: null },
+          { data: '2031-07-04', motivo: 'Aniversário da cidade', tipo: 'suspensao', orgao_id: o.id }
+        ]);
+        expect(await SD.diasListar('2031-08-01', '2031-08-31')).toEqual([]);
+      });
+
+      it('quando os dias de um período são excluídos, então somem; e excluir o órgão leva os dias só dele', async () => {
+        // Dado
+        const o = await novoOrgao(sigla());
+        await SD.diasLancar([
+          { data: '2032-03-01', motivo: 'Portaria', tipo: 'suspensao', orgao_id: o.id },
+          { data: '2032-03-02', motivo: 'Portaria', tipo: 'suspensao', orgao_id: o.id },
+          { data: '2032-03-03', motivo: 'Para todos', tipo: 'feriado', orgao_id: null }
+        ]);
+        const [primeiro] = await SD.diasListar('2032-03-01', '2032-03-01');
+        // Quando
+        await SD.diasExcluir([primeiro.id]);
+        await SD.orgaoExcluir(o.id);
+        // Então
+        expect((await SD.diasListar('2032-03-01', '2032-03-31')).map(d => d.motivo)).toEqual(['Para todos']);
+        expect((await SD.orgaosListar()).some(x => x.id === o.id)).toBe(false);
+      });
+
+      it('quando o dia lançado tem tipo desconhecido, motivo vazio ou ano fora do calendário, então é recusado', async () => {
+        // Então
+        await expect(SD.diasLancar([{ data: '2031-07-04', motivo: 'X', tipo: 'ponto' as 'feriado', orgao_id: null }])).rejects.toThrow('formato inválido');
+        await expect(SD.diasLancar([{ data: '2031-07-04', motivo: ' ', tipo: 'feriado', orgao_id: null }])).rejects.toThrow('formato inválido');
+        await expect(SD.diasLancar([{ data: '1999-07-04', motivo: 'X', tipo: 'feriado', orgao_id: null }])).rejects.toThrow('formato inválido');
+      });
+    });
+
     describe('Dados do escritório', () => {
       it('quando o CNPJ do escritório tem letras, então é guardado em maiúsculas, sem a pontuação, e volta assim', async () => {
         // Dado

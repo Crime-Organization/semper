@@ -10,12 +10,12 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -210,6 +210,9 @@ const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, 
 const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(TAREFAS_LIGADAS);
 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
+const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
+const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
+const SO_ADMIN_NO_CALENDARIO = 'Só os administradores mudam o calendário.';
 const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
 const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
 const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas, bio_curta, biografia, formacao, idiomas, experiencia, associacoes, '
@@ -778,6 +781,41 @@ export const SD: Dados = {
   async modeloExcluir(id) {
     const { data } = await rodar(sb.from('lista_modelos').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem criou o modelo ou um administrador pode excluí-lo.');
+  },
+
+  // ---------- calendário de feriados e suspensões ----------
+  async orgaosListar() {
+    const { data } = await rodar(sb.from('orgaos').select(CAMPOS_ORGAO).order('sigla'));
+    return data as Orgao[];
+  },
+  async orgaoCriar(o) {
+    const { data } = await rodar(sb.from('orgaos').insert(o).select(CAMPOS_ORGAO).single());
+    return data as Orgao;
+  },
+  async orgaoAtualizar(id, campos) {
+    const { data } = await rodar(sb.from('orgaos').update(campos).eq('id', id).select('id'));
+    if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+  },
+  async orgaoExcluir(id) {
+    const { data } = await rodar(sb.from('orgaos').delete().eq('id', id).select('id'));
+    if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+  },
+  async diasListar(de, ate) {
+    const { data } = await rodar(sb.from('dias_sem_expediente').select(CAMPOS_DIA).gte('data', de).lte('data', ate).order('data'));
+    return data as DiaLancado[];
+  },
+  // O mesmo dia para o mesmo órgão (ou para todos) substitui o que havia: a regra dias_sem_expediente_unico do banco.
+  async diasLancar(linhas) {
+    if (!linhas.length) return 0;
+    const { count } = await rodar(sb.from('dias_sem_expediente').upsert(linhas, { onConflict: 'escritorio_id,data,orgao_id', count: 'exact' }));
+    return count ?? linhas.length;
+  },
+  // Em partes, para o endereço da consulta não ficar grande demais.
+  async diasExcluir(ids) {
+    for (let i = 0; i < ids.length; i += IDS_POR_EXCLUSAO) {
+      const { data } = await rodar(sb.from('dias_sem_expediente').delete().in('id', ids.slice(i, i + IDS_POR_EXCLUSAO)).select('id'));
+      if (!data.length) throw new Error(SO_ADMIN_NO_CALENDARIO);
+    }
   },
 
   // ---------- quadros (kanban) ----------
