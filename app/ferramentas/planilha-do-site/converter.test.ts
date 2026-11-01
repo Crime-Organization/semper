@@ -55,8 +55,8 @@ describe('Rodar o conversor com arquivos fictícios', () => {
     const linha = (valores: Partial<Record<keyof typeof COLUNAS_DO_SITE, string>>) =>
       [...Object.keys(COLUNAS_DO_SITE).map(k => valores[k as keyof typeof COLUNAS_DO_SITE] ?? ''), '#N/A'];
     writeFileSync(join(pasta, 'site.csv'), escreverCSV([cabecalho,
-      linha({ envio: '15/03/2019 13:22:33', nome: 'Maria Exemplo', tipo: 'Pessoa Física', cpf: CPF, telefone: '(38) 99999-0000' }),
-      linha({ envio: '20/06/2021 10:00:00', nome: 'Maria Exemplo', tipo: 'Pessoa Física', telefone: '(38) 98888-0000' }),
+      linha({ envio: '15/03/2019 13:22:33', nome: 'Maria Exemplo', tipo: 'Pessoa Física', cpf: CPF, nascimento: '01/02/1980', telefone: '(38) 99999-0000' }),
+      linha({ envio: '20/06/2021 10:00:00', nome: 'Maria Exemplo', tipo: 'Pessoa Física', nascimento: '01/02/1995', telefone: '(38) 98888-0000' }),
       [], linha({ envio: '01/01/2020 09:00:00', nome: 'Bruno Fictício', tipo: 'Somente informações de contato', telefone: '(38) 97777-0000' })
     ], { separador: ',', bom: false }));
     writeFileSync(join(pasta, 'contatos.csv'), escreverCSV([CABECALHO_GOOGLE,
@@ -75,7 +75,7 @@ describe('Rodar o conversor com arquivos fictícios', () => {
     expect(pessoas).toHaveLength(4);
     expect(pessoas.slice(1).map(l => l[pessoas[0].indexOf('emails')])).toEqual(['', '', 'bruno@exemplo.com']);
     expect(decidir).toHaveLength(2);
-    expect(conferencia[3]).toEqual([pessoas[3][0], 'Bruno Fictício', '5', 'contatos.csv:2', 'com o contato do Google pelo telefone e nome parecido']);
+    expect(conferencia[3]).toEqual([pessoas[3][0], 'Bruno Fictício', '5', 'contatos.csv:2', 'com o contato do Google pelo nome ou pelo telefone e nome contido, sem CPF/CNPJ em um dos lados']);
     expect(mensagens.filter(m => !m.startsWith('Arquivos gravados')).join('\n')).not.toMatch(/Maria|Bruno|99999|exemplo\.com|529/);
     expect(mensagens.some(m => m.startsWith('Na tela de importação: 0 linhas seriam recusadas'))).toBe(true);
   });

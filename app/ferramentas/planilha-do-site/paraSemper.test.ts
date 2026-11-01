@@ -113,14 +113,17 @@ describe('Linha do SEMPER a partir da planilha do site', () => {
     expect(linha.cadastrado_em).toBe('2019-03-15T16:22:33.000Z');
   });
 
-  it('quando o mesmo CPF fica em dois clientes, então os dois levam o CPF e "conferir"', () => {
+  it('quando o mesmo CPF vem com nomes diferentes, então sai uma linha só, com o nome antigo na observação', () => {
     // Quando
-    const { linhas, marcas } = converter([site(2, { nome: 'Maria Exemplo', cpf: CPF }), site(3, { nome: 'João Fictício', cpf: CPF })]);
+    const { linhas, marcas } = converter([
+      site(2, { envio: '15/03/2019 13:22:33', nome: 'Maria Exemplo', cpf: CPF }),
+      site(3, { envio: '20/06/2021 10:00:00', nome: 'João Fictício', cpf: CPF })
+    ]);
     // Então
-    expect(linhas.map(l => l.documento)).toEqual(['529.982.247-25', '529.982.247-25']);
-    expect(linhas[0].conferir).toContain(`Mesmo CPF/CNPJ que ${linhas[1].referencia} (João Fictício)`);
-    expect(linhas[0].conferir).toContain(`Pode ser a mesma pessoa que ${linhas[1].referencia} (João Fictício)`);
-    expect(marcas.map(m => m.mesmoDocumento)).toEqual([true, true]);
+    expect(linhas.map(l => l.documento)).toEqual(['529.982.247-25']);
+    expect(linhas[0].nome).toBe('João Fictício');
+    expect(linhas[0].observacoes).toContain('Envio anterior — Nome: "Maria Exemplo"');
+    expect(marcas.map(m => m.mesmoDocumento)).toEqual([false]);
   });
 
   it('quando a observação passa do limite, então é cortada com "…" e o "conferir" avisa', () => {
@@ -280,11 +283,9 @@ describe('Achados da revisão: o que a tela perderia vai para a observação', (
       site(4, { envio: '01/03/2021 10:00:00', nome: 'Bruno Fictício', cpf: CPF })
     ];
     // Quando
-    const { linhas: [ana, bruno], marcas } = converter(linhas);
+    const { linhas: resultado } = converter(linhas);
     // Então
-    expect(ana.documento).toBe('529.982.247-25');
-    expect(ana.conferir).toContain(`Mesmo CPF/CNPJ que ${bruno.referencia} (Bruno Fictício)`);
-    expect(marcas.map(m => m.mesmoDocumento)).toEqual([true, true]);
+    expect(resultado.map(l => l.documento)).toEqual(['529.982.247-25']);
   });
 
   it('quando um campo passa do tamanho da tela, então vai cortado e o texto inteiro fica na observação', () => {
@@ -327,11 +328,11 @@ describe('Achados da revisão: documento repetido e "conferir" longo', () => {
   });
 
   it('quando o cliente tem muitos pares e a observação é longa, então o "conferir" é resumido e a tela não recusa a linha', () => {
-    // Dado: 41 clientes de mesmo nome sem nada em comum; o primeiro com dois envios de complemento longo
+    // Dado: 41 clientes de mesmo nome e datas de nascimento diferentes; o primeiro com dois envios de complemento longo
     const linhas = [
-      site(2, { envio: '15/03/2019 13:22:33', nome: 'Lia Exemplo', cpf: CPF, complemento: 'x'.repeat(3800) }),
-      site(3, { envio: '20/06/2021 10:00:00', nome: 'Lia Exemplo', cpf: CPF, complemento: 'Apto 1' }),
-      ...Array.from({ length: 40 }, (_, i) => site(4 + i, { nome: 'Lia Exemplo', telefone: `(38) 9${String(1000 + i).padStart(4, '0')}-0000` }))
+      site(2, { envio: '15/03/2019 13:22:33', nome: 'Lia Exemplo', cpf: CPF, nascimento: '01/01/1940', complemento: 'x'.repeat(3800) }),
+      site(3, { envio: '20/06/2021 10:00:00', nome: 'Lia Exemplo', cpf: CPF, nascimento: '01/01/1940', complemento: 'Apto 1' }),
+      ...Array.from({ length: 40 }, (_, i) => site(4 + i, { nome: 'Lia Exemplo', nascimento: `01/01/${1950 + i}`, telefone: `(38) 9${String(1000 + i).padStart(4, '0')}-0000` }))
     ];
     // Quando
     const { linhas: [primeira], marcas: [marca] } = converter(linhas);
@@ -342,12 +343,11 @@ describe('Achados da revisão: documento repetido e "conferir" longo', () => {
     expect(conferirNaTela(csvParaSemper([primeira]), CTX).recusadas).toBe(0);
   });
 
-  it('quando a junção em cadeia uniu CPFs diferentes, então a linha leva o "conferir"', () => {
+  it('quando o telefone e o nome juntam cadastros com datas de nascimento diferentes, então a linha leva o "conferir"', () => {
     // Dado
     const linhas = [
-      site(2, { nome: 'Ana Exemplo', cpf: CPF, email: 'ana@exemplo.com' }),
-      site(3, { nome: 'Ana Exemplo', email: 'ana@exemplo.com', telefone: '(38) 99999-0000' }),
-      site(4, { nome: 'Ana Exemplo Souza', cpf: CPF_2, telefone: '(38) 99999-0000' })
+      site(2, { nome: 'Ana Exemplo', nascimento: '01/02/1980', telefone: '(38) 99999-0000' }),
+      site(3, { nome: 'Ana Exemplo Souza', nascimento: '01/02/1995', telefone: '(38) 99999-0000' })
     ];
     // Quando
     const { linhas: [linha], marcas: [marca] } = converter(linhas);

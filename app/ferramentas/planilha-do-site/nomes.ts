@@ -37,3 +37,61 @@ export function semelhanca(a: string, b: string): number {
   const proporcao = comuns / new Set([...A, ...B]).size;
   return comuns >= PALAVRAS_EM_COMUM && proporcao >= PROPORCAO_MINIMA ? 1 + proporcao : 0;
 }
+
+/** Palavras mínimas (sem as partículas) para o nome sozinho identificar alguém: "João" não identifica ninguém. */
+const PALAVRAS_DO_NOME_COMPLETO = 2;
+/** Quantos erros de digitação cada tamanho de nome aceita (letras do menor nome, sem espaços). Nome curto não aceita
+ *  nenhum: "Ana Lima" e "Ana Lina" podem ser duas pessoas. */
+const ERROS_POR_TAMANHO = [{ letras: 22, erros: 2 }, { letras: 12, erros: 1 }];
+const ERROS_MAXIMOS = Math.max(...ERROS_POR_TAMANHO.map(x => x.erros));
+
+/** Quantas letras trocadas, faltando, sobrando ou invertidas separam dois textos (para de contar quando passa do limite). */
+function errosEntre(a: string, b: string, limite: number): number {
+  if (Math.abs(a.length - b.length) > limite) return limite + 1;
+  let antes2: number[] = [], antes = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const atual = [i];
+    for (let j = 1; j <= b.length; j++) {
+      const troca = a[i - 1] === b[j - 1] ? 0 : 1;
+      atual[j] = Math.min(antes[j] + 1, atual[j - 1] + 1, antes[j - 1] + troca);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) atual[j] = Math.min(atual[j], antes2[j - 2] + 1);
+    }
+    if (Math.min(...atual) > limite) return limite + 1;
+    [antes2, antes] = [antes, atual];
+  }
+  return antes[b.length];
+}
+
+/** O que importa de um nome para compará-lo: as letras sem espaços, os números e os sufixos ("Júnior", "Filho"…). */
+interface NomeComparavel { palavras: number; letras: string; numeros: string; sufixos: string }
+function comparavel(nome: string): NomeComparavel {
+  const t = tokens(nome);
+  return { palavras: t.length, letras: t.join(''), numeros: t.join(' ').replace(/\D+/g, ' ').trim(), sufixos: t.filter(p => SUFIXOS.has(p)).join(' ') };
+}
+function mesmoComparavel(a: NomeComparavel, b: NomeComparavel) {
+  if (a.palavras < PALAVRAS_DO_NOME_COMPLETO || b.palavras < PALAVRAS_DO_NOME_COMPLETO) return false;
+  if (a.letras === b.letras) return true;
+  if (a.numeros !== b.numeros || a.sufixos !== b.sufixos) return false;
+  const tamanho = Math.min(a.letras.length, b.letras.length);
+  const aceitos = ERROS_POR_TAMANHO.find(x => tamanho >= x.letras)?.erros ?? 0;
+  return aceitos > 0 && errosEntre(a.letras, b.letras, aceitos) <= aceitos;
+}
+/** O mesmo nome completo: sem contar acento, pontuação e partículas, e aceitando erros de digitação nos nomes longos. */
+export const mesmoNome = (a: string, b: string) => mesmoComparavel(comparavel(a), comparavel(b));
+
+/** Índice para achar, numa lista de nomes, as posições dos que são o mesmo nome (sem comparar cada um com todos). */
+export function indiceDeNomes(nomes: string[]): (nome: string) => number[] {
+  const porTamanho = new Map<number, { i: number; c: NomeComparavel }[]>();
+  nomes.forEach((nome, i) => {
+    const c = comparavel(nome);
+    const lista = porTamanho.get(c.letras.length);
+    if (lista) lista.push({ i, c }); else porTamanho.set(c.letras.length, [{ i, c }]);
+  });
+  return nome => {
+    const c = comparavel(nome), achados: number[] = [];
+    for (let n = c.letras.length - ERROS_MAXIMOS; n <= c.letras.length + ERROS_MAXIMOS; n++) {
+      for (const outro of porTamanho.get(n) ?? []) if (mesmoComparavel(c, outro.c)) achados.push(outro.i);
+    }
+    return achados;
+  };
+}

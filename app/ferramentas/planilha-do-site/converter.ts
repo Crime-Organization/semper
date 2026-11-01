@@ -117,7 +117,7 @@ export function converter(args: Argumentos, base: string, app: string): string[]
     `Google Contatos: ${rel.contatosDoGoogle} contatos usados (${rel.complementosDoGoogle} dos arquivos seguintes).`,
     `Clientes para o SEMPER: ${finais.length} (${contar(linhas.map(l => l.tipo))}).`,
     `Juntados (clientes por motivo): ${Object.entries(rel.juntados).map(([m, n]) => `${m}: ${n}`).join('; ') || 'nenhum'}.`,
-    `Mesmo nome separados por CPF/CNPJ ou data diferentes: ${rel.separadosPorProva}.`,
+    `Mesmo nome separados por CPF/CNPJ diferentes: ${rel.separadosPorProva}.`,
     `Pares para decidir: ${rel.pares.length}, ${pendentes.length} sem decisão (${contar(pendentes.map(p => p.caso))}).`,
     `Decisões: ${rel.decisoes.aplicadas} aplicadas; ${rel.decisoes.ignoradas} ignoradas (o par não existe mais).`,
     `Com o mesmo CPF/CNPJ de outro cliente: ${quantas(i => marcas[i].mesmoDocumento)}.`,
