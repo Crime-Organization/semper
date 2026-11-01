@@ -6,11 +6,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type CampoDeOpcao, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
-import { mascaraCNJ } from '../regras/numeroCNJ';
 import { MASCARAS } from '../regras/pessoa';
 import {
-  camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoDoNumero, POLOS, primeiraEtapaComErroProcesso,
-  processoVazio, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
+  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
+  primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
@@ -67,7 +66,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         .then(p => {
           if (!p) throw new Error('Processo não encontrado.');
           setAlvo(p);
-          setC(camposDoProcesso(p));
+          const campos = camposDoProcesso(p);
+          setC(campos);
+          orgaoIndicado.current = orgaoIndicadoNoProcesso(campos);
           setClientes(p.clientes.length ? p.clientes : [null]);
           setChaves(p.clientes.length ? p.clientes.map((_, i) => i) : [0]);
           proximaChave.current = p.clientes.length + 1;
@@ -117,12 +118,10 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   }
 
   // ---------- número e órgão ----------
-  function digitarNumero(texto: string) {
-    const numero = noPadrao ? mascaraCNJ(texto) : texto;
-    const indicado = orgaoDoNumero({ tipo: c.tipo, numero, numeroAntigo: c.numeroAntigo });
-    const trocar = indicado && (!c.orgao || c.orgao === orgaoIndicado.current);
-    if (trocar) orgaoIndicado.current = indicado;
-    mudar({ numero, ...(trocar ? { orgao: indicado } : {}) });
+  function mudarNumero(mudanca: Parameters<typeof aoMudarNumero>[1]) {
+    const r = aoMudarNumero(c, mudanca, orgaoIndicado.current);
+    orgaoIndicado.current = r.orgaoIndicado;
+    mudar(r.campos);
   }
   const siglas = [...new Set([...sugestoes.orgaos, ...SIGLAS_SUGERIDAS])];
 
@@ -166,10 +165,23 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       mudar({ [campo]: nova.valor });
     } catch (e) { falha(e); }
   }
-  const listaDe = (campo: CampoDeOpcao) => <Campo rotulo={LISTAS_DO_PROCESSO[campo].rotulo} para={campo}
-    depois={ctx.ehAdmin && <div><button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void acrescentarOpcao(campo)}>
-      <Icone nome="mais" tam={13} /> Acrescentar opção
-    </button></div>}>
+  async function retirarOpcao(opcao: OpcaoDeProcesso) {
+    try {
+      await SD.processoOpcaoExcluir(opcao.id);
+      setOpcoes(atual => atual.filter(o => o.id !== opcao.id));
+      feito(`Opção "${opcao.valor}" retirada da lista.`, 'retirada da opção', async () => {
+        const devolvida = await SD.processoOpcaoCriar(opcao.campo, opcao.valor);
+        setOpcoes(atual => [...atual, devolvida]);
+      });
+    } catch (e) { falha(e); }
+  }
+  // A escolhida, quando é uma das que o escritório acrescentou: o administrador pode retirá-la (ex.: digitada errado).
+  const opcaoEscolhida = (campo: CampoDeOpcao) => opcoes.find(o => o.campo === campo && o.valor === c[campo]);
+  const listaDe = (campo: CampoDeOpcao, escolhida = opcaoEscolhida(campo)) => <Campo rotulo={LISTAS_DO_PROCESSO[campo].rotulo} para={campo}
+    depois={ctx.ehAdmin && <div className="acoes-lote">
+      <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void acrescentarOpcao(campo)}><Icone nome="mais" tam={13} /> Acrescentar opção</button>
+      {escolhida && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void retirarOpcao(escolhida)}><Icone nome="fechar" tam={13} /> Retirar da lista</button>}
+    </div>}>
     <select {...propsDoCampo(campo)} value={c[campo]} onChange={e => mudar({ [campo]: e.target.value })}>
       <option value="">{NAO_INFORMADO}</option>
       {opcoesDoCampo(campo, doEscritorio(campo), c[campo]).map(o => <option key={o} value={o}>{o}</option>)}
@@ -178,6 +190,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
 
   // ---------- envio ----------
   async function salvar() {
+    if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
     const comErro = primeiraEtapaComErroProcesso(c);
     if (comErro >= 0) {
@@ -192,8 +205,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoProcesso(camposDoProcesso(alvo));
-        await SD.processoAtualizar(alvo.id, dados);
-        feito('Processo atualizado.', 'atualização do processo', async () => {
+        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
+        await SD.processoAtualizar(alvo.id, gravar);
+        feito(ficou ? 'Processo atualizado. Você continua como colaborador; só um administrador pode tirar você dele.' : 'Processo atualizado.', 'atualização do processo', async () => {
           await SD.processoAtualizar(alvo.id, antes);
           return { tipo: 'processoAtualizado', id: alvo.id };
         });
@@ -221,15 +235,15 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       {/* O tipo não muda depois de salvo: cada tipo tem o seu quadro. */}
       {alvo ? <div className="pergunta"><span className="rot">Tipo</span><span>{TIPOS_PROCESSO[c.tipo].nome}</span></div>
         : <Escolhas rotulo="Tipo" obrigatorio>
-          {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudar({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
+          {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudarNumero({ tipo: t })} />{TIPOS_PROCESSO[t].nome}</label>)}
         </Escolhas>}
       <Campo rotulo="Número do processo" para="numero" obrigatorio erro={erros.numero}
         dica={noPadrao ? 'No padrão do CNJ. O sistema confere o número e indica o órgão.' : judicial ? 'Como aparece nos autos.' : 'O número do pedido ou do protocolo no órgão.'}>
         <input type="text" {...propsDoCampo('numero', { dica: true, erro: erros.numero })} inputMode={noPadrao ? 'numeric' : undefined} maxLength={TAMANHO_PROCESSO.numero} value={c.numero}
-          onChange={e => digitarNumero(e.target.value)} />
+          onChange={e => mudarNumero({ numero: e.target.value })} />
       </Campo>
       {judicial && <Escolhas rotulo="Formato do número">
-        <label><input type="checkbox" checked={c.numeroAntigo} onChange={e => mudar({ numeroAntigo: e.target.checked })} />É um número antigo, de antes do padrão do CNJ</label>
+        <label><input type="checkbox" checked={c.numeroAntigo} onChange={e => mudarNumero({ numeroAntigo: e.target.checked })} />É um número antigo, de antes do padrão do CNJ</label>
       </Escolhas>}
       <Campo rotulo="Órgão" para="orgao" erro={erros.orgao} dica="A sigla. Ex.: TJMG, TRF6, INPI, INSS. Aparece acima do nome do cartão.">
         <CampoComSugestoes type="text" {...propsDoCampo('orgao', { dica: true, erro: erros.orgao })} maxLength={TAMANHO_PROCESSO.orgao} valor={c.orgao}
@@ -244,7 +258,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       <div className={'pergunta' + (erros.clientes ? ' erro' : '')} role="group" aria-label="Clientes">
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
-            <BuscaPessoa rotulo={c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`} escolhida={clientes[i]}
+            <BuscaPessoa rotulo={c.clientes.length === 1 ? <span>Cliente<span className="req" aria-hidden="true">*</span></span> : `Cliente ${i + 1}`} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>

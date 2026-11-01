@@ -66,9 +66,12 @@ create table public.processos (
   busca              text generated always as (privado.sem_acento(
                        codigo || ' ' || numero || ' ' || regexp_replace(numero, '\D', '', 'g') || ' ' || coalesce(titulo, '') || ' ' || cliente_nome
                        || ' ' || coalesce(orgao, '') || ' ' || coalesce(comarca, '') || ' ' || coalesce(vara, ''))) stored,
+  -- a ordem por nome: o nome do cartão ou, sem ele, os clientes (é o que aparece na tela)
+  nome_ordem         text generated always as (privado.sem_acento(coalesce(titulo, cliente_nome))) stored,
   unique (escritorio_id, codigo)
 );
-create unique index processos_numero_unico on public.processos (escritorio_id, tipo, btrim(numero));
+-- Vale só o que identifica o número: pontos, traços, espaços e maiúsculas não fazem dois processos diferentes.
+create unique index processos_numero_unico on public.processos (escritorio_id, tipo, regexp_replace(upper(numero), '[^A-Z0-9]', '', 'g'));
 create index processos_etapa on public.processos (escritorio_id, etapa_id, etapa_ordem);
 create index processos_responsavel on public.processos (responsavel_id);
 
@@ -115,7 +118,9 @@ begin
   v := '{}';
   foreach x in array new.colaboradores loop
     continue when x is null or x = any(v) or x = new.responsavel_id;
-    if not exists (select 1 from public.perfis where id = x and escritorio_id = new.escritorio_id) then
+    -- Confere só quem está entrando: quem já estava e saiu da equipe não trava as outras alterações.
+    if (tg_op = 'INSERT' or x <> all(old.colaboradores))
+       and not exists (select 1 from public.perfis where id = x and escritorio_id = new.escritorio_id) then
       raise exception 'O colaborador precisa ser alguém da equipe do escritório.';
     end if;
     v := v || x;
@@ -123,8 +128,8 @@ begin
   new.colaboradores := v;
   return new;
 end $$;
-create trigger preparar before insert or update on public.processos
-  for each row execute function privado.preparar_processo();
+create trigger preparar before insert or update of numero, titulo, orgao, sistema, area, natureza, comarca, vara, clientes, responsavel_id, colaboradores
+  on public.processos for each row execute function privado.preparar_processo();
 -- A cópia dos nomes dos clientes não conta como alteração do processo.
 create trigger carimbo before update on public.processos
   for each row when (old.cliente_nome is not distinct from new.cliente_nome) execute function privado.carimbar();

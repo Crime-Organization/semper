@@ -1,10 +1,11 @@
 // Regras do processo (módulo Processos): os dois tipos, as listas prontas, o cadastro por etapas e o que aparece no cartão.
 // Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
 import type { CampoDeOpcao, DadosProcesso, GratuidadeProcesso, MeioProcesso, Modulo, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista, TipoProcesso } from '../dados/tipos';
-import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_PROCESSO } from '../dados/limites';
+import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_PROCESSO, VALOR_CAUSA_LIMITE } from '../dados/limites';
 import { clientesPorExtenso, dinheiroNoCampo, fmtDinheiro, lerDinheiro } from './contrato';
-import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ } from './numeroCNJ';
+import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroCNJ';
 import { fmtData, lerData } from './pessoa';
+import { normal } from './texto';
 
 /** Rótulo dos processos fora das colunas do quadro. */
 export const SEM_SITUACAO_PROCESSO = 'Sem situação';
@@ -33,10 +34,10 @@ export const LISTAS_DO_PROCESSO: Record<CampoDeOpcao, { rotulo: string }> = {
 /** A lista de um campo: as prontas, as do escritório e o valor atual, se ele tiver saído da lista. */
 export const opcoesDoCampo = (campo: CampoDeOpcao, doEscritorio: string[], atual = ''): string[] =>
   [...new Set([...OPCOES_PRONTAS[campo], ...doEscritorio, ...(atual ? [atual] : [])])];
-/** A opção da lista com esse texto, sem contar maiúsculas (para não repetir "PJE" e "PJe"). */
+/** A opção da lista com esse texto, sem contar maiúsculas nem acentos (para não repetir "PJE" e "PJe", "Civel" e "Cível"). */
 export const opcaoNaLista = (lista: string[], texto: string) => {
-  const procurado = texto.trim().toLocaleLowerCase('pt-BR');
-  return lista.find(o => o.toLocaleLowerCase('pt-BR') === procurado) ?? null;
+  const procurado = normal(texto.trim());
+  return lista.find(o => normal(o) === procurado) ?? null;
 };
 
 // ---------- formulário ----------
@@ -78,10 +79,27 @@ export const processoVazio = (tipo: TipoProcesso): CamposProcesso => ({
   advogadoContrario: '', observacoes: ''
 });
 
+type DefineONumero = Pick<CamposProcesso, 'tipo' | 'numero' | 'numeroAntigo'>;
 /** O número precisa seguir o padrão do CNJ? Só no judicial, e quem marca como antigo fica de fora. */
-const conferirCNJ = (c: CamposProcesso) => c.tipo === 'judicial' && !c.numeroAntigo;
+const conferirCNJ = (c: DefineONumero) => c.tipo === 'judicial' && !c.numeroAntigo;
 /** O órgão que o número indica (TJMG, TRF6...), só no judicial e com o número completo. */
-export const orgaoDoNumero = (c: Pick<CamposProcesso, 'tipo' | 'numero' | 'numeroAntigo'>) => conferirCNJ(c as CamposProcesso) ? orgaoDoCNJ(c.numero) : null;
+export const orgaoDoNumero = (c: DefineONumero) => conferirCNJ(c) ? orgaoDoCNJ(c.numero) : null;
+/** O que torna dois números o mesmo processo (como o índice processos_numero_unico da migração). */
+export const numeroParaComparar = (numero: string) => numero.toUpperCase().replace(/[^A-Z0-9]/g, '');
+/** O órgão que veio do número, ao abrir um processo salvo (o sistema só troca o que ele mesmo indicou). */
+export const orgaoIndicadoNoProcesso = (c: DefineONumero & Pick<CamposProcesso, 'orgao'>) => c.orgao && orgaoDoNumero(c) === c.orgao ? c.orgao : '';
+/**
+ * Quando o número, o tipo ou a caixa de número antigo mudam: no padrão do CNJ e completo, o número fica pontuado; antes
+ * disso, fica como foi digitado, para nada se perder se a pessoa marcar depois que é antigo. O órgão acompanha o número,
+ * mas o que a pessoa digitou à mão não é trocado.
+ */
+export function aoMudarNumero(c: CamposProcesso, mudanca: Partial<DefineONumero>, orgaoIndicado: string) {
+  const novo = { ...c, ...mudanca };
+  const numero = conferirCNJ(novo) && partesDoCNJ(novo.numero) ? fmtCNJ(novo.numero) : novo.numero;
+  const indicado = orgaoDoNumero({ ...novo, numero }) ?? '';
+  const seguir = !c.orgao || c.orgao === orgaoIndicado;
+  return { campos: { ...mudanca, numero, ...(seguir ? { orgao: indicado } : {}) }, orgaoIndicado: indicado };
+}
 
 type Conferencia = (c: CamposProcesso) => string | null;
 const escolhidos = (lista: string[]) => lista.filter(Boolean);
@@ -95,6 +113,9 @@ const ateTamanho = (campo: keyof typeof TAMANHO_PROCESSO, nome: string): Confere
 const semErroAoLer = (ler: (c: CamposProcesso) => unknown): Conferencia => c => {
   try { ler(c); return null; } catch (e) { return (e as Error).message; }
 };
+
+/** Os campos só do judicial não contam no administrativo: estão fora da tela e não são gravados. */
+const soNoJudicial = (conferencia: Conferencia): Conferencia => c => c.tipo === 'judicial' ? conferencia(c) : null;
 
 /** Regras do cadastro, uma lista por campo (a primeira que falhar dá a mensagem). Campo novo = entrada nova aqui. */
 const CONFERENCIAS: Partial<Record<keyof CamposProcesso, Conferencia[]>> = {
@@ -115,16 +136,18 @@ const CONFERENCIAS: Partial<Record<keyof CamposProcesso, Conferencia[]>> = {
     c => repetido(c.clientes) ? 'O mesmo cliente aparece duas vezes.' : null,
     c => escolhidos(c.clientes).length > CLIENTES_MAXIMOS ? `Um processo pode ter até ${CLIENTES_MAXIMOS} clientes.` : null
   ],
-  comarca: [ateTamanho('comarca', 'A comarca')],
-  vara: [ateTamanho('vara', 'A vara')],
-  classe: [ateTamanho('classe', 'A classe')],
-  assunto: [ateTamanho('assunto', 'O assunto')],
-  juiz: [ateTamanho('juiz', 'O nome do juiz ou relator')],
-  instancia: [ateTamanho('instancia', 'A instância')],
-  advogadoContrario: [ateTamanho('advogadoContrario', 'O nome do advogado contrário')],
+  comarca: [soNoJudicial(ateTamanho('comarca', 'A comarca'))],
+  vara: [soNoJudicial(ateTamanho('vara', 'A vara'))],
+  classe: [soNoJudicial(ateTamanho('classe', 'A classe'))],
+  assunto: [soNoJudicial(ateTamanho('assunto', 'O assunto'))],
+  juiz: [soNoJudicial(ateTamanho('juiz', 'O nome do juiz ou relator'))],
+  instancia: [soNoJudicial(ateTamanho('instancia', 'A instância'))],
+  advogadoContrario: [soNoJudicial(ateTamanho('advogadoContrario', 'O nome do advogado contrário'))],
   observacoes: [ateTamanho('observacoes', 'As observações')],
-  distribuicao: [semErroAoLer(c => lerData(c.distribuicao))],
-  valorCausa: [semErroAoLer(c => lerDinheiro(c.valorCausa))]
+  distribuicao: [soNoJudicial(semErroAoLer(c => lerData(c.distribuicao)))],
+  valorCausa: [soNoJudicial(semErroAoLer(c => {
+    if ((lerDinheiro(c.valorCausa) ?? 0) >= VALOR_CAUSA_LIMITE) throw new Error('Esse valor é grande demais: confira o valor da causa.');
+  }))]
 };
 
 /** Erros do cadastro, por campo. Vazio: pode salvar. */
@@ -158,6 +181,16 @@ export function dadosDoProcesso(c: CamposProcesso): DadosProcesso {
   };
 }
 
+/**
+ * Quem não é administrador nem criou o processo só o vê enquanto participa, e o banco recusa a gravação que o tiraria
+ * dele. Por isso, ao passar o processo adiante ou sair dos colaboradores, a pessoa continua como colaboradora.
+ */
+export function semSairDoProcesso(d: DadosProcesso, eu: string, podeSair: boolean): { dados: DadosProcesso; ficou: boolean } {
+  const colaboradores = d.colaboradores ?? [];
+  if (podeSair || d.responsavel_id === eu || colaboradores.includes(eu)) return { dados: d, ficou: false };
+  return { dados: { ...d, colaboradores: [...colaboradores, eu] }, ficou: true };
+}
+
 /** Campos do formulário a partir de um processo salvo (para atualizar). Número fora do padrão: marcado como antigo, para não bloquear a edição. */
 export const camposDoProcesso = (p: Processo): CamposProcesso => ({
   tipo: p.tipo, numero: p.numero, numeroAntigo: p.tipo === 'judicial' && !cnjValido(p.numero), titulo: p.titulo || '', orgao: p.orgao || '',
@@ -170,7 +203,7 @@ export const camposDoProcesso = (p: Processo): CamposProcesso => ({
 // ---------- etapas do cadastro ----------
 export type EtapaProcesso = 'processo' | 'pessoas' | 'detalhes';
 export interface DefinicaoEtapaProcesso { id: EtapaProcesso; titulo: string; texto: string; campos: (keyof CamposProcesso)[] }
-/** As etapas do cadastro, na ordem. Só a primeira e os clientes são obrigatórios. */
+/** As etapas do cadastro, na ordem. São obrigatórios o tipo, o número e o cliente, e sempre há um responsável (começa com quem cadastra). */
 export const ETAPAS_PROCESSO: DefinicaoEtapaProcesso[] = [
   { id: 'processo', titulo: 'O processo', texto: 'O tipo, o número e, se quiser, um nome para o cartão.', campos: ['tipo', 'numero', 'numeroAntigo', 'titulo', 'orgao'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'De quais clientes é o processo e quem da equipe cuida dele.', campos: ['clientes', 'polo', 'responsavelId', 'colaboradores'] },

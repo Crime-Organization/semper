@@ -19,6 +19,16 @@ async function cadastrar(page: Page, { numero, cliente, tipo }: { numero: string
   await page.getByRole('button', { name: 'Salvar processo' }).click();
 }
 
+/** Abre o cadastro e chega à etapa dos detalhes. */
+async function cadastroAteDetalhes(page: Page, numero: string) {
+  await page.goto('/processos/novo/');
+  await page.getByLabel('Número do processo').fill(numero);
+  await page.getByRole('button', { name: 'Próxima' }).click();
+  await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+  await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+  await page.getByRole('button', { name: 'Próxima' }).click();
+}
+
 test.describe('Menu de processos', () => {
   test('quando a pessoa abre o submenu, então vê os dois quadros, cada um com os seus processos e colunas', async ({ page }) => {
     // Dado
@@ -54,6 +64,8 @@ test.describe('Menu de processos', () => {
     const cartao = page.getByRole('list', { name: 'Distribuído', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
     await expect(cartao.getByText('TJMG', { exact: true })).toBeVisible();
     await expect(cartao).toContainText('0001234-97.2026.8.13.0024');
+    const texto = await cartao.innerText();
+    expect(texto.indexOf('TJMG')).toBeLessThan(texto.indexOf('JOSÉ DA SILVA TESTE'));
   });
 });
 
@@ -104,6 +116,44 @@ test.describe('Cadastro de processo', () => {
     await expect(page.getByRole('heading', { name: 'Pessoas', level: 2 })).toBeVisible();
   });
 
+  test('quando digita um número antigo e só depois marca a caixa, então ele fica como foi digitado', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/novo/');
+    await page.getByLabel('Número do processo').pressSequentially('2004.38.00.012345-6');
+    // Quando
+    await page.getByRole('group', { name: 'Formato do número' }).getByText(/número antigo/).click();
+    // Então
+    await expect(page.getByLabel('Número do processo')).toHaveValue('2004.38.00.012345-6');
+    await expect(page.getByLabel('Órgão', { exact: true })).toHaveValue('');
+  });
+
+  test('quando troca para administrativo depois de errar um campo do judicial, então salva, sem travar no campo que sumiu', async ({ page }) => {
+    // Dado: no judicial, o valor da causa está errado
+    await page.goto('/processos/novo/');
+    await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
+    await expect(page.getByLabel('Órgão', { exact: true })).toHaveValue('TJMG');
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByLabel('Valor da causa').fill('abc');
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    await expect(page.getByText('Use um valor como 1.500,00.')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Voltar' }).click();
+    await page.getByRole('button', { name: 'Voltar' }).click();
+    await page.getByRole('group', { name: 'Tipo' }).getByText('Administrativo', { exact: true }).click();
+    // Então: o órgão que o número indicou sai junto
+    await expect(page.getByLabel('Órgão', { exact: true })).toHaveValue('');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/processos\/administrativo\/\?id=/);
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolado');
+  });
+
   test('quando falta o cliente, então a etapa avisa e não segue', async ({ page }) => {
     // Dado
     await page.goto('/processos/novo/');
@@ -149,18 +199,26 @@ test.describe('Cadastro de processo', () => {
 
   test('quando o administrador acrescenta uma opção, então ela fica escolhida e na lista dos próximos processos', async ({ page }) => {
     // Dado
-    await page.goto('/processos/novo/');
-    await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
-    await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
-    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
-    await page.getByRole('button', { name: 'Próxima' }).click();
+    await cadastroAteDetalhes(page, NUMERO_NOVO);
     // Quando
     await page.getByRole('button', { name: 'Acrescentar opção' }).first().click();
     await page.getByRole('textbox', { name: 'Acrescentar opção em "Sistema de tramitação"' }).fill('Tucujuris');
     await page.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(page.getByLabel('Sistema de tramitação')).toHaveValue('Tucujuris');
+    // Quando: abre outro cadastro
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await cadastroAteDetalhes(page, '0009999-43.2025.4.06.3800');
+    // Então
+    await expect(page.getByLabel('Sistema de tramitação').getByRole('option', { name: 'Tucujuris' })).toBeAttached();
+    // Quando: retira da lista
+    await page.getByLabel('Sistema de tramitação').selectOption({ label: 'Tucujuris' });
+    await page.getByRole('button', { name: 'Retirar da lista' }).click();
+    // Então: a escolha fica neste processo, mas a lista dos próximos não a tem mais
+    await expect(page.getByText('Opção "Tucujuris" retirada da lista.')).toBeVisible();
+    await page.getByLabel('Sistema de tramitação').selectOption({ label: 'PJe' });
+    await expect(page.getByLabel('Sistema de tramitação').getByRole('option', { name: 'Tucujuris' })).toHaveCount(0);
   });
 });
 
@@ -224,6 +282,21 @@ test.describe('Filtros e cartão da pessoa', () => {
     await page.getByRole('searchbox').fill('99999999');
     // Então
     await expect(page.getByText('Nenhum processo encontrado com esses filtros.')).toBeVisible();
+  });
+
+  test('quando filtra por órgão, então só ficam os processos dele', async ({ page }) => {
+    // Dado
+    await cadastrar(page, { numero: '0009999-43.2025.4.06.3800', cliente: /LUCIANA ROCHA AMOSTRA/ });
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await expect(page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Órgão').selectOption({ label: 'TJMG' });
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' })).toHaveCount(0);
   });
 
   test('quando a pessoa é cliente de um processo, então o cartão dela o mostra, e dali ele abre', async ({ page }) => {

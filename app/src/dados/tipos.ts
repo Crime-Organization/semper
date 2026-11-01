@@ -677,6 +677,8 @@ export interface DadosProcessos {
   processoOpcoes(): Promise<OpcaoDeProcesso[]>;
   /** Só administradores. */
   processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
+  /** Só administradores. Os processos que já usam a opção continuam com o valor. */
+  processoOpcaoExcluir(id: string): Promise<void>;
   processoSugestoes(tipo: TipoProcesso): Promise<SugestoesDeProcesso>;
 }
 

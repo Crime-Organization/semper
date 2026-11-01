@@ -130,6 +130,10 @@ export const TAMANHO_ETIQUETA = 40;
 // ---------- Processos ----------
 /** Tamanhos dos campos do processo (exigidos pelo banco: supabase/migrations/20261101155218_processos.sql). */
 export const TAMANHO_PROCESSO = { numero: 60, titulo: 300, orgao: 20, comarca: 120, vara: 120, classe: 200, assunto: 200, juiz: 200, instancia: 60, advogadoContrario: 200, observacoes: 4000, opcao: 120 };
+/** O valor da causa precisa ser menor que este: é até onde o banco guarda (numeric(16,2), na migração de processos). */
+export const VALOR_CAUSA_LIMITE = 100_000_000_000_000;
+/** Quantas alterações do histórico aparecem no cartão do processo. */
+export const HISTORICO_DO_PROCESSO = 100;
 /** Quantos processos entram na lista de um cartão (o da pessoa). */
 export const PROCESSOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */

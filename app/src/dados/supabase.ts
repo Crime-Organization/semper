@@ -10,7 +10,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNoProcesso } from '../regras/processo';
@@ -211,11 +211,11 @@ const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colab
   + `criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
 const processoComClientes = ({ clientela, ...p }: ProcessoLido): Processo => ({ ...p, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
-// Na ordem "nome", vale o nome do cartão ou, sem ele, os clientes. O id no fim desempata a paginação.
+// Na ordem "nome", vale o nome do cartão ou, sem ele, os clientes (a coluna nome_ordem). O id no fim desempata a paginação.
 const ORDENS_PROCESSO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
-  nome: q => q.order('titulo', { ascending: true, nullsFirst: false }).order('cliente_nome'),
-  nome_desc: q => q.order('titulo', { ascending: false, nullsFirst: false }).order('cliente_nome', { ascending: false }),
+  nome: q => q.order('nome_ordem'),
+  nome_desc: q => q.order('nome_ordem', { ascending: false }),
   novos: q => q.order('criado_em', { ascending: false }),
   antigos: q => q.order('criado_em', { ascending: true }),
   recentes: q => q.order('atualizado_em', { ascending: false })
@@ -714,7 +714,7 @@ export const SD: Dados = {
   },
   async processoHistorico(id) {
     const { data } = await rodar(sb.from('processo_historico').select('id, alteracoes, feito_por, em')
-      .eq('processo_id', id).order('em', { ascending: false }).limit(100));
+      .eq('processo_id', id).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
     return data;
   },
   async processosDaPessoa(pessoaId, perfilId = null) {
@@ -730,6 +730,9 @@ export const SD: Dados = {
   async processoOpcaoCriar(campo, valor) {
     const { data } = await rodar(sb.from('processo_opcoes').insert({ campo, valor: valor.trim() }).select('id, campo, valor').single());
     return data;
+  },
+  async processoOpcaoExcluir(id) {
+    await rodar(sb.from('processo_opcoes').delete().eq('id', id));
   },
   async processoSugestoes(tipo) {
     const { data } = await rodar(sb.from('processos').select('orgao, comarca, vara').eq('tipo', tipo).order('atualizado_em', { ascending: false }).limit(PROCESSOS_PARA_SUGERIR));

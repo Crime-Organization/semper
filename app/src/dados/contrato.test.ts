@@ -664,6 +664,69 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(noOutroTipo).resolves.toMatchObject({ id: expect.any(String) });
       });
 
+      it('quando o número é o mesmo com outra pontuação ou maiúsculas, então também é recusado', async () => {
+        // Dado
+        const numero = marca().replace(' ', '');
+        await novoProcesso({ tipo: 'administrativo', numero: numero + '-1' });
+        await novoProcesso({ numero: NUMERO });
+        // Quando
+        const outraEscrita = novoProcesso({ tipo: 'administrativo', numero: numero.toLowerCase() + ' 1' });
+        const semPontos = novoProcesso({ numero: NUMERO.replace(/\D/g, '') });
+        // Então
+        await expect(outraEscrita).rejects.toThrow('Já existe um processo com esse número.');
+        await expect(semPontos).rejects.toThrow('Já existe um processo com esse número.');
+      });
+
+      it('quando o colaborador é de fora, ou passa do limite, então é recusado', async () => {
+        // Quando
+        const deFora = novoProcesso({ colaboradores: ['u-de-fora'] });
+        // Então
+        await expect(deFora).rejects.toThrow('O colaborador precisa ser alguém da equipe do escritório.');
+      });
+
+      it('quando o novo responsável era colaborador, então ele sai dos colaboradores', async () => {
+        // Dado
+        const { id } = await novoProcesso({ responsavel_id: 'u-ana', colaboradores: ['u-bruno'] });
+        // Quando
+        await SD.processoAtualizar(id, { responsavel_id: 'u-bruno' });
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ responsavel_id: 'u-bruno', colaboradores: [] });
+      });
+
+      it('quando a coluna é do quadro do outro tipo, então criar é recusado', async () => {
+        // Dado
+        const [administrativa] = await SD.colunasListar('processos_administrativos');
+        // Quando
+        const criar = novoProcesso({ tipo: 'judicial', etapa_id: administrativa.id, etapa_ordem: 1 });
+        // Então
+        await expect(criar).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando a coluna é excluída, então o processo vai para "sem situação"', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('processos_judiciais')).find(c => !c.marco)!;
+        const { id } = await novoProcesso({ etapa_id: coluna.id, etapa_ordem: 1 });
+        // Quando
+        await SD.colunaExcluir(coluna.id);
+        // Então
+        expect((await SD.processoObter(id))?.etapa_id).toBeNull();
+        expect((await SD.processosDaEtapa(null, { tipo: 'judicial' })).linhas.map(p => p.id)).toContain(id);
+      });
+
+      it('quando ordena por nome, então vale o nome do cartão ou, sem ele, os clientes', async () => {
+        // Dado
+        const parte = marca();
+        const { id: ana } = await criar('ANA ' + parte), { id: bia } = await criar('ZÉ ' + parte);
+        const base = { tipo: 'judicial' as const, responsavel_id: 'u-ana' };
+        const a = await SD.processoCriar({ ...base, numero: marca(), clientes: [ana] });
+        const m = await SD.processoCriar({ ...base, numero: marca(), clientes: [bia], titulo: 'Marca ' + parte });
+        const z = await SD.processoCriar({ ...base, numero: marca(), clientes: [bia] });
+        // Quando
+        const r = await SD.processosListar({ tipo: 'judicial', termo: parte, ordem: 'nome' });
+        // Então
+        expect(r.linhas.map(p => p.id)).toEqual([a.id, m.id, z.id]);
+      });
+
       it('quando não há cliente, ou o responsável é de fora, então é recusado com a mensagem em português', async () => {
         // Quando
         const semCliente = SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [] });
@@ -694,9 +757,21 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await ids({ tipo: 'judicial', termo: '00056781320268130433' })).toEqual([judicial.id]);
         expect(await ids({ tipo: 'judicial', termo: nome, pessoa: 'u-bruno' })).toEqual([judicial.id]);
         expect(await ids({ tipo: 'administrativo', termo: nome, pessoa: 'u-bruno' })).toEqual([]);
+        expect(await ids({ tipo: 'judicial', termo: nome, orgao: 'TJMG' })).toEqual([judicial.id]);
         expect(await ids({ tipo: 'judicial', termo: nome, orgao: 'TRF6' })).toEqual([]);
         expect((await SD.processoSugestoes('administrativo')).orgaos).toContain('INPI');
         expect((await SD.processoSugestoes('judicial')).orgaos).not.toContain('INPI');
+      });
+
+      it('quando já há comarca e vara em outros processos, então elas aparecem como sugestões', async () => {
+        // Dado
+        const comarca = marca(), vara = marca();
+        await novoProcesso({ comarca, vara });
+        // Quando
+        const s = await SD.processoSugestoes('judicial');
+        // Então
+        expect(s.comarcas).toContain(comarca);
+        expect(s.varas).toContain(vara);
       });
 
       it('quando o filtro é por etiqueta, então só vêm os processos com ela', async () => {
@@ -792,6 +867,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.processoOpcoes()).map(o => o.valor)).toContain(valor);
         await expect(SD.processoOpcaoCriar('sistema', valor.toLowerCase())).rejects.toThrow('Essa opção já está na lista.');
         await expect(SD.processoOpcaoCriar('area', valor)).resolves.toMatchObject({ campo: 'area' });
+      });
+
+      it('quando retira uma opção da lista, então ela não volta mais, e pode ser acrescentada de novo', async () => {
+        // Dado
+        const valor = marca();
+        const { id } = await SD.processoOpcaoCriar('sistema', valor);
+        // Quando
+        await SD.processoOpcaoExcluir(id);
+        // Então
+        expect((await SD.processoOpcoes()).map(o => o.valor)).not.toContain(valor);
+        await expect(SD.processoOpcaoCriar('sistema', valor)).resolves.toMatchObject({ valor });
       });
     });
 

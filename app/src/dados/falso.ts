@@ -15,13 +15,13 @@ import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDo
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
-import { papeisNoProcesso } from '../regras/processo';
+import { numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
-  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES } from './limites';
+  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO } from './limites';
 import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { padraoDoOrgao } from '../regras/calendario';
@@ -830,7 +830,7 @@ function filtrarProcessos(f: FiltroProcessos) {
     && (!f.etiqueta || temEtiqueta('processos', p.id, f.etiqueta))
     && (!t || buscaProcesso(p).includes(t)));
 }
-const nomeParaOrdem = (p: ProcessoGuardado) => p.titulo || nomesDosClientes(p.clientes);
+const nomeParaOrdem = (p: ProcessoGuardado) => normal(p.titulo || nomesDosClientes(p.clientes));
 const ORDENS_PROCESSO: Record<Ordem, (a: ProcessoGuardado, b: ProcessoGuardado) => number> = {
   manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.criado_em.localeCompare(a.criado_em),
   nome: (a, b) => nomeParaOrdem(a).localeCompare(nomeParaOrdem(b)),
@@ -844,24 +844,38 @@ const acharProcesso = (id: string) => {
   if (!p) throw new Error('Processo não encontrado.');
   return p;
 };
+/** Como a regra da migração: a coluna precisa ser do quadro do tipo do processo. */
+function conferirQuadroDoProcesso(tipo: TipoProcesso, etapaId: string | null | undefined) {
+  if (etapaId && bd.colunas.find(c => c.id === etapaId)?.modulo !== TIPOS_PROCESSO[tipo].quadro) throw new Error('Você não tem permissão para fazer isso.');
+}
 /** Como o gatilho preparar e o índice de número único da migração. */
-function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, id?: string): DadosProcesso {
+function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: ProcessoGuardado): DadosProcesso {
   const d: DadosProcesso = { ...dados };
+  conferirQuadroDoProcesso(tipo, d.etapa_id);
   const limpar = (v: string | null | undefined) => (v ?? '').trim() || null;
   if (d.numero !== undefined) {
     d.numero = (d.numero ?? '').trim();
     if (!d.numero) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
-    if (bd.processos!.some(p => p.id !== id && p.tipo === tipo && p.numero === d.numero)) throw new Error('Já existe um processo com esse número.');
+    const comparado = numeroParaComparar(d.numero);
+    if (bd.processos!.some(p => p.id !== atual?.id && p.tipo === tipo && numeroParaComparar(p.numero) === comparado)) throw new Error('Já existe um processo com esse número.');
   }
   for (const campo of ['titulo', 'sistema', 'area', 'natureza', 'comarca', 'vara'] as const) if (d[campo] !== undefined) d[campo] = limpar(d[campo]);
   if (d.orgao !== undefined) d.orgao = limpar(d.orgao)?.toUpperCase() ?? null;
   if (d.clientes !== undefined) {
     d.clientes = [...new Set(d.clientes.filter(Boolean))];
     if (!d.clientes.length) throw new Error('Escolha pelo menos um cliente.');
+    if (d.clientes.length > CLIENTES_MAXIMOS) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     if (d.clientes.some(c => !bd.pessoas.some(p => p.id === c))) throw new Error('Cliente não encontrado neste escritório.');
   }
-  if (d.responsavel_id !== undefined && !EQUIPE.some(m => m.id === d.responsavel_id)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
-  if (d.colaboradores !== undefined) d.colaboradores = [...new Set(d.colaboradores)].filter(c => c !== (d.responsavel_id ?? bd.processos!.find(p => p.id === id)?.responsavel_id));
+  const responsavel = d.responsavel_id ?? atual?.responsavel_id;
+  if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
+  if (d.colaboradores !== undefined || d.responsavel_id !== undefined) {
+    const lista = [...new Set((d.colaboradores ?? atual?.colaboradores ?? []).filter(Boolean))].filter(id => id !== responsavel);
+    // Confere só quem está entrando: quem já estava e saiu da equipe não trava as outras alterações.
+    if (lista.some(id => !atual?.colaboradores.includes(id) && !EQUIPE.some(m => m.id === id))) throw new Error('O colaborador precisa ser alguém da equipe do escritório.');
+    if (lista.length > COLABORADORES_MAXIMOS) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    d.colaboradores = lista;
+  }
   return d;
 }
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico. */
@@ -1602,7 +1616,7 @@ export const SD: Dados = {
     return espera({ id: p.id, codigo: p.codigo });
   },
   async processoAtualizar(id, dados) {
-    const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, id);
+    const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
     auditar('processos', 'alteracao', p); gravar();
@@ -1631,11 +1645,11 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     const p = acharProcesso(id);
-    if (etapaId && bd.colunas.find(c => c.id === etapaId)?.modulo !== (p.tipo === 'judicial' ? 'processos_judiciais' : 'processos_administrativos')) return erro('Você não tem permissão para fazer isso.');
+    conferirQuadroDoProcesso(p.tipo, etapaId);
     historicoProcesso(p, { etapa_id: etapaId });
     Object.assign(p, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
-  processoHistorico: id => espera(bd.historicoProcessos!.filter(h => h.processo_id === id)),
+  processoHistorico: id => espera(bd.historicoProcessos!.filter(h => h.processo_id === id).slice(0, HISTORICO_DO_PROCESSO)),
   processosDaPessoa: (pessoaId, perfilId = null) => espera(bd.processos!.map((p): ProcessoLigado => ({
     id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em,
     papeis: papeisNoProcesso(p, pessoaId, perfilId)
@@ -1647,6 +1661,10 @@ export const SD: Dados = {
     if (bd.opcoesDeProcesso!.some(o => o.campo === campo && normal(o.valor) === normal(limpo))) return erro('Essa opção já está na lista.');
     const o: OpcaoDeProcesso = { id: novoId(), campo, valor: limpo };
     bd.opcoesDeProcesso!.push(o); gravar(); return espera(o);
+  },
+  async processoOpcaoExcluir(id) {
+    bd.opcoesDeProcesso = bd.opcoesDeProcesso!.filter(o => o.id !== id); gravar();
+    return espera(undefined);
   },
   processoSugestoes: tipo => {
     const doTipo = bd.processos!.filter(p => p.tipo === tipo);
@@ -1759,6 +1777,7 @@ export const SD: Dados = {
   async colunaOrdenar(id, ordem) { const c = bd.colunas.find(x => x.id === id); if (c) c.ordem = ordem; gravar(); },
   async colunaExcluir(id) {
     if (bd.colunas.find(c => c.id === id)?.marco) return erro('Só administradores excluem colunas, e a coluna-marco não pode ser excluída.');
+    for (const p of bd.processos!) if (p.etapa_id === id) { historicoProcesso(p, { etapa_id: null }); p.etapa_id = null; }
     bd.colunas = bd.colunas.filter(c => c.id !== id);
     for (const item of [...bd.pessoas, ...bd.contratos!]) if (item.etapa_id === id) item.etapa_id = null;
     gravar();
