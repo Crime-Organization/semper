@@ -374,7 +374,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Nome longo encolhe com reticências: a seta e a quantidade ficam sempre à vista. */
 .grupo-faixa > svg, .grupo-faixa > .coluna-n { flex-shrink: 0 }
 .grupo-faixa { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 44px; padding: 12px 0; border: 0; border-radius: 13px; background: transparent; color: var(--ink); cursor: pointer }
-.grupo-faixa-nome { min-height: 0; overflow: hidden; text-overflow: ellipsis; writing-mode: vertical-rl; font-size: 13px; font-weight: 900; white-space: nowrap }
+/* O nome fica embaixo e é lido de baixo para cima (o giro faz o texto começar no pé da faixa). */
+.grupo-faixa-nome { min-height: 0; margin-top: auto; overflow: hidden; text-overflow: ellipsis; writing-mode: vertical-rl; transform: rotate(180deg); font-size: 13px; font-weight: 900; white-space: nowrap }
 .nova-coluna { background: transparent; border-style: dashed; border-color: var(--line2); padding: 14px; gap: 14px; overflow-y: auto }
 .nova-form { display: flex; flex-direction: column; gap: 8px }
 .nova-form .pergunta > label { font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }
