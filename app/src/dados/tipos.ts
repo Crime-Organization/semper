@@ -632,6 +632,8 @@ export interface Processo {
   etapa_id: string | null; etapa_ordem: number | null; arquivado_em: string | null; arquivado_por: string | null;
   criado_por: string | null; criado_em: string; atualizado_por: string | null; atualizado_em: string;
   clientes: PessoaResumida[];
+  /** Os valores dos campos que o escritório criou, por id do campo. */
+  campos: Record<string, string>;
 }
 /** Campos que o cadastro de processo grava. */
 export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
@@ -657,6 +659,11 @@ export type PapelNoProcesso = 'cliente' | 'responsavel' | 'colaborador';
 export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> { papeis: PapelNoProcesso[] }
 /** Opção acrescentada pelo administrador a uma das listas. */
 export interface OpcaoDeProcesso { id: string; campo: CampoDeOpcao; valor: string }
+/** Campo que o escritório cria nos processos. Apagado, some do cadastro e do cartão, e o que foi preenchido fica guardado. */
+export type TipoDeCampo = 'texto' | 'data' | 'numero' | 'lista';
+export type ApareceEm = TipoProcesso | 'ambos';
+export interface CampoDeProcesso { id: string; nome: string; tipo: TipoDeCampo; aparece_em: ApareceEm; opcoes: string[]; apagado_em: string | null }
+export type DadosCampoDeProcesso = Pick<CampoDeProcesso, 'nome' | 'tipo' | 'aparece_em' | 'opcoes'>;
 /** O que já foi digitado nos processos do escritório, para sugerir. */
 export interface SugestoesDeProcesso { orgaos: string[]; comarcas: string[]; varas: string[] }
 
@@ -680,6 +687,12 @@ export interface DadosProcessos {
   /** Só administradores. Os processos que já usam a opção continuam com o valor. */
   processoOpcaoExcluir(id: string): Promise<void>;
   processoSugestoes(tipo: TipoProcesso): Promise<SugestoesDeProcesso>;
+  /** Os campos do escritório, inclusive os apagados (o histórico precisa do nome deles). */
+  processoCampos(): Promise<CampoDeProcesso[]>;
+  /** Só administradores. */
+  processoCampoCriar(dados: DadosCampoDeProcesso): Promise<CampoDeProcesso>;
+  /** Só administradores. O tipo não muda. Com apagado_em, apaga ou reativa. */
+  processoCampoAtualizar(id: string, dados: Partial<Omit<CampoDeProcesso, 'id' | 'tipo'>>): Promise<CampoDeProcesso>;
 }
 
 /** Etiqueta do escritório: uma cor da paleta e, se quiser, um texto (sem texto, é uma faixa colorida). */

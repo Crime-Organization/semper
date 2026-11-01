@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso
+  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -21,7 +21,7 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
-  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO } from './limites';
+  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO } from './limites';
 import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { padraoDoOrgao } from '../regras/calendario';
@@ -101,6 +101,7 @@ interface Banco {
   processos?: ProcessoGuardado[];
   historicoProcessos?: (Historico & { processo_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
+  camposDeProcesso?: CampoDeProcesso[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -329,11 +330,12 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 }
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
+bd.camposDeProcesso ??= [];
 bd.historicoProcessos ??= [];
 bd.processos ??= (() => {
   const coluna = (nome: string) => bd.colunas.find(c => c.nome === nome)?.id ?? null;
   const pessoa = (nome: string) => bd.pessoas.find(p => p.nome === nome)?.id;
-  const base = { titulo: null, responsavel_id: eu, colaboradores: [] as string[], sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null,
+  const base = { campos: {}, titulo: null, responsavel_id: eu, colaboradores: [] as string[], sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null,
     classe: null, assunto: null, juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, arquivado_em: null, arquivado_por: null,
     criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora(), etapa_ordem: 1 };
   const lista: ProcessoGuardado[] = [];
@@ -878,6 +880,43 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
   }
   return d;
 }
+/** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
+const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
+  texto: v => v.length <= TAMANHO_CAMPO.texto,
+  numero: v => /^-?\d{1,20}(\.\d{1,10})?$/.test(v),
+  lista: (v, c) => c.opcoes.includes(v),
+  data: v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().startsWith(v)
+};
+function prepararCampos(valores: Record<string, string>, tipo: TipoProcesso, guardados: Record<string, string> = {}) {
+  const novos: Record<string, string> = {};
+  for (const [id, bruto] of Object.entries(valores)) {
+    const v = (bruto ?? '').trim();
+    if (!v) continue;
+    if (guardados[id] !== v) {
+      const c = bd.camposDeProcesso!.find(x => x.id === id && !x.apagado_em);
+      if (!c || (c.aparece_em !== 'ambos' && c.aparece_em !== tipo)) throw new Error('Campo não encontrado neste escritório.');
+      if (!CONFERE_VALOR[c.tipo](v, c)) throw new Error(`Confira o valor do campo "${c.nome}".`);
+    }
+    novos[id] = v;
+  }
+  return novos;
+}
+/** Como o gatilho preparar da migração: nome limpo; opções limpas e sem repetir. */
+function prepararCampoDeProcesso<D extends { nome?: string; opcoes?: string[] }>(dados: D, id?: string): D {
+  const d = { ...dados };
+  if (d.nome !== undefined) {
+    d.nome = d.nome.trim();
+    if (!d.nome || d.nome.length > TAMANHO_CAMPO.nome) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    if (bd.camposDeProcesso!.some(c => c.id !== id && normal(c.nome) === normal(d.nome!))) throw new Error('Já existe um campo com esse nome.');
+  }
+  if (d.opcoes !== undefined) {
+    const vistas = new Set<string>();
+    d.opcoes = d.opcoes.map(o => o.trim()).filter(o => o && !vistas.has(normal(o)) && !!vistas.add(normal(o)));
+    if (d.opcoes.length > OPCOES_POR_CAMPO) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    if (d.opcoes.some(o => o.length > TAMANHO_CAMPO.opcao)) throw new Error(`Cada opção pode ter até ${TAMANHO_CAMPO.opcao} caracteres.`);
+  }
+  return d;
+}
 /** Como o gatilho do banco: o que mudou, campo a campo, entra no histórico. */
 function historicoProcesso(p: ProcessoGuardado, dados: Record<string, unknown>) {
   const atual = p as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
@@ -886,7 +925,11 @@ function historicoProcesso(p: ProcessoGuardado, dados: Record<string, unknown>) 
     etapa_id: ['etapa', v => nomeDaColuna(v as string | null)], responsavel_id: ['responsavel_id', nomeNaEquipe],
     colaboradores: ['colaboradores', v => (v as string[]).map(nomeNaEquipe).join(', ')], clientes: ['clientes', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
-  Object.entries(dados).forEach(([campo, v]) => {
+  const { campos: valores, ...fixos } = dados as Record<string, unknown> & { campos?: Record<string, string> };
+  if (valores) for (const id of new Set([...Object.keys(p.campos), ...Object.keys(valores)])) {
+    if (p.campos[id] !== valores[id]) alt['campo:' + id] = { de: p.campos[id] ?? null, para: valores[id] ?? null };
+  }
+  Object.entries(fixos).forEach(([campo, v]) => {
     if (campo === 'etapa_ordem' || campo === 'arquivado_por' || JSON.stringify(atual[campo] ?? null) === JSON.stringify(v ?? null)) return;
     const [chave, conv] = CONVERTE[campo] ?? [campo, (x: unknown) => x];
     alt[chave] = { de: conv(atual[campo] ?? null), para: conv(v ?? null) };
@@ -1609,6 +1652,7 @@ export const SD: Dados = {
   processoObter: id => { const p = bd.processos!.find(x => x.id === id); return espera(p ? processoCompleto(p) : null); },
   async processoCriar({ tipo, ...dados }) {
     const pronto = prepararProcesso({ colaboradores: [], clientes: [], ...dados }, tipo);
+    pronto.campos = prepararCampos(pronto.campos ?? {}, tipo);
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
@@ -1617,6 +1661,7 @@ export const SD: Dados = {
   },
   async processoAtualizar(id, dados) {
     const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p);
+    if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
     auditar('processos', 'alteracao', p); gravar();
@@ -1661,6 +1706,21 @@ export const SD: Dados = {
     if (bd.opcoesDeProcesso!.some(o => o.campo === campo && normal(o.valor) === normal(limpo))) return erro('Essa opção já está na lista.');
     const o: OpcaoDeProcesso = { id: novoId(), campo, valor: limpo };
     bd.opcoesDeProcesso!.push(o); gravar(); return espera(o);
+  },
+  processoCampos: () => espera([...bd.camposDeProcesso!]),
+  async processoCampoCriar(dados) {
+    const c: CampoDeProcesso = { ...prepararCampoDeProcesso(dados), id: novoId(), apagado_em: null };
+    if ((c.tipo === 'lista') !== (c.opcoes.length > 0)) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    bd.camposDeProcesso!.push(c); gravar();
+    return espera(c);
+  },
+  async processoCampoAtualizar(id, dados) {
+    const c = bd.camposDeProcesso!.find(x => x.id === id);
+    if (!c) return erro('Campo não encontrado neste escritório.');
+    const d = prepararCampoDeProcesso(dados, id);
+    if (d.opcoes !== undefined && (c.tipo === 'lista') !== (d.opcoes.length > 0)) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    Object.assign(c, d); gravar();
+    return espera({ ...c });
   },
   async processoOpcaoExcluir(id) {
     bd.opcoesDeProcesso = bd.opcoesDeProcesso!.filter(o => o.id !== id); gravar();

@@ -269,6 +269,112 @@ test.describe('Cartão do processo', () => {
   });
 });
 
+test.describe('Campos do escritório', () => {
+  /** Cria um campo em Configurações. */
+  async function criarCampo(page: Page, nome: string, tipo: string, { aparece, opcoes }: { aparece?: string; opcoes?: string } = {}) {
+    await page.goto('/configuracoes/');
+    await page.getByRole('button', { name: 'Novo campo' }).click();
+    const form = page.getByRole('form', { name: 'Novo campo' });
+    await form.getByLabel('Nome do campo').fill(nome);
+    await form.getByLabel('Tipo').selectOption({ label: tipo });
+    if (aparece) await form.getByLabel('Aparece em').selectOption({ label: aparece });
+    if (opcoes) await form.getByLabel('Opções').fill(opcoes);
+    await form.getByRole('button', { name: 'Criar campo' }).click();
+    await expect(page.getByRole('row').filter({ hasText: nome })).toBeVisible();
+  }
+
+  test('quando o administrador cria campos, então eles aparecem no cadastro, são conferidos, e vão para o cartão e o histórico', async ({ page }) => {
+    // Dado
+    await criarCampo(page, 'Perito', 'Texto', { aparece: 'Só judicial' });
+    await criarCampo(page, 'Data da perícia', 'Data');
+    await criarCampo(page, 'Origem do caso', 'Lista de opções', { opcoes: 'Indicação\nSite\nParceiro' });
+    // Quando
+    await cadastroAteDetalhes(page, NUMERO_NOVO);
+    await page.getByLabel('Perito').fill('Dra. Exemplo');
+    await page.getByLabel('Data da perícia').fill('31022026');
+    await page.getByLabel('Origem do caso').selectOption({ label: 'Site' });
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então: a data errada avisa e não salva
+    await expect(page.getByText('Etapa 3 de 3')).toBeVisible();
+    await expect(page.getByRole('alert').first()).toBeVisible();
+    // Quando
+    await page.getByLabel('Data da perícia').fill('10122026');
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Dados do processo');
+    await expect(cartao.getByRole('definition').filter({ hasText: 'Dra. Exemplo' })).toBeVisible();
+    await expect(cartao.getByRole('definition').filter({ hasText: '10/12/2026' })).toBeVisible();
+    await expect(cartao.getByRole('definition').filter({ hasText: 'Site' })).toBeVisible();
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await expect(cartao.getByLabel('Data da perícia')).toHaveValue('10/12/2026');
+    await cartao.getByLabel('Perito').fill('Dr. Outro');
+    await cartao.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByRole('listitem').filter({ hasText: 'Perito:' })).toContainText('Dr. Outro');
+  });
+
+  test('quando o campo é só do judicial, então não aparece no administrativo', async ({ page }) => {
+    // Dado
+    await criarCampo(page, 'Perito', 'Texto', { aparece: 'Só judicial' });
+    // Quando
+    await page.goto('/processos/novo/?tipo=administrativo');
+    await page.getByLabel('Número do processo').fill('INPI 5');
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(page.getByLabel('Sistema de tramitação')).toBeVisible();
+    await expect(page.getByLabel('Perito')).toHaveCount(0);
+  });
+
+  test('quando apaga um campo, então ele some do cadastro e do cartão, e ao reativar o valor volta', async ({ page }) => {
+    // Dado
+    await criarCampo(page, 'Perito', 'Texto');
+    await cadastroAteDetalhes(page, NUMERO_NOVO);
+    await page.getByLabel('Perito').fill('Dra. Exemplo');
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    const endereco = page.url();
+    // Quando
+    await page.goto('/configuracoes/');
+    await page.getByRole('row').filter({ hasText: 'Perito' }).getByRole('button', { name: 'Apagar' }).click();
+    await page.getByRole('button', { name: 'Confirmar: apagar Perito' }).click();
+    await expect(page.getByText('Campo "Perito" apagado.')).toBeVisible();
+    await page.goto(endereco);
+    // Então
+    await abrirSecao(page.getByRole('dialog'), 'Dados do processo');
+    await expect(page.getByRole('dialog').getByText('Dra. Exemplo')).toHaveCount(0);
+    // Quando
+    await page.goto('/configuracoes/');
+    await abrirSecao(page, 'Campos apagados');
+    await page.getByRole('button', { name: 'Reativar o campo Perito' }).click();
+    await expect(page.getByRole('row').filter({ hasText: 'Perito' })).toBeVisible();
+    await page.goto(endereco);
+    // Então
+    await expect(page.getByRole('dialog').getByText('Dra. Exemplo')).toBeVisible();
+  });
+
+  test('quando muda um campo, então o tipo fica bloqueado, e um nome repetido é avisado', async ({ page }) => {
+    // Dado
+    await criarCampo(page, 'Perito', 'Texto');
+    await criarCampo(page, 'Assistente', 'Texto');
+    // Quando
+    await page.getByRole('button', { name: 'Mudar o campo Assistente' }).click();
+    const form = page.getByRole('form', { name: 'Mudar campo' });
+    // Então
+    await expect(form.getByLabel('Tipo')).toBeDisabled();
+    // Quando
+    await form.getByLabel('Nome do campo').fill('perito');
+    await form.getByRole('button', { name: 'Salvar campo' }).click();
+    // Então
+    await expect(form.getByText('Já existe um campo com esse nome.')).toBeVisible();
+  });
+});
+
 test.describe('Filtros e cartão da pessoa', () => {
   test('quando busca pelos algarismos do número, sem a pontuação, então acha o processo', async ({ page }) => {
     // Dado

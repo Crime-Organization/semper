@@ -207,7 +207,7 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
-  + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
+  + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   + `criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
 const processoComClientes = ({ clientela, ...p }: ProcessoLido): Processo => ({ ...p, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
@@ -230,6 +230,7 @@ function filtrarProcessos(q: Livre, f: FiltroProcessos) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+const CAMPOS_DO_CAMPO = 'id, nome, tipo, aparece_em, opcoes, apagado_em';
 /** Os valores diferentes de um campo, em ordem. */
 const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [...new Set(linhas.map(l => l[campo]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
@@ -733,6 +734,18 @@ export const SD: Dados = {
   },
   async processoOpcaoExcluir(id) {
     await rodar(sb.from('processo_opcoes').delete().eq('id', id));
+  },
+  async processoCampos() {
+    const { data } = await rodar(sb.from('processo_campos').select(CAMPOS_DO_CAMPO).order('criado_em'));
+    return data;
+  },
+  async processoCampoCriar(dados) {
+    const { data } = await rodar(sb.from('processo_campos').insert(dados).select(CAMPOS_DO_CAMPO).single());
+    return data;
+  },
+  async processoCampoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processo_campos').update(dados).eq('id', id).select(CAMPOS_DO_CAMPO).single());
+    return data;
   },
   async processoSugestoes(tipo) {
     const { data } = await rodar(sb.from('processos').select('orgao, comarca, vara').eq('tipo', tipo).order('atualizado_em', { ascending: false }).limit(PROCESSOS_PARA_SUGERIR));

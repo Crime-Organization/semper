@@ -11,6 +11,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
+import { CamposDoProcesso } from './CamposDoProcesso';
 import { LigacaoGoogle } from './LigacaoGoogle';
 import './Configuracoes.css';
 
@@ -235,5 +236,6 @@ function Instituicao() {
     </form>
 
     <LigacaoGoogle />
+    {ctx.escritorio?.modulos?.processos && <CamposDoProcesso />}
   </div>;
 }
