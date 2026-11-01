@@ -1006,8 +1006,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(c.grupo_id).toBe(a.id);
         expect((await SD.colunasListar('pessoas')).find(x => x.id === c.id)).toMatchObject({ grupo_id: b.id, ordem: 91 });
-        await expect(SD.colunaAgrupar(c.id, alheio.id, 92)).rejects.toThrow();
-        await expect(SD.colunaCriar('pessoas', marca(), 93, alheio.id)).rejects.toThrow();
+        await expect(SD.colunaAgrupar(c.id, alheio.id, 92)).rejects.toThrow('Não foi possível concluir agora. Tente de novo.');
+        await expect(SD.colunaCriar('pessoas', marca(), 93, alheio.id)).rejects.toThrow('Não foi possível concluir agora. Tente de novo.');
       });
 
       it('quando o grupo é excluído, então as colunas dele continuam, sem grupo; excluir de novo não dá erro', async () => {
