@@ -190,6 +190,34 @@ test.describe('Etiquetas', () => {
     await expect(form.getByRole('button', { name: 'Criar etiqueta' })).toBeInViewport();
   });
 
+  test('quando a pessoa seleciona cartões na tabela e aplica uma etiqueta, então ela vale para todos; depois, tira de todos', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Prioridade', 'Roxo');
+    await painel(page).getByRole('checkbox', { name: 'Prioridade' }).uncheck();
+    await expect(page.getByText('Etiqueta "Prioridade" tirada de 1 cartão.')).toBeVisible();
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    const linha = (nome: string) => page.getByRole('row').filter({ hasText: nome });
+    await linha('JOSÉ DA SILVA TESTE').getByRole('checkbox').check();
+    await linha('MARIA APARECIDA EXEMPLO').getByRole('checkbox').check();
+    // Quando
+    await page.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    const lote = page.getByRole('dialog', { name: 'Etiquetas dos selecionados' });
+    await lote.getByRole('button', { name: 'Aplicar a etiqueta Prioridade' }).click();
+    // Então
+    await expect(page.getByText('Etiqueta "Prioridade" aplicada em 2 cartões.')).toBeVisible();
+    await expect(linha('JOSÉ DA SILVA TESTE').getByText('Prioridade')).toBeVisible();
+    await expect(linha('MARIA APARECIDA EXEMPLO').getByText('Prioridade')).toBeVisible();
+    await expect(linha('PAULO HENRIQUE SIMULADO').getByText('Prioridade')).toHaveCount(0);
+    // Quando
+    await page.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    await lote.getByRole('button', { name: 'Tirar a etiqueta Prioridade' }).click();
+    // Então
+    await expect(linha('JOSÉ DA SILVA TESTE').getByText('Prioridade')).toHaveCount(0);
+    await expect(linha('MARIA APARECIDA EXEMPLO').getByText('Prioridade')).toHaveCount(0);
+  });
+
   test('quando a etiqueta é mudada ou excluída, então isso vale para os cartões', async ({ page }) => {
     // Dado
     await abrirCartaoDoJose(page);

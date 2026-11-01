@@ -9,11 +9,11 @@ import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
-import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
+import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -177,6 +177,7 @@ export default function Pessoas() {
   const lote = visao === 'tabela' && n > 0 ? <>
     <span><b>{n}</b> {n === 1 ? 'selecionada' : 'selecionadas'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
     <span className="acoes-lote">
+      <EtiquetasEmLote modulo="pessoas" ids={[...selecao.selecionadas]} />
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={arquivarLote}><Icone nome="arquivo" tam={15} /> Arquivar</button>
     </span>
   </> : null;
@@ -248,7 +249,6 @@ function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
       {p.municipio && <span>{p.municipio}{p.uf ? '/' + p.uf : ''}</span>}
       {data && <span>{data}</span>}
-      {p.pendencias?.length > 0 && <Selo tipo="pend">Incompleta</Selo>}
     </div>
     {p.resp.length > 0 && <div className="kp"><Avatares ids={p.resp.map(x => x.perfil_id)} equipe={ctx.equipe} max={4} tam={24} /></div>}
   </>;
@@ -289,7 +289,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, ao
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>

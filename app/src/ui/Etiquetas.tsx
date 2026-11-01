@@ -1,10 +1,10 @@
 // Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e a seção do cartão, onde a
 // pessoa aplica, cria, muda e exclui etiquetas. Todo módulo com quadro usa estas peças; a lista fica em etiquetasDoEscritorio.ts.
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
 import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta } from '../regras/etiquetas';
-import { falha, sinalizarMudanca } from './avisos';
+import { falha, feito, sinalizarMudanca, useMudancas } from './avisos';
 import { Aviso, Campo, estiloBotao, Nota, propsDoCampo } from './base';
 import { BotaoDuplo } from './Botoes';
 import { buscarEtiquetas, lojaDeEtiquetas, procurarEtiquetas, useEtiquetas } from './etiquetasDoEscritorio';
@@ -14,6 +14,35 @@ import type { Filtro } from './PaginaModulo';
 import { useCtx } from './sessao';
 
 export { lojaDeEtiquetas, useEtiquetas, useEtiquetasDaPagina } from './etiquetasDoEscritorio';
+
+const emCartoes = (n: number) => n === 1 ? '1 cartão' : `${n} cartões`;
+
+/** Os cartões da lista que têm (ou não têm) a etiqueta. */
+async function separarPelaEtiqueta(modulo: ModuloComEtiquetas, ids: string[], etiquetaId: string) {
+  const dela = await Promise.all(ids.map(async id => (await SD.etiquetasDoCartao(modulo, id)).includes(etiquetaId)));
+  return { com: ids.filter((_, i) => dela[i]), sem: ids.filter((_, i) => !dela[i]) };
+}
+
+/** Tira a etiqueta dos cartões, oferecendo desfazer. "Incompleta" zera as pendências: o desfazer devolve o motivo original de cada pessoa. */
+async function tirarEtiqueta(modulo: ModuloComEtiquetas, ids: string[], e: Etiqueta) {
+  const { com } = await separarPelaEtiqueta(modulo, ids, e.id);
+  const zeraPendencias = modulo === 'pessoas' && e.sistema === 'incompleta';
+  const pessoas = zeraPendencias ? await Promise.all(com.map(id => SD.pessoaObter(id))) : [];
+  await SD.etiquetaTirarEmLote(modulo, ids, e.id);
+  feito(`Etiqueta "${nomeDaEtiqueta(e)}" tirada de ${emCartoes(com.length)}.`, 'retirada da etiqueta', async () => {
+    await Promise.all(pessoas.flatMap(p => p ? [SD.pessoaAtualizar(p.id, { pendencias: p.pendencias })] : []));
+    await SD.etiquetaAplicarEmLote(modulo, com, e.id);
+  });
+  sinalizarMudanca();
+}
+
+/** Aplica a etiqueta nos cartões selecionados, oferecendo desfazer só nos que ainda não a tinham. */
+async function aplicarEtiqueta(modulo: ModuloComEtiquetas, ids: string[], e: Etiqueta) {
+  const { sem } = await separarPelaEtiqueta(modulo, ids, e.id);
+  await SD.etiquetaAplicarEmLote(modulo, ids, e.id);
+  feito(`Etiqueta "${nomeDaEtiqueta(e)}" aplicada em ${emCartoes(sem.length)}.`, 'aplicação da etiqueta', () => SD.etiquetaTirarEmLote(modulo, sem, e.id));
+  sinalizarMudanca();
+}
 
 /** O filtro por etiqueta da página de módulo (some enquanto o escritório não tem etiquetas). */
 export function filtroDeEtiqueta(etiquetas: Etiqueta[], valor: string | undefined, aoMudar: (etiqueta: string) => void): Filtro[] {
@@ -42,7 +71,7 @@ export function EtiquetasDoItem({ etq, modulo, id, somenteLer }: { etq?: { etiqu
   // Etiqueta que a lista não conhece: um colega acabou de criar.
   useEffect(() => { if (carregada && chave) procurarEtiquetas(chave.split(','), lojaDeEtiquetas.ler() ?? []); }, [carregada, chave]);
   async function tirar(e: Etiqueta) {
-    try { await SD.etiquetaTirar(modulo, id, e.id); sinalizarMudanca(); } catch (err) { falha(err); }
+    try { await tirarEtiqueta(modulo, [id], e); } catch (err) { falha(err); }
   }
   const minhas = etiquetas.filter(e => ids.includes(e.id));
   return minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} aoTirar={somenteLer ? undefined : () => tirar(e)} />)}</div> : null;
@@ -62,21 +91,28 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
   const etiquetas = useEtiquetas();
   const [ids, setIds] = useState<string[]>([]);
   const [botao, setBotao] = useState<HTMLElement | null>(null);
+  // Lê de novo quando algo muda fora daqui (ex.: "Marcar como conferido" tira "Incompleta").
+  const [versao, setVersao] = useState(0);
+  useMudancas(() => setVersao(v => v + 1));
 
+  useEffect(() => { void buscarEtiquetas(); }, [modulo, id]);
+  // Só a leitura mais nova vale, e a pessoa agir descarta a que está a caminho (ela traria o estado de antes).
+  const leitura = useRef(0);
   useEffect(() => {
-    let vale = true;
-    void buscarEtiquetas();
-    SD.etiquetasDoCartao(modulo, id).then(l => { if (vale) setIds(l); }).catch(falha);
-    return () => { vale = false; };
-  }, [modulo, id]);
+    const esta = ++leitura.current;
+    SD.etiquetasDoCartao(modulo, id).then(l => { if (esta === leitura.current) setIds(l); }).catch(falha);
+  }, [modulo, id, versao]);
 
   async function marcar(e: Etiqueta, marcada: boolean) {
+    leitura.current++;
+    // A caixa muda na hora; se o banco recusar, volta como estava.
+    const trocar = (ligada: boolean) => setIds(l => ligada ? [...l, e.id] : l.filter(x => x !== e.id));
+    trocar(marcada);
     try {
-      if (marcada) await SD.etiquetaAplicar(modulo, id, e.id);
-      else await SD.etiquetaTirar(modulo, id, e.id);
-      setIds(l => marcada ? [...l, e.id] : l.filter(x => x !== e.id));
-      aoMudar();
-    } catch (err) { falha(err); }
+      // A página relê a lista, e o cartão também: em Pessoas, a etiqueta "Incompleta" anda junto com as pendências.
+      if (marcada) { await SD.etiquetaAplicar(modulo, id, e.id); sinalizarMudanca(); }
+      else await tirarEtiqueta(modulo, [id], e);
+    } catch (err) { trocar(!marcada); falha(err); }
   }
 
   const minhas = etiquetas.filter(e => ids.includes(e.id));
@@ -90,6 +126,33 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
       <PainelEtiquetas etiquetas={etiquetas} ids={ids} aoMarcar={marcar} aoMudar={aoMudar} aoCriar={e => marcar(e, true)} />
     </MenuFlutuante>}
   </section>;
+}
+
+/** Na barra de ações em lote: aplica ou tira uma etiqueta de todos os cartões selecionados. */
+export function EtiquetasEmLote({ modulo, ids }: { modulo: ModuloComEtiquetas; ids: string[] }) {
+  const etiquetas = useEtiquetas();
+  const [botao, setBotao] = useState<HTMLElement | null>(null);
+
+  async function agir(e: Etiqueta, aplicar: boolean) {
+    setBotao(null);
+    try { await (aplicar ? aplicarEtiqueta : tirarEtiqueta)(modulo, ids, e); } catch (err) { falha(err); }
+  }
+
+  return <>
+    <button type="button" className={estiloBotao({ forma: 'mini' })} aria-expanded={!!botao} onClick={ev => { const alvo = ev.currentTarget; setBotao(b => b ? null : alvo); }}>
+      <Icone nome="etiqueta" tam={15} /> Etiquetas
+    </button>
+    {botao && <MenuFlutuante painel rotulo="Etiquetas dos selecionados" botao={botao} aoFechar={() => setBotao(null)}>
+      <div className="etq-painel">
+        <p className="rotulo-caps etq-lote-titulo">{emCartoes(ids.length)} {ids.length === 1 ? 'selecionado' : 'selecionados'}</p>
+        {etiquetas.length ? <ul className="etq-lista" aria-label="Etiquetas do escritório">{etiquetas.map(e => <li key={e.id}>
+          <span className="etq-opcao"><SeloEtiqueta e={e} /></span>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Aplicar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, true)}>Aplicar</button>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Tirar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, false)}>Tirar</button>
+        </li>)}</ul> : <Nota>Nenhuma etiqueta ainda. Crie a primeira na seção "Etiquetas" de um cartão.</Nota>}
+      </div>
+    </MenuFlutuante>}
+  </>;
 }
 
 function PainelEtiquetas({ etiquetas, ids, aoMarcar, aoMudar, aoCriar }: { etiquetas: Etiqueta[]; ids: string[]; aoMarcar: (e: Etiqueta, marcada: boolean) => void; aoMudar: () => void; aoCriar: (e: Etiqueta) => void }) {
@@ -171,7 +234,7 @@ function FormEtiqueta({ etiquetas, mudando, aoCriar, aoMudar, aoTerminar }: Prop
     <div className="etq-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado}>{mudando ? 'Salvar etiqueta' : 'Criar etiqueta'}</button>
       {mudando && <button type="button" className={estiloBotao({ pequeno: true })} onClick={aoTerminar}>Cancelar</button>}
-      {mudando && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão" aoConfirmar={excluir}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
+      {mudando && !mudando.sistema && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão" aoConfirmar={excluir}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
     </div>
   </form>;
 }

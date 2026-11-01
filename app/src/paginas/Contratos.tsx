@@ -12,7 +12,7 @@ import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
-import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
+import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -113,6 +113,7 @@ export default function Contratos() {
   const lote = visao === 'tabela' && n > 0 ? <>
     <span><b>{n}</b> {n === 1 ? 'selecionado' : 'selecionados'} <button type="button" className={estiloBotao({ forma: 'link' })} style={{ color: '#DCDCD4', marginLeft: 8 }} onClick={() => selecao.limpar()}>limpar</button></span>
     <span className="acoes-lote">
+      <EtiquetasEmLote modulo="contratos" ids={[...selecao.selecionadas]} />
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={arquivarLote}><Icone nome="arquivo" tam={15} /> Arquivar</button>
     </span>
   </> : null;

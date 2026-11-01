@@ -11,7 +11,7 @@ import { PENDENCIAS } from '../regras/importacao';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
@@ -128,7 +128,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     try {
       await SD.pessoaAtualizar(p!.id, { pendencias: [] });
       feito('Cadastro marcado como conferido.', 'marcação como conferido', async () => { await SD.pessoaAtualizar(p!.id, { pendencias: antes }); });
-      aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+      sinalizarMudanca();   // a etiqueta "Incompleta" saiu: a página e o cartão leem de novo
     } catch (e) { falha(e); }
   }
 
@@ -143,8 +143,6 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
         {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
-        {p.importacao_id && <Selo>Importada</Selo>}
-        {p.pendencias.length > 0 && <Selo tipo="pend">Incompleta</Selo>}
         <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
       </div>
       <h2>{p.nome}</h2>

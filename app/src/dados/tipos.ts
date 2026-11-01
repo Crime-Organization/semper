@@ -614,7 +614,11 @@ export interface DadosModelos {
 }
 
 /** Etiqueta do escritório: uma cor da paleta e, se quiser, um texto (sem texto, é uma faixa colorida). */
-export interface Etiqueta { id: string; cor: CorDaEtiqueta; texto: string | null; criado_por: string | null }
+export interface Etiqueta {
+  id: string; cor: CorDaEtiqueta; texto: string | null; criado_por: string | null;
+  /** Etiqueta que o sistema aplica em Pessoas (não pode ser excluída): "Importada" e "Incompleta", que anda junto com as pendências. */
+  sistema?: 'importada' | 'incompleta' | null;
+}
 /** Os módulos cujos cartões levam etiquetas. */
 export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas'>;
 /** Item de lista com as etiquetas dele (etq: as ligações, como vêm do banco). */
@@ -632,6 +636,9 @@ export interface DadosEtiquetas {
   etiquetasDoCartao(modulo: ModuloComEtiquetas, id: string): Promise<string[]>;
   etiquetaAplicar(modulo: ModuloComEtiquetas, id: string, etiquetaId: string): Promise<void>;
   etiquetaTirar(modulo: ModuloComEtiquetas, id: string, etiquetaId: string): Promise<void>;
+  /** O mesmo, nos cartões selecionados. */
+  etiquetaAplicarEmLote(modulo: ModuloComEtiquetas, ids: string[], etiquetaId: string): Promise<void>;
+  etiquetaTirarEmLote(modulo: ModuloComEtiquetas, ids: string[], etiquetaId: string): Promise<void>;
 }
 
 /** Órgão em que o escritório atua (TJMG, TRF6, INPI…): como os prazos dele contam quando ninguém escolhe e que dias

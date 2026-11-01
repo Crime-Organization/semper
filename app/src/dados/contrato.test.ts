@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
+import { normal } from '../regras/texto';
 import { DIA } from '../ui/tempos';
 import { hojeISO } from '../ui/util';
 
@@ -1068,6 +1069,121 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.etiquetasDoCartao('pessoas', outro.id)).toEqual([]);
         expect((await SD.etiquetasListar()).some(x => x.id === e.id)).toBe(false);
         await expect(SD.etiquetaExcluir(e.id)).resolves.toBeUndefined();
+      });
+
+      it('quando a etiqueta é aplicada ou tirada em lote, então vale para todos os selecionados, e só para eles', async () => {
+        // Dado
+        const e = await SD.etiquetaCriar('verde', texto());
+        const a = await criar(marca()), b = await criar(marca()), fora = await criar(marca());
+        await SD.etiquetaAplicar('pessoas', a.id, e.id);
+        // Quando
+        await SD.etiquetaAplicarEmLote('pessoas', [a.id, b.id], e.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('pessoas', a.id)).toEqual([e.id]);
+        expect(await SD.etiquetasDoCartao('pessoas', b.id)).toEqual([e.id]);
+        expect(await SD.etiquetasDoCartao('pessoas', fora.id)).toEqual([]);
+        // Quando
+        await SD.etiquetaTirarEmLote('pessoas', [a.id, b.id], e.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('pessoas', a.id)).toEqual([]);
+        expect(await SD.etiquetasDoCartao('pessoas', b.id)).toEqual([]);
+      });
+
+      describe('Importada e Incompleta', () => {
+        const importar = async (nome: string, pendencias: ItemImportacao['pendencias'] = []) => {
+          const imp = await SD.importacaoIniciar('Teste', 'x.csv');
+          const { ids } = await SD.pessoasImportar(imp, [{ linha: 2, referencia: null, existente_id: null, dados: { tipo: 'pf', nome }, criado_em: null, responsaveis: [], observacoes: null, pendencias }]);
+          return ids[0].id;
+        };
+        const sistema = async (tipo: 'importada' | 'incompleta') => (await SD.etiquetasListar()).find(e => e.sistema === tipo)!;
+
+        it('quando a pessoa é importada, então recebe "Importada"; com pendência, também "Incompleta"', async () => {
+          // Quando
+          const sem = await importar(marca()), com = await importar(marca(), ['conferir']);
+          // Então
+          const importada = await sistema('importada'), incompleta = await sistema('incompleta');
+          expect(importada).toMatchObject({ texto: 'Importada', cor: 'azul' });
+          expect(incompleta).toMatchObject({ texto: 'Incompleta', cor: 'laranja' });
+          expect(await SD.etiquetasDoCartao('pessoas', sem)).toEqual([importada.id]);
+          expect((await SD.etiquetasDoCartao('pessoas', com)).sort()).toEqual([importada.id, incompleta.id].sort());
+        });
+
+        it('quando tira "Importada", então só a etiqueta sai: a origem da importação continua', async () => {
+          // Dado
+          const id = await importar(marca());
+          // Quando
+          await SD.etiquetaTirar('pessoas', id, (await sistema('importada')).id);
+          // Então
+          expect(await SD.etiquetasDoCartao('pessoas', id)).toEqual([]);
+          expect((await SD.pessoaObter(id))?.importacao_id).toBeTruthy();
+        });
+
+        it('quando tira "Incompleta", no cartão ou em lote, então as pendências são zeradas', async () => {
+          // Dado
+          const a = await importar(marca(), ['conferir']), b = await importar(marca(), ['documento_invalido']);
+          const incompleta = await sistema('incompleta');
+          // Quando
+          await SD.etiquetaTirar('pessoas', a, incompleta.id);
+          await SD.etiquetaTirarEmLote('pessoas', [b], incompleta.id);
+          // Então
+          expect((await SD.pessoaObter(a))?.pendencias).toEqual([]);
+          expect((await SD.pessoaObter(b))?.pendencias).toEqual([]);
+        });
+
+        it('quando marca como conferido, então "Incompleta" sai; pendência nova, ela volta', async () => {
+          // Dado
+          const id = await importar(marca(), ['conferir']);
+          const incompleta = await sistema('incompleta');
+          // Quando
+          await SD.pessoaAtualizar(id, { pendencias: [] });
+          // Então
+          expect(await SD.etiquetasDoCartao('pessoas', id)).not.toContain(incompleta.id);
+          // Quando
+          await SD.pessoaAtualizar(id, { pendencias: ['conferir'] });
+          // Então
+          expect(await SD.etiquetasDoCartao('pessoas', id)).toContain(incompleta.id);
+        });
+
+        it('quando aplica "Incompleta" à mão, então o cadastro fica a conferir', async () => {
+          // Dado
+          await importar(marca(), ['conferir']);
+          const p = await criar(marca());
+          // Quando
+          await SD.etiquetaAplicar('pessoas', p.id, (await sistema('incompleta')).id);
+          // Então
+          expect((await SD.pessoaObter(p.id))?.pendencias).toEqual(['conferir']);
+        });
+
+        it('quando aplica "Incompleta" numa demanda, então é só uma etiqueta', async () => {
+          // Dado
+          await importar(marca(), ['conferir']);
+          const { id } = await SD.demandaCriar({ titulo: 'Com etiqueta', responsavel_id: 'u-master' });
+          // Quando
+          await SD.etiquetaAplicar('demandas', id, (await sistema('incompleta')).id);
+          await SD.etiquetaTirar('demandas', id, (await sistema('incompleta')).id);
+          // Então
+          expect(await SD.etiquetasDoCartao('demandas', id)).toEqual([]);
+        });
+
+        it('quando alguém tenta excluir uma etiqueta do sistema, então ela continua', async () => {
+          // Dado
+          await importar(marca());
+          const importada = await sistema('importada');
+          // Quando
+          await SD.etiquetaExcluir(importada.id);
+          // Então
+          expect((await SD.etiquetasListar()).some(e => e.id === importada.id)).toBe(true);
+        });
+
+        it('quando o escritório já tem uma etiqueta com o mesmo texto, então ela é aproveitada', async () => {
+          // Dado
+          const minha = await SD.etiquetaCriar('verde', 'importada');
+          // Quando
+          const id = await importar(marca());
+          // Então
+          expect(await SD.etiquetasDoCartao('pessoas', id)).toEqual([minha.id]);
+          expect((await SD.etiquetasListar()).filter(e => normal(e.texto) === 'importada')).toHaveLength(1);
+        });
       });
 
       it('quando a etiqueta é mudada, então vale para todos os cartões; o texto repetido é recusado', async () => {

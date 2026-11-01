@@ -85,6 +85,24 @@ test.describe('Importar pessoas', () => {
     await cartao.getByRole('button', { name: 'Marcar como conferido' }).click();
     await expect(cartao.getByText('Incompleta', { exact: true })).toHaveCount(0);
     await expect(cartao.getByText(/CPF digitado no arquivo/)).toBeVisible();
+    // Quando: acrescenta "Incompleta" de novo e a tira pelo x
+    await cartao.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    await page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Incompleta' }).check();
+    await page.keyboard.press('Escape');
+    // Então: o cadastro volta a ter o que conferir
+    await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toBeVisible();
+    // Quando
+    await cartao.getByText('Incompleta', { exact: true }).hover();
+    await cartao.getByRole('button', { name: 'Tirar a etiqueta Incompleta' }).click();
+    // Então: tirar a etiqueta marca como conferido; "Importada" continua
+    await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toHaveCount(0);
+    await expect(cartao.getByText('Importada', { exact: true })).toBeVisible();
+    // Quando: desfaz
+    await expect(page.getByText('Etiqueta "Incompleta" tirada de 1 cartão.')).toBeVisible();
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então: a etiqueta e o que havia para conferir voltam
+    await expect(cartao.getByText('Incompleta', { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toBeVisible();
 
     // Quando: vai à Equipe
     await page.goto('/equipe/');
