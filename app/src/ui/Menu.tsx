@@ -6,6 +6,9 @@ import { createPortal } from 'react-dom';
 
 interface Props { botao: HTMLElement; aoFechar: () => void; painel?: boolean; rotulo?: string; children: ReactNode }
 
+/** Quanto o menu fica longe das bordas da tela e do botão que o abriu, em pixels. */
+const MARGEM_DA_TELA = 12, DISTANCIA_DO_BOTAO = 6;
+
 export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: -9999, left: 0 });
@@ -13,7 +16,12 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, childre
   fechar.current = aoFechar;
   useLayoutEffect(() => {
     const r = botao.getBoundingClientRect(), m = ref.current!;
-    setPos({ top: r.bottom + window.scrollY + 6, left: Math.max(12, Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - 12)) });
+    // Abre abaixo do botão; se não couber, sobe até caber na tela (o menu mais alto que a tela rola por dentro: .kmenu).
+    const noFimDaTela = window.scrollY + window.innerHeight - m.offsetHeight - MARGEM_DA_TELA;
+    setPos({
+      top: Math.max(window.scrollY + MARGEM_DA_TELA, Math.min(r.bottom + window.scrollY + DISTANCIA_DO_BOTAO, noFimDaTela)),
+      left: Math.max(MARGEM_DA_TELA, Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - MARGEM_DA_TELA))
+    });
     m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button')?.focus();
   }, [botao, painel]);
   useEffect(() => {

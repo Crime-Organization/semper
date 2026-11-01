@@ -973,6 +973,65 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Grupos de colunas', () => {
+      it('quando um grupo é criado, então vem na lista do quadro, na ordem, e começa aberto; os outros quadros não o veem', async () => {
+        // Dado
+        const nome = marca();
+        // Quando
+        const g = await SD.grupoCriar('pessoas', ` ${nome} `, 50);
+        // Então
+        expect(g).toMatchObject({ nome, ordem: 50, comeca_fechado: false });
+        expect((await SD.gruposListar('pessoas')).some(x => x.id === g.id)).toBe(true);
+        expect((await SD.gruposListar('contratos')).some(x => x.id === g.id)).toBe(false);
+      });
+
+      it('quando já existe um grupo com o mesmo nome no quadro, então criar ou renomear é recusado; em outro quadro, pode', async () => {
+        // Dado
+        const nome = marca();
+        const g = await SD.grupoCriar('pessoas', nome, 1);
+        const outro = await SD.grupoCriar('pessoas', marca(), 2);
+        // Então
+        await expect(SD.grupoCriar('pessoas', nome.toLowerCase(), 3)).rejects.toThrow('Já existe um grupo com esse nome neste quadro.');
+        await expect(SD.grupoAtualizar(outro.id, { nome })).rejects.toThrow('Já existe um grupo com esse nome neste quadro.');
+        await expect(SD.grupoCriar('contratos', nome, 1)).resolves.toMatchObject({ nome });
+        await expect(SD.grupoAtualizar(g.id, { nome })).resolves.toBeUndefined();
+      });
+
+      it('quando uma coluna é criada num grupo ou movida para outro, então fica nele; em grupo de outro quadro, não', async () => {
+        // Dado
+        const a = await SD.grupoCriar('pessoas', marca(), 1), b = await SD.grupoCriar('pessoas', marca(), 2), alheio = await SD.grupoCriar('contratos', marca(), 1);
+        // Quando
+        const c = await SD.colunaCriar('pessoas', marca(), 90, a.id);
+        await SD.colunaAgrupar(c.id, b.id, 91);
+        // Então
+        expect(c.grupo_id).toBe(a.id);
+        expect((await SD.colunasListar('pessoas')).find(x => x.id === c.id)).toMatchObject({ grupo_id: b.id, ordem: 91 });
+        await expect(SD.colunaAgrupar(c.id, alheio.id, 92)).rejects.toThrow('Não foi possível concluir agora. Tente de novo.');
+        await expect(SD.colunaCriar('pessoas', marca(), 93, alheio.id)).rejects.toThrow('Não foi possível concluir agora. Tente de novo.');
+      });
+
+      it('quando o grupo é excluído, então as colunas dele continuam, sem grupo; excluir de novo não dá erro', async () => {
+        // Dado
+        const g = await SD.grupoCriar('pessoas', marca(), 1);
+        const c = await SD.colunaCriar('pessoas', marca(), 90, g.id);
+        // Quando
+        await SD.grupoExcluir(g.id);
+        // Então
+        expect((await SD.gruposListar('pessoas')).some(x => x.id === g.id)).toBe(false);
+        expect((await SD.colunasListar('pessoas')).find(x => x.id === c.id)?.grupo_id).toBeNull();
+        await expect(SD.grupoExcluir(g.id)).resolves.toBeUndefined();
+      });
+
+      it('quando o grupo muda para começar fechado, então a mudança fica gravada', async () => {
+        // Dado
+        const g = await SD.grupoCriar('pessoas', marca(), 1);
+        // Quando
+        await SD.grupoAtualizar(g.id, { comeca_fechado: true, ordem: 7 });
+        // Então
+        expect((await SD.gruposListar('pessoas')).find(x => x.id === g.id)).toMatchObject({ comeca_fechado: true, ordem: 7 });
+      });
+    });
+
     describe('Calendário de feriados e suspensões', () => {
       const novoOrgao = (sigla: string) => SD.orgaoCriar({ sigla, nome: null, contagem_padrao: 'corridos', recesso: true, praxe: false, justica_federal: false });
       const sigla = () => 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();

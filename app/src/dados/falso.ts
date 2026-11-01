@@ -6,7 +6,7 @@
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
-  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Orgao
+  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, GrupoDeColunas, Orgao
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -20,7 +20,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES } from './limites';
-import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ORGAO } from './limites';
+import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
 import { padraoDoOrgao } from '../regras/calendario';
 import { TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA } from '../ui/tempos';
@@ -90,6 +90,8 @@ interface Banco {
   /** Órgãos e dias sem expediente do escritório (orgaos e dias_sem_expediente no banco). */
   orgaos?: Orgao[];
   diasLancados?: DiaLancado[];
+  /** Grupos de colunas dos quadros (quadro_grupos no banco). */
+  gruposDeColunas?: (GrupoDeColunas & { modulo: Modulo })[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -279,6 +281,7 @@ bd.orgaos ??= [
   { id: novoId(), ...padraoDoOrgao('INPI'), nome: 'Instituto Nacional da Propriedade Industrial' }
 ];
 bd.diasLancados ??= [];
+bd.gruposDeColunas ??= [];
 // Colunas de tarefas: "Para fazer" e "Concluída" são as colunas-marco (como a migração 020).
 if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
   bd.colunas.push(...SITUACOES_TAREFA.map((nome, i) => ({ id: 't' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'tarefas' as const,
@@ -743,6 +746,18 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
     if (m.itens.some(i => i.length > TAMANHO_ITEM)) throw new Error(`Cada item do modelo pode ter até ${TAMANHO_ITEM} caracteres.`);
   }
   return m;
+}
+// ---------- grupos de colunas ----------
+/** Como as regras check e o índice de nome único: o nome limpo, sem repetir no quadro. */
+function nomeDoGrupo(nome: string, modulo: Modulo, id?: string) {
+  const limpo = nome.trim();
+  if (!limpo || limpo.length > TAMANHO_GRUPO) throw new Error('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+  if (bd.gruposDeColunas!.some(g => g.id !== id && g.modulo === modulo && normal(g.nome) === normal(limpo))) throw new Error('Já existe um grupo com esse nome neste quadro.');
+  return limpo;
+}
+/** Como a chave da coluna: o grupo precisa ser do mesmo quadro. */
+function conferirGrupo(grupoId: string | null, modulo: Modulo) {
+  if (grupoId && !bd.gruposDeColunas!.some(g => g.id === grupoId && g.modulo === modulo)) throw new Error('Não foi possível concluir agora. Tente de novo.');
 }
 // ---------- calendário de feriados e suspensões ----------
 const FORMATO_INVALIDO = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
@@ -1425,9 +1440,30 @@ export const SD: Dados = {
   colunasListar: modulo => espera(bd.colunas.filter(c => (c.modulo ?? 'pessoas') === modulo).sort((a, b) => a.ordem - b.ordem)
     .map(({ modulo: _m, ...c }) => ({ ...c, oculta: bd.ocultas.includes(c.id) }))),
   sugestoesListar: modulo => espera(SUGESTOES[modulo] ?? []),
-  async colunaCriar(modulo, nome, ordem) {
+  async colunaCriar(modulo, nome, ordem, grupoId = null) {
     if (bd.colunas.some(c => (c.modulo ?? 'pessoas') === modulo && normal(c.nome) === normal(nome))) return erro('Já existe uma coluna com esse nome neste quadro.');
-    const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu }; bd.colunas.push({ ...c, modulo }); gravar(); return espera({ ...c, oculta: false });
+    conferirGrupo(grupoId, modulo);
+    const c = { id: novoId(), nome: nome.trim(), ordem, criado_por: eu, grupo_id: grupoId }; bd.colunas.push({ ...c, modulo }); gravar(); return espera({ ...c, oculta: false });
+  },
+  async colunaAgrupar(id, grupoId, ordem) {
+    const c = bd.colunas.find(x => x.id === id); if (!c) return;
+    conferirGrupo(grupoId, c.modulo ?? 'pessoas');
+    Object.assign(c, { grupo_id: grupoId, ordem }); gravar();
+  },
+  gruposListar: modulo => espera(bd.gruposDeColunas!.filter(g => g.modulo === modulo).sort((a, b) => a.ordem - b.ordem).map(({ modulo: _m, ...g }) => g)),
+  async grupoCriar(modulo, nome, ordem) {
+    const g = { id: novoId(), nome: nomeDoGrupo(nome, modulo), ordem, comeca_fechado: false };
+    bd.gruposDeColunas!.push({ ...g, modulo }); gravar(); return espera(g);
+  },
+  // Como no banco: um grupo que já não existe (outro administrador excluiu) não dá erro.
+  async grupoAtualizar(id, campos) {
+    const g = bd.gruposDeColunas!.find(x => x.id === id); if (!g) return;
+    Object.assign(g, campos, campos.nome === undefined ? {} : { nome: nomeDoGrupo(campos.nome, g.modulo, id) }); gravar();
+  },
+  async grupoExcluir(id) {
+    bd.gruposDeColunas = bd.gruposDeColunas!.filter(g => g.id !== id);
+    for (const c of bd.colunas) if (c.grupo_id === id) c.grupo_id = null;   // on delete set null
+    gravar();
   },
   async colunaOcultar(id, ocultar) { bd.ocultas = ocultar ? [...new Set([...bd.ocultas, id])] : bd.ocultas.filter(x => x !== id); gravar(); },
   async colunaRenomear(id, nome) { const c = bd.colunas.find(x => x.id === id); if (c) c.nome = nome; gravar(); },

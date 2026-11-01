@@ -13,6 +13,7 @@ import {
   type CamposTarefa, type EtapaTarefa
 } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
+import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -200,8 +201,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         });
         if (edicao) edicao.aoTerminar(true); else navegar('/tarefas/?id=' + alvo.id);
       } else {
-        // Sem coluna escolhida, a tarefa nova entra na primeira coluna do quadro ("Para fazer").
-        const coluna = etapaInicial || (await SD.colunasListar('tarefas')).sort((a, b) => a.ordem - b.ordem)[0]?.id || null;
+        // Sem coluna escolhida, a tarefa nova entra na coluna-marco de início ("Para fazer").
+        const coluna = etapaInicial || await colunaInicial('tarefas');
         const r = await SD.tarefaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Tarefa ${r.codigo} cadastrada.`, 'cadastro da tarefa', async () => {
           await SD.tarefasArquivar([r.id], true);

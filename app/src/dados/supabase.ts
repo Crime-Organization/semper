@@ -15,7 +15,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, GrupoDeColunas, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -212,6 +212,11 @@ const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, 
 const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
 const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
+const CAMPOS_GRUPO = 'id, nome, ordem, comeca_fechado';
+/** Nenhuma linha mudou: quem não é administrador não pode mudar; para o administrador, outro já tinha excluído o grupo. */
+const conferirAdminNosGrupos = (linhas: unknown[]) => {
+  if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam os grupos de colunas.');
+};
 /** Nenhuma linha mudou: quem não é administrador não pode mudar; para o administrador, outro já tinha excluído (a tela só recarrega). */
 const conferirAdminNoCalendario = (linhas: unknown[]) => {
   if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam o calendário.');
@@ -830,7 +835,7 @@ export const SD: Dados = {
   // ---------- quadros (kanban) ----------
   async colunasListar(modulo) {
     const [{ data: colunas }, { data: ocultas }] = await Promise.all([
-      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco').eq('modulo', modulo).order('ordem')),
+      rodar(sb.from('quadro_colunas').select('id, nome, ordem, criado_por, marco, grupo_id').eq('modulo', modulo).order('ordem').order('id')),
       rodar(sb.from('quadro_colunas_ocultas').select('coluna_id'))
     ]);
     const o = new Set(ocultas.map((x: { coluna_id: string }) => x.coluna_id));
@@ -840,10 +845,27 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('quadro_sugestoes').select('nome').eq('modulo', modulo).order('ordem'));
     return data.map((x: { nome: string }) => x.nome);
   },
-  async colunaCriar(modulo, nome, ordem) {
-    const { data } = await rodar(sb.from('quadro_colunas').insert({ modulo, nome: nome.trim(), ordem, criado_por: uid() })
-      .select('id, nome, ordem, criado_por').single());
+  async colunaCriar(modulo, nome, ordem, grupoId = null) {
+    const { data } = await rodar(sb.from('quadro_colunas').insert({ modulo, nome: nome.trim(), ordem, criado_por: uid(), grupo_id: grupoId })
+      .select('id, nome, ordem, criado_por, grupo_id').single());
     return { ...data, oculta: false };
+  },
+  async colunaAgrupar(id, grupoId, ordem) { await rodar(sb.from('quadro_colunas').update({ grupo_id: grupoId, ordem }).eq('id', id)); },
+  async gruposListar(modulo) {
+    const { data } = await rodar(sb.from('quadro_grupos').select(CAMPOS_GRUPO).eq('modulo', modulo).order('ordem'));
+    return data as GrupoDeColunas[];
+  },
+  async grupoCriar(modulo, nome, ordem) {
+    const { data } = await rodar(sb.from('quadro_grupos').insert({ modulo, nome: nome.trim(), ordem }).select(CAMPOS_GRUPO).single());
+    return data as GrupoDeColunas;
+  },
+  async grupoAtualizar(id, campos) {
+    const { data } = await rodar(sb.from('quadro_grupos').update(campos).eq('id', id).select('id'));
+    conferirAdminNosGrupos(data);
+  },
+  async grupoExcluir(id) {
+    const { data } = await rodar(sb.from('quadro_grupos').delete().eq('id', id).select('id'));
+    conferirAdminNosGrupos(data);
   },
   async colunaOcultar(id, ocultar) {
     if (ocultar) await rodar(sb.from('quadro_colunas_ocultas').insert({ coluna_id: id, perfil_id: uid() }));
