@@ -17,6 +17,20 @@ async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
 }
 
 test.describe('Cadastro de tarefas', () => {
+  test('quando chega à etapa das ligações, então as buscas têm a altura dos outros campos', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/nova/');
+    const titulo = page.getByLabel('Título');
+    const altura = (await titulo.boundingBox())!.height;
+    await titulo.fill('Mandar a notificação');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    expect((await page.getByRole('combobox', { name: 'Demanda' }).boundingBox())!.height).toBe(altura);
+    expect((await page.getByRole('combobox', { name: 'Contrato' }).boundingBox())!.height).toBe(altura);
+  });
+
   test('quando a pessoa cadastra uma tarefa pelas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');

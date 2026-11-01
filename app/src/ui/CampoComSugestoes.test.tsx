@@ -18,6 +18,20 @@ function montar(aoTeclar = vi.fn()) {
 }
 
 describe('Campo com sugestões', () => {
+  it('quando ninguém diz o tipo, então o campo é de texto, para ter o estilo dos outros campos do cadastro', () => {
+    // Quando
+    const { campo } = montar();
+    // Então
+    expect(campo).toHaveAttribute('type', 'text');
+  });
+
+  it('quando quem usa diz o tipo, então vale o que foi dito', () => {
+    // Quando
+    render(<CampoComSugestoes aria-label="E-mail" type="email" valor="" aoMudar={vi.fn()} sugestoes={[]} />);
+    // Então
+    expect(screen.getByRole('combobox', { name: 'E-mail' })).toHaveAttribute('type', 'email');
+  });
+
   it('quando a pessoa digita parte de uma sugestão, sem acento, então a lista mostra as que combinam, com o texto inteiro', async () => {
     // Dado
     const { campo } = montar();

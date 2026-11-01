@@ -41,6 +41,19 @@ test.describe('Cadastro de demandas', () => {
     await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Para fazer');
   });
 
+  test('quando chega à etapa do contrato, então a busca tem a altura dos outros campos', async ({ page }) => {
+    // Dado
+    await page.goto('/demandas/nova/');
+    const titulo = page.getByLabel('Título');
+    const altura = (await titulo.boundingBox())!.height;
+    await titulo.fill('Pedido de registro');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    expect((await page.getByRole('combobox', { name: 'Contrato' }).boundingBox())!.height).toBe(altura);
+  });
+
   test('quando falta o título, então a etapa avisa e não segue', async ({ page }) => {
     // Dado
     await page.goto('/demandas/nova/');

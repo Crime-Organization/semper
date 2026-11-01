@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Membro, Tarefa } from '../dados/tipos';
 import {
-  camposDaTarefa, dadosDaTarefa, errosDaEtapaTarefa, motivoSemMencaoNaTarefa, papeisNaTarefa, primeiraEtapaComErroTarefa,
+  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, errosDaEtapaTarefa, motivoSemMencaoNaTarefa, papeisNaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa,
   TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
 } from './tarefa';
 
@@ -87,6 +87,34 @@ describe('Quem está na tarefa e quem a vê', () => {
     // Então
     expect(motivo(membro('u-davi'))).toBe('não participa; inclua como participante');
     expect(motivo(membro('u-carla'))).toBeNull();
+  });
+});
+
+describe('Sair da tarefa', () => {
+  const dados = { responsavel_id: 'u2', participantes: ['u3'] };
+  const demanda = { id: 'd1', codigo: 'D1', titulo: 'Demanda', etapa_id: null, criado_por: 'u9', responsavel_id: 'u9', colaboradores: [] };
+
+  it('quando não pode sair, então continua como participante', () => {
+    // Então
+    expect(semSairDaTarefa(dados, 'u1', false)).toEqual({ dados: { responsavel_id: 'u2', participantes: ['u3', 'u1'] }, ficou: true });
+  });
+
+  it('quando pode sair ou continua na tarefa, então nada muda', () => {
+    // Então
+    expect(semSairDaTarefa(dados, 'u1', true)).toEqual({ dados, ficou: false });
+    expect(semSairDaTarefa(dados, 'u2', false)).toEqual({ dados, ficou: false });
+    expect(semSairDaTarefa(dados, 'u3', false)).toEqual({ dados, ficou: false });
+  });
+
+  it.each([
+    ['a demanda ligada, que a pessoa vê', { demanda_id: 'd1', demanda }, 'd1', true],
+    ['a demanda ligada, que a pessoa não vê', { demanda_id: 'd1', demanda: null }, 'd1', false],
+    ['outra demanda, escolhida na lista de quem a vê', { demanda_id: 'd1', demanda: null }, 'd2', true],
+    ['nenhuma demanda, depois de tirar a ligada', { demanda_id: 'd1', demanda }, null, false],
+    ['nenhuma demanda, como antes', { demanda_id: null, demanda: null }, null, false]
+  ])('quando a tarefa fica com %s, então continuar vendo pela demanda é %s', (_caso, alvo, depois, continua) => {
+    // Então
+    expect(continuaPelaDemanda(alvo, depois)).toBe(continua);
   });
 });
 

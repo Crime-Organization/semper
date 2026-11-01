@@ -631,6 +631,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluído', 'concluido']]);
       });
+
+      it('quando a coluna é excluída, então a demanda vai para "sem situação"', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('demandas')).find(c => !c.marco)!;
+        const { id } = await novaDemanda({ etapa_id: coluna.id, etapa_ordem: 1 });
+        // Quando
+        await SD.colunaExcluir(coluna.id);
+        // Então
+        expect((await SD.demandaObter(id))?.etapa_id).toBeNull();
+        expect((await SD.demandasDaEtapa(null)).linhas.map(d => d.id)).toContain(id);
+      });
     });
 
     describe('Processos', () => {
@@ -994,6 +1005,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const colunas = await SD.colunasListar('tarefas');
         // Então
         expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Para fazer', 'inicio'], ['Fazendo', null], ['Aguardando retorno', null], ['Concluída', 'concluido']]);
+      });
+
+      it('quando a coluna é excluída, então a tarefa vai para "sem situação"', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('tarefas')).find(c => !c.marco)!;
+        const { id } = await novaTarefa({ etapa_id: coluna.id, etapa_ordem: 1 });
+        // Quando
+        await SD.colunaExcluir(coluna.id);
+        // Então
+        expect((await SD.tarefaObter(id))?.etapa_id).toBeNull();
+        expect((await SD.tarefasDaEtapa(null)).linhas.map(t => t.id)).toContain(id);
       });
     });
 

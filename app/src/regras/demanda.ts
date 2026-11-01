@@ -65,6 +65,16 @@ export function dadosDaDemanda(c: CamposDemanda): DadosDemanda {
   };
 }
 
+/**
+ * Quem não é administrador nem criou a demanda só a vê enquanto participa, e o banco recusa a gravação que o tiraria
+ * dela. Por isso, ao passar a demanda adiante ou sair dos colaboradores, a pessoa continua como colaboradora.
+ */
+export function semSairDaDemanda(d: DadosDemanda, eu: string, podeSair: boolean): { dados: DadosDemanda; ficou: boolean } {
+  const colaboradores = d.colaboradores ?? [];
+  if (podeSair || d.responsavel_id === eu || colaboradores.includes(eu)) return { dados: d, ficou: false };
+  return { dados: { ...d, colaboradores: [...colaboradores, eu] }, ficou: true };
+}
+
 /** Campos do formulário a partir de uma demanda salva (para atualizar). */
 export const camposDaDemanda = (d: Demanda): CamposDemanda => ({
   titulo: d.titulo, descricao: d.descricao || '', prazo: fmtData(d.prazo), responsavelId: d.responsavel_id,
