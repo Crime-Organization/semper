@@ -1,17 +1,18 @@
 // Quadro kanban comum a todos os módulos, no modelo do Trello: as colunas ocupam a altura da tela
 // e cada lista rola dentro da própria coluna. As colunas vêm de useColunas(); o módulo só diz como
 // carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
-// no menu da coluna. Com "arquivados", a última coluna é a fixa "Arquivados" (ui/quadro/arquivo.ts).
+// no menu da coluna. Com "arquivados", a última coluna é a fixa "Arquivados" (ui/quadro/arquivo.ts). As colunas podem
+// ficar em grupos que abrem e fecham; fechado, o grupo vira uma faixa com o nome e a quantidade de cartões.
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import type { Coluna, Ordem, Pagina } from '../../dados';
+import type { Coluna, GrupoDeColunas, Ordem, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
 import { CampoComSugestoes } from '../CampoComSugestoes';
 import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
 import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
-import { TAMANHO_COLUNA } from '../../dados/limites';
-import { MARCOS } from '../../regras/quadro';
+import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
+import { MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { ordemNoFim } from './posicao';
@@ -45,6 +46,8 @@ interface Props<T extends { id: string }> {
 
 interface Lista<T> { itens: T[]; total: number; erro?: string }
 const chave = (id: string | null) => id || 'sem';
+/** Marca as colunas sem grupo (e as distingue do id de um grupo). */
+const SEM_GRUPO = 'sem-grupo';
 
 export function Kanban<T extends { id: string }>(props: Props<T>) {
   const { quadro } = props;
@@ -69,6 +72,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const antesDeColRef = useRef(antesDeCol);
   antesDeColRef.current = antesDeCol;
   const [menu, setMenu] = useState<{ c: Coluna | null; k: string; botao: HTMLElement } | null>(null);
+  const [menuGrupo, setMenuGrupo] = useState<{ g: GrupoDeColunas; botao: HTMLElement } | null>(null);
+  const [grupoDaNova, setGrupoDaNova] = useState('');
+  const [novoGrupo, setNovoGrupo] = useState('');
+  const idGrupoDaNova = useId(), idNovoGrupo = useId();
   const [nova, setNova] = useState('');
   const [criando, setCriando] = useState(false);
   const campoNova = useRef<HTMLInputElement>(null);
@@ -182,9 +189,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   }
 
   // ---------- arrastar colunas ----------
-  // Primeira coluna (das que podem ser movidas) cujo meio está à direita do ponteiro.
+  // Primeira coluna do mesmo grupo cujo meio está à direita do ponteiro: para outro grupo, usa-se o menu da coluna.
   function colunaDepoisDe(x: number) {
-    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('.coluna[data-coluna]:not(.sem-etapa):not(.coluna-arquivados):not(.arrastando-col)')];
+    const bloco = colArrasto.current?.grupo_id ?? SEM_GRUPO;
+    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>(`.coluna[data-bloco="${bloco}"]:not(.arrastando-col)`)];
     return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.coluna ?? 'fim';
   }
 
@@ -192,12 +200,17 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const nome = nova.trim().replace(/\s+/g, ' ');
     if (!nome) { campoNova.current?.focus(); return; }
     setCriando(true);
-    const ok = await quadro.criar(nome);
+    const ok = await quadro.criar(nome, quadro.grupos.some(g => g.id === grupoDaNova) ? grupoDaNova : null);
     setCriando(false);
     if (ok) {
       setNova('');
       requestAnimationFrame(() => { const q = elQuadro.current; if (q) q.scrollLeft = q.scrollWidth; });
     }
+  }
+
+  async function criarGrupo() {
+    const nome = novoGrupo.trim().replace(/\s+/g, ' ');
+    if (nome && await quadro.criarGrupo(nome)) setNovoGrupo('');
   }
 
   // A coluna Arquivados é fixa: não se move, não tem menu nem "Adicionar", e mostra os mais recentes primeiro.
@@ -209,7 +222,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const ordem: Ordem = arquivo ? 'recentes' : quadro.ordemDe(id), manual = ordem === 'manual';
     const marcador = aqui && manual;
     const marco = c?.marco ? MARCOS[c.marco] : null;
-    return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k}>
+    return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k} data-bloco={c ? c.grupo_id ?? SEM_GRUPO : undefined}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -269,6 +282,45 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     </section>;
   }
 
+  /** As colunas de um trecho do quadro, com o marcador de onde a coluna arrastada vai entrar. */
+  function colunasDoBloco(b: BlocoDoQuadro<Coluna>) {
+    const noFim = antesDeCol === 'fim' && (colArrasto.current?.grupo_id ?? null) === (b.grupo?.id ?? null);
+    return <>
+      {b.colunas.map(c => <Fragment key={c.id}>
+        {antesDeCol === c.id && <div className="kmarcador-col" />}
+        {coluna(c)}
+      </Fragment>)}
+      {noFim && <div className="kmarcador-col" />}
+    </>;
+  }
+
+  function grupoDeColunas(g: GrupoDeColunas, b: BlocoDoQuadro<Coluna>) {
+    const carregando = b.colunas.some(c => !listas[chave(c.id)]);
+    const n = carregando ? '…' : numero(b.colunas.reduce((soma, c) => soma + (listas[chave(c.id)]?.total ?? 0), 0));
+    if (!quadro.grupoAberto(g)) return <section key={g.id} className="grupo-colunas fechado" aria-label={`Grupo ${g.nome}`}>
+      <button type="button" className="grupo-faixa" aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${n} cartões`} title={`Abrir o grupo ${g.nome}`} onClick={() => quadro.alternarGrupo(g)}>
+        <Icone nome="seta" tam={14} />
+        <span className="grupo-faixa-nome">{g.nome}</span>
+        <span className="coluna-n">{n}</span>
+      </button>
+    </section>;
+    return <section key={g.id} className="grupo-colunas" aria-label={`Grupo ${g.nome}`}>
+      <header className="grupo-topo">
+        <button type="button" className="grupo-abrir" aria-expanded aria-label={`Fechar o grupo ${g.nome}`} title={`Fechar o grupo ${g.nome}`} onClick={() => quadro.alternarGrupo(g)}>
+          <Icone nome="abaixo" tam={14} /><span>{g.nome}</span>
+        </button>
+        <span className="coluna-n">{n}</span>
+        {quadro.podeGerirGrupos && <button type="button" className="coluna-menu" aria-label={`Opções do grupo ${g.nome}`}
+          onClick={e => { const botao = e.currentTarget; setMenuGrupo(m => m?.g.id === g.id ? null : { g, botao }); }}>
+          <Icone nome="pontos" tam={16} />
+        </button>}
+      </header>
+      <div className="grupo-lista">
+        {b.colunas.length ? colunasDoBloco(b) : <p className="coluna-vazia grupo-vazio">Nenhuma coluna. No menu de uma coluna, use "Mover para o grupo".</p>}
+      </div>
+    </section>;
+  }
+
   if (!quadro.pronto) return <div className="area-quadro"><Carregando /></div>;
 
   const existentes = new Set(quadro.colunas.map(c => normal(c.nome)));
@@ -292,19 +344,29 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         void quadro.posicionar(c, antes && antes !== 'fim' ? quadro.colunas.find(x => x.id === antes) || null : null);
       }}>
       <Fragment key="sem">{coluna(null)}</Fragment>
-      {visiveis.map(c => <Fragment key={c.id}>
-        {antesDeCol === c.id && <div className="kmarcador-col" />}
-        {coluna(c)}
-      </Fragment>)}
-      {antesDeCol === 'fim' && <div className="kmarcador-col" />}
+      {quadro.blocos.map(b => !b.grupo ? <Fragment key={SEM_GRUPO}>{colunasDoBloco(b)}</Fragment>
+        // Grupo sem coluna visível só aparece para quem cuida dos grupos.
+        : b.colunas.length || quadro.podeGerirGrupos ? grupoDeColunas(b.grupo, b) : null)}
       {props.arquivados && <Fragment key="arquivados">{coluna(null, true)}</Fragment>}
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
           <label className="rotulo-caps" htmlFor={idNova}>Nova coluna</label>
           <CampoComSugestoes id={idNova} ref={campoNova} maxLength={TAMANHO_COLUNA} placeholder="Nome da coluna" valor={nova} aoMudar={setNova}
             sugestoes={[...ocultas.map(c => ({ valor: c.nome, detalhe: 'oculta' })), ...quadro.sugestoes.filter(s => !existentes.has(normal(s))).map(valor => ({ valor }))]} />
+          {quadro.grupos.length > 0 && <>
+            <label className="rotulo-caps" htmlFor={idGrupoDaNova}>Grupo da coluna</label>
+            <select id={idGrupoDaNova} className="campo" value={grupoDaNova} onChange={e => setGrupoDaNova(e.target.value)}>
+              <option value="">Sem grupo</option>
+              {quadro.grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+            </select>
+          </>}
           <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={criando}>Criar coluna</button>
         </form>
+        {quadro.podeGerirGrupos && <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarGrupo(); }}>
+          <label className="rotulo-caps" htmlFor={idNovoGrupo}>Novo grupo</label>
+          <input id={idNovoGrupo} className="campo" maxLength={TAMANHO_GRUPO} placeholder="Nome do grupo" value={novoGrupo} onChange={e => setNovoGrupo(e.target.value)} />
+          <button type="submit" className={estiloBotao({ pequeno: true })}>Criar grupo</button>
+        </form>}
         {ocultas.length > 0 && <div className="ocultas">
           <p className="rotulo-caps">Ocultas para você</p>
           {ocultas.map(c => <button key={c.id} type="button" className="chip-oculta" title="Mostrar de novo" onClick={() => quadro.ocultar(c, false)}>
@@ -314,12 +376,14 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       </section>
     </div>
     {menu && <MenuColuna c={menu.c} botao={menu.botao} quadro={quadro} aoFechar={() => setMenu(null)} />}
+    {menuGrupo && <MenuGrupo g={menuGrupo.g} botao={menuGrupo.botao} quadro={quadro} aoFechar={() => setMenuGrupo(null)} />}
   </div>;
 }
 
 // ---------- menu da coluna ----------
 function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
-  const visiveis = quadro.colunas.filter(x => !x.oculta), i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
+  // Mover para os lados vale dentro do grupo da coluna.
+  const visiveis = quadro.blocos.find(b => b.colunas.some(x => x.id === c?.id))?.colunas ?? [], i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
   const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   const atual = quadro.ordemDe(c ? c.id : null);
   return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
@@ -336,6 +400,31 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
     <button type="button" role="menuitem" onClick={agir(() => quadro.ocultar(c, true))}><Icone nome="oculto" tam={15} /> Ocultar para mim</button>
     {quadro.podeRenomear(c) && <button type="button" role="menuitem" onClick={agir(() => quadro.renomear(c))}><Icone nome="editar" tam={15} /> Renomear</button>}
     {quadro.podeExcluir(c) && <button type="button" role="menuitem" className="perigo" onClick={agir(() => quadro.excluir(c))}><Icone nome="lixeira" tam={15} /> Excluir coluna</button>}
+    {quadro.podeRenomear(c) && quadro.grupos.length > 0 && <>
+      <hr className="kmenu-divisoria" />
+      <p className="rotulo-caps kmenu-titulo">Mover para o grupo</p>
+      {[null, ...quadro.grupos].map(g => {
+        const marcado = (c.grupo_id ?? null) === (g?.id ?? null);
+        return <button key={g?.id ?? SEM_GRUPO} type="button" role="menuitemradio" aria-checked={marcado} onClick={agir(() => quadro.agrupar(c, g?.id ?? null))}>
+          <span className="kmenu-marca">{marcado && <Icone nome="check" tam={15} />}</span>{g?.nome ?? 'Sem grupo'}
+        </button>;
+      })}
     </>}
+    </>}
+  </MenuFlutuante>;
+}
+
+// ---------- menu do grupo (só para quem cuida dos grupos) ----------
+function MenuGrupo({ g, botao, quadro, aoFechar }: { g: GrupoDeColunas; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
+  const i = quadro.grupos.findIndex(x => x.id === g.id);
+  const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
+  return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
+    {i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
+    {i < quadro.grupos.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
+    <button type="button" role="menuitem" onClick={agir(() => quadro.renomearGrupo(g))}><Icone nome="editar" tam={15} /> Renomear</button>
+    <button type="button" role="menuitemcheckbox" aria-checked={g.comeca_fechado} onClick={agir(() => quadro.alternarComecoFechado(g))}>
+      <span className="kmenu-marca">{g.comeca_fechado && <Icone nome="check" tam={15} />}</span>Começa fechado para todos
+    </button>
+    <button type="button" role="menuitem" className="perigo" onClick={agir(() => quadro.excluirGrupo(g))}><Icone nome="lixeira" tam={15} /> Excluir grupo</button>
   </MenuFlutuante>;
 }

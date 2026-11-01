@@ -176,7 +176,9 @@ export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao:
 
 /** Código fixo das colunas que marcam um ponto do fluxo (regras/quadro.ts). */
 export type MarcoColuna = 'assinado' | 'inicio' | 'concluido';
-export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null }
+export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null }
+/** Grupo de colunas de um quadro, que abre e fecha. Do escritório: só os administradores mudam. comeca_fechado: aparece fechado até a pessoa abrir. */
+export interface GrupoDeColunas { id: string; nome: string; ordem: number; comeca_fechado: boolean }
 
 /** Categoria de honorário do contrato. */
 export type CategoriaHonorario = 'pro_labore' | 'quota_litis' | 'sucumbencia' | 'adiantamento_despesas' | 'pro_bono';
@@ -759,7 +761,15 @@ export interface DadosImportacao {
 export interface DadosQuadros {
   colunasListar(modulo: Modulo): Promise<Coluna[]>;
   sugestoesListar(modulo: Modulo): Promise<string[]>;
-  colunaCriar(modulo: Modulo, nome: string, ordem: number): Promise<Coluna>;
+  colunaCriar(modulo: Modulo, nome: string, ordem: number, grupoId?: string | null): Promise<Coluna>;
+  /** Põe a coluna num grupo do mesmo quadro (null: sem grupo), na ordem dada. */
+  colunaAgrupar(id: string, grupoId: string | null, ordem: number): Promise<void>;
+  /** Os grupos do quadro, na ordem. */
+  gruposListar(modulo: Modulo): Promise<GrupoDeColunas[]>;
+  grupoCriar(modulo: Modulo, nome: string, ordem: number): Promise<GrupoDeColunas>;
+  grupoAtualizar(id: string, campos: Partial<Omit<GrupoDeColunas, 'id'>>): Promise<void>;
+  /** Exclui o grupo; as colunas dele ficam sem grupo. */
+  grupoExcluir(id: string): Promise<void>;
   colunaOcultar(id: string, ocultar: boolean): Promise<void>;
   colunaRenomear(id: string, nome: string): Promise<void>;
   colunaOrdenar(id: string, ordem: number): Promise<void>;

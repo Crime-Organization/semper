@@ -1,6 +1,6 @@
 // Colunas-marco dos quadros: o código fixo de cada uma diz ao sistema qual ponto do fluxo ela marca, mesmo que a coluna
 // seja renomeada. Elas têm cor própria no quadro e não podem ser excluídas nem criadas à mão (banco/014_colunas_marco.sql).
-import type { MarcoColuna } from '../dados/tipos';
+import type { GrupoDeColunas, MarcoColuna } from '../dados/tipos';
 
 export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }> = {
   assinado: {
@@ -19,3 +19,27 @@ export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }>
 
 /** Só administradores excluem colunas, e coluna-marco nunca. */
 export const podeExcluirColuna = (c: { marco?: MarcoColuna | null }, ehAdmin: boolean) => ehAdmin && !c.marco;
+
+// ---------- grupos de colunas ----------
+/** Um trecho do quadro: as colunas de um grupo, na ordem delas (grupo null: as colunas sem grupo). */
+export interface BlocoDoQuadro<C> { grupo: GrupoDeColunas | null; colunas: C[] }
+
+/** O quadro em trechos: primeiro as colunas sem grupo, depois cada grupo, na ordem dele (mesmo sem nenhuma coluna). */
+export function blocosDoQuadro<C extends { ordem: number; grupo_id?: string | null }>(colunas: C[], grupos: GrupoDeColunas[]): BlocoDoQuadro<C>[] {
+  const naOrdem = [...colunas].sort((a, b) => a.ordem - b.ordem);
+  const existe = new Set(grupos.map(g => g.id));
+  return [
+    { grupo: null, colunas: naOrdem.filter(c => !c.grupo_id || !existe.has(c.grupo_id)) },
+    ...[...grupos].sort((a, b) => a.ordem - b.ordem).map(grupo => ({ grupo, colunas: naOrdem.filter(c => c.grupo_id === grupo.id) }))
+  ];
+}
+
+/** Se o grupo aparece aberto: vale o que a pessoa escolheu; sem escolha, o grupo diz como começa. */
+export const grupoEstaAberto = (g: GrupoDeColunas, escolhas: Record<string, boolean>) => escolhas[g.id] ?? !g.comeca_fechado;
+
+/** A ordem de quem fica entre dois vizinhos (ou numa ponta); sem vizinhos, a atual. */
+export function ordemEntre(anterior: { ordem: number } | undefined, seguinte: { ordem: number } | undefined, atual: number) {
+  if (anterior && seguinte) return (anterior.ordem + seguinte.ordem) / 2;
+  if (anterior) return anterior.ordem + 1;
+  return seguinte ? seguinte.ordem - 1 : atual;
+}

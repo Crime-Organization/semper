@@ -122,3 +122,5 @@ export const DIAS_POR_LANCAMENTO = 366;
 export const IDS_POR_EXCLUSAO = 100;
 /** Quantas linhas o Supabase devolve por consulta, no máximo (max_rows em supabase/config.toml): além disso, busca-se em partes. */
 export const LINHAS_POR_CONSULTA = 1000;
+/** Nome de grupo de colunas do quadro (exigido pelo banco: supabase/migrations/20261101121647_grupos_de_colunas.sql). */
+export const TAMANHO_GRUPO = 60;

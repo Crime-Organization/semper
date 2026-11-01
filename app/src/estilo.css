@@ -357,6 +357,17 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Fora da ordem manual, a coluna de destino inteira fica marcada (o lugar do cartão vem da ordem escolhida). */
 .coluna.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px }
 .kmarcador-col { flex: 0 0 4px; align-self: stretch; border-radius: 4px; background: var(--accent) }
+/* Grupo de colunas: aberto, emoldura as colunas; fechado, vira uma faixa estreita com o nome na vertical. */
+.grupo-colunas { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 100%; padding: 8px; border: 1px solid var(--line2); border-radius: 14px }
+.grupo-topo { display: flex; align-items: center; gap: 8px; flex-shrink: 0 }
+.grupo-abrir { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 900; cursor: pointer; text-align: left }
+.grupo-abrir span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.grupo-abrir:hover, .grupo-faixa:hover { background: var(--line) }
+.grupo-lista { flex: 1; min-height: 0; display: flex; gap: 12px; align-items: stretch }
+.grupo-vazio { flex: 0 0 220px }
+.grupo-colunas.fechado { padding: 0 }
+.grupo-faixa { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 10px; width: 44px; padding: 12px 0; border: 0; border-radius: 13px; background: transparent; color: var(--ink); cursor: pointer }
+.grupo-faixa-nome { writing-mode: vertical-rl; font-size: 13px; font-weight: 900; white-space: nowrap }
 .nova-coluna { background: transparent; border-style: dashed; border-color: var(--line2); padding: 14px; gap: 14px; overflow-y: auto }
 .nova-form { display: flex; flex-direction: column; gap: 8px }
 .ocultas { display: flex; flex-wrap: wrap; gap: 6px }
