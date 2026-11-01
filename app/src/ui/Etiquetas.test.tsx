@@ -70,6 +70,27 @@ describe('Peças das etiquetas', () => {
     expect(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('button', { name: 'Mudar a etiqueta Da Ana' })).toBeTruthy();
   });
 
+  it('quando a etiqueta é do sistema, então o administrador a muda, mas não a exclui; quem não é administrador nem muda', async () => {
+    // Dado
+    const incompleta: Etiqueta = { id: 'e-inc', cor: 'laranja', texto: 'Incompleta', criado_por: null, sistema: 'incompleta' };
+    vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([incompleta]);
+    lojaDeEtiquetas.mudar([incompleta]);
+    const { unmount } = render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
+    // Então
+    expect(screen.queryByRole('button', { name: 'Mudar a etiqueta Incompleta' })).toBeNull();
+    unmount();
+    // Quando
+    sessao.ehAdmin = true;
+    render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar a etiqueta Incompleta' }));
+    // Então
+    const form = within(screen.getByRole('form', { name: 'Mudar a etiqueta Incompleta' }));
+    expect(form.getByRole('button', { name: 'Salvar etiqueta' })).toBeTruthy();
+    expect(form.queryByRole('button', { name: /Excluir/ })).toBeNull();
+  });
+
   it('quando o cartão está arquivado, então as etiquetas só aparecem, sem escolher', () => {
     // Quando
     render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" somenteLer aoMudar={() => undefined} />);

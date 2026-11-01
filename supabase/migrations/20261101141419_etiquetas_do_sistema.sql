@@ -31,7 +31,7 @@ begin
   select id into v_id from public.etiquetas where escritorio_id = p_escritorio and sistema = p_sistema;
   if v_id is not null then return v_id; end if;
   update public.etiquetas set sistema = p_sistema
-  where escritorio_id = p_escritorio and texto is not null and privado.sem_acento(btrim(texto)) = privado.sem_acento(v_texto)
+  where escritorio_id = p_escritorio and sistema is null and texto is not null and privado.sem_acento(btrim(texto)) = privado.sem_acento(v_texto)
   returning id into v_id;
   if v_id is not null then return v_id; end if;
   insert into public.etiquetas (escritorio_id, cor, texto, sistema, criado_por)
@@ -43,6 +43,9 @@ begin
   where escritorio_id = p_escritorio and (sistema = p_sistema or privado.sem_acento(btrim(texto)) = privado.sem_acento(v_texto));
   return v_id;
 end $$;
+
+-- Só os gatilhos abaixo chamam esta função (com as permissões deles): ela escolhe o escritório pelo que recebe.
+revoke execute on function privado.etiqueta_do_sistema(uuid, text) from public, anon, authenticated;
 
 -- Quem já está no banco recebe as etiquetas.
 insert into public.pessoa_etiquetas (escritorio_id, pessoa_id, etiqueta_id)

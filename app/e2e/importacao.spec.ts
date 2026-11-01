@@ -97,6 +97,12 @@ test.describe('Importar pessoas', () => {
     // Então: tirar a etiqueta marca como conferido; "Importada" continua
     await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toHaveCount(0);
     await expect(cartao.getByText('Importada', { exact: true })).toBeVisible();
+    // Quando: desfaz
+    await expect(page.getByText('Etiqueta "Incompleta" tirada de 1 cartão.')).toBeVisible();
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então: a etiqueta e o que havia para conferir voltam
+    await expect(cartao.getByText('Incompleta', { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Marcar como conferido' })).toBeVisible();
 
     // Quando: vai à Equipe
     await page.goto('/equipe/');

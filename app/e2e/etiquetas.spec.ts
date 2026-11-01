@@ -195,7 +195,7 @@ test.describe('Etiquetas', () => {
     await abrirCartaoDoJose(page);
     await criarEtiqueta(page, 'Prioridade', 'Roxo');
     await painel(page).getByRole('checkbox', { name: 'Prioridade' }).uncheck();
-    await page.keyboard.press('Escape');
+    await expect(page.getByText('Etiqueta "Prioridade" tirada de 1 cartão.')).toBeVisible();
     await page.goto('/pessoas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     const linha = (nome: string) => page.getByRole('row').filter({ hasText: nome });
