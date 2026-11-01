@@ -983,6 +983,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(processoCom({ campos: { [c.id]: 'Site' } })).rejects.toThrow(`Confira o valor do campo "${c.nome}".`);
       });
 
+      it('quando nenhum processo usa o campo, então ele pode ser excluído e o nome fica livre; em uso, não', async () => {
+        // Dado
+        const nome = marca();
+        const livre = await novoCampo({ nome }), usado = await novoCampo();
+        await processoCom({ campos: { [usado.id]: 'x' } });
+        // Quando
+        const [excluiu, naoExcluiu] = await Promise.all([SD.processoCampoExcluir(livre.id), SD.processoCampoExcluir(usado.id)]);
+        // Então
+        expect([excluiu, naoExcluiu]).toEqual([true, false]);
+        await expect(novoCampo({ nome })).resolves.toMatchObject({ nome });
+        expect((await SD.processoCampos()).map(c => c.id)).toContain(usado.id);
+      });
+
+      it('quando o número tem até o limite de algarismos, então é guardado inteiro', async () => {
+        // Dado
+        const c = await novoCampo({ tipo: 'numero' });
+        const valor = '12345678901234567890.1234567890';
+        // Quando
+        const { id } = await processoCom({ campos: { [c.id]: valor } });
+        // Então
+        expect((await SD.processoObter(id))?.campos[c.id]).toBe(valor);
+        await expect(processoCom({ campos: { [c.id]: '1'.repeat(21) } })).rejects.toThrow(`Confira o valor do campo "${c.nome}".`);
+      });
+
       it('quando o valor muda, então o histórico mostra o campo; o vazio sai do processo', async () => {
         // Dado
         const c = await novoCampo();

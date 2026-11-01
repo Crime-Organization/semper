@@ -6,14 +6,14 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
-import { camposDoTipo, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
+import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import { MASCARAS } from '../regras/pessoa';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -97,7 +97,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         .finally(() => setPronto(true));
       return;
     }
-    SD.processoCampos().then(setCamposDoEscritorio).catch(() => {});
+    SD.processoCampos().then(setCamposDoEscritorio).catch(falha);
     if (clienteInicial) SD.pessoaObter(clienteInicial).then(p => { if (p) { setClientes([p]); setC(x => ({ ...x, clientes: [p.id] })); } }).catch(falha);
   }, [idAtualizar, clienteInicial]);
   useEffect(() => { SD.processoSugestoes(c.tipo).then(setSugestoes).catch(() => {}); }, [c.tipo]);
@@ -225,16 +225,21 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       focarErro();
       return;
     }
-    const dados = { ...dadosDoProcesso(c), campos: valoresParaGravar(camposDoEscritorio, c.tipo, c.extras, alvo?.campos) }, { caminho, quadro } = TIPOS_PROCESSO[c.tipo];
+    const { caminho, quadro } = TIPOS_PROCESSO[c.tipo];
     setOcupado(true);
     try {
+      // Parte do que está guardado agora: alguém pode ter preenchido um campo novo depois que este formulário abriu.
+      const guardados = alvo ? (await SD.processoObter(alvo.id))?.campos ?? alvo.campos : {};
+      const dados = { ...dadosDoProcesso(c), campos: valoresParaGravar(camposDoEscritorio, c.tipo, c.extras, guardados) };
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
-        const antes = { ...dadosDoProcesso(camposDoProcesso(alvo)), campos: alvo.campos };
+        const antes = dadosDoProcesso(camposDoProcesso(alvo));
         const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
         await SD.processoAtualizar(alvo.id, gravar);
         feito(ficou ? 'Processo atualizado. Você continua como colaborador; só um administrador pode tirar você dele.' : 'Processo atualizado.', 'atualização do processo', async () => {
-          await SD.processoAtualizar(alvo.id, antes);
+          const { valores, naoVoltaram } = camposParaDesfazer(await SD.processoCampos(), alvo.tipo, alvo.campos, gravar.campos ?? {});
+          await SD.processoAtualizar(alvo.id, { ...antes, campos: valores });
+          if (naoVoltaram.length) avisar(`Não voltou ao valor anterior, porque ele saiu da lista ou o campo foi apagado: ${naoVoltaram.join(', ')}.`, 'erro');
           return { tipo: 'processoAtualizado', id: alvo.id };
         });
         if (edicao) edicao.aoTerminar(true); else navegar(caminho + '?id=' + alvo.id);
@@ -253,6 +258,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     } catch (err) {
       falha(err);
       setOcupado(false);
+      // Um campo pode ter sido apagado com o formulário aberto: ele sai da tela, e salvar de novo funciona, sem perder o resto.
+      SD.processoCampos().then(setCamposDoEscritorio).catch(() => {});
     }
   }
 

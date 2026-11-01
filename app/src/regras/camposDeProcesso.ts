@@ -1,8 +1,9 @@
 // Campos que o escritório cria nos processos: os tipos, como cada valor é lido e mostrado, e o que aparece em cada processo.
 // Tudo puro, sem tela nem banco. O valor fica guardado por id do campo: data em AAAA-MM-DD, número com ponto decimal.
 import type { ApareceEm, CampoDeProcesso, DadosCampoDeProcesso, TipoDeCampo, TipoProcesso } from '../dados/tipos';
-import { OPCOES_POR_CAMPO, TAMANHO_CAMPO } from '../dados/limites';
+import { DIGITOS_DO_NUMERO, OPCOES_POR_CAMPO, TAMANHO_CAMPO } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
+import { CAMPOS_PROCESSO } from './processo';
 import { normal } from './texto';
 
 const NUMERO_EM_REAIS_OU_NAO = /^-?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$/;
@@ -10,11 +11,16 @@ const NUMERO_EM_REAIS_OU_NAO = /^-?(\d{1,3}(\.\d{3})+|\d+)(,\d+)?$/;
 function lerNumero(digitado: string) {
   const t = digitado.trim();
   if (!NUMERO_EM_REAIS_OU_NAO.test(t)) throw new Error('Use um número como 1.234,50.');
-  return t.replace(/\./g, '').replace(',', '.');
+  const guardado = t.replace(/\./g, '').replace(',', '.'), [inteiro, decimais = ''] = guardado.replace('-', '').split('.');
+  if (inteiro.length > DIGITOS_DO_NUMERO.inteiros || decimais.length > DIGITOS_DO_NUMERO.decimais) {
+    throw new Error(`Use até ${DIGITOS_DO_NUMERO.inteiros} algarismos antes da vírgula e ${DIGITOS_DO_NUMERO.decimais} depois.`);
+  }
+  return guardado;
 }
+/** "1234.50" vira "1.234,50". Trabalha no texto, sem virar número: assim, nenhum algarismo se perde, nem os zeros à esquerda. */
 const mostrarNumero = (guardado: string) => {
-  const [inteiro, decimais = ''] = guardado.split('.');
-  return Number(inteiro).toLocaleString('pt-BR') + (decimais ? ',' + decimais : '');
+  const [inteiro, decimais] = guardado.split('.');
+  return inteiro.replace(/\B(?=(\d{3})+$)/g, '.') + (decimais ? ',' + decimais : '');
 };
 const comoGuardado = (v: string) => v;
 
@@ -66,6 +72,23 @@ export function valoresParaGravar(campos: CampoDeProcesso[], tipo: TipoProcesso,
   return valores;
 }
 
+/**
+ * O que gravar ao desfazer uma edição. O banco confere todo valor que muda: um campo apagado ou uma opção retirada depois
+ * não aceitam o valor antigo de volta. Esses ficam como estão, para o resto da edição voltar, e são listados pelo nome.
+ */
+export function camposParaDesfazer(campos: CampoDeProcesso[], tipo: TipoProcesso, antes: Valores, atuais: Valores) {
+  const valores = { ...atuais }, naoVoltaram: string[] = [], validos = camposDoTipo(campos, tipo);
+  for (const id of new Set([...Object.keys(antes), ...Object.keys(atuais)])) {
+    const antigo = antes[id];
+    if (antigo === atuais[id]) continue;
+    if (antigo === undefined) { delete valores[id]; continue; }
+    const c = validos.find(x => x.id === id);
+    if (c && (c.tipo !== 'lista' || c.opcoes.includes(antigo))) valores[id] = antigo;
+    else naoVoltaram.push(campos.find(x => x.id === id)?.nome ?? 'campo excluído');
+  }
+  return { valores, naoVoltaram };
+}
+
 // ---------- cartão e histórico ----------
 /** Os campos preenchidos, como aparecem no cartão: nome e valor. */
 export const linhasDosCampos = (campos: CampoDeProcesso[], tipo: TipoProcesso, valores: Valores): [string, string][] =>
@@ -102,10 +125,13 @@ export function errosDoFormDoCampo(f: FormDoCampo, existentes: CampoDeProcesso[]
   const erros: Partial<Record<keyof FormDoCampo, string>> = {};
   const nome = f.nome.trim(), opcoes = opcoesDigitadas(f.opcoes);
   const repetido = existentes.find(c => c.id !== id && normal(c.nome) === normal(nome));
+  const dadoFixo = Object.values(CAMPOS_PROCESSO).some(rotulo => normal(rotulo) === normal(nome));
   if (!nome) erros.nome = 'Dê um nome ao campo.';
   else if (nome.length > TAMANHO_CAMPO.nome) erros.nome = `O nome pode ter até ${TAMANHO_CAMPO.nome} caracteres.`;
+  else if (dadoFixo) erros.nome = 'O processo já tem um dado com esse nome. Escolha outro.';
   else if (repetido) erros.nome = repetido.apagado_em ? 'Já existe um campo apagado com esse nome. Reative esse campo.' : 'Já existe um campo com esse nome.';
-  if (f.tipo === 'lista' && !opcoes.length) erros.opcoes = 'Escreva pelo menos uma opção.';
+  if (f.tipo !== 'lista') return erros;   // as opções só contam na lista: nos outros tipos, estão fora da tela
+  if (!opcoes.length) erros.opcoes = 'Escreva pelo menos uma opção.';
   else if (opcoes.length > OPCOES_POR_CAMPO) erros.opcoes = `Uma lista pode ter até ${OPCOES_POR_CAMPO} opções.`;
   else if (opcoes.some(o => o.length > TAMANHO_CAMPO.opcao)) erros.opcoes = `Cada opção pode ter até ${TAMANHO_CAMPO.opcao} caracteres.`;
   return erros;

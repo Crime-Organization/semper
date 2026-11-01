@@ -21,7 +21,7 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
-  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO } from './limites';
+  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
 import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { padraoDoOrgao } from '../regras/calendario';
@@ -817,6 +817,8 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
   }
   return m;
 }
+// Processos guardados na sessão antes de existirem os campos (no banco, a coluna nasce vazia).
+bd.processos!.forEach(p => { p.campos ??= {}; });
 // ---------- processos ----------
 const processoCompleto = (p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
@@ -883,7 +885,7 @@ function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: Proc
 /** Como o gatilho preparar_campos da migração: o valor segue o tipo do campo; o que não mudou passa sem conferir. */
 const CONFERE_VALOR: Record<CampoDeProcesso['tipo'], (v: string, c: CampoDeProcesso) => boolean> = {
   texto: v => v.length <= TAMANHO_CAMPO.texto,
-  numero: v => /^-?\d{1,20}(\.\d{1,10})?$/.test(v),
+  numero: v => new RegExp(`^-?\\d{1,${DIGITOS_DO_NUMERO.inteiros}}(\\.\\d{1,${DIGITOS_DO_NUMERO.decimais}})?$`).test(v),
   lista: (v, c) => c.opcoes.includes(v),
   data: v => /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().startsWith(v)
 };
@@ -1721,6 +1723,11 @@ export const SD: Dados = {
     if (d.opcoes !== undefined && (c.tipo === 'lista') !== (d.opcoes.length > 0)) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     Object.assign(c, d); gravar();
     return espera({ ...c });
+  },
+  async processoCampoExcluir(id) {
+    if (bd.processos!.some(p => p.campos[id] !== undefined)) return espera(false);
+    bd.camposDeProcesso = bd.camposDeProcesso!.filter(c => c.id !== id); gravar();
+    return espera(true);
   },
   async processoOpcaoExcluir(id) {
     bd.opcoesDeProcesso = bd.opcoesDeProcesso!.filter(o => o.id !== id); gravar();

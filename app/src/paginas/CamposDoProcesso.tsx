@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { SD, type CampoDeProcesso } from '../dados';
 import { TAMANHO_CAMPO } from '../dados/limites';
 import { CAMPO_NOVO, dadosDoCampo, errosDoFormDoCampo, formDoCampo, ONDE_APARECE, TIPOS_DE_CAMPO, TIPOS_DE_CAMPO_EM_ORDEM, type FormDoCampo } from '../regras/camposDeProcesso';
-import { falha, feito } from '../ui/avisos';
+import { falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
@@ -24,6 +24,8 @@ export function CamposDoProcesso() {
 
   const ler = () => SD.processoCampos().then(c => { setCampos(c); setErroLeitura(''); }).catch(e => setErroLeitura((e as Error).message));
   useEffect(() => { void ler(); }, []);
+  // Depois de desfazer, mesmo tendo saído e voltado a esta página: mostra a lista como ficou.
+  useMudancas(() => { void ler(); });
 
   if (erroLeitura) return <Aviso tipo="erro">{erroLeitura}</Aviso>;
   if (!campos) return <Carregando />;
@@ -45,11 +47,17 @@ export function CamposDoProcesso() {
     setOcupado(true);
     try {
       if (edicao?.id) {
-        await SD.processoCampoAtualizar(edicao.id, mudanca);
-        feito('Campo atualizado.', 'atualização do campo', ler);
+        const antes = campos!.find(c => c.id === edicao.id)!, id = edicao.id;
+        await SD.processoCampoAtualizar(id, mudanca);
+        feito('Campo atualizado.', 'atualização do campo', async () => {
+          await SD.processoCampoAtualizar(id, { nome: antes.nome, aparece_em: antes.aparece_em, opcoes: antes.opcoes });
+        });
       } else {
         const novo = await SD.processoCampoCriar({ ...mudanca, tipo });
-        feito(`Campo "${novo.nome}" criado.`, 'criação do campo', async () => { await SD.processoCampoAtualizar(novo.id, { apagado_em: new Date().toISOString() }); await ler(); });
+        // Desfazer libera o nome. Se alguém já preencheu o campo nesse meio-tempo, ele só é apagado: nada do que foi preenchido se perde.
+        feito(`Campo "${novo.nome}" criado.`, 'criação do campo', async () => {
+          if (!await SD.processoCampoExcluir(novo.id)) await SD.processoCampoAtualizar(novo.id, { apagado_em: new Date().toISOString() });
+        });
       }
       setEdicao(null);
       await ler();
@@ -59,7 +67,6 @@ export function CamposDoProcesso() {
     await SD.processoCampoAtualizar(c.id, { apagado_em: apagar ? new Date().toISOString() : null });
     feito(apagar ? `Campo "${c.nome}" apagado. O que já foi preenchido fica guardado.` : `Campo "${c.nome}" reativado.`, apagar ? 'apagamento do campo' : 'reativação do campo', async () => {
       await SD.processoCampoAtualizar(c.id, { apagado_em: apagar ? null : new Date().toISOString() });
-      await ler();
     });
     await ler();
   }

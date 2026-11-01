@@ -358,6 +358,32 @@ test.describe('Campos do escritório', () => {
     await expect(page.getByRole('dialog').getByText('Dra. Exemplo')).toBeVisible();
   });
 
+  test('quando desfaz a mudança de um campo, então nome e opções voltam; ao desfazer a criação, o nome fica livre', async ({ page }) => {
+    // Dado
+    await criarCampo(page, 'Origem', 'Lista de opções', { opcoes: 'Site\nParceiro' });
+    await page.getByRole('button', { name: 'Mudar o campo Origem' }).click();
+    const form = page.getByRole('form', { name: 'Mudar campo' });
+    await form.getByLabel('Nome do campo').fill('Fonte');
+    await form.getByLabel('Opções').fill('Parceiro');
+    await form.getByRole('button', { name: 'Salvar campo' }).click();
+    await expect(page.getByRole('row').filter({ hasText: 'Fonte' })).toBeVisible();
+    // Quando
+    await expect(page.getByText('Campo atualizado.')).toBeVisible();
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    const linha = page.getByRole('row').filter({ hasText: 'Origem' });
+    await expect(linha).toContainText('Site, Parceiro');
+    // Dado
+    await criarCampo(page, 'Perito', 'Texto');
+    // Quando
+    await expect(page.getByText('Campo "Perito" criado.')).toBeVisible();
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'Perito' })).toHaveCount(0);
+    await criarCampo(page, 'Perito', 'Data');
+    await expect(page.getByRole('row').filter({ hasText: 'Perito' })).toContainText('Data');
+  });
+
   test('quando muda um campo, então o tipo fica bloqueado, e um nome repetido é avisado', async ({ page }) => {
     // Dado
     await criarCampo(page, 'Perito', 'Texto');

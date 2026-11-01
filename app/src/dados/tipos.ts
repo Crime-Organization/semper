@@ -693,6 +693,8 @@ export interface DadosProcessos {
   processoCampoCriar(dados: DadosCampoDeProcesso): Promise<CampoDeProcesso>;
   /** Só administradores. O tipo não muda. Com apagado_em, apaga ou reativa. */
   processoCampoAtualizar(id: string, dados: Partial<Omit<CampoDeProcesso, 'id' | 'tipo'>>): Promise<CampoDeProcesso>;
+  /** Só administradores, e só o campo que nenhum processo usa. Devolve se excluiu. */
+  processoCampoExcluir(id: string): Promise<boolean>;
 }
 
 /** Etiqueta do escritório: uma cor da paleta e, se quiser, um texto (sem texto, é uma faixa colorida). */

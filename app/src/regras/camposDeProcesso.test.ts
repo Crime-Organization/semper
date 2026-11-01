@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CampoDeProcesso } from '../dados/tipos';
 import {
-  CAMPO_NOVO, camposDoTipo, dadosDoCampo, errosDoFormDoCampo, errosDosCampos, formDoCampo, linhasDosCampos, nomesNoHistorico, opcoesDigitadas, valoresNoFormulario, valoresParaGravar, valorNoHistorico
+  CAMPO_NOVO, camposDoTipo, camposParaDesfazer, dadosDoCampo, errosDoFormDoCampo, errosDosCampos, formDoCampo, linhasDosCampos, nomesNoHistorico, opcoesDigitadas, valoresNoFormulario, valoresParaGravar, valorNoHistorico
 } from './camposDeProcesso';
 
 const campo = (id: string, tipo: CampoDeProcesso['tipo'], extra: Partial<CampoDeProcesso> = {}): CampoDeProcesso =>
@@ -49,6 +49,23 @@ describe('Preenchimento', () => {
     expect(Object.keys(errosDosCampos(TODOS, 'judicial', { [id]: digitado }))).toEqual([id]);
   });
 
+  it.each([
+    ['12345678901234567890', '12.345.678.901.234.567.890'], ['00123', '00.123'], ['9007199254740993', '9.007.199.254.740.993'],
+    ['1234.50', '1.234,50'], ['-0.5', '-0,5'], ['-1000', '-1.000'], ['0', '0'], ['12.1234567890', '12,1234567890']
+  ])('quando o número guardado é %s, então aparece como %s e volta igual ao salvar, sem perder algarismo', (guardado, mostrado) => {
+    // Dado
+    const f = valoresNoFormulario([NUMERO], { autores: guardado });
+    // Então
+    expect(f.autores).toBe(mostrado);
+    expect(errosDosCampos([NUMERO], 'judicial', f)).toEqual({});
+    expect(valoresParaGravar([NUMERO], 'judicial', f)).toEqual({ autores: guardado });
+  });
+
+  it.each([['1'.repeat(21)], ['1,12345678901']])('quando o número %s passa do que o banco guarda, então avisa no próprio campo', digitado => {
+    // Então
+    expect(errosDosCampos([NUMERO], 'judicial', { autores: digitado }).autores).toBe('Use até 20 algarismos antes da vírgula e 10 depois.');
+  });
+
   it('quando o campo não vale para o tipo do processo, então um valor errado nele não trava: está fora da tela', () => {
     // Então
     expect(errosDosCampos([TEXTO, campo('so', 'numero', { aparece_em: 'judicial' })], 'administrativo', { so: 'abc' })).toEqual({});
@@ -59,6 +76,29 @@ describe('Preenchimento', () => {
     const v = valoresParaGravar(TODOS, 'judicial', { perito: '' }, { velho: 'antigo', perito: 'Dra.', pericia: '2026-12-10' });
     // Então
     expect(v).toEqual({ velho: 'antigo' });
+  });
+});
+
+describe('Desfazer uma edição', () => {
+  it('quando o valor antigo ainda vale, então ele volta; o que não existia sai', () => {
+    // Então
+    expect(camposParaDesfazer(TODOS, 'judicial', { perito: 'antes', origem: 'Site' }, { perito: 'depois', origem: 'Parceiro', pericia: '2026-12-10' }))
+      .toEqual({ valores: { perito: 'antes', origem: 'Site' }, naoVoltaram: [] });
+  });
+
+  it('quando a opção saiu da lista ou o campo foi apagado, então fica o valor atual, e o nome é avisado', () => {
+    // Dado
+    const lista = { ...LISTA, opcoes: ['Parceiro'] };
+    // Quando
+    const r = camposParaDesfazer([lista, APAGADO, TEXTO], 'judicial', { origem: 'Site', velho: 'a', perito: 'antes' }, { origem: 'Parceiro', velho: 'b', perito: 'depois' });
+    // Então
+    expect(r.valores).toEqual({ origem: 'Parceiro', velho: 'b', perito: 'antes' });
+    expect(r.naoVoltaram).toEqual(['ORIGEM', 'VELHO']);
+  });
+
+  it('quando o valor não mudou, então passa sem conferir, mesmo de campo apagado', () => {
+    // Então
+    expect(camposParaDesfazer([APAGADO], 'judicial', { velho: 'a' }, { velho: 'a' })).toEqual({ valores: { velho: 'a' }, naoVoltaram: [] });
   });
 });
 
@@ -95,6 +135,19 @@ describe('Configuração do campo', () => {
     expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome: 'pericia' }, existentes).nome).toBe('Já existe um campo com esse nome.');
     expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome: 'VELHO' }, existentes).nome).toBe('Já existe um campo apagado com esse nome. Reative esse campo.');
     expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome: 'Perícia' }, existentes, 'a')).toEqual({});
+  });
+
+  it.each([['Comarca'], ['comarca'], ['Órgão'], ['ORGAO']])('quando o nome é %s, igual a um dado fixo do processo, então é recusado', nome => {
+    // Então
+    expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome }, []).nome).toBe('O processo já tem um dado com esse nome. Escolha outro.');
+  });
+
+  it('quando a lista tinha opções demais e o tipo mudou para outro, então elas não travam: estão fora da tela', () => {
+    // Dado
+    const opcoes = Array.from({ length: 51 }, (_, i) => 'Opção ' + i).join('\n');
+    // Então
+    expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome: 'x', tipo: 'lista', opcoes }, []).opcoes).toBe('Uma lista pode ter até 50 opções.');
+    expect(errosDoFormDoCampo({ ...CAMPO_NOVO, nome: 'x', tipo: 'texto', opcoes }, [])).toEqual({});
   });
 
   it('quando escreve as opções, então ficam uma por linha, limpas e sem repetir', () => {

@@ -3,6 +3,7 @@
 --   - O administrador cria campos de texto, data, número ou lista, para o quadro judicial, o administrativo ou os dois.
 --   - Nenhum é obrigatório. O tipo não muda depois de criado; nome, onde aparece e opções mudam.
 --   - Apagar só esconde (apagado_em): o que já foi preenchido fica guardado e volta se o campo for reativado.
+--     Excluir de verdade, só o campo que nenhum processo usa (é o que faz desfazer a criação, liberando o nome).
 --   - O valor fica em processos.campos, por id do campo. Data em AAAA-MM-DD; número com ponto decimal.
 --   - O histórico mostra cada campo mudado, como "campo:<id>".
 -- =====================================================================
@@ -39,7 +40,7 @@ create trigger preparar before insert or update of nome, opcoes on public.proces
 
 alter table public.processo_campos enable row level security;
 revoke all on public.processo_campos from anon;
-revoke update, delete on public.processo_campos from authenticated;
+revoke update on public.processo_campos from authenticated;
 grant update (nome, aparece_em, opcoes, apagado_em) on public.processo_campos to authenticated;
 create policy leitura on public.processo_campos for select to authenticated
   using (escritorio_id = (select privado.meu_escritorio()));
@@ -52,6 +53,11 @@ create policy alterar on public.processo_campos for update to authenticated
 -- Os valores, por id do campo.
 alter table public.processos add column campos jsonb not null default '{}' check (jsonb_typeof(campos) = 'object');
 grant update (campos) on public.processos to authenticated;
+
+-- Excluir de verdade, só o campo que nenhum processo usa.
+create policy apagar on public.processo_campos for delete to authenticated
+  using (escritorio_id = (select privado.meu_escritorio()) and (select privado.sou_admin())
+         and not exists (select 1 from public.processos p where p.escritorio_id = processo_campos.escritorio_id and p.campos ? processo_campos.id::text));
 
 -- AAAA-MM-DD de um dia que existe (31/02 não).
 create function privado.data_valida(v text) returns boolean

@@ -136,6 +136,8 @@ export const VALOR_CAUSA_LIMITE = 100_000_000_000_000;
 export const HISTORICO_DO_PROCESSO = 100;
 /** Tamanhos dos campos que o escritório cria (exigidos pelo banco: supabase/migrations/20261101223231_campos_de_processo.sql). */
 export const TAMANHO_CAMPO = { nome: 80, opcao: 120, texto: 1000 };
+/** Quantos algarismos um campo de número guarda, antes e depois da vírgula (exigido pela mesma migração). */
+export const DIGITOS_DO_NUMERO = { inteiros: 20, decimais: 10 };
 /** Quantas opções um campo de lista pode ter (exigido pela mesma migração). */
 export const OPCOES_POR_CAMPO = 50;
 /** Quantos processos entram na lista de um cartão (o da pessoa). */

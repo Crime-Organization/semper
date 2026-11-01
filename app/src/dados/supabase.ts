@@ -747,6 +747,10 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('processo_campos').update(dados).eq('id', id).select(CAMPOS_DO_CAMPO).single());
     return data;
   },
+  async processoCampoExcluir(id) {
+    const { data } = await rodar(sb.from('processo_campos').delete().eq('id', id).select('id'));
+    return data.length > 0;
+  },
   async processoSugestoes(tipo) {
     const { data } = await rodar(sb.from('processos').select('orgao, comarca, vara').eq('tipo', tipo).order('atualizado_em', { ascending: false }).limit(PROCESSOS_PARA_SUGERIR));
     return { orgaos: semRepetir(data, 'orgao'), comarcas: semRepetir(data, 'comarca'), varas: semRepetir(data, 'vara') };

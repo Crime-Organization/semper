@@ -537,7 +537,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .qualificacao { background: var(--soft); border-radius: 12px; padding: 16px 18px; font-size: 15px; line-height: 1.65; color: var(--text); overflow-wrap: anywhere }
 .dados { display: grid; grid-template-columns: minmax(120px, 38%) 1fr; gap: 0; margin: 0; font-size: 14px }
 .dados dt, .dados dd { padding: 8px 0; border-bottom: 1px solid var(--soft); margin: 0 }
-.dados dt { color: var(--muted); padding-right: 12px }
+.dados dt { color: var(--muted); padding-right: 12px; overflow-wrap: anywhere }
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
@@ -581,7 +581,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .etapa > header h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); font-weight: 900; letter-spacing: -.02em }
 .etapa > header p { margin: 6px 0 0; color: var(--muted); font-size: 15px }
 .pergunta { display: flex; flex-direction: column; gap: 8px }
-.pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink) }
+.pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere }
 .pergunta .req { color: var(--erro); margin-left: 2px }
 .pergunta .dica { font-size: 13px; color: var(--muted); margin: -2px 0 2px; line-height: 1.5 }
 .pergunta input[type="text"], .pergunta input[type="email"], .pergunta input[type="tel"], .pergunta select, .pergunta textarea { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font-size: 16px; color: var(--ink) }

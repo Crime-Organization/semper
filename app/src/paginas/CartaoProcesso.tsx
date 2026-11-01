@@ -42,9 +42,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const carregar = useCallback(() => SD.processoObter(id).then(x => { setP(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
-  useEffect(() => { SD.processoCampos().then(setCampos).catch(() => {}); }, []);
+  const lerCampos = useCallback(() => SD.processoCampos().then(setCampos).catch(falha), []);
+  useEffect(() => { void lerCampos(); }, [lerCampos]);
   // Depois de desfazer: mostra o processo como ficou.
-  useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+  useMudancas(() => { void carregar(); void lerCampos(); setVersaoHist(v => v + 1); });
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (p === undefined) return <Carregando />;
@@ -80,7 +81,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
-    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+    if (salvou) { aoMudar(); void carregar(); void lerCampos(); setVersaoHist(x => x + 1); }
   }
 
   return <>
