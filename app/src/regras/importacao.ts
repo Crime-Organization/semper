@@ -1,7 +1,7 @@
 // Importar pessoas de um arquivo CSV no modelo do SEMPER (Pessoas > ⋯ > Importar pessoas).
 // Regras puras: ler o arquivo, normalizar cada linha, achar os responsáveis, comparar com os cadastros que já existem
 // e montar o que vai para o banco. Sem tela e sem banco: a tela chama, mostra a conferência e grava em lotes.
-import type { DadosPessoa, Membro, Pessoa, TipoPessoa } from '../dados/tipos';
+import type { DadosPessoa, ItemImportacao, Membro, Pendencia, Pessoa, TipoPessoa } from '../dados/tipos';
 import {
   LINHAS_MAXIMAS_DA_IMPORTACAO, TAMANHO_OBSERVACOES, TAMANHO_PESSOA, TAMANHO_REFERENCIA
 } from '../dados/limites';
@@ -15,32 +15,7 @@ import {
 } from './pessoa';
 import { normal } from './texto';
 
-// ---------- tipos (o PR2 leva Pendencia e ItemImportacao para o contrato, em dados/tipos.ts) ----------
-
-/** O que falta resolver num cadastro importado. Os mesmos valores da regra "check" de pessoas.pendencias no banco. */
-export type Pendencia = 'documento_invalido' | 'conferir';
-
-/** Uma linha pronta para gravar (montada por planejar). */
-export interface ItemImportacao {
-  /** Número da linha no arquivo (para as mensagens de erro). */
-  linha: number;
-  referencia: string | null;
-  /** Cadastro que já existe e vai ser completado; null = pessoa nova. */
-  existente_id: string | null;
-  /** Pessoa nova: o cadastro todo. Existente: só o que completa (completarVazios). */
-  dados: DadosPessoa;
-  /** Data antiga de cadastro (ISO); null = agora. Só vale para pessoa nova. */
-  criado_em: string | null;
-  /** Ids de perfil dos responsáveis a acrescentar (nenhum é tirado). */
-  responsaveis: string[];
-  /** Pessoa nova: a observação toda. Existente: o texto a ACRESCENTAR ao que já está lá (null = nada novo). */
-  observacoes: string | null;
-  /** Pessoa nova: as pendências. Existente: as que se juntam às que já estão lá. */
-  pendencias: Pendencia[];
-}
-
-/** Cadastro que já existe, com os campos que a importação acrescenta ao banco (no PR2 entram em Pessoa). */
-export type PessoaExistente = Pessoa & { referencia?: string | null; observacoes?: string | null; pendencias?: Pendencia[] };
+// Pendencia e ItemImportacao são do contrato da camada de dados (dados/tipos.ts): o banco grava os itens como vêm daqui.
 
 /** Como cada pendência aparece no cartão e na conferência. */
 export const PENDENCIAS: Record<Pendencia, string> = {
@@ -596,7 +571,7 @@ export type MotivoDecisao = 'repetido_no_arquivo' | 'documento_diferente' | 'nom
 export interface Classificacao {
   linha: number;
   situacao: Situacao;
-  existente: PessoaExistente | null;
+  existente: Pessoa | null;
   /** Novo: o cadastro todo. Existente: o que completarVazios preenche. */
   mudancas: DadosPessoa;
   /** Ids de perfil que entram como responsáveis (os que o cadastro ainda não tem). */
@@ -629,7 +604,7 @@ function uniao(atuais: string[], novos: string[] | null | undefined, chave: (v: 
  * - a base legal só se estiver vazia (com a data do consentimento).
  * {} = nada a completar.
  */
-export function completarVazios(atual: PessoaExistente, nova: DadosPessoa): DadosPessoa {
+export function completarVazios(atual: Pessoa, nova: DadosPessoa): DadosPessoa {
   const r: DadosPessoa = {};
   const mudar = r as Record<string, unknown>;
   for (const campo of completaveis(atual.tipo)) if (vazio(atual[campo]) && !vazio(nova[campo])) mudar[campo] = nova[campo];
@@ -655,7 +630,7 @@ export const juntarResponsaveis = (atuais: string[], novos: string[]): string[] 
 /** O que se sabe de uma linha para classificá-la. */
 interface Caso {
   imp: PessoaImportada;
-  existente: PessoaExistente | null;
+  existente: Pessoa | null;
   repetida: boolean;
   mudancas: DadosPessoa;
   responsaveisNovos: string[];
@@ -666,7 +641,7 @@ function temNovidade({ imp, existente, mudancas, responsaveisNovos }: Caso) {
   const observacao = textoDaObservacao(imp.observacoes);
   return Object.keys(mudancas).length > 0 || responsaveisNovos.length > 0
     || (!!observacao && !existente?.observacoes?.includes(observacao))
-    || imp.pendencias.some(p => !existente?.pendencias?.includes(p));
+    || imp.pendencias.some(p => !existente?.pendencias.includes(p));
 }
 /** As regras de classificação, na ordem: a primeira que vale decide. */
 const CLASSIFICACAO: { situacao: Situacao; motivo?: MotivoDecisao; vale: (c: Caso) => boolean }[] = [
@@ -689,7 +664,7 @@ const chavesDaLinha = (i: PessoaImportada) =>
  * Cada linha comparada com os cadastros que já existem (achados pelo documento ou pela referência): novo, completar,
  * sem mudança, para decidir (repetida no arquivo ou com outro nome) ou recusada (com erro).
  */
-export function classificar(importadas: PessoaImportada[], existentes: PessoaExistente[], mapa: MapaResponsaveis): Classificacao[] {
+export function classificar(importadas: PessoaImportada[], existentes: Pessoa[], mapa: MapaResponsaveis): Classificacao[] {
   const porDocumento = new Map(existentes.filter(p => p.documento).map(p => [limparDocumento(p.documento), p]));
   const porReferencia = new Map(existentes.filter(p => p.referencia).map(p => [p.referencia as string, p]));
   const comErro = (i: PessoaImportada) => i.problemas.some(p => p.gravidade === 'erro');
@@ -774,7 +749,7 @@ function itemNovo({ imp, mapa, problema }: Plano, ajuste: AjusteDoNovo = {}): It
 }
 
 function itemCompletar({ imp, c, problema }: Plano): ItemImportacao | null {
-  const existente = c.existente as PessoaExistente;
+  const existente = c.existente as Pessoa;
   const partes = [...imp.observacoes];
   // Completar um cadastro de outro nome: o nome do arquivo fica registrado.
   if (nomeComparavel(existente.nome) !== nomeComparavel(imp.dados.nome)) partes.unshift(`Nome no arquivo importado: ${imp.dados.nome}`);

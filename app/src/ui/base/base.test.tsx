@@ -4,10 +4,11 @@
 // de uma tela por elas não muda a aparência.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
+import { Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -167,5 +168,110 @@ describe('Peças de texto e de estado', () => {
     render(<Carregando />);
     // Então
     expect(screen.getByRole('status')).toHaveTextContent('Carregando…');
+  });
+});
+
+describe('Abas', () => {
+  const ABAS = [{ id: 'a', rotulo: 'Novos', contador: 120 }, { id: 'b', rotulo: 'Completar', contador: 1500 }, { id: 'c', rotulo: 'Com erro' }] as const;
+  type Id = (typeof ABAS)[number]['id'];
+  /** As abas como uma tela as usa: guarda a escolhida e avisa o teste a cada troca. */
+  function abrir(inicial: Id = 'a') {
+    const aoTrocar = vi.fn<(id: Id) => void>();
+    function Tela() {
+      const [atual, setAtual] = useState<Id>(inicial);
+      return <Abas rotulo="Conferência" abas={ABAS} atual={atual} aoTrocar={id => { aoTrocar(id); setAtual(id); }} />;
+    }
+    render(<Tela />);
+    return aoTrocar;
+  }
+
+  it('quando abre, então as abas ficam num grupo com nome, com o contador no nome de cada uma, e só a escolhida no Tab', () => {
+    // Quando
+    abrir();
+    // Então
+    expect(screen.getByRole('tablist', { name: 'Conferência' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Novos 120' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Completar 1.500' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getByRole('tab', { name: 'Com erro' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('dadas 3 abas, quando clica na 2ª, então a tela é avisada e ela fica escolhida', async () => {
+    // Dado
+    const aoTrocar = abrir();
+    // Quando
+    await userEvent.click(screen.getByRole('tab', { name: /Completar/ }));
+    // Então
+    expect(aoTrocar).toHaveBeenCalledWith('b');
+    expect(screen.getByRole('tab', { name: /Completar/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Novos/ })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it.each([
+    ['a', '{ArrowRight}', 'b'],
+    ['c', '{ArrowRight}', 'a'],
+    ['a', '{ArrowLeft}', 'c'],
+    ['b', '{Home}', 'a'],
+    ['a', '{End}', 'c']
+  ] as const)('dada a aba "%s", quando aperta %s, então passa para a aba "%s" e o foco vai junto', async (inicial, teclas, esperada) => {
+    // Dado
+    const aoTrocar = abrir(inicial);
+    screen.getByRole('tab', { selected: true }).focus();
+    // Quando
+    await userEvent.keyboard(teclas);
+    // Então
+    expect(aoTrocar).toHaveBeenCalledWith(esperada);
+    expect(screen.getByRole('tab', { selected: true })).toHaveFocus();
+  });
+
+  it('quando aperta outra tecla, então a aba não muda', async () => {
+    // Dado
+    const aoTrocar = abrir();
+    screen.getByRole('tab', { selected: true }).focus();
+    // Quando
+    await userEvent.keyboard('{ArrowDown}');
+    // Então
+    expect(aoTrocar).not.toHaveBeenCalled();
+  });
+
+  it('dado o painel das abas, quando troca de aba, então as abas apontam para o painel e o painel leva o nome da escolhida', async () => {
+    // Dado
+    function Tela() {
+      const [atual, setAtual] = useState<Id>('a');
+      return <>
+        <Abas rotulo="Conferência" abas={ABAS} atual={atual} aoTrocar={setAtual} painel="painel-teste" />
+        <div role="tabpanel" id="painel-teste" aria-labelledby={idDaAba('painel-teste', atual)} tabIndex={0}>Conteúdo</div>
+      </>;
+    }
+    render(<Tela />);
+    // Quando
+    await userEvent.click(screen.getByRole('tab', { name: /Completar/ }));
+    // Então
+    expect(screen.getAllByRole('tab').map(a => a.getAttribute('aria-controls'))).toEqual(['painel-teste', 'painel-teste', 'painel-teste']);
+    expect(screen.getByRole('tabpanel', { name: 'Completar 1.500' })).toHaveTextContent('Conteúdo');
+  });
+});
+
+describe('Barra de progresso', () => {
+  it('dado 40 de 200, então o leitor de tela ouve 20% e a conta', () => {
+    // Quando
+    render(<Progresso rotulo="Gravando a importação" valor={40} maximo={200} />);
+    // Então
+    const barra = screen.getByRole('progressbar', { name: 'Gravando a importação' });
+    expect(barra).toHaveAttribute('aria-valuenow', '20');
+    expect(barra).toHaveAttribute('aria-valuemin', '0');
+    expect(barra).toHaveAttribute('aria-valuemax', '100');
+    expect(barra).toHaveAttribute('aria-valuetext', '40 de 200');
+  });
+
+  it.each([
+    [0, 0, '0'],
+    [5, 0, '0'],
+    [300, 200, '100'],
+    [1, 3, '33']
+  ])('dado %d de %d, então o percentual é %s (sem dividir por zero nem passar de 100)', (valor, maximo, esperado) => {
+    // Quando
+    render(<Progresso rotulo="Andamento" valor={valor} maximo={maximo} />);
+    // Então
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', esperado);
   });
 });

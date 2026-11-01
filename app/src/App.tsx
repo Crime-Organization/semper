@@ -16,6 +16,7 @@ const Entrada = lazy(() => import('./paginas/Entrada'));
 const Inicio = lazy(() => import('./paginas/Inicio'));
 const Pessoas = lazy(() => import('./paginas/Pessoas'));
 const NovaPessoa = lazy(() => import('./paginas/NovaPessoa'));
+const ImportarPessoas = lazy(() => import('./paginas/ImportarPessoas'));
 const Contratos = lazy(() => import('./paginas/Contratos'));
 const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
@@ -34,6 +35,10 @@ function FormularioPessoa() {
   const { key } = useLocation();
   return <NovaPessoa key={key} />;
 }
+function FormularioImportacao() {
+  const { key } = useLocation();
+  return <ImportarPessoas key={key} />;
+}
 function FormularioContrato() {
   const { key } = useLocation();
   return <NovoContrato key={key} />;
@@ -47,13 +52,15 @@ function FormularioTarefa() {
   return <NovaTarefa key={key} />;
 }
 
-/** Os cadastros novos: cada endereço e o formulário dele. */
-const CADASTROS: [string, () => React.JSX.Element][] = [
-  ['pessoas/nova', FormularioPessoa], ['contratos/novo', FormularioContrato], ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa]
+/** Os cadastros novos (e a importação de pessoas): cada endereço, o formulário dele e o nome da janela (padrão: "Cadastro"). */
+const CADASTROS: [caminho: string, Formulario: () => React.JSX.Element, rotulo?: string][] = [
+  ['pessoas/nova', FormularioPessoa], ['pessoas/importar', FormularioImportacao, 'Importar pessoas'], ['contratos/novo', FormularioContrato],
+  ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa]
 ];
 /** O caminho sem as barras das pontas ("/pessoas/nova/" → "pessoas/nova"). */
 const semBarras = (caminho: string) => caminho.replace(/^\/+|\/+$/g, '');
-const ehCadastro = (caminho: string) => CADASTROS.some(([c]) => semBarras(caminho) === c);
+const cadastroDe = (caminho: string) => CADASTROS.find(([c]) => semBarras(caminho) === c);
+const ehCadastro = (caminho: string) => !!cadastroDe(caminho);
 /** Páginas de fora do sistema (sem login): delas, o cadastro não abre em janela. */
 const FORA_DO_SISTEMA = ['', 'entrar'];
 const dentroDoSistema = (l: Location) => !FORA_DO_SISTEMA.includes(semBarras(l.pathname));
@@ -78,7 +85,7 @@ function Rotas() {
 
   // A janela fica dentro de <ExigirLogin> (precisa de quem está logado). As rotas dela usam o endereço de verdade: as
   // de fora usam o da página de fundo.
-  const janela = naJanela && <PainelCartao soNoCentro aoFechar={() => navegar(-1)}>
+  const janela = naJanela && <PainelCartao soNoCentro rotulo={cadastroDe(local.pathname)?.[2]} aoFechar={() => navegar(-1)}>
     <Suspense fallback={<Carregando />}>
       <Routes location={local}>{CADASTROS.map(([caminho, Formulario]) => <Route key={caminho} path={caminho} element={<Formulario />} />)}</Routes>
     </Suspense>

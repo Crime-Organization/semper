@@ -5,7 +5,7 @@
 // Para rodar também no Supabase (com um Supabase local), basta chamar contrato() com a outra implementação.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Dados } from './tipos';
+import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { DIA } from '../ui/tempos';
 import { hojeISO } from '../ui/util';
@@ -1067,6 +1067,167 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(resultado).toBe('expirado');
         expect(await SD.ligacaoGoogle()).toBeNull();
+      });
+    });
+
+    describe('Importação de pessoas', () => {
+      // CPFs fictícios (com os dígitos certos), fora da semente.
+      const [CPF_1, CPF_2, CPF_3, CPF_4, CPF_5, CPF_6] = ['86288366757', '71428793860', '15350946056', '40713521910', '58392610415', '26047193803'];
+      const item = (linha: number, dados: DadosPessoa, extra: Partial<ItemImportacao> = {}): ItemImportacao =>
+        ({ linha, referencia: null, existente_id: null, dados, criado_em: null, responsaveis: [], observacoes: null, pendencias: [], ...extra });
+      const iniciar = () => SD.importacaoIniciar('2 linhas', 'pessoas.csv');
+
+      it('quando uma pessoa nova é importada com data antiga de cadastro e responsável, então ela fica com a data, a importação e o responsável', async () => {
+        // Dado
+        const importacao = await iniciar();
+        const nome = marca();
+        // Quando
+        const r = await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome, documento: CPF_1 },
+          { referencia: 'site-1', criado_em: '2019-03-15T10:00:00-03:00', responsaveis: ['u-ana'] })]);
+        // Então
+        const lida = await SD.pessoaObter(r.ids[0].id);
+        expect(r).toMatchObject({ criadas: 1, completadas: 0, ids: [{ linha: 2 }] });
+        expect(new Date(lida!.criado_em).toISOString()).toBe('2019-03-15T13:00:00.000Z');
+        expect(lida).toMatchObject({ nome, documento: CPF_1, importacao_id: importacao, referencia: 'site-1', pendencias: [], resp: [{ perfil_id: 'u-ana' }] });
+      });
+
+      it('quando um cadastro existente é completado, então só os vazios entram, telefones e e-mails se juntam e o histórico guarda só o que mudou', async () => {
+        // Dado
+        const { id } = await criar(marca(), { documento: CPF_2, municipio: 'Montes Claros', telefones: ['(38) 8201-0240'] });
+        const importacao = await iniciar();
+        // Quando
+        const r = await SD.pessoasImportar(importacao, [item(2, { tipo: 'pj', nome: 'OUTRO NOME', municipio: 'Outra', emails: ['nova@exemplo.com'],
+          telefones: ['+55 (38) 98201-0240', '(38) 3222-0000'] }, { existente_id: id })]);
+        // Então
+        const lida = await SD.pessoaObter(id);
+        const [ultima] = await SD.pessoaHistorico(id);
+        expect(r).toMatchObject({ criadas: 0, completadas: 1, ids: [{ linha: 2, id }] });
+        expect(lida).toMatchObject({ tipo: 'pf', municipio: 'Montes Claros', emails: ['nova@exemplo.com'], telefones: ['(38) 8201-0240', '(38) 3222-0000'],
+          importacao_id: null });
+        expect(lida!.nome).not.toBe('OUTRO NOME');
+        expect(Object.keys(ultima.alteracoes).sort()).toEqual(['emails', 'telefones']);
+      });
+
+      it('quando o cadastro existente não tem CPF nem gênero, então o CPF entra; o gênero só na pessoa física, não na empresa limitada', async () => {
+        // Dado
+        const { id: pf } = await criar(marca());
+        const { id: pj } = await criar(marca(), { tipo: 'pj', natureza: 'empresarial', tipo_entidade: 'Sociedade Empresária Limitada' });
+        const importacao = await iniciar();
+        // Quando
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: 'X', documento: CPF_3, genero: 'f' }, { existente_id: pf }),
+          item(3, { tipo: 'pj', nome: 'Y', genero: 'm' }, { existente_id: pj })]);
+        // Então
+        expect(await SD.pessoaObter(pf)).toMatchObject({ documento: CPF_3, genero: 'f' });
+        expect((await SD.pessoaObter(pj))?.genero ?? null).toBeNull();
+      });
+
+      it('quando o tipo de entidade do arquivo não é da natureza do cadastro, então ele não entra (nem o gênero que dependeria dele)', async () => {
+        // Dado: um órgão público sem tipo de entidade e uma pessoa jurídica sem natureza
+        const { id: orgao } = await criar(marca(), { tipo: 'pj', natureza: 'publica' });
+        const { id: semNatureza } = await criar(marca(), { tipo: 'pj' });
+        const importacao = await iniciar();
+        // Quando: o MEI (empresarial) permitiria o gênero, se entrasse
+        await SD.pessoasImportar(importacao, [
+          item(2, { tipo: 'pj', nome: 'X', tipo_entidade: 'Microempreendedor(a) Individual (MEI)', genero: 'f' }, { existente_id: orgao }),
+          item(3, { tipo: 'pj', nome: 'Y', natureza: 'publica', tipo_entidade: 'Município' }, { existente_id: semNatureza })]);
+        // Então
+        const [e, s] = await Promise.all([SD.pessoaObter(orgao), SD.pessoaObter(semNatureza)]);
+        expect({ tipo_entidade: e?.tipo_entidade ?? null, genero: e?.genero ?? null }).toEqual({ tipo_entidade: null, genero: null });
+        expect(s).toMatchObject({ natureza: 'publica', tipo_entidade: 'Município' });
+      });
+
+      it('quando o cadastro tem o responsável u-master e é importado com u-master e u-ana, então fica com os dois, sem repetir', async () => {
+        // Dado
+        const { id } = await SD.pessoaCriar({ tipo: 'pf', nome: marca() }, ['u-master']);
+        const importacao = await iniciar();
+        // Quando
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: 'X' }, { existente_id: id, responsaveis: ['u-master', 'u-ana'] })]);
+        // Então
+        expect((await SD.pessoaObter(id))!.resp.map(r => r.perfil_id).sort()).toEqual(['u-ana', 'u-master']);
+      });
+
+      it('quando a pessoa entra com pendência e observação, então as duas ficam gravadas e os filtros de importadas e pendentes a acham', async () => {
+        // Dado
+        const importacao = await iniciar();
+        const nome = marca();
+        // Quando
+        const r = await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome },
+          { pendencias: ['documento_invalido'], observacoes: 'CPF digitado no arquivo: 123' })]);
+        // Então
+        const id = r.ids[0].id;
+        const [pendentes, importadas] = await Promise.all((['pendentes', 'importadas'] as const).map(m => SD.pessoasListar({ termo: nome, marca: m })));
+        expect(await SD.pessoaObter(id)).toMatchObject({ pendencias: ['documento_invalido'], observacoes: 'CPF digitado no arquivo: 123' });
+        expect(pendentes.linhas).toMatchObject([{ id, pendencias: ['documento_invalido'], importacao_id: importacao }]);
+        expect(importadas.linhas.map(p => p.id)).toEqual([id]);
+      });
+
+      it('quando a observação é importada para um cadastro que já tem uma, então ela é acrescentada numa linha nova, e a repetida não entra de novo', async () => {
+        // Dado
+        const { id } = await criar(marca(), { observacoes: 'Antiga' });
+        const importacao = await iniciar();
+        // Quando
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: 'X' }, { existente_id: id, observacoes: 'Nova', pendencias: ['conferir'] })]);
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: 'X' }, { existente_id: id, observacoes: 'Nova', pendencias: ['conferir'] })]);
+        // Então
+        expect(await SD.pessoaObter(id)).toMatchObject({ observacoes: 'Antiga\nNova', pendencias: ['conferir'] });
+      });
+
+      it('quando o 2º item do lote usa um CPF já cadastrado, então dá erro com o número da linha e o 1º também não é gravado', async () => {
+        // Dado
+        await criar(marca(), { documento: CPF_4 });
+        const importacao = await iniciar();
+        const nome = marca();
+        // Quando
+        const lote = SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome, documento: CPF_5 }), item(3, { tipo: 'pf', nome: 'OUTRA', documento: CPF_4 })]);
+        // Então
+        await expect(lote).rejects.toThrow('Linha 3: já existe um cadastro com este CPF/CNPJ ou esta referência.');
+        expect((await SD.pessoasListar({ termo: nome })).total).toBe(0);
+      });
+
+      it('quando uma referência já importada é importada de novo como nova, então dá erro; e a busca pelas referências acha o cadastro', async () => {
+        // Dado
+        const importacao = await iniciar();
+        const { ids: [{ id }] } = await SD.pessoasImportar(importacao, [item(2, { tipo: 'contato', nome: marca() }, { referencia: 'site-7' })]);
+        // Quando
+        const deNovo = SD.pessoasImportar(importacao, [item(2, { tipo: 'contato', nome: marca() }, { referencia: 'site-7' })]);
+        // Então
+        await expect(deNovo).rejects.toThrow('Linha 2: já existe um cadastro com este CPF/CNPJ ou esta referência.');
+        expect((await SD.pessoasParaImportar({ documentos: [], referencias: ['site-7', 'site-99'] })).map(p => p.id)).toEqual([id]);
+      });
+
+      it('quando um cadastro arquivado tem o CPF do arquivo, então a busca o acha com a data de arquivamento, e completá-lo não o tira do arquivo', async () => {
+        // Dado
+        const { id } = await criar(marca(), { documento: CPF_6 });
+        await SD.pessoasArquivar([id]);
+        const importacao = await iniciar();
+        // Quando
+        const [achada] = await SD.pessoasParaImportar({ documentos: [CPF_6], referencias: [] });
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: 'X', emails: ['arquivada@exemplo.com'] }, { existente_id: id })]);
+        // Então
+        expect(achada).toMatchObject({ id, documento: CPF_6, resp: [] });
+        expect(achada.arquivado_em).toBeTruthy();
+        const depois = await SD.pessoaObter(id);
+        expect(depois).toMatchObject({ emails: ['arquivada@exemplo.com'] });
+        expect(depois!.arquivado_em).toBeTruthy();
+      });
+
+      it('quando a importação com 2 criadas e 1 completada é concluída, então o registro de ações tem a linha-resumo, e ela não se conclui nem recebe mais nada', async () => {
+        // Dado
+        const { id } = await criar(marca());
+        const importacao = await iniciar();
+        await SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: marca() }, { pendencias: ['conferir'] }), item(3, { tipo: 'pf', nome: marca() }),
+          item(4, { tipo: 'pf', nome: 'X', emails: ['c@exemplo.com'] }, { existente_id: id })]);
+        // Quando
+        const concluida = await SD.importacaoConcluir(importacao, 1);
+        // Então
+        const [registro] = await SD.auditoriaListar();
+        expect(concluida).toMatchObject({ id: importacao, criadas: 2, completadas: 1, incompletas: 1 });
+        expect(concluida.concluida_em).toBeTruthy();
+        expect(registro).toMatchObject({ tabela: 'pessoas', registro_id: importacao, acao: 'importacao' });
+        // Só números: a descrição (texto vindo do site) não vai ao registro de ações.
+        expect(registro.resumo).toEqual({ quantidade: 2, completadas: 1, incompletas: 1 });
+        await expect(SD.importacaoConcluir(importacao, 1)).rejects.toThrow('Importação não encontrada ou já concluída');
+        await expect(SD.pessoasImportar(importacao, [item(2, { tipo: 'pf', nome: marca() })])).rejects.toThrow('Importação não encontrada ou já concluída');
       });
     });
 
