@@ -1,7 +1,7 @@
 // Comentários do cartão, com @ (veja regras/comentarios.ts): a caixa para escrever, com a lista do @, e os comentários do
 // mais novo para o mais antigo. Quem escreveu edita e apaga; administradores também apagam. No painel ao lado, ficam numa
 // seção recolhível do cartão; na janela no centro, na coluna da direita (o PainelCartao diz onde ela está).
-import { useCallback, useContext, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { SD, type Comentario, type Membro, type ModuloComentado } from '../dados';
 import { ACHADOS_DA_MENCAO, TAMANHO_COMENTARIO } from '../dados/limites';
@@ -113,6 +113,15 @@ function CaixaComentario({ modulo, motivoSemMencao, rotulo, botao, valor, aoMuda
   const opcoes = mencao ? membrosParaMencionar(ctx.equipe, mencao.termo, ACHADOS_DA_MENCAO) : [];
   const motivo = (m: Membro) => MOTIVO_SEM_MENCAO[modulo](m) ?? motivoSemMencao?.(m) ?? null;
   useEffect(() => { if (focar) campo.current?.focus(); }, [focar]);
+  // Põe o cursor depois da menção assim que o React escreve o texto novo, antes de a próxima tecla ser atendida.
+  // Com setTimeout, o navegador podia atender as teclas primeiro, e o cursor voltava para trás no meio da digitação.
+  const cursorDaMencao = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (cursorDaMencao.current === null) return;
+    campo.current?.focus();
+    campo.current?.setSelectionRange(cursorDaMencao.current, cursorDaMencao.current);
+    cursorDaMencao.current = null;
+  });
 
   function mudar(texto: string, cursor: number) {
     aoMudar(texto);
@@ -122,10 +131,9 @@ function CaixaComentario({ modulo, motivoSemMencao, rotulo, botao, valor, aoMuda
   function escolher(m: Membro) {
     if (!mencao || !m.usuario || motivo(m)) return;
     const r = inserirMencao(valor, mencao.inicio, campo.current?.selectionStart ?? valor.length, m.usuario);
+    cursorDaMencao.current = r.cursor;
     aoMudar(r.texto);
     setMencao(null);
-    // Espera o React escrever o texto novo para pôr o cursor depois da menção.
-    setTimeout(() => { campo.current?.focus(); campo.current?.setSelectionRange(r.cursor, r.cursor); }, 0);
   }
   function teclar(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (mencao && opcoes.length) {

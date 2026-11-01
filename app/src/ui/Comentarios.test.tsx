@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comentario, DadosComentarios, Membro } from '../dados';
@@ -57,6 +57,20 @@ describe('Comentários do cartão', () => {
     // Então
     expect(caixa()).toHaveValue('Oi @ana.lima ');
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('dado um texto depois do @, quando a pessoa escolhe um colega, então o cursor já está depois da menção, sem esperar temporizador', async () => {
+    // Dado
+    render(<SecaoComentarios modulo="pessoas" cartaoId="p1" />);
+    const campo = caixa() as HTMLTextAreaElement;
+    await userEvent.type(campo, 'Oi @an e mais');
+    campo.setSelectionRange('Oi @an'.length, 'Oi @an'.length);
+    fireEvent.click(campo);
+    // Quando
+    fireEvent.keyDown(campo, { key: 'Enter' });
+    // Então: sem nenhum await, a tecla seguinte já entra no lugar certo
+    expect(campo).toHaveValue('Oi @ana.lima e mais');
+    expect(campo.selectionStart).toBe('Oi @ana.lima '.length);
   });
 
   it('dado um contrato, quando a lista do @ mostra quem não é advogado, então ele vem desligado e não entra no texto', async () => {
