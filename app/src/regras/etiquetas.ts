@@ -31,5 +31,11 @@ export function erroDaEtiqueta(e: Pick<Etiqueta, 'cor' | 'texto'>, existentes: E
   return outras.some(x => normal(x.texto) === normal(e.texto)) ? 'Já existe uma etiqueta com esse texto.' : null;
 }
 
+/** As etiquetas que combinam com o que foi digitado, sem contar maiúsculas nem acentos. A etiqueta só de cor é achada pelo nome da cor. */
+export const etiquetasQueCombinam = <E extends Pick<Etiqueta, 'cor' | 'texto'>>(lista: E[], termo: string): E[] => {
+  const procurado = normal(termo.trim());
+  return lista.filter(e => normal(nomeDaEtiqueta(e)).includes(procurado));
+};
+
 /** Muda ou exclui a etiqueta quem criou ou um administrador. */
 export const podeMudarEtiqueta = (e: Pick<Etiqueta, 'criado_por'>, perfilId: string, ehAdmin: boolean) => ehAdmin || e.criado_por === perfilId;
