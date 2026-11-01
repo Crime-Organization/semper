@@ -83,6 +83,10 @@ export function Casca({ children }: { children: ReactNode }) {
             {item('/tarefas/', 'tarefas', 'Tarefas')}
             <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={15} /></Link>
           </div>}
+          {ctx.escritorio?.modulos?.processos && <SubmenuLateral id="processos" icone="processos" rotulo="Processos" caminhos={['/processos']}>
+            <NavLink to="/processos/judicial/"><span>Judicial</span></NavLink>
+            <NavLink to="/processos/administrativo/"><span>Administrativo</span></NavLink>
+          </SubmenuLateral>}
           <SubmenuLateral id="agenda" icone="calendario" rotulo="Agenda e calendário" caminhos={['/calendario']}>
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>

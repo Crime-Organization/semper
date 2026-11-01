@@ -126,3 +126,11 @@ export const LINHAS_POR_CONSULTA = 1000;
 export const TAMANHO_GRUPO = 60;
 /** Texto da etiqueta (exigido pelo banco: supabase/migrations/20261101131705_etiquetas.sql). */
 export const TAMANHO_ETIQUETA = 40;
+
+// ---------- Processos ----------
+/** Tamanhos dos campos do processo (exigidos pelo banco: supabase/migrations/20261101155218_processos.sql). */
+export const TAMANHO_PROCESSO = { numero: 60, titulo: 300, orgao: 20, comarca: 120, vara: 120, classe: 200, assunto: 200, juiz: 200, instancia: 60, advogadoContrario: 200, observacoes: 4000, opcao: 120 };
+/** Quantos processos entram na lista de um cartão (o da pessoa). */
+export const PROCESSOS_LIGADOS = 200;
+/** De quantos processos vêm as sugestões de comarca, vara e órgão. */
+export const PROCESSOS_PARA_SUGERIR = 1000;

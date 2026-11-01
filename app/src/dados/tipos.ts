@@ -6,7 +6,7 @@ export type Papel = 'master' | 'admin' | 'usuario';
 /** O que a pessoa faz no escritório. Diferente do papel: administrador é quem gere o sistema; administrativo é uma função. */
 export type Funcao = 'advogado' | 'administrativo' | 'estagiario';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
-export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro';
+export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos';
 
 export interface Perfil {
   id: string;
@@ -613,6 +613,73 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
+/** Processo: judicial ou administrativo (não muda depois), com número e pelo menos um cliente. O código (curto e aleatório) é dado pelo banco.
+ *  Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
+export type TipoProcesso = 'judicial' | 'administrativo';
+export type PoloProcesso = 'autor' | 'reu' | 'terceiro';
+export type MeioProcesso = 'fisico' | 'eletronico';
+export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
+/** As listas que o administrador pode ampliar. */
+export type CampoDeOpcao = 'sistema' | 'natureza' | 'area';
+export interface Processo {
+  id: string; codigo: string; tipo: TipoProcesso; numero: string;
+  /** O nome do cartão; sem ele, aparecem os clientes. */
+  titulo: string | null;
+  responsavel_id: string; colaboradores: string[]; cliente_nome: string;
+  orgao: string | null; sistema: string | null; polo: PoloProcesso | null; area: string | null; meio: MeioProcesso | null;
+  natureza: string | null; gratuidade: GratuidadeProcesso | null; comarca: string | null; vara: string | null; classe: string | null; assunto: string | null;
+  juiz: string | null; distribuicao: string | null; valor_causa: number | null; instancia: string | null; segredo: boolean; advogado_contrario: string | null; observacoes: string | null;
+  etapa_id: string | null; etapa_ordem: number | null; arquivado_em: string | null; arquivado_por: string | null;
+  criado_por: string | null; criado_em: string; atualizado_por: string | null; atualizado_em: string;
+  clientes: PessoaResumida[];
+}
+/** Campos que o cadastro de processo grava. */
+export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
+/** Linha das listagens de processos (tabela e quadro). */
+export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome' | 'orgao' | 'comarca' | 'vara'
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+export interface FiltroProcessos {
+  /** O quadro de cada tipo é separado: o tipo vem sempre. */
+  tipo: TipoProcesso;
+  termo?: string;
+  etiqueta?: string;
+  /** Um usuário da equipe: os processos em que ele é o responsável ou um colaborador. */
+  pessoa?: string;
+  /** A sigla do órgão. */
+  orgao?: string;
+  situacao?: 'ativos' | 'arquivados';
+  ordem?: Ordem;
+  pagina?: number;
+  porPagina?: number;
+}
+export type PapelNoProcesso = 'cliente' | 'responsavel' | 'colaborador';
+/** Processo como aparece no cartão da pessoa, com o papel dela nele. */
+export interface ProcessoLigado extends Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'etapa_id' | 'arquivado_em' | 'criado_em'> { papeis: PapelNoProcesso[] }
+/** Opção acrescentada pelo administrador a uma das listas. */
+export interface OpcaoDeProcesso { id: string; campo: CampoDeOpcao; valor: string }
+/** O que já foi digitado nos processos do escritório, para sugerir. */
+export interface SugestoesDeProcesso { orgaos: string[]; comarcas: string[]; varas: string[] }
+
+/** Processos (supabase/migrations/20261101155218_processos.sql). */
+export interface DadosProcessos {
+  processosListar(f: FiltroProcessos): Promise<Pagina<ProcessoLista>>;
+  processosDaEtapa(etapaId: string | null, f: FiltroProcessos, deslocamento?: number, limite?: number): Promise<Pagina<ProcessoLista>>;
+  processoObter(id: string): Promise<Processo | null>;
+  processoCriar(dados: DadosProcesso & { tipo: TipoProcesso }): Promise<{ id: string; codigo: string }>;
+  processoAtualizar(id: string, dados: DadosProcesso): Promise<{ id: string; codigo: string }>;
+  processosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só processos arquivados são excluídos (por quem criou ou um administrador). */
+  processosExcluir(ids: string[]): Promise<Exclusao>;
+  processoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  processoHistorico(id: string): Promise<Historico[]>;
+  /** Processos em que a pessoa é cliente; com perfilId (a pessoa é da equipe), também os em que é responsável ou colaboradora. */
+  processosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ProcessoLigado[]>;
+  processoOpcoes(): Promise<OpcaoDeProcesso[]>;
+  /** Só administradores. */
+  processoOpcaoCriar(campo: CampoDeOpcao, valor: string): Promise<OpcaoDeProcesso>;
+  processoSugestoes(tipo: TipoProcesso): Promise<SugestoesDeProcesso>;
+}
+
 /** Etiqueta do escritório: uma cor da paleta e, se quiser, um texto (sem texto, é uma faixa colorida). */
 export interface Etiqueta {
   id: string; cor: CorDaEtiqueta; texto: string | null; criado_por: string | null;
@@ -620,7 +687,7 @@ export interface Etiqueta {
   sistema?: 'importada' | 'incompleta' | null;
 }
 /** Os módulos cujos cartões levam etiquetas. */
-export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas'>;
+export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos'>;
 /** Item de lista com as etiquetas dele (etq: as ligações, como vêm do banco). */
 export interface ComEtiquetas { etq?: { etiqueta_id: string }[] }
 
@@ -851,4 +918,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos {}

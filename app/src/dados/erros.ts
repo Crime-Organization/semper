@@ -20,6 +20,8 @@ const REPETIDO: Regra[] = [
   { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de lista com esse nome.' },
   { padrao: /orgaos_sigla_unica/, mensagem: 'Já existe um órgão com essa sigla.' },
   { padrao: /quadro_grupos_nome_unico/, mensagem: 'Já existe um grupo com esse nome neste quadro.' },
+  { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },
+  { padrao: /processo_opcoes_unica/, mensagem: 'Essa opção já está na lista.' },
   { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
   { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
   { mensagem: 'Esse registro já existe.' }
@@ -30,6 +32,7 @@ const ERROS: Regra[] = [
   { codigo: '23503', padrao: /contratos_(cliente|participante|indicador)_id_fkey|contrato_participantes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em contratos e não pode ser excluída.' },
   { codigo: '23503', padrao: /demanda_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em demandas e não pode ser excluída.' },
   { codigo: '23503', padrao: /tarefa_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em tarefas e não pode ser excluída.' },
+  { codigo: '23503', padrao: /processo_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em processos e não pode ser excluída.' },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: 'Você não tem permissão para fazer isso.' },
   { padrao: /permission denied|row-level security/i, mensagem: 'Você não tem permissão para fazer isso.' },

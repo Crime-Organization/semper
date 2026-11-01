@@ -24,6 +24,7 @@ import { useCtx } from '../ui/sessao';
 import NovaPessoa from './NovaPessoa';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
+import { ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 
 interface Props {
@@ -203,6 +204,10 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas">
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
         nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos">
+      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas">
