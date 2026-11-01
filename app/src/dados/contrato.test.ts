@@ -1039,6 +1039,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(noQuadro.linhas.some(p => p.id === sem.id)).toBe(false);
       });
 
+      it('quando a exportação filtra por uma etiqueta, então só vêm as pessoas com ela', async () => {
+        // Dado
+        const e = await SD.etiquetaCriar('vermelho', texto());
+        const com = await criar(marca());
+        await criar(marca());
+        await SD.etiquetaAplicar('pessoas', com.id, e.id);
+        // Quando
+        const pessoas = await SD.pessoasExportar({ etiqueta: e.id });
+        // Então
+        expect(pessoas.map(p => p.id)).toEqual([com.id]);
+      });
+
       it('quando a etiqueta é tirada, então sai só daquele cartão; excluída, sai de todos', async () => {
         // Dado
         const e = await SD.etiquetaCriar('rosa', texto());

@@ -14,7 +14,7 @@ import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
-import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetas } from '../ui/Etiquetas';
+import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -44,7 +44,6 @@ export function SeloDoPrazo({ prazo }: { prazo: string | null }) {
 export default function Demandas() {
   useTitulo('Demandas');
   const ctx = useCtx();
-  const etiquetas = useEtiquetas();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const quadro = useColunas('demandas', ctx, SEM_SITUACAO_DEMANDA);
@@ -78,7 +77,7 @@ export default function Demandas() {
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
-  }, [visao, f, ordem.valor, recarga]);
+  }, [visao, f, ordem.valor, f.etiqueta, recarga]);
 
   // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
   const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
@@ -88,7 +87,7 @@ export default function Demandas() {
     SD.demandasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, recarga]);
+  }, [visao, f.termo, f.pessoa, f.etiqueta, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -98,11 +97,12 @@ export default function Demandas() {
     SD.demandasListar({ ...f, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, recarga]);
+  }, [visao, f.termo, f.pessoa, f.etiqueta, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.demandasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
   const filtrado = !!(f.termo || f.pessoa || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroDemandas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
+  const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
   function trocarVisao(v: Visao) {
     setVisao(v);
@@ -128,6 +128,7 @@ export default function Demandas() {
     </span>
   </> : null;
 
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.etiqueta].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -145,7 +146,7 @@ export default function Demandas() {
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<DemandaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.pessoa, f.etiqueta].join('|')}
+          recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.demandasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={d => d.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -166,7 +167,7 @@ export default function Demandas() {
           <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<DemandaLista> modulo="demandas" nome={{ um: 'demanda', varios: 'demandas', feminino: true }} total={totalArquivadas}
-            versao={recarga} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
+            versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.demandasArquivar(ids, a)} excluir={ids => SD.demandasExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
               filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
@@ -182,7 +183,7 @@ function CartaoKanban({ d, ordem }: { d: DemandaLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, d);
   return <>
-    <EtiquetasDoItem etq={d.etq} />
+    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em} />
     <div className="kt">{d.titulo}</div>
     <div className="km">
       <span className="codigo">{d.codigo}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</span>
@@ -229,7 +230,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
       </tr></thead>
       <tbody>{linhas.map(d => <LinhaQueAbre key={d.id} para={endereco(d.id)} aoAbrir={() => aoAbrir(d.id)} marcada={selecionadas.has(d.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} onChange={e => marcar([d.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={d.etq} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>

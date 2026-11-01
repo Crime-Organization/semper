@@ -4,7 +4,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Etiqueta } from '../dados';
+import { SD, type Etiqueta } from '../dados';
 import { EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta } from './Etiquetas';
 
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
@@ -17,6 +17,7 @@ describe('Peças das etiquetas', () => {
   beforeEach(() => {
     sessao.ehAdmin = false;
     lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
+    vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
   });
 
   it('quando a etiqueta é só de cor, então aparece uma faixa com o nome para leitores de tela', () => {
@@ -28,11 +29,11 @@ describe('Peças das etiquetas', () => {
 
   it('quando o item não tem etiquetas, então não aparece nada; quando tem, só as dele', () => {
     // Quando
-    const { container, rerender } = render(<EtiquetasDoItem etq={[]} />);
+    const { container, rerender } = render(<EtiquetasDoItem etq={[]} modulo="pessoas" id="p-qualquer" />);
     // Então
     expect(container.textContent).toBe('');
     // Quando
-    rerender(<EtiquetasDoItem etq={[{ etiqueta_id: MINHA.id }]} />);
+    rerender(<EtiquetasDoItem etq={[{ etiqueta_id: MINHA.id }]} modulo="pessoas" id="p-qualquer" />);
     // Então
     expect(container.textContent).toBe('Minha');
   });
@@ -74,5 +75,16 @@ describe('Peças das etiquetas', () => {
     render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" somenteLer aoMudar={() => undefined} />);
     // Então
     expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
+  });
+
+  it('quando o item está arquivado, então a etiqueta aparece sem o x; ativo, com o x', () => {
+    // Quando
+    const { rerender } = render(<EtiquetasDoItem etq={[{ etiqueta_id: MINHA.id }]} modulo="pessoas" id="p-qualquer" somenteLer />);
+    // Então
+    expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeNull();
+    // Quando
+    rerender(<EtiquetasDoItem etq={[{ etiqueta_id: MINHA.id }]} modulo="pessoas" id="p-qualquer" />);
+    // Então
+    expect(screen.getByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeTruthy();
   });
 });

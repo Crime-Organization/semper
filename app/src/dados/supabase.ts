@@ -359,7 +359,7 @@ export const SD: Dados = {
   async pessoasExportar(f = {}) {
     const lote = 1000, todas: Pessoa[] = [];
     for (let de = 0; ; de += lote) {
-      const q = filtrar(sb.from('pessoas').select(CAMPOS_PESSOA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '')), f);
+      const q = filtrar(sb.from('pessoas').select(comEtiquetas(CAMPOS_PESSOA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : ''), 'pessoas', f)), f);
       const { data } = await rodar(ordenar(q, 'nome').range(de, de + lote - 1));
       todas.push(...data);
       if (data.length < lote) return todas;

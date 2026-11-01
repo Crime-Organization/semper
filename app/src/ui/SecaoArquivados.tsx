@@ -26,7 +26,7 @@ interface Props<T extends { id: string }> {
   /** A tabela do módulo, com a página dos arquivados, a seleção e a troca de página. */
   tabela: (pagina: Pagina<T>, numeroDaPagina: number, selecao: Selecao, aoPaginar: (n: number) => void) => ReactNode;
   /** Muda quando algo mudou na página (ex.: arquivaram itens na tabela de cima): relê a lista. */
-  versao: number;
+  versao: number | string;
   /** Avisa a página de que desarquivou ou excluiu (para ela reler a tabela de cima e as contagens). */
   aoMudar: () => void;
 }

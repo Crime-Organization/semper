@@ -13,7 +13,7 @@ import { Aviso, BotaoLink, Carregando, estiloBotao, Selo, Vazio } from '../ui/ba
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
-import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetas } from '../ui/Etiquetas';
+import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -40,7 +40,6 @@ const marcaDe = (valor: string) => Object.hasOwn(MARCAS, valor) ? valor as Marca
 export default function Pessoas() {
   useTitulo('Pessoas');
   const ctx = useCtx();
-  const etiquetas = useEtiquetas();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -89,7 +88,7 @@ export default function Pessoas() {
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
-  }, [visao, f, ordem.valor, recarga]);
+  }, [visao, f, ordem.valor, f.etiqueta, recarga]);
 
   // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
   const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
@@ -99,7 +98,7 @@ export default function Pessoas() {
     SD.pessoasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, recarga]);
+  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, f.etiqueta, recarga]);
 
   // Quantas arquivadas há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -109,7 +108,7 @@ export default function Pessoas() {
     SD.pessoasListar({ ...f, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, recarga]);
+  }, [visao, f.termo, f.tipo, f.responsavel, f.marca, f.etiqueta, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.pessoasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
   // Vindo do atalho do Início, a tela já desce até os arquivados.
   useEffect(() => {
@@ -120,6 +119,7 @@ export default function Pessoas() {
 
   const filtrado = !!(f.termo || f.tipo || f.responsavel || f.marca || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroPessoas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
+  const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
   function trocarVisao(v: Visao) {
     setVisao(v);
@@ -158,7 +158,7 @@ export default function Pessoas() {
     });
     if (!escolha) return;
     try {
-      const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, marca: f.marca, situacao: f.situacao });
+      const pessoas = await SD.pessoasExportar({ termo: f.termo, tipo: f.tipo, responsavel: f.responsavel, marca: f.marca, situacao: f.situacao, etiqueta: f.etiqueta });
       if (!pessoas.length) { avisar('Nenhuma pessoa para exportar com esses filtros.', 'erro'); return; }
       // Na qualificação das pessoas jurídicas entra quem as representa (vínculo "Representante legal de").
       const representantes: Record<string, Representante[]> = {};
@@ -182,6 +182,7 @@ export default function Pessoas() {
   </> : null;
 
   // Contador ao lado do título: quantas pessoas a lista mostra (com a busca e os filtros).
+  const chaveDaLista = [recarga, f.termo, f.tipo, f.responsavel, f.marca, f.etiqueta].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -204,7 +205,7 @@ export default function Pessoas() {
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<PessoaLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.tipo, f.responsavel, f.marca, f.etiqueta].join('|')}
+          recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.pessoasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={p => p.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -225,7 +226,7 @@ export default function Pessoas() {
           <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} etapa={quadro.nomeDe}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<PessoaLista> modulo="pessoas" nome={{ um: 'pessoa', varios: 'pessoas', feminino: true }} total={totalArquivadas}
-            versao={recarga} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
+            versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.pessoasArquivar(ids, a)} excluir={ids => SD.pessoasExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
               filtrado={filtrado} selecao={sel} etapa={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
@@ -241,7 +242,7 @@ function CartaoKanban({ p, ordem }: { p: PessoaLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, p);
   return <>
-    <EtiquetasDoItem etq={p.etq} />
+    <EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} />
     <div className="kt">{p.nome}</div>
     <div className="km">
       {p.telefones?.[0] && <span>{fmtTelefone(p.telefones[0])}</span>}
@@ -288,7 +289,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, ao
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={p.etq} /><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{p.nome}</NomeDaLinha>{p.pendencias?.length > 0 && <> <Selo tipo="pend">Incompleta</Selo></>}<div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>

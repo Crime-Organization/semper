@@ -387,7 +387,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kmenu { max-height: calc(100dvh - 24px); overflow-y: auto }
 .kmenu > * { flex-shrink: 0 }
 .kmenu button { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
-.kmenu button:hover, .kmenu button:focus-visible { background: var(--soft); outline: 0 }
+.kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible { background: var(--soft); outline: 0 }
 .kmenu button.perigo { color: var(--erro) }
 /* Ordem de cada coluna: escolhida no topo do menu da coluna e mostrada abaixo do título quando não é a manual. */
 .kmenu-titulo { margin: 0; padding: 8px 12px 4px }
@@ -632,7 +632,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cor-verde { --etq: var(--etq-verde) } .cor-azul { --etq: var(--etq-azul) } .cor-roxo { --etq: var(--etq-roxo) } .cor-rosa { --etq: var(--etq-rosa) } .cor-cinza { --etq: var(--etq-cinza) }
 .etiquetas { display: flex; flex-wrap: wrap; gap: 4px }
 .etiqueta { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 6px; background: var(--etq); color: var(--etq-sobre, var(--etq-tinta)); font-size: 12px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere }
-.etiqueta.so-cor { width: 36px; height: 8px; padding: 0; border-radius: 4px }
+.etiqueta.so-cor { display: inline-flex; width: 36px; height: 8px; padding: 0; border-radius: 4px }
+/* O x de tirar aparece ao passar o mouse ou com o foco do teclado; em tela de toque, fica sempre à vista. */
+.etiqueta.com-tirar { display: inline-flex; align-items: center }
+.etiqueta-tirar { display: inline-flex; align-items: center; justify-content: center; width: 0; height: 16px; padding: 0; border: 0; border-radius: 4px; overflow: hidden; opacity: 0; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0 }
+.etiqueta.com-tirar:hover .etiqueta-tirar, .etiqueta-tirar:focus-visible { width: 16px; margin-left: 4px; opacity: 1 }
+.etiqueta-tirar:focus-visible { outline: 2px solid currentColor; outline-offset: -2px }
+.etiqueta.so-cor.com-tirar:hover, .etiqueta.so-cor.com-tirar:focus-within { height: 18px; justify-content: flex-end }
+.etiqueta.so-cor .etiqueta-tirar { margin-left: 0 }
+.etiqueta.so-cor > [role="img"] { flex: 1; align-self: stretch }
+@media (hover: none) {
+  .etiqueta-tirar { width: 16px; margin-left: 4px; opacity: 1 }
+  .etiqueta.so-cor.com-tirar { height: 18px; justify-content: flex-end }
+  .etiqueta.so-cor .etiqueta-tirar { margin-left: 0 }
+}
 .etq-painel { display: flex; flex-direction: column; gap: 12px; width: min(300px, calc(100vw - 52px)) }
 .etq-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto }
 .etq-lista li { display: flex; align-items: center; gap: 4px }

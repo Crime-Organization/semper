@@ -76,7 +76,7 @@ test.describe('Etiquetas', () => {
     await page.goto('/pessoas/');
     // Quando
     await page.getByRole('button', { name: 'Filtros' }).click();
-    await page.getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
     // Então
     await expect(page.getByText('JOSÉ DA SILVA TESTE').first()).toBeVisible();
     await expect(page.getByText('PAULO HENRIQUE SIMULADO')).toHaveCount(0);
@@ -92,6 +92,102 @@ test.describe('Etiquetas', () => {
     await expect(painel(page).getByRole('checkbox', { name: 'Urgência do cliente' })).not.toBeChecked();
     await fecharPainel(page);
     await expect(page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).getByText('Urgência do cliente')).toHaveCount(0);
+  });
+
+  test('quando a pessoa aperta Esc no painel, então fecha só o painel, e o foco volta ao botão', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    await expect(painel(page)).toBeVisible();
+    // Quando
+    await page.keyboard.press('Escape');
+    // Então
+    await expect(painel(page)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Escolher etiquetas' })).toBeFocused();
+  });
+
+  test('quando a pessoa passa o mouse na etiqueta do cartão no quadro e clica no x, então ela sai, e o cartão não abre', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Fechar' }).first().click();
+    const jose = page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    const selo = jose.getByText('Urgência do cliente');
+    await expect(selo).toBeVisible();
+    // Quando
+    await selo.hover();
+    await jose.getByRole('button', { name: 'Tirar a etiqueta Urgência do cliente' }).click();
+    // Então
+    await expect(selo).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pessoas\/$/);
+  });
+
+  test('quando a pessoa tira a etiqueta pelo teclado, então ela sai, e o cartão não abre', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Fechar' }).first().click();
+    const jose = page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    // Quando
+    await jose.getByRole('button', { name: 'Tirar a etiqueta Urgência do cliente' }).focus();
+    await page.keyboard.press('Enter');
+    // Então
+    await expect(jose.getByText('Urgência do cliente')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/pessoas\/$/);
+  });
+
+  test('quando a pessoa filtra por etiqueta no quadro, então o total da página acompanha', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Fechar' }).first().click();
+    // Quando
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
+    // Então
+    await expect(page.getByText('1 ativa', { exact: true })).toBeVisible();
+  });
+
+  test('quando a etiqueta do filtro é excluída, então o filtro desliga e a lista volta', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Fechar' }).first().click();
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
+    await expect(page.getByText('1 ativa', { exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    // Quando
+    await page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    await painel(page).getByRole('button', { name: 'Mudar a etiqueta Urgência do cliente' }).click();
+    const form = painel(page).getByRole('form', { name: 'Mudar a etiqueta Urgência do cliente' });
+    await form.getByRole('button', { name: 'Excluir' }).click();
+    await form.getByRole('button', { name: 'Confirmar exclusão' }).click();
+    // Então
+    await expect(page.getByText('28 ativas', { exact: true })).toBeVisible();
+  });
+
+  test('quando o painel cresce no celular, então o botão de criar continua dentro da tela', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await page.getByRole('list', { name: 'Lead', exact: true }).getByRole('listitem').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    const form = painel(page).getByRole('form', { name: 'Nova etiqueta' });
+    // Quando
+    for (const texto of ['Um', 'Dois', 'Três']) {
+      await form.getByLabel('Texto').fill(texto);
+      await form.getByRole('button', { name: 'Criar etiqueta' }).click();
+      await expect(painel(page).getByRole('checkbox', { name: texto })).toBeChecked();
+    }
+    // Então
+    await expect(form.getByRole('button', { name: 'Criar etiqueta' })).toBeInViewport();
   });
 
   test('quando a etiqueta é mudada ou excluída, então isso vale para os cartões', async ({ page }) => {
@@ -124,7 +220,7 @@ test.describe('Etiquetas', () => {
         await abrirCartaoDoJose(page);
         await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
         await fecharPainel(page);
-        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Fechar' }).first().click();
         await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: modulo, exact: true }).click();
         await expect(page.getByRole('heading', { name: modulo, level: 1 })).toBeVisible();
         await page.getByRole('button', { name: 'Kanban' }).click();
@@ -135,12 +231,12 @@ test.describe('Etiquetas', () => {
         await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
         await painel(page).getByRole('checkbox', { name: 'Urgência do cliente' }).check();
         await fecharPainel(page);
-        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: 'Fechar' }).first().click();
         // Então
         await expect(cartoes.first().getByText('Urgência do cliente')).toBeVisible();
         // Quando
         await page.getByRole('button', { name: 'Filtros' }).click();
-        await page.getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
+        await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Etiqueta').selectOption({ label: 'Urgência do cliente' });
         // Então
         await expect(cartoes).toHaveCount(1);
         await expect(cartoes.first().getByText('Urgência do cliente')).toBeVisible();

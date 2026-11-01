@@ -1,34 +1,19 @@
-// Etiquetas do escritório na tela: a lista única (carregada uma vez), o selo colorido, o filtro dos módulos e a seção do
-// cartão, onde a pessoa aplica, cria, muda e exclui etiquetas. Todo módulo com quadro usa estas peças.
+// Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e a seção do cartão, onde a
+// pessoa aplica, cria, muda e exclui etiquetas. Todo módulo com quadro usa estas peças; a lista fica em etiquetasDoEscritorio.ts.
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
 import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta } from '../regras/etiquetas';
-import { falha } from './avisos';
+import { falha, sinalizarMudanca } from './avisos';
 import { Aviso, Campo, estiloBotao, Nota, propsDoCampo } from './base';
 import { BotaoDuplo } from './Botoes';
+import { buscarEtiquetas, lojaDeEtiquetas, procurarEtiquetas, useEtiquetas } from './etiquetasDoEscritorio';
 import { Icone } from './Icone';
-import { criarLoja } from './loja';
 import { MenuFlutuante } from './Menu';
 import type { Filtro } from './PaginaModulo';
 import { useCtx } from './sessao';
 
-/** A lista do escritório, a mesma para todos os módulos (null: ainda não veio). */
-export const lojaDeEtiquetas = criarLoja<Etiqueta[] | null>(null);
-let buscando = false;
-
-async function buscarEtiquetas() {
-  buscando = true;
-  try { lojaDeEtiquetas.mudar(etiquetasNaOrdem(await SD.etiquetasListar())); }
-  catch (e) { falha(e); }
-  buscando = false;
-}
-
-export function useEtiquetas(): Etiqueta[] {
-  const lista = lojaDeEtiquetas.usar();
-  useEffect(() => { if (lista === null && !buscando) void buscarEtiquetas(); }, [lista]);
-  return lista ?? [];
-}
+export { lojaDeEtiquetas, useEtiquetas, useEtiquetasDaPagina } from './etiquetasDoEscritorio';
 
 /** O filtro por etiqueta da página de módulo (some enquanto o escritório não tem etiquetas). */
 export function filtroDeEtiqueta(etiquetas: Etiqueta[], valor: string | undefined, aoMudar: (etiqueta: string) => void): Filtro[] {
@@ -36,19 +21,31 @@ export function filtroDeEtiqueta(etiquetas: Etiqueta[], valor: string | undefine
   return [{ id: 'etiqueta', rotulo: 'Etiqueta', valor: valor || '', aoMudar, opcoes: [['', 'Todas'], ...etiquetas.map(e => [e.id, nomeDaEtiqueta(e)] as [string, string])] }];
 }
 
-/** A etiqueta: com texto, uma pílula colorida; só de cor, uma faixa. */
-export function SeloEtiqueta({ e }: { e: Pick<Etiqueta, 'cor' | 'texto'> }) {
-  if (e.texto) return <span className={`etiqueta cor-${e.cor}`}>{e.texto}</span>;
+/** A etiqueta: com texto, uma pílula colorida; só de cor, uma faixa. Com aoTirar, mostra o x ao passar o mouse. */
+export function SeloEtiqueta({ e, aoTirar }: { e: Pick<Etiqueta, 'cor' | 'texto'>; aoTirar?: () => void }) {
   const nome = nomeDaEtiqueta(e);
-  return <span className={`etiqueta so-cor cor-${e.cor}`} role="img" aria-label={nome} title={nome} />;
+  const tirar = aoTirar && <button type="button" className="etiqueta-tirar" aria-label={`Tirar a etiqueta ${nome}`} title="Tirar a etiqueta"
+    onClick={ev => { ev.stopPropagation(); aoTirar(); }} onKeyDown={ev => ev.stopPropagation()}>
+    <Icone nome="fechar" tam={11} />
+  </button>;
+  const classes = `etiqueta cor-${e.cor}${aoTirar ? ' com-tirar' : ''}`;
+  if (e.texto) return <span className={classes}>{e.texto}{tirar}</span>;
+  return <span className={`${classes} so-cor`} title={nome}><span role="img" aria-label={nome} />{tirar}</span>;
 }
 
-/** As etiquetas de um cartão do quadro ou de uma linha da tabela. */
-export function EtiquetasDoItem({ etq }: { etq?: { etiqueta_id: string }[] }) {
+/** As etiquetas de um cartão do quadro ou de uma linha da tabela, com o x para tirar (cartão arquivado: só mostra). */
+export function EtiquetasDoItem({ etq, modulo, id, somenteLer }: { etq?: { etiqueta_id: string }[]; modulo: ModuloComEtiquetas; id: string; somenteLer?: boolean }) {
   const etiquetas = useEtiquetas();
-  const ids = new Set(etq?.map(x => x.etiqueta_id));
-  const minhas = etiquetas.filter(e => ids.has(e.id));
-  return minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} />)}</div> : null;
+  const carregada = lojaDeEtiquetas.usar() !== null;
+  const ids = etq?.map(x => x.etiqueta_id) ?? [];
+  const chave = ids.join();
+  // Etiqueta que a lista não conhece: um colega acabou de criar.
+  useEffect(() => { if (carregada && chave) procurarEtiquetas(chave.split(','), lojaDeEtiquetas.ler() ?? []); }, [carregada, chave]);
+  async function tirar(e: Etiqueta) {
+    try { await SD.etiquetaTirar(modulo, id, e.id); sinalizarMudanca(); } catch (err) { falha(err); }
+  }
+  const minhas = etiquetas.filter(e => ids.includes(e.id));
+  return minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} aoTirar={somenteLer ? undefined : () => tirar(e)} />)}</div> : null;
 }
 
 interface PropsSecao {
@@ -68,6 +65,7 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
 
   useEffect(() => {
     let vale = true;
+    void buscarEtiquetas();
     SD.etiquetasDoCartao(modulo, id).then(l => { if (vale) setIds(l); }).catch(falha);
     return () => { vale = false; };
   }, [modulo, id]);
@@ -84,7 +82,7 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
   const minhas = etiquetas.filter(e => ids.includes(e.id));
   return <section className="bloco">
     <h3><Icone nome="etiqueta" tam={14} />Etiquetas</h3>
-    {minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} />)}</div> : <Nota>Nenhuma etiqueta.</Nota>}
+    {minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} aoTirar={somenteLer ? undefined : () => marcar(e, false)} />)}</div> : <Nota>Nenhuma etiqueta.</Nota>}
     {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-expanded={!!botao} onClick={ev => { const alvo = ev.currentTarget; setBotao(b => b ? null : alvo); }}>
       <Icone nome="etiqueta" tam={13} /> Escolher etiquetas
     </button></div>}
