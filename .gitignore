@@ -26,6 +26,9 @@ dist/
 # Arquivos de trabalho das skills de design
 .taste-skill/
 
+# Conversor da planilha do site compilado (npm run converter-planilha)
+app/ferramentas/planilha-do-site/.saida/
+
 # Resultados dos testes de ponta a ponta (Playwright)
 app/playwright-report/
 app/test-results/
