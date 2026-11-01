@@ -68,7 +68,7 @@ export interface PrazoContado {
 // ---------- datas (em UTC, para o fuso não mudar o dia) ----------
 const paraData = (iso: string) => { const [a, m, d] = iso.split('-').map(Number); return new Date(Date.UTC(a, m - 1, d)); };
 const paraISO = (d: Date) => d.toISOString().slice(0, 10);
-const somarDias = (iso: string, n: number) => { const d = paraData(iso); d.setUTCDate(d.getUTCDate() + n); return paraISO(d); };
+export const somarDias = (iso: string, n: number) => { const d = paraData(iso); d.setUTCDate(d.getUTCDate() + n); return paraISO(d); };
 const proximo = (iso: string) => somarDias(iso, 1);
 /** Nome do dia da semana que nunca tem expediente (0 = domingo, 6 = sábado). */
 const FIM_DE_SEMANA: Record<number, string> = { 0: 'domingo', 6: 'sábado' };

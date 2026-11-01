@@ -6,7 +6,7 @@
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
-  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia
+  DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Orgao
 } from './tipos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -20,6 +20,9 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES } from './limites';
+import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ORGAO } from './limites';
+import { padraoDoOrgao } from '../regras/calendario';
+import { TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -84,6 +87,9 @@ interface Banco {
   listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
   modelos?: ModeloDeLista[];
+  /** Órgãos e dias sem expediente do escritório (orgaos e dias_sem_expediente no banco). */
+  orgaos?: Orgao[];
+  diasLancados?: DiaLancado[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -266,6 +272,13 @@ bd.modelos ??= [
   { id: novoId(), nome: 'Documentos de pessoa jurídica', itens: ['Comprovante de inscrição e de situação cadastral', 'Quadro de sócios e administradores', 'Atos constitutivos'],
     criado_por: 'u-ana', atualizado_em: agora() }
 ];
+// Três órgãos de exemplo, com o que cada um costuma seguir. Nenhum dia lançado: os testes lançam os seus.
+bd.orgaos ??= [
+  { id: novoId(), ...padraoDoOrgao('TJMG'), nome: 'Tribunal de Justiça de Minas Gerais' },
+  { id: novoId(), ...padraoDoOrgao('TRF6'), nome: 'Tribunal Regional Federal da 6ª Região' },
+  { id: novoId(), ...padraoDoOrgao('INPI'), nome: 'Instituto Nacional da Propriedade Industrial' }
+];
+bd.diasLancados ??= [];
 // Colunas de tarefas: "Para fazer" e "Concluída" são as colunas-marco (como a migração 020).
 if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
   bd.colunas.push(...SITUACOES_TAREFA.map((nome, i) => ({ id: 't' + (i + 1), nome, ordem: i + 1, criado_por: null, modulo: 'tarefas' as const,
@@ -730,6 +743,30 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
     if (m.itens.some(i => i.length > TAMANHO_ITEM)) throw new Error(`Cada item do modelo pode ter até ${TAMANHO_ITEM} caracteres.`);
   }
   return m;
+}
+// ---------- calendário de feriados e suspensões ----------
+const FORMATO_INVALIDO = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
+const porSigla = (a: Orgao, b: Orgao) => a.sigla.localeCompare(b.sigla, 'pt-BR');
+/** Como o gatilho preparar_orgao, as regras check e o índice de sigla única da migração. */
+function prepararOrgao(campos: Partial<DadosOrgao>, id?: string): Partial<DadosOrgao> {
+  const o = { ...campos };
+  if (o.sigla !== undefined) {
+    o.sigla = o.sigla.trim().toUpperCase();
+    if (!o.sigla || o.sigla.length > TAMANHO_ORGAO.sigla) throw new Error(FORMATO_INVALIDO);
+    if (bd.orgaos!.some(x => x.id !== id && x.sigla === o.sigla)) throw new Error('Já existe um órgão com essa sigla.');
+  }
+  if (o.nome !== undefined) {
+    o.nome = o.nome?.trim() || null;
+    if ((o.nome?.length ?? 0) > TAMANHO_ORGAO.nome) throw new Error(FORMATO_INVALIDO);
+  }
+  return o;
+}
+/** Como as regras check de dias_sem_expediente e a chave que liga o dia a um órgão do mesmo escritório. */
+function conferirDia(d: Omit<DiaLancado, 'id'>) {
+  const ano = Number(d.data.slice(0, 4));
+  if (!d.motivo.trim() || d.motivo.length > TAMANHO_DIA.motivo || !(d.tipo in TIPOS_SEM_EXPEDIENTE)
+    || !/^\d{4}-\d{2}-\d{2}$/.test(d.data) || ano < ANOS_DO_CALENDARIO.de || ano > ANOS_DO_CALENDARIO.ate) throw new Error(FORMATO_INVALIDO);
+  if (d.orgao_id !== null && !bd.orgaos!.some(o => o.id === d.orgao_id)) throw new Error('Não foi possível concluir agora. Tente de novo.');
 }
 // ---------- listas das demandas e das tarefas ----------
 /** De cada cartão com listas: o campo que liga a lista a ele e como achá-lo (erro se não existe). */
@@ -1341,6 +1378,35 @@ export const SD: Dados = {
     gravar(); return espera(itemLido(item));
   },
   async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
+
+  // ---------- calendário (como supabase/migrations/20261101112711_calendario_de_prazos.sql) ----------
+  orgaosListar: () => espera([...bd.orgaos!].sort(porSigla)),
+  async orgaoCriar(o) {
+    const novo = { id: novoId(), ...o, ...prepararOrgao(o) } as Orgao;
+    bd.orgaos!.push(novo); gravar(); return espera(novo);
+  },
+  // Quem está logado aqui é administrador: um órgão que já não existe (outro administrador excluiu) não dá erro, como no banco.
+  async orgaoAtualizar(id, campos) {
+    const o = bd.orgaos!.find(x => x.id === id); if (!o) return;
+    Object.assign(o, prepararOrgao(campos, id)); gravar();
+  },
+  async orgaoExcluir(id) {
+    bd.orgaos = bd.orgaos!.filter(o => o.id !== id);
+    bd.diasLancados = bd.diasLancados!.filter(d => d.orgao_id !== id);   // on delete cascade
+    gravar();
+  },
+  diasListar: (de, ate) => espera(bd.diasLancados!.filter(d => d.data >= de && d.data <= ate).sort((a, b) => a.data.localeCompare(b.data))),
+  // O mesmo dia para o mesmo órgão (ou para todos) substitui o que havia (a regra dias_sem_expediente_unico).
+  async diasLancar(linhas) {
+    linhas.forEach(conferirDia);
+    for (const l of linhas) {
+      const ja = bd.diasLancados!.find(d => d.data === l.data && d.orgao_id === l.orgao_id);
+      if (ja) Object.assign(ja, { motivo: l.motivo, tipo: l.tipo });
+      else bd.diasLancados!.push({ id: novoId(), ...l });
+    }
+    gravar(); return espera(linhas.length);
+  },
+  async diasExcluir(ids) { const fora = new Set(ids); bd.diasLancados = bd.diasLancados!.filter(d => !fora.has(d.id)); gravar(); },
 
   // ---------- modelos de lista (como banco/019_modelos_de_lista.sql) ----------
   modelosListar: () => espera([...bd.modelos!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),

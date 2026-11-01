@@ -1,0 +1,36 @@
+/* Feriados e prazos (Calendario.tsx e paginas/calendario/) */
+.calendario section { display: flex; flex-direction: column; gap: 14px }
+/* As opções (Escolhas) ficam lado a lado com o texto, mesmo dentro de .campos (que põe os rótulos em coluna). */
+.calendario .escolhas label { flex-direction: row; font-size: 15px; font-weight: 400; color: var(--ink) }
+
+/* Calcular um prazo */
+.calc-dje { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--ink); cursor: pointer }
+.calc-dje input { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0 }
+.calc-resultado .nota, .calc-resultado .aviso { margin: 0 }
+.calc-final { display: flex; flex-direction: column; gap: 12px; border-color: var(--accent); background: var(--accent-tint) }
+.calc-ultimo { margin: 0; font-size: 15px; color: var(--text2) }
+.calc-ultimo b { display: block; font-size: 24px; font-weight: 900; color: var(--ink) }
+.calc-datas { margin: 0; display: flex; flex-wrap: wrap; gap: 8px 28px }
+.calc-datas dt { font-size: 13px; color: var(--muted) }
+.calc-datas dd { margin: 0; font-weight: 700; color: var(--ink) }
+.calc-pulos-titulo { margin: 0; font-size: 15px; font-weight: 900; color: var(--ink) }
+.calc-pulos { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--text) }
+
+/* Calendário do ano, mês a mês */
+.meses { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 460px), 1fr)); gap: 18px }
+.mes h3 { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink); text-transform: capitalize }
+.mes ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line) }
+.dia { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 0; border-bottom: 1px solid var(--line) }
+.dia-data { display: flex; flex-direction: column; min-width: 96px }
+.dia-data small, .dia-motivo small { font-size: 13px; color: var(--muted) }
+.dia-motivo { flex: 1 1 180px; display: flex; flex-direction: column; min-width: 0; color: var(--ink) }
+
+/* Lançar dias */
+.lancar-dias { display: flex; flex-direction: column; gap: 14px }
+.lancar-dias .escolhas label small { display: block; color: var(--muted) }
+.lancar-acoes { display: flex; gap: 8px; flex-wrap: wrap }
+
+/* Órgãos */
+.orgaos-legenda { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; color: var(--text2); font-size: 14px }
+.orgaos .tabela .centro { text-align: center }
+.orgao-novo { align-items: end }

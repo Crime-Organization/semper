@@ -1,4 +1,5 @@
 // Formato dos dados trocados entre as telas e a camada de dados (dados/supabase.ts e dados/falso.ts).
+import type { Contagem, TipoSemExpediente } from '../regras/prazos';
 
 export type Papel = 'master' | 'admin' | 'usuario';
 /** O que a pessoa faz no escritório. Diferente do papel: administrador é quem gere o sistema; administrativo é uma função. */
@@ -605,6 +606,40 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
+/** Órgão em que o escritório atua (TJMG, TRF6, INPI…): como os prazos dele contam quando ninguém escolhe e que dias
+ *  prontos ele segue além dos feriados nacionais (regras/calendario.ts). */
+export interface Orgao {
+  id: string; sigla: string; nome: string | null; contagem_padrao: Contagem;
+  /** Segue o recesso forense (20/12 a 20/01). */
+  recesso: boolean;
+  /** Não tem expediente no Carnaval, na Sexta-feira Santa e no Corpus Christi. */
+  praxe: boolean;
+  /** Segue os feriados da Justiça Federal (Lei 5.010/1966, art. 62). */
+  justica_federal: boolean;
+}
+export type DadosOrgao = Omit<Orgao, 'id'>;
+/** Dia sem expediente lançado pelo escritório. Sem órgão: vale para todos. */
+export interface DiaLancado { id: string; data: string; motivo: string; tipo: TipoSemExpediente; orgao_id: string | null }
+/** Um lançamento: os mesmos motivo e tipo, em cada dia e para cada órgão (null: todos os órgãos). */
+export interface LinhaDeLancamento { data: string; motivo: string; tipo: TipoSemExpediente; orgao_id: string | null }
+
+/** Calendário de feriados e suspensões (supabase/migrations/20261101112711_calendario_de_prazos.sql): todos do
+ *  escritório consultam; só os administradores mudam. Os feriados nacionais e os prontos não ficam no banco. */
+export interface DadosCalendario {
+  /** Os órgãos do escritório, por sigla. */
+  orgaosListar(): Promise<Orgao[]>;
+  orgaoCriar(o: DadosOrgao): Promise<Orgao>;
+  orgaoAtualizar(id: string, campos: Partial<DadosOrgao>): Promise<void>;
+  /** Exclui o órgão e os dias lançados só para ele. */
+  orgaoExcluir(id: string): Promise<void>;
+  /** Os dias lançados de `de` a `ate` (inclusive, "aaaa-mm-dd"), por data. */
+  diasListar(de: string, ate: string): Promise<DiaLancado[]>;
+  /** Grava as linhas; a que repete dia e órgão de outra substitui o motivo e o tipo. Devolve quantas gravou. */
+  diasLancar(linhas: LinhaDeLancamento[]): Promise<number>;
+  /** Exclui os dias lançados (ex.: todos os de um período). */
+  diasExcluir(ids: string[]): Promise<void>;
+}
+
 /** Inscrição na OAB: o número e a seccional (UF). */
 export interface InscricaoOab { numero: string; uf: string }
 /** Uma formação: curso, instituição e ano (ou período). */
@@ -773,4 +808,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario {}

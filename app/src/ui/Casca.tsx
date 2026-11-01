@@ -47,7 +47,7 @@ export function Casca({ children }: { children: ReactNode }) {
     await SD.sair();
     navegar('/entrar/');
   };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'equipe' | 'configuracoes', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'calendario' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
@@ -82,6 +82,7 @@ export function Casca({ children }: { children: ReactNode }) {
             {item('/tarefas/', 'tarefas', 'Tarefas')}
             <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={15} /></Link>
           </div>}
+          {item('/calendario/', 'calendario', 'Feriados e prazos')}
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>
