@@ -15,21 +15,31 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, childre
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;
   useLayoutEffect(() => {
-    const r = botao.getBoundingClientRect(), m = ref.current!;
-    // Abre abaixo do botão; se não couber, sobe até caber na tela (o menu mais alto que a tela rola por dentro: .kmenu).
-    const noFimDaTela = window.scrollY + window.innerHeight - m.offsetHeight - MARGEM_DA_TELA;
-    setPos({
-      top: Math.max(window.scrollY + MARGEM_DA_TELA, Math.min(r.bottom + window.scrollY + DISTANCIA_DO_BOTAO, noFimDaTela)),
-      left: Math.max(MARGEM_DA_TELA, Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - MARGEM_DA_TELA))
-    });
+    const m = ref.current!;
+    const posicionar = () => {
+      const r = botao.getBoundingClientRect();
+      // Abre abaixo do botão; se não couber, sobe até caber na tela (o menu mais alto que a tela rola por dentro: .kmenu).
+      const noFimDaTela = window.scrollY + window.innerHeight - m.offsetHeight - MARGEM_DA_TELA;
+      setPos({
+        top: Math.max(window.scrollY + MARGEM_DA_TELA, Math.min(r.bottom + window.scrollY + DISTANCIA_DO_BOTAO, noFimDaTela)),
+        left: Math.max(MARGEM_DA_TELA, Math.min(r.left + window.scrollX, window.innerWidth - m.offsetWidth - MARGEM_DA_TELA))
+      });
+    };
+    posicionar();
     m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button')?.focus();
+    // O painel que cresce (ex.: uma etiqueta nova na lista) sobe para continuar dentro da tela.
+    const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(posicionar);
+    observador?.observe(m);
+    return () => observador?.disconnect();
   }, [botao, painel]);
   useEffect(() => {
-    const fora = (e: MouseEvent) => { if (painel && ref.current?.contains(e.target as Node)) return; fechar.current(); };
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { fechar.current(); botao.focus(); } };
+    // composedPath: vale mesmo se o clique tirou da tela o elemento clicado (ex.: o formulário de um painel).
+    const fora = (e: MouseEvent) => { if (painel && e.composedPath().includes(ref.current!)) return; fechar.current(); };
+    // Antes dos outros (captura): o Esc fecha só o menu, e não também a janela ou o cartão onde ele está.
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); fechar.current(); botao.focus(); } };
     const t = setTimeout(() => document.addEventListener('click', fora), 0);
-    document.addEventListener('keydown', tecla);
-    return () => { clearTimeout(t); document.removeEventListener('click', fora); document.removeEventListener('keydown', tecla); };
+    document.addEventListener('keydown', tecla, true);
+    return () => { clearTimeout(t); document.removeEventListener('click', fora); document.removeEventListener('keydown', tecla, true); };
   }, [botao, painel]);
   return createPortal(<div className={painel ? 'kmenu painel' : 'kmenu'} role={painel ? 'dialog' : 'menu'} aria-label={rotulo} ref={ref} style={pos}>
     {children}

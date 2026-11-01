@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
 import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda } from '../regras/demanda';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -123,6 +124,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
     </section>
+
+    <SecaoEtiquetas modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em} aoMudar={aoMudar} />
 
     <ListasDoCartao modulo="demandas" id={d.id} />
 

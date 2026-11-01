@@ -387,7 +387,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kmenu { max-height: calc(100dvh - 24px); overflow-y: auto }
 .kmenu > * { flex-shrink: 0 }
 .kmenu button { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
-.kmenu button:hover, .kmenu button:focus-visible { background: var(--soft); outline: 0 }
+.kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible { background: var(--soft); outline: 0 }
 .kmenu button.perigo { color: var(--erro) }
 /* Ordem de cada coluna: escolhida no topo do menu da coluna e mostrada abaixo do título quando não é a manual. */
 .kmenu-titulo { margin: 0; padding: 8px 12px 4px }
@@ -621,3 +621,43 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* No menu, quando alguma tarefa está com o cronômetro contando: quantas e "Pausar todos" (Casca.tsx). */
 .cronometros-ativos { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-tint); color: var(--accent-ink); font-size: 13px; font-weight: 700 }
 .cronometros-ativos > span { display: inline-flex; align-items: center; gap: 6px }
+
+/* ---------- etiquetas (ui/Etiquetas.tsx) ---------- */
+/* A paleta fixa é a mesma no claro e no escuro: a etiqueta tem fundo próprio, e cada par de fundo e tinta passa no contraste. */
+:root {
+  --etq-vermelho: #B91C1C; --etq-laranja: #B45309; --etq-amarelo: #FACC15; --etq-verde: #15803D; --etq-azul: #1D4ED8; --etq-roxo: #6D28D9; --etq-rosa: #BE185D; --etq-cinza: #4B5563;
+  --etq-tinta: #FFFFFF; --etq-tinta-escura: #1C1917;
+}
+.cor-vermelho { --etq: var(--etq-vermelho) } .cor-laranja { --etq: var(--etq-laranja) } .cor-amarelo { --etq: var(--etq-amarelo); --etq-sobre: var(--etq-tinta-escura) }
+.cor-verde { --etq: var(--etq-verde) } .cor-azul { --etq: var(--etq-azul) } .cor-roxo { --etq: var(--etq-roxo) } .cor-rosa { --etq: var(--etq-rosa) } .cor-cinza { --etq: var(--etq-cinza) }
+.etiquetas { display: flex; flex-wrap: wrap; gap: 4px }
+.etiqueta { display: inline-block; max-width: 100%; padding: 2px 8px; border-radius: 6px; background: var(--etq); color: var(--etq-sobre, var(--etq-tinta)); font-size: 12px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere }
+.etiqueta.so-cor { display: inline-flex; width: 36px; height: 8px; padding: 0; border-radius: 4px }
+/* O x de tirar aparece ao passar o mouse ou com o foco do teclado; em tela de toque, fica sempre à vista. */
+.etiqueta.com-tirar { display: inline-flex; align-items: center }
+.etiqueta-tirar { display: inline-flex; align-items: center; justify-content: center; width: 0; height: 16px; padding: 0; border: 0; border-radius: 4px; overflow: hidden; opacity: 0; background: transparent; color: inherit; cursor: pointer; flex-shrink: 0 }
+.etiqueta.com-tirar:hover .etiqueta-tirar, .etiqueta-tirar:focus-visible { width: 16px; margin-left: 4px; opacity: 1 }
+.etiqueta-tirar:focus-visible { outline: 2px solid currentColor; outline-offset: -2px }
+.etiqueta.so-cor.com-tirar:hover, .etiqueta.so-cor.com-tirar:focus-within { height: 18px; justify-content: flex-end }
+.etiqueta.so-cor .etiqueta-tirar { margin-left: 0 }
+.etiqueta.so-cor > [role="img"] { flex: 1; align-self: stretch }
+@media (hover: none) {
+  .etiqueta-tirar { width: 16px; margin-left: 4px; opacity: 1 }
+  .etiqueta.so-cor.com-tirar { height: 18px; justify-content: flex-end }
+  .etiqueta.so-cor .etiqueta-tirar { margin-left: 0 }
+}
+.etq-painel { display: flex; flex-direction: column; gap: 12px; width: min(300px, calc(100vw - 52px)) }
+.etq-lista { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto }
+.etq-lista li { display: flex; align-items: center; gap: 4px }
+.etq-lista li .coluna-menu { flex-shrink: 0; width: 28px; height: 28px; padding: 0; justify-content: center }
+.etq-opcao { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 36px; cursor: pointer }
+.etq-form { display: flex; flex-direction: column; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line) }
+.etq-form .rotulo-caps { margin: 0 }
+.etq-cores { display: flex; flex-wrap: wrap; gap: 8px }
+.etq-cor { position: relative; width: 28px; height: 28px; border-radius: 8px; background: var(--etq); cursor: pointer }
+.etq-cor input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer }
+.etq-cor:has(input:checked) { outline: 2px solid var(--ink); outline-offset: 2px }
+.etq-cor:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px }
+.etq-acoes { display: flex; flex-wrap: wrap; gap: 8px }
+.kcartao > .etiquetas { margin-bottom: -2px }
+.tabela td > .etiquetas { margin-bottom: 4px }

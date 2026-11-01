@@ -12,6 +12,7 @@ import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { PainelCartao } from '../ui/PainelCartao';
+import { EtiquetasDoItem, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { PaginaModulo, type Visao } from '../ui/PaginaModulo';
 import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -65,7 +66,7 @@ export default function Contratos() {
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
-  }, [visao, f, ordem.valor, recarga]);
+  }, [visao, f, ordem.valor, f.etiqueta, recarga]);
 
   // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
   const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
@@ -75,7 +76,7 @@ export default function Contratos() {
     SD.contratosListar({ ...f, situacao: 'ativos', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.categoria, f.responsavel, recarga]);
+  }, [visao, f.termo, f.categoria, f.responsavel, f.etiqueta, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivados, setTotalArquivados] = useState<number | null>(null);
@@ -85,11 +86,12 @@ export default function Contratos() {
     SD.contratosListar({ ...f, situacao: 'arquivados', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivados(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.categoria, f.responsavel, recarga]);
+  }, [visao, f.termo, f.categoria, f.responsavel, f.etiqueta, recarga]);
   const arquivados = (pagina: number, porPagina: number) => SD.contratosListar({ ...f, situacao: 'arquivados', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.categoria || f.responsavel);
+  const filtrado = !!(f.termo || f.categoria || f.responsavel || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroContratos>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
+  const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
   function trocarVisao(v: Visao) {
     setVisao(v);
@@ -115,6 +117,7 @@ export default function Contratos() {
     </span>
   </> : null;
 
+  const chaveDaLista = [recarga, f.termo, f.categoria, f.responsavel, f.etiqueta].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativo', 'ativos');
 
@@ -126,13 +129,14 @@ export default function Contratos() {
           aoMudar: responsavel => { mudarFiltro({ responsavel }); salvarPreferencia('contratos.responsavel', responsavel); },
           opcoes: [['', 'Todos os responsáveis'], [eu, 'Sob minha responsabilidade'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         { id: 'categoria', rotulo: 'Categoria de honorário', valor: f.categoria || '', aoMudar: categoria => mudarFiltro({ categoria }),
-          opcoes: [['', 'Todas as categorias'], ...Object.entries(CATEGORIAS)] }
+          opcoes: [['', 'Todas as categorias'], ...Object.entries(CATEGORIAS)] },
+        ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta }))
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<ContratoLista> quadro={quadro}
-          recarga={[recarga, f.termo, f.categoria, f.responsavel].join('|')}
+          recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.contratosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, 30)}
           ordemDe={k => k.etapa_ordem}
           arquivados={deslocamento => arquivados(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
@@ -153,7 +157,7 @@ export default function Contratos() {
           <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<ContratoLista> modulo="contratos" nome={{ um: 'contrato', varios: 'contratos', feminino: false }} total={totalArquivados}
-            versao={recarga} aoMudar={recarregar} listar={pagina => arquivados(pagina, POR_PAGINA)}
+            versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivados(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.contratosArquivar(ids, a)} excluir={ids => SD.contratosExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivados', pagina: numeroDaPagina }} ordem="recentes"
               filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
@@ -169,6 +173,7 @@ function CartaoKanban({ k, ordem }: { k: ContratoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, k);
   return <>
+    <EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} />
     <div className="kt">{clientesPorExtenso(k.cliente_nome)}</div>
     <div className="km">
       <span className="codigo">{k.codigo}</span>
@@ -215,7 +220,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
       </tr></thead>
       <tbody>{linhas.map(k => <LinhaQueAbre key={k.id} para={endereco(k.id)} aoAbrir={() => aoAbrir(k.id)} marcada={selecionadas.has(k.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} onChange={e => marcar([k.id], e.target.checked)} /></td>
-        <td><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
+        <td><EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} /><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}><span className="codigo">{k.codigo}</span>{k.codigo_antigo && <div className="sub">antigo: {k.codigo_antigo}</div>}</td>
         <td>{CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtDinheiro(k.valor)}</td>

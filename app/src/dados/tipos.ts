@@ -1,4 +1,5 @@
 // Formato dos dados trocados entre as telas e a camada de dados (dados/supabase.ts e dados/falso.ts).
+import type { CorDaEtiqueta } from '../regras/etiquetas';
 import type { Contagem, TipoSemExpediente } from '../regras/prazos';
 
 export type Papel = 'master' | 'admin' | 'usuario';
@@ -132,7 +133,7 @@ export type DadosPessoa = Partial<Omit<Pessoa, 'id' | 'codigo' | 'resp' | 'criad
 /** Linha das listagens (tabela, kanban, início). */
 export type PessoaLista = Pick<Pessoa, 'id' | 'codigo' | 'tipo' | 'nome' | 'nome_fantasia' | 'documento' | 'telefones' | 'emails'
   | 'municipio' | 'uf' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'resp'
-  | 'pendencias' | 'importacao_id'>;
+  | 'pendencias' | 'importacao_id'> & ComEtiquetas;
 
 /** Ordem das listas de qualquer módulo: "manual" é a do quadro (arrastando os cartões); as outras valem para quadro e tabela. */
 export type Ordem = 'manual' | 'nome' | 'nome_desc' | 'novos' | 'antigos' | 'recentes';
@@ -141,6 +142,7 @@ export interface PessoaResumida { id: string; codigo: string; nome: string; tipo
 
 export interface FiltroPessoas {
   termo?: string;
+  etiqueta?: string;
   tipo?: string;
   responsavel?: string;
   situacao?: 'ativas' | 'arquivadas';
@@ -251,10 +253,11 @@ export type DadosContrato = Partial<{ clientes: string[]; participantes: Partici
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
-  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome'>;
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome'> & ComEtiquetas;
 
 export interface FiltroContratos {
   termo?: string;
+  etiqueta?: string;
   responsavel?: string;
   categoria?: string;
   situacao?: 'ativos' | 'arquivados';
@@ -305,9 +308,10 @@ export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titul
   | 'colaboradores' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
 export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
-  | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'>;
+  | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   termo?: string;
+  etiqueta?: string;
   /** Um usuário da equipe: as demandas em que ele é o responsável ou um colaborador. */
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
@@ -366,9 +370,10 @@ export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' 
   | 'participantes' | 'demanda_id' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
-  | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'>;
+  | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroTarefas {
   termo?: string;
+  etiqueta?: string;
   /** Um usuário da equipe: as tarefas em que ele é o responsável ou um participante. */
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
@@ -608,6 +613,27 @@ export interface DadosModelos {
   modeloExcluir(id: string): Promise<void>;
 }
 
+/** Etiqueta do escritório: uma cor da paleta e, se quiser, um texto (sem texto, é uma faixa colorida). */
+export interface Etiqueta { id: string; cor: CorDaEtiqueta; texto: string | null; criado_por: string | null }
+/** Os módulos cujos cartões levam etiquetas. */
+export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas'>;
+/** Item de lista com as etiquetas dele (etq: as ligações, como vêm do banco). */
+export interface ComEtiquetas { etq?: { etiqueta_id: string }[] }
+
+/** Etiquetas (supabase/migrations/20261101131705_etiquetas.sql): lista única do escritório; qualquer pessoa cria e aplica nos
+ *  cartões que vê; muda ou exclui quem criou ou um administrador. */
+export interface DadosEtiquetas {
+  etiquetasListar(): Promise<Etiqueta[]>;
+  etiquetaCriar(cor: CorDaEtiqueta, texto: string | null): Promise<Etiqueta>;
+  etiquetaAtualizar(id: string, campos: Pick<Etiqueta, 'cor' | 'texto'>): Promise<void>;
+  /** Exclui a etiqueta e a tira de todos os cartões. */
+  etiquetaExcluir(id: string): Promise<void>;
+  /** Os ids das etiquetas do cartão. */
+  etiquetasDoCartao(modulo: ModuloComEtiquetas, id: string): Promise<string[]>;
+  etiquetaAplicar(modulo: ModuloComEtiquetas, id: string, etiquetaId: string): Promise<void>;
+  etiquetaTirar(modulo: ModuloComEtiquetas, id: string, etiquetaId: string): Promise<void>;
+}
+
 /** Órgão em que o escritório atua (TJMG, TRF6, INPI…): como os prazos dele contam quando ninguém escolhe e que dias
  *  prontos ele segue além dos feriados nacionais (regras/calendario.ts). */
 export interface Orgao {
@@ -818,4 +844,4 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario {}
+export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas {}

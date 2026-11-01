@@ -20,6 +20,8 @@ const REPETIDO: Regra[] = [
   { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de lista com esse nome.' },
   { padrao: /orgaos_sigla_unica/, mensagem: 'Já existe um órgão com essa sigla.' },
   { padrao: /quadro_grupos_nome_unico/, mensagem: 'Já existe um grupo com esse nome neste quadro.' },
+  { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
+  { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
   { mensagem: 'Esse registro já existe.' }
 ];
 

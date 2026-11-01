@@ -15,7 +15,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, GrupoDeColunas, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -95,7 +95,22 @@ function termoBusca(texto?: string) {
   if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
   return normal(t).replace(/[%_\\]/g, m => '\\' + m);
 }
+/** A tabela que liga os cartões de cada módulo às etiquetas, e a coluna do cartão nela. */
+const ETIQUETAS_DO_MODULO: Record<ModuloComEtiquetas, { tabela: string; coluna: string }> = {
+  pessoas: { tabela: 'pessoa_etiquetas', coluna: 'pessoa_id' },
+  contratos: { tabela: 'contrato_etiquetas', coluna: 'contrato_id' },
+  demandas: { tabela: 'demanda_etiquetas', coluna: 'demanda_id' },
+  tarefas: { tabela: 'tarefa_etiquetas', coluna: 'tarefa_id' }
+};
+/** Os campos da lista mais as etiquetas do item; filtrando por uma etiqueta, só vêm os itens que a têm (ligação !inner, com outro nome, para o item continuar trazendo todas). */
+function comEtiquetas(campos: string, modulo: ModuloComEtiquetas, f: { etiqueta?: string }) {
+  const { tabela } = ETIQUETAS_DO_MODULO[modulo];
+  return `${campos}, etq:${tabela}(etiqueta_id)` + (f.etiqueta ? `, filtro_etq:${tabela}!inner(etiqueta_id)` : '');
+}
+const porEtiqueta = (q: Livre, f: { etiqueta?: string }) => f.etiqueta ? q.eq('filtro_etq.etiqueta_id', f.etiqueta) : q;
+
 function filtrar(q: Livre, f: FiltroPessoas = {}) {
+  q = porEtiqueta(q, f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.tipo) q = q.eq('tipo', f.tipo);
   if (f.responsavel) q = q.eq('filtro.perfil_id', f.responsavel);
@@ -104,7 +119,7 @@ function filtrar(q: Livre, f: FiltroPessoas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
-const selecao =(f: FiltroPessoas) => CAMPOS_LISTA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '');
+const selecao =(f: FiltroPessoas) => comEtiquetas(CAMPOS_LISTA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : ''), 'pessoas', f);
 
 async function sincronizarResponsaveis(pessoaId: string, responsaveis?: string[]) {
   if (!Array.isArray(responsaveis)) return;
@@ -150,6 +165,7 @@ const ORDENS_CONTRATO: Record<Ordem, (q: Livre) => Livre> = {
 };
 const ordenarContratos = (q: Livre, ordem: Ordem) => ORDENS_CONTRATO[ordem](q).order('id');
 function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
+  q = porEtiqueta(q, f);
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.responsavel) q = q.eq('responsavel_id', f.responsavel);
   if (f.categoria) q = q.eq('categoria', f.categoria);
@@ -178,6 +194,7 @@ const ORDENS_PELO_TITULO: Record<Ordem, (q: Livre) => Livre> = {
 };
 const ordenarPeloTitulo = (q: Livre, ordem: Ordem) => ORDENS_PELO_TITULO[ordem](q).order('id');
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
+  q = porEtiqueta(q, f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
   const t = termoBusca(f.termo);
@@ -195,6 +212,7 @@ const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, par
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
+  q = porEtiqueta(q, f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
   const t = termoBusca(f.termo);
@@ -213,6 +231,11 @@ const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
 const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
 const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
 const CAMPOS_GRUPO = 'id, nome, ordem, comeca_fechado';
+const CAMPOS_ETIQUETA = 'id, cor, texto, criado_por';
+/** Nenhuma linha mudou: quem não é administrador só muda as etiquetas que criou; para o administrador, outro já tinha excluído. */
+const conferirDonoDaEtiqueta = (linhas: unknown[]) => {
+  if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só quem criou a etiqueta ou um administrador pode mudá-la.');
+};
 /** Nenhuma linha mudou: quem não é administrador não pode mudar; para o administrador, outro já tinha excluído o grupo. */
 const conferirAdminNosGrupos = (linhas: unknown[]) => {
   if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam os grupos de colunas.');
@@ -336,7 +359,7 @@ export const SD: Dados = {
   async pessoasExportar(f = {}) {
     const lote = 1000, todas: Pessoa[] = [];
     for (let de = 0; ; de += lote) {
-      const q = filtrar(sb.from('pessoas').select(CAMPOS_PESSOA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : '')), f);
+      const q = filtrar(sb.from('pessoas').select(comEtiquetas(CAMPOS_PESSOA + (f.responsavel ? ', filtro:pessoa_responsaveis!inner(perfil_id)' : ''), 'pessoas', f)), f);
       const { data } = await rodar(ordenar(q, 'nome').range(de, de + lote - 1));
       todas.push(...data);
       if (data.length < lote) return todas;
@@ -490,12 +513,12 @@ export const SD: Dados = {
   // ---------- contratos ----------
   async contratosListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarContratos(sb.from('contratos').select(CAMPOS_CONTRATO_LISTA, { count: 'exact' }), f);
+    const q = filtrarContratos(sb.from('contratos').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
     const { data, count } = await rodar(ordenarContratos(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async contratosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    let q = filtrarContratos(sb.from('contratos').select(CAMPOS_CONTRATO_LISTA, { count: 'exact' }), f);
+    let q = filtrarContratos(sb.from('contratos').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarContratos(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
@@ -562,12 +585,12 @@ export const SD: Dados = {
   // ---------- demandas ----------
   async demandasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
+    const q = filtrarDemandas(sb.from('demandas').select(comEtiquetas(CAMPOS_DEMANDA_LISTA, 'demandas', f), { count: 'exact' }), f);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async demandasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    let q = filtrarDemandas(sb.from('demandas').select(CAMPOS_DEMANDA_LISTA, { count: 'exact' }), f);
+    let q = filtrarDemandas(sb.from('demandas').select(comEtiquetas(CAMPOS_DEMANDA_LISTA, 'demandas', f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
@@ -620,12 +643,12 @@ export const SD: Dados = {
   // ---------- tarefas ----------
   async tarefasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarTarefas(sb.from('tarefas').select(CAMPOS_TAREFA_LISTA, { count: 'exact' }), f);
+    const q = filtrarTarefas(sb.from('tarefas').select(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), { count: 'exact' }), f);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    let q = filtrarTarefas(sb.from('tarefas').select(CAMPOS_TAREFA_LISTA, { count: 'exact' }), f);
+    let q = filtrarTarefas(sb.from('tarefas').select(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
@@ -789,6 +812,37 @@ export const SD: Dados = {
   async modeloExcluir(id) {
     const { data } = await rodar(sb.from('lista_modelos').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem criou o modelo ou um administrador pode excluí-lo.');
+  },
+
+  // ---------- etiquetas ----------
+  async etiquetasListar() {
+    const { data } = await rodar(sb.from('etiquetas').select(CAMPOS_ETIQUETA).order('criado_em'));
+    return data as Etiqueta[];
+  },
+  async etiquetaCriar(cor, texto) {
+    const { data } = await rodar(sb.from('etiquetas').insert({ cor, texto, criado_por: uid() }).select(CAMPOS_ETIQUETA).single());
+    return data as Etiqueta;
+  },
+  async etiquetaAtualizar(id, campos) {
+    const { data } = await rodar(sb.from('etiquetas').update(campos).eq('id', id).select('id'));
+    conferirDonoDaEtiqueta(data);
+  },
+  async etiquetaExcluir(id) {
+    const { data } = await rodar(sb.from('etiquetas').delete().eq('id', id).select('id'));
+    conferirDonoDaEtiqueta(data);
+  },
+  async etiquetasDoCartao(modulo, id) {
+    const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
+    const { data } = await rodar(sb.from(tabela).select('etiqueta_id').eq(coluna, id));
+    return data.map((x: { etiqueta_id: string }) => x.etiqueta_id);
+  },
+  async etiquetaAplicar(modulo, id, etiquetaId) {
+    const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
+    await rodar(sb.from(tabela).upsert({ [coluna]: id, etiqueta_id: etiquetaId }, { onConflict: `${coluna},etiqueta_id`, ignoreDuplicates: true }));
+  },
+  async etiquetaTirar(modulo, id, etiquetaId) {
+    const { tabela, coluna } = ETIQUETAS_DO_MODULO[modulo];
+    await rodar(sb.from(tabela).delete().eq(coluna, id).eq('etiqueta_id', etiquetaId));
   },
 
   // ---------- calendário de feriados e suspensões ----------

@@ -13,6 +13,8 @@ describe('Erros do banco em português', () => {
       ['vinculo_tipos_unico', 'Esse tipo de vínculo já existe.'],
       ['orgaos_sigla_unica', 'Já existe um órgão com essa sigla.'],
       ['quadro_grupos_nome_unico', 'Já existe um grupo com esse nome neste quadro.'],
+      ['etiquetas_texto_unico', 'Já existe uma etiqueta com esse texto.'],
+      ['etiquetas_cor_unica', 'Já existe uma etiqueta só de cor nessa cor.'],
       ['outra_restricao', 'Esse registro já existe.']
     ])('quando a restrição é %s, então a mensagem é "%s"', (restricao, esperada) => {
       // Quando

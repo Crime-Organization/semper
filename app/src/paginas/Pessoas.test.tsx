@@ -8,14 +8,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, Membro } from '../dados';
 import Pessoas from './Pessoas';
 
-// Ao abrir, a página lista as pessoas e as colunas e os grupos do quadro; o mock declara exatamente essas operações.
+// Ao abrir, a página lista as pessoas, as colunas e os grupos do quadro e as etiquetas; o mock declara exatamente essas operações.
 const SD = vi.hoisted(() => ({
   pessoasListar: vi.fn<Dados['pessoasListar']>(),
   colunasListar: vi.fn<Dados['colunasListar']>(),
   sugestoesListar: vi.fn<Dados['sugestoesListar']>(),
-  gruposListar: vi.fn<Dados['gruposListar']>()
+  gruposListar: vi.fn<Dados['gruposListar']>(),
+  etiquetasListar: vi.fn<Dados['etiquetasListar']>()
 }));
-vi.mock('../dados', () => ({ SD: SD satisfies Pick<Dados, 'pessoasListar' | 'colunasListar' | 'sugestoesListar' | 'gruposListar'> }));
+vi.mock('../dados', () => ({ SD: SD satisfies Pick<Dados, 'pessoasListar' | 'colunasListar' | 'sugestoesListar' | 'gruposListar' | 'etiquetasListar'> }));
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 const EQUIPE: Membro[] = [{ id: 'u-mateus', nome: 'Mateus Exemplo Gonçalves', ativo: true }];
 vi.mock('../ui/sessao', () => {
@@ -37,6 +38,7 @@ describe('Pessoas: importar', () => {
     SD.colunasListar.mockReset().mockResolvedValue([]);
     SD.sugestoesListar.mockReset().mockResolvedValue([]);
     SD.gruposListar.mockReset().mockResolvedValue([]);
+    SD.etiquetasListar.mockReset().mockResolvedValue([]);
   });
 
   it('quando quem abre não é administrador, então não há o menu "Mais ações" (nem exportar, nem importar)', async () => {

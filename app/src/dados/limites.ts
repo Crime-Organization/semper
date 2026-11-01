@@ -124,3 +124,5 @@ export const IDS_POR_EXCLUSAO = 100;
 export const LINHAS_POR_CONSULTA = 1000;
 /** Nome de grupo de colunas do quadro (exigido pelo banco: supabase/migrations/20261101121647_grupos_de_colunas.sql). */
 export const TAMANHO_GRUPO = 60;
+/** Texto da etiqueta (exigido pelo banco: supabase/migrations/20261101131705_etiquetas.sql). */
+export const TAMANHO_ETIQUETA = 40;

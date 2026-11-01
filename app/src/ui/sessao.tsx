@@ -3,6 +3,7 @@
 import { createContext, Suspense, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router';
 import { SD, type ContextoAtivo } from '../dados';
+import { iniciarEtiquetas } from './etiquetasDoEscritorio';
 import { iniciarPreferencias } from './preferencias';
 import { aplicarTema, type Tema } from './tema';
 import { Casca } from './Casca';
@@ -47,6 +48,7 @@ export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
     if (!c) { navegar('/entrar/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
     if (!c.perfil) { await SD.sair().catch(() => {}); navegar('/entrar/?desativado', { replace: true }); return; }
     iniciarPreferencias(c.perfil.preferencias);
+    iniciarEtiquetas(c.perfil.id);
     if (primeira) aplicarTema((c.perfil.preferencias?.tema as Tema) || 'auto');
     if (forcar || primeira) lidoEm.current = Date.now();
     setCtx({ ...c, perfil: { ...c.perfil } } as ContextoAtivo);

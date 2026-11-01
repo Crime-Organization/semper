@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
 import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
+import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -137,6 +138,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes">
       <ItensLigados itens={partes} />
     </Recolhivel>
+
+    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} aoMudar={aoMudar} />
 
     <Dados titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" linhas={[
       ['Categoria', V('categoria')],
