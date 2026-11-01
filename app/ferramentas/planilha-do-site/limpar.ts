@@ -1,5 +1,12 @@
 // Junta os cadastros repetidos da planilha do site, cruza com o Google Contatos e monta os clientes finais.
-// Porte do script de limpeza usado nos dados reais (limpar.cjs): as regras de juntar e separar são as mesmas.
+// Regra de cadastro repetido (diretrizes de 23/10/2026 e de 01/11/2026; tarefa #179):
+// 1. O mesmo CPF/CNPJ é sempre o mesmo cadastro, mesmo com outro nome (na empresa, atualização cadastral). Vale a inserção
+//    mais recente; o que os dados antigos tinham de diferente vai para a observação.
+// 2. CPF/CNPJ diferentes (ou um CPF e o outro CNPJ) são cadastros diferentes, mesmo com o mesmo nome ou telefone: ficam os dois.
+// 3. Falta documento em um dos lados (número inválido ou de preenchimento conta como sem documento): é o mesmo cadastro se
+//    o nome é o mesmo (sem contar acento, pontuação e erro de digitação), ou se o telefone é o mesmo e um nome contém o outro.
+// 4. Só não junta pelo nome o que tem outra forma de conferir que não bate: datas de nascimento ou de criação diferentes.
+// 5. E-mail nunca junta: a contabilidade põe o próprio e-mail em várias empresas.
 // Puro: recebe as linhas já lidas e devolve os clientes e as contagens. Sem arquivo, sem console, sem estado no módulo.
 import type { TipoPessoa } from '../../src/dados/tipos';
 import {
@@ -9,7 +16,7 @@ import {
 import { normal } from '../../src/regras/texto';
 import { DIA, SEGUNDO } from '../../src/ui/tempos';
 import { aplicarDecisoes, type Decisao, type Decisoes, type Par } from './decisoes';
-import { chaveDoNome, NOME_CONTIDO, nomeNorm, semAcento, semelhanca, tokens } from './nomes';
+import { chaveDoNome, indiceDeNomes, mesmoNome, NOME_CONTIDO, NOMES_IGUAIS, nomeNorm, semAcento, semelhanca, tokens } from './nomes';
 import type { ArquivoGoogle, ColunaDoSite, LinhaDoSite } from './planilhas';
 import { envioMaisAntigo, referenciaBase, semRepetir, type EnvioDoSite } from './referencia';
 import { chave, extrair, lerTodos, type Lido } from './telefones';
@@ -62,7 +69,10 @@ interface ContatoGoogle {
   telefones: Telefone[];
   emails: string[];
   notas: string;
-  aniversario: string;
+  /** O documento que identifica o contato: o primeiro da descrição (veja docDaDescricao). */
+  doc: string | null;
+  /** O aniversário, se dá para ler: "AAAA-MM-DD" ou, sem o ano, "--MM-DD". */
+  datas: string[];
 }
 
 /** Um contato final: do Google (um ou mais contatos juntados), do site, ou os dois. */
@@ -98,8 +108,8 @@ export interface ClienteFinal {
   /** Contatos do Google que casaram ("arquivo:linha"). */
   contatosGoogle: string[];
   comoJuntado: string[];
-  /** Os cadastros juntados têm CPFs (ou CNPJs, ou datas de nascimento ou de criação) diferentes entre si: a junção em
-   *  cadeia (pelo telefone, e-mail ou Google) pode ter unido pessoas diferentes. Vai para "conferir". */
+  /** Os cadastros juntados têm CPFs (ou CNPJs, ou datas de nascimento ou de criação) diferentes entre si: a junção pelo
+   *  telefone e pelo nome pode ter unido pessoas diferentes. Vai para "conferir". */
   provasDivergentes: boolean;
 }
 
@@ -110,11 +120,11 @@ export interface Relatorio {
   semNome: number;
   /** Contatos do Google usados (os do primeiro arquivo e os dos complementos que entraram). */
   contatosDoGoogle: number;
-  /** Contatos dos arquivos seguintes que entraram (sem nada em comum com o primeiro). */
+  /** Contatos dos arquivos seguintes que entraram (os que não são versões antigas de um contato do primeiro). */
   complementosDoGoogle: number;
   /** Clientes por motivo de junção (um cliente pode ter mais de um motivo). */
   juntados: Record<string, number>;
-  /** Pares de mesmo nome separados porque o CPF/CNPJ ou a data não batem. */
+  /** Pares de mesmo nome separados porque o CPF/CNPJ não bate. */
   separadosPorProva: number;
   pares: Par[];
   decisoes: { aplicadas: number; ignoradas: number };
@@ -129,29 +139,25 @@ export interface Entrada { site: LinhaDoSite[]; google: ArquivoGoogle[] }
 
 /** Por que um cliente foi juntado (a coluna "Como foi juntado" da conferência). */
 export const MOTIVOS = {
-  siteComSite: 'envios repetidos no site (mesmo CPF/CNPJ, telefone ou e-mail e nome parecido): valeu o envio mais recente, completado com os anteriores',
-  googleRepetido: 'contatos repetidos no Google (mesmo telefone, e-mail ou descrição e nome parecido)',
-  variosDoGoogle: 'mais de um contato do Google com o telefone ou e-mail do cliente e nome parecido',
-  mesmoNomeComProva: 'mesmo nome e mesmo CPF/CNPJ ou data de nascimento',
+  siteComSite: 'envios repetidos no site (mesmo CPF/CNPJ ou, sem documento em um dos lados, mesmo nome ou mesmo telefone e nome contido): valeu o envio mais recente, completado com os anteriores',
+  googleRepetido: 'contatos repetidos no Google (mesmo CPF/CNPJ ou, sem documento em um dos lados, mesmo nome ou mesmo telefone e nome contido)',
+  variosDoGoogle: 'mais de um contato do Google com o CPF/CNPJ do cliente ou, sem documento em um dos lados, com o nome ou com o telefone e o nome dele',
   decisao: 'pela sua decisão (para-decidir.csv)'
 } as const;
 /** Por onde o cliente do site casou com o contato do Google. */
-type Via = 'telefone' | 'e-mail' | 'nome';
+type Via = 'documento' | 'telefone';
 const POR_ONDE: Record<Via, string> = {
-  telefone: 'com o contato do Google pelo telefone e nome parecido',
-  'e-mail': 'com o contato do Google pelo e-mail e nome parecido',
-  nome: 'com o contato do Google pelo nome completo e mesmo CPF/CNPJ ou data'
+  documento: 'com o contato do Google pelo CPF/CNPJ',
+  telefone: 'com o contato do Google pelo nome ou pelo telefone e nome contido, sem CPF/CNPJ em um dos lados'
 };
 
-/** Os casos da lista para decidir. */
+/** Os casos da lista para decidir: só o que os dados não resolvem. */
 export const CASOS = {
-  mesmoDocumento: 'Mesmo CPF/CNPJ com nomes diferentes',
-  mesmoNomeDocumentoDiferente: 'Mesmo nome e mesmo telefone ou e-mail, mas CPF/CNPJ diferentes',
-  mesmoNomeSemProva: 'Mesmo nome, sem telefone, e-mail, CPF ou data em comum',
-  documentoDiferente: (via: Via) => `Nome parecido e mesmo ${via}, mas CPF/CNPJ diferentes`
+  maisDeUmDocumento: 'Mesmo nome ou telefone, sem CPF/CNPJ, com mais de um CPF/CNPJ possível',
+  datasDiferentes: 'Mesmo nome, sem CPF/CNPJ para conferir, mas datas de nascimento ou de criação diferentes',
+  nomeDeUmaPalavra: 'Mesmo nome de uma palavra só, sem CPF/CNPJ para conferir'
 } as const;
 const SEPARADOS = 'mantidos separados';
-const DOCUMENTO_NOS_DOIS = 'mantidos separados; o CPF/CNPJ ficou nos dois';
 /** O que foi feito com um par decidido (juntos: os dois acabaram no mesmo cliente). Um "sim" que juntaria dois
  *  clientes que você separou com "não" (em cadeia: A=B, B=C, mas A≠C) não é aplicado: o "não" vale. */
 const FEITO_DA_DECISAO: Record<Decisao, (juntos: boolean) => string> = {
@@ -199,8 +205,6 @@ const DIGITOS_DO_CPF = 11, CARACTERES_DO_CNPJ = 14;
 const ZEROS_PERDIDOS_MAXIMOS = 2;
 /** Os CEPs que começam com 0 (e que a planilha guarda com 7 algarismos) são os de São Paulo. */
 export const UF_DOS_CEPS_COM_ZERO = 'SP';
-/** Palavras mínimas no nome para casar com o Google só pelo nome. */
-const PALAVRAS_MINIMAS_DO_NOME = 2;
 
 /** O número só de algarismos com os zeros do começo devolvidos, se assim ele fica válido; senão, como veio. */
 function devolverZeros(d: string, tamanho: number, valido: (d: string) => boolean) {
@@ -263,8 +267,8 @@ function lerTelefones(valores: string[]): Telefone[] {
 
 // ---------- Google ----------
 
-/** Contatos dos arquivos do Google. O primeiro arquivo é a versão atual; dos seguintes só entram os contatos sem
- *  telefone, e-mail ou nome em comum com o primeiro (os outros são versões antigas de contatos que já estão nele). */
+/** Contatos dos arquivos do Google. O primeiro arquivo é a versão atual; dos seguintes só fica de fora o que é versão
+ *  antiga de um contato dele: o mesmo CPF/CNPJ, ou o mesmo nome com telefone ou e-mail em comum (sem documentos diferentes). */
 function lerGoogle(arquivos: ArquivoGoogle[], rel: Relatorio): ContatoGoogle[] {
   const porArquivo = arquivos.map(({ arquivo, contatos }) => contatos.map(({ linha, campos }) => {
     const nome = espacos([campos['First Name'], campos['Middle Name'], campos['Last Name']].filter(Boolean).join(' '));
@@ -279,18 +283,18 @@ function lerGoogle(arquivos: ArquivoGoogle[], rel: Relatorio): ContatoGoogle[] {
         if (!emails.includes(e)) emails.push(e);
       }
     }
-    return {
-      ordem: 0, arquivo, linha, campos, nome, nn: nomeNorm(nome), telefones: lerTelefones(telefones), emails,
-      notas: campos.Notes ?? '', aniversario: campos.Birthday ?? ''
-    };
+    const notas = campos.Notes ?? '', aniversario = campos.Birthday ?? '';
+    return { ordem: 0, arquivo, linha, campos, nome, nn: nomeNorm(nome), telefones: lerTelefones(telefones), emails, notas, doc: docDaDescricao(notas), datas: ANIVERSARIO.test(aniversario) ? [aniversario] : [] };
   }));
   const [atuais = [], ...complementos] = porArquivo;
-  const chaves = new Set(atuais.flatMap(c => [
-    ...c.telefones.filter(x => chave(x.t)).map(x => 'T' + x.k), ...c.emails.map(e => 'E' + e), 'N' + chaveDoNome(c.nome)
-  ]));
-  const novo = (c: ContatoGoogle) => !c.telefones.some(x => chave(x.t) && chaves.has('T' + x.k))
-    && !c.emails.some(e => chaves.has('E' + e)) && !chaves.has('N' + chaveDoNome(c.nome));
-  const aceitos = complementos.flat().filter(novo);
+  const docsAtuais = new Set(atuais.flatMap(c => c.doc ?? []));
+  const porNomeAtual = new Map<string, ContatoGoogle[]>();
+  for (const c of atuais) { const k = chaveDoNome(c.nome); if (k) juntarEm(porNomeAtual, k, c); }
+  const temContatoEmComum = (a: ContatoGoogle, b: ContatoGoogle) => a.telefones.some(x => chave(x.t) && b.telefones.some(y => y.k === x.k))
+    || a.emails.some(e => b.emails.includes(e));
+  const versaoAntiga = (c: ContatoGoogle) => (!!c.doc && docsAtuais.has(c.doc))
+    || (porNomeAtual.get(chaveDoNome(c.nome)) ?? []).some(a => !(a.doc && c.doc && a.doc !== c.doc) && temContatoEmComum(a, c));
+  const aceitos = complementos.flat().filter(c => !versaoAntiga(c));
   rel.complementosDoGoogle = aceitos.length;
   return [...atuais, ...aceitos].map((c, ordem) => ({ ...c, ordem }));
 }
@@ -314,8 +318,7 @@ function juntarGoogle(membros: ContatoGoogle[], motivo: string, antes: string[] 
   };
 }
 
-// Provas de que dois cadastros de mesmo nome são a mesma pessoa (regra da tarefa #165): o CPF/CNPJ (do site ou escrito
-// na descrição do Google) e a data de nascimento ou de criação (do site ou o aniversário do Google).
+// O documento escrito na descrição do Google.
 /** Quantos caracteres (sem algarismo) podem separar o rótulo "CPF"/"CNPJ" do número ("CPF nº ", "CNPJ sob o nº "). */
 const DISTANCIA_DO_ROTULO = 25;
 /** Caracteres de um CPF ou CNPJ escrito: de 11 (CPF só com algarismos) a 18 (CNPJ com pontos, barra e traço). */
@@ -325,73 +328,90 @@ const DOC_NA_DESCRICAO = new RegExp(`(?:CPF|CNPJ)\\D{0,${DISTANCIA_DO_ROTULO}}([
  *  não achar um "CNPJ" no meio de um e-mail ("ariaoliveira76@…" tem o formato e, às vezes, os dígitos verificadores). */
 const CNPJ_COM_LETRAS_NA_DESCRICAO = new RegExp(`CNPJ\\D{0,${DISTANCIA_DO_ROTULO}}?(?<![0-9A-Z@.])`
   + '([0-9A-Z]{2}\\.?[0-9A-Z]{3}\\.?[0-9A-Z]{3}\\/?[0-9A-Z]{4}-?\\d{2})(?![0-9A-Z@])', 'gi');
+/** O documento que identifica o contato: o primeiro da descrição, que é o da própria pessoa ou empresa. Os seguintes são
+ *  de outros (o CPF do representante, por exemplo): dois cadastros não viram um por terem o mesmo representante. Se o
+ *  primeiro é inválido, o contato fica sem documento. */
+function docDaDescricao(notas: string): string | null {
+  const achados = [
+    ...[...notas.matchAll(DOC_NA_DESCRICAO)].map(m => ({ i: m.index, x: limparDocumento(m[1]) })),
+    ...[...notas.matchAll(CNPJ_COM_LETRAS_NA_DESCRICAO)].map(m => ({ i: m.index, x: limparDocumento(m[1]) })).filter(({ x }) => /[A-Z]/.test(x) && cnpjValido(x))
+  ].sort((a, b) => a.i - b.i);
+  const primeiro = achados[0]?.x ?? '';
+  return cpfValido(primeiro) || cnpjValido(primeiro) ? primeiro : null;
+}
+/** Os documentos de uma ficha: os dos contatos do Google e o do cliente do site. */
+const docsDaFicha = (c: Pick<Ficha, 'membros' | 'site'>) => new Set([...c.membros.map(m => m.doc), c.site?.doc].filter((d): d is string => !!d));
+const conflitam = (A: Set<string>, B: Set<string>) => A.size > 0 && B.size > 0 && ![...A].some(d => B.has(d));
+
 /** Aniversário do Google: "AAAA-MM-DD" ou, sem o ano, "--MM-DD". */
 const ANIVERSARIO = /^(\d{4}|-)-\d{2}-\d{2}$/;
 /** Dia e mês do fim de uma data ("MM-DD"), para comparar com aniversário sem ano. */
 const DIA_E_MES = 5;
-type Prova = 'confirma' | 'contradiz' | 'sem prova';
-interface Provas { docs: Set<string>; datas: Set<string> }
-type ComProvas = Pick<Ficha, 'membros' | 'site'>;
-
-function provas(c: ComProvas): Provas {
-  const docs = new Set<string>(), datas = new Set<string>();
-  for (const m of c.membros) {
-    for (const [, d] of m.notas.matchAll(DOC_NA_DESCRICAO)) { const x = limparDocumento(d); if (cpfValido(x) || cnpjValido(x)) docs.add(x); }
-    for (const [, d] of m.notas.matchAll(CNPJ_COM_LETRAS_NA_DESCRICAO)) { const x = limparDocumento(d); if (/[A-Z]/.test(x) && cnpjValido(x)) docs.add(x); }
-    if (ANIVERSARIO.test(m.aniversario)) datas.add(m.aniversario);
-  }
-  const p = c.site;
-  if (p) {
-    if (p.doc) docs.add(p.doc);
-    for (const v of [p.nascimento, p.abertura]) if (DATA_ISO.test(v)) datas.add(v);
-  }
-  return { docs, datas };
-}
-/** CPFs (ou CNPJs) dos dois lados, sem nenhum em comum. Compara CPF com CPF e CNPJ com CNPJ: a descrição de uma
- *  empresa traz o CNPJ dela e o CPF do representante. */
-function docsConflitam(A: Set<string>, B: Set<string>) {
-  for (const tamanho of [DIGITOS_DO_CPF, CARACTERES_DO_CNPJ]) {
-    const a = [...A].filter(d => d.length === tamanho), b = [...B].filter(d => d.length === tamanho);
-    if (a.length && b.length && !a.some(d => b.includes(d))) return true;
-  }
-  return false;
-}
-/** "confirma" (documento ou data em comum), "contradiz" (os dois têm documento ou data e nada bate) ou "sem prova".
- *  Aniversário do Google sem ano compara só dia e mês. */
-function compararProvas(a: ComProvas, b: ComProvas): Prova {
-  const A = provas(a), B = provas(b);
-  if ([...A.docs].some(d => B.docs.has(d))) return 'confirma';
-  if (docsConflitam(A.docs, B.docs)) return 'contradiz';
+/** Os dois lados têm datas, e nenhuma bate. Aniversário sem ano compara só dia e mês. */
+function datasConflitam(A: string[], B: string[]) {
   const comAno = (d: string) => /^\d{4}-/.test(d);
-  if ([...A.datas].some(x => [...B.datas].some(y => comAno(x) && comAno(y) ? x === y : x.slice(-DIA_E_MES) === y.slice(-DIA_E_MES)))) return 'confirma';
-  if (A.datas.size && B.datas.size) return 'contradiz';
-  return 'sem prova';
+  const bate = (x: string, y: string) => comAno(x) && comAno(y) ? x === y : x.slice(-DIA_E_MES) === y.slice(-DIA_E_MES);
+  return A.length > 0 && B.length > 0 && !A.some(x => B.some(y => bate(x, y)));
 }
-const sozinho = (m: ContatoGoogle): ComProvas => ({ membros: [m], site: null });
 
-/** Junta contatos com telefone, e-mail ou descrição iguais quando os nomes são iguais ou um contém o outro. */
-function agruparGoogle(lista: ContatoGoogle[]): Ficha[] {
-  const g = new Grupos(lista.length), baldes = new Map<string, number[]>();
+/** O que a ligação avisa: quem não tem documento e bate com mais de um, ou o mesmo nome com datas que não batem. */
+type Aviso = 'maisDeUmDocumento' | 'datasDiferentes';
+
+/** Liga os cadastros repetidos, pela regra do alto deste arquivo. Primeiro o documento; depois, para quem não tem
+ *  documento em um dos lados, o nome ou o telefone com um nome contido no outro. Quem bate com dois cadastros de
+ *  documentos diferentes não é ligado a nenhum: nunca entram dois documentos no mesmo grupo. */
+function ligar<T extends { nome: string; nn: string; telefones: Telefone[] }>(lista: T[], docDe: (c: T) => string | null, datasDe: (c: T) => string[], avisar: (aviso: Aviso, a: number, b: number) => void): Grupos {
+  const g = new Grupos(lista.length), porDoc = new Map<string, number[]>(), porTel = new Map<string, number[]>();
   lista.forEach((c, i) => {
     if (!c.nn) return;
-    for (const x of c.telefones) if (chave(x.t)) juntarEm(baldes, 'T|' + x.k, i);
-    for (const e of c.emails) juntarEm(baldes, 'E|' + e, i);
-    if (c.notas) juntarEm(baldes, 'N|' + espacos(c.notas).toUpperCase(), i);
+    const d = docDe(c);
+    if (d) juntarEm(porDoc, d, i);
+    for (const x of c.telefones) if (chave(x.t)) juntarEm(porTel, x.k, i);
   });
-  for (const ids of baldes.values()) {
-    for (const [a, b] of paresDe(ids)) {
-      if (semelhanca(lista[a].nome, lista[b].nome) >= NOME_CONTIDO && !docsConflitam(provas(sozinho(lista[a])).docs, provas(sozinho(lista[b])).docs)) g.unir(a, b);
-    }
+  for (const ids of porDoc.values()) for (const [a, b] of paresDe(ids)) g.unir(a, b);
+  const docDoGrupo = new Map<number, string>();
+  lista.forEach((c, i) => { const d = docDe(c); if (d) docDoGrupo.set(g.raiz(i), d); });
+  const docsLigados = new Map<number, Set<string>>(), pares: [number, number][] = [], vistos = new Set<string>();
+  const notar = (i: number, d: string | undefined) => {
+    const docs = docsLigados.get(i) ?? new Set<string>();
+    if (d) docs.add(d);
+    docsLigados.set(i, docs);
+  };
+  const candidato = (a: number, b: number) => {
+    const k = Math.min(a, b) + '|' + Math.max(a, b);
+    if (vistos.has(k) || g.raiz(a) === g.raiz(b)) return;
+    vistos.add(k);
+    const [da, db] = [docDoGrupo.get(g.raiz(a)), docDoGrupo.get(g.raiz(b))];
+    if (da && db) return;   // os dois têm documento: o documento já decidiu
+    pares.push([a, b]);
+    notar(a, db);
+    notar(b, da);
+  };
+  for (const ids of porTel.values()) {
+    for (const [a, b] of paresDe(ids)) if (semelhanca(lista[a].nome, lista[b].nome) >= NOME_CONTIDO) candidato(a, b);
   }
-  // Contato só com o nome (sem telefone, e-mail ou descrição): junta ao único outro contato de mesmo nome.
-  const porNome = new Map<string, number[]>();
-  lista.forEach((c, i) => { const k = chaveDoNome(c.nome); if (k) juntarEm(porNome, k, i); });
-  lista.forEach((c, i) => {
-    const k = chaveDoNome(c.nome);
-    if (!k || c.telefones.length || c.emails.length || c.notas) return;
-    const outros = [...new Set((porNome.get(k) ?? []).filter(j => j !== i).map(j => g.raiz(j)))];
-    if (outros.length === 1) g.unir(outros[0], i);
+  const acharNome = indiceDeNomes(lista.map(c => c.nome));
+  lista.forEach((c, a) => {
+    for (const b of acharNome(c.nome)) {
+      if (b <= a || g.raiz(a) === g.raiz(b) || (docDoGrupo.get(g.raiz(a)) && docDoGrupo.get(g.raiz(b)))) continue;
+      if (datasConflitam(datasDe(c), datasDe(lista[b]))) avisar('datasDiferentes', a, b);
+      else candidato(a, b);
+    }
   });
+  const ambiguo = (i: number) => (docsLigados.get(i)?.size ?? 0) > 1;
+  for (const [a, b] of pares) {
+    const [da, db] = [docDoGrupo.get(g.raiz(a)), docDoGrupo.get(g.raiz(b))];
+    if (ambiguo(a) || ambiguo(b) || (da && db && da !== db)) { avisar('maisDeUmDocumento', a, b); continue; }
+    g.unir(a, b);
+    const d = da ?? db;
+    if (d) docDoGrupo.set(g.raiz(a), d);
+  }
+  return g;
+}
+
+/** Junta os contatos repetidos do Google. O que ela avisa não entra na lista: os contatos sem cliente não vão para o SEMPER. */
+function agruparGoogle(lista: ContatoGoogle[]): Ficha[] {
+  const g = ligar(lista, c => c.doc, c => c.datas, () => undefined);
   return g.lista().map(ids => juntarGoogle(ids.map(i => lista[i]), MOTIVOS.googleRepetido));
 }
 
@@ -515,62 +535,61 @@ function provasDivergem({ docs, nascimentos, aberturas }: ProvasDosEnvios): bool
   return [doTamanho(DIGITOS_DO_CPF), doTamanho(CARACTERES_DO_CNPJ), nascimentos, aberturas].some(l => new Set(l).size > 1);
 }
 
-/** Junta os envios do mesmo cliente (mesmo CPF/CNPJ, telefone ou e-mail e nome parecido). Devolve também os pares de
- *  clientes com o mesmo CPF/CNPJ e nomes diferentes (índices em "pessoas"), que vão para a lista de decidir. */
-function agruparSite(lista: PessoaDoSite[]): { pessoas: PessoaDoSite[]; mesmoDocumento: [number, number][] } {
-  const g = new Grupos(lista.length), baldes = new Map<string, number[]>();
-  lista.forEach((p, i) => {
-    if (p.doc) juntarEm(baldes, 'D|' + p.doc, i);
-    for (const x of p.telefones) if (chave(x.t)) juntarEm(baldes, 'T|' + x.k, i);
-    for (const e of p.emails) juntarEm(baldes, 'E|' + e, i);
-  });
-  const suspeitos: [number, number][] = [];
-  for (const [k, ids] of baldes) {
-    for (const [a, b] of paresDe(ids)) {
-      const [x, y] = [lista[a], lista[b]];
-      const docsDiferentes = x.doc && y.doc && x.doc !== y.doc;
-      if (semelhanca(x.nome, y.nome) > 0 && !docsDiferentes) g.unir(a, b);
-      else if (k.startsWith('D|')) suspeitos.push([a, b]);
-    }
-  }
+/** As datas que conferem um cadastro do site: a de nascimento e a de criação. */
+const datasDaPessoa = ({ provasDosEnvios: { nascimentos, aberturas } }: PessoaDoSite) => [...nascimentos, ...aberturas];
+
+/** Junta os envios do mesmo cliente. Devolve também o que a ligação avisou (índices em "pessoas"), para a lista de decidir. */
+function agruparSite(lista: PessoaDoSite[]): { pessoas: PessoaDoSite[]; avisos: { aviso: Aviso; a: number; b: number }[] } {
+  const suspeitos: { aviso: Aviso; a: number; b: number }[] = [];
+  const g = ligar(lista, p => p.doc, datasDaPessoa, (aviso, a, b) => suspeitos.push({ aviso, a, b }));
   const grupos = g.lista();
   const pessoas = grupos.map(ids => juntarSite(ids.map(i => lista[i])));
   const deGrupo = new Map<number, number>();
   grupos.forEach((ids, gi) => ids.forEach(i => deGrupo.set(i, gi)));
-  const mesmoDocumento: [number, number][] = [];
-  for (const [a, b] of suspeitos) {
-    const [ga, gb] = [deGrupo.get(a) ?? -1, deGrupo.get(b) ?? -1];
-    if (ga !== gb) mesmoDocumento.push([ga, gb]);
-  }
-  return { pessoas, mesmoDocumento };
+  const avisos = suspeitos.map(({ aviso, a, b }) => ({ aviso, a: deGrupo.get(a) ?? -1, b: deGrupo.get(b) ?? -1 })).filter(({ a, b }) => a !== b);
+  return { pessoas, avisos };
 }
 
 // ---------- Cruzamento site x Google ----------
 
 interface Casamento { pi: number; gi: number; s: number; via: Via }
+/** Nota de um casamento pelo documento: passa na frente de qualquer casamento pelo telefone (que vale no máximo NOMES_IGUAIS). */
+const NOTA_DO_DOCUMENTO = NOMES_IGUAIS + 1;
 
+/** Casa os clientes do site com os contatos do Google: primeiro pelo CPF/CNPJ; sem documento em um dos lados, pelo nome ou
+ *  pelo telefone com um nome contido no outro. */
 function cruzar(google: Ficha[], pessoas: PessoaDoSite[]) {
-  const porTel = new Map<string, number[]>(), porEmail = new Map<string, number[]>(), porNome = new Map<string, number[]>();
+  const porDoc = new Map<string, number[]>(), porTel = new Map<string, number[]>();
   google.forEach((c, i) => {
+    for (const d of docsDaFicha(c)) juntarEm(porDoc, d, i);
     for (const x of c.telefones) if (chave(x.t)) juntarEm(porTel, x.k, i);
-    for (const e of c.emails) juntarEm(porEmail, e, i);
-    if (c.nn) juntarEm(porNome, c.nn, i);
   });
-  const nomesSite = new Map<string, number>();
-  pessoas.forEach(p => nomesSite.set(p.nn, (nomesSite.get(p.nn) ?? 0) + 1));
-  const casamentos: Casamento[] = [], conflitos: { pi: number; gi: number; via: Via }[] = [];
-  const doSite = (p: PessoaDoSite): ComProvas => ({ membros: [], site: p });
+  const acharNome = indiceDeNomes(google.map(c => c.nome));
+  const datasDaFicha = (c: Ficha) => c.membros.flatMap(m => m.datas);
+  const casamentos: Casamento[] = [], ambiguos: { pi: number; gi: number }[] = [], datasDiferentes: { pi: number; gi: number }[] = [];
+  const quemPede = new Map<number, number[]>();
   pessoas.forEach((p, pi) => {
-    const candidatos = new Map<number, Via>();
-    for (const x of p.telefones) if (chave(x.t)) for (const gi of porTel.get(x.k) ?? []) candidatos.set(gi, 'telefone');
-    for (const e of p.emails) for (const gi of porEmail.get(e) ?? []) if (!candidatos.has(gi)) candidatos.set(gi, 'e-mail');
-    for (const [gi, via] of candidatos) {
-      const s = semelhanca(p.nome, google[gi].nome);
-      // Nome parecido, mas o CPF/CNPJ do site é outro que o da descrição do Google: pessoas diferentes (pai e filho…).
-      if (s > 0 && docsConflitam(provas(doSite(p)).docs, provas(google[gi]).docs)) conflitos.push({ pi, gi, via });
-      else if (s > 0) casamentos.push({ pi, gi, s: s + 1, via });
+    const peloDocumento = new Set(p.doc ? porDoc.get(p.doc) ?? [] : []);
+    for (const gi of peloDocumento) casamentos.push({ pi, gi, s: NOTA_DO_DOCUMENTO, via: 'documento' });
+    const peloTelefone = p.telefones.flatMap(x => chave(x.t) ? porTel.get(x.k) ?? [] : []).filter(gi => semelhanca(p.nome, google[gi].nome) >= NOME_CONTIDO);
+    const peloNome = acharNome(p.nome).filter(gi => {
+      if (!datasConflitam(datasDaPessoa(p), datasDaFicha(google[gi]))) return true;
+      if (!(p.doc && docsDaFicha(google[gi]).size)) datasDiferentes.push({ pi, gi });
+      return false;
+    });
+    // Os dois com documento: o documento já decidiu.
+    const candidatos = [...new Set([...peloTelefone, ...peloNome])].filter(gi => !peloDocumento.has(gi) && !(p.doc && docsDaFicha(google[gi]).size));
+    if (new Set(candidatos.flatMap(gi => [...docsDaFicha(google[gi])])).size > 1) {
+      ambiguos.push(...candidatos.map(gi => ({ pi, gi })));
+      return;
     }
+    for (const gi of candidatos) juntarEm(quemPede, gi, pi);
   });
+  // Um contato sem documento que serve a clientes de documentos diferentes não é de nenhum deles.
+  for (const [gi, pis] of quemPede) {
+    if (new Set(pis.flatMap(pi => pessoas[pi].doc ?? [])).size > 1) { ambiguos.push(...pis.map(pi => ({ pi, gi }))); continue; }
+    casamentos.push(...pis.map(pi => ({ pi, gi, s: semelhanca(pessoas[pi].nome, google[gi].nome), via: 'telefone' as const })));
+  }
   casamentos.sort((a, b) => b.s - a.s || a.pi - b.pi);
   const dono = new Map<number, number>(), dele = new Map<number, Casamento[]>();
   for (const c of casamentos) {
@@ -578,15 +597,7 @@ function cruzar(google: Ficha[], pessoas: PessoaDoSite[]) {
     dono.set(c.gi, c.pi);
     juntarEm(dele, c.pi, c);
   }
-  // Sem telefone ou e-mail em comum: casa pelo nome completo quando ele é único nas duas planilhas e o CPF ou a data batem.
-  pessoas.forEach((p, pi) => {
-    if (dele.has(pi) || !p.nn || tokens(p.nome).length < PALAVRAS_MINIMAS_DO_NOME || nomesSite.get(p.nn) !== 1) return;
-    const gs = porNome.get(p.nn) ?? [];
-    if (gs.length !== 1 || dono.has(gs[0]) || compararProvas(google[gs[0]], doSite(p)) !== 'confirma') return;
-    dono.set(gs[0], pi);
-    dele.set(pi, [{ pi, gi: gs[0], s: 0, via: 'nome' }]);
-  });
-  return { dono, dele, conflitos };
+  return { dono, dele, ambiguos, datasDiferentes };
 }
 
 // ---------- Montagem ----------
@@ -604,7 +615,7 @@ const novoDoSite = (p: PessoaDoSite): Ficha => ({
   comoJuntado: [...p.comoJuntado]
 });
 
-/** Junta contatos finais (mesmo nome com prova, ou pela decisão): soma os contatos do Google e os cadastros do site. */
+/** Junta contatos finais pela decisão: soma os contatos do Google e os cadastros do site. */
 function juntarFinais(lista: Ficha[], motivos: string[]): Ficha {
   const membros = lista.flatMap(c => c.membros);
   const sites = lista.map(c => c.site).filter((s): s is PessoaDoSite => !!s);
@@ -612,7 +623,7 @@ function juntarFinais(lista: Ficha[], motivos: string[]): Ficha {
   let c: Ficha;
   if (!membros.length && p) c = novoDoSite(p);
   else {
-    c = juntarGoogle(membros, MOTIVOS.mesmoNomeComProva);
+    c = juntarGoogle(membros, MOTIVOS.decisao);
     if (p) c = aplicarSite(c, p, null);
   }
   c.comoJuntado = semRepetidos([...lista.flatMap(x => x.comoJuntado), ...motivos]);
@@ -635,6 +646,7 @@ const COBERTURA_DA_QUALIFICACAO = 0.6;
 /** A associação de que a pessoa é associada, no fim da qualificação ("…, associado(a) da Associação X"). */
 const ASSOCIACAO = /,?\s*(associad[oa](?:\(a\))? (?:d[aoe]s?|à|ao|junto) .+)$/i;
 export const PREFIXO_DA_DESCRICAO = 'Descrição no Google Contatos: ';
+export const PREFIXO_DO_NOME_ANTIGO = 'Nome antigo, no Google Contatos: ';
 
 /**
  * Da descrição antiga do Google, o que não é qualificação: a associação e as linhas que a qualificação da planilha
@@ -662,10 +674,17 @@ function montarCliente(c: Ficha, p: PessoaDoSite, referencia: string, pendentes:
     referencia, site: p, telefones: telefones.map(x => x.t),
     emails: semRepetidos([...p.emails, ...c.emails].filter(e => e.includes('@'))),
     primeiroEnvio: envioMaisAntigo(p.envios)?.iso ?? null,
-    observacoes: [...p.diferencas, ...descricoesDoGoogle(c, p.qualificacoes)],
+    observacoes: [...p.diferencas, ...nomesAntigosNoGoogle(c, p), ...descricoesDoGoogle(c, p.qualificacoes)],
     pendentes, contatosGoogle: c.membros.map(m => `${m.arquivo}:${m.linha}`), comoJuntado: c.comoJuntado,
     provasDivergentes: provasDivergem(p.provasDosEnvios)
   };
+}
+
+/** Os nomes dos contatos do Google que casaram e são outro nome (na empresa, atualização cadastral): vale o do site, o
+ *  antigo fica registrado. Diferença de digitação ou um nome contido no outro não é troca de nome. */
+function nomesAntigosNoGoogle(c: Ficha, p: PessoaDoSite): string[] {
+  const antigos = c.membros.map(m => m.nome).filter(nome => semelhanca(nome, p.nome) < NOME_CONTIDO && !mesmoNome(nome, p.nome));
+  return semRepetidos(antigos).map(nome => `${PREFIXO_DO_NOME_ANTIGO}${nome}`);
 }
 
 /** O que as descrições dos contatos do Google que casaram têm além da qualificação: a mais completa primeiro, depois
@@ -688,7 +707,7 @@ const ordemDoEnvio = (p: PessoaDoSite) => {
 
 /**
  * Junta os cadastros repetidos e devolve os clientes do site (só eles vão para o SEMPER) e o relatório. As decisões
- * (pares de referências -> sim/não) juntam os pares "sim" no mesmo passo em que os de mesmo nome com prova são juntados.
+ * (pares de referências -> sim/não) juntam os pares "sim".
  */
 export function limpar(entrada: Entrada, decisoes: Decisoes = new Map()): { finais: ClienteFinal[]; rel: Relatorio } {
   const rel: Relatorio = {
@@ -700,8 +719,8 @@ export function limpar(entrada: Entrada, decisoes: Decisoes = new Map()): { fina
   const lista = lerGoogle(entrada.google, rel);
   rel.contatosDoGoogle = lista.length;
   const grupos = agruparGoogle(lista);
-  const { pessoas, mesmoDocumento } = agruparSite(lerSite(entrada.site));
-  const { dono, dele, conflitos } = cruzar(grupos, pessoas);
+  const { pessoas, avisos } = agruparSite(lerSite(entrada.site));
+  const { dono, dele, ambiguos, datasDiferentes } = cruzar(grupos, pessoas);
 
   // Cada cliente do site vira uma ficha (com os contatos do Google que casaram); os contatos sem cliente, outra.
   const fichas: Ficha[] = [];
@@ -721,38 +740,29 @@ export function limpar(entrada: Entrada, decisoes: Decisoes = new Map()): { fina
   });
   grupos.forEach((c, gi) => { if (!dono.has(gi)) { fichaDoGrupo.set(gi, fichas.length); fichas.push(c); } });
 
-  // Pares para decidir (índices em "fichas"): mesmo CPF/CNPJ com nomes diferentes, nome parecido com CPF/CNPJ diferentes.
+  // Pares para decidir (índices em "fichas"): o que a ligação avisou e o que o cruzamento com o Google deixou separado.
   const candidatos: { caso: string; a: number; b: number; feito: string }[] = [];
   const candidato = (caso: string, a: number | undefined, b: number | undefined, feito: string) => {
     if (a !== undefined && b !== undefined) candidatos.push({ caso, a, b, feito });
   };
-  for (const [a, b] of mesmoDocumento) candidato(CASOS.mesmoDocumento, fichaDaPessoa.get(a), fichaDaPessoa.get(b), DOCUMENTO_NOS_DOIS);
-  for (const { pi, gi, via } of conflitos) {
-    if (!dele.get(pi)?.some(x => x.gi === gi)) candidato(CASOS.documentoDiferente(via), fichaDaPessoa.get(pi), fichaDoGrupo.get(gi), SEPARADOS);
-  }
+  for (const { aviso, a, b } of avisos) candidato(CASOS[aviso], fichaDaPessoa.get(a), fichaDaPessoa.get(b), SEPARADOS);
+  const doCruzamento = (lista: { pi: number; gi: number }[], caso: string) => {
+    for (const { pi, gi } of lista) if (!dele.get(pi)?.some(x => x.gi === gi)) candidato(caso, fichaDaPessoa.get(pi), fichaDoGrupo.get(gi), SEPARADOS);
+  };
+  doCruzamento(ambiguos, CASOS.maisDeUmDocumento);
+  doCruzamento(datasDiferentes, CASOS.datasDiferentes);
 
-  // Mesmo nome sem telefone ou e-mail em comum (regra da #165): junta quando o CPF ou a data batem, separa quando não
-  // batem e põe o resto na lista para decidir (separados até lá).
-  const temEmComum = (x: Ficha, y: Ficha) => x.telefones.some(a => chave(a.t) && y.telefones.some(b => b.k === a.k))
-    || x.emails.some(e => y.emails.includes(e));
-  const mesmoNome = new Map<string, number[]>();
-  fichas.forEach((c, i) => { const k = chaveDoNome(c.nome); if (k) juntarEm(mesmoNome, k, i); });
+  // Mesmo nome que sobrou separado: com CPF/CNPJ diferentes ficam os dois, sem nada a decidir. Sem documento para conferir,
+  // só sobra o nome de uma palavra (que sozinho não identifica ninguém) e o que já está na lista.
+  const fichasDoNome = new Map<string, number[]>();
+  fichas.forEach((c, i) => { const k = chaveDoNome(c.nome); if (k) juntarEm(fichasDoNome, k, i); });
   const gf = new Grupos(fichas.length);
   const unioes: { a: number; motivo: string }[] = [];
-  for (const ids of mesmoNome.values()) {
+  for (const ids of fichasDoNome.values()) {
     for (const [a, b] of paresDe(ids)) {
       const [x, y] = [fichas[a], fichas[b]];
-      const emComum = temEmComum(x, y);
-      if (docsConflitam(provas(x).docs, provas(y).docs)) {
-        if (emComum) candidato(CASOS.mesmoNomeDocumentoDiferente, a, b, SEPARADOS);
-        else rel.separadosPorProva++;
-        continue;
-      }
-      if (emComum) continue;
-      const prova = compararProvas(x, y);
-      if (prova === 'confirma') { gf.unir(a, b); unioes.push({ a, motivo: MOTIVOS.mesmoNomeComProva }); }
-      else if (prova === 'contradiz') rel.separadosPorProva++;
-      else candidato(CASOS.mesmoNomeSemProva, a, b, SEPARADOS);
+      if (conflitam(docsDaFicha(x), docsDaFicha(y))) rel.separadosPorProva++;
+      else candidato(tokens(x.nome).length > 1 ? CASOS.maisDeUmDocumento : CASOS.nomeDeUmaPalavra, a, b, SEPARADOS);
     }
   }
 
@@ -767,8 +777,7 @@ export function limpar(entrada: Entrada, decisoes: Decisoes = new Map()): { fina
     .flatMap(i => { const p = fichas[i].site; return p ? [{ i, p, ordem: ordemDoEnvio(p) }] : []; })
     .sort((a, b) => a.ordem[0] - b.ordem[0] || a.ordem[1] - b.ordem[1])[0] ?? null;
 
-  // Os clientes antes das decisões (as fichas já juntadas por mesmo nome com prova). A referência de cada um é a que ele
-  // terá na saída se nenhuma decisão o juntar a outro: é a chave das decisões em para-decidir.csv.
+  // Os clientes antes das decisões. A referência de cada um é a que ele terá na saída se nenhuma decisão o juntar a outro: é a chave das decisões em para-decidir.csv.
   const antes = gf.lista();
   const clienteAntes = new Map<number, number>();
   antes.forEach((ids, g) => ids.forEach(i => clienteAntes.set(i, g)));

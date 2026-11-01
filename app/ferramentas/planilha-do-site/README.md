@@ -3,9 +3,20 @@
 Ferramenta de **migração**, usada uma vez (ou algumas vezes, até acertar): lê a planilha de cadastros que o formulário do
 site preenche, junta os cadastros repetidos e grava o arquivo que a tela **Pessoas > ⋯ > Importar pessoas** do SEMPER lê.
 
-Opcionalmente, lê também as exportações do Google Contatos: delas vêm telefones e e-mails a mais dos clientes e as provas
-para juntar cadastros de mesmo nome (o CPF escrito na descrição, o aniversário). **Só os clientes da planilha do site vão
-para o SEMPER**: contato que só existe no Google não sai.
+Opcionalmente, lê também as exportações do Google Contatos: delas vêm telefones e e-mails a mais dos clientes e o CPF/CNPJ
+escrito na descrição. **Só os clientes da planilha do site vão para o SEMPER**: contato que só existe no Google não sai.
+
+## O que é cadastro repetido
+
+1. **O mesmo CPF/CNPJ é sempre o mesmo cadastro**, mesmo com outro nome (na empresa, é atualização cadastral). Vale a
+   inserção mais recente; o que os dados antigos tinham de diferente vai para a observação. No Google, vale o primeiro
+   documento da descrição (os seguintes são de outros, como o representante).
+2. **CPF/CNPJ diferentes, ou um CPF e o outro CNPJ:** ficam os dois cadastros, sem nada a decidir.
+3. **Falta documento em um dos lados** (número inválido ou de preenchimento, como 000.000.000-00, conta como sem
+   documento): é o mesmo cadastro se o nome é o mesmo, sem contar acento, pontuação e erro de digitação, ou se o telefone
+   é o mesmo e um nome contém o outro. Erro de digitação: 1 letra em nomes a partir de 12 letras, 2 a partir de 22.
+4. **O nome sozinho não junta** quando as datas de nascimento ou de criação não batem, nem quando tem uma palavra só.
+5. **E-mail nunca junta:** a contabilidade põe o próprio e-mail no cadastro de várias empresas.
 
 ## Por que fica aqui, e não em `src/regras/`
 
@@ -34,8 +45,8 @@ No Google Planilhas, abra a planilha de cadastros, vá para a **aba do formulár
 **Arquivo > Fazer download > Valores separados por vírgula (.csv)**. Só a aba aberta é baixada.
 
 Do Google Contatos (opcional): **Exportar > Google CSV**. Se houver mais de uma exportação (uma atual e outra antiga, por
-exemplo), passe a atual primeiro: das seguintes só entram os contatos que não têm telefone, e-mail ou nome em comum com a
-primeira.
+exemplo), passe a atual primeiro: das seguintes só fica de fora a versão antiga de um contato da primeira (o mesmo CPF/CNPJ,
+ou o mesmo nome com telefone ou e-mail em comum, sem documentos diferentes).
 
 Guarde tudo em `exportacoes/` (na raiz do repositório). Essa pasta é ignorada pelo Git: nada dela vai para o GitHub.
 
@@ -74,8 +85,7 @@ diz quantas linhas a tela recusaria (o esperado é nenhuma).
   `para-decidir.csv`), o mesmo CPF/CNPJ válido em dois clientes (a tela pede para escolher quem fica com ele), cadastros
   juntados com CPF/CNPJ ou datas diferentes entre si, tipo de cadastro não reconhecido, observação cortada.
 - **`para-decidir.csv`** (sempre gravado; só o cabeçalho quando não há pares): pares de clientes que **podem** ser a
-  mesma pessoa, mas sem prova (mesmo nome sem CPF, data, telefone ou e-mail em comum; mesmo CPF com nomes
-  diferentes…), um por par de clientes, com as referências que estão no `pessoas-para-o-semper.csv`. Até você decidir,
+  mesma pessoa, mas que os dados não resolvem (mesmo nome com datas diferentes; nome de uma palavra só; mais de um CPF/CNPJ possível), um por par de clientes, com as referências que estão no `pessoas-para-o-semper.csv`. Até você decidir,
   ficam separados.
 - **`conferencia.csv`**: cada cliente com as linhas da planilha do site, os contatos do Google que casaram
   (`arquivo:linha`) e como foi juntado.

@@ -5,9 +5,12 @@ import { chaveDoPar, COLUNAS_PARA_DECIDIR, lerDecisoes, linhasParaDecidir, type 
 import { CASOS, limpar, MOTIVOS, type Entrada } from './limpar';
 import { site } from './ficticios';
 
-/** Dois clientes de mesmo nome sem nada em comum: viram um par para decidir. */
+/** Dois clientes de mesmo nome e datas de nascimento diferentes: viram um par para decidir. */
 const DOIS_IGUAIS: Entrada = {
-  site: [site(2, { nome: 'Maria Exemplo', telefone: '(38) 99999-0000' }), site(3, { nome: 'Maria Exemplo', telefone: '(38) 98888-0000' })],
+  site: [
+    site(2, { nome: 'Maria Exemplo', nascimento: '01/02/1980', telefone: '(38) 99999-0000' }),
+    site(3, { nome: 'Maria Exemplo', nascimento: '01/02/1995', telefone: '(38) 98888-0000' })
+  ],
   google: []
 };
 const referenciasDoPar = () => {
@@ -70,7 +73,7 @@ describe('Decisões sobre os pares', () => {
       expect(finais[0].site.linhas).toEqual([2, 3]);
       expect(finais[0].comoJuntado).toContain(MOTIVOS.decisao);
       expect(finais[0].pendentes).toEqual([]);
-      expect(rel.pares).toMatchObject([{ caso: CASOS.mesmoNomeSemProva, decisao: 'sim', feito: 'juntados pela sua decisão' }]);
+      expect(rel.pares).toMatchObject([{ caso: CASOS.datasDiferentes, decisao: 'sim', feito: 'juntados pela sua decisão' }]);
       expect(rel.decisoes).toEqual({ aplicadas: 1, ignoradas: 0 });
     });
 
