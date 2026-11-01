@@ -127,7 +127,7 @@ export function converter(args: Argumentos, base: string, app: string): string[]
     `Com "conferir": ${quantas(i => !!linhas[i].conferir)}.`,
     `Referências repetidas (ganharam -2, -3…): ${rel.referenciasRepetidas}.`,
     `Responsáveis distintos: ${new Set(linhas.flatMap(l => l.responsaveis ? l.responsaveis.split(SEPARADOR_DE_LISTA).map(normal) : [])).size}.`,
-    `Na tela de importação: ${tela.recusadas} linhas seriam recusadas; ${tela.comAviso} com aviso.`,
+    `Na tela de importação: ${tela.recusadas} linhas seriam recusadas; ${tela.comAviso} com aviso; ${tela.paraDecidir} para decidir (sem contar o que já está no SEMPER).`,
     ...(tela.recusadas ? [`Recusadas (linha de ${ARQUIVOS.pessoas} e colunas com erro): ${tela.porQueRecusadas.join('; ')}.`] : []),
     `Arquivos gravados em ${pasta}: ${[ARQUIVOS.pessoas, ARQUIVOS.decidir, ARQUIVOS.conferencia].join(', ')}.`,
     'Os arquivos têm dados de clientes: apague-os depois de importar.'

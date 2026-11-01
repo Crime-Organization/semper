@@ -5,7 +5,7 @@ import type { TipoPessoa } from '../../src/dados/tipos';
 import { TAMANHO_OBSERVACOES } from '../../src/dados/limites';
 import { escreverCSV } from '../../src/regras/csv';
 import {
-  COLUNAS_IMPORTACAO, lerImportacao, normalizarLinha, SEPARADOR_DE_LISTA, type ChaveImportacao, type ContextoImportacao
+  classificar, COLUNAS_IMPORTACAO, lerImportacao, normalizarLinha, SEPARADOR_DE_LISTA, type ChaveImportacao, type ContextoImportacao
 } from '../../src/regras/importacao';
 import {
   CAMPOS_DO_TIPO, cnpjValido, cpfValido, DIGITOS_DO_CEP, fmtCEP, fmtCNPJ, fmtCPF, fmtData, limparDocumento, TIPOS
@@ -44,6 +44,10 @@ const DOCUMENTO: Record<TipoPessoa, (p: PessoaDoSite) => string> = {
   pj: p => cnpjFormatado(p) || p.cnpjTexto,
   contato: p => cpfFormatado(p) || cnpjFormatado(p) || p.cpfTexto || p.cnpjTexto
 };
+/** Número com todos os caracteres iguais (000.000.000-00) é preenchimento, não documento: fica de fora. Na tela, cada
+ *  linha com ele pediria uma decisão, porque o mesmo número estaria em mais de uma linha. */
+const DOC_DE_PREENCHIMENTO = /^(.)\1+$/;
+const semPreenchimento = (documento: string) => DOC_DE_PREENCHIMENTO.test(limparDocumento(documento)) ? '' : documento;
 
 /** Data legível em DD/MM/AAAA; senão, o texto como veio. */
 const data = (v: string) => DATA_ISO.test(v) ? fmtData(v) : v;
@@ -122,7 +126,7 @@ function guardarNaObservacao(linha: LinhaSemper, p: PessoaDoSite, tipo: TipoPess
   const usado = limparDocumento(linha.documento);
   for (const d of DOCUMENTOS) {
     const texto = d.texto(p);
-    if (texto && limparDocumento(texto) !== usado && d.numero(p) !== usado) guardados.push(`Não vale para ${TIPOS[tipo]} — ${d.rotulo}: "${texto}"`);
+    if (semPreenchimento(texto) && limparDocumento(texto) !== usado && d.numero(p) !== usado) guardados.push(`Não vale para ${TIPOS[tipo]} — ${d.rotulo}: "${texto}"`);
   }
   if (linha.cep && cepIncompletoForaDeSP(p)) {
     guardados.push(`CEP com 7 algarismos (falta um): "${linha.cep}"`);
@@ -149,7 +153,7 @@ export function linhaParaSemper(c: ClienteFinal, opcoes: OpcoesParaSemper = {}, 
   ];
   const linha: LinhaSemper = {
     referencia: c.referencia, tipo, natureza: tipo === 'pj' ? naturezaDoSite(p.tipoTexto) ?? '' : '', tipo_entidade: p.tipoEntidade,
-    nome: p.nome, documento: DOCUMENTO[tipo](p), genero: p.genero, nacionalidade: p.nacionalidade, profissao: p.profissao,
+    nome: p.nome, documento: semPreenchimento(DOCUMENTO[tipo](p)), genero: p.genero, nacionalidade: p.nacionalidade, profissao: p.profissao,
     estado_civil: p.estadoCivil, rg: p.rg, rg_expedicao: data(p.rgExpedicao), nome_mae: p.mae, nome_pai: p.pai,
     nascimento: data(p.nascimento), nascimento_municipio: p.nascimentoMunicipio, nascimento_uf: p.nascimentoUf,
     nome_fantasia: p.fantasia, porte: porte(p.porte), abertura: data(p.abertura), representantes: p.representantes, cep: cep(p),
@@ -203,7 +207,8 @@ export function csvParaSemper(linhas: LinhaSemper[]): string {
   });
 }
 
-/** O CSV gerado lido como a tela lê (lerImportacao + normalizarLinha): quantas linhas a tela recusaria ou avisaria. */
+/** O CSV gerado lido como a tela lê (lerImportacao + normalizarLinha): quantas linhas a tela recusaria, avisaria ou pediria
+ *  para decidir (só pelo que há no arquivo: aqui não se sabe o que já está no SEMPER). */
 export function conferirNaTela(texto: string, ctx: ContextoImportacao) {
   const leitura = lerImportacao(texto);
   const importadas = leitura.linhas.map(l => normalizarLinha(l, ctx));
@@ -214,7 +219,8 @@ export function conferirNaTela(texto: string, ctx: ContextoImportacao) {
     recusadas: comErro.length,
     /** Linha do arquivo gerado e colunas com erro de cada recusada (sem o valor: o console não mostra dado de cliente). */
     porQueRecusadas: comErro.map(r => `linha ${r.linha} (${r.campos.join(', ')})`),
-    comAviso: importadas.filter(i => i.problemas.some(p => p.gravidade === 'aviso')).length
+    comAviso: importadas.filter(i => i.problemas.some(p => p.gravidade === 'aviso')).length,
+    paraDecidir: classificar(importadas, [], {}).filter(c => c.situacao === 'decidir').length
   };
 }
 

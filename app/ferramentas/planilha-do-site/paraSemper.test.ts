@@ -327,6 +327,22 @@ describe('Achados da revisão: documento repetido e "conferir" longo', () => {
     expect(linhas.map(l => l.conferir)).toEqual(['', '']);
   });
 
+  it('quando dois clientes têm o CPF de preenchimento, então a coluna fica vazia e a tela não pede decisão', () => {
+    // Quando
+    const { linhas } = converter([site(2, { nome: 'Maria Exemplo', cpf: '000.000.000-00' }), site(3, { nome: 'João Fictício', cpf: '111.111.111-11' })]);
+    // Então
+    expect(linhas.map(l => l.documento)).toEqual(['', '']);
+    expect(linhas.map(l => l.observacoes)).toEqual(['', '']);
+    expect(conferirNaTela(csvParaSemper(linhas), CTX)).toMatchObject({ recusadas: 0, paraDecidir: 0 });
+  });
+
+  it('quando o mesmo CPF inválido está em dois clientes, então a conferência avisa que a tela pediria para decidir', () => {
+    // Quando
+    const { linhas } = converter([site(2, { nome: 'Maria Exemplo', cpf: '529.982.247-26' }), site(3, { nome: 'João Fictício', cpf: '529.982.247-26' })]);
+    // Então
+    expect(conferirNaTela(csvParaSemper(linhas), CTX).paraDecidir).toBe(2);
+  });
+
   it('quando o cliente tem muitos pares e a observação é longa, então o "conferir" é resumido e a tela não recusa a linha', () => {
     // Dado: 41 clientes de mesmo nome e datas de nascimento diferentes; o primeiro com dois envios de complemento longo
     const linhas = [
