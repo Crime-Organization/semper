@@ -10,12 +10,13 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
+import { papeisNoProcesso } from '../regras/processo';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -100,7 +101,8 @@ const ETIQUETAS_DO_MODULO: Record<ModuloComEtiquetas, { tabela: string; coluna: 
   pessoas: { tabela: 'pessoa_etiquetas', coluna: 'pessoa_id' },
   contratos: { tabela: 'contrato_etiquetas', coluna: 'contrato_id' },
   demandas: { tabela: 'demanda_etiquetas', coluna: 'demanda_id' },
-  tarefas: { tabela: 'tarefa_etiquetas', coluna: 'tarefa_id' }
+  tarefas: { tabela: 'tarefa_etiquetas', coluna: 'tarefa_id' },
+  processos: { tabela: 'processo_etiquetas', coluna: 'processo_id' }
 };
 /** Os campos da lista mais as etiquetas do item; filtrando por uma etiqueta, só vêm os itens que a têm (ligação !inner, com outro nome, para o item continuar trazendo todas). */
 function comEtiquetas(campos: string, modulo: ModuloComEtiquetas, f: { etiqueta?: string }) {
@@ -201,6 +203,36 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+// ---------- processos ----------
+const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
+  + 'arquivado_em, criado_por, criado_em, atualizado_em';
+const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
+  + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
+  + `criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
+type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
+const processoComClientes = ({ clientela, ...p }: ProcessoLido): Processo => ({ ...p, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
+// Na ordem "nome", vale o nome do cartão ou, sem ele, os clientes (a coluna nome_ordem). O id no fim desempata a paginação.
+const ORDENS_PROCESSO: Record<Ordem, (q: Livre) => Livre> = {
+  manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
+  nome: q => q.order('nome_ordem'),
+  nome_desc: q => q.order('nome_ordem', { ascending: false }),
+  novos: q => q.order('criado_em', { ascending: false }),
+  antigos: q => q.order('criado_em', { ascending: true }),
+  recentes: q => q.order('atualizado_em', { ascending: false })
+};
+const ordenarProcessos = (q: Livre, ordem: Ordem) => ORDENS_PROCESSO[ordem](q).order('id');
+function filtrarProcessos(q: Livre, f: FiltroProcessos) {
+  q = porEtiqueta(q, f).eq('tipo', f.tipo);
+  q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
+  if (f.orgao) q = q.eq('orgao', f.orgao);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
+/** Os valores diferentes de um campo, em ordem. */
+const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [...new Set(linhas.map(l => l[campo]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
 // ---------- tarefas ----------
 const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
@@ -638,6 +670,73 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).eq('contrato_id', contratoId)
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
+  },
+
+  // ---------- processos ----------
+  async processosListar(f) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarProcessos(sb.from('processos').select(comEtiquetas(CAMPOS_PROCESSO_LISTA, 'processos', f), { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarProcessos(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async processosDaEtapa(etapaId, f, deslocamento = 0, limite = POR_COLUNA) {
+    let q = filtrarProcessos(sb.from('processos').select(comEtiquetas(CAMPOS_PROCESSO_LISTA, 'processos', f), { count: 'exact' }), f);
+    q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
+    const { data, count } = await rodar(ordenarProcessos(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async processoObter(id) {
+    const { data } = await rodar(sb.from('processos').select(CAMPOS_PROCESSO).eq('id', id).maybeSingle());
+    return data ? processoComClientes(data) : null;
+  },
+  // O código é dado pelo banco ao gravar.
+  async processoCriar(dados) {
+    const { data } = await rodar(sb.from('processos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    return data;
+  },
+  async processoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processos').update(dados).eq('id', id).select('id, codigo').single());
+    return data;
+  },
+  async processosArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('processos')
+      .update({ arquivado_em: arquivar ? new Date().toISOString() : null, arquivado_por: arquivar ? uid() : null })
+      .in('id', ids).select('id'));
+    return data.length;
+  },
+  async processosExcluir(ids) {
+    const { data } = await rodar(sb.from('processos').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só processos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
+  },
+  async processoMover(id, etapaId, ordem) {
+    await rodar(sb.from('processos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+  },
+  async processoHistorico(id) {
+    const { data } = await rodar(sb.from('processo_historico').select('id, alteracoes, feito_por, em')
+      .eq('processo_id', id).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
+  },
+  async processosDaPessoa(pessoaId, perfilId = null) {
+    const filtros = [`clientes.cs.{${pessoaId}}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`, `colaboradores.cs.{${perfilId}}`] : [])];
+    const { data } = await rodar(sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, colaboradores')
+      .or(filtros.join(',')).order('criado_em', { ascending: false }).limit(PROCESSOS_LIGADOS));
+    return data.map(({ clientes, responsavel_id, colaboradores, ...p }: Livre) => ({ ...p, papeis: papeisNoProcesso({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) }));
+  },
+  async processoOpcoes() {
+    const { data } = await rodar(sb.from('processo_opcoes').select('id, campo, valor').order('valor'));
+    return data;
+  },
+  async processoOpcaoCriar(campo, valor) {
+    const { data } = await rodar(sb.from('processo_opcoes').insert({ campo, valor: valor.trim() }).select('id, campo, valor').single());
+    return data;
+  },
+  async processoOpcaoExcluir(id) {
+    await rodar(sb.from('processo_opcoes').delete().eq('id', id));
+  },
+  async processoSugestoes(tipo) {
+    const { data } = await rodar(sb.from('processos').select('orgao, comarca, vara').eq('tipo', tipo).order('atualizado_em', { ascending: false }).limit(PROCESSOS_PARA_SUGERIR));
+    return { orgaos: semRepetir(data, 'orgao'), comarcas: semRepetir(data, 'comarca'), varas: semRepetir(data, 'vara') };
   },
 
   // ---------- tarefas ----------
