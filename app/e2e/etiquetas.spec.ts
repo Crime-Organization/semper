@@ -40,6 +40,74 @@ test.describe('Etiquetas', () => {
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).getByText('Urgência do cliente')).toBeVisible();
   });
 
+  test('quando pesquisa ao escolher etiquetas, então a lista mostra só as que combinam, e dá para marcar dali', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Urgência do cliente', 'Vermelho');
+    const form = painel(page).getByRole('form', { name: 'Nova etiqueta' });
+    await form.getByLabel('Texto').fill('Aguardando documento');
+    await form.getByRole('radio', { name: 'Azul' }).check();
+    await form.getByRole('button', { name: 'Criar etiqueta' }).click();
+    const lista = painel(page).getByRole('list', { name: 'Etiquetas do escritório' });
+    await expect(lista.getByRole('listitem')).toHaveCount(2);
+    await painel(page).getByRole('checkbox', { name: 'Urgência do cliente' }).uncheck();
+    await expect(page.getByText('Etiqueta "Urgência do cliente" tirada de 1 cartão.')).toBeVisible();
+    const busca = painel(page).getByRole('searchbox', { name: 'Pesquisar etiquetas' });
+    // Quando
+    await busca.fill('urgencia');
+    // Então
+    await expect(lista.getByRole('listitem')).toHaveCount(1);
+    await expect(lista).toContainText('Urgência do cliente');
+    // Quando
+    await painel(page).getByRole('checkbox', { name: 'Urgência do cliente' }).check();
+    // Então
+    await expect(painel(page).getByRole('checkbox', { name: 'Urgência do cliente' })).toBeChecked();
+    // Quando
+    await busca.fill('nada disso');
+    // Então
+    await expect(painel(page).getByText('Nenhuma etiqueta combina com essa pesquisa.')).toBeVisible();
+    await expect(form).toBeVisible();
+  });
+
+  test('quando abre a escolha de etiquetas, então o foco já está na pesquisa', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Prioridade', 'Roxo');
+    await fecharPainel(page);
+    // Quando
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    // Então
+    await expect(painel(page).getByRole('searchbox', { name: 'Pesquisar etiquetas' })).toBeFocused();
+  });
+
+  test('quando pesquisa nas etiquetas do lote, então vê só as que combinam, e a pesquisa não fica para a próxima vez', async ({ page }) => {
+    // Dado
+    await abrirCartaoDoJose(page);
+    await criarEtiqueta(page, 'Prioridade', 'Roxo');
+    const form = painel(page).getByRole('form', { name: 'Nova etiqueta' });
+    await form.getByLabel('Texto').fill('Aguardando documento');
+    await form.getByRole('button', { name: 'Criar etiqueta' }).click();
+    await expect(painel(page).getByRole('list', { name: 'Etiquetas do escritório' }).getByRole('listitem')).toHaveCount(2);
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' }).getByRole('checkbox').check();
+    // Quando
+    await page.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    const lote = page.getByRole('dialog', { name: 'Etiquetas dos selecionados' });
+    await lote.getByRole('searchbox', { name: 'Pesquisar etiquetas' }).fill('priori');
+    // Então
+    await expect(lote.getByRole('list', { name: 'Etiquetas do escritório' }).getByRole('listitem')).toHaveCount(1);
+    // Quando
+    await lote.getByRole('button', { name: 'Aplicar a etiqueta Prioridade' }).click();
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' }).getByText('Prioridade')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    // Então
+    await expect(lote.getByRole('searchbox', { name: 'Pesquisar etiquetas' })).toHaveValue('');
+    await expect(lote.getByRole('list', { name: 'Etiquetas do escritório' }).getByRole('listitem')).toHaveCount(2);
+  });
+
   test('quando a etiqueta é só de cor, então ela aparece como uma faixa colorida', async ({ page }) => {
     // Dado
     await abrirCartaoDoJose(page);
