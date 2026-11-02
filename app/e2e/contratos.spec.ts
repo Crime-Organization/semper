@@ -146,7 +146,7 @@ test.describe('Cadastro de contratos', () => {
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
-    await expect(page.getByText('A soma dos percentuais (escritório, participantes e indicador) passa de 100%.')).toBeVisible();
+    await expect(page.getByText('A soma dos percentuais passa do que há para dividir.')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Divisão', level: 2 })).toBeVisible();
   });
 });

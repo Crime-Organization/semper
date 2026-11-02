@@ -46,12 +46,10 @@ export function parcelasDoContrato(k: CamposDasParcelas, hoje: string): ParcelaN
   return valores.map((valor, i) => ({ vencimento: somarMeses(primeiro, i), valor }));
 }
 
-/** O contrato já passou da assinatura: tem a data dela, ou está na coluna de assinado ou numa depois dela. */
-export function chegouAoAssinado(colunas: Pick<Coluna, 'id' | 'ordem' | 'marco'>[], etapaId: string | null, assinadoEm: string | null) {
-  if (assinadoEm) return true;
-  const marco = colunas.find(c => c.marco === 'assinado'), atual = colunas.find(c => c.id === etapaId);
-  return !!marco && !!atual && atual.ordem >= marco.ordem;
-}
+/** O contrato já foi assinado: tem a data da assinatura ou está na coluna de assinado. Não dá para olhar a ordem das colunas: com grupos
+ *  no quadro, ela não segue a ordem da tela. O banco também aceita o que já esteve na coluna (privado.contrato_ja_assinado). */
+export const chegouAoAssinado = (colunas: Pick<Coluna, 'id' | 'marco'>[], etapaId: string | null, assinadoEm: string | null) =>
+  !!assinadoEm || colunas.find(c => c.id === etapaId)?.marco === 'assinado';
 
 // ---------- como a parcela aparece ----------
 export type SituacaoDaParcela = 'recebida' | 'atrasada' | 'a_receber';

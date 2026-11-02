@@ -228,7 +228,7 @@ export interface Contrato {
   atualizado_em: string;
   /** Os clientes que assinam o contrato, na ordem do cadastro. */
   clientes: PessoaResumida[];
-  /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o total). */
+  /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o líquido). */
   participantes: Participacao[];
   indicador: PessoaResumida | null;
 }

@@ -956,9 +956,14 @@ export const SD: Dados = {
   async parcelasDaPessoa(pessoaId) {
     const { data: ligados } = await rodar(sb.from('contrato_clientes').select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA));
     if (!ligados.length) return [];
-    const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).in('contrato_id', ligados.map((x: { contrato_id: string }) => x.contrato_id)).is('excluido_em', null)
-      .order('vencimento', { ascending: false }).order('numero', { ascending: false }).limit(PARCELAS_DA_PESSOA));
-    return (data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio);
+    // O filtro do contrato arquivado é aqui, então lê até juntar o limite: as arquivadas não podem ocupar o lugar das outras.
+    const todas: ParcelaDoEscritorio[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).in('contrato_id', ligados.map((x: { contrato_id: string }) => x.contrato_id)).is('excluido_em', null)
+        .order('vencimento', { ascending: false }).order('numero', { ascending: false }).order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
+      if (todas.length >= PARCELAS_DA_PESSOA || data.length < LINHAS_POR_CONSULTA) return todas.slice(0, PARCELAS_DA_PESSOA);
+    }
   },
   async parcelasDoPeriodo(de, ate, hoje) {
     // As trazidas de antes do período são as atrasadas: num mês futuro, o que ainda vai vencer não entra.

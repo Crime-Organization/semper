@@ -2292,7 +2292,7 @@ export const SD: Dados = {
   async parcelasGerar(contratoId) {
     const k = acharContrato(contratoId);
     const colunas = bd.colunas.filter(c => c.modulo === 'contratos').map(c => ({ ...c, modulo: undefined }));
-    if (!chegouAoAssinado(colunas, k.etapa_id, k.assinado_em)) return erro('Este contrato ainda não foi assinado. As parcelas nascem na coluna de assinado.');
+    if (!chegouAoAssinado(colunas, k.etapa_id, k.assinado_em) && !bd.contratosComDemandas!.includes(contratoId)) return erro('Este contrato ainda não foi assinado. As parcelas nascem na coluna de assinado.');
     if (bd.parcelas!.some(p => p.contrato_id === contratoId && !p.excluido_em)) return erro('Este contrato já tem parcelas.');
     if (!bd.contratosComParcelas!.includes(contratoId)) bd.contratosComParcelas!.push(contratoId);
     const quantas = gerarParcelas(k); gravar();

@@ -169,7 +169,7 @@ describe('Validação do cadastro de contrato', () => {
     ['a mesma pessoa aparece duas vezes', { participantes: [{ pessoaId: 'p2', percentual: '' }, { pessoaId: 'p2', percentual: '5' }] }, 'participantes',
       'A mesma pessoa aparece duas vezes nos participantes.'],
     ['a soma com o escritório passa de 100%', { percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '60' }], indicadorId: 'p3', indicadorPercentual: '20' },
-      'divisao', 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.'],
+      'divisao', 'A soma dos percentuais passa do que há para dividir.'],
     ['o mesmo cliente aparece duas vezes', { clientes: ['p1', 'p1'] }, 'clientes', 'O mesmo cliente aparece duas vezes.'],
     ['indicador e participante são a mesma pessoa', { participantes: [{ pessoaId: 'p2', percentual: '' }], indicadorId: 'p2' }, 'indicadorId',
       'O indicador e os participantes precisam ser pessoas diferentes.'],

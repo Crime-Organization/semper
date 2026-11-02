@@ -350,13 +350,13 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
       <Nota>Com entrada, ela conta como a primeira parcela: as demais dividem o que sobra.</Nota>
     </>,
     divisao: () => <>
-      <Escolhas rotulo="Enviado ao escritório" dica="Quanto do que o cliente pagar vai para a conta PJ." erro={erros.percentualEscritorio}>
+      <Escolhas rotulo="Enviado à conta da empresa" dica="Quanto do que o cliente pagar vai para a conta PJ." erro={erros.percentualEscritorio}>
         {radios('percentualEscritorio', [['', 'A definir'], ...PERCENTUAIS_ESCRITORIO.map(v => [String(v), `${v}% do que o cliente pagar`] as [string, string])])}
       </Escolhas>
       {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
       <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
         <span className="rot" id="participantes-rotulo">Participantes</span>
-        <p className="dica">Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o total.</p>
+        <p className="dica">Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o líquido.</p>
         {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
@@ -381,7 +381,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           {texto('indicadorPercentual', { inputMode: 'decimal', placeholder: '0', disabled: !c.indicadorId })}
         </Campo>
       </div>
-      <Nota>Os participantes são sempre da equipe. O indicador é um só e pode ser qualquer pessoa, da equipe ou um parceiro de fora. Todos precisam estar cadastrados em Pessoas.</Nota>
+      <Nota>Os participantes são sempre da equipe. O indicador é um só e pode ser qualquer pessoa, da equipe ou um parceiro de fora. Todos precisam estar cadastrados em Pessoas. O sócio que indicou recebe 10% do escritório, à parte: deixe o percentual dele em branco. O que fica com o responsável vale para quem não é sócio.</Nota>
     </>,
     documento: () => <>
       <Campo rotulo="Link do contrato no Drive" para="documentoUrl" erro={erros.documentoUrl}>

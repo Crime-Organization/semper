@@ -290,13 +290,13 @@ end $$;
 create trigger parcelas_automaticas after insert or update of etapa_id on public.contratos
   for each row execute function privado.parcelas_do_contrato_assinado();
 
--- O contrato que já passou da assinatura: tem a data dela, ou está na coluna de assinado ou numa depois dela.
+-- O contrato que já passou da assinatura: tem a data dela, está na coluna de assinado ou já esteve lá (é o que marca
+-- contratos_com_demandas). Não dá para olhar a ordem das colunas: com grupos no quadro, ela não segue a ordem da tela.
 create function privado.contrato_ja_assinado(k public.contratos) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select k.assinado_em is not null or exists (
-    select 1 from public.quadro_colunas c
-    join public.quadro_colunas a on a.escritorio_id = c.escritorio_id and a.modulo = 'contratos' and a.marco = 'assinado'
-    where c.id = k.etapa_id and c.ordem >= a.ordem)
+  select k.assinado_em is not null
+    or exists (select 1 from public.quadro_colunas c where c.id = k.etapa_id and c.marco = 'assinado')
+    or exists (select 1 from privado.contratos_com_demandas d where d.contrato_id = k.id)
 $$;
 revoke execute on function privado.contrato_ja_assinado(public.contratos) from public, anon, authenticated;
 
@@ -337,7 +337,8 @@ language plpgsql security definer set search_path = '' as $$
 declare v_tem_parcelas boolean;
 begin
   if privado.sou_admin() or not coalesce((select (modulos ->> 'financeiro')::boolean from public.escritorios where id = new.escritorio_id), false) then return new; end if;
-  v_tem_parcelas := exists (select 1 from public.contrato_parcelas where contrato_id = new.id and excluido_em is null);
+  -- Conta também as excluídas: senão bastaria excluir, mudar a divisão e devolver as parcelas.
+  v_tem_parcelas := exists (select 1 from public.contrato_parcelas where contrato_id = new.id);
   if new.responsavel_id is distinct from old.responsavel_id then
     if old.responsavel_id is distinct from auth.uid() then raise exception 'Só um administrador ou o responsável atual troca o responsável do contrato.'; end if;
     if v_tem_parcelas then raise exception 'Este contrato tem parcelas: só um administrador troca o responsável.'; end if;

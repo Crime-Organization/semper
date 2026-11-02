@@ -158,7 +158,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Enviado à conta da empresa', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
-      ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
+      ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante, se não for sócio</small></>]
     ]} />
 
     <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento">
@@ -169,7 +169,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     {ctx.escritorio?.modulos?.financeiro && (ctx.ehAdmin || k.responsavel_id === eu) && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="contratos.cartao.parcelas">
-      <ParcelasDoContrato k={k} aoMudar={() => setVersaoHist(v => v + 1)} />
+      <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas">

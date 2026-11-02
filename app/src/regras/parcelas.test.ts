@@ -74,18 +74,18 @@ describe('Quando as parcelas nascem', () => {
   });
 });
 
-describe('Contrato que já passou da assinatura', () => {
-  const COLUNAS = [{ id: 'a', ordem: 1, marco: null }, { id: 'b', ordem: 2, marco: 'assinado' as const }, { id: 'c', ordem: 3, marco: null }];
+describe('Contrato que já foi assinado', () => {
+  const COLUNAS = [{ id: 'a', marco: null }, { id: 'b', marco: 'assinado' as const }, { id: 'c', marco: null }];
 
-  it.each([['a', null, false], ['b', null, true], ['c', null, true], [null, null, false], ['sumiu', null, false], ['a', '2026-01-01', true]])(
-    'quando a coluna é %s e a assinatura é %s, então já passou: %s', (etapa, assinado, passou) => {
+  it.each([['a', null, false], ['b', null, true], ['c', null, false], [null, null, false], ['sumiu', null, false], ['a', '2026-01-01', true]])(
+    'quando a coluna é %s e a assinatura é %s, então já foi assinado: %s', (etapa, assinado, passou) => {
       // Então
       expect(chegouAoAssinado(COLUNAS, etapa, assinado)).toBe(passou);
     });
 
   it('quando o quadro não tem a coluna de assinado, então só a data conta', () => {
     // Então
-    expect(chegouAoAssinado([{ id: 'a', ordem: 1, marco: null }], 'a', null)).toBe(false);
+    expect(chegouAoAssinado([{ id: 'a', marco: null }], 'a', null)).toBe(false);
   });
 });
 

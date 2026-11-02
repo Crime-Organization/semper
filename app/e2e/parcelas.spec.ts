@@ -70,6 +70,21 @@ test.describe('Parcelas do contrato', () => {
     await expect(cartao.getByText('5 geradas', { exact: false })).toHaveCount(1);
   });
 
+  test('quando muda a situação para assinado com a seção aberta, então as parcelas aparecem na hora', async ({ page }) => {
+    // Dado: o contrato de JOÃO PEDRO ainda não foi assinado
+    const cartao = await abrirContrato(page, 'JOÃO PEDRO FICTÍCIO');
+    await abrirSecao(cartao, 'Parcelas');
+    await expect(cartao.getByText('Elas nascem quando o contrato chega à coluna de assinado.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
+    // Quando
+    await cartao.getByLabel('Situação do contrato').selectOption({ label: 'Assinado / em andamento' });
+    // Então
+    await expect(cartao.getByRole('button', { name: 'Receber a parcela 5' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
+    await abrirSecao(cartao, 'Histórico das parcelas');
+    await expect(cartao.getByText('5 geradas', { exact: false })).toBeVisible();
+  });
+
   test('quando o contrato é de êxito, então não gera sozinho: lança à mão, muda e exclui, com desfazer', async ({ page }) => {
     // Dado
     const cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');

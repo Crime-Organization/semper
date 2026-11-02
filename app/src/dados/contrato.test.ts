@@ -1549,6 +1549,15 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.parcelasGerar(assinadoSemParcelas.id)).toBe(2);
       });
 
+      it('quando o contrato já esteve na coluna de assinado e saiu, então ainda gera à mão', async () => {
+        // Dado
+        const k = await assinado();
+        for (const p of k.parcelas) await SD.parcelaExcluir(p.id);
+        await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => !c.marco)!.id, 1);
+        // Então
+        expect(await SD.parcelasGerar(k.id)).toBe(2);
+      });
+
       it('quando há parcela lançada à mão antes da assinatura, então assinar não gera por cima', async () => {
         // Dado
         const k = await novoContrato();

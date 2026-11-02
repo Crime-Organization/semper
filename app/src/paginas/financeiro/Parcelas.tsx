@@ -219,12 +219,11 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
 }
 
 /** A seção do cartão do contrato. */
-export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () => void }) {
+/** `versao` vem do cartão, que muda quando o contrato muda de coluna: é aí que as parcelas nascem. */
+export function ParcelasDoContrato({ k, versao, aoMudar }: { k: Contrato; versao: number; aoMudar: () => void }) {
   const [lista, setLista] = useState<Parcela[] | string | null>(null);
   const [colunas, setColunas] = useState<Coluna[]>([]);
   const [nova, setNova] = useState(false);
-  const [versao, setVersao] = useState(0);
-  const recarregar = () => setVersao(v => v + 1);
   const hoje = hojeISO();
   useEffect(() => {
     let vivo = true;
@@ -233,8 +232,8 @@ export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () =>
       .catch(e => { if (vivo) setLista((e as Error).message); });
     return () => { vivo = false; };
   }, [k.id, versao]);
-  useMudancas(() => { setNova(false); recarregar(); });
-  const mudou = () => { setNova(false); recarregar(); aoMudar(); };
+  useMudancas(() => setNova(false));
+  const mudou = () => { setNova(false); aoMudar(); };
 
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
@@ -244,7 +243,9 @@ export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () =>
     mudou();
   }
   async function gerar() {
-    try { await SD.parcelasGerar(k.id); mudou(); } catch (e) { falha(e); }
+    // Se falhar, relê do mesmo jeito: pode ser que já tenham gerado.
+    try { await SD.parcelasGerar(k.id); } catch (e) { falha(e); }
+    mudou();
   }
   const geraSozinho = parcelasDoContrato(k, hoje).length > 0;
   const podeGerar = !lista.length && geraSozinho && chegouAoAssinado(colunas, k.etapa_id, k.assinado_em);
