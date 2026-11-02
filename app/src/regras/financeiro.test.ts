@@ -61,6 +61,15 @@ describe('A divisão fecha', () => {
     expect(d.escritorio + d.das).toBe(d.naConta);
   });
 
+  it('quando todo o líquido do responsável vai para os terceiros, então o arredondamento não o deixa negativo', () => {
+    // Quando: R$ 1.000,03 em conta sem DAS, quatro partes de 20%
+    const d = dividirRecebimento({ ...BASE, valor: 100003, contaComDas: false, terceiros: ['a', 'b', 'c', 'd'].map(id => ({ id, percentual: 20 })) });
+    // Então
+    expect(d.responsavelFica).toBe(0);
+    expect(d.terceiros.reduce((s, t) => s + t.valor, 0)).toBe(d.responsavelRecebe);
+    expect(d.escritorio + d.responsavelRecebe).toBe(d.liquido);
+  });
+
   it('quando o percentual tem casas que o computador arredonda errado, então a conta continua exata', () => {
     // 4,35% de R$ 1.000 são exatamente R$ 43,50.
     expect(dividirRecebimento({ ...BASE, aliquotaDas: 4.35 }).das).toBe(4350);
@@ -108,9 +117,17 @@ describe('O que não dá para dividir', () => {
     ['valor com fração de centavo', { valor: 10.5 }, 'Informe o valor recebido.'],
     ['taxa negativa', { taxaMaquina: -1 }, 'A taxa da máquina precisa ser um valor em reais.'],
     ['taxa maior que o valor', { taxaMaquina: 100001 }, 'A taxa da máquina não pode ser maior que o valor recebido.'],
-    ['DAS fora de 0 a 100', { aliquotaDas: 101 }, 'O DAS precisa ser um percentual de 0 a 100.'],
-    ['DAS que não é número', { aliquotaDas: Number.NaN }, 'O DAS precisa ser um percentual de 0 a 100.'],
-    ['terceiro com zero', { terceiros: [{ id: 'a', percentual: 0 }] }, 'O percentual de cada pessoa precisa ser de 0 a 100.'],
+    ['DAS fora de 0 a 100', { aliquotaDas: 101 }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.'],
+    ['DAS que não é número', { aliquotaDas: Number.NaN }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.'],
+    ['DAS com mais de duas casas', { aliquotaDas: 4.567 }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.'],
+    ['terceiro com zero', { terceiros: [{ id: 'a', percentual: 0 }] }, 'O percentual de cada pessoa precisa ser de 0 a 100, com até duas casas.'],
+    ['terceiro com mais de duas casas', { terceiros: [{ id: 'a', percentual: 0.004 }] }, 'O percentual de cada pessoa precisa ser de 0 a 100, com até duas casas.'],
+    ['parte fora da lista', { parteNaConta: 50 as never }, 'Escolha quanto vai para a conta da empresa: 20%, 30% ou 100%.'],
+    ['parte em texto', { parteNaConta: '100' as never }, 'Escolha quanto vai para a conta da empresa: 20%, 30% ou 100%.'],
+    ['parte que não é número', { parteNaConta: Number.NaN as never }, 'Escolha quanto vai para a conta da empresa: 20%, 30% ou 100%.'],
+    ['taxa e DAS acima do que entrou', { taxaMaquina: 95501 }, 'A taxa da máquina e o DAS passam do que entrou na conta.'],
+    ['DAS de 100% com taxa', { aliquotaDas: 100 }, 'A taxa da máquina e o DAS passam do que entrou na conta.'],
+    ['taxa acima do que ficou com o advogado', { parteNaConta: 30 as const, taxaMaquina: 70001 }, 'A taxa da máquina passa do que ficou com o advogado.'],
     ['soma acima do que há para dividir', { terceiros: [{ id: 'a', percentual: 50 }, { id: 'b', percentual: 31 }] }, 'A soma dos percentuais passa do que há para dividir.'],
     ['repasse maior que o que ficou com o advogado', { parteNaConta: 30 as const, terceiros: [{ id: 'a', percentual: 75 }] }, 'Os repasses passam do que ficou com o advogado.']
   ])('quando há %s, então avisa', (_caso, mudanca, mensagem) => {
@@ -123,6 +140,18 @@ describe('O que não dá para dividir', () => {
     // Então
     expect(erroDoRecebimento(BASE)).toBeNull();
     expect(erroDoRecebimento({ ...BASE, aliquotaDas: 0, taxaMaquina: 0 })).toBeNull();
+  });
+
+  it('quando taxa e DAS consomem exatamente o que entrou, então vale, com líquido zerado', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, taxaMaquina: 95500 });
+    // Então
+    expect(d).toMatchObject({ liquido: 0, escritorio: 0, responsavelRecebe: 0, responsavelFica: 0 });
+  });
+
+  it('quando a soma dá exatamente o que há para dividir, então vale, mesmo com casas que o computador soma errado', () => {
+    // Então
+    expect(erroDoRecebimento({ ...BASE, terceiros: [{ id: 'a', percentual: 0.01 }, { id: 'b', percentual: 64.76 }, { id: 'c', percentual: 15.23 }] })).toBeNull();
   });
 });
 
@@ -145,15 +174,16 @@ describe('O DAS de cada mês', () => {
   it('quando o DAS muda num mês, então os meses anteriores continuam com o valor deles', () => {
     // Dado
     const antes = dasDoMes(LISTA, '2026-09');
-    // Quando
-    const depois = dasDoMes([...LISTA, { mes: '2026-10', aliquota: 7 }].filter(a => a.aliquota !== 6), '2026-09');
+    // Quando: o DAS de outubro é corrigido
+    const depois = dasDoMes(LISTA.map(a => a.mes === '2026-10' ? { ...a, aliquota: 7 } : a), '2026-09');
     // Então
     expect(depois).toBe(antes);
   });
 
   it.each([
     ['mês vazio', { mes: '', aliquota: 4.5 }, 'Escolha o mês.'], ['mês 13', { mes: '2026-13', aliquota: 4.5 }, 'Escolha o mês.'],
-    ['DAS negativo', { mes: '2026-01', aliquota: -1 }, 'O DAS precisa ser um percentual de 0 a 100.'], ['DAS que não é número', { mes: '2026-01', aliquota: Number.NaN }, 'O DAS precisa ser um percentual de 0 a 100.']
+    ['DAS negativo', { mes: '2026-01', aliquota: -1 }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.'], ['DAS que não é número', { mes: '2026-01', aliquota: Number.NaN }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.'],
+    ['DAS com mais de duas casas', { mes: '2026-01', aliquota: 4.567 }, 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.']
   ])('quando há %s, então avisa', (_caso, a, mensagem) => {
     // Então
     expect(erroDoDas(a)).toBe(mensagem);

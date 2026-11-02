@@ -6,6 +6,7 @@
 /** Quanto do que o cliente paga o advogado manda para a conta da empresa: um campo do contrato. */
 export type ParteNaConta = 20 | 30 | 100;
 export const PARTE_INTEGRAL: ParteNaConta = 100;
+export const PARTES_NA_CONTA: ParteNaConta[] = [20, 30, PARTE_INTEGRAL];
 
 /** Quanto do líquido fica com o escritório: 30% normalmente, 20% quando há indicador que não é sócio ou outro advogado no caso. */
 export const PERCENTUAL_DO_ESCRITORIO = { normal: 30, reduzido: 20 };
@@ -52,10 +53,15 @@ export interface Divisao {
   escritorioFinal: number;
 }
 
-/** Centavos de um percentual, arredondando o meio para cima. O percentual vira inteiro antes da conta, para 4,35 não virar 4,3499…. */
+/** Os percentuais têm até duas casas. Viram inteiros antes da conta, para 4,35 não virar 4,3499…. */
 const CASAS_DO_PERCENTUAL = 100;
 const TODO = 100 * CASAS_DO_PERCENTUAL;
-const parte = (centavos: number, percentual: number) => Math.round(centavos * Math.round(percentual * CASAS_DO_PERCENTUAL) / TODO);
+const emInteiro = (percentual: number) => Math.round(percentual * CASAS_DO_PERCENTUAL);
+/** Tolerância da conferência das casas: o computador guarda 4,35 como 4,3499…. */
+const FOLGA = 1e-9;
+const temAteDuasCasas = (percentual: number) => Math.abs(percentual * CASAS_DO_PERCENTUAL - emInteiro(percentual)) < FOLGA;
+/** Centavos de um percentual, arredondando o meio para cima. */
+const parte = (centavos: number, percentual: number) => Math.round(centavos * emInteiro(percentual) / TODO);
 
 /** O que há de errado no recebimento, ou null se dá para dividir. */
 export function erroDoRecebimento(r: Recebimento): string | null {
@@ -63,17 +69,20 @@ export function erroDoRecebimento(r: Recebimento): string | null {
   if (!inteiroPositivo(r.valor) || r.valor === 0) return 'Informe o valor recebido.';
   if (!inteiroPositivo(r.taxaMaquina)) return 'A taxa da máquina precisa ser um valor em reais.';
   if (r.taxaMaquina > r.valor) return 'A taxa da máquina não pode ser maior que o valor recebido.';
-  if (!(r.aliquotaDas >= 0 && r.aliquotaDas <= 100)) return 'O DAS precisa ser um percentual de 0 a 100.';
-  if (r.terceiros.some(t => !(t.percentual > 0 && t.percentual <= 100))) return 'O percentual de cada pessoa precisa ser de 0 a 100.';
-  const somaDosTerceiros = r.terceiros.reduce((s, t) => s + t.percentual, 0);
-  if (somaDosTerceiros + PERCENTUAL_DO_ESCRITORIO.reduzido > 100) return 'A soma dos percentuais passa do que há para dividir.';
-  if (r.parteNaConta !== PARTE_INTEGRAL) {
-    // Abaixo da parte integral, os repasses saem do que ficou com o advogado.
-    const ficou = r.valor - parte(r.valor, r.parteNaConta) - (r.contaComDas ? r.taxaMaquina : 0);
-    const repasses = r.terceiros.reduce((s, t) => s + parte(r.valor, t.percentual), 0);
-    if (repasses > ficou) return 'Os repasses passam do que ficou com o advogado.';
-  }
-  return null;
+  if (!PARTES_NA_CONTA.includes(r.parteNaConta)) return 'Escolha quanto vai para a conta da empresa: 20%, 30% ou 100%.';
+  if (erroDoPercentualDoDas(r.aliquotaDas)) return erroDoPercentualDoDas(r.aliquotaDas);
+  if (r.terceiros.some(t => !(t.percentual > 0 && t.percentual <= 100 && temAteDuasCasas(t.percentual) && emInteiro(t.percentual) > 0))) return 'O percentual de cada pessoa precisa ser de 0 a 100, com até duas casas.';
+  const somaDosTerceiros = r.terceiros.reduce((s, t) => s + emInteiro(t.percentual), 0);
+  if (somaDosTerceiros + emInteiro(PERCENTUAL_DO_ESCRITORIO.reduzido) > TODO) return 'A soma dos percentuais passa do que há para dividir.';
+  const integral = r.parteNaConta === PARTE_INTEGRAL;
+  const naConta = integral ? r.valor : parte(r.valor, r.parteNaConta);
+  const taxa = r.contaComDas ? r.taxaMaquina : 0;
+  if (integral) return taxa + (r.contaComDas ? parte(naConta, r.aliquotaDas) : 0) > naConta ? 'A taxa da máquina e o DAS passam do que entrou na conta.' : null;
+  // Abaixo da parte integral, a taxa e os repasses saem do que ficou com o advogado.
+  const ficou = r.valor - naConta - taxa;
+  if (ficou < 0) return 'A taxa da máquina passa do que ficou com o advogado.';
+  const repasses = r.terceiros.reduce((s, t) => s + parte(r.valor, t.percentual), 0);
+  return repasses > ficou ? 'Os repasses passam do que ficou com o advogado.' : null;
 }
 
 /** Com a parte integral na conta, o líquido se divide: o escritório fica com o percentual dele, cada terceiro com o seu, e o resto é do responsável. */
@@ -81,7 +90,11 @@ function dividirOLiquido(r: Recebimento, liquido: number) {
   const percentual = r.terceiros.length ? PERCENTUAL_DO_ESCRITORIO.reduzido : PERCENTUAL_DO_ESCRITORIO.normal;
   const escritorio = parte(liquido, percentual);
   const terceiros = r.terceiros.map(t => ({ id: t.id, valor: parte(liquido, t.percentual) }));
-  return { escritorio, terceiros, responsavelRecebe: liquido - escritorio };
+  const responsavelRecebe = liquido - escritorio;
+  // Com tudo dividido entre os terceiros, o arredondamento pode pedir centavos a mais: saem do último, e nunca ficam negativos.
+  const excesso = terceiros.reduce((s, t) => s + t.valor, 0) - responsavelRecebe;
+  if (excesso > 0) terceiros[terceiros.length - 1].valor -= excesso;
+  return { escritorio, terceiros, responsavelRecebe };
 }
 
 /** Divide o recebimento. Lança erro se ele não servir (veja erroDoRecebimento). */
@@ -119,6 +132,9 @@ export function dividirRecebimento(r: Recebimento): Divisao {
 /** O percentual do DAS a partir de um mês ("aaaa-mm"). Ele muda de mês a mês, e os meses já fechados não mudam. */
 export interface AliquotaDoMes { mes: string; aliquota: number }
 
+const erroDoPercentualDoDas = (aliquota: number) =>
+  aliquota >= 0 && aliquota <= 100 && temAteDuasCasas(aliquota) ? null : 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.';
+
 /** O DAS de um mês: o lançado para ele ou, sem isso, o do último mês lançado antes. null se não há nenhum até aquele mês. */
 export function dasDoMes(lista: AliquotaDoMes[], mes: string): number | null {
   const anteriores = lista.filter(a => a.mes <= mes).toSorted((a, b) => b.mes.localeCompare(a.mes));
@@ -128,6 +144,5 @@ export function dasDoMes(lista: AliquotaDoMes[], mes: string): number | null {
 /** O que há de errado no DAS lançado, ou null. */
 export function erroDoDas(a: AliquotaDoMes): string | null {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(a.mes)) return 'Escolha o mês.';
-  if (!(a.aliquota >= 0 && a.aliquota <= 100)) return 'O DAS precisa ser um percentual de 0 a 100.';
-  return null;
+  return erroDoPercentualDoDas(a.aliquota);
 }
