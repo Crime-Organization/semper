@@ -3,7 +3,7 @@
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
 // devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, alturaParada } from './ajudantes';
 
 /** Abre o cartão de uma demanda pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirDemanda(page: Page, titulo: string, ...secoes: string[]) {
@@ -45,13 +45,13 @@ test.describe('Cadastro de demandas', () => {
     // Dado
     await page.goto('/demandas/nova/');
     const titulo = page.getByLabel('Título');
-    const altura = (await titulo.boundingBox())!.height;
+    const altura = await alturaParada(titulo);
     await titulo.fill('Pedido de registro');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
-    expect((await page.getByRole('combobox', { name: 'Contrato' }).boundingBox())!.height).toBe(altura);
+    expect(await alturaParada(page.getByRole('combobox', { name: 'Contrato' }))).toBe(altura);
   });
 
   test('quando falta o título, então a etapa avisa e não segue', async ({ page }) => {

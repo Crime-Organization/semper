@@ -24,3 +24,15 @@ export async function abrirSecao(lugar: Page | Locator, titulo: string) {
   if (await botao.getAttribute('aria-expanded') === 'false') await botao.click();
   await expect(botao).toHaveAttribute('aria-expanded', 'true');
 }
+
+/**
+ * A altura de um elemento, medida depois de terminarem as animações dele e de quem o contém. Durante a entrada de uma
+ * etapa, o navegador tira a altura da conta "fundo menos topo" com posições fracionadas, e 48 pode vir como 47,99997.
+ */
+export async function alturaParada(alvo: Locator) {
+  await alvo.evaluate(async el => {
+    const animacoes = el.ownerDocument.getAnimations().filter(a => (a.effect as KeyframeEffect | null)?.target?.contains(el));
+    await Promise.allSettled(animacoes.map(a => a.finished));
+  });
+  return (await alvo.boundingBox())!.height;
+}
