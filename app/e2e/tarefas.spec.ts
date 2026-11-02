@@ -3,8 +3,8 @@
 // três tarefas: "Pedir documentos ao cliente" (Para fazer, do Bruno), "Emitir a GRU" (Fazendo, do Mateus, com o Bruno)
 // e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante e o prazo
 // vencido. Quem está logado é o Mateus (administrador).
-import { expect, test, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { abrirSecao, alturaParada } from './ajudantes';
 
 /** Abre o cartão de uma tarefa pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
@@ -16,19 +16,25 @@ async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
   return page.getByRole('dialog');
 }
 
+/** Aperta a tecla do cronômetro. O título do cartão aparece antes de a tela escutar o teclado; o relógio só aparece depois. */
+async function apertarT(page: Page, cartao: Locator) {
+  await expect(cartao.getByRole('timer')).toBeVisible();
+  await page.keyboard.press('t');
+}
+
 test.describe('Cadastro de tarefas', () => {
   test('quando chega à etapa das ligações, então as buscas têm a altura dos outros campos', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');
     const titulo = page.getByLabel('Título');
-    const altura = (await titulo.boundingBox())!.height;
+    const altura = await alturaParada(titulo);
     await titulo.fill('Mandar a notificação');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
-    expect((await page.getByRole('combobox', { name: 'Demanda' }).boundingBox())!.height).toBe(altura);
-    expect((await page.getByRole('combobox', { name: 'Contrato' }).boundingBox())!.height).toBe(altura);
+    expect(await alturaParada(page.getByRole('combobox', { name: 'Demanda' }))).toBe(altura);
+    expect(await alturaParada(page.getByRole('combobox', { name: 'Contrato' }))).toBe(altura);
   });
 
   test('quando a pessoa cadastra uma tarefa pelas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
@@ -251,7 +257,8 @@ test.describe('Cronômetro da tarefa', () => {
     // Dado
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await page.keyboard.press('t');
+    await apertarT(page, cartao);
+    await expect(cartao.getByText('contando')).toBeVisible();
     // Quando
     await page.clock.runFor(10 * 60_000);
     const pergunta = page.getByRole('dialog', { name: 'Você ainda está aqui?' });
@@ -281,7 +288,7 @@ test.describe('Cronômetro da tarefa', () => {
   test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {
     // Quando: "Organizar a pasta" está concluída, com 40 min do Bruno
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
-    await page.keyboard.press('t');
+    await apertarT(page, cartao);
     // Então
     await expect(cartao.getByText('Tarefa concluída: a contagem encerrou.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
