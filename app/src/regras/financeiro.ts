@@ -5,7 +5,10 @@
 // - com terceiro de qualquer percentual, o escritório fica fixo em 20% do líquido, e o responsável, com o resto;
 // - abaixo da parte integral, o terceiro recebe sobre o que o cliente pagou menos o DAS e a taxa (a conta da planilha);
 // - abaixo da parte integral, a taxa da máquina é do advogado;
-// - em conta sem DAS (PF, ESPÉCIE), vale a mesma parte do contrato: são situações pontuais.
+// - em conta sem DAS (PF, ESPÉCIE), vale a mesma parte do contrato: são situações pontuais;
+// - sócio responsável, com a parte integral na conta, não recebe a parte dele na hora: ela fica no escritório e conta para o lucro.
+//   Se houver terceiro, ele recebe do escritório só o que vai repassar.
+// O banco refaz esta conta ao gravar (privado.dividir_recebimento, na migração das parcelas): mudou aqui, muda lá.
 import { lerPercentual } from './contrato';
 
 /** Quanto do que o cliente paga o advogado manda para a conta da empresa: um campo do contrato. */
@@ -34,6 +37,8 @@ export interface Recebimento {
   terceiros: ParteDeTerceiro[];
   /** O sócio que indicou o cliente: quem recebe do escritório, à parte. */
   socioIndicador: string | null;
+  /** O responsável era sócio na data do recebimento. */
+  responsavelSocio: boolean;
 }
 
 export interface Divisao {
@@ -58,6 +63,8 @@ export interface Divisao {
   socioIndicador: { id: string; valor: number } | null;
   /** O que sobra para o escritório, depois de pagar o sócio que indicou. */
   escritorioFinal: number;
+  /** O que o sócio responsável deixou no escritório: é o que conta para o lucro dele. */
+  contribuicaoDoSocio: number;
 }
 
 /** Os percentuais têm até duas casas. Viram inteiros antes da conta, para 4,35 não virar 4,3499…. */
@@ -83,6 +90,7 @@ export function erroDoRecebimento(r: Recebimento): string | null {
   if (somaDosTerceiros + emInteiro(PERCENTUAL_DO_ESCRITORIO.reduzido) > TODO) return 'A soma dos percentuais passa do que há para dividir.';
   const integral = r.parteNaConta === PARTE_INTEGRAL;
   const naConta = integral ? r.valor : parte(r.valor, r.parteNaConta);
+  if (naConta <= 0) return 'O valor é pequeno demais para dividir.';
   const taxa = r.contaComDas ? r.taxaMaquina : 0;
   if (integral) return taxa + (r.contaComDas ? parte(naConta, r.aliquotaDas) : 0) > naConta ? 'A taxa da máquina e o DAS passam do que entrou na conta.' : null;
   // Abaixo da parte integral, a taxa e os repasses saem do que ficou com o advogado.
@@ -125,15 +133,23 @@ export function dividirRecebimento(r: Recebimento): Divisao {
     const escritorio = naConta - das;
     return {
       naConta, ficouComOAdvogado: ficou, das, taxaMaquina, liquido, escritorio, responsavelRecebe: 0, responsavelFica: ficou - repassado, terceiros, socioIndicador,
-      escritorioFinal: escritorio - (socioIndicador?.valor ?? 0)
+      escritorioFinal: escritorio - (socioIndicador?.valor ?? 0), contribuicaoDoSocio: 0
     };
   }
 
   const liquido = naConta - das - taxaMaquina;
+  if (r.responsavelSocio) {
+    const terceiros = r.terceiros.map(t => ({ id: t.id, valor: parte(liquido, t.percentual) }));
+    const repassar = terceiros.reduce((s, t) => s + t.valor, 0), escritorio = liquido - repassar;
+    return {
+      naConta, ficouComOAdvogado: 0, das, taxaMaquina, liquido, escritorio, responsavelRecebe: repassar, responsavelFica: 0, terceiros, socioIndicador,
+      escritorioFinal: escritorio - (socioIndicador?.valor ?? 0), contribuicaoDoSocio: escritorio
+    };
+  }
   const { escritorio, terceiros, responsavelRecebe } = dividirOLiquido(r, liquido);
   return {
     naConta, ficouComOAdvogado: 0, das, taxaMaquina, liquido, escritorio, responsavelRecebe, responsavelFica: responsavelRecebe - terceiros.reduce((s, t) => s + t.valor, 0), terceiros, socioIndicador,
-    escritorioFinal: escritorio - (socioIndicador?.valor ?? 0)
+    escritorioFinal: escritorio - (socioIndicador?.valor ?? 0), contribuicaoDoSocio: 0
   };
 }
 

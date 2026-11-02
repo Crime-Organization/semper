@@ -266,7 +266,7 @@ test.describe('Caixa', () => {
     await form.getByLabel('Saldo inicial').fill('2.000,00');
     await form.getByRole('button', { name: 'Salvar conta' }).click();
     await expect(form).toHaveCount(0);
-    await abrirSecao(page, 'Mudanças no saldo inicial e no DAS');
+    await abrirSecao(page, 'Mudanças no saldo inicial, no DAS e nos sócios');
     // Então
     await expect(page.getByText('Saldo inicial de PJ', { exact: false })).toBeVisible();
     await expect(page.getByRole('table', { name: 'Lançamentos do mês' })).toContainText('2.010,00');

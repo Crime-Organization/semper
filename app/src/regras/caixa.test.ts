@@ -10,7 +10,7 @@ import { normal } from './texto';
 const HOJE = '2026-11-10';
 const CONTA = { saldo_inicial_em: '2026-01-01' };
 const lancamento = (extra: Partial<Lancamento>): Lancamento => ({
-  id: 'l', conta_id: 'c1', data: HOJE, tipo: 'entrada', categoria: 'recebimento', valor: 1000, descricao: 'x', par_id: null, criado_por: 'u', criado_em: '2026-11-10T10:00:00Z', atualizado_em: '2026-11-10T10:00:00Z', ...extra
+  id: 'l', conta_id: 'c1', data: HOJE, tipo: 'entrada', categoria: 'recebimento', valor: 1000, descricao: 'x', par_id: null, criado_por: 'u', criado_em: '2026-11-10T10:00:00Z', atualizado_em: '2026-11-10T10:00:00Z', origem: null, ...extra
 });
 
 describe('Dinheiro em centavos', () => {

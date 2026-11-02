@@ -91,6 +91,7 @@ export function Casca({ children }: { children: ReactNode }) {
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>
+          {ctx.escritorio?.modulos?.financeiro && item('/parcelas/', 'dinheiro', 'Parcelas')}
           {ctx.ehAdmin && ctx.escritorio?.modulos?.financeiro && item('/financeiro/', 'dinheiro', 'Caixa')}
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}

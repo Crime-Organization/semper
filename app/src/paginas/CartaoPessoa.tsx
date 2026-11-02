@@ -24,6 +24,8 @@ import { useCtx } from '../ui/sessao';
 import NovaPessoa from './NovaPessoa';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
+import { ParcelasDaPessoa } from './financeiro/Parcelas';
+import './Financeiro.css';
 import { CompromissosLigados } from './CompromissosLigados';
 import { ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
@@ -200,6 +202,10 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {contratos === null ? <Carregando />
         : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
         : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.financeiro && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="pessoas.cartao.parcelas">
+      <ParcelasDaPessoa pessoaId={p.id} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas">

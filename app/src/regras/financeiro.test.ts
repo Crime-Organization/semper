@@ -3,7 +3,49 @@ import { describe, expect, it } from 'vitest';
 import { dasDoMes, dividirRecebimento, erroDoDas, erroDoRecebimento, lerAliquota, type Recebimento } from './financeiro';
 
 // R$ 1.000, em centavos, com o DAS de 4,5% e a taxa da máquina de R$ 30: os exemplos confirmados pelo escritório em 02/11/2026.
-const BASE: Recebimento = { valor: 100000, parteNaConta: 100, contaComDas: true, aliquotaDas: 4.5, taxaMaquina: 3000, terceiros: [], socioIndicador: null };
+const BASE: Recebimento = { valor: 100000, parteNaConta: 100, contaComDas: true, aliquotaDas: 4.5, taxaMaquina: 3000, terceiros: [], socioIndicador: null, responsavelSocio: false };
+
+describe('Sócio responsável (decisão de 02/11/2026)', () => {
+  it('quando vai tudo para a conta da empresa, então a parte dele fica no escritório e conta para o lucro', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, responsavelSocio: true });
+    // Então
+    expect(d).toMatchObject({ liquido: 92500, escritorio: 92500, responsavelRecebe: 0, responsavelFica: 0, contribuicaoDoSocio: 92500, escritorioFinal: 92500 });
+  });
+
+  it('quando há terceiro, então recebe do escritório só o que vai repassar', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, responsavelSocio: true, terceiros: [{ id: 'ind', percentual: 10 }] });
+    // Então
+    expect(d).toMatchObject({ escritorio: 83250, responsavelRecebe: 9250, responsavelFica: 0, terceiros: [{ id: 'ind', valor: 9250 }], contribuicaoDoSocio: 83250 });
+  });
+
+  it('quando outro sócio indicou, então paga a indicação, sem diminuir a contribuição', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, responsavelSocio: true, socioIndicador: 'socio' });
+    // Então
+    expect(d).toMatchObject({ escritorio: 92500, socioIndicador: { id: 'socio', valor: 10000 }, escritorioFinal: 82500, contribuicaoDoSocio: 92500 });
+  });
+
+  it('quando vai só uma parte para a conta, então ele já ficou com a dele, e não conta para o lucro', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, parteNaConta: 30, taxaMaquina: 0, responsavelSocio: true });
+    // Então
+    expect(d).toMatchObject({ escritorio: 28650, ficouComOAdvogado: 70000, contribuicaoDoSocio: 0 });
+  });
+
+  it('quando não é sócio, então nada conta para o lucro', () => {
+    // Então
+    expect(dividirRecebimento(BASE).contribuicaoDoSocio).toBe(0);
+  });
+});
+
+describe('Valor pequeno demais', () => {
+  it('quando a parte na conta arredonda para zero, então avisa', () => {
+    // Então
+    expect(erroDoRecebimento({ ...BASE, valor: 1, parteNaConta: 20, taxaMaquina: 0 })).toBe('O valor é pequeno demais para dividir.');
+  });
+});
 
 describe('Os exemplos confirmados pelo escritório', () => {
   it('quando vai tudo para a conta da empresa, sem indicador, então o escritório fica com 30% do líquido e o responsável com o resto', () => {

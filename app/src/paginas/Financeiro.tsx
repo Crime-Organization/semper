@@ -2,7 +2,7 @@
 // fim de cada dia é o que se compara com o banco. Abaixo, as contas e o DAS de cada mês. A página de módulo dá o cabeçalho.
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
-import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento } from '../dados';
+import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento, type Socio } from '../dados';
 import { CAMPOS_DO_LANCAMENTO, diasDoMes, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, transferenciaNova, valorNoAjuste, valorNoHistorico } from '../regras/caixa';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
@@ -16,8 +16,12 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia } from './financeiro/Formularios';
+import { SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
+
+/** O lançamento que nasce de uma parcela só muda por lá: o caixa só mostra de onde ele veio. */
+const ORIGEM_DO_LANCAMENTO: Record<NonNullable<Lancamento['origem']>, string> = { recebimento: 'Veio de uma parcela', repasse: 'Veio de um repasse' };
 
 /** O que está aberto: lançamento novo, a mudança de um lançamento ou a transferência. */
 type Aberto = { o: 'novo' } | { o: 'mudar'; lancamento: Lancamento } | { o: 'transferir' } | null;
@@ -31,6 +35,7 @@ export default function Financeiro() {
   const [contas, setContas] = useState<ContaFinanceira[] | null>(null);
   const [erroInicial, setErroInicial] = useState('');
   const [das, setDas] = useState<AliquotaDoDas[]>([]);
+  const [socios, setSocios] = useState<Socio[]>([]);
   const [contaId, setContaId] = useState(() => lerPreferencia('financeiro.conta', ''));
   const [mes, setMes] = useState(mesDe(hoje));
   const [lido, setLido] = useState<Lido | null>(null);
@@ -43,8 +48,8 @@ export default function Financeiro() {
   useEffect(() => {
     if (!pode) return;
     let vivo = true;
-    Promise.all([SD.financeiroContas(), SD.financeiroDas()])
-      .then(([c, d]) => { if (vivo) { setContas(c); setDas(d); setErroInicial(''); } })
+    Promise.all([SD.financeiroContas(), SD.financeiroDas(), SD.financeiroSocios()])
+      .then(([c, d, s]) => { if (vivo) { setContas(c); setDas(d); setSocios(s); setErroInicial(''); } })
       // Numa releitura que falhou, a tela fica com o que já tinha (e o que estava sendo digitado não some).
       .catch(e => { if (vivo) setContas(atual => { if (atual) falha(e); else setErroInicial((e as Error).message); return atual; }); });
     return () => { vivo = false; };
@@ -90,7 +95,10 @@ export default function Financeiro() {
     <Recolhivel titulo="DAS de cada mês" icone="dinheiro" preferencia="financeiro.das">
       <DasDoEscritorio key={mes} lista={das} mesInicial={mes} aoMudar={recarregar} />
     </Recolhivel>
-    <Recolhivel titulo="Mudanças no saldo inicial e no DAS" icone="relogio" preferencia="financeiro.ajustes">
+    <Recolhivel titulo="Sócios" icone="equipe" preferencia="financeiro.socios" contador={socios.length}>
+      <SociosDoEscritorio socios={socios} hoje={hoje} aoMudar={recarregar} />
+    </Recolhivel>
+    <Recolhivel titulo="Mudanças no saldo inicial, no DAS e nos sócios" icone="relogio" preferencia="financeiro.ajustes">
       <HistoricoDoCartao carregar={() => SD.financeiroAjustes()} campos={{}} valor={valorNoAjuste} versao={versao} />
     </Recolhivel>
   </div>;
@@ -146,10 +154,10 @@ export default function Financeiro() {
           <td className="financeiro-num">{l.tipo === 'entrada' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{l.tipo === 'saida' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{fimDoDia ? <b>{fmtCentavos(saldo)}</b> : fmtCentavos(saldo)}</td>
-          <td><span className="financeiro-acoes">
+          <td>{l.origem ? <span className="financeiro-origem">{ORIGEM_DO_LANCAMENTO[l.origem]}</span> : <span className="financeiro-acoes">
             {!l.par_id && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o lançamento ${l.descricao}`} onClick={() => setAberto({ o: 'mudar', lancamento: l })}><Icone nome="editar" tam={13} /> Mudar</button>}
             <BotaoDuplo pequeno variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={() => excluir(l)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>
-          </span></td>
+          </span>}</td>
         </tr>)}</tbody>
       </table></div> : <Vazio>Nenhum lançamento nesta conta neste mês.</Vazio>}
       <Nota>O saldo em negrito é o do fim de cada dia: compare com o extrato do banco.</Nota>
