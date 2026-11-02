@@ -98,6 +98,10 @@ begin
   if new.excluido_em is not null then
     new.excluido_em := case when tg_op = 'UPDATE' and old.excluido_em is not null then old.excluido_em else now() end;
   end if;
+  -- Outra pessoa já criou a tarefa, com a tela desatualizada aqui: não troca uma tarefa por outra.
+  if tg_op = 'UPDATE' and old.tarefa_id is not null and new.tarefa_id is not null and new.tarefa_id <> old.tarefa_id then
+    raise exception 'Já existe uma tarefa ligada a este item.';
+  end if;
   if new.tarefa_id is not null and (tg_op = 'INSERT' or new.tarefa_id is distinct from old.tarefa_id)
      and not exists (select 1 from public.tarefas t where t.id = new.tarefa_id and t.escritorio_id = new.escritorio_id) then
     raise exception 'Tarefa não encontrada neste escritório.';
@@ -125,6 +129,10 @@ begin
   if new.andamento_id is not null and (tg_op = 'INSERT' or new.andamento_id is distinct from old.andamento_id)
      and not exists (select 1 from public.processo_andamentos a where a.id = new.andamento_id and a.processo_id = new.processo_id) then
     raise exception 'Este andamento não é deste processo.';
+  end if;
+  -- Outra pessoa já criou a tarefa, com a tela desatualizada aqui: não troca uma tarefa por outra.
+  if tg_op = 'UPDATE' and old.tarefa_id is not null and new.tarefa_id is not null and new.tarefa_id <> old.tarefa_id then
+    raise exception 'Já existe uma tarefa ligada a este item.';
   end if;
   if new.tarefa_id is not null and (tg_op = 'INSERT' or new.tarefa_id is distinct from old.tarefa_id)
      and not exists (select 1 from public.tarefas t where t.id = new.tarefa_id and t.escritorio_id = new.escritorio_id) then

@@ -849,6 +849,7 @@ const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
 const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+const TAREFA_JA_LIGADA = 'Já existe uma tarefa ligada a este item.';
 const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
 /** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
 function historicoDoAcompanhamento(processoId: string, campo: 'andamento' | 'prazo', de: string | null, para: string | null) {
@@ -1718,6 +1719,7 @@ export const SD: Dados = {
     const a = bd.andamentos!.find(x => x.id === id);
     if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
     const novo = { ...a, ...dados, atualizado_em: agora() };
+    if (a.tarefa_id && novo.tarefa_id && novo.tarefa_id !== a.tarefa_id) return erro(TAREFA_JA_LIGADA);
     // Como o gatilho do banco: a tarefa desligada sem mexer na marcação faz a intimação voltar a ficar a tratar.
     if (a.tarefa_id && !novo.tarefa_id && novo.tratada_em === a.tratada_em) novo.tratada_em = null;
     conferirAndamento(novo);
@@ -1756,6 +1758,7 @@ export const SD: Dados = {
     const p = bd.prazos!.find(x => x.id === id);
     if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
     const novo = { ...p, ...dados, atualizado_em: agora() };
+    if (p.tarefa_id && novo.tarefa_id && novo.tarefa_id !== p.tarefa_id) return erro(TAREFA_JA_LIGADA);
     conferirPrazo(novo);
     historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), linhaDoPrazo(novo));
     Object.assign(p, novo); auditar('processo_prazos', 'alteracao', p); gravar();

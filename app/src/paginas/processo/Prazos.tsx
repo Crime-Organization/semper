@@ -100,7 +100,7 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
           <div className="acomp-acoes">
             {z.tarefa ? <Link className={estiloBotao({ forma: 'mini' })} to={'/tarefas/?id=' + z.tarefa.id}>Tarefa {z.tarefa.codigo}</Link>
               : z.tarefa_id ? <span className="nota">Tarefa ligada (você não tem acesso a ela)</span>
-              : !somenteLer && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(z)}>Criar tarefa</Botao>}
+              : !somenteLer && ctx.escritorio?.modulos?.tarefas && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(z)}>Criar tarefa</Botao>}
             {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o prazo ${z.descricao}`} onClick={() => setEditando(z.id)}><Icone nome="editar" tam={13} /> Mudar</button>}
             {!somenteLer && <BotaoDuplo pequeno variante="perigo" confirmar={`Confirmar: excluir ${z.descricao}`} aoConfirmar={() => excluir(z)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
           </div>
