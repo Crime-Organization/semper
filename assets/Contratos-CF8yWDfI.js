@@ -1,1 +1,0 @@
-import{q as e}from"./index-B1AFXxXC.js";import{i as t}from"./quadro-Db1VbZlm.js";async function n(n){let[r,i]=await Promise.all([e.colunasListar(n),e.gruposListar(n)]);return t(r,i)?.id??null}export{n as t};
