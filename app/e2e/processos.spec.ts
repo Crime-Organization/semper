@@ -670,7 +670,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Quando: abre o processo
     await tarefa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ }).click();
     // Então
-    await expect(page).toHaveURL(//processos/judicial/?id=/);
+    await expect(page).toHaveURL(/\/processos\/judicial\/\?id=/);
     await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
   });
 
