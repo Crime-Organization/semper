@@ -140,6 +140,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
     </Recolhivel>
 
+    {t.processo_id && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo">
+      <ItensLigados itens={[t.processo
+        ? { id: 'processo', para: '/processos/?id=' + t.processo.id, codigo: t.processo.codigo, titulo: t.processo.numero, detalhe: 'Processo' }
+        : { id: 'processo', titulo: 'Processo ligado', detalhe: 'Você não tem acesso a este processo' }]} />
+    </Recolhivel>}
+
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
     </Recolhivel>

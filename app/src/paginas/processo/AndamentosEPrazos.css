@@ -1,0 +1,13 @@
+/* Prazos e andamentos no cartão do processo */
+.acomp { display: flex; flex-direction: column; gap: 12px }
+.acomp-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.acomp-lista:empty { display: none }
+.acomp-lista > li { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; overflow-wrap: anywhere }
+.acomp-lista > li.acomp-feito b { color: var(--muted); text-decoration: line-through }
+.acomp-lista p { margin: 0 }
+.acomp-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.acomp-marcar { display: inline-flex; align-items: center; gap: 8px; margin-right: auto }
+.acomp-texto { white-space: pre-wrap }
+.acomp-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.acomp-form { display: flex; flex-direction: column; gap: 16px }
+.acomp-form-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px }

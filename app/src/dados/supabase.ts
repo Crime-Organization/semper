@@ -10,13 +10,13 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNoProcesso } from '../regras/processo';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -203,6 +203,16 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+// ---------- andamentos e prazos do processo ----------
+const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+const CAMPOS_PRAZO = 'id, processo_id, descricao, final, intimacao, dias, contagem, disponibilizacao, sem_recesso, andamento_id, tarefa_id, concluido_em, '
+  + 'criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+/** O banco devolve a hora com os segundos ("14:30:00"); a tela e o formulário usam hh:mm. */
+const andamentoLido = (a: AndamentoDeProcesso): AndamentoDeProcesso => ({ ...a, hora: a.hora?.slice(0, 5) ?? null });
+/** Nenhuma linha mudou: o processo foi arquivado, ou o item já não existe. */
+const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
+const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_MUDANCA); return linha; };
+
 // ---------- processos ----------
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
@@ -239,9 +249,9 @@ const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, particip
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
-  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
+  + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico)';
+  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, numero)';
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
@@ -671,6 +681,45 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).eq('contrato_id', contratoId)
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
+  },
+
+  // ---------- andamentos e prazos do processo ----------
+  async processoAndamentos(processoId) {
+    const { data } = await rodar(sb.from('processo_andamentos').select(CAMPOS_ANDAMENTO).eq('processo_id', processoId)
+      .order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(ANDAMENTOS_DO_PROCESSO));
+    return (data as AndamentoDeProcesso[]).map(andamentoLido);
+  },
+  async processoAndamentoCriar(processoId, dados) {
+    const { data } = await rodar(sb.from('processo_andamentos').insert({ ...dados, processo_id: processoId, criado_por: uid() }).select(CAMPOS_ANDAMENTO).single());
+    return andamentoLido(data);
+  },
+  async processoAndamentoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processo_andamentos').update(dados).eq('id', id).select(CAMPOS_ANDAMENTO).maybeSingle());
+    return andamentoLido(primeira<AndamentoDeProcesso>(data));
+  },
+  async processoAndamentoExcluir(id) {
+    const { data } = await rodar(sb.from('processo_andamentos').delete().eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoPrazos(processoId) {
+    const { data } = await rodar(sb.from('processo_prazos').select(CAMPOS_PRAZO).eq('processo_id', processoId).order('final', { ascending: false }).limit(PRAZOS_DO_PROCESSO));
+    return data;
+  },
+  async processoPrazoCriar(processoId, dados) {
+    const { data } = await rodar(sb.from('processo_prazos').insert({ ...dados, processo_id: processoId, criado_por: uid() }).select(CAMPOS_PRAZO).single());
+    return data;
+  },
+  async processoPrazoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processo_prazos').update(dados).eq('id', id).select(CAMPOS_PRAZO).maybeSingle());
+    return primeira<PrazoDeProcesso>(data);
+  },
+  async processoPrazoExcluir(id) {
+    const { data } = await rodar(sb.from('processo_prazos').delete().eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async tarefasDoProcesso(processoId) {
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('processo_id', processoId)));
+    return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
 
   // ---------- processos ----------

@@ -2,7 +2,7 @@
 // Módulo Processos. Na semente do banco fictício: o processo judicial 0001234-97.2026.8.13.0024, de JOSÉ DA SILVA TESTE
 // (TJMG, em "Distribuído"), e o administrativo 912345678, "Registro da marca Exemplo", de MARIA APARECIDA EXEMPLO (INPI,
 // em "Protocolado"). Quem está logado é o Mateus (administrador).
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
@@ -454,5 +454,223 @@ test.describe('Filtros e cartão da pessoa', () => {
     // Então
     await expect(page).toHaveURL(/\/processos\/judicial\/\?id=/);
     await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+  });
+});
+
+test.describe('Andamentos, prazos e intimações', () => {
+  /** Abre o cartão do processo judicial da semente. */
+  async function abrirCartao(page: Page) {
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).first().click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByLabel('Situação do processo')).toBeVisible();
+    return cartao;
+  }
+  async function lancarAndamento(cartao: Locator, tipo: string, texto: string) {
+    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo andamento' });
+    await form.getByLabel('Tipo').selectOption({ label: tipo });
+    await form.getByLabel('O que aconteceu').fill(texto);
+    await form.getByRole('button', { name: 'Lançar andamento' }).click();
+    await expect(form).toHaveCount(0);
+  }
+
+  test('quando lança um prazo calculado, então vê o último dia e os dias pulados, e ele vai para o histórico', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    // Quando
+    await form.getByLabel('Que prazo é este').fill('Contestação');
+    await form.getByLabel('Intimação').fill('2026-11-13');
+    await form.getByLabel('Dias', { exact: true }).fill('5');
+    await form.getByRole('group', { name: 'Contagem' }).getByText('Dias úteis').click();
+    // Então: sexta 13/11; contam 16, 17, 18, 19 e 23, porque 20/11 é feriado
+    const resultado = form.getByRole('status', { name: 'Resultado do prazo' });
+    await expect(resultado).toContainText('23/11/2026');
+    await expect(resultado).toContainText('Consciência Negra');
+    // Quando
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    // Então
+    const lista = cartao.getByRole('list', { name: 'Prazos do processo' });
+    await expect(lista).toContainText('Contestação');
+    await expect(lista).toContainText('23/11/2026');
+    await expect(lista).toContainText('5 dias úteis desde 13/11/2026');
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText('Contestação: 23/11/2026')).toBeVisible();
+  });
+
+  test('quando digita a data de um prazo vencido, então o cartão alerta; ao marcar cumprido, o alerta some', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await form.getByLabel('Que prazo é este').fill('Recurso');
+    await form.getByText('Digitar a data').click();
+    // Quando
+    await form.getByLabel('Último dia').fill('2020-01-15');
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    // Então
+    await expect(cartao.getByText('Este processo tem 1 prazo vencido.')).toBeVisible();
+    await expect(cartao.getByText('Data digitada')).toBeVisible();
+    // Quando
+    await cartao.getByRole('checkbox', { name: 'Prazo cumprido: Recurso' }).click();
+    // Então
+    await expect(cartao.getByText('Este processo tem 1 prazo vencido.')).toHaveCount(0);
+    await expect(cartao.getByRole('list', { name: 'Prazos do processo' })).toContainText('Cumprido');
+    // Quando: desfaz
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(cartao.getByText('Este processo tem 1 prazo vencido.')).toBeVisible();
+  });
+
+  test('quando exclui um prazo, então ele some, e desfazer traz de volta', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await form.getByLabel('Que prazo é este').fill('Para excluir');
+    await form.getByText('Digitar a data').click();
+    await form.getByLabel('Último dia').fill('2030-01-15');
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    const lista = cartao.getByRole('list', { name: 'Prazos do processo' });
+    await expect(lista).toContainText('Para excluir');
+    // Quando
+    await lista.getByRole('button', { name: 'Excluir', exact: true }).click();
+    await lista.getByRole('button', { name: 'Confirmar: excluir Para excluir' }).click();
+    // Então
+    await expect(cartao.getByText('Nenhum prazo lançado.')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(lista).toContainText('Para excluir');
+  });
+
+  test('quando é audiência, então pede hora e local, e eles aparecem na lista', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo andamento' });
+    await expect(form.getByLabel('Hora')).toHaveCount(0);
+    // Quando
+    await form.getByLabel('Tipo').selectOption({ label: 'Audiência' });
+    await form.getByLabel('Data da audiência').fill('2030-03-20');
+    await form.getByLabel('Hora').fill('14:30');
+    await form.getByLabel('Local').fill('Fórum Central');
+    await form.getByLabel('O que aconteceu').fill('Audiência de conciliação');
+    await form.getByRole('button', { name: 'Lançar andamento' }).click();
+    // Então
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    await expect(lista).toContainText('20/03/2030 às 14:30 em Fórum Central');
+    await expect(lista).toContainText('Audiência de conciliação');
+    await expect(lista.getByRole('button', { name: 'Criar tarefa' })).toHaveCount(0);
+  });
+
+  test('quando esquece o texto do andamento, então avisa no campo e não lança', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo andamento' });
+    // Quando
+    await form.getByRole('button', { name: 'Lançar andamento' }).click();
+    // Então
+    await expect(form.getByText('Escreva o que aconteceu.')).toBeVisible();
+    await expect(cartao.getByRole('list', { name: 'Andamentos do processo' }).getByRole('listitem')).toHaveCount(0);
+  });
+
+  test('quando cria a tarefa de uma intimação, então ela sai de "a tratar", e a tarefa abre com o processo ligado', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await lancarAndamento(cartao, 'Intimação', 'Intimado para contestar');
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    await expect(lista.getByText('A tratar', { exact: true })).toBeVisible();
+    // Quando
+    await lista.getByRole('button', { name: 'Criar tarefa' }).click();
+    // Então
+    await expect(lista.getByText('A tratar', { exact: true })).toHaveCount(0);
+    await expect(lista.getByRole('button', { name: 'Criar tarefa' })).toHaveCount(0);
+    // Quando: abre a tarefa
+    await lista.getByRole('link', { name: /^Tarefa / }).click();
+    // Então
+    const tarefa = page.getByRole('dialog');
+    await expect(tarefa.getByRole('heading', { name: 'Intimação: Intimado para contestar' })).toBeVisible();
+    await abrirSecao(tarefa, 'Processo');
+    await expect(tarefa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ })).toBeVisible();
+  });
+
+  test('quando desfaz a tarefa criada da intimação, então ela volta a ficar a tratar', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await lancarAndamento(cartao, 'Intimação', 'Intimado para pagar');
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    await lista.getByRole('button', { name: 'Criar tarefa' }).click();
+    await expect(lista.getByRole('link', { name: /^Tarefa / })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(lista.getByText('A tratar', { exact: true })).toBeVisible();
+    await expect(lista.getByRole('link', { name: /^Tarefa / })).toHaveCount(0);
+    await abrirSecao(cartao, 'Tarefas');
+    await expect(cartao.getByText('Nenhuma tarefa ligada a este processo.', { exact: false })).toBeVisible();
+  });
+
+  test('quando a intimação não precisa de tarefa, então sai de "a tratar", e pode voltar', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await lancarAndamento(cartao, 'Intimação', 'Ciência da decisão');
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    // Quando
+    await lista.getByRole('button', { name: 'Não precisa de tarefa' }).click();
+    // Então
+    await expect(lista.getByText('A tratar', { exact: true })).toHaveCount(0);
+    // Quando
+    await lista.getByRole('button', { name: 'Voltar a tratar' }).click();
+    // Então
+    await expect(lista.getByText('A tratar', { exact: true })).toBeVisible();
+  });
+
+  test('quando lança um prazo a partir da intimação, então ele já vem com a data dela e fica ligado', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    const novo = cartao.getByRole('form', { name: 'Novo andamento' });
+    await novo.getByLabel('Tipo').selectOption({ label: 'Intimação' });
+    await novo.getByLabel('Data da intimação').fill('2026-11-13');
+    await novo.getByLabel('O que aconteceu').fill('Intimado');
+    await novo.getByRole('button', { name: 'Lançar andamento' }).click();
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    // Quando
+    await lista.getByRole('button', { name: 'Lançar prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await expect(form.getByLabel('Intimação')).toHaveValue('2026-11-13');
+    await form.getByLabel('Que prazo é este').fill('Manifestação');
+    await expect(form.getByRole('status', { name: 'Resultado do prazo' })).toContainText('Último dia');
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    // Então
+    await expect(lista).toContainText('Prazo: Manifestação');
+  });
+
+  test('quando o processo está arquivado, então vê os prazos e os andamentos, sem poder mudar', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await lancarAndamento(cartao, 'Andamento', 'Juntada');
+    // Quando
+    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await expect(page.getByText('Processo arquivado.', { exact: false }).first()).toBeVisible();
+    // Então
+    await expect(cartao.getByRole('list', { name: 'Andamentos do processo' })).toContainText('Juntada');
+    await expect(cartao.getByRole('button', { name: 'Novo andamento' })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: /^Mudar o andamento/ })).toHaveCount(0);
   });
 });

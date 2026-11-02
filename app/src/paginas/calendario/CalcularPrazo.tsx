@@ -1,15 +1,15 @@
 // Calcular um prazo pelo calendário: escolhe o órgão, a data da intimação, os dias e a contagem, e vê o último dia e
 // cada dia que ficou de fora, com o motivo. Usa os mesmos dias que os prazos dos processos vão usar.
-import { useEffect, useState } from 'react';
-import { SD, type DiaLancado, type Orgao } from '../../dados';
-import { anosDoPrazo, diaDaSemana, diasDoOrgao, pulosEmPeriodos } from '../../regras/calendario';
+import { useState } from 'react';
+import type { Orgao } from '../../dados';
+import { DIAS_INICIAIS_DO_PRAZO } from '../../regras/andamentos';
+import { diaDaSemana, pulosEmPeriodos } from '../../regras/calendario';
 import { fmtData } from '../../regras/pessoa';
-import { CONTAGENS, contarPrazo, erroDoPrazo, PRAZO_MAXIMO_DIAS, type Contagem, type PrazoContado } from '../../regras/prazos';
+import { CONTAGENS, PRAZO_MAXIMO_DIAS, type Contagem, type PrazoContado } from '../../regras/prazos';
 import { Aviso, Cartao, Escolhas, naGrade, Nota, TituloSecao } from '../../ui/base';
 import { hojeISO } from '../../ui/util';
+import { useContagem } from './useContagem';
 
-/** Quantos dias o prazo tem quando a tela abre (o prazo mais comum do CPC, art. 1.003, § 5º). */
-const DIAS_INICIAIS = 15;
 const SEM_ORGAO = '';
 
 /** A data com o dia da semana: "quarta-feira, 27/01/2027". */
@@ -18,50 +18,18 @@ const porExtenso = (iso: string) => `${diaDaSemana(iso)}, ${fmtData(iso)}`;
 export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: number }) {
   const [orgaoId, setOrgaoId] = useState(SEM_ORGAO);
   const [intimacao, setIntimacao] = useState(() => hojeISO());
-  const [dias, setDias] = useState(String(DIAS_INICIAIS));
+  const [dias, setDias] = useState(String(DIAS_INICIAIS_DO_PRAZO));
   const [contagem, setContagem] = useState<Contagem>('corridos');
   const [disponibilizacao, setDisponibilizacao] = useState(false);
   const [semRecesso, setSemRecesso] = useState(false);
-  const [lancados, setLancados] = useState<{ chave: string; dias: DiaLancado[] } | string | null>(null);
 
   const orgao = orgaos.find(o => o.id === orgaoId) ?? null;
-  const numero = Number(dias);
-  const erro = erroDoPrazo({ intimacao, dias: numero });
-  // Os dias lançados dos anos que o prazo pode atravessar: busca de novo só quando os anos (ou o calendário) mudam.
-  const anos = erro ? null : anosDoPrazo(intimacao, numero);
-  const de = anos ? `${anos[0]}-01-01` : '', ate = anos ? `${anos.at(-1)}-12-31` : '';
-  const chave = `${de}/${ate}/${versao}`;
-
-  useEffect(() => {
-    if (!de) return;
-    let vale = true;
-    SD.diasListar(de, ate)
-      .then(d => { if (vale) setLancados({ chave, dias: d }); })
-      .catch(e => { if (vale) setLancados((e as Error).message); });
-    return () => { vale = false; };
-  }, [de, ate, chave]);
+  const seguindoRecesso = !!orgao?.recesso;
+  const { resultado, foraDoRecesso } = useContagem({ orgao, intimacao, dias: Number(dias), contagem, disponibilizacao, semRecesso, versao });
 
   function escolherOrgao(id: string) {
     setOrgaoId(id);
     setContagem(orgaos.find(o => o.id === id)?.contagem_padrao ?? 'corridos');
-  }
-
-  const seguindoRecesso = !!orgao?.recesso;
-  let resultado: PrazoContado | string | null = null;
-  // O último dia se o prazo não se suspender no recesso, quando ele muda: é a data mais curta, a que não pode passar em branco.
-  let foraDoRecesso: string | null = null;
-  if (erro) resultado = erro;
-  else if (typeof lancados === 'string') resultado = lancados;
-  else if (lancados?.chave === chave) {
-    const contar = (opcoes: { semRecesso: boolean }) =>
-      contarPrazo({ intimacao, dias: numero, contagem, disponibilizacao, semExpediente: diasDoOrgao(orgao, lancados.dias, anos!, opcoes) });
-    try {
-      resultado = contar({ semRecesso: semRecesso && seguindoRecesso });
-      if (seguindoRecesso && !semRecesso) {
-        const final = contar({ semRecesso: true }).final;
-        if (final !== resultado.final) foraDoRecesso = final;
-      }
-    } catch (e) { resultado = (e as Error).message; }
   }
 
   return <section className="cartao form-grade calc-prazo" aria-labelledby="tCalc">
@@ -108,7 +76,8 @@ export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: num
   </section>;
 }
 
-function Resultado({ prazo, contagem, orgao, foraDoRecesso }: { prazo: PrazoContado; contagem: Contagem; orgao: Orgao | null; foraDoRecesso: string | null }) {
+/** O último dia e como ele foi contado: aqui e no formulário de prazo do cartão do processo. */
+export function Resultado({ prazo, contagem, orgao, foraDoRecesso }: { prazo: PrazoContado; contagem: Contagem; orgao: Orgao | null; foraDoRecesso: string | null }) {
   const pulos = pulosEmPeriodos(prazo.pulados);
   return <Cartao className="calc-final">
     <p className="calc-ultimo">Último dia: <b>{porExtenso(prazo.final)}</b></p>

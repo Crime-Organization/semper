@@ -7,8 +7,10 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso
+  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
+  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento
 } from './tipos';
+import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
@@ -22,10 +24,10 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
-import { ANOS_DO_CALENDARIO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
+import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import { padraoDoOrgao } from '../regras/calendario';
-import { TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
+import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
+import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -102,6 +104,8 @@ interface Banco {
   historicoProcessos?: (Historico & { processo_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  andamentos?: Omit<AndamentoDeProcesso, 'tarefa'>[];
+  prazos?: Omit<PrazoDeProcesso, 'tarefa'>[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -120,7 +124,7 @@ type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> &
 /** Processo como fica guardado: os clientes pelo id; os nomes são lidos na hora. */
 type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes: string[] };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
-type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato'> & { pessoas: string[] };
+type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
 const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
@@ -215,7 +219,7 @@ function demandaNova(): DemandaGuardada {
 function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
-    contrato_id: null, contrato_codigo: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
+    contrato_id: null, contrato_codigo: null, processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
   };
 }
@@ -331,6 +335,8 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.andamentos ??= [];
+bd.prazos ??= [];
 bd.historicoProcessos ??= [];
 bd.processos ??= (() => {
   const coluna = (nome: string) => bd.colunas.find(c => c.nome === nome)?.id ?? null;
@@ -712,13 +718,18 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
 // ---------- tarefas ----------
+const processoDaTarefa = (id: string | null | undefined) => {
+  const p = id ? bd.processos!.find(x => x.id === id) : null;
+  return p ? { id: p.id, codigo: p.codigo, numero: p.numero } : null;
+};
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
   const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
   return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
     demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
       colaboradores: d.colaboradores } : null,
-    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
+    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null,
+    processo: processoDaTarefa(t.processo_id) };
 };
 const tarefaLista = (t: TarefaGuardada): TarefaLista => ({
   id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, responsavel_id: t.responsavel_id, participantes: t.participantes,
@@ -819,6 +830,40 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
 }
 // Processos guardados na sessão antes de existirem os campos (no banco, a coluna nasce vazia).
 bd.processos!.forEach(p => { p.campos ??= {}; });
+// ---------- andamentos e prazos do processo ----------
+const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
+  const t = id ? bd.tarefas!.find(x => x.id === id) : null;
+  return t ? { id: t.id, codigo: t.codigo } : null;
+};
+const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
+const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
+/** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
+function historicoDoAcompanhamento(processoId: string, campo: 'andamento' | 'prazo', de: string | null, para: string | null) {
+  if (de === para || !bd.processos!.some(p => p.id === processoId)) return;
+  bd.historicoProcessos!.unshift({ id: Date.now() + Math.random(), processo_id: processoId, alteracoes: { [campo]: { de, para } }, feito_por: eu, em: agora() });
+}
+/** Como as regras check do banco: o que cada andamento pode ter. */
+function conferirAndamento(a: Omit<AndamentoDeProcesso, 'tarefa'>) {
+  const marcado = a.tipo === 'audiencia' || a.tipo === 'pericia';
+  a.texto = a.texto.trim();
+  a.local = a.local?.trim() || null;
+  if (!a.texto || a.texto.length > TAMANHO_ANDAMENTO.texto || !anoAceito(a.data) || !dataExiste(a.data)) throw new Error(FORMATO_INVALIDO);
+  if (!marcado && (a.hora || a.local)) throw new Error(FORMATO_INVALIDO);
+  if (a.tipo !== 'intimacao' && a.tratada_em) throw new Error(FORMATO_INVALIDO);
+  if (a.local && a.local.length > TAMANHO_ANDAMENTO.local) throw new Error(FORMATO_INVALIDO);
+  if (a.tarefa_id && !bd.tarefas!.some(t => t.id === a.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
+}
+function conferirPrazo(p: Omit<PrazoDeProcesso, 'tarefa'>) {
+  p.descricao = p.descricao.trim();
+  if (!p.descricao || p.descricao.length > TAMANHO_PRAZO.descricao || !anoAceito(p.final) || !dataExiste(p.final)) throw new Error(FORMATO_INVALIDO);
+  const semCalculo = p.intimacao === null;
+  if (semCalculo !== (p.dias === null) || semCalculo !== (p.contagem === null)) throw new Error(FORMATO_INVALIDO);
+  if (p.intimacao && (!anoAceito(p.intimacao) || !dataExiste(p.intimacao))) throw new Error(FORMATO_INVALIDO);
+  if (p.dias !== null && (!Number.isInteger(p.dias) || p.dias < 1 || p.dias > PRAZO_MAXIMO_DIAS)) throw new Error(FORMATO_INVALIDO);
+  if (p.andamento_id && !bd.andamentos!.some(a => a.id === p.andamento_id && a.processo_id === p.processo_id)) throw new Error('Este andamento não é deste processo.');
+  if (p.tarefa_id && !bd.tarefas!.some(t => t.id === p.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
+}
 // ---------- processos ----------
 const processoCompleto = (p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
@@ -1510,6 +1555,7 @@ export const SD: Dados = {
       const t = bd.tarefas!.find(x => x.id === id);
       if (!t || !t.arquivado_em) return;
       bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
+      [...bd.andamentos!, ...bd.prazos!].forEach(x => { if (x.tarefa_id === id) x.tarefa_id = null; });
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
@@ -1641,6 +1687,67 @@ export const SD: Dados = {
   },
   async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
 
+  // ---------- andamentos e prazos do processo (como supabase/migrations/20261102125539_andamentos_e_prazos.sql) ----------
+  processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId).toSorted(porDataDoAndamento)
+    .slice(0, ANDAMENTOS_DO_PROCESSO).map(a => ({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) }))),
+  async processoAndamentoCriar(processoId, dados) {
+    if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
+    const a: Omit<AndamentoDeProcesso, 'tarefa'> = { tratada_em: null, tarefa_id: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    conferirAndamento(a);
+    bd.andamentos!.push(a);
+    historicoDoAcompanhamento(processoId, 'andamento', null, linhaDoAndamento(a));
+    auditar('processo_andamentos', 'inclusao', a); gravar();
+    return espera({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) });
+  },
+  async processoAndamentoAtualizar(id, dados) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    const novo = { ...a, ...dados, atualizado_em: agora() };
+    conferirAndamento(novo);
+    historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), linhaDoAndamento(novo));
+    Object.assign(a, novo); auditar('processo_andamentos', 'alteracao', a); gravar();
+    return espera({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) });
+  },
+  async processoAndamentoExcluir(id) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    bd.andamentos = bd.andamentos!.filter(x => x.id !== id);
+    // O prazo que nasceu dele continua, sem a ligação (on delete set null).
+    bd.prazos!.forEach(p => { if (p.andamento_id === id) p.andamento_id = null; });
+    historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), null);
+    auditar('processo_andamentos', 'exclusao', a); gravar();
+    return espera(undefined);
+  },
+  processoPrazos: processoId => espera(bd.prazos!.filter(p => p.processo_id === processoId).toSorted((a, b) => b.final.localeCompare(a.final))
+    .slice(0, PRAZOS_DO_PROCESSO).map(p => ({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) }))),
+  async processoPrazoCriar(processoId, dados) {
+    if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
+    const p: Omit<PrazoDeProcesso, 'tarefa'> = { concluido_em: null, tarefa_id: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    conferirPrazo(p);
+    bd.prazos!.push(p);
+    historicoDoAcompanhamento(processoId, 'prazo', null, linhaDoPrazo(p));
+    auditar('processo_prazos', 'inclusao', p); gravar();
+    return espera({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) });
+  },
+  async processoPrazoAtualizar(id, dados) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    const novo = { ...p, ...dados, atualizado_em: agora() };
+    conferirPrazo(novo);
+    historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), linhaDoPrazo(novo));
+    Object.assign(p, novo); auditar('processo_prazos', 'alteracao', p); gravar();
+    return espera({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) });
+  },
+  async processoPrazoExcluir(id) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    bd.prazos = bd.prazos!.filter(x => x.id !== id);
+    historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), null);
+    auditar('processo_prazos', 'exclusao', p); gravar();
+    return espera(undefined);
+  },
+  tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),
+
   // ---------- processos (como supabase/migrations/20261101155218_processos.sql) ----------
   processosListar(f) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
@@ -1684,6 +1791,9 @@ export const SD: Dados = {
       if (!p || !p.arquivado_em) return;
       bd.processos = bd.processos!.filter(x => x.id !== id);
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
+      bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
+      bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
+      bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'processos' && a.cartao_id === id));
       auditar('processos', 'exclusao', p); excluidas++;
     });
