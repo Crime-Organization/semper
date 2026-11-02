@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
+import { TAMANHO_COMPROMISSO } from './limites';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
@@ -642,6 +643,304 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect((await SD.demandaObter(id))?.etapa_id).toBeNull();
         expect((await SD.demandasDaEtapa(null)).linhas.map(d => d.id)).toContain(id);
+      });
+    });
+
+    describe('Compromissos', () => {
+      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      const DIA_A = '2031-03-10', DIA_B = '2031-03-11', DIA_C = '2031-03-12';
+      const reuniao = (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) =>
+        SD.compromissoCriar({ tipo: 'reuniao', titulo: marca(), data: DIA_A, hora: '14:30', responsavel_id: 'u-ana', ...extra });
+      const processoNovo = async () => {
+        const { id: cliente } = await criar(marca());
+        const p = await SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+        return { ...p, cliente };
+      };
+      const audiencia = async (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) => {
+        const p = await processoNovo();
+        const c = await SD.compromissoCriar({ tipo: 'audiencia', modalidade: 'presencial', data: DIA_A, hora: '10:00', responsavel_id: 'u-ana', processo_id: p.id, pessoas: [p.cliente], ...extra });
+        return { ...c, processo: p };
+      };
+
+      it('quando um compromisso é criado, então ele pode ser lido de volta com as pessoas, o processo e um código', async () => {
+        // Dado
+        const nome = marca(), { id: pessoa } = await criar(nome), p = await processoNovo();
+        // Quando
+        const { id, codigo } = await SD.compromissoCriar({ tipo: 'audiencia', titulo: ' Instrução ', data: DIA_A, hora: '14:30', hora_fim: '16:00', modalidade: 'virtual', local: ' Sala 1 ', resultado: ' Acordo ',
+          responsavel_id: 'u-ana', participantes: ['u-bruno'], pessoas: [pessoa, pessoa], processo_id: p.id });
+        // Então
+        expect(codigo).toBeTruthy();
+        expect(await SD.compromissoObter(id)).toMatchObject({ tipo: 'audiencia', titulo: 'Instrução', data: DIA_A, hora: '14:30:00', hora_fim: '16:00:00', modalidade: 'virtual', local: 'Sala 1', resultado: 'Acordo', geral: false,
+          pessoa_nome: nome, pessoas: [{ id: pessoa }], processo_id: p.id, processo_codigo: p.codigo, processo: { id: p.id } });
+      });
+
+      it.each([
+        ['audiência sem processo', { tipo: 'audiencia', modalidade: 'presencial' }, 'Audiência e perícia precisam de um processo.'],
+        ['perícia sem processo', { tipo: 'pericia', modalidade: 'virtual' }, 'Audiência e perícia precisam de um processo.'],
+        ['reunião sem título', { titulo: '   ' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],
+        ['reunião sem hora', { hora: null }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],
+        ['fim antes do início', { hora: '14:00', hora_fim: '13:00' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],
+        ['resultado numa reunião', { resultado: 'Acordo' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],
+        ['responsável de fora', { responsavel_id: 'u-de-fora' }, 'O responsável precisa ser alguém da equipe do escritório.'],
+        ['participante de fora', { participantes: ['u-de-fora'] }, 'O participante precisa ser alguém da equipe do escritório.'],
+        ['pessoa que não existe', { pessoas: ['p-de-fora'] }, 'Pessoa não encontrada neste escritório.'],
+        ['processo que não existe', { processo_id: 'x-de-fora' }, 'Processo não encontrado neste escritório.']
+      ] as const)('quando o cadastro traz %s, então é recusado', async (_caso, extra, mensagem) => {
+        // Quando
+        const r = reuniao(extra as Partial<Parameters<Dados['compromissoCriar']>[0]>);
+        // Então
+        await expect(r).rejects.toThrow(mensagem);
+      });
+
+      it('quando a audiência não tem modalidade, então é recusada', async () => {
+        // Dado
+        const p = await processoNovo();
+        // Quando
+        const r = SD.compromissoCriar({ tipo: 'audiencia', data: DIA_A, hora: '10:00', responsavel_id: 'u-ana', processo_id: p.id });
+        // Então
+        await expect(r).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando o tipo é "outro" e não tem hora, então vale o dia inteiro', async () => {
+        // Quando
+        const { id } = await SD.compromissoCriar({ tipo: 'outro', titulo: marca(), data: DIA_A, responsavel_id: 'u-ana' });
+        // Então
+        expect((await SD.compromissoObter(id))?.hora).toBeNull();
+      });
+
+      it('quando um texto passa do tamanho, então é recusado', async () => {
+        // Quando
+        const r = reuniao({ local: 'x'.repeat(TAMANHO_COMPROMISSO.local + 1) });
+        // Então
+        await expect(r).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando o responsável também está nos participantes, então ele sai da lista, e ninguém repete', async () => {
+        // Quando
+        const { id } = await reuniao({ participantes: ['u-ana', 'u-bruno', 'u-bruno'] });
+        // Então
+        expect((await SD.compromissoObter(id))?.participantes).toEqual(['u-bruno']);
+      });
+
+      it('quando uma reunião com processo perde o processo, então o código e o número saem junto', async () => {
+        // Dado
+        const p = await processoNovo(), { id } = await reuniao({ processo_id: p.id });
+        // Quando
+        await SD.compromissoAtualizar(id, { processo_id: null });
+        // Então
+        expect(await SD.compromissoObter(id)).toMatchObject({ processo_id: null, processo_codigo: null, processo_numero: null, processo: null });
+      });
+
+      it('quando a audiência perde o processo, então é recusado', async () => {
+        // Dado
+        const { id } = await audiencia();
+        // Quando
+        const r = SD.compromissoAtualizar(id, { processo_id: null });
+        // Então
+        await expect(r).rejects.toThrow('Audiência e perícia precisam de um processo.');
+      });
+
+      it('quando o número do processo muda, então o compromisso mostra o número novo', async () => {
+        // Dado
+        const { id, processo } = await audiencia(), numero = marca();
+        // Quando
+        await SD.processoAtualizar(processo.id, { numero });
+        // Então
+        expect((await SD.compromissoObter(id))?.processo_numero).toBe(numero);
+      });
+
+      it('quando se pede um período, então vêm os ativos dele, com o primeiro e o último dia, por data e hora', async () => {
+        // Dado
+        const parte = marca();
+        const tarde = await reuniao({ titulo: parte + ' T', data: DIA_B, hora: '15:00' });
+        const cedo = await reuniao({ titulo: parte + ' C', data: DIA_B, hora: '08:00' });
+        const inicio = await reuniao({ titulo: parte + ' I', data: DIA_A });
+        const fim = await reuniao({ titulo: parte + ' F', data: DIA_C });
+        await reuniao({ titulo: parte + ' Fora', data: '2031-03-13' });
+        const arquivado = await reuniao({ titulo: parte + ' A', data: DIA_B });
+        await SD.compromissosArquivar([arquivado.id]);
+        // Quando
+        const r = await SD.compromissosDoPeriodo(DIA_A, DIA_C, { termo: parte });
+        // Então
+        expect(r.map(c => c.id)).toEqual([inicio.id, cedo.id, tarde.id, fim.id]);
+      });
+
+      it.each([
+        ['data', ['A', 'B']],
+        ['data_desc', ['B', 'A']],
+        ['nome', ['A', 'B']],
+        ['nome_desc', ['B', 'A']]
+      ] as const)('quando a ordem da tabela é %s, então a lista vem nessa ordem', async (ordem, esperado) => {
+        // Dado
+        const parte = marca();
+        await reuniao({ titulo: parte + ' A', data: DIA_A });
+        await reuniao({ titulo: parte + ' B', data: DIA_B });
+        // Quando
+        const r = await SD.compromissosListar({ termo: parte, ordem });
+        // Então
+        expect(r.linhas.map(c => c.titulo)).toEqual(esperado.map(x => parte + ' ' + x));
+        expect(r.total).toBe(2);
+      });
+
+      it('quando se filtra por tipo, pessoa da equipe, busca ou etiqueta, então vêm só os que combinam', async () => {
+        // Dado
+        const parte = marca(), etiqueta = await SD.etiquetaCriar('azul', marca());
+        const comBruno = await reuniao({ titulo: parte, participantes: ['u-bruno'], local: 'Sala Azul ' + parte });
+        const { id: daAudiencia } = await audiencia({ titulo: parte });
+        await SD.etiquetaAplicar('compromissos', comBruno.id, etiqueta.id);
+        const ids = async (f: Parameters<Dados['compromissosListar']>[0]) => (await SD.compromissosListar({ termo: parte, ...f })).linhas.map(c => c.id);
+        // Então
+        expect(await ids({ tipo: 'audiencia' })).toEqual([daAudiencia]);
+        expect(await ids({ pessoa: 'u-bruno' })).toEqual([comBruno.id]);
+        expect(await ids({ etiqueta: etiqueta.id })).toEqual([comBruno.id]);
+        expect((await SD.compromissosListar({ termo: 'sala azul ' + parte.toLowerCase() })).linhas.map(c => c.id)).toEqual([comBruno.id]);
+      });
+
+      it('quando o compromisso muda de coluna, então vale só uma coluna do quadro dele, e o histórico guarda o nome', async () => {
+        // Dado
+        const { id } = await reuniao();
+        const [colunas, deTarefas] = await Promise.all([SD.colunasListar('compromissos'), SD.colunasListar('tarefas')]);
+        const realizado = colunas.find(c => c.marco === 'concluido')!;
+        // Quando
+        await SD.compromissoMover(id, realizado.id, 1);
+        // Então
+        expect((await SD.compromissosDaEtapa(realizado.id)).linhas.map(c => c.id)).toContain(id);
+        await expect(SD.compromissoMover(id, deTarefas[0].id, 1)).rejects.toThrow('Você não tem permissão para fazer isso.');
+        expect((await SD.compromissoHistorico(id))[0].alteracoes.etapa.para).toBe('Realizado');
+      });
+
+      it('quando o quadro abre, então as colunas são Agendado, Confirmado, Realizado e Cancelado, com os marcos', async () => {
+        // Quando
+        const colunas = await SD.colunasListar('compromissos');
+        // Então
+        expect(colunas.map(c => [c.nome, c.marco ?? null])).toEqual([['Agendado', 'inicio'], ['Confirmado', null], ['Realizado', 'concluido'], ['Cancelado', null]]);
+      });
+
+      it('quando a coluna é excluída, então o compromisso vai para "sem situação"', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('compromissos')).find(c => !c.marco)!;
+        const { id } = await reuniao({ etapa_id: coluna.id, etapa_ordem: 1 });
+        // Quando
+        await SD.colunaExcluir(coluna.id);
+        // Então
+        expect((await SD.compromissoObter(id))?.etapa_id).toBeNull();
+        expect((await SD.compromissosDaEtapa(null)).linhas.map(c => c.id)).toContain(id);
+      });
+
+      it('quando a data e o local mudam, então o histórico guarda o de antes e o de agora', async () => {
+        // Dado
+        const { id } = await reuniao({ local: 'Sala 1' });
+        // Quando
+        await SD.compromissoAtualizar(id, { data: DIA_B, local: 'Sala 2' });
+        // Então
+        const { alteracoes } = (await SD.compromissoHistorico(id))[0];
+        expect(alteracoes.data).toEqual({ de: DIA_A, para: DIA_B });
+        expect(alteracoes.local).toEqual({ de: 'Sala 1', para: 'Sala 2' });
+      });
+
+      it('quando o compromisso está ativo, então não é excluído; arquivado, é', async () => {
+        // Dado
+        const { id } = await reuniao();
+        // Quando
+        const ativo = await SD.compromissosExcluir([id]);
+        await SD.compromissosArquivar([id]);
+        const arquivado = await SD.compromissosExcluir([id]);
+        // Então
+        expect(ativo).toMatchObject({ excluidas: 0, motivo: 'Só compromissos arquivados podem ser excluídos, por quem os criou ou por um administrador.' });
+        expect(arquivado.excluidas).toBe(1);
+        expect(await SD.compromissoObter(id)).toBeNull();
+      });
+
+      it('quando a pessoa está num compromisso, então não pode ser excluída', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        await reuniao({ pessoas: [pessoa] });
+        await SD.pessoasArquivar([pessoa]);
+        // Quando
+        const r = await SD.pessoasExcluir([pessoa]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em compromissos e não pode ser excluída.' });
+      });
+
+      it('quando se pedem os compromissos de uma pessoa, então vêm os dela, com o papel dela em cada um', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const ligado = await reuniao({ pessoas: [pessoa], participantes: ['u-bruno'] });
+        // Quando
+        const daPessoa = await SD.compromissosDaPessoa(pessoa);
+        const doBruno = await SD.compromissosDaPessoa('p-bruno', 'u-bruno');
+        // Então
+        expect(daPessoa.map(c => [c.id, c.papeis])).toEqual([[ligado.id, ['pessoa']]]);
+        expect(doBruno.find(c => c.id === ligado.id)?.papeis).toEqual(['participante']);
+      });
+
+      it('quando se pedem os compromissos de um processo, então vêm os dele', async () => {
+        // Dado
+        const { id, processo } = await audiencia();
+        await reuniao();
+        // Quando
+        const r = await SD.compromissosDoProcesso(processo.id);
+        // Então
+        expect(r.map(c => c.id)).toEqual([id]);
+      });
+
+      it('quando o processo é excluído, então as audiências saem e os outros compromissos ficam sem a ligação', async () => {
+        // Dado
+        const { id: daAudiencia, processo } = await audiencia();
+        const { id: daReuniao } = await reuniao({ processo_id: processo.id });
+        await SD.processosArquivar([processo.id]);
+        // Quando
+        await SD.processosExcluir([processo.id]);
+        // Então
+        expect(await SD.compromissoObter(daAudiencia)).toBeNull();
+        expect(await SD.compromissoObter(daReuniao)).toMatchObject({ processo_id: null, processo_codigo: null, processo_numero: null });
+      });
+
+      it('quando se pedem os prazos de um período, então vêm os de demandas e tarefas ativas, sem os concluídos', async () => {
+        // Dado
+        const parte = marca(), concluida = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')!;
+        const demanda = await SD.demandaCriar({ titulo: parte + ' D', prazo: DIA_B, responsavel_id: 'u-ana' });
+        const tarefa = await SD.tarefaCriar({ titulo: parte + ' T', prazo: DIA_A, responsavel_id: 'u-ana' });
+        const feita = await SD.tarefaCriar({ titulo: parte + ' Feita', prazo: DIA_A, responsavel_id: 'u-ana' });
+        await SD.tarefaMover(feita.id, concluida.id, 1);
+        await SD.tarefaCriar({ titulo: parte + ' Fora', prazo: '2031-04-01', responsavel_id: 'u-ana' });
+        // Quando
+        const r = await SD.prazosDoPeriodo(DIA_A, DIA_C, { termo: parte });
+        // Então
+        expect(r.map(p => [p.origem, p.id, p.prazo]).sort((a, b) => a[0].localeCompare(b[0]))).toEqual([['demandas', demanda.id, DIA_B], ['tarefas', tarefa.id, DIA_A]]);
+      });
+
+      it('quando se buscam os processos para ligar, então vêm os que combinam, mesmo os mais antigos', async () => {
+        // Dado
+        const titulo = marca();
+        const { id: cliente } = await criar(marca());
+        const antigo = await SD.processoCriar({ tipo: 'judicial', numero: marca(), titulo, responsavel_id: 'u-ana', clientes: [cliente] });
+        await processoNovo();
+        // Quando
+        const r = await SD.processosParaLigar(titulo.toLowerCase());
+        // Então
+        expect(r.map(p => p.id)).toEqual([antigo.id]);
+      });
+
+      it('quando se pedem os processos para ligar, então vêm os ativos', async () => {
+        // Dado
+        const ativo = await processoNovo(), arquivado = await processoNovo();
+        await SD.processosArquivar([arquivado.id]);
+        // Quando
+        const r = await SD.processosParaLigar();
+        // Então
+        expect(r.map(p => p.id)).toContain(ativo.id);
+        expect(r.map(p => p.id)).not.toContain(arquivado.id);
+      });
+
+      it('quando um comentário menciona quem não vê o compromisso, então é recusado; na Agenda geral, pode', async () => {
+        // Dado: o Bruno não está em nenhum dos dois.
+        const fechado = await reuniao(), geral = await reuniao({ geral: true });
+        // Quando / Então
+        await expect(SD.comentarioCriar('compromissos', fechado.id, 'Veja @bruno.souza')).rejects.toThrow('Não é possível mencionar Bruno Exemplo Souza neste compromisso: inclua essa pessoa como participante antes.');
+        const aceito = await SD.comentarioCriar('compromissos', geral.id, 'Veja @bruno.souza');
+        expect(aceito.mencoes).toEqual(['u-bruno']);
+        expect((await SD.comentariosListar('compromissos', geral.id)).map(c => c.id)).toEqual([aceito.id]);
       });
     });
 

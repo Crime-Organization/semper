@@ -41,9 +41,10 @@ export function trechosDoComentario(texto: string, equipe: Membro[]): Trecho[] {
 export const MOTIVO_SEM_MENCAO: Record<ModuloComentado, (m: Membro) => string | null> = {
   pessoas: () => null,
   contratos: m => (m.funcao ?? 'advogado') === 'advogado' ? null : 'em contratos, só advogados',
-  // Nas demandas e nas tarefas, a regra depende do cartão (só quem o vê): o cartão passa a dele à seção de comentários.
+  // Nas demandas, nas tarefas e nos compromissos, a regra depende do cartão (só quem o vê): o cartão passa a dele à seção de comentários.
   demandas: () => null,
-  tarefas: () => null
+  tarefas: () => null,
+  compromissos: () => null
 };
 /** A mensagem de quando alguém que não pode ser mencionado aparece num comentário de contrato (a mesma do banco). */
 export const mencaoNegada = (nome: string) => `Não é possível mencionar ${nome} em contratos: só advogados podem ser mencionados.`;

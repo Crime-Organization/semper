@@ -24,6 +24,7 @@ import { useCtx } from '../ui/sessao';
 import NovaPessoa from './NovaPessoa';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
+import { CompromissosLigados } from './CompromissosLigados';
 import { ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 
@@ -208,6 +209,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos">
       <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} />
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos">
+      <CompromissosLigados carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa."
+        novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas">

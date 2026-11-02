@@ -744,7 +744,7 @@ export interface Etiqueta {
   sistema?: 'importada' | 'incompleta' | null;
 }
 /** Os módulos cujos cartões levam etiquetas. */
-export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos'>;
+export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos'>;
 /** Item de lista com as etiquetas dele (etq: as ligações, como vêm do banco). */
 export interface ComEtiquetas { etq?: { etiqueta_id: string }[] }
 
@@ -954,7 +954,7 @@ export interface DadosEquipe {
 }
 
 /** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
-export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas';
+export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos';
 export interface Comentario {
   id: string;
   autor_id: string | null;   // null: o usuário foi removido do sistema
@@ -975,6 +975,98 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
+// ---------- compromissos (agenda) ----------
+export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'outro';
+export type ModalidadeCompromisso = 'presencial' | 'virtual';
+/** O que o compromisso traz do processo ligado: para mostrá-lo e saber quem o vê (quem vê o processo vê o compromisso). */
+export type ProcessoDoCompromisso = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+/**
+ * Compromisso da agenda. A data e a hora são as do relógio de Brasília, sem conversão de fuso. O código (curto e aleatório)
+ * é dado pelo banco. Quem não é administrador vê o que criou, em que foi colocado, o que é de um processo que vê e a Agenda geral.
+ */
+export interface Compromisso {
+  id: string;
+  codigo: string;
+  tipo: TipoCompromisso;
+  titulo: string | null;
+  data: string;                    // aaaa-mm-dd
+  hora: string | null;             // hh:mm:ss, como o banco devolve
+  hora_fim: string | null;
+  modalidade: ModalidadeCompromisso | null;
+  local: string | null;
+  resultado: string | null;
+  observacoes: string | null;
+  /** Agenda geral: todos do escritório veem; mudar, só quem já podia. */
+  geral: boolean;
+  responsavel_id: string;
+  participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os nomes das pessoas juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
+  pessoa_nome: string;
+  processo_id: string | null;
+  /** O código e o número do processo, que aparecem mesmo para quem não pode abri-lo. */
+  processo_codigo: string | null;
+  processo_numero: string | null;
+  etapa_id: string | null;
+  etapa_ordem: number | null;
+  arquivado_em: string | null;
+  arquivado_por: string | null;
+  criado_por: string | null;
+  criado_em: string;
+  atualizado_por: string | null;
+  atualizado_em: string;
+  pessoas: PessoaResumida[];
+  /** O processo, se quem vê o compromisso também pode abri-lo; senão null (e fica só o código e o número). */
+  processo: ProcessoDoCompromisso | null;
+}
+/** Campos que o cadastro de compromisso grava. */
+export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
+  | 'responsavel_id' | 'participantes' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+/** Linha das listagens de compromissos (tabela, quadro e agenda). */
+export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes'
+  | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+/** A ordem da tabela de compromissos: as de sempre e a data do compromisso. No quadro, cada coluna tem a sua (Ordem). */
+export type OrdemCompromisso = Ordem | 'data' | 'data_desc';
+export interface FiltroCompromissos {
+  termo?: string;
+  /** Um usuário da equipe: os compromissos em que ele é o responsável ou um participante. */
+  pessoa?: string;
+  tipo?: TipoCompromisso | '';
+  etiqueta?: string;
+  situacao?: 'ativos' | 'arquivados';
+  ordem?: OrdemCompromisso;
+  pagina?: number;
+  porPagina?: number;
+}
+/** Papel de uma pessoa num compromisso (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
+export type PapelNoCompromisso = 'pessoa' | 'responsavel' | 'participante';
+/** Compromisso como aparece em outro cartão (da pessoa ou do processo), com o papel da pessoa nele. */
+export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em'> { papeis: PapelNoCompromisso[] }
+/** O prazo de uma demanda ou de uma tarefa, como aparece na agenda (só para consultar; abre o cartão de origem). */
+export interface PrazoNaAgenda { origem: 'demandas' | 'tarefas'; id: string; codigo: string; titulo: string; prazo: string; responsavel_id: string }
+/** Processo como o cadastro de compromisso oferece para ligar. */
+export type ProcessoParaLigar = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome'>;
+/** Compromissos (supabase/migrations/20261102141258_compromissos.sql). */
+export interface DadosCompromissos {
+  compromissosListar(f?: FiltroCompromissos): Promise<Pagina<CompromissoLista>>;
+  compromissosDaEtapa(etapaId: string | null, f?: FiltroCompromissos, deslocamento?: number, limite?: number): Promise<Pagina<CompromissoLista>>;
+  /** Os ativos de um período (o primeiro e o último dia entram), por data e hora. */
+  compromissosDoPeriodo(de: string, ate: string, f?: FiltroCompromissos): Promise<CompromissoLista[]>;
+  compromissoObter(id: string): Promise<Compromisso | null>;
+  compromissoCriar(dados: DadosCompromisso & Pick<Compromisso, 'tipo' | 'data' | 'responsavel_id'>): Promise<{ id: string; codigo: string }>;
+  compromissoAtualizar(id: string, dados: DadosCompromisso): Promise<{ id: string; codigo: string }>;
+  compromissosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só compromissos arquivados são excluídos (por quem criou ou um administrador). */
+  compromissosExcluir(ids: string[]): Promise<Exclusao>;
+  compromissoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  compromissoHistorico(id: string): Promise<Historico[]>;
+  /** Compromissos em que a pessoa está ligada; com perfilId (a pessoa é da equipe), também os em que é responsável ou participante. */
+  compromissosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<CompromissoLigado[]>;
+  compromissosDoProcesso(processoId: string): Promise<CompromissoLigado[]>;
+  /** Os prazos de demandas e tarefas ativas e não concluídas num período (o primeiro e o último dia entram). */
+  prazosDoPeriodo(de: string, ate: string, f?: Pick<FiltroCompromissos, 'termo' | 'pessoa'>): Promise<PrazoNaAgenda[]>;
+  /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */
+  processosParaLigar(termo?: string): Promise<ProcessoParaLigar[]>;
+}
 /** A demanda no cartão do processo, com quem a vê: para saber se a tarefa pode herdá-la. */
 export type DemandaDoProcesso = DemandaLigada & Pick<Demanda, 'contrato_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
 /** O processo como aparece no painel. Os clientes vêm só pelo id. */
@@ -1025,4 +1117,4 @@ export interface DadosAcompanhamento {
   processosDiasParadoSalvar(dias: number): Promise<void>;
 }
 
-export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos {}
+export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}

@@ -20,6 +20,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
+import { CompromissosLigados } from './CompromissosLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
 import { AndamentosEPrazos } from './processo/AndamentosEPrazos';
@@ -138,6 +139,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos">
+      <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo."
+        novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">

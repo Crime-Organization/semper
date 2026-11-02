@@ -16,20 +16,21 @@ export const ORDENS: Record<Ordem, string> = {
   nome_desc: 'Nome (Z–A)'
 };
 // A ordem manual (arrastando os cartões) só existe no quadro.
-const OPCOES: Record<Visao, Ordem[]> = {
+type VisaoComOrdem = Exclude<Visao, 'agenda'>;
+const OPCOES: Record<VisaoComOrdem, Ordem[]> = {
   kanban: ['manual', 'novos', 'antigos', 'recentes', 'nome', 'nome_desc'],
   tabela: ['nome', 'nome_desc', 'novos', 'antigos', 'recentes']
 };
 /** Opções de cada coluna do quadro (a manual, de arrastar, só existe no quadro). */
 export const ORDENS_DO_QUADRO = OPCOES.kanban;
-const PADRAO: Record<Visao, Ordem> = { kanban: 'manual', tabela: 'nome' };
+const PADRAO: Record<VisaoComOrdem, Ordem> = { kanban: 'manual', tabela: 'nome' };
 
 export interface Ordenacao { valor: Ordem; opcoes: Ordem[]; aoMudar: (o: Ordem) => void }
 
 /** Ordem escolhida em cada visualização do módulo (quadro e tabela têm a sua), guardada no perfil. */
-export function useOrdem(modulo: string, visao: Visao): Ordenacao {
-  const chave = (v: Visao) => `${modulo}.ordem.${v}`;
-  const ler = (v: Visao) => { const o = lerPreferencia<Ordem>(chave(v), PADRAO[v]); return OPCOES[v].includes(o) ? o : PADRAO[v]; };
+export function useOrdem(modulo: string, visao: VisaoComOrdem): Ordenacao {
+  const chave = (v: VisaoComOrdem) => `${modulo}.ordem.${v}`;
+  const ler = (v: VisaoComOrdem) => { const o = lerPreferencia<Ordem>(chave(v), PADRAO[v]); return OPCOES[v].includes(o) ? o : PADRAO[v]; };
   const [ordens, setOrdens] = useState(() => ({ kanban: ler('kanban'), tabela: ler('tabela') }));
   return {
     valor: ordens[visao],

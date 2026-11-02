@@ -10,8 +10,12 @@ import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
 
-export type Visao = 'tabela' | 'kanban';
-const VISOES: Record<Visao, string> = { tabela: 'Tabela', kanban: 'Kanban' };
+export type Visao = 'tabela' | 'kanban' | 'agenda';
+const VISOES: Record<Visao, { rotulo: string; icone: NomeIcone }> = {
+  tabela: { rotulo: 'Tabela', icone: 'tabela' },
+  kanban: { rotulo: 'Kanban', icone: 'kanban' },
+  agenda: { rotulo: 'Agenda', icone: 'calendario' }
+};
 
 /** Filtro da lista. A primeira opção é a padrão: as outras contam como filtro ligado no botão "Filtros". */
 export interface Filtro {
@@ -97,7 +101,7 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
         </MenuFlutuante>}
         {visoes.length > 1 && <div className="abas" role="group" aria-label="Visualização">
           {visoes.map(v => <button key={v} type="button" aria-pressed={v === visao} onClick={() => aoTrocarVisao?.(v)}>
-            <Icone nome={v} tam={15} />{VISOES[v]}
+            <Icone nome={VISOES[v].icone} tam={15} />{VISOES[v].rotulo}
           </button>)}
         </div>}
       </div>

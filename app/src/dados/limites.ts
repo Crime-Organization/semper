@@ -152,3 +152,15 @@ export const OPCOES_POR_CAMPO = 50;
 export const PROCESSOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */
 export const PROCESSOS_PARA_SUGERIR = 1000;
+
+// ---------- Compromissos (agenda) ----------
+/** Tamanhos dos campos do compromisso (exigidos pelo banco: supabase/migrations/20261102141258_compromissos.sql). */
+export const TAMANHO_COMPROMISSO = { titulo: 300, local: 300, resultado: 4000, observacoes: 4000 };
+/** Quantas alterações do histórico aparecem no cartão do compromisso. */
+export const HISTORICO_DO_COMPROMISSO = 100;
+/** Quantos compromissos entram na lista de um cartão (o da pessoa ou o do processo). */
+export const COMPROMISSOS_LIGADOS = 200;
+/** Quantos compromissos, e quantos prazos de cada módulo, a agenda lê de um período (um mês tem bem menos que isso). */
+export const ITENS_DA_AGENDA = 500;
+/** Quantos processos (os ativos mais recentes que combinam com a busca) o cadastro de compromisso oferece para ligar. */
+export const PROCESSOS_PARA_LIGAR = 50;

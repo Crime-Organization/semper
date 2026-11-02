@@ -1,0 +1,39 @@
+/* Compromissos: a visão por data da agenda. O que não vem de Contratos.css, Demandas.css e estilo.css */
+.tabela-compromissos td:nth-child(2) { min-width: 260px; max-width: 420px }
+.cartao-quando { margin: 0; font-weight: 700; color: var(--accent-ink) }
+
+.agenda { display: flex; flex-direction: column; gap: 14px; container-type: inline-size }
+.agenda-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px }
+.agenda-andar { display: flex; gap: 6px }
+.agenda-titulo { flex: 1 1 200px; margin: 0; font-size: 18px; font-weight: 700; color: var(--ink) }
+.agenda-titulo::first-letter { text-transform: uppercase }
+
+.agenda-lista { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; min-width: 0 }
+.agenda-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px;
+  background: var(--superficie); color: var(--ink); text-decoration: none; overflow-wrap: anywhere; min-width: 0 }
+.agenda-item:hover { border-color: var(--accent) }
+.agenda-item small { font-size: 12px; color: var(--muted) }
+.agenda-item b { font-size: 13px; font-weight: 700; line-height: 1.35 }
+.agenda-item.prazo { border-left-color: var(--line2); background: var(--soft) }
+.agenda-item-mais { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 4px; font-size: 13px; color: var(--muted) }
+
+.agenda-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px }
+.agenda-mes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px }
+.agenda-mes-semana { padding: 2px 6px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: capitalize }
+.agenda-dia { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie) }
+.agenda-dia.hoje { border-color: var(--accent); background: var(--accent-tint) }
+.agenda-dia.outro-mes { opacity: .55 }
+.agenda-mes .agenda-dia { min-height: 96px }
+.agenda-dia-titulo { display: flex; align-items: baseline; gap: 6px; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer; text-transform: capitalize }
+.agenda-dia-titulo:hover b { color: var(--accent-ink) }
+.agenda-nada { color: var(--faint); font-size: 13px }
+.agenda-contagem { display: none; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700 }
+.agenda-mais { align-self: flex-start; padding: 0; border: 0; background: none; color: var(--accent-ink); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer }
+
+/* Em espaço estreito: a semana vira uma lista de dias, e o mês mostra só quantos itens cada dia tem. */
+@container (max-width: 760px) {
+  .agenda-semana { grid-template-columns: minmax(0, 1fr) }
+  .agenda-mes .agenda-dia { min-height: 56px; padding: 6px }
+  .agenda-mes .agenda-lista, .agenda-mes .agenda-mais { display: none }
+  .agenda-contagem { display: inline-block }
+}
