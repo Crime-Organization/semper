@@ -734,6 +734,24 @@ export const SD: Dados = {
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
 
+  // ---------- processo e demanda ----------
+  async processoDemandaLigar(processoId, demandaId) {
+    await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }));
+  },
+  async demandasDoProcesso(processoId) {
+    const { data } = await rodar(sb.from('processo_demandas').select(`demanda:demandas(${CAMPOS_DEMANDA_LIGADA})`).eq('processo_id', processoId).order('criado_em').limit(DEMANDAS_LIGADAS));
+    // Quem não pode ver a demanda recebe a ligação sem ela: fica de fora.
+    return (data as { demanda: Livre }[]).flatMap(({ demanda }) => {
+      if (!demanda) return [];
+      const { clientes: _c, responsavel_id: _r, colaboradores: _k, ...d } = demanda;
+      return [{ ...d, papeis: [] }];
+    });
+  },
+  async processosDaDemanda(demandaId) {
+    const { data } = await rodar(sb.from('processo_demandas').select('processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em)').eq('demanda_id', demandaId).order('criado_em').limit(PROCESSOS_LIGADOS));
+    return (data as { processo: Livre }[]).flatMap(({ processo }) => processo ? [{ ...processo, papeis: [] }] : []);
+  },
+
   // ---------- painel de processos ----------
   processosPainel: ({ hoje, meus }) => {
     const { ate_prazos, ate_marcados } = datasDoPainel(hoje);

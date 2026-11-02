@@ -1011,6 +1011,12 @@ export interface DadosAcompanhamento {
   processoPrazoRestaurar(id: string): Promise<void>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
+  /** Liga o processo à demanda de que ele nasceu. Ligar de novo não muda nada. */
+  processoDemandaLigar(processoId: string, demandaId: string): Promise<void>;
+  /** As demandas ligadas ao processo que quem está logado pode ver. */
+  demandasDoProcesso(processoId: string): Promise<DemandaLigada[]>;
+  /** Os processos ligados à demanda que quem está logado pode ver. */
+  processosDaDemanda(demandaId: string): Promise<ProcessoLigado[]>;
   /** O painel de Processos. meus: só os processos em que a pessoa é responsável ou colaboradora. */
   processosPainel(f: { hoje: string; meus: boolean }): Promise<PainelDeProcessos>;
   /** Só administradores. */

@@ -159,7 +159,7 @@ export default function Tarefas() {
             const voltar = async () => { await SD.tarefaMover(t.id, de, ordemAnterior); };
             if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
-            if (de !== para && t.demanda_codigo) void oferecerConcluirDemanda(t.id, para);
+            if (de !== para && t.demanda_codigo) void oferecerConcluirDemanda(t.id, para, navegar);
           }}
           aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

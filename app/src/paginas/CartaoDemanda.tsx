@@ -4,6 +4,7 @@
 // tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
 import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda } from '../regras/demanda';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -22,7 +23,9 @@ import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { dataCurta, relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
+import { oferecerProcesso } from './concluirDemanda';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
@@ -37,6 +40,7 @@ interface Props {
 
 export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   const ctx = useCtx();
+  const navegar = useNavigate();
   const eu = ctx.perfil.id;
   const [d, setD] = useState<Demanda | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
@@ -84,6 +88,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       feito(etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Demanda ${SEM_SITUACAO_DEMANDA.toLowerCase()}.`, 'mudança de situação',
         async () => { await SD.demandaMover(d!.id, de, ordemDe); });
       aoMudar(); setVersaoHist(v => v + 1);
+      void oferecerProcesso(d!, etapa, navegar);
     } catch (e) { falha(e); }
   }
 
@@ -132,6 +137,10 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
+    </Recolhivel>}
+
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos">
+      <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em} versao={versaoHist} />
     </Recolhivel>}
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>

@@ -3,7 +3,7 @@
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
+import { SD, type Demanda, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
@@ -12,6 +12,7 @@ import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
+import { camposDaDemanda } from '../regras/processoDaDemanda';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -55,6 +56,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), clienteInicial = params.get('cliente');
   const tipoInicial: TipoProcesso = params.get('tipo') === 'administrativo' ? 'administrativo' : 'judicial';
+  // Vindo de uma demanda, o processo já traz os clientes e a equipe dela e nasce ligado a ela.
+  const demandaInicial = params.get('demanda');
+  const [demanda, setDemanda] = useState<Demanda | null>(null);
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposProcesso>(() => ({ ...processoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
@@ -100,6 +104,22 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     SD.processoCampos().then(setCamposDoEscritorio).catch(falha);
     if (clienteInicial) SD.pessoaObter(clienteInicial).then(p => { if (p) { setClientes([p]); setC(x => ({ ...x, clientes: [p.id] })); } }).catch(falha);
   }, [idAtualizar, clienteInicial]);
+  // A equipe de quando o cadastro abriu: reler a equipe depois não pode apagar o que já foi digitado.
+  const aoAbrir = useRef({ ativos: ctx.equipe.filter(m => m.ativo !== false).map(m => m.id), eu: ctx.perfil.id });
+  useEffect(() => {
+    if (!demandaInicial || idAtualizar) return;
+    SD.demandaObter(demandaInicial).then(d => {
+      if (!d) return;
+      setDemanda(d);
+      const campos = camposDaDemanda(d, aoAbrir.current.ativos, aoAbrir.current.eu);
+      setC(x => ({ ...x, ...campos, titulo: x.titulo || d.titulo }));
+      if (d.clientes.length) {
+        setClientes(d.clientes);
+        setChaves(d.clientes.map((_, i) => i));
+        proximaChave.current = d.clientes.length + 1;
+      }
+    }).catch(falha);
+  }, [demandaInicial, idAtualizar]);
   useEffect(() => { SD.processoSugestoes(c.tipo).then(setSugestoes).catch(() => {}); }, [c.tipo]);
   // A cada etapa, o foco vai para o primeiro campo dela.
   useEffect(() => {
@@ -253,6 +273,11 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'processoCriado', id: r.id };
         });
+        if (demanda) {
+          // O processo já existe: se a ligação falhar, ele continua, e a pessoa fica sabendo.
+          try { await SD.processoDemandaLigar(r.id, demanda.id); }
+          catch { avisar(`Não foi possível ligar o processo à demanda ${demanda.codigo}.`, 'erro'); }
+        }
         navegar(caminho + '?id=' + r.id);
       }
     } catch (err) {
@@ -402,6 +427,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       <p className="olho"><Link to={voltar}>Processos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar processo' : 'Novo processo'}<span className="ponto">.</span></h1>
     </header>
+    {demanda && <Aviso tipo="info">Este processo nasce da demanda <b>{demanda.codigo}</b> ({demanda.titulo}) e fica ligado a ela.</Aviso>}
     {alvo && <Aviso tipo="info">Você está atualizando o processo <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">

@@ -900,3 +900,124 @@ test.describe('Painel de Processos', () => {
   });
 });
 
+test.describe('Processo a partir da demanda', () => {
+  /** Abre o cartão da demanda "Registro de marca" da semente (de JOSÉ DA SILVA TESTE). */
+  async function abrirDemanda(page: Page, titulo = 'Registro de marca') {
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: titulo }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByLabel('Situação da demanda')).toBeVisible();
+    return cartao;
+  }
+  /** Do cadastro já aberto, passa pelas etapas até salvar. */
+  async function salvarCadastro(page: Page, numero: string) {
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Número do processo').fill(numero);
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Salvar processo' }).click();
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+  }
+
+  test('quando clica em "Criar processo" na demanda, então o cadastro já vem com os clientes dela, e os dois cartões mostram a ligação', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page);
+    await abrirSecao(cartao, 'Processos');
+    await expect(cartao.getByText('Nenhum processo ligado a esta demanda.')).toBeVisible();
+    // Quando
+    await cartao.getByRole('link', { name: 'Criar processo' }).click();
+    // Então
+    await expect(page.getByText('Este processo nasce da demanda', { exact: false })).toBeVisible();
+    // Quando
+    await salvarCadastro(page, NUMERO_NOVO);
+    // Então: o processo mostra os clientes e a demanda
+    const processo = page.getByRole('dialog');
+    await abrirSecao(processo, 'Clientes');
+    await expect(processo.getByRole('link', { name: /JOSÉ DA SILVA TESTE/ })).toBeVisible();
+    await abrirSecao(processo, 'Demandas');
+    await processo.getByRole('link', { name: /Registro de marca/ }).click();
+    // Então: a demanda mostra o processo
+    const demanda = page.getByRole('dialog');
+    await abrirSecao(demanda, 'Processos');
+    await expect(demanda.getByRole('link', { name: new RegExp(NUMERO_NOVO.replace(/[.-]/g, '.')) })).toBeVisible();
+  });
+
+  test('quando a demanda é concluída, então pergunta se quer criar o processo; ao aceitar, abre o cadastro', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page);
+    // Quando
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    // Então
+    const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
+    await expect(pergunta).toContainText('Registro de marca');
+    // Quando
+    await pergunta.getByRole('button', { name: 'Criar processo' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/processos\/novo\/\?demanda=/);
+    await expect(page.getByText('Este processo nasce da demanda', { exact: false })).toBeVisible();
+  });
+
+  test('quando a demanda é concluída pela última tarefa, então também pergunta, com o cartão já atualizado', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page);
+    await abrirSecao(cartao, 'Tarefas');
+    const tarefas = cartao.getByRole('region', { name: 'Tarefas da demanda' });
+    await tarefas.getByRole('checkbox', { name: 'Concluir Pedir documentos ao cliente' }).check();
+    await expect(tarefas).toContainText('2 de 3 concluídas');
+    // Quando
+    await tarefas.getByRole('checkbox', { name: 'Concluir Emitir a GRU' }).check();
+    await page.getByRole('dialog', { name: 'Concluir a demanda?' }).getByRole('button', { name: 'Concluir a demanda' }).click();
+    // Então
+    await expect(page.getByRole('dialog', { name: 'Criar o processo?' })).toBeVisible();
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Concluído');
+  });
+
+  test('quando recusa a pergunta, então nada é criado; e não pergunta para quem já tem processo', async ({ page }) => {
+    // Dado
+    let cartao = await abrirDemanda(page);
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
+    // Quando
+    await pergunta.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(pergunta).toHaveCount(0);
+    await expect(page).toHaveURL(/\/demandas\//);
+    // Dado: a mesma demanda, agora com processo
+    await abrirSecao(cartao, 'Processos');
+    await cartao.getByRole('link', { name: 'Criar processo' }).click();
+    await salvarCadastro(page, NUMERO_NOVO);
+    cartao = await abrirDemanda(page);
+    await cartao.getByLabel('Situação da demanda').selectOption({ index: 1 });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await expect(page.getByText('Movida para "Concluído"').last()).toBeVisible();
+    // Então
+    await expect(page.getByRole('dialog', { name: 'Criar o processo?' })).toHaveCount(0);
+  });
+
+  test('quando cria a tarefa de uma intimação num processo com uma demanda, então a tarefa fica ligada às duas', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page);
+    await abrirSecao(cartao, 'Processos');
+    await cartao.getByRole('link', { name: 'Criar processo' }).click();
+    await salvarCadastro(page, NUMERO_NOVO);
+    const processo = page.getByRole('dialog');
+    await abrirSecao(processo, 'Andamentos');
+    await processo.getByRole('button', { name: 'Novo andamento' }).click();
+    const form = processo.getByRole('form', { name: 'Novo andamento' });
+    await form.getByLabel('Tipo').selectOption({ label: 'Intimação' });
+    await form.getByLabel('O que aconteceu').fill('Intimado da demanda');
+    await form.getByRole('button', { name: 'Lançar andamento' }).click();
+    const lista = processo.getByRole('list', { name: 'Andamentos do processo' });
+    // Quando
+    await lista.getByRole('button', { name: 'Criar tarefa' }).click();
+    await lista.getByRole('link', { name: /^Tarefa / }).click();
+    // Então
+    const tarefa = page.getByRole('dialog');
+    await abrirSecao(tarefa, 'Demanda');
+    await expect(tarefa.getByRole('link', { name: /Registro de marca/ })).toBeVisible();
+    await abrirSecao(tarefa, 'Processo');
+    await expect(tarefa.getByRole('link', { name: new RegExp(NUMERO_NOVO.replace(/[.-]/g, '.')) })).toBeVisible();
+  });
+});
+
