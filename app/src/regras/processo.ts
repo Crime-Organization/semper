@@ -72,11 +72,13 @@ export interface CamposProcesso {
   segredo: boolean;
   advogadoContrario: string;
   observacoes: string;
+  /** Os campos que o escritório criou, como digitados, por id do campo (regras em camposDeProcesso.ts). */
+  extras: Record<string, string>;
 }
 export const processoVazio = (tipo: TipoProcesso): CamposProcesso => ({
   tipo, numero: '', numeroAntigo: false, titulo: '', orgao: '', responsavelId: '', colaboradores: [], clientes: [''], polo: '', sistema: '', meio: '', area: '',
   natureza: '', gratuidade: '', comarca: '', vara: '', classe: '', assunto: '', juiz: '', distribuicao: '', valorCausa: '', instancia: '', segredo: false,
-  advogadoContrario: '', observacoes: ''
+  advogadoContrario: '', observacoes: '', extras: {}
 });
 
 type DefineONumero = Pick<CamposProcesso, 'tipo' | 'numero' | 'numeroAntigo'>;
@@ -197,7 +199,7 @@ export const camposDoProcesso = (p: Processo): CamposProcesso => ({
   responsavelId: p.responsavel_id, colaboradores: [...p.colaboradores], clientes: p.clientes.length ? p.clientes.map(x => x.id) : [''], polo: p.polo || '',
   sistema: p.sistema || '', meio: p.meio || '', area: p.area || '', natureza: p.natureza || '', gratuidade: p.gratuidade || '', comarca: p.comarca || '', vara: p.vara || '',
   classe: p.classe || '', assunto: p.assunto || '', juiz: p.juiz || '', distribuicao: fmtData(p.distribuicao), valorCausa: dinheiroNoCampo(p.valor_causa),
-  instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || ''
+  instancia: p.instancia || '', segredo: p.segredo, advogadoContrario: p.advogado_contrario || '', observacoes: p.observacoes || '', extras: {}
 });
 
 // ---------- etapas do cadastro ----------

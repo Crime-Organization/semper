@@ -3,16 +3,17 @@
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type CampoDeOpcao, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
-import { CLIENTES_MAXIMOS, TAMANHO_PROCESSO } from '../dados/limites';
+import { SD, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
+import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
+import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import { MASCARAS } from '../regras/pessoa';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -31,6 +32,22 @@ const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="check
 const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: [] };
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
+
+/** Como cada tipo de campo do escritório é preenchido. */
+const CONTROLE_DO_CAMPO: Record<CampoDeProcesso['tipo'], (p: { id: string; campo: CampoDeProcesso; valor: string; erro?: string; aoMudar: (v: string) => void }) => ReactNode> = {
+  texto: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} maxLength={TAMANHO_CAMPO.texto} value={valor} onChange={e => aoMudar(e.target.value)} />,
+  data: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} inputMode="numeric" placeholder="DD/MM/AAAA" value={valor} onChange={e => aoMudar(MASCARAS.data(e.target.value))} />,
+  numero: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} inputMode="decimal" value={valor} onChange={e => aoMudar(e.target.value)} />,
+  // O valor que saiu da lista continua aparecendo até a pessoa escolher outro.
+  lista: ({ id, campo, valor, erro, aoMudar }) => <select {...propsDoCampo(id, { erro })} value={valor} onChange={e => aoMudar(e.target.value)}>
+    <option value="">{NAO_INFORMADO}</option>
+    {[...new Set([...campo.opcoes, ...(valor ? [valor] : [])])].map(o => <option key={o} value={o}>{o}</option>)}
+  </select>
+};
+function CampoDoEscritorio({ campo, valor, erro, aoMudar }: { campo: CampoDeProcesso; valor: string; erro?: string; aoMudar: (v: string) => void }) {
+  const id = 'extra-' + campo.id;
+  return <Campo rotulo={campo.nome} para={id} erro={erro}>{CONTROLE_DO_CAMPO[campo.tipo]({ id, campo, valor, erro, aoMudar })}</Campo>;
+}
 
 export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
@@ -55,6 +72,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // As listas ampliadas pelo escritório e o que já foi digitado em outros processos.
   const [opcoes, setOpcoes] = useState<OpcaoDeProcesso[]>([]);
   const [sugestoes, setSugestoes] = useState<SugestoesDeProcesso>(NADA_SUGERIDO);
+  // Os campos que o escritório criou.
+  const [camposDoEscritorio, setCamposDoEscritorio] = useState<CampoDeProcesso[]>([]);
   // O órgão que o número indicou: troca se o número mudar, mas nunca o que a pessoa digitou.
   const orgaoIndicado = useRef('');
   useTitulo(edicao ? null : alvo ? 'Atualizar processo' : 'Novo processo');
@@ -62,11 +81,12 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   useEffect(() => {
     SD.processoOpcoes().then(setOpcoes).catch(() => {});
     if (idAtualizar) {
-      SD.processoObter(idAtualizar)
-        .then(p => {
+      Promise.all([SD.processoObter(idAtualizar), SD.processoCampos()])
+        .then(([p, doEscritorio]) => {
           if (!p) throw new Error('Processo não encontrado.');
           setAlvo(p);
-          const campos = camposDoProcesso(p);
+          setCamposDoEscritorio(doEscritorio);
+          const campos = { ...camposDoProcesso(p), extras: valoresNoFormulario(doEscritorio, p.campos) };
           setC(campos);
           orgaoIndicado.current = orgaoIndicadoNoProcesso(campos);
           setClientes(p.clientes.length ? p.clientes : [null]);
@@ -77,6 +97,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         .finally(() => setPronto(true));
       return;
     }
+    SD.processoCampos().then(setCamposDoEscritorio).catch(falha);
     if (clienteInicial) SD.pessoaObter(clienteInicial).then(p => { if (p) { setClientes([p]); setC(x => ({ ...x, clientes: [p.id] })); } }).catch(falha);
   }, [idAtualizar, clienteInicial]);
   useEffect(() => { SD.processoSugestoes(c.tipo).then(setSugestoes).catch(() => {}); }, [c.tipo]);
@@ -93,6 +114,10 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const erros: Partial<Record<keyof CamposProcesso, string>> = Object.fromEntries(Object.entries(todos).filter(([campo]) => conferidos.has(campo as keyof CamposProcesso)));
   const mudar = (campos: Partial<CamposProcesso>) => setC(atual => ({ ...atual, ...campos }));
   const judicial = c.tipo === 'judicial', noPadrao = judicial && !c.numeroAntigo;
+  // Os erros dos campos do escritório aparecem junto com os da etapa de detalhes.
+  const errosDosExtras = errosDosCampos(camposDoEscritorio, c.tipo, c.extras);
+  const extrasComErro = Object.keys(errosDosExtras).length > 0;
+  const errosVisiveisDosExtras = conferidas.has('detalhes') ? errosDosExtras : {};
 
   // ---------- etapas ----------
   function irPara(i: number) {
@@ -104,7 +129,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   function avancar() {
     if (edicao) { void salvar(); return; }
     setConferidas(x => new Set(x).add(etapa.id));
-    if (Object.keys(errosDaEtapaProcesso(etapa.id, c)).length) { focarErro(); return; }
+    if (Object.keys(errosDaEtapaProcesso(etapa.id, c)).length || (etapa.id === 'detalhes' && extrasComErro)) { focarErro(); return; }
     if (ultimo) void salvar(); else irPara(passo + 1);
   }
   // Enter: vai para o próximo campo da etapa ou para a próxima etapa. A busca de pessoa trata o Enter dela.
@@ -192,23 +217,29 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
-    const comErro = primeiraEtapaComErroProcesso(c);
-    if (comErro >= 0) {
+    const comErro = extrasComErro ? ETAPAS_PROCESSO.findIndex(e => e.id === 'detalhes') : primeiraEtapaComErroProcesso(c);
+    const primeiroErro = primeiraEtapaComErroProcesso(c);
+    if (primeiroErro >= 0 || comErro >= 0) {
       setConferidas(new Set(ETAPAS_PROCESSO.map(e => e.id)));
-      if (!edicao) irPara(comErro);
+      if (!edicao) irPara(primeiroErro >= 0 ? primeiroErro : comErro);
       focarErro();
       return;
     }
-    const dados = dadosDoProcesso(c), { caminho, quadro } = TIPOS_PROCESSO[c.tipo];
+    const { caminho, quadro } = TIPOS_PROCESSO[c.tipo];
     setOcupado(true);
     try {
+      // Parte do que está guardado agora: alguém pode ter preenchido um campo novo depois que este formulário abriu.
+      const guardados = alvo ? (await SD.processoObter(alvo.id))?.campos ?? alvo.campos : {};
+      const dados = { ...dadosDoProcesso(c), campos: valoresParaGravar(camposDoEscritorio, c.tipo, c.extras, guardados) };
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoProcesso(camposDoProcesso(alvo));
         const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
         await SD.processoAtualizar(alvo.id, gravar);
         feito(ficou ? 'Processo atualizado. Você continua como colaborador; só um administrador pode tirar você dele.' : 'Processo atualizado.', 'atualização do processo', async () => {
-          await SD.processoAtualizar(alvo.id, antes);
+          const { valores, naoVoltaram } = camposParaDesfazer(await SD.processoCampos(), alvo.tipo, alvo.campos, gravar.campos ?? {});
+          await SD.processoAtualizar(alvo.id, { ...antes, campos: valores });
+          if (naoVoltaram.length) avisar(`Não voltou ao valor anterior, porque ele saiu da lista ou o campo foi apagado: ${naoVoltaram.join(', ')}.`, 'erro');
           return { tipo: 'processoAtualizado', id: alvo.id };
         });
         if (edicao) edicao.aoTerminar(true); else navegar(caminho + '?id=' + alvo.id);
@@ -227,6 +258,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     } catch (err) {
       falha(err);
       setOcupado(false);
+      // Um campo pode ter sido apagado com o formulário aberto: ele sai da tela, e salvar de novo funciona, sem perder o resto.
+      SD.processoCampos().then(setCamposDoEscritorio).catch(() => {});
     }
   }
 
@@ -342,6 +375,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
             onChange={e => mudar({ advogadoContrario: e.target.value })} />
         </Campo>
       </>}
+      {camposDoTipo(camposDoEscritorio, c.tipo).map(campo => <CampoDoEscritorio key={campo.id} campo={campo} valor={c.extras[campo.id] ?? ''} erro={errosVisiveisDosExtras[campo.id]}
+        aoMudar={valor => setC(atual => ({ ...atual, extras: { ...atual.extras, [campo.id]: valor } }))} />)}
       <Campo rotulo="Observações" para="observacoes" erro={erros.observacoes}>
         <textarea {...propsDoCampo('observacoes', { erro: erros.observacoes })} maxLength={TAMANHO_PROCESSO.observacoes} value={c.observacoes}
           onChange={e => mudar({ observacoes: e.target.value })} />

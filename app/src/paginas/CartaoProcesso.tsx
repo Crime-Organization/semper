@@ -2,7 +2,8 @@
 // e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
 // numa seção que recolhe (dados, clientes, histórico).
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { SD, type PessoaResumida, type Processo } from '../dados';
+import { SD, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
+import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -34,14 +35,17 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const [p, setP] = useState<Processo | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
+  const [campos, setCampos] = useState<CampoDeProcesso[]>([]);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.processoObter(id).then(x => { setP(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
+  const lerCampos = useCallback(() => SD.processoCampos().then(setCampos).catch(falha), []);
+  useEffect(() => { void lerCampos(); }, [lerCampos]);
   // Depois de desfazer: mostra o processo como ficou.
-  useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+  useMudancas(() => { void carregar(); void lerCampos(); setVersaoHist(v => v + 1); });
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (p === undefined) return <Carregando />;
@@ -77,7 +81,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
-    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+    if (salvou) { aoMudar(); void carregar(); void lerCampos(); setVersaoHist(x => x + 1); }
   }
 
   return <>
@@ -116,7 +120,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
 
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados">
-      <dl className="dados">{linhasDoProcesso(p).map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
+      <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
     </Recolhivel>
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length}>
@@ -124,7 +128,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">
-      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={CAMPOS_PROCESSO} valor={valorLegivelProcesso} versao={versaoHist} />
+      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
     </Recolhivel>
 
     <footer className="cartao-rodape">

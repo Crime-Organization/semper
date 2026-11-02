@@ -892,6 +892,142 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Campos dos processos', () => {
+      const processoCom = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+      };
+      const novoCampo = (extra: Partial<Parameters<Dados['processoCampoCriar']>[0]> = {}) =>
+        SD.processoCampoCriar({ nome: marca(), tipo: 'texto', aparece_em: 'ambos', opcoes: [], ...extra });
+
+      it('quando o administrador cria um campo, então ele volta na lista, e o valor é gravado no processo', async () => {
+        // Dado
+        const c = await novoCampo({ nome: '  Perito ' + marca() + ' ' });
+        // Quando
+        const { id } = await processoCom({ campos: { [c.id]: ' Dra. Exemplo ' } });
+        // Então
+        expect(c.nome).toBe(c.nome.trim());
+        expect((await SD.processoCampos()).map(x => x.id)).toContain(c.id);
+        expect((await SD.processoObter(id))?.campos).toEqual({ [c.id]: 'Dra. Exemplo' });
+      });
+
+      it('quando o nome já existe, sem contar maiúsculas nem acentos, então é recusado', async () => {
+        // Dado
+        const nome = 'Perícia ' + marca();
+        await novoCampo({ nome });
+        // Quando
+        const repetido = novoCampo({ nome: nome.toUpperCase().replace('Í', 'I') });
+        // Então
+        await expect(repetido).rejects.toThrow('Já existe um campo com esse nome.');
+      });
+
+      it.each([
+        ['lista sem opção', { tipo: 'lista' as const, opcoes: [] }],
+        ['opção sem ser lista', { tipo: 'texto' as const, opcoes: ['a'] }]
+      ])('quando é %s, então é recusado', async (_caso, extra) => {
+        // Quando
+        const salvar = novoCampo(extra);
+        // Então
+        await expect(salvar).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando a lista tem opções repetidas ou vazias, então elas ficam limpas', async () => {
+        // Quando
+        const lista = await novoCampo({ tipo: 'lista', opcoes: [' Site ', 'site', '', 'Parceiro'] });
+        // Então
+        expect(lista.opcoes).toEqual(['Site', 'Parceiro']);
+      });
+
+      it.each([
+        ['data', { tipo: 'data' as const }, '2026-02-31'], ['data', { tipo: 'data' as const }, '10/12/2026'],
+        ['número', { tipo: 'numero' as const }, 'muitos'], ['lista', { tipo: 'lista' as const, opcoes: ['Site'] }, 'Outra']
+      ])('quando o valor não serve para o campo de %s, então é recusado', async (_tipo, extra, valor) => {
+        // Dado
+        const c = await novoCampo(extra);
+        // Quando
+        const gravar = processoCom({ campos: { [c.id]: valor } });
+        // Então
+        await expect(gravar).rejects.toThrow(`Confira o valor do campo "${c.nome}".`);
+      });
+
+      it('quando o campo não existe, ou não vale para esse tipo de processo, então é recusado', async () => {
+        // Dado
+        const soAdm = await novoCampo({ aparece_em: 'administrativo' });
+        // Quando
+        const deFora = processoCom({ campos: { 'campo-de-outro-escritorio': 'x' } });
+        const outroTipo = processoCom({ tipo: 'judicial', campos: { [soAdm.id]: 'x' } });
+        // Então
+        await expect(deFora).rejects.toThrow('Campo não encontrado neste escritório.');
+        await expect(outroTipo).rejects.toThrow('Campo não encontrado neste escritório.');
+        await expect(processoCom({ tipo: 'administrativo', campos: { [soAdm.id]: 'x' } })).resolves.toMatchObject({ id: expect.any(String) });
+      });
+
+      it('quando o campo é apagado, então o valor fica guardado, não trava as outras alterações, e não aceita valor novo', async () => {
+        // Dado
+        const c = await novoCampo();
+        const { id } = await processoCom({ campos: { [c.id]: 'guardado' } });
+        // Quando
+        await SD.processoCampoAtualizar(c.id, { apagado_em: new Date().toISOString() });
+        // Então
+        await expect(SD.processoAtualizar(id, { comarca: 'Cidade', campos: { [c.id]: 'guardado' } })).resolves.toMatchObject({ id });
+        expect((await SD.processoObter(id))?.campos).toEqual({ [c.id]: 'guardado' });
+        await expect(SD.processoAtualizar(id, { campos: { [c.id]: 'outro' } })).rejects.toThrow('Campo não encontrado neste escritório.');
+        // Quando
+        await SD.processoCampoAtualizar(c.id, { apagado_em: null });
+        // Então
+        await expect(SD.processoAtualizar(id, { campos: { [c.id]: 'outro' } })).resolves.toMatchObject({ id });
+      });
+
+      it('quando a opção sai da lista, então o processo que a usa continua com ela', async () => {
+        // Dado
+        const c = await novoCampo({ tipo: 'lista', opcoes: ['Site', 'Parceiro'] });
+        const { id } = await processoCom({ campos: { [c.id]: 'Site' } });
+        // Quando
+        await SD.processoCampoAtualizar(c.id, { opcoes: ['Parceiro'] });
+        // Então
+        await expect(SD.processoAtualizar(id, { comarca: 'Cidade', campos: { [c.id]: 'Site' } })).resolves.toMatchObject({ id });
+        await expect(processoCom({ campos: { [c.id]: 'Site' } })).rejects.toThrow(`Confira o valor do campo "${c.nome}".`);
+      });
+
+      it('quando nenhum processo usa o campo, então ele pode ser excluído e o nome fica livre; em uso, não', async () => {
+        // Dado
+        const nome = marca();
+        const livre = await novoCampo({ nome }), usado = await novoCampo();
+        await processoCom({ campos: { [usado.id]: 'x' } });
+        // Quando
+        const [excluiu, naoExcluiu] = await Promise.all([SD.processoCampoExcluir(livre.id), SD.processoCampoExcluir(usado.id)]);
+        // Então
+        expect([excluiu, naoExcluiu]).toEqual([true, false]);
+        await expect(novoCampo({ nome })).resolves.toMatchObject({ nome });
+        expect((await SD.processoCampos()).map(c => c.id)).toContain(usado.id);
+      });
+
+      it('quando o número tem até o limite de algarismos, então é guardado inteiro', async () => {
+        // Dado
+        const c = await novoCampo({ tipo: 'numero' });
+        const valor = '12345678901234567890.1234567890';
+        // Quando
+        const { id } = await processoCom({ campos: { [c.id]: valor } });
+        // Então
+        expect((await SD.processoObter(id))?.campos[c.id]).toBe(valor);
+        await expect(processoCom({ campos: { [c.id]: '1'.repeat(21) } })).rejects.toThrow(`Confira o valor do campo "${c.nome}".`);
+      });
+
+      it('quando o valor muda, então o histórico mostra o campo; o vazio sai do processo', async () => {
+        // Dado
+        const c = await novoCampo();
+        const { id } = await processoCom({ campos: { [c.id]: 'antes' } });
+        // Quando
+        await SD.processoAtualizar(id, { campos: { [c.id]: 'depois' } });
+        await SD.processoAtualizar(id, { campos: { [c.id]: '  ' } });
+        // Então
+        const [limpou, mudou] = await SD.processoHistorico(id);
+        expect(mudou.alteracoes['campo:' + c.id]).toEqual({ de: 'antes', para: 'depois' });
+        expect(limpou.alteracoes['campo:' + c.id]).toEqual({ de: 'depois', para: null });
+        expect((await SD.processoObter(id))?.campos).toEqual({});
+      });
+    });
+
     describe('Tarefas', () => {
       // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
