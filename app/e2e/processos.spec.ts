@@ -958,6 +958,40 @@ test.describe('Processo a partir da demanda', () => {
     await expect(page.getByText('Este processo nasce da demanda', { exact: false })).toBeVisible();
   });
 
+  test('quando desfaz a conclusão com a pergunta aberta, então aceitar não abre o cadastro', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page);
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
+    await expect(pergunta).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).not.toHaveText('Concluído');
+    await pergunta.getByRole('button', { name: 'Criar processo' }).click();
+    // Então
+    await expect(page.getByText('A demanda não está mais concluída.', { exact: false })).toBeVisible();
+    await expect(page).toHaveURL(/\/demandas\//);
+  });
+
+  test('quando a demanda não tem cliente, então o cadastro mostra o campo para escolher', async ({ page }) => {
+    // Dado: uma demanda nova, sem cliente
+    await page.goto('/demandas/nova/');
+    await page.getByLabel('Título').fill('Demanda sem cliente');
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar demanda' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByLabel('Situação da demanda')).toBeVisible();
+    await abrirSecao(cartao, 'Processos');
+    // Quando
+    await cartao.getByRole('link', { name: 'Criar processo' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Número do processo').fill(NUMERO_NOVO);
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(cadastro.getByRole('textbox', { name: 'Cliente', exact: true })).toBeVisible();
+  });
+
   test('quando a demanda é concluída pela última tarefa, então também pergunta, com o cartão já atualizado', async ({ page }) => {
     // Dado
     const cartao = await abrirDemanda(page);

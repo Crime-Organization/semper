@@ -3,8 +3,8 @@
 --   - A demanda é o trabalho interno; o processo, o acompanhamento externo. Ao terminar a demanda, nasce o processo dela.
 --   - Um processo pode ter várias demandas, e uma demanda, vários processos. O papel diz como se ligam; por enquanto, só
 --     "originou" é gravado (a demanda deu origem ao processo). "atua" e "baseia" ficam prontos para quando houver tela.
---   - Quem vê um dos dois vê a ligação; o outro lado só abre para quem pode vê-lo. Para ligar, é preciso ver os dois,
---     com o processo ativo.
+--   - Quem vê um dos dois vê que a ligação existe; o outro lado só abre para quem pode vê-lo. Para ligar, é preciso ver os
+--     dois, com o processo ativo.
 --   - Por enquanto a ligação não é desfeita pela tela: sai junto com o processo ou com a demanda.
 --   Só acrescenta (uma tabela). A versão anterior do site continua funcionando: ela não conhece a ligação.
 -- =====================================================================

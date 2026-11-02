@@ -1795,12 +1795,13 @@ export const SD: Dados = {
   },
   demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
     const d = bd.demandas!.find(x => x.id === l.demanda_id);
-    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, papeis: [] }] : [];
+    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
+      criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, papeis: [] }] : [];
   })),
-  processosDaDemanda: demandaId => espera(bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {
+  processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {
     const p = bd.processos!.find(x => x.id === l.processo_id);
     return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
-  })),
+  }) }),
 
   // ---------- painel de processos (como public.painel_de_processos) ----------
   async processosPainel({ hoje, meus }) {

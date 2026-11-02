@@ -4,7 +4,7 @@
 import { SD } from '../dados';
 import { devePerguntarProcesso } from '../regras/processoDaDemanda';
 import { tarefasDaDemandaConcluidas } from '../regras/tarefa';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
 import { confirmar } from '../ui/janela';
 import { ordemNoFim } from '../ui/quadro/posicao';
 
@@ -31,11 +31,15 @@ export function oferecerConcluirDemanda(tarefaId: string, etapaId: string | null
 /** Chame depois de mover a demanda. Se ela chegou à coluna das concluídas e ainda não tem processo, pergunta se quer criar. */
 export async function oferecerProcesso(d: { id: string; titulo: string }, etapaId: string | null, navegar: (para: string) => void) {
   try {
-    const [ctx, colunas, ligados] = await Promise.all([SD.contexto(), SD.colunasListar('demandas'), SD.processosDaDemanda(d.id)]);
+    const [ctx, colunas, ligados, atual] = await Promise.all([SD.contexto(), SD.colunasListar('demandas'), SD.processosDaDemanda(d.id), SD.demandaObter(d.id)]);
     const concluida = colunas.find(c => c.marco === 'concluido')?.id ?? null;
-    if (!devePerguntarProcesso({ modulo: !!ctx?.escritorio?.modulos?.processos, etapa: etapaId, concluida, ligados: ligados.length })) return;
+    if (!devePerguntarProcesso({ modulo: !!ctx?.escritorio?.modulos?.processos, arquivada: !atual || !!atual.arquivado_em, etapa: etapaId, concluida, ligados: ligados.visiveis.length + ligados.ocultos })) return;
     const sim = await confirmar('Criar o processo?', `A demanda "${d.titulo}" foi concluída. Quer criar o processo dela agora?`, 'Criar processo');
-    if (sim) navegar('/processos/novo/?demanda=' + d.id);
+    if (!sim) return;
+    // Enquanto a pergunta estava aberta, a conclusão pode ter sido desfeita.
+    const agora = await SD.demandaObter(d.id);
+    if (agora?.etapa_id !== concluida) { avisar('A demanda não está mais concluída. O processo não foi aberto.', 'erro'); return; }
+    navegar('/processos/novo/?demanda=' + d.id);
   } catch (e) { falha(e); }
 }
 

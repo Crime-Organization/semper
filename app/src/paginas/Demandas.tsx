@@ -157,7 +157,7 @@ export default function Demandas() {
           aoAbrir={d => abrir(d.id)}
           aoMover={async (d, m) => {
             const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.demandasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.demandaMover(id, etapa, ordem) };
-            if (await moverNoArquivo(d.codigo, d.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_DEMANDA)) { recarregar(); return; }
+            if (await moverNoArquivo(d.codigo, d.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_DEMANDA)) { recarregar(); void oferecerProcesso(d, m.para, navegar); return; }
             const { de, para, ordem, ordemAnterior } = m;
             await SD.demandaMover(d.id, para, ordem);
             const voltar = async () => { await SD.demandaMover(d.id, de, ordemAnterior); };

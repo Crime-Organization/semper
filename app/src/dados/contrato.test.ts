@@ -1150,7 +1150,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.processoDemandaLigar(p.id, d.id);
         // Então
         expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
-        expect((await SD.processosDaDemanda(d.id)).map(x => x.id)).toEqual([p.id]);
+        expect((await SD.processosDaDemanda(d.id)).visiveis.map(x => x.id)).toEqual([p.id]);
       });
 
       it('quando o processo está arquivado, ou a demanda não existe, então é recusado', async () => {
@@ -1180,7 +1180,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.processosArquivar([p.id], true);
         await SD.processosExcluir([p.id]);
         // Então
-        expect(await SD.processosDaDemanda(d.id)).toEqual([]);
+        expect(await SD.processosDaDemanda(d.id)).toEqual({ visiveis: [], ocultos: 0 });
       });
     });
 

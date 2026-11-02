@@ -63,7 +63,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposProcesso>(() => ({ ...processoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
   const [alvo, setAlvo] = useState<Processo | null>(null);   // processo sendo atualizado
-  const [pronto, setPronto] = useState(!idAtualizar);
+  // Vindo de uma demanda, espera os dados dela: o que chegar depois não pode trocar o que a pessoa já escolheu.
+  const [pronto, setPronto] = useState(!idAtualizar && !demandaInicial);
   const [passo, setPasso] = useState(0);
   // Os erros de uma etapa aparecem depois da primeira tentativa de seguir e, daí em diante, acompanham o que se digita.
   const [conferidas, setConferidas] = useState<ReadonlySet<EtapaProcesso>>(new Set());
@@ -118,7 +119,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         setChaves(d.clientes.map((_, i) => i));
         proximaChave.current = d.clientes.length + 1;
       }
-    }).catch(falha);
+    }).catch(falha).finally(() => setPronto(true));
   }, [demandaInicial, idAtualizar]);
   useEffect(() => { SD.processoSugestoes(c.tipo).then(setSugestoes).catch(() => {}); }, [c.tipo]);
   // A cada etapa, o foco vai para o primeiro campo dela.
