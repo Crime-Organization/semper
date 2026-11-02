@@ -9,6 +9,20 @@ import {
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
 const minimo = { clientes: ['p1'], responsavelId: 'u1', objetos: ['Registro de marca'], categoria: 'pro_labore' as const };
 
+describe('Ponto de milhar fora do lugar', () => {
+  it.each([['1.5000'], ['1.50.000'], ['1.50,00'], ['15.00,00'], ['1,5,0'], ['1.000.00'], ['1,500']])('quando digita "%s", então recusa, em vez de multiplicar o valor', texto => {
+    // Quando
+    const ler = () => lerDinheiro(texto);
+    // Então
+    expect(ler).toThrow('Use um valor como 1.500,00.');
+  });
+
+  it.each([['1500', 1500], ['1.500', 1500], ['1.500.000', 1500000], ['1500,5', 1500.5], ['1.500,50', 1500.5], ['R$ 10,00', 10], ['1500.50', 1500.5], ['1.5', 1.5], ['0,07', 0.07]])('quando digita "%s", então é %d', (texto, valor) => {
+    // Então
+    expect(lerDinheiro(texto)).toBe(valor);
+  });
+});
+
 describe('Número do contrato', () => {
   it.each([
     ['Hellyne Nogueira', '529.982.247-62', 'HE62'],
@@ -62,7 +76,10 @@ describe('Percentual do responsável', () => {
     [20, [], null, 80],
     [20, [10], 10, 60],
     [30, [10, 5.5], null, 54.5],
-    [100, [], null, 0],
+    [100, [], null, 70],
+    [100, [], 10, 70],
+    [100, [10, 5], null, 65],
+    [100, [85], null, null],
     [30, [60], 20, null]
   ] as [number | null, number[], number | null, number | null][])('quando o escritório tem %s%%, os participantes %j e o indicador %s%%, então o responsável fica com %s',
   (escritorio, participantes, indicador, esperado) => {
@@ -152,7 +169,7 @@ describe('Validação do cadastro de contrato', () => {
     ['a mesma pessoa aparece duas vezes', { participantes: [{ pessoaId: 'p2', percentual: '' }, { pessoaId: 'p2', percentual: '5' }] }, 'participantes',
       'A mesma pessoa aparece duas vezes nos participantes.'],
     ['a soma com o escritório passa de 100%', { percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '60' }], indicadorId: 'p3', indicadorPercentual: '20' },
-      'divisao', 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.'],
+      'divisao', 'A soma dos percentuais passa do que há para dividir.'],
     ['o mesmo cliente aparece duas vezes', { clientes: ['p1', 'p1'] }, 'clientes', 'O mesmo cliente aparece duas vezes.'],
     ['indicador e participante são a mesma pessoa', { participantes: [{ pessoaId: 'p2', percentual: '' }], indicadorId: 'p2' }, 'indicadorId',
       'O indicador e os participantes precisam ser pessoas diferentes.'],
@@ -286,7 +303,7 @@ describe('Etapas do cadastro de contrato', () => {
   it.each([
     ['nada preenchido', {}, 0],
     ['só as partes preenchidas', { clientes: ['p1'], responsavelId: 'u1' }, 1],
-    ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '10' }, 3],
+    ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '90' }, 3],
     ['tudo certo', minimo, -1]
   ])('quando há %s, então a primeira etapa com erro é a %s', (_caso, extra, esperada) => {
     // Quando

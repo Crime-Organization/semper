@@ -40,11 +40,16 @@ export function valorParcela(valor: number | null, entrada: number | null, parce
 }
 
 /**
- * % do responsável: o que sobra do total depois do escritório, dos participantes e do indicador (todos sobre o total,
- * como a conta da planilha Caixa). null se a soma passar de 100%.
+ * % do responsável, para mostrar no cadastro: o que sobra depois do escritório, dos participantes e do indicador, para quem não é sócio
+ * (o cadastro não sabe quem é sócio na data de cada recebimento). null se a soma passar do que há para dividir. Regra do escritório de 02/11/2026 (a conta exata é dividirRecebimento, em financeiro.ts): quando tudo vai para a conta da
+ * empresa, o escritório fica com 30% do líquido, ou 20% se houver terceiro; abaixo disso, com o que chega à conta.
  */
-export function percentualResponsavel(escritorio: number | null, participantes: (number | null)[], indicador: number | null): number | null {
-  const resto = 100 - (escritorio || 0) - participantes.reduce<number>((soma, p) => soma + (p || 0), 0) - (indicador || 0);
+const PARTE_DO_ESCRITORIO_QUANDO_TUDO_VAI_PARA_A_CONTA = { semTerceiro: 30, comTerceiro: 20 };
+export function percentualResponsavel(parteNaConta: number | null, participantes: (number | null)[], indicador: number | null): number | null {
+  const terceiros = participantes.reduce<number>((soma, p) => soma + (p || 0), 0) + (indicador || 0);
+  const { semTerceiro, comTerceiro } = PARTE_DO_ESCRITORIO_QUANDO_TUDO_VAI_PARA_A_CONTA;
+  const escritorio = parteNaConta === 100 ? (terceiros > 0 ? comTerceiro : semTerceiro) : parteNaConta || 0;
+  const resto = 100 - escritorio - terceiros;
   return resto < 0 ? null : centavos(resto);
 }
 
@@ -72,10 +77,11 @@ export function lerDinheiro(txt: string): number | null {
   if (!t) return null;
   // Com vírgula, ela separa os centavos e os pontos separam os milhares. Sem vírgula, um ponto seguido de 1 ou 2
   // dígitos no fim separa os centavos; os outros pontos separam os milhares.
-  const decimal = t.includes(',') ? t.replace(/\./g, '').replace(',', '.')
-    : /\.\d{1,2}$/.test(t) ? t.replace(/\.(?=.*\.)/g, '') : t.replace(/\./g, '');
-  if (!/^\d+(\.\d{1,2})?$/.test(decimal)) throw new Error('Use um valor como 1.500,00.');
-  return Number(decimal);
+  // Ponto de milhar só em grupos de três: "1.5000" ou "15.00,00" são erro de digitação, e apagar o ponto multiplicaria o valor.
+  const inteiros = /^(\d+|\d{1,3}(\.\d{3})+)$/;
+  const [parte, centavos, sobra] = t.includes(',') ? t.split(',') : /^\d+\.\d{1,2}$/.test(t) ? t.split('.') : [t];
+  if (sobra !== undefined || !inteiros.test(parte) || (centavos !== undefined && !/^\d{1,2}$/.test(centavos))) throw new Error('Use um valor como 1.500,00.');
+  return Number(parte.replace(/\./g, '') + (centavos === undefined ? '' : '.' + centavos));
 }
 export const fmtDinheiro = (v: number | null | undefined) => v === null || v === undefined ? ''
   : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -188,7 +194,7 @@ const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
   indicadorPercentual: [percentual('indicadorPercentual'),
     c => quieto(lerPercentual, c.indicadorPercentual) && !c.indicadorId ? 'Escolha o indicador deste percentual.' : null],
   indicadorId: [c => c.indicadorId && c.participantes.some(p => p.pessoaId === c.indicadorId) ? 'O indicador e os participantes precisam ser pessoas diferentes.' : null],
-  divisao: [c => calculadosDoContrato(c).responsavel === null ? 'A soma dos percentuais (escritório, participantes e indicador) passa de 100%.' : null],
+  divisao: [c => calculadosDoContrato(c).responsavel === null ? 'A soma dos percentuais passa do que há para dividir.' : null],
   documentoUrl: [c => !c.documentoUrl.trim() || /^https?:\/\/\S+$/i.test(c.documentoUrl.trim()) ? null : 'Cole o link completo, começando com https://.']
 };
 
@@ -235,7 +241,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
 export const CAMPOS_CONTRATO: Record<string, string> = {
   cliente_id: 'Cliente', clientes: 'Clientes', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
-  percentual_escritorio: 'Enviado ao escritório', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
+  percentual_escritorio: 'Enviado à conta da empresa', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', observacoes: 'Observações',
   codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
@@ -273,7 +279,7 @@ export const ETAPAS_CONTRATO: DefinicaoEtapa[] = [
     campos: ['objetos', 'categoria'] },
   { id: 'honorarios', titulo: 'Honorários', texto: 'Valores e datas. Nada aqui é obrigatório.',
     campos: ['valor', 'entrada', 'parcelas', 'descontos', 'assinadoEm', 'primeiroPagamento'] },
-  { id: 'divisao', titulo: 'Divisão', texto: 'Todos os percentuais são sobre o total; o responsável fica com o que sobra.',
+  { id: 'divisao', titulo: 'Divisão', texto: 'Os percentuais são sobre o líquido: o que o cliente pagou, menos o DAS e a taxa da máquina. Com tudo na conta, o escritório fica com 30%, ou 20% se houver indicador ou outro advogado.',
     campos: ['percentualEscritorio', 'participantes', 'indicadorId', 'indicadorPercentual', 'divisao'] },
   { id: 'documento', titulo: 'Documento e observações', texto: 'O contrato assinado fica na pasta do Drive: cole o link aqui.',
     campos: ['documentoUrl', 'observacoes'] }

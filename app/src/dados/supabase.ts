@@ -10,6 +10,8 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
+import type { Lancamento, Parcela, ParcelaDoEscritorio, Repasse, Socio } from './tipos';
+import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
@@ -249,6 +251,23 @@ const andamentoLido = (a: AndamentoDeProcesso): AndamentoDeProcesso => ({ ...a, 
 /** Nenhuma linha mudou: o processo foi arquivado, ou o item já não existe. */
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_MUDANCA); return linha; };
+
+// ---------- caixa ----------
+const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
+const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, criado_por, criado_em, atualizado_em';
+const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
+const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em)';
+const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador';
+const CAMPOS_DO_REPASSE = 'id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida, conta_paga, pago_em, criado_em';
+const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
+type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null } };
+const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id });
+/** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
+const naLista = (p: LinhaDaParcela) => !!p.recebimento_id || !p.contrato.arquivado_em;
+type LinhaDoSocio = Omit<Socio, 'nome'> & { pessoa: { nome: string } | null };
+const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pessoa?.nome ?? 'Pessoa excluída' });
+/** Nenhuma linha mudou: a pessoa não é mais administradora, ou o item não existe mais. */
+const naoEsta = (linha: unknown) => { if (!linha) throw new Error('Não foi possível: atualize a página e confira.'); };
 
 // ---------- processos ----------
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
@@ -871,6 +890,152 @@ export const SD: Dados = {
     const linhas = data as { processo: Livre }[];
     const visiveis = linhas.flatMap(({ processo }) => processo ? [{ ...processo, papeis: [] }] : []);
     return { visiveis, ocultos: linhas.length - visiveis.length };
+  },
+
+  // ---------- caixa ----------
+  async financeiroContas() {
+    const { data } = await rodar(sb.from('financeiro_contas').select(CAMPOS_DA_CONTA).order('criado_em'));
+    return data;
+  },
+  async financeiroContaCriar(dados) {
+    const { data } = await rodar(sb.from('financeiro_contas').insert({ ...dados, criado_por: uid() }).select(CAMPOS_DA_CONTA).single());
+    return data;
+  },
+  async financeiroContaAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('financeiro_contas').update(dados).eq('id', id).select('id').maybeSingle());
+    naoEsta(data);
+  },
+  // Em partes: o saldo do mês soma tudo, e um corte deixaria o saldo final errado sem ninguém ver.
+  async financeiroLancamentos(contaId, de, ate) {
+    const todos: Lancamento[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_lancamentos').select(CAMPOS_DO_LANCAMENTO).eq('conta_id', contaId).is('excluido_em', null).gte('data', de).lte('data', ate)
+        .order('data').order('criado_em').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...data);
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
+  },
+  financeiroSaldoAntes: (contaId, data) => rpc('financeiro_saldo_antes', { p_conta: contaId, p_data: data }).then(Number),
+  async financeiroLancamentoCriar(dados) {
+    const { data } = await rodar(sb.from('financeiro_lancamentos').insert({ ...dados, criado_por: uid() }).select(CAMPOS_DO_LANCAMENTO).single());
+    return data;
+  },
+  async financeiroLancamentoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('financeiro_lancamentos').update(dados).eq('id', id).select('id').maybeSingle());
+    naoEsta(data);
+  },
+  async financeiroLancamentoExcluir(id) {
+    const { data } = await rodar(sb.from('financeiro_lancamentos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    naoEsta(data);
+  },
+  async financeiroLancamentoRestaurar(id) {
+    const { data } = await rodar(sb.from('financeiro_lancamentos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
+    naoEsta(data);
+  },
+  financeiroTransferir: ({ de, para, data, valor, descricao }) => rpc('financeiro_transferir', { p_de: de, p_para: para, p_data: data, p_valor: valor, p_descricao: descricao }),
+  async financeiroHistorico(lancamentoId) {
+    const { data } = await rodar(sb.from('financeiro_historico').select('id, alteracoes, feito_por, em').eq('lancamento_id', lancamentoId).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
+  },
+  async financeiroDas() {
+    const { data } = await rodar(sb.from('financeiro_das').select('mes, aliquota').order('mes'));
+    return (data as { mes: string; aliquota: number | string }[]).map(a => ({ mes: a.mes, aliquota: Number(a.aliquota) }));
+  },
+  async financeiroDasSalvar(mes, aliquota) {
+    await rodar(sb.from('financeiro_das').upsert({ mes, aliquota, atualizado_por: uid() }, { onConflict: 'escritorio_id,mes' }));
+  },
+  // ---------- parcelas, recebimentos e repasses ----------
+  async parcelasDoContrato(contratoId) {
+    const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA).eq('contrato_id', contratoId).is('excluido_em', null).order('numero'));
+    return data;
+  },
+  async parcelasHistorico(contratoId) {
+    const { data } = await rodar(sb.from('contrato_parcelas_historico').select('id, alteracoes, feito_por, em').eq('contrato_id', contratoId).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
+  },
+  async parcelasDaPessoa(pessoaId) {
+    const { data: ligados } = await rodar(sb.from('contrato_clientes').select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA));
+    if (!ligados.length) return [];
+    // O filtro do contrato arquivado é aqui, então lê até juntar o limite: as arquivadas não podem ocupar o lugar das outras.
+    const todas: ParcelaDoEscritorio[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).in('contrato_id', ligados.map((x: { contrato_id: string }) => x.contrato_id)).is('excluido_em', null)
+        .order('vencimento', { ascending: false }).order('numero', { ascending: false }).order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
+      if (todas.length >= PARCELAS_DA_PESSOA || data.length < LINHAS_POR_CONSULTA) return todas.slice(0, PARCELAS_DA_PESSOA);
+    }
+  },
+  async parcelasDoPeriodo(de, ate, hoje) {
+    // As trazidas de antes do período são as atrasadas: num mês futuro, o que ainda vai vencer não entra.
+    const antesDe = hoje < de ? hoje : de;
+    const todas: ParcelaDoEscritorio[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).is('excluido_em', null)
+        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebimento_id.is.null,vencimento.lt.${antesDe})`)
+        .order('vencimento').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
+      if (data.length < LINHAS_POR_CONSULTA) return todas;
+    }
+  },
+  async parcelaCriar(contratoId, dados) {
+    const { data } = await rodar(sb.from('contrato_parcelas').insert({ contrato_id: contratoId, ...dados, criado_por: uid() }).select(CAMPOS_DA_PARCELA).single());
+    return data;
+  },
+  async parcelaAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('contrato_parcelas').update(dados).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  async parcelaExcluir(id) {
+    const { data } = await rodar(sb.from('contrato_parcelas').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  async parcelaRestaurar(id) {
+    const { data } = await rodar(sb.from('contrato_parcelas').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  parcelasGerar: contratoId => rpc('contrato_gerar_parcelas', { p_contrato: contratoId }),
+  financeiroParaReceber: (parcelaId, data) => rpc('financeiro_para_receber', { p_parcela: parcelaId, p_data: data }),
+  financeiroReceber: ({ parcela, data, valor, conta, taxa }) => rpc('financeiro_receber', { p_parcela: parcela, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa }),
+  async financeiroRecebimento(id) {
+    const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
+    return data;
+  },
+  financeiroEstornar: async id => { await rpc('financeiro_estornar', { p_recebimento: id }); },
+  financeiroRestaurarRecebimento: async id => { await rpc('financeiro_restaurar_recebimento', { p_recebimento: id }); },
+  async financeiroRepasses(de, ate) {
+    const todos: Repasse[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_repasses').select(CAMPOS_DO_REPASSE).is('cancelado_em', null)
+        .or(`pago_em.is.null,and(pago_em.gte.${de},pago_em.lte.${ate})`).order('criado_em').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...data);
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
+  },
+  financeiroPagarRepasse: async (id, conta, data) => { await rpc('financeiro_pagar_repasse', { p_repasse: id, p_conta: conta, p_data: data }); },
+  financeiroDesfazerPagamento: async id => { await rpc('financeiro_desfazer_pagamento', { p_repasse: id }); },
+  async financeiroSocios() {
+    const { data } = await rodar(sb.from('financeiro_socios').select(CAMPOS_DO_SOCIO).is('excluido_em', null).order('desde', { ascending: false }));
+    return (data as unknown as LinhaDoSocio[]).map(socioLido);
+  },
+  async financeiroSocioCriar(dados) {
+    const { data } = await rodar(sb.from('financeiro_socios').insert({ ...dados, criado_por: uid() }).select(CAMPOS_DO_SOCIO).single());
+    return socioLido(data as unknown as LinhaDoSocio);
+  },
+  async financeiroSocioAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('financeiro_socios').update(dados).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  async financeiroSocioExcluir(id) {
+    const { data } = await rodar(sb.from('financeiro_socios').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  async financeiroSocioRestaurar(id) {
+    const { data } = await rodar(sb.from('financeiro_socios').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
+    if (!data) throw new Error('Não foi possível: atualize a página e confira.');
+  },
+  async financeiroAjustes() {
+    const { data } = await rodar(sb.from('financeiro_ajustes').select('id, alteracoes, feito_por, em').order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
   },
 
   // ---------- painel de processos ----------

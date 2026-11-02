@@ -9,9 +9,11 @@ import type {
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
-  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
+  AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
+import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
+import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -29,7 +31,11 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
-import { DIAS_PARADO } from './limites';
+import { fmtCentavos } from '../regras/caixa';
+import { fmtData } from '../regras/pessoa';
+import { DIAS_PARADO, PARCELAS_DA_PESSOA } from './limites';
+import type { CategoriaDeLancamento, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio } from './tipos';
+import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -113,6 +119,18 @@ interface Banco {
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  contasFinanceiras?: ContaFinanceira[];
+  lancamentos?: LancamentoGuardado[];
+  historicoLancamentos?: (Historico & { lancamento_id: string })[];
+  dasDoEscritorio?: AliquotaDoDas[];
+  ajustesFinanceiros?: Historico[];
+  parcelas?: ParcelaGuardada[];
+  recebimentos?: RecebimentoGuardado[];
+  repasses?: RepasseGuardado[];
+  socios?: SocioGuardado[];
+  /** Os contratos que já geraram as parcelas (uma vez só, como privado.contratos_com_parcelas). */
+  contratosComParcelas?: string[];
+  historicoParcelas?: (Historico & { contrato_id: string })[];
   /** As demandas ligadas aos processos (processo_demandas no banco). */
   processoDemandas?: { processo_id: string; demanda_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -139,6 +157,11 @@ type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes
 /** Compromisso como fica guardado: as pessoas pelo id; os nomes e o processo são lidos na hora. */
 type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[] };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
+type LancamentoGuardado = Lancamento & { excluido_em: string | null };
+type ParcelaGuardada = Parcela & { excluido_em: string | null };
+type RecebimentoGuardado = RecebimentoGravado & { estornado_em: string | null; lancamento_id: string; lancamento_taxa_id: string | null };
+type RepasseGuardado = Repasse & { cancelado_em: string | null; lancamento_id: string | null; pessoa_id: string | null };
+type SocioGuardado = Omit<Socio, 'nome'> & { excluido_em: string | null };
 type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
@@ -352,6 +375,18 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.contasFinanceiras ??= [];
+bd.lancamentos ??= [];
+bd.historicoLancamentos ??= [];
+bd.dasDoEscritorio ??= [];
+bd.ajustesFinanceiros ??= [];
+bd.parcelas ??= [];
+bd.recebimentos ??= [];
+bd.repasses ??= [];
+bd.socios ??= [];
+// Como ao ligar o módulo no banco: o que já foi assinado não gera sozinho, nem se sair e voltar para a coluna.
+bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(k => k.id);
+bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
@@ -742,6 +777,30 @@ function historicoDemanda(d: DemandaGuardada, dados: Record<string, unknown>) {
  * Como o gatilho demandas_automaticas da migração 017: o contrato que chega à coluna-marco "assinado" ganha uma demanda
  * por objeto, em "Para fazer", com os clientes e o responsável dele. Uma vez só por contrato.
  */
+/** Como privado.parcelas_do_contrato_assinado: nascem uma vez só, quando o contrato chega à coluna de assinado. */
+function parcelasDoContratoAssinado(k: ContratoGuardado) {
+  if (bd.colunas.find(c => c.id === k.etapa_id)?.marco !== 'assinado' || bd.contratosComParcelas!.includes(k.id)) return;
+  bd.contratosComParcelas!.push(k.id);
+  // Nunca por cima do que já foi lançado à mão.
+  if (bd.parcelas!.some(p => p.contrato_id === k.id && !p.excluido_em)) return;
+  gerarParcelas(k);
+}
+function gerarParcelas(k: ContratoGuardado) {
+  const novas = parcelasDoContrato(k, hojeNoFalso());
+  novas.forEach(p => novaParcela(k.id, p));
+  if (novas.length) historicoDaParcela(k.id, { Parcelas: { de: null, para: `${novas.length} geradas, somando ${fmtCentavos(novas.reduce((s, p) => s + p.valor, 0))}` } });
+  return novas.length;
+}
+const hojeNoFalso = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+function novaParcela(contratoId: string, dados: { vencimento: string; valor: number }) {
+  const numero = Math.max(0, ...bd.parcelas!.filter(p => p.contrato_id === contratoId).map(p => p.numero)) + 1;
+  const p: ParcelaGuardada = { id: novoId(), contrato_id: contratoId, numero, ...dados, recebimento_id: null, recebida_em: null, recebido: null, excluido_em: null };
+  bd.parcelas!.push(p);
+  return p;
+}
+const historicoDaParcela = (contratoId: string, alteracoes: Historico['alteracoes']) => {
+  bd.historicoParcelas!.unshift({ id: Date.now() + Math.random(), contrato_id: contratoId, alteracoes, feito_por: eu, em: agora() });
+};
 function demandasDoContratoAssinado(k: ContratoGuardado) {
   const assinado = bd.colunas.find(c => c.id === k.etapa_id)?.marco === 'assinado';
   if (!assinado || bd.contratosComDemandas!.includes(k.id)) return;
@@ -1000,6 +1059,65 @@ const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
 const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+// ---------- caixa ----------
+const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
+const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro'];
+/** Como as regras check e o gatilho do banco. */
+function conferirLancamento(l: LancamentoGuardado) {
+  l.descricao = l.descricao.trim();
+  const conta = bd.contasFinanceiras!.find(c => c.id === l.conta_id);
+  if (!conta) throw new Error('Conta não encontrada neste escritório.');
+  if (!Number.isInteger(l.valor) || l.valor <= 0 || l.valor > VALOR_MAXIMO_DO_LANCAMENTO || !l.descricao || l.descricao.length > TAMANHO_FINANCEIRO.descricao || !dataExiste(l.data) || !anoAceito(l.data)) throw new Error(FORMATO_INVALIDO);
+  const servePara = l.categoria === 'transferencia' || (l.tipo === 'entrada' ? CATEGORIAS_DE_ENTRADA : CATEGORIAS_DE_SAIDA).includes(l.categoria);
+  if (!servePara) throw new Error(FORMATO_INVALIDO);
+  return conta;
+}
+function conferirContaEData(l: LancamentoGuardado) {
+  const conta = conferirLancamento(l);
+  if (conta.arquivada_em) throw new Error('Esta conta está arquivada.');
+  if (l.data < conta.saldo_inicial_em) throw new Error('Esta data é anterior ao saldo inicial da conta.');
+}
+function historicoDoLancamento(l: LancamentoGuardado, novo: Partial<LancamentoGuardado>) {
+  const alteracoes: Historico['alteracoes'] = {};
+  for (const k of ['conta_id', 'data', 'tipo', 'categoria', 'valor', 'descricao', 'excluido_em'] as const) {
+    if (novo[k] === undefined || novo[k] === l[k]) continue;
+    const nomeDaConta = (id: unknown) => bd.contasFinanceiras!.find(c => c.id === id)?.nome ?? null;
+    if (k === 'conta_id') alteracoes.conta = { de: nomeDaConta(l[k]), para: nomeDaConta(novo[k]) };
+    else alteracoes[k] = { de: l[k], para: novo[k] };
+  }
+  if (Object.keys(alteracoes).length) bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: l.id, alteracoes, feito_por: eu, em: agora() });
+}
+const SEM_ACESSO_AO_CAIXA = 'Não foi possível: atualize a página e confira.';
+const LANCAMENTO_DE_ORIGEM = 'Este lançamento nasceu de um recebimento ou de um repasse: desfaça por lá.';
+const SEM_PARTE_NA_CONTA = 'O contrato não diz quanto vai para a conta da empresa. Preencha em "Atualizar contrato".';
+const SOCIO_NO_PERIODO = 'Esta pessoa já é sócia nesse período.';
+const CATEGORIA_DO_REPASSE: Record<Repasse['tipo'], CategoriaDeLancamento> = { responsavel: 'repasse', socio_indicador: 'indicacao' };
+const semExcluida = ({ excluido_em: _e, ...p }: ParcelaGuardada): Parcela => p;
+function acharParcela(id: string) {
+  const p = bd.parcelas!.find(x => x.id === id);
+  if (!p) throw new Error('Só o responsável pelo contrato ou um administrador registra o recebimento.');
+  return p;
+}
+const nomeDoSocio = (id: string) => bd.pessoas.find(p => p.id === id)?.nome ?? 'Pessoa excluída';
+const socioLido = ({ excluido_em: _e, ...s }: SocioGuardado): Socio => ({ ...s, nome: nomeDoSocio(s.pessoa_id) });
+const partesDe = (k: ContratoGuardado, data: string) => partesDoRecebimento(k, bd.socios!.filter(s => !s.excluido_em), EQUIPE.find(m => m.id === k.responsavel_id)?.pessoa_id, data, nomeDoSocio);
+function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
+  const k = bd.contratos!.find(x => x.id === p.contrato_id);
+  return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null };
+}
+/** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
+const naLista = (p: ParcelaGuardada) => !!p.recebimento_id || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
+const ajusteDoSocio = (s: SocioGuardado, de: string | null, para: string | null) => registrarAjuste({ ['Sócio: ' + nomeDoSocio(s.pessoa_id)]: { de, para } });
+const registrarAjuste = (alteracoes: Historico['alteracoes']) => { bd.ajustesFinanceiros!.unshift({ id: Date.now() + Math.random(), alteracoes, feito_por: eu, em: agora() }); };
+/** Como as regras check da conta. */
+function conferirConta(c: Pick<ContaFinanceira, 'nome' | 'saldo_inicial' | 'saldo_inicial_em'>) {
+  if (!c.nome.trim() || c.nome.trim().length > TAMANHO_FINANCEIRO.nomeDaConta || !dataExiste(c.saldo_inicial_em) || !anoAceito(c.saldo_inicial_em) || !Number.isInteger(c.saldo_inicial) || Math.abs(c.saldo_inicial) > VALOR_MAXIMO_DO_LANCAMENTO) throw new Error(FORMATO_INVALIDO);
+}
+function novoLancamento(dados: DadosLancamento & { par_id?: string | null; origem?: Lancamento['origem'] }) {
+  const l: LancamentoGuardado = { par_id: null, origem: null, ...dados, id: novoId(), excluido_em: null, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+  conferirContaEData(l);
+  return l;
+}
 const TAREFA_JA_LIGADA = 'Já existe uma tarefa ligada a este item.';
 const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
 /** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
@@ -1363,7 +1481,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: true, ehMaster: true
     };
     return espera(c);
@@ -1440,6 +1558,7 @@ export const SD: Dados = {
       if (bd.tarefas!.some(t => t.pessoas.includes(id))) { motivo = 'Esta pessoa está em tarefas e não pode ser excluída.'; return; }
       if (bd.processos!.some(x => x.clientes.includes(id))) { motivo = 'Esta pessoa está em processos e não pode ser excluída.'; return; }
       if (bd.compromissos!.some(c => c.pessoas.includes(id))) { motivo = 'Esta pessoa está em compromissos e não pode ser excluída.'; return; }
+      if (bd.socios!.some(s => s.pessoa_id === id) || bd.repasses!.some(r => r.pessoa_id === id)) { motivo = 'Esta pessoa está no financeiro e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
       const ligados = bd.vinculos!.filter(v => v.pessoa_de === id || v.pessoa_para === id);
@@ -1579,7 +1698,7 @@ export const SD: Dados = {
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
-    bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
+    bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   async contratoAtualizar(id, dados) {
@@ -1587,8 +1706,12 @@ export const SD: Dados = {
     if (dados.responsavel_id !== undefined && dados.responsavel_id !== k.responsavel_id) conferirResponsavel(dados.responsavel_id);
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     historicoContrato(k, d);
+    const etapaAntes = k.etapa_id;
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
-    guardarObjetos(k.objetos); demandasDoContratoAssinado(k); auditar('contratos', 'alteracao', k); gravar();
+    guardarObjetos(k.objetos); demandasDoContratoAssinado(k);
+    // Como o gatilho do banco: só quando a coluna muda.
+    if (k.etapa_id !== etapaAntes) parcelasDoContratoAssinado(k);
+    auditar('contratos', 'alteracao', k); gravar();
     return espera({ id, codigo: k.codigo });
   },
   async contratosArquivar(ids, arquivar = true) {
@@ -1600,11 +1723,14 @@ export const SD: Dados = {
     gravar(); return espera(ids.length);
   },
   async contratosExcluir(ids) {
+    if (bd.recebimentos!.some(r => ids.includes(r.contrato_id))) return erro('Este contrato tem recebimentos e não pode ser excluído: eles ficam guardados no caixa.');
     let excluidas = 0;
     ids.forEach(id => {
       const k = bd.contratos!.find(x => x.id === id);
       if (!k || !k.arquivado_em) return;
       bd.contratos = bd.contratos!.filter(x => x.id !== id);
+      bd.parcelas = bd.parcelas!.filter(p => p.contrato_id !== id);
+      bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
@@ -1619,7 +1745,7 @@ export const SD: Dados = {
     if ((k.etapa_id || null) !== (etapaId || null)) {
       bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
     }
-    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k); gravar();
+    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); gravar();
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id)),
   objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
@@ -2025,6 +2151,296 @@ export const SD: Dados = {
     const p = bd.processos!.find(x => x.id === l.processo_id);
     return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
   }) }),
+
+  // ---------- caixa (como supabase/migrations/20261102175057_financeiro_caixa.sql) ----------
+  financeiroContas: () => espera([...bd.contasFinanceiras!]),
+  async financeiroContaCriar(dados) {
+    const nome = dados.nome.trim();
+    conferirConta(dados);
+    if (bd.contasFinanceiras!.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma conta com esse nome.');
+    const c: ContaFinanceira = { ...dados, nome, id: novoId(), arquivada_em: null };
+    bd.contasFinanceiras!.push(c); auditar('financeiro_contas', 'inclusao', c); gravar();
+    return espera({ ...c });
+  },
+  async financeiroContaAtualizar(id, dados) {
+    const c = bd.contasFinanceiras!.find(x => x.id === id);
+    if (!c) return erro(SEM_ACESSO_AO_CAIXA);
+    const novo = { ...c, ...dados };
+    conferirConta(novo);
+    if (bd.contasFinanceiras!.some(x => x.id !== id && normal(x.nome) === normal(novo.nome))) return erro('Já existe uma conta com esse nome.');
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em && bd.lancamentos!.some(l => l.conta_id === id && !l.excluido_em && l.data < novo.saldo_inicial_em)) return erro('Há lançamentos antes dessa data. Escolha um dia igual ou anterior ao primeiro lançamento.');
+    const ajustes: Historico['alteracoes'] = {};
+    if (novo.saldo_inicial !== c.saldo_inicial) ajustes['Saldo inicial de ' + novo.nome] = { de: c.saldo_inicial, para: novo.saldo_inicial };
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em) ajustes['Início de ' + novo.nome] = { de: c.saldo_inicial_em, para: novo.saldo_inicial_em };
+    if (Object.keys(ajustes).length) registrarAjuste(ajustes);
+    Object.assign(c, dados, { nome: novo.nome.trim() }); auditar('financeiro_contas', 'alteracao', c); gravar();
+    return espera(undefined);
+  },
+  financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
+    .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
+  financeiroSaldoAntes(contaId, data) {
+    const conta = bd.contasFinanceiras!.find(c => c.id === contaId);
+    if (!conta) return espera(0);
+    return espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data < data).reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), conta.saldo_inicial));
+  },
+  async financeiroLancamentoCriar(dados) {
+    const l = novoLancamento(dados);
+    bd.lancamentos!.push(l); auditar('financeiro_lancamentos', 'inclusao', l); gravar();
+    return espera(semOExcluido(l));
+  },
+  async financeiroLancamentoAtualizar(id, dados) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    if (l.origem) return erro(LANCAMENTO_DE_ORIGEM);
+    if (l.excluido_em) return erro('Este lançamento foi excluído.');
+    const novo = { ...l, ...dados };
+    if (l.par_id && (novo.valor !== l.valor || novo.data !== l.data || novo.conta_id !== l.conta_id || novo.tipo !== l.tipo || novo.categoria !== l.categoria)) return erro('A transferência não muda depois de criada: exclua e lance de novo.');
+    if (novo.conta_id !== l.conta_id || novo.data !== l.data) conferirContaEData(novo); else conferirLancamento(novo);
+    historicoDoLancamento(l, novo);
+    Object.assign(l, novo, { atualizado_em: agora() }); auditar('financeiro_lancamentos', 'alteracao', l); gravar();
+    return espera(undefined);
+  },
+  async financeiroLancamentoExcluir(id) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    if (l.origem) return erro(LANCAMENTO_DE_ORIGEM);
+    for (const x of bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id)) {
+      if (x.excluido_em) continue;
+      const quando = agora();
+      historicoDoLancamento(x, { excluido_em: quando });
+      x.excluido_em = quando;
+    }
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroLancamentoRestaurar(id) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    if (l.origem) return erro(LANCAMENTO_DE_ORIGEM);
+    const pontas = bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id);
+    pontas.forEach(conferirContaEData);
+    for (const x of pontas) {
+      if (!x.excluido_em) continue;
+      bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: x.id, alteracoes: { excluido_em: { de: x.excluido_em, para: null } }, feito_por: eu, em: agora() });
+      x.excluido_em = null;
+    }
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroTransferir({ de, para, data, valor, descricao }) {
+    if (de === para) return erro('Escolha duas contas diferentes.');
+    const saida = novoLancamento({ conta_id: de, data, tipo: 'saida', categoria: 'transferencia', valor, descricao });
+    const entrada = novoLancamento({ conta_id: para, data, tipo: 'entrada', categoria: 'transferencia', valor, descricao, par_id: saida.id });
+    saida.par_id = entrada.id;
+    bd.lancamentos!.push(saida, entrada); gravar();
+    return espera(saida.id);
+  },
+  financeiroHistorico: lancamentoId => espera(bd.historicoLancamentos!.filter(h => h.lancamento_id === lancamentoId).map(({ lancamento_id: _l, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO)),
+  financeiroDas: () => espera(bd.dasDoEscritorio!.toSorted((a, b) => a.mes.localeCompare(b.mes))),
+  async financeiroDasSalvar(mes, aliquota) {
+    if (erroDoDas({ mes, aliquota })) return erro(FORMATO_INVALIDO);
+    const ja = bd.dasDoEscritorio!.find(a => a.mes === mes);
+    if (!ja || ja.aliquota !== aliquota) registrarAjuste({ ['DAS de ' + mes]: { de: ja?.aliquota ?? null, para: aliquota } });
+    if (ja) ja.aliquota = aliquota; else bd.dasDoEscritorio!.push({ mes, aliquota });
+    gravar();
+    return espera(undefined);
+  },
+  financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
+
+  // ---------- parcelas, recebimentos e repasses (como supabase/migrations/20261102192042_financeiro_parcelas.sql) ----------
+  parcelasDoContrato: contratoId => espera(bd.parcelas!.filter(p => p.contrato_id === contratoId && !p.excluido_em).toSorted((a, b) => a.numero - b.numero).map(semExcluida)),
+  parcelasHistorico: contratoId => espera(bd.historicoParcelas!.filter(h => h.contrato_id === contratoId).map(({ contrato_id: _c, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO)),
+  parcelasDaPessoa(pessoaId) {
+    const dela = new Set(bd.contratos!.filter(k => k.clientes.includes(pessoaId)).map(k => k.id));
+    return espera(bd.parcelas!.filter(p => dela.has(p.contrato_id) && !p.excluido_em && naLista(p)).toSorted((a, b) => b.vencimento.localeCompare(a.vencimento) || b.numero - a.numero).slice(0, PARCELAS_DA_PESSOA).map(parcelaDoEscritorio));
+  },
+  parcelasDoPeriodo: (de, ate, hoje) => espera(bd.parcelas!.filter(p => !p.excluido_em && naLista(p) && ((p.vencimento >= de && p.vencimento <= ate) || (!p.recebimento_id && p.vencimento < (hoje < de ? hoje : de))))
+    .toSorted((a, b) => a.vencimento.localeCompare(b.vencimento)).map(parcelaDoEscritorio)),
+  async parcelaCriar(contratoId, dados) {
+    acharContrato(contratoId);
+    if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    const p = novaParcela(contratoId, dados);
+    historicoDaParcela(contratoId, { ['Parcela ' + p.numero]: { de: null, para: `${fmtCentavos(p.valor)}, vence em ${fmtData(p.vencimento)}` } });
+    auditar('contrato_parcelas', 'inclusao', p); gravar();
+    return espera(semExcluida(p));
+  },
+  async parcelaAtualizar(id, dados) {
+    const p = acharParcela(id);
+    if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
+    if (p.excluido_em) return erro('Esta parcela foi excluída.');
+    if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    const alteracoes: Historico['alteracoes'] = {};
+    if (dados.valor !== p.valor) alteracoes[`Parcela ${p.numero}: valor`] = { de: fmtCentavos(p.valor), para: fmtCentavos(dados.valor) };
+    if (dados.vencimento !== p.vencimento) alteracoes[`Parcela ${p.numero}: vencimento`] = { de: fmtData(p.vencimento), para: fmtData(dados.vencimento) };
+    if (Object.keys(alteracoes).length) historicoDaParcela(p.contrato_id, alteracoes);
+    Object.assign(p, dados); auditar('contrato_parcelas', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
+  async parcelaExcluir(id) {
+    const p = acharParcela(id);
+    if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
+    if (!p.excluido_em) historicoDaParcela(p.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: 'Excluída' } });
+    p.excluido_em ??= agora(); gravar();
+    return espera(undefined);
+  },
+  async parcelaRestaurar(id) {
+    const p = acharParcela(id);
+    if (p.excluido_em) historicoDaParcela(p.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: 'Devolvida' } });
+    p.excluido_em = null; gravar();
+    return espera(undefined);
+  },
+  async parcelasGerar(contratoId) {
+    const k = acharContrato(contratoId);
+    const colunas = bd.colunas.filter(c => c.modulo === 'contratos').map(c => ({ ...c, modulo: undefined }));
+    if (!chegouAoAssinado(colunas, k.etapa_id, k.assinado_em) && !bd.contratosComDemandas!.includes(contratoId)) return erro('Este contrato ainda não foi assinado. As parcelas nascem na coluna de assinado.');
+    if (bd.parcelas!.some(p => p.contrato_id === contratoId && !p.excluido_em)) return erro('Este contrato já tem parcelas.');
+    if (!bd.contratosComParcelas!.includes(contratoId)) bd.contratosComParcelas!.push(contratoId);
+    const quantas = gerarParcelas(k); gravar();
+    return espera(quantas ?? 0);
+  },
+  async financeiroParaReceber(parcelaId, data) {
+    const k = acharContrato(acharParcela(parcelaId).contrato_id);
+    if (k.percentual_escritorio === null) return erro(SEM_PARTE_NA_CONTA);
+    const das = dasDoMes(bd.dasDoEscritorio!, data.slice(0, 7));
+    const ultimo = das ? bd.dasDoEscritorio!.filter(a => a.mes <= data.slice(0, 7)).toSorted((a, b) => b.mes.localeCompare(a.mes))[0] : null;
+    return espera({
+      parte_na_conta: k.percentual_escritorio as ParaReceber['parte_na_conta'],
+      contas: bd.contasFinanceiras!.filter(c => !c.arquivada_em).map(c => ({ id: c.id, nome: c.nome, tem_das: c.tem_das })),
+      das: ultimo ? [ultimo] : [],
+      ...partesDe(k, data)
+    });
+  },
+  async financeiroReceber({ parcela, data, valor, conta, taxa }) {
+    const p = acharParcela(parcela);
+    if (p.excluido_em) return erro('Esta parcela foi excluída.');
+    if (p.recebimento_id) return erro('Esta parcela já foi recebida.');
+    const k = acharContrato(p.contrato_id);
+    if (k.percentual_escritorio === null) return erro(SEM_PARTE_NA_CONTA);
+    const c = bd.contasFinanceiras!.find(x => x.id === conta);
+    if (!c) return erro('Conta não encontrada neste escritório.');
+    const das = dasDoMes(bd.dasDoEscritorio!, data.slice(0, 7));
+    if (c.tem_das && !das) return erro('Nenhum DAS lançado até este mês. Peça a um administrador para lançar.');
+    const aliquota = c.tem_das ? das!.aliquota : 0, partes = partesDe(k, data);
+    const d = dividirRecebimento({ valor, parteNaConta: k.percentual_escritorio as ParaReceber['parte_na_conta'], contaComDas: c.tem_das, aliquotaDas: aliquota, taxaMaquina: taxa,
+      terceiros: partes.terceiros.map(t => ({ id: t.id, percentual: t.percentual })), socioIndicador: partes.socio_indicador?.id ?? null, responsavelSocio: partes.responsavel_socio });
+    const texto = `${nomesDosClientes(k.clientes)} (${k.codigo}, parcela ${p.numero})`.slice(0, 280);
+    const entrada = novoLancamento({ conta_id: conta, data, tipo: 'entrada', categoria: 'recebimento', valor: d.naConta, descricao: 'Recebimento: ' + texto, origem: 'recebimento' });
+    bd.lancamentos!.push(entrada);
+    // Abaixo da parte integral, a taxa é do advogado e não passa pela conta.
+    const saidaTaxa = k.percentual_escritorio === PARTE_INTEGRAL && d.taxaMaquina > 0 ? novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'despesa', valor: d.taxaMaquina, descricao: 'Taxa da máquina: ' + texto, origem: 'recebimento' }) : null;
+    if (saidaTaxa) bd.lancamentos!.push(saidaTaxa);
+    const r: RecebimentoGuardado = {
+      id: novoId(), parcela_id: p.id, contrato_id: k.id, conta_id: conta, data, valor, taxa_maquina: d.taxaMaquina, aliquota_das: aliquota, parte_na_conta: k.percentual_escritorio, responsavel_socio: partes.responsavel_socio,
+      na_conta: d.naConta, ficou_com_advogado: d.ficouComOAdvogado, das: d.das, liquido: d.liquido, escritorio: d.escritorio, responsavel_recebe: d.responsavelRecebe, responsavel_fica: d.responsavelFica,
+      escritorio_final: d.escritorioFinal, contribuicao_socio: d.contribuicaoDoSocio, terceiros: partes.terceiros.map(t => ({ ...t, valor: d.terceiros.find(x => x.id === t.id)!.valor })),
+      socio_indicador: partes.socio_indicador && d.socioIndicador ? { ...partes.socio_indicador, valor: d.socioIndicador.valor } : null,
+      estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null
+    };
+    bd.recebimentos!.push(r);
+    const repasse = (tipo: Repasse['tipo'], nome: string, valorDele: number, pessoaId: string | null) => bd.repasses!.push({ id: novoId(), recebimento_id: r.id, tipo, nome, descricao: texto, valor: valorDele, conta_sugerida: conta, conta_paga: null, pago_em: null, criado_em: agora(), cancelado_em: null, lancamento_id: null, pessoa_id: pessoaId });
+    if (d.responsavelRecebe > 0) repasse('responsavel', EQUIPE.find(m => m.id === k.responsavel_id)?.nome ?? 'Usuário removido', d.responsavelRecebe, null);
+    if (partes.socio_indicador && d.socioIndicador) repasse('socio_indicador', partes.socio_indicador.nome, d.socioIndicador.valor, partes.socio_indicador.id);
+    Object.assign(p, { recebimento_id: r.id, recebida_em: data, recebido: valor });
+    historicoDaParcela(k.id, { ['Parcela ' + p.numero]: { de: null, para: `Recebida em ${fmtData(data)}: ${fmtCentavos(valor)}` } });
+    auditar('financeiro_recebimentos', 'inclusao', r); gravar();
+    return espera(r.id);
+  },
+  financeiroRecebimento(id) {
+    const r = bd.recebimentos!.find(x => x.id === id);
+    if (!r) return espera(null);
+    const { estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, ...gravado } = r;
+    return espera(gravado);
+  },
+  async financeiroEstornar(id) {
+    const r = bd.recebimentos!.find(x => x.id === id);
+    if (!r) return erro('Só o responsável pelo contrato ou um administrador estorna o recebimento.');
+    if (r.estornado_em) return erro('Este recebimento já foi estornado.');
+    const dele = bd.repasses!.filter(x => x.recebimento_id === id);
+    if (dele.some(x => x.pago_em)) return erro('Há repasse já pago deste recebimento. Peça a um administrador para desfazer o pagamento antes.');
+    const quando = agora();
+    r.estornado_em = quando;
+    dele.forEach(x => { x.cancelado_em = quando; });
+    bd.lancamentos!.filter(l => l.id === r.lancamento_id || l.id === r.lancamento_taxa_id).forEach(l => { l.excluido_em = quando; });
+    const p = acharParcela(r.parcela_id);
+    Object.assign(p, { recebimento_id: null, recebida_em: null, recebido: null });
+    historicoDaParcela(r.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: 'Recebimento estornado' } });
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroRestaurarRecebimento(id) {
+    const r = bd.recebimentos!.find(x => x.id === id);
+    if (!r) return erro('Só o responsável pelo contrato ou um administrador desfaz o estorno.');
+    if (!r.estornado_em) return espera(undefined);
+    const p = acharParcela(r.parcela_id);
+    if (p.excluido_em) return erro('Esta parcela foi excluída.');
+    if (p.recebimento_id) return erro('Esta parcela já foi recebida de novo.');
+    const pontas = bd.lancamentos!.filter(l => l.id === r.lancamento_id || l.id === r.lancamento_taxa_id);
+    pontas.forEach(conferirContaEData);
+    r.estornado_em = null;
+    bd.repasses!.filter(x => x.recebimento_id === id).forEach(x => { x.cancelado_em = null; });
+    pontas.forEach(l => { l.excluido_em = null; });
+    Object.assign(p, { recebimento_id: r.id, recebida_em: r.data, recebido: r.valor });
+    historicoDaParcela(r.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: `Recebida em ${fmtData(r.data)}: ${fmtCentavos(r.valor)}` } });
+    gravar();
+    return espera(undefined);
+  },
+  financeiroRepasses: (de, ate) => espera(bd.repasses!.filter(x => !x.cancelado_em && (!x.pago_em || (x.pago_em >= de && x.pago_em <= ate)))
+    .toSorted((a, b) => a.criado_em.localeCompare(b.criado_em)).map(({ cancelado_em: _c, lancamento_id: _l, pessoa_id: _p, ...x }) => x)),
+  async financeiroPagarRepasse(id, conta, data) {
+    const x = bd.repasses!.find(y => y.id === id);
+    if (!x) return erro('Repasse não encontrado neste escritório.');
+    if (x.cancelado_em) return erro('O recebimento deste repasse foi estornado.');
+    if (x.pago_em) return erro('Este repasse já foi pago.');
+    if (!bd.contasFinanceiras!.some(c => c.id === conta)) return erro('Conta não encontrada neste escritório.');
+    const saida = novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: CATEGORIA_DO_REPASSE[x.tipo], valor: x.valor, descricao: `Repasse a ${x.nome}: ${x.descricao}`.slice(0, 300), origem: 'repasse' });
+    bd.lancamentos!.push(saida);
+    Object.assign(x, { pago_em: data, conta_paga: conta, lancamento_id: saida.id }); gravar();
+    return espera(undefined);
+  },
+  async financeiroDesfazerPagamento(id) {
+    const x = bd.repasses!.find(y => y.id === id);
+    if (!x) return erro('Repasse não encontrado neste escritório.');
+    if (!x.pago_em) return espera(undefined);
+    bd.lancamentos!.filter(l => l.id === x.lancamento_id).forEach(l => { l.excluido_em = agora(); });
+    Object.assign(x, { pago_em: null, conta_paga: null, lancamento_id: null }); gravar();
+    return espera(undefined);
+  },
+  financeiroSocios: () => espera(bd.socios!.filter(s => !s.excluido_em).toSorted((a, b) => b.desde.localeCompare(a.desde)).map(socioLido)),
+  async financeiroSocioCriar(dados) {
+    if (!bd.pessoas.some(p => p.id === dados.pessoa_id)) return erro('Pessoa não encontrada neste escritório.');
+    if (dados.ate && dados.ate < dados.desde) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    if (cruzaOutroPeriodo(bd.socios!.filter(s => !s.excluido_em), dados)) return erro(SOCIO_NO_PERIODO);
+    const s: SocioGuardado = { id: novoId(), ...dados, excluido_em: null };
+    bd.socios!.push(s);
+    ajusteDoSocio(s, null, periodoDoSocio(s)); auditar('financeiro_socios', 'inclusao', s); gravar();
+    return espera(socioLido(s));
+  },
+  async financeiroSocioAtualizar(id, dados) {
+    const s = bd.socios!.find(x => x.id === id);
+    if (!s) return erro(SEM_ACESSO_AO_CAIXA);
+    if (dados.ate && dados.ate < dados.desde) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    if (cruzaOutroPeriodo(bd.socios!.filter(x => !x.excluido_em), { id, pessoa_id: s.pessoa_id, ...dados })) return erro(SOCIO_NO_PERIODO);
+    const antes = periodoDoSocio(s);
+    Object.assign(s, dados);
+    if (antes !== periodoDoSocio(s)) ajusteDoSocio(s, antes, periodoDoSocio(s));
+    auditar('financeiro_socios', 'alteracao', s); gravar();
+    return espera(undefined);
+  },
+  async financeiroSocioExcluir(id) {
+    const s = bd.socios!.find(x => x.id === id);
+    if (!s) return erro(SEM_ACESSO_AO_CAIXA);
+    if (!s.excluido_em) ajusteDoSocio(s, periodoDoSocio(s), null);
+    s.excluido_em ??= agora(); gravar();
+    return espera(undefined);
+  },
+  async financeiroSocioRestaurar(id) {
+    const s = bd.socios!.find(x => x.id === id);
+    if (!s) return erro(SEM_ACESSO_AO_CAIXA);
+    if (cruzaOutroPeriodo(bd.socios!.filter(x => !x.excluido_em), s)) return erro(SOCIO_NO_PERIODO);
+    if (s.excluido_em) ajusteDoSocio(s, null, periodoDoSocio(s));
+    s.excluido_em = null; gravar();
+    return espera(undefined);
+  },
 
   // ---------- painel de processos (como public.painel_de_processos) ----------
   async processosPainel({ hoje, meus }) {

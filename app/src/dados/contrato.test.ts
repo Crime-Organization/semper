@@ -1483,6 +1483,594 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Parcelas', () => {
+      const novoContrato = async (extra: Parameters<Dados['contratoCriar']>[0] = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Marca'], categoria: 'pro_labore', valor: 1000, parcelas: 2, primeiro_pagamento: '2026-03-05', percentual_escritorio: 100, ...extra });
+      };
+      const assinar = async (id: string) => {
+        const coluna = (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!;
+        await SD.contratoMover(id, coluna.id, 1);
+      };
+      const assinado = async (extra: Parameters<Dados['contratoCriar']>[0] = {}) => {
+        const k = await novoContrato(extra);
+        await assinar(k.id);
+        return { ...k, parcelas: await SD.parcelasDoContrato(k.id) };
+      };
+      const contaPJ = async () => {
+        const c = await SD.financeiroContaCriar({ nome: marca(), tem_das: true, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+        await SD.financeiroDasSalvar('2026-01', 4.5);
+        return c;
+      };
+      const receber = (parcela: string, conta: string, extra: Partial<Parameters<Dados['financeiroReceber']>[0]> = {}) =>
+        SD.financeiroReceber({ parcela, conta, data: '2026-03-10', valor: 100000, taxa: 3000, ...extra });
+      const lancamentos = (conta: string) => SD.financeiroLancamentos(conta, '2026-01-01', '2026-12-31');
+      /** Um dia depois de todas as datas dos casos abaixo. */
+      const HOJE_DEPOIS = '2027-01-01';
+      const repassesDe = async (recebimento: string) => (await SD.financeiroRepasses('2026-01-01', '2026-12-31')).filter(r => r.recebimento_id === recebimento);
+
+      it('quando o contrato chega à coluna de assinado, então as parcelas nascem, uma vez só', async () => {
+        // Quando
+        const k = await assinado();
+        // Então
+        expect(k.parcelas.map(p => [p.numero, p.vencimento, p.valor])).toEqual([[1, '2026-03-05', 50000], [2, '2026-04-05', 50000]]);
+        await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => !c.marco)!.id, 1);
+        await assinar(k.id);
+        expect(await SD.parcelasDoContrato(k.id)).toHaveLength(2);
+      });
+
+      it('quando o contrato é de êxito, então não gera, e dá para lançar à mão', async () => {
+        // Quando
+        const k = await assinado({ categoria: 'quota_litis' });
+        // Então
+        expect(k.parcelas).toEqual([]);
+        expect(await SD.parcelasGerar(k.id)).toBe(0);
+        const p = await SD.parcelaCriar(k.id, { vencimento: '2026-05-01', valor: 12345 });
+        expect(p).toMatchObject({ numero: 1, valor: 12345, recebimento_id: null });
+      });
+
+      it('quando o contrato ainda não foi assinado, então gerar à mão é recusado', async () => {
+        // Dado
+        const k = await novoContrato();
+        // Então
+        await expect(SD.parcelasGerar(k.id)).rejects.toThrow('ainda não foi assinado');
+      });
+
+      it('quando o contrato tem a data de assinatura, ou já foi assinado e ficou sem parcelas, então gera à mão uma vez', async () => {
+        // Dado
+        const comData = await novoContrato({ assinado_em: '2026-01-10' });
+        const assinadoSemParcelas = await assinado();
+        for (const p of assinadoSemParcelas.parcelas) await SD.parcelaExcluir(p.id);
+        // Quando
+        const quantas = await SD.parcelasGerar(comData.id);
+        // Então
+        expect(quantas).toBe(2);
+        await expect(SD.parcelasGerar(comData.id)).rejects.toThrow('Este contrato já tem parcelas.');
+        expect(await SD.parcelasGerar(assinadoSemParcelas.id)).toBe(2);
+      });
+
+      it('quando o contrato já esteve na coluna de assinado e saiu, então ainda gera à mão', async () => {
+        // Dado
+        const k = await assinado();
+        for (const p of k.parcelas) await SD.parcelaExcluir(p.id);
+        await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => !c.marco)!.id, 1);
+        // Então
+        expect(await SD.parcelasGerar(k.id)).toBe(2);
+      });
+
+      it('quando há parcela lançada à mão antes da assinatura, então assinar não gera por cima', async () => {
+        // Dado
+        const k = await novoContrato();
+        await SD.parcelaCriar(k.id, { vencimento: '2026-02-01', valor: 20000 });
+        // Quando
+        await assinar(k.id);
+        // Então
+        expect((await SD.parcelasDoContrato(k.id)).map(p => p.valor)).toEqual([20000]);
+      });
+
+      it('quando o contrato de exemplo já estava assinado, então sair e voltar para a coluna não gera sozinho', async () => {
+        // Dado
+        const k = (await SD.contratosListar()).linhas.find(x => x.cliente_nome.startsWith('PADARIA'))!;
+        const colunas = await SD.colunasListar('contratos');
+        // Quando
+        await SD.contratoMover(k.id, colunas.find(c => !c.marco)!.id, 1);
+        await SD.contratoMover(k.id, colunas.find(c => c.marco === 'assinado')!.id, 1);
+        // Então
+        expect(await SD.parcelasDoContrato(k.id)).toEqual([]);
+      });
+
+      it('quando ajusta, exclui e devolve a parcela, então tudo fica no histórico do contrato', async () => {
+        // Dado
+        const k = await assinado();
+        const p = k.parcelas[0];
+        // Quando
+        await SD.parcelaAtualizar(p.id, { vencimento: '2026-03-20', valor: 60000 });
+        await SD.parcelaExcluir(p.id);
+        // Então
+        expect((await SD.parcelasDoContrato(k.id)).map(x => x.numero)).toEqual([2]);
+        await SD.parcelaRestaurar(p.id);
+        expect((await SD.parcelasDoContrato(k.id))[0]).toMatchObject({ numero: 1, vencimento: '2026-03-20', valor: 60000 });
+        const hist = JSON.stringify(await SD.parcelasHistorico(k.id));
+        for (const texto of ['Parcelas', 'Parcela 1: valor', 'Parcela 1: vencimento', 'Excluída', 'Devolvida']) expect(hist).toContain(texto);
+        // O histórico do contrato é aberto a todo o escritório: não fala de dinheiro.
+        expect(JSON.stringify(await SD.contratoHistorico(k.id))).not.toContain('Parcela');
+        await expect(SD.parcelaAtualizar(p.id, { vencimento: '2026-03-20', valor: 0 })).rejects.toThrow('formato inválido');
+      });
+
+      it('quando a parcela é excluída, então não muda, a número continua, e a nova vem depois', async () => {
+        // Dado
+        const k = await assinado();
+        await SD.parcelaExcluir(k.parcelas[1].id);
+        // Então
+        await expect(SD.parcelaAtualizar(k.parcelas[1].id, { vencimento: '2026-05-01', valor: 100 })).rejects.toThrow('Esta parcela foi excluída.');
+        expect((await SD.parcelaCriar(k.id, { vencimento: '2026-05-01', valor: 100 })).numero).toBe(3);
+      });
+
+      it('quando recebe, então divide, cria a entrada e a taxa no caixa e o repasse ao responsável', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        // Quando
+        const id = await receber(k.parcelas[0].id, conta.id);
+        // Então
+        expect(await SD.financeiroRecebimento(id)).toMatchObject({ valor: 100000, aliquota_das: 4.5, das: 4500, liquido: 92500, escritorio: 27750, responsavel_recebe: 64750, responsavel_socio: false, socio_indicador: null });
+        expect((await lancamentos(conta.id)).map(l => [l.tipo, l.categoria, l.valor, l.origem])).toEqual([['entrada', 'recebimento', 100000, 'recebimento'], ['saida', 'despesa', 3000, 'recebimento']]);
+        expect(await repassesDe(id)).toMatchObject([{ tipo: 'responsavel', valor: 64750, pago_em: null, conta_sugerida: conta.id }]);
+        expect((await SD.parcelasDoContrato(k.id))[0]).toMatchObject({ recebimento_id: id, recebida_em: '2026-03-10', recebido: 100000 });
+      });
+
+      it('quando já recebeu, então não recebe de novo, e a parcela não muda', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        await receber(k.parcelas[0].id, conta.id);
+        // Então
+        await expect(receber(k.parcelas[0].id, conta.id)).rejects.toThrow('Esta parcela já foi recebida.');
+        await expect(SD.parcelaAtualizar(k.parcelas[0].id, { vencimento: '2026-03-20', valor: 1 })).rejects.toThrow('Estorne o recebimento');
+        await expect(SD.parcelaExcluir(k.parcelas[0].id)).rejects.toThrow('Estorne o recebimento');
+      });
+
+      it('quando o contrato não diz a parte na conta, então pede para preencher', async () => {
+        // Dado
+        const k = await assinado({ percentual_escritorio: null }), conta = await contaPJ();
+        // Então
+        await expect(SD.financeiroParaReceber(k.parcelas[0].id, '2026-03-10')).rejects.toThrow('Atualizar contrato');
+        await expect(receber(k.parcelas[0].id, conta.id)).rejects.toThrow('Atualizar contrato');
+      });
+
+      it('quando não há DAS, então a conta que recolhe recusa, e a que não recolhe aceita', async () => {
+        // Dado
+        const k = await assinado();
+        const pj = await SD.financeiroContaCriar({ nome: marca(), tem_das: true, saldo_inicial: 0, saldo_inicial_em: '2000-01-01' });
+        const pf = await SD.financeiroContaCriar({ nome: marca(), tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2001-01-01' });
+        // Então
+        await expect(receber(k.parcelas[0].id, pj.id, { data: '2001-01-10' })).rejects.toThrow('Nenhum DAS lançado');
+        const id = await receber(k.parcelas[0].id, pf.id, { data: '2001-01-10', taxa: 3000 });
+        expect(await SD.financeiroRecebimento(id)).toMatchObject({ das: 0, taxa_maquina: 0, liquido: 100000 });
+      });
+
+      it('quando muda o DAS depois, então o que foi recebido não muda', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const id = await receber(k.parcelas[0].id, conta.id);
+        // Quando
+        await SD.financeiroDasSalvar('2026-03', 9);
+        // Então
+        expect(await SD.financeiroRecebimento(id)).toMatchObject({ aliquota_das: 4.5, das: 4500 });
+        expect((await SD.financeiroParaReceber(k.parcelas[1].id, '2026-03-10')).das).toEqual([{ mes: '2026-03', aliquota: 9 }]);
+        await SD.financeiroDasSalvar('2026-03', 4.5);
+      });
+
+      it('quando o caixa tenta mudar o lançamento do recebimento, então é recusado', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        await receber(k.parcelas[0].id, conta.id);
+        const [entrada] = await lancamentos(conta.id);
+        // Então
+        const texto = 'nasceu de um recebimento';
+        await expect(SD.financeiroLancamentoAtualizar(entrada.id, { valor: 1 })).rejects.toThrow(texto);
+        await expect(SD.financeiroLancamentoExcluir(entrada.id)).rejects.toThrow(texto);
+        await expect(SD.financeiroLancamentoRestaurar(entrada.id)).rejects.toThrow(texto);
+      });
+
+      it('quando paga o repasse, então cria a saída no caixa; e desfazer tira', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const id = await receber(k.parcelas[0].id, conta.id);
+        const [rep] = await repassesDe(id);
+        // Quando
+        await SD.financeiroPagarRepasse(rep.id, conta.id, '2026-03-11');
+        // Então
+        expect((await lancamentos(conta.id)).at(-1)).toMatchObject({ tipo: 'saida', categoria: 'repasse', valor: 64750, origem: 'repasse' });
+        await expect(SD.financeiroPagarRepasse(rep.id, conta.id, '2026-03-11')).rejects.toThrow('Este repasse já foi pago.');
+        await expect(SD.financeiroEstornar(id)).rejects.toThrow('desfazer o pagamento');
+        await SD.financeiroDesfazerPagamento(rep.id);
+        expect((await lancamentos(conta.id)).some(l => l.categoria === 'repasse')).toBe(false);
+        expect((await repassesDe(id))[0]).toMatchObject({ pago_em: null, conta_paga: null });
+      });
+
+      it('quando paga por outra conta, então o repasse guarda de onde saiu', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const outra = await SD.financeiroContaCriar({ nome: marca(), tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+        const id = await receber(k.parcelas[0].id, conta.id);
+        const [rep] = await repassesDe(id);
+        // Quando
+        await SD.financeiroPagarRepasse(rep.id, outra.id, '2026-03-11');
+        // Então
+        expect((await repassesDe(id))[0]).toMatchObject({ conta_sugerida: conta.id, conta_paga: outra.id });
+        expect((await lancamentos(outra.id)).map(l => l.valor)).toEqual([64750]);
+      });
+
+      it('quando a pessoa é sócia ou recebeu repasse, então não pode ser excluída', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const s = await SD.financeiroSocioCriar({ pessoa_id: pessoa, desde: '2026-01-01', ate: null });
+        await SD.financeiroSocioExcluir(s.id);
+        await SD.pessoasArquivar([pessoa]);
+        // Quando
+        const r = await SD.pessoasExcluir([pessoa]);
+        // Então
+        expect(r).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está no financeiro e não pode ser excluída.' });
+      });
+
+      it('quando o contrato é arquivado, então as a receber saem das listas, e as recebidas continuam', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        const k = await assinado({ clientes: [cliente] }), conta = await contaPJ();
+        await receber(k.parcelas[0].id, conta.id);
+        // Quando
+        await SD.contratosArquivar([k.id]);
+        // Então
+        const noPeriodo = (await SD.parcelasDoPeriodo('2026-03-01', '2026-04-30', '2026-11-02')).filter(p => p.contrato_id === k.id);
+        expect(noPeriodo.map(p => p.numero)).toEqual([1]);
+        expect((await SD.parcelasDaPessoa(cliente)).map(p => p.numero)).toEqual([1]);
+        expect(await SD.parcelasDoContrato(k.id)).toHaveLength(2);
+      });
+
+      it('quando olha um mês futuro, então o que ainda vai vencer não entra como atrasada', async () => {
+        // Dado
+        const k = await assinado({ primeiro_pagamento: '2026-11-20', parcelas: 1 });
+        // Então
+        const naoVenceu = (await SD.parcelasDoPeriodo('2026-12-01', '2026-12-31', '2026-11-02')).filter(p => p.contrato_id === k.id);
+        const venceu = (await SD.parcelasDoPeriodo('2026-12-01', '2026-12-31', '2026-11-25')).filter(p => p.contrato_id === k.id);
+        expect(naoVenceu).toEqual([]);
+        expect(venceu).toHaveLength(1);
+      });
+
+      it('quando os pagos são de outro período, então a lista só traz os a pagar e os pagos no período', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const id = await receber(k.parcelas[0].id, conta.id);
+        const [rep] = await repassesDe(id);
+        await SD.financeiroPagarRepasse(rep.id, conta.id, '2026-03-11');
+        // Então
+        expect((await SD.financeiroRepasses('2026-03-01', '2026-03-31')).some(r => r.id === rep.id)).toBe(true);
+        expect((await SD.financeiroRepasses('2026-04-01', '2026-04-30')).some(r => r.id === rep.id)).toBe(false);
+      });
+
+      it('quando estorna, então a parcela volta, o caixa e o repasse somem; e desfazer devolve tudo', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const id = await receber(k.parcelas[0].id, conta.id);
+        // Quando
+        await SD.financeiroEstornar(id);
+        // Então
+        expect((await SD.parcelasDoContrato(k.id))[0].recebimento_id).toBeNull();
+        expect(await lancamentos(conta.id)).toEqual([]);
+        expect(await repassesDe(id)).toEqual([]);
+        await expect(SD.financeiroEstornar(id)).rejects.toThrow('já foi estornado');
+        await SD.financeiroRestaurarRecebimento(id);
+        expect((await SD.parcelasDoContrato(k.id))[0].recebimento_id).toBe(id);
+        expect(await lancamentos(conta.id)).toHaveLength(2);
+        expect(await repassesDe(id)).toHaveLength(1);
+      });
+
+      it('quando recebeu de novo depois do estorno, então o estornado não volta por cima', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const id = await receber(k.parcelas[0].id, conta.id);
+        await SD.financeiroEstornar(id);
+        await receber(k.parcelas[0].id, conta.id);
+        // Então
+        await expect(SD.financeiroRestaurarRecebimento(id)).rejects.toThrow('recebida de novo');
+      });
+
+      it('quando o contrato tem recebimento, então não se exclui; sem ele, sai com as parcelas', async () => {
+        // Dado
+        const k = await assinado(), livre = await assinado(), conta = await contaPJ();
+        await receber(k.parcelas[0].id, conta.id);
+        await SD.contratosArquivar([k.id, livre.id]);
+        // Então
+        await expect(SD.contratosExcluir([k.id])).rejects.toThrow('tem recebimentos');
+        await SD.contratosExcluir([livre.id]);
+        expect(await SD.parcelasDoContrato(livre.id)).toEqual([]);
+      });
+
+      it('quando o responsável era sócio na data, então a parte dele fica no escritório; mudar a lista depois não muda o passado', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const s = await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: '2026-03-31' });
+        // Quando
+        const dentro = await receber(k.parcelas[0].id, conta.id);
+        const fora = await receber(k.parcelas[1].id, conta.id, { data: '2026-04-10' });
+        // Então
+        expect(await SD.financeiroRecebimento(dentro)).toMatchObject({ responsavel_socio: true, escritorio: 92500, responsavel_recebe: 0, contribuicao_socio: 92500 });
+        expect(await repassesDe(dentro)).toEqual([]);
+        expect(await SD.financeiroRecebimento(fora)).toMatchObject({ responsavel_socio: false, escritorio: 27750 });
+        await SD.financeiroSocioExcluir(s.id);
+        expect(await SD.financeiroRecebimento(dentro)).toMatchObject({ responsavel_socio: true, escritorio: 92500 });
+      });
+
+      it('quando um sócio indicou, então recebe 10% do escritório, à parte, como indicação', async () => {
+        // Dado
+        const { id: indicador } = await criar(marca());
+        const s = await SD.financeiroSocioCriar({ pessoa_id: indicador, desde: '2026-01-01', ate: null });
+        const k = await assinado({ indicador_id: indicador, indicador_percentual: 10 }), conta = await contaPJ();
+        // Quando
+        const id = await receber(k.parcelas[0].id, conta.id);
+        // Então
+        const r = await SD.financeiroRecebimento(id);
+        expect(r).toMatchObject({ escritorio: 27750, escritorio_final: 17750, terceiros: [], socio_indicador: { id: indicador, valor: 10000 } });
+        const reps = await repassesDe(id);
+        expect(reps.map(x => [x.tipo, x.valor])).toEqual([['responsavel', 64750], ['socio_indicador', 10000]]);
+        await SD.financeiroPagarRepasse(reps[1].id, conta.id, '2026-03-11');
+        expect((await lancamentos(conta.id)).at(-1)).toMatchObject({ categoria: 'indicacao', valor: 10000 });
+        await SD.financeiroSocioExcluir(s.id);
+      });
+
+      it('quando o indicador não é sócio, então o responsável recebe e repassa, e só fica a informação', async () => {
+        // Dado
+        const { id: indicador } = await criar(marca());
+        const k = await assinado({ indicador_id: indicador, indicador_percentual: 10 }), conta = await contaPJ();
+        // Quando
+        const id = await receber(k.parcelas[0].id, conta.id);
+        // Então
+        const r = await SD.financeiroRecebimento(id);
+        expect(r).toMatchObject({ escritorio: 18500, responsavel_recebe: 74000, responsavel_fica: 64750, socio_indicador: null });
+        expect(r!.terceiros).toMatchObject([{ id: indicador, valor: 9250, percentual: 10 }]);
+        expect((await repassesDe(id)).map(x => x.tipo)).toEqual(['responsavel']);
+      });
+
+      it('quando lê o que precisa para receber, então vêm só as contas ativas', async () => {
+        // Dado
+        const k = await assinado(), conta = await contaPJ();
+        const arquivada = await SD.financeiroContaCriar({ nome: marca(), tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+        await SD.financeiroContaAtualizar(arquivada.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        const prep = await SD.financeiroParaReceber(k.parcelas[0].id, '2026-03-10');
+        // Então
+        expect(prep.contas.map(c => c.id)).toContain(conta.id);
+        expect(prep.contas.map(c => c.id)).not.toContain(arquivada.id);
+        expect(prep.parte_na_conta).toBe(100);
+        expect(prep.contas[0]).not.toHaveProperty('saldo_inicial');
+      });
+
+      it('quando o período tem parcelas, então vêm as dele e as atrasadas de antes, sem as recebidas de antes', async () => {
+        // Dado
+        const k = await assinado({ parcelas: 3 }), conta = await contaPJ();
+        await receber(k.parcelas[0].id, conta.id);
+        // Quando: março está recebida, abril e maio a receber
+        const deAbril = (await SD.parcelasDoPeriodo('2026-04-01', '2026-04-30', HOJE_DEPOIS)).filter(p => p.contrato_id === k.id).map(p => p.numero);
+        const deMaio = (await SD.parcelasDoPeriodo('2026-05-01', '2026-05-31', HOJE_DEPOIS)).filter(p => p.contrato_id === k.id).map(p => p.numero);
+        const deMarco = (await SD.parcelasDoPeriodo('2026-03-01', '2026-03-31', HOJE_DEPOIS)).filter(p => p.contrato_id === k.id);
+        // Então
+        expect(deAbril).toEqual([2]);
+        expect(deMaio).toEqual([2, 3]);
+        expect(deMarco.map(p => p.numero)).toEqual([1]);
+        expect(deMarco[0].contrato_codigo).toBe(k.codigo);
+      });
+
+      it('quando a pessoa é cliente do contrato, então as parcelas aparecem no cartão dela', async () => {
+        // Dado
+        const { id: cliente } = await criar(marca());
+        const k = await assinado({ clientes: [cliente] });
+        // Quando
+        const dela = await SD.parcelasDaPessoa(cliente);
+        // Então
+        expect(dela.map(p => [p.numero, p.contrato_codigo])).toEqual([[2, k.codigo], [1, k.codigo]]);
+        expect(await SD.parcelasDaPessoa('p-ninguem')).toEqual([]);
+      });
+
+      it('quando mexe na lista de sócios, então período que se cruza é recusado, e tudo fica registrado', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        const s = await SD.financeiroSocioCriar({ pessoa_id: pessoa, desde: '2026-01-01', ate: '2026-06-30' });
+        // Então
+        expect((await SD.financeiroSocios()).find(x => x.id === s.id)!.nome).toBe(s.nome);
+        await expect(SD.financeiroSocioCriar({ pessoa_id: pessoa, desde: '2026-06-01', ate: null })).rejects.toThrow('já é sócia');
+        await expect(SD.financeiroSocioCriar({ pessoa_id: 'p-ninguem', desde: '2026-06-01', ate: null })).rejects.toThrow('Pessoa não encontrada');
+        await expect(SD.financeiroSocioAtualizar(s.id, { desde: '2026-07-01', ate: '2026-06-30' })).rejects.toThrow('formato inválido');
+        const segundo = await SD.financeiroSocioCriar({ pessoa_id: pessoa, desde: '2026-08-01', ate: null });
+        await expect(SD.financeiroSocioAtualizar(s.id, { desde: '2026-01-01', ate: '2026-09-01' })).rejects.toThrow('já é sócia');
+        await SD.financeiroSocioAtualizar(s.id, { desde: '2026-02-01', ate: '2026-06-30' });
+        await SD.financeiroSocioExcluir(segundo.id);
+        expect((await SD.financeiroSocios()).some(x => x.id === segundo.id)).toBe(false);
+        await SD.financeiroSocioCriar({ pessoa_id: pessoa, desde: '2026-07-01', ate: null });
+        await expect(SD.financeiroSocioRestaurar(segundo.id)).rejects.toThrow('já é sócia');
+        expect(JSON.stringify(await SD.financeiroAjustes())).toContain('Sócio: ' + s.nome);
+      });
+    });
+
+    describe('Caixa', () => {
+      const novaConta = (extra: Partial<Parameters<Dados['financeiroContaCriar']>[0]> = {}) => SD.financeiroContaCriar({ nome: marca(), tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2026-01-01', ...extra });
+      const lancar = (contaId: string, extra: Partial<Parameters<Dados['financeiroLancamentoCriar']>[0]> = {}) =>
+        SD.financeiroLancamentoCriar({ conta_id: contaId, data: '2026-03-10', tipo: 'entrada', categoria: 'recebimento', valor: 10000, descricao: 'Honorários', ...extra });
+      const INVALIDO = 'Algum campo está em formato inválido.';
+
+      it('quando lança no mês, então o saldo antes do mês conta o inicial e o que veio antes, sem o do mês nem os excluídos', async () => {
+        // Dado
+        const { id } = await novaConta({ saldo_inicial: 50000 });
+        await lancar(id, { data: '2026-02-10', valor: 20000 });
+        await lancar(id, { data: '2026-02-11', tipo: 'saida', categoria: 'despesa', valor: 5000 });
+        const excluido = await lancar(id, { data: '2026-02-12', valor: 99900 });
+        const noMes = await lancar(id, { data: '2026-03-01', valor: 7000 });
+        await SD.financeiroLancamentoExcluir(excluido.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-03-01')).toBe(65000);
+        expect((await SD.financeiroLancamentos(id, '2026-03-01', '2026-03-31')).map(l => l.id)).toEqual([noMes.id]);
+        expect(await SD.financeiroLancamentos(id, '2026-02-01', '2026-02-28')).toHaveLength(2);
+      });
+
+      it('quando as contas são duas, então uma não mistura com a outra', async () => {
+        // Dado
+        const [a, b] = [await novaConta(), await novaConta()];
+        await lancar(a.id);
+        // Então
+        expect(await SD.financeiroLancamentos(b.id, '2026-01-01', '2026-12-31')).toEqual([]);
+        expect(await SD.financeiroSaldoAntes(b.id, '2027-01-01')).toBe(0);
+      });
+
+      it.each([
+        ['valor zerado', { valor: 0 }], ['valor negativo', { valor: -1 }], ['valor com fração de centavo', { valor: 10.5 }], ['descrição vazia', { descricao: '  ' }],
+        ['categoria de saída em entrada', { tipo: 'entrada' as const, categoria: 'despesa' as const }], ['categoria de entrada em saída', { tipo: 'saida' as const, categoria: 'recebimento' as const }]
+      ])('quando há %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const salvar = lancar(id, extra);
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando a data é anterior ao saldo inicial, ou a conta está arquivada, então é recusado', async () => {
+        // Dado
+        const { id } = await novaConta({ saldo_inicial_em: '2026-03-01' });
+        // Quando
+        const antes = lancar(id, { data: '2026-02-28' });
+        // Então
+        await expect(antes).rejects.toThrow('Esta data é anterior ao saldo inicial da conta.');
+        // Quando
+        await SD.financeiroContaAtualizar(id, { arquivada_em: new Date().toISOString() });
+        const arquivada = lancar(id);
+        // Então
+        await expect(arquivada).rejects.toThrow('Esta conta está arquivada.');
+      });
+
+      it('quando o início da conta passaria de um lançamento, então é recusado; o lançamento excluído não conta, mas não volta antes do início', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id, { data: '2026-03-10' });
+        // Quando
+        const depois = SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-04-01' });
+        // Então
+        await expect(depois).rejects.toThrow('Há lançamentos antes dessa data.');
+        // Quando
+        await SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-03-10' });
+        await SD.financeiroLancamentoExcluir(l.id);
+        await SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-04-01' });
+        const devolver = SD.financeiroLancamentoRestaurar(l.id);
+        // Então
+        await expect(devolver).rejects.toThrow('Esta data é anterior ao saldo inicial da conta.');
+      });
+
+      it('quando o lançamento está excluído, então não muda', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id);
+        await SD.financeiroLancamentoExcluir(l.id);
+        // Quando
+        const mudar = SD.financeiroLancamentoAtualizar(l.id, { valor: 1 });
+        // Então
+        await expect(mudar).rejects.toThrow('Este lançamento foi excluído.');
+      });
+
+      it.each([['nome vazio', { nome: '  ' }], ['saldo com fração de centavo', { saldo_inicial: 10.5 }], ['início fora do calendário', { saldo_inicial_em: '1900-01-01' }], ['saldo absurdo', { saldo_inicial: 100000000000001 }]])('quando muda a conta para %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const mudar = SD.financeiroContaAtualizar(id, extra);
+        // Então
+        await expect(mudar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando muda o saldo inicial, o início ou o DAS, então fica registrado como estava e como ficou', async () => {
+        // Dado
+        const nome = marca();
+        const { id } = await novaConta({ nome, saldo_inicial: 100 });
+        // Quando
+        await SD.financeiroContaAtualizar(id, { saldo_inicial: 200, saldo_inicial_em: '2025-12-01' });
+        await SD.financeiroDasSalvar('2032-01', 4);
+        await SD.financeiroDasSalvar('2032-01', 5);
+        // Então
+        const [das, antes, conta] = await SD.financeiroAjustes();
+        expect(das.alteracoes['DAS de 2032-01']).toEqual({ de: 4, para: 5 });
+        expect(antes.alteracoes['DAS de 2032-01']).toEqual({ de: null, para: 4 });
+        expect(conta.alteracoes['Saldo inicial de ' + nome]).toEqual({ de: 100, para: 200 });
+        expect(conta.alteracoes['Início de ' + nome]).toEqual({ de: '2026-01-01', para: '2025-12-01' });
+      });
+
+      it('quando o nome da conta se repete, sem contar maiúsculas e acentos, então é recusado', async () => {
+        // Dado
+        const nome = 'Espécie ' + marca();
+        await novaConta({ nome });
+        // Quando
+        const repetida = novaConta({ nome: nome.toUpperCase().replace('É', 'E') });
+        // Então
+        await expect(repetida).rejects.toThrow('Já existe uma conta com esse nome.');
+      });
+
+      it('quando muda um lançamento, então o histórico mostra como estava e como ficou; excluir e desfazer devolve igual', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id);
+        // Quando
+        await SD.financeiroLancamentoAtualizar(l.id, { valor: 12000 });
+        // Então
+        expect((await SD.financeiroHistorico(l.id))[0].alteracoes.valor).toEqual({ de: 10000, para: 12000 });
+        // Quando
+        await SD.financeiroLancamentoExcluir(l.id);
+        expect(await SD.financeiroLancamentos(id, '2026-01-01', '2026-12-31')).toEqual([]);
+        await SD.financeiroLancamentoRestaurar(l.id);
+        // Então
+        expect(await SD.financeiroLancamentos(id, '2026-01-01', '2026-12-31')).toEqual([expect.objectContaining({ id: l.id, valor: 12000, criado_em: l.criado_em })]);
+      });
+
+      it('quando transfere, então sai de uma conta e entra na outra; não muda depois, e excluir uma ponta exclui as duas', async () => {
+        // Dado
+        const [pj, pf] = [await novaConta({ saldo_inicial: 100000 }), await novaConta()];
+        // Quando
+        const saida = await SD.financeiroTransferir({ de: pj.id, para: pf.id, data: '2026-03-10', valor: 30000, descricao: 'Repasse' });
+        // Então
+        expect(await SD.financeiroSaldoAntes(pj.id, '2026-04-01')).toBe(70000);
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(30000);
+        const [naPf] = await SD.financeiroLancamentos(pf.id, '2026-03-01', '2026-03-31');
+        expect(naPf).toMatchObject({ tipo: 'entrada', categoria: 'transferencia', par_id: saida });
+        // Quando
+        const mudar = SD.financeiroLancamentoAtualizar(saida, { valor: 1 });
+        // Então
+        await expect(mudar).rejects.toThrow('A transferência não muda depois de criada: exclua e lance de novo.');
+        // Quando
+        await SD.financeiroLancamentoExcluir(naPf.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(pj.id, '2026-04-01')).toBe(100000);
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(0);
+        // Quando
+        await SD.financeiroLancamentoRestaurar(saida);
+        // Então
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(30000);
+      });
+
+      it('quando transfere para a mesma conta, então é recusado', async () => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const salvar = SD.financeiroTransferir({ de: id, para: id, data: '2026-03-10', valor: 1, descricao: 'x' });
+        // Então
+        await expect(salvar).rejects.toThrow('Escolha duas contas diferentes.');
+      });
+
+      it('quando lança o DAS do mesmo mês de novo, então troca o percentual; valor fora do aceito é recusado', async () => {
+        // Quando
+        await SD.financeiroDasSalvar('2031-05', 4.5);
+        await SD.financeiroDasSalvar('2031-05', 5.25);
+        // Então
+        expect((await SD.financeiroDas()).find(a => a.mes === '2031-05')).toEqual({ mes: '2031-05', aliquota: 5.25 });
+        // Quando
+        const fora = SD.financeiroDasSalvar('2031-06', 101);
+        // Então
+        await expect(fora).rejects.toThrow(INVALIDO);
+      });
+    });
+
     describe('Painel de processos', () => {
       const HOJE = hojeISO();
       const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);

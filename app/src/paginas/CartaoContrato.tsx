@@ -10,6 +10,8 @@ import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
+import { ParcelasDoContrato } from './financeiro/Parcelas';
+import './Financeiro.css';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone, type NomeIcone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -153,10 +155,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     ]} />
 
     <Dados titulo="Divisão" icone="divisao" preferencia="contratos.cartao.divisao" linhas={[
-      ['Enviado ao escritório', V('percentual_escritorio')],
+      ['Enviado à conta da empresa', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
-      ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]
+      ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante, se não for sócio</small></>]
     ]} />
 
     <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento">
@@ -165,6 +167,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
     </Recolhivel>
+
+    {ctx.escritorio?.modulos?.financeiro && (ctx.ehAdmin || k.responsavel_id === eu) && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="contratos.cartao.parcelas">
+      <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
+    </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas">
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhuma demanda ainda. Elas nascem quando o contrato chega à coluna do contrato assinado."

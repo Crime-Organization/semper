@@ -228,7 +228,7 @@ export interface Contrato {
   atualizado_em: string;
   /** Os clientes que assinam o contrato, na ordem do cadastro. */
   clientes: PessoaResumida[];
-  /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o total). */
+  /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o líquido). */
   participantes: Participacao[];
   indicador: PessoaResumida | null;
 }
@@ -1117,4 +1117,109 @@ export interface DadosAcompanhamento {
   processosDiasParadoSalvar(dias: number): Promise<void>;
 }
 
-export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}
+/** Conta do escritório. O saldo inicial é em centavos, e nada é lançado antes da data dele. */
+export interface ContaFinanceira { id: string; nome: string; tem_das: boolean; saldo_inicial: number; saldo_inicial_em: string; arquivada_em: string | null }
+export type DadosConta = Pick<ContaFinanceira, 'nome' | 'tem_das' | 'saldo_inicial' | 'saldo_inicial_em'>;
+export type TipoDeLancamento = 'entrada' | 'saida';
+export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'transferencia';
+/** Uma entrada ou uma saída numa conta, em centavos. par_id: a outra ponta de uma transferência. */
+export interface Lancamento {
+  id: string; conta_id: string; data: string; tipo: TipoDeLancamento; categoria: CategoriaDeLancamento; valor: number; descricao: string;
+  par_id: string | null; criado_por: string | null; criado_em: string; atualizado_em: string;
+  /** Nasceu de um recebimento ou de um repasse: só muda por lá. */
+  origem: 'recebimento' | 'repasse' | null;
+}
+export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
+export interface AliquotaDoDas { mes: string; aliquota: number }
+/** Uma parcela do contrato, em centavos. Quem vê: um administrador ou o responsável pelo contrato. */
+export interface Parcela {
+  id: string; contrato_id: string; numero: number; vencimento: string; valor: number;
+  recebimento_id: string | null; recebida_em: string | null; recebido: number | null;
+}
+export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null }
+export interface TerceiroDoRecebimento { id: string; nome: string; percentual: number }
+/** O que a tela precisa para mostrar a divisão enquanto se digita. Quem não é administrador vê só o nome das contas. */
+export interface ParaReceber {
+  parte_na_conta: 20 | 30 | 100;
+  contas: Pick<ContaFinanceira, 'id' | 'nome' | 'tem_das'>[];
+  /** O DAS que vale na data: o do mês ou o último antes dele (nenhum, se não há). */
+  das: AliquotaDoDas[];
+  terceiros: TerceiroDoRecebimento[];
+  socio_indicador: { id: string; nome: string } | null;
+  responsavel_socio: boolean;
+}
+/** O recebimento como ficou gravado: mudar o DAS ou a lista de sócios depois não muda nada aqui. */
+export interface RecebimentoGravado {
+  id: string; parcela_id: string; contrato_id: string; conta_id: string; data: string; valor: number; taxa_maquina: number; aliquota_das: number; parte_na_conta: number; responsavel_socio: boolean;
+  na_conta: number; ficou_com_advogado: number; das: number; liquido: number; escritorio: number; responsavel_recebe: number; responsavel_fica: number; escritorio_final: number; contribuicao_socio: number;
+  terceiros: (TerceiroDoRecebimento & { valor: number })[];
+  socio_indicador: { id: string; nome: string; valor: number } | null;
+}
+export type TipoDeRepasse = 'responsavel' | 'socio_indicador';
+/** O que o escritório deve ao responsável ou ao sócio que indicou. Quem recebe vê os seus; só um administrador paga. */
+export interface Repasse {
+  id: string; recebimento_id: string; tipo: TipoDeRepasse; nome: string; descricao: string; valor: number; conta_sugerida: string | null; conta_paga: string | null; pago_em: string | null; criado_em: string;
+}
+export interface Socio { id: string; pessoa_id: string; nome: string; desde: string; ate: string | null }
+/** O caixa (supabase/migrations/20261102175057_financeiro_caixa.sql). Só administradores. */
+export interface DadosFinanceiro {
+  financeiroContas(): Promise<ContaFinanceira[]>;
+  financeiroContaCriar(dados: DadosConta): Promise<ContaFinanceira>;
+  financeiroContaAtualizar(id: string, dados: Partial<DadosConta & Pick<ContaFinanceira, 'arquivada_em'>>): Promise<void>;
+  /** De um mês, sem os excluídos. */
+  financeiroLancamentos(contaId: string, de: string, ate: string): Promise<Lancamento[]>;
+  /** O saldo inicial da conta mais tudo o que entrou e saiu antes da data. */
+  financeiroSaldoAntes(contaId: string, data: string): Promise<number>;
+  financeiroLancamentoCriar(dados: DadosLancamento): Promise<Lancamento>;
+  financeiroLancamentoAtualizar(id: string, dados: Partial<DadosLancamento>): Promise<void>;
+  /** Excluir só esconde; restaurar devolve como estava. Numa transferência, as duas pontas juntas. */
+  financeiroLancamentoExcluir(id: string): Promise<void>;
+  financeiroLancamentoRestaurar(id: string): Promise<void>;
+  /** Uma saída e uma entrada ligadas. Devolve o id da saída. */
+  financeiroTransferir(t: { de: string; para: string; data: string; valor: number; descricao: string }): Promise<string>;
+  financeiroHistorico(lancamentoId: string): Promise<Historico[]>;
+  financeiroDas(): Promise<AliquotaDoDas[]>;
+  /** Lançar de novo o mesmo mês troca o percentual. */
+  financeiroDasSalvar(mes: string, aliquota: number): Promise<void>;
+  /** As mudanças no saldo inicial, no início das contas, no DAS e nos sócios, das mais novas às mais antigas. */
+  financeiroAjustes(): Promise<Historico[]>;
+}
+
+/** As parcelas, os recebimentos e os repasses (supabase/migrations/20261102192042_financeiro_parcelas.sql). */
+export interface DadosParcelas {
+  /** Sem as excluídas, na ordem do número. */
+  parcelasDoContrato(contratoId: string): Promise<Parcela[]>;
+  /** Só para quem cuida do contrato: o histórico do contrato é aberto a todo o escritório. */
+  parcelasHistorico(contratoId: string): Promise<Historico[]>;
+  /** As dos contratos em que a pessoa é cliente, até PARCELAS_DA_PESSOA, das mais novas às mais antigas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
+  parcelasDaPessoa(pessoaId: string): Promise<ParcelaDoEscritorio[]>;
+  /** As que vencem no período e as atrasadas até hoje que vieram de antes dele, sem as excluídas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
+  parcelasDoPeriodo(de: string, ate: string, hoje: string): Promise<ParcelaDoEscritorio[]>;
+  parcelaCriar(contratoId: string, dados: { vencimento: string; valor: number }): Promise<Parcela>;
+  parcelaAtualizar(id: string, dados: { vencimento: string; valor: number }): Promise<void>;
+  /** Excluir só esconde; restaurar devolve como estava. */
+  parcelaExcluir(id: string): Promise<void>;
+  parcelaRestaurar(id: string): Promise<void>;
+  /** Para o contrato assinado antes de ligar o módulo, ou que ficou sem parcelas. Devolve quantas gerou. */
+  parcelasGerar(contratoId: string): Promise<number>;
+  financeiroParaReceber(parcelaId: string, data: string): Promise<ParaReceber>;
+  /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
+  financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
+  financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
+  /** Estornar esconde tudo o que o recebimento criou, e a parcela volta a ser a receber. Repasse pago precisa ser desfeito antes. */
+  financeiroEstornar(id: string): Promise<void>;
+  financeiroRestaurarRecebimento(id: string): Promise<void>;
+  /** Os a pagar, de qualquer data, e os pagos no período. Quem não é administrador recebe só os seus. */
+  financeiroRepasses(de: string, ate: string): Promise<Repasse[]>;
+  /** Só administrador. Cria a saída no caixa. */
+  financeiroPagarRepasse(id: string, conta: string, data: string): Promise<void>;
+  financeiroDesfazerPagamento(id: string): Promise<void>;
+  /** Só administrador. Sem os excluídos, do mais novo ao mais antigo. */
+  financeiroSocios(): Promise<Socio[]>;
+  financeiroSocioCriar(dados: { pessoa_id: string; desde: string; ate: string | null }): Promise<Socio>;
+  financeiroSocioAtualizar(id: string, dados: { desde: string; ate: string | null }): Promise<void>;
+  financeiroSocioExcluir(id: string): Promise<void>;
+  financeiroSocioRestaurar(id: string): Promise<void>;
+}
+
+export interface Dados extends DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}

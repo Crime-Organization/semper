@@ -142,11 +142,11 @@ test.describe('Cadastro de contratos', () => {
     await page.getByText('100% do que o cliente pagar', { exact: true }).click();
     await page.getByRole('button', { name: 'Adicionar participante' }).click();
     await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
-    await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await page.getByRole('textbox', { name: '% do participante 1' }).fill('85');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
-    await expect(page.getByText('A soma dos percentuais (escritório, participantes e indicador) passa de 100%.')).toBeVisible();
+    await expect(page.getByText('A soma dos percentuais passa do que há para dividir.')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Divisão', level: 2 })).toBeVisible();
   });
 });
