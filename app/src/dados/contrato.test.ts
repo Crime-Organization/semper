@@ -1538,6 +1538,59 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(arquivada).rejects.toThrow('Esta conta está arquivada.');
       });
 
+      it('quando o início da conta passaria de um lançamento, então é recusado; o lançamento excluído não conta, mas não volta antes do início', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id, { data: '2026-03-10' });
+        // Quando
+        const depois = SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-04-01' });
+        // Então
+        await expect(depois).rejects.toThrow('Há lançamentos antes dessa data.');
+        // Quando
+        await SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-03-10' });
+        await SD.financeiroLancamentoExcluir(l.id);
+        await SD.financeiroContaAtualizar(id, { saldo_inicial_em: '2026-04-01' });
+        const devolver = SD.financeiroLancamentoRestaurar(l.id);
+        // Então
+        await expect(devolver).rejects.toThrow('Esta data é anterior ao saldo inicial da conta.');
+      });
+
+      it('quando o lançamento está excluído, então não muda', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id);
+        await SD.financeiroLancamentoExcluir(l.id);
+        // Quando
+        const mudar = SD.financeiroLancamentoAtualizar(l.id, { valor: 1 });
+        // Então
+        await expect(mudar).rejects.toThrow('Este lançamento foi excluído.');
+      });
+
+      it.each([['nome vazio', { nome: '  ' }], ['saldo com fração de centavo', { saldo_inicial: 10.5 }], ['início fora do calendário', { saldo_inicial_em: '1900-01-01' }], ['saldo absurdo', { saldo_inicial: 100000000000001 }]])('quando muda a conta para %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const mudar = SD.financeiroContaAtualizar(id, extra);
+        // Então
+        await expect(mudar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando muda o saldo inicial, o início ou o DAS, então fica registrado como estava e como ficou', async () => {
+        // Dado
+        const nome = marca();
+        const { id } = await novaConta({ nome, saldo_inicial: 100 });
+        // Quando
+        await SD.financeiroContaAtualizar(id, { saldo_inicial: 200, saldo_inicial_em: '2025-12-01' });
+        await SD.financeiroDasSalvar('2032-01', 4);
+        await SD.financeiroDasSalvar('2032-01', 5);
+        // Então
+        const [das, antes, conta] = await SD.financeiroAjustes();
+        expect(das.alteracoes['DAS de 2032-01']).toEqual({ de: 4, para: 5 });
+        expect(antes.alteracoes['DAS de 2032-01']).toEqual({ de: null, para: 4 });
+        expect(conta.alteracoes['Saldo inicial de ' + nome]).toEqual({ de: 100, para: 200 });
+        expect(conta.alteracoes['Início de ' + nome]).toEqual({ de: '2026-01-01', para: '2025-12-01' });
+      });
+
       it('quando o nome da conta se repete, sem contar maiúsculas e acentos, então é recusado', async () => {
         // Dado
         const nome = 'Espécie ' + marca();

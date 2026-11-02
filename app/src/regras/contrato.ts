@@ -72,10 +72,11 @@ export function lerDinheiro(txt: string): number | null {
   if (!t) return null;
   // Com vírgula, ela separa os centavos e os pontos separam os milhares. Sem vírgula, um ponto seguido de 1 ou 2
   // dígitos no fim separa os centavos; os outros pontos separam os milhares.
-  const decimal = t.includes(',') ? t.replace(/\./g, '').replace(',', '.')
-    : /\.\d{1,2}$/.test(t) ? t.replace(/\.(?=.*\.)/g, '') : t.replace(/\./g, '');
-  if (!/^\d+(\.\d{1,2})?$/.test(decimal)) throw new Error('Use um valor como 1.500,00.');
-  return Number(decimal);
+  // Ponto de milhar só em grupos de três: "1.5000" ou "15.00,00" são erro de digitação, e apagar o ponto multiplicaria o valor.
+  const inteiros = /^(\d+|\d{1,3}(\.\d{3})+)$/;
+  const [parte, centavos, sobra] = t.includes(',') ? t.split(',') : /^\d+\.\d{1,2}$/.test(t) ? t.split('.') : [t];
+  if (sobra !== undefined || !inteiros.test(parte) || (centavos !== undefined && !/^\d{1,2}$/.test(centavos))) throw new Error('Use um valor como 1.500,00.');
+  return Number(parte.replace(/\./g, '') + (centavos === undefined ? '' : '.' + centavos));
 }
 export const fmtDinheiro = (v: number | null | undefined) => v === null || v === undefined ? ''
   : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

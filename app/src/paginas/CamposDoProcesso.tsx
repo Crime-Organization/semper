@@ -76,7 +76,7 @@ export function CamposDoProcesso() {
     <Nota>Campos próprios do escritório, que aparecem no cadastro e no cartão dos processos. Nenhum é obrigatório.</Nota>
 
     {ativos.length ? <div className="tabela"><table>
-      <thead><tr><th scope="col">Nome</th><th scope="col">Tipo</th><th scope="col">Aparece em</th><th scope="col"><span className="sr-only">Ações</span></th></tr></thead>
+      <thead><tr><th scope="col">Nome</th><th scope="col">Tipo</th><th scope="col">Aparece em</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
       <tbody>{ativos.map(c => <tr key={c.id}>
         <td>{c.nome}</td><td>{tipoNaTabela(c)}</td><td>{ONDE_APARECE[c.aparece_em]}</td>
         <td><span className="config-campos-acoes">

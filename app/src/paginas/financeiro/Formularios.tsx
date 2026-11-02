@@ -1,12 +1,12 @@
 // Os formulários do caixa: lançamento, repasse entre contas, contas do escritório e o DAS de cada mês.
-import { useId, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type DadosConta, type Lancamento } from '../../dados';
 import { TAMANHO_FINANCEIRO } from '../../dados/limites';
 import {
-  CATEGORIAS, CATEGORIAS_EM_ORDEM, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido,
+  CATEGORIAS, CATEGORIAS_EM_ORDEM, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido,
   type FormDaConta, type FormDaTransferencia, type FormDoLancamento
 } from '../../regras/caixa';
-import { erroDoDas } from '../../regras/financeiro';
+import { erroDoDas, lerAliquota } from '../../regras/financeiro';
 import { fmtData } from '../../regras/pessoa';
 import { normal } from '../../regras/texto';
 import { avisar, falha, feito } from '../../ui/avisos';
@@ -32,6 +32,9 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
   const mudar = (m: Partial<FormDoLancamento>) => setF(x => ({ ...x, ...m }));
   const conta = contas.find(c => c.id === f.contaId);
   const erros = conferido ? errosDoLancamento(f, conta) : {};
+  // Numa lista longa, o formulário abre lá em cima: leva a pessoa até ele.
+  const ref = useRef<HTMLFormElement>(null);
+  useEffect(() => { ref.current?.scrollIntoView?.({ block: 'center' }); }, []);
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
     setConferido(true);
@@ -50,7 +53,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
       aoTerminar();
     } catch (e) { falha(e); setOcupado(false); }
   }
-  return <form className="cartao financeiro-form" noValidate aria-label={alvo ? 'Mudar lançamento' : 'Novo lançamento'} onSubmit={salvar}>
+  return <form ref={ref} className="cartao financeiro-form" noValidate aria-label={alvo ? 'Mudar lançamento' : 'Novo lançamento'} onSubmit={salvar}>
     <div className="financeiro-form-linha">
       <Campo rotulo="Conta" para={id + 'conta'} erro={erros.contaId}>
         <select {...propsDoCampo(id + 'conta', { erro: erros.contaId })} value={f.contaId} onChange={e => mudar({ contaId: e.target.value })}>
@@ -82,7 +85,13 @@ export function FormTransferencia({ inicial, contas, aoTerminar, aoCancelar }: P
   const [f, setF] = useState(inicial);
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const mudar = (m: Partial<FormDaTransferencia>) => setF(x => ({ ...x, ...m }));
+  // O texto acompanha as contas escolhidas, até a pessoa escrever o dela.
+  const [textoProprio, setTextoProprio] = useState(false);
+  const nomeDa = (id: string) => contas.find(c => c.id === id)?.nome ?? '';
+  const mudar = (m: Partial<FormDaTransferencia>) => setF(x => {
+    const novo = { ...x, ...m };
+    return textoProprio || m.descricao !== undefined ? novo : { ...novo, descricao: descricaoDoRepasse(nomeDa(novo.de), nomeDa(novo.para)) };
+  });
   const erros = conferido ? errosDaTransferencia(f, contas) : {};
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
@@ -105,7 +114,7 @@ export function FormTransferencia({ inicial, contas, aoTerminar, aoCancelar }: P
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}><input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} /></Campo>
     </div>
     <Campo rotulo="Descrição" para={id + 'desc'} obrigatorio erro={erros.descricao}>
-      <input type="text" {...propsDoCampo(id + 'desc', { erro: erros.descricao })} maxLength={TAMANHO_FINANCEIRO.descricao} value={f.descricao} onChange={e => mudar({ descricao: e.target.value })} />
+      <input type="text" {...propsDoCampo(id + 'desc', { erro: erros.descricao })} maxLength={TAMANHO_FINANCEIRO.descricao} value={f.descricao} onChange={e => { setTextoProprio(true); mudar({ descricao: e.target.value }); }} />
     </Campo>
     <Acoes rotulo="Lançar repasse" ocupado={ocupado} aoCancelar={aoCancelar} />
   </form>;
@@ -181,13 +190,13 @@ export function DasDoEscritorio({ lista, mesInicial, aoMudar }: { lista: Aliquot
   const [ocupado, setOcupado] = useState(false);
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
-    const aliquota = Number(texto.replace('%', '').trim().replace(',', '.'));
-    const problema = !texto.trim() ? 'Informe o percentual.' : !mesValido(mes) ? 'Escolha o mês.' : erroDoDas({ mes, aliquota });
+    const lida = lerAliquota(texto);
+    const problema = 'erro' in lida ? lida.erro : !mesValido(mes) ? 'Escolha o mês.' : erroDoDas({ mes, aliquota: lida.aliquota });
     setErro(problema ?? '');
-    if (problema || ocupado) return;
+    if (problema || 'erro' in lida || ocupado) return;
     setOcupado(true);
     try {
-      await SD.financeiroDasSalvar(mes, aliquota);
+      await SD.financeiroDasSalvar(mes, lida.aliquota);
       avisar('DAS salvo.');
       setTexto('');
       aoMudar();

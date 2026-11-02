@@ -91,6 +91,12 @@ test.describe('Caixa', () => {
     await form.getByRole('button', { name: 'Salvar lançamento' }).click();
     // Então
     await expect(linha).toContainText('1.150,00');
+    // Quando: abre de novo
+    await page.getByRole('button', { name: 'Mudar o lançamento Reembolso' }).click();
+    // Então: o histórico mostra como estava e como ficou
+    await expect(page.getByText(/R\$\s100,00/).first()).toBeVisible();
+    await expect(page.getByText(/R\$\s150,00/).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Cancelar' }).click();
     // Quando
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
     // Então
@@ -121,14 +127,14 @@ test.describe('Caixa', () => {
     // Quando
     await page.getByRole('button', { name: 'Repasse entre contas' }).click();
     const form = page.getByRole('form', { name: 'Repasse entre contas' });
-    await expect(form.getByLabel('Descrição')).toHaveValue('Repasse da PJ para a PF');
+    await expect(form.getByLabel('Descrição')).toHaveValue('Repasse de PJ para PF');
     await form.getByLabel('Data').fill('2026-03-15');
     await form.getByLabel('Valor').fill('300,00');
     await form.getByRole('button', { name: 'Lançar repasse' }).click();
     await expect(form).toHaveCount(0);
     // Então: na PJ
     const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
-    const linha = tabela.getByRole('row').filter({ hasText: 'Repasse da PJ para a PF' });
+    const linha = tabela.getByRole('row').filter({ hasText: 'Repasse de PJ para PF' });
     await expect(linha).toContainText('Repasse entre contas');
     await expect(linha).toContainText('700,00');
     await expect(linha.getByRole('button', { name: /^Mudar/ })).toHaveCount(0);
@@ -163,6 +169,107 @@ test.describe('Caixa', () => {
     await irParaMes(page, '2026-04');
     // Então
     await expect(page.getByText('O DAS deste mês ainda não foi lançado. Está valendo o de 03/2026.')).toBeVisible();
+  });
+
+  test('quando abre "Mudar" de outro lançamento com o formulário aberto, então ele mostra o outro, e salvar não troca um pelo outro', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Outra entrada (entrada)', valor: '150,00', descricao: 'Primeiro', data: '2026-03-10' });
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '99,00', descricao: 'Segundo', data: '2026-03-20' });
+    // Quando
+    await page.getByRole('button', { name: 'Mudar o lançamento Primeiro' }).click();
+    await page.getByRole('button', { name: 'Mudar o lançamento Segundo' }).click();
+    const form = page.getByRole('form', { name: 'Mudar lançamento' });
+    // Então
+    await expect(form.getByLabel('Descrição')).toHaveValue('Segundo');
+    await expect(form.getByLabel('Valor')).toHaveValue('99,00');
+    // Quando
+    await form.getByRole('button', { name: 'Salvar lançamento' }).click();
+    await expect(form).toHaveCount(0);
+    // Então
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    await expect(tabela).toContainText('Primeiro');
+    await expect(tabela).toContainText('Segundo');
+  });
+
+  test('quando apaga o campo do mês e clica em "Novo lançamento", então nada quebra', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    // Quando
+    await page.getByLabel('Mês', { exact: true }).first().fill('');
+    await page.getByRole('button', { name: 'Novo lançamento' }).click();
+    // Então
+    await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Data')).toHaveValue('2026-03-01');
+  });
+
+  test('quando exclui o lançamento que está sendo mudado, então o formulário fecha', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await page.getByRole('button', { name: 'Mudar o lançamento Papel' }).click();
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    // Quando
+    await tabela.getByRole('button', { name: 'Excluir', exact: true }).click();
+    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então
+    await expect(page.getByRole('form', { name: 'Mudar lançamento' })).toHaveCount(0);
+  });
+
+  test('quando digita o ponto de milhar fora do lugar, então recusa, em vez de multiplicar o valor', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await page.getByRole('button', { name: 'Novo lançamento' }).click();
+    const form = page.getByRole('form', { name: 'Novo lançamento' });
+    // Quando
+    await form.getByLabel('Valor').fill('15.00,00');
+    await form.getByLabel('Descrição').fill('Erro');
+    await form.getByRole('button', { name: 'Lançar' }).click();
+    // Então
+    await expect(form.getByText('Use um valor como 1.500,00.')).toBeVisible();
+  });
+
+  test('quando arquiva e reativa uma conta, então ela sai e volta; sem conta ativa, diz o que fazer', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    const conta = page.getByRole('combobox', { name: 'Conta' });
+    // Quando
+    await page.getByRole('button', { name: 'Arquivar a conta PF' }).click();
+    // Então
+    await expect(conta.getByRole('option', { name: 'PF' })).toHaveCount(0);
+    // Quando
+    await page.getByRole('button', { name: 'Arquivar a conta PJ' }).click();
+    // Então
+    await expect(page.getByText('Todas as contas estão arquivadas.', { exact: false })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Reativar a conta PJ' }).click();
+    // Então
+    await expect(page.getByRole('combobox', { name: 'Conta' })).toContainText('PJ');
+  });
+
+  test('quando muda o início da conta para depois de um lançamento, então recusa; o saldo inicial fica registrado', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Outra entrada (entrada)', valor: '10,00', descricao: 'Algo', data: '2026-03-10' });
+    await page.getByRole('button', { name: 'Mudar a conta PJ' }).click();
+    const form = page.getByRole('form', { name: 'Mudar conta' });
+    // Quando
+    await form.getByLabel('Em que dia').fill('2026-06-01');
+    await form.getByRole('button', { name: 'Salvar conta' }).click();
+    // Então
+    await expect(page.getByText('Há lançamentos antes dessa data.', { exact: false }).first()).toBeVisible();
+    // Quando
+    await form.getByLabel('Em que dia').fill('2026-01-01');
+    await form.getByLabel('Saldo inicial').fill('2.000,00');
+    await form.getByRole('button', { name: 'Salvar conta' }).click();
+    await expect(form).toHaveCount(0);
+    await abrirSecao(page, 'Mudanças no saldo inicial e no DAS');
+    // Então
+    await expect(page.getByText('Saldo inicial de PJ', { exact: false })).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lançamentos do mês' })).toContainText('2.010,00');
   });
 
   test('quando o valor do DAS não serve, então avisa', async ({ page }) => {

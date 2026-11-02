@@ -31,7 +31,7 @@ import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
 import { DIAS_PARADO } from './limites';
-import { LANCAMENTOS_DO_MES, TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
+import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -119,6 +119,7 @@ interface Banco {
   lancamentos?: LancamentoGuardado[];
   historicoLancamentos?: (Historico & { lancamento_id: string })[];
   dasDoEscritorio?: AliquotaDoDas[];
+  ajustesFinanceiros?: Historico[];
   /** As demandas ligadas aos processos (processo_demandas no banco). */
   processoDemandas?: { processo_id: string; demanda_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -363,6 +364,7 @@ bd.contasFinanceiras ??= [];
 bd.lancamentos ??= [];
 bd.historicoLancamentos ??= [];
 bd.dasDoEscritorio ??= [];
+bd.ajustesFinanceiros ??= [];
 bd.processoDemandas ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
@@ -1038,6 +1040,12 @@ function historicoDoLancamento(l: LancamentoGuardado, novo: Partial<LancamentoGu
     else alteracoes[k] = { de: l[k], para: novo[k] };
   }
   if (Object.keys(alteracoes).length) bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: l.id, alteracoes, feito_por: eu, em: agora() });
+}
+const SEM_ACESSO_AO_CAIXA = 'Não foi possível: atualize a página e confira.';
+const registrarAjuste = (alteracoes: Historico['alteracoes']) => { bd.ajustesFinanceiros!.unshift({ id: Date.now() + Math.random(), alteracoes, feito_por: eu, em: agora() }); };
+/** Como as regras check da conta. */
+function conferirConta(c: Pick<ContaFinanceira, 'nome' | 'saldo_inicial' | 'saldo_inicial_em'>) {
+  if (!c.nome.trim() || c.nome.trim().length > TAMANHO_FINANCEIRO.nomeDaConta || !dataExiste(c.saldo_inicial_em) || !anoAceito(c.saldo_inicial_em) || !Number.isInteger(c.saldo_inicial) || Math.abs(c.saldo_inicial) > VALOR_MAXIMO_DO_LANCAMENTO) throw new Error(FORMATO_INVALIDO);
 }
 function novoLancamento(dados: DadosLancamento & { par_id?: string | null }) {
   const l: LancamentoGuardado = { par_id: null, ...dados, id: novoId(), excluido_em: null, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
@@ -2074,7 +2082,7 @@ export const SD: Dados = {
   financeiroContas: () => espera([...bd.contasFinanceiras!]),
   async financeiroContaCriar(dados) {
     const nome = dados.nome.trim();
-    if (!nome || nome.length > TAMANHO_FINANCEIRO.nomeDaConta || !dataExiste(dados.saldo_inicial_em) || !anoAceito(dados.saldo_inicial_em) || !Number.isInteger(dados.saldo_inicial)) return erro(FORMATO_INVALIDO);
+    conferirConta(dados);
     if (bd.contasFinanceiras!.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma conta com esse nome.');
     const c: ContaFinanceira = { ...dados, nome, id: novoId(), arquivada_em: null };
     bd.contasFinanceiras!.push(c); auditar('financeiro_contas', 'inclusao', c); gravar();
@@ -2082,13 +2090,20 @@ export const SD: Dados = {
   },
   async financeiroContaAtualizar(id, dados) {
     const c = bd.contasFinanceiras!.find(x => x.id === id);
-    if (!c) return erro(SEM_MUDANCA);
-    if (dados.nome !== undefined && bd.contasFinanceiras!.some(x => x.id !== id && normal(x.nome) === normal(dados.nome!))) return erro('Já existe uma conta com esse nome.');
-    Object.assign(c, dados); auditar('financeiro_contas', 'alteracao', c); gravar();
+    if (!c) return erro(SEM_ACESSO_AO_CAIXA);
+    const novo = { ...c, ...dados };
+    conferirConta(novo);
+    if (bd.contasFinanceiras!.some(x => x.id !== id && normal(x.nome) === normal(novo.nome))) return erro('Já existe uma conta com esse nome.');
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em && bd.lancamentos!.some(l => l.conta_id === id && !l.excluido_em && l.data < novo.saldo_inicial_em)) return erro('Há lançamentos antes dessa data. Escolha um dia igual ou anterior ao primeiro lançamento.');
+    const ajustes: Historico['alteracoes'] = {};
+    if (novo.saldo_inicial !== c.saldo_inicial) ajustes['Saldo inicial de ' + novo.nome] = { de: c.saldo_inicial, para: novo.saldo_inicial };
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em) ajustes['Início de ' + novo.nome] = { de: c.saldo_inicial_em, para: novo.saldo_inicial_em };
+    if (Object.keys(ajustes).length) registrarAjuste(ajustes);
+    Object.assign(c, dados, { nome: novo.nome.trim() }); auditar('financeiro_contas', 'alteracao', c); gravar();
     return espera(undefined);
   },
   financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
-    .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).slice(0, LANCAMENTOS_DO_MES).map(semOExcluido)),
+    .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
   financeiroSaldoAntes(contaId, data) {
     const conta = bd.contasFinanceiras!.find(c => c.id === contaId);
     if (!conta) return espera(0);
@@ -2101,7 +2116,8 @@ export const SD: Dados = {
   },
   async financeiroLancamentoAtualizar(id, dados) {
     const l = bd.lancamentos!.find(x => x.id === id);
-    if (!l) return erro(SEM_MUDANCA);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    if (l.excluido_em) return erro('Este lançamento foi excluído.');
     const novo = { ...l, ...dados };
     if (l.par_id && (novo.valor !== l.valor || novo.data !== l.data || novo.conta_id !== l.conta_id || novo.tipo !== l.tipo || novo.categoria !== l.categoria)) return erro('A transferência não muda depois de criada: exclua e lance de novo.');
     if (novo.conta_id !== l.conta_id || novo.data !== l.data) conferirContaEData(novo); else conferirLancamento(novo);
@@ -2111,7 +2127,7 @@ export const SD: Dados = {
   },
   async financeiroLancamentoExcluir(id) {
     const l = bd.lancamentos!.find(x => x.id === id);
-    if (!l) return erro(SEM_MUDANCA);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
     for (const x of bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id)) {
       if (x.excluido_em) continue;
       const quando = agora();
@@ -2123,8 +2139,10 @@ export const SD: Dados = {
   },
   async financeiroLancamentoRestaurar(id) {
     const l = bd.lancamentos!.find(x => x.id === id);
-    if (!l) return erro(SEM_MUDANCA);
-    for (const x of bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id)) {
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    const pontas = bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id);
+    pontas.forEach(conferirContaEData);
+    for (const x of pontas) {
       if (!x.excluido_em) continue;
       bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: x.id, alteracoes: { excluido_em: { de: x.excluido_em, para: null } }, feito_por: eu, em: agora() });
       x.excluido_em = null;
@@ -2145,10 +2163,12 @@ export const SD: Dados = {
   async financeiroDasSalvar(mes, aliquota) {
     if (erroDoDas({ mes, aliquota })) return erro(FORMATO_INVALIDO);
     const ja = bd.dasDoEscritorio!.find(a => a.mes === mes);
+    if (!ja || ja.aliquota !== aliquota) registrarAjuste({ ['DAS de ' + mes]: { de: ja?.aliquota ?? null, para: aliquota } });
     if (ja) ja.aliquota = aliquota; else bd.dasDoEscritorio!.push({ mes, aliquota });
     gravar();
     return espera(undefined);
   },
+  financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
 
   // ---------- painel de processos (como public.painel_de_processos) ----------
   async processosPainel({ hoje, meus }) {

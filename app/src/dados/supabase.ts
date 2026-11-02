@@ -10,7 +10,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { LANCAMENTOS_DO_MES } from './limites';
+import type { Lancamento } from './tipos';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
@@ -254,6 +254,8 @@ const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_M
 // ---------- caixa ----------
 const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
 const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, criado_por, criado_em, atualizado_em';
+/** Nenhuma linha mudou: a pessoa não é mais administradora, ou o item não existe mais. */
+const naoEsta = (linha: unknown) => { if (!linha) throw new Error('Não foi possível: atualize a página e confira.'); };
 
 // ---------- processos ----------
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
@@ -889,12 +891,17 @@ export const SD: Dados = {
   },
   async financeiroContaAtualizar(id, dados) {
     const { data } = await rodar(sb.from('financeiro_contas').update(dados).eq('id', id).select('id').maybeSingle());
-    primeira(data);
+    naoEsta(data);
   },
+  // Em partes: o saldo do mês soma tudo, e um corte deixaria o saldo final errado sem ninguém ver.
   async financeiroLancamentos(contaId, de, ate) {
-    const { data } = await rodar(sb.from('financeiro_lancamentos').select(CAMPOS_DO_LANCAMENTO).eq('conta_id', contaId).is('excluido_em', null).gte('data', de).lte('data', ate)
-      .order('data').order('criado_em').limit(LANCAMENTOS_DO_MES));
-    return data;
+    const todos: Lancamento[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_lancamentos').select(CAMPOS_DO_LANCAMENTO).eq('conta_id', contaId).is('excluido_em', null).gte('data', de).lte('data', ate)
+        .order('data').order('criado_em').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...data);
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
   },
   financeiroSaldoAntes: (contaId, data) => rpc('financeiro_saldo_antes', { p_conta: contaId, p_data: data }).then(Number),
   async financeiroLancamentoCriar(dados) {
@@ -903,15 +910,15 @@ export const SD: Dados = {
   },
   async financeiroLancamentoAtualizar(id, dados) {
     const { data } = await rodar(sb.from('financeiro_lancamentos').update(dados).eq('id', id).select('id').maybeSingle());
-    primeira(data);
+    naoEsta(data);
   },
   async financeiroLancamentoExcluir(id) {
     const { data } = await rodar(sb.from('financeiro_lancamentos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
-    primeira(data);
+    naoEsta(data);
   },
   async financeiroLancamentoRestaurar(id) {
     const { data } = await rodar(sb.from('financeiro_lancamentos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
-    primeira(data);
+    naoEsta(data);
   },
   financeiroTransferir: ({ de, para, data, valor, descricao }) => rpc('financeiro_transferir', { p_de: de, p_para: para, p_data: data, p_valor: valor, p_descricao: descricao }),
   async financeiroHistorico(lancamentoId) {
@@ -924,6 +931,10 @@ export const SD: Dados = {
   },
   async financeiroDasSalvar(mes, aliquota) {
     await rodar(sb.from('financeiro_das').upsert({ mes, aliquota, atualizado_por: uid() }, { onConflict: 'escritorio_id,mes' }));
+  },
+  async financeiroAjustes() {
+    const { data } = await rodar(sb.from('financeiro_ajustes').select('id, alteracoes, feito_por, em').order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
   },
 
   // ---------- painel de processos ----------

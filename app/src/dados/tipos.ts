@@ -1149,6 +1149,8 @@ export interface DadosFinanceiro {
   financeiroDas(): Promise<AliquotaDoDas[]>;
   /** Lançar de novo o mesmo mês troca o percentual. */
   financeiroDasSalvar(mes: string, aliquota: number): Promise<void>;
+  /** As mudanças no saldo inicial, no início das contas e no DAS, das mais novas às mais antigas. */
+  financeiroAjustes(): Promise<Historico[]>;
 }
 
 export interface Dados extends DadosFinanceiro, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}

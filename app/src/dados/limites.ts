@@ -142,8 +142,6 @@ export const DIAS_PARADO = { minimo: 1, maximo: 3650, padrao: 60 };
 export const TAMANHO_FINANCEIRO = { nomeDaConta: 60, descricao: 300 };
 /** O maior lançamento aceito, em centavos: R$ 1 trilhão. Acima disso, foi erro de digitação. */
 export const VALOR_MAXIMO_DO_LANCAMENTO = 100_000_000_000_000;
-/** Quantos lançamentos de uma conta num mês o caixa traz; passou disso, ele avisa. */
-export const LANCAMENTOS_DO_MES = 2000;
 /** O valor da causa precisa ser menor que este: é até onde o banco guarda (numeric(16,2), na migração de processos). */
 export const VALOR_CAUSA_LIMITE = 100_000_000_000_000;
 /** Quantas alterações do histórico aparecem no cartão do processo. */

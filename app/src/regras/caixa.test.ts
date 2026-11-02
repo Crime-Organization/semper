@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
-  centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, DESCRICAO_DO_REPASSE, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoHistorico
+  centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
+  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico
 } from './caixa';
 import { normal } from './texto';
 
@@ -65,13 +65,15 @@ describe('Formulário do lançamento', () => {
 
 describe('Transferência entre contas', () => {
   const CONTAS = [{ id: 'pj', saldo_inicial_em: '2026-01-01' }, { id: 'pf', saldo_inicial_em: '2026-06-01' }];
-  const CHEIA = { ...transferenciaNova('pj', 'pf', HOJE), valor: '100,00' };
+  const CHEIA = { ...transferenciaNova({ id: 'pj', nome: 'PJ' }, { id: 'pf', nome: 'PF' }, HOJE), valor: '100,00' };
 
-  it('quando é nova, então já vem com o nome do repasse, que não é lucro', () => {
+  it('quando é nova, então o texto diz o sentido certo, com o nome das contas', () => {
     // Então
-    expect(CHEIA.descricao).toBe(DESCRICAO_DO_REPASSE);
+    expect(CHEIA.descricao).toBe('Repasse de PJ para PF');
+    expect(transferenciaNova({ id: 'pf', nome: 'PF' }, { id: 'pj', nome: 'PJ' }, HOJE).descricao).toBe(descricaoDoRepasse('PF', 'PJ'));
+    expect(transferenciaNova({ id: 'pj', nome: 'PJ' }, undefined, HOJE)).toMatchObject({ para: '', descricao: '' });
     expect(nomeDaCategoria('transferencia')).toBe('Repasse entre contas');
-    expect(dadosDaTransferencia(CHEIA)).toEqual({ de: 'pj', para: 'pf', data: HOJE, valor: 10000, descricao: DESCRICAO_DO_REPASSE });
+    expect(dadosDaTransferencia(CHEIA)).toEqual({ de: 'pj', para: 'pf', data: HOJE, valor: 10000, descricao: 'Repasse de PJ para PF' });
   });
 
   it('quando as contas são a mesma ou faltam, então avisa', () => {
@@ -116,7 +118,7 @@ describe('Formulário da conta', () => {
   });
 
   it.each([
-    ['sem nome', { nome: ' ' }, 'nome'], ['saldo inválido', { saldoInicial: 'abc' }, 'saldoInicial'], ['saldo vazio', { saldoInicial: '' }, 'saldoInicial'], ['data inválida', { saldoInicialEm: '' }, 'saldoInicialEm']
+    ['sem nome', { nome: ' ' }, 'nome'], ['saldo absurdo', { saldoInicial: '100.000.000.000.000,01' }, 'saldoInicial'], ['saldo inválido', { saldoInicial: 'abc' }, 'saldoInicial'], ['saldo vazio', { saldoInicial: '' }, 'saldoInicial'], ['data inválida', { saldoInicialEm: '' }, 'saldoInicialEm']
   ])('quando há %s, então avisa no campo', (_caso, mudanca, campo) => {
     // Então
     expect(Object.keys(errosDaConta({ ...CHEIA, ...mudanca }, [], normal))).toEqual([campo]);
@@ -161,6 +163,16 @@ describe('O mês do caixa', () => {
   it('quando o saldo fica negativo, então a conta continua certa', () => {
     // Então
     expect(mesDoCaixa([lancamento({ tipo: 'saida', valor: 800 })], 500).saldoFinal).toBe(-300);
+  });
+});
+
+describe('Ajustes do escritório', () => {
+  it('quando mostra uma mudança no saldo, no início ou no DAS, então os valores aparecem como a pessoa lê', () => {
+    // Então
+    expect(valorNoAjuste('Saldo inicial de PJ', 100000).replace(/\s/g, ' ')).toBe('R$ 1.000,00');
+    expect(valorNoAjuste('Início de PJ', '2026-01-01')).toBe('01/01/2026');
+    expect(valorNoAjuste('DAS de 2026-03', 4.5)).toBe('4,5%');
+    expect(valorNoAjuste('DAS de 2026-03', null)).toBe('—');
   });
 });
 

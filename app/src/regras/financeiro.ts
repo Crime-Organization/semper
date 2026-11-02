@@ -6,6 +6,7 @@
 // - abaixo da parte integral, o terceiro recebe sobre o que o cliente pagou menos o DAS e a taxa (a conta da planilha);
 // - abaixo da parte integral, a taxa da máquina é do advogado;
 // - em conta sem DAS (PF, ESPÉCIE), vale a mesma parte do contrato: são situações pontuais.
+import { lerPercentual } from './contrato';
 
 /** Quanto do que o cliente paga o advogado manda para a conta da empresa: um campo do contrato. */
 export type ParteNaConta = 20 | 30 | 100;
@@ -149,6 +150,15 @@ export function dasDoMes(lista: AliquotaDoMes[], mes: string): { aliquota: numbe
   const ultimo = lista.filter(a => a.mes <= mes).toSorted((a, b) => b.mes.localeCompare(a.mes))[0];
   if (!ultimo) return null;
   return { aliquota: ultimo.aliquota, aviso: ultimo.mes === mes ? null : `O DAS deste mês ainda não foi lançado. Está valendo o de ${ultimo.mes.slice(5)}/${ultimo.mes.slice(0, 4)}.` };
+}
+
+/** O percentual digitado, ou o que há de errado com ele. */
+export function lerAliquota(texto: string): { aliquota: number } | { erro: string } {
+  if (!texto.trim()) return { erro: 'Informe o percentual.' };
+  try {
+    const aliquota = lerPercentual(texto);
+    return aliquota === null ? { erro: 'Informe o percentual.' } : { aliquota };
+  } catch { return { erro: 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.' }; }
 }
 
 /** O que há de errado no DAS lançado, ou null. */

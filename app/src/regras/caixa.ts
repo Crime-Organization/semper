@@ -62,9 +62,10 @@ export function dadosDoLancamento(f: FormDoLancamento): DadosLancamento {
 
 // ---------- transferência ----------
 export interface FormDaTransferencia { de: string; para: string; data: string; valor: string; descricao: string }
-/** O repasse de quando a empresa paga o que a conta dela não pode pagar: não é lucro. */
-export const DESCRICAO_DO_REPASSE = 'Repasse da PJ para a PF';
-export const transferenciaNova = (de: string, para: string, hoje: string): FormDaTransferencia => ({ de, para, data: hoje, valor: '', descricao: DESCRICAO_DO_REPASSE });
+/** O texto do repasse, com o sentido certo. Não é lucro: é a empresa pagando o que a conta dela não pode pagar. */
+export const descricaoDoRepasse = (de: string, para: string) => `Repasse de ${de} para ${para}`;
+export const transferenciaNova = (de: Pick<ContaFinanceira, 'id' | 'nome'>, para: Pick<ContaFinanceira, 'id' | 'nome'> | undefined, data: string): FormDaTransferencia =>
+  ({ de: de.id, para: para?.id ?? '', data, valor: '', descricao: para ? descricaoDoRepasse(de.nome, para.nome) : '' });
 export function errosDaTransferencia(f: FormDaTransferencia, contas: Pick<ContaFinanceira, 'id' | 'saldo_inicial_em'>[]) {
   const achar = (id: string) => contas.find(c => c.id === id);
   const inicioMaisTarde = [achar(f.de), achar(f.para)].filter(c => !!c).map(c => c.saldo_inicial_em).toSorted().at(-1);
@@ -88,6 +89,7 @@ function lerSaldo(texto: string): { centavos: number } | { erro: string } {
   try {
     const reais = lerDinheiro(negativo ? t.slice(1) : t);
     if (reais === null) return { erro: 'Informe o saldo inicial.' };
+    if (paraCentavos(reais) > VALOR_MAXIMO_DO_LANCAMENTO) return { erro: 'Esse valor é grande demais. Confira.' };
     return { centavos: (negativo ? -1 : 1) * paraCentavos(reais) };
   } catch (e) { return { erro: (e as Error).message }; }
 }
@@ -142,3 +144,12 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
   excluido_em: () => 'Excluído'
 };
 export const valorNoHistorico = (campo: string, v: unknown) => v === null || v === undefined ? '—' : (FORMATOS[campo] ?? String)(v);
+
+/** Como aparece cada ajuste do escritório: o começo do nome diz o que é ("Saldo inicial de PJ", "Início de PJ", "DAS de 2026-03"). */
+const FORMATOS_DE_AJUSTE: [string, (v: unknown) => string][] = [
+  ['Saldo inicial', v => fmtCentavos(Number(v))], ['Início', v => fmtData(String(v))], ['DAS', v => `${Number(v).toLocaleString('pt-BR')}%`]
+];
+export function valorNoAjuste(campo: string, v: unknown) {
+  if (v === null || v === undefined) return '—';
+  return (FORMATOS_DE_AJUSTE.find(([comeco]) => campo.startsWith(comeco))?.[1] ?? String)(v);
+}
