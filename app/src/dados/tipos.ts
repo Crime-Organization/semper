@@ -1158,7 +1158,7 @@ export interface RecebimentoGravado {
 export type TipoDeRepasse = 'responsavel' | 'socio_indicador';
 /** O que o escritório deve ao responsável ou ao sócio que indicou. Quem recebe vê os seus; só um administrador paga. */
 export interface Repasse {
-  id: string; recebimento_id: string; tipo: TipoDeRepasse; nome: string; descricao: string; valor: number; conta_sugerida: string | null; pago_em: string | null; criado_em: string;
+  id: string; recebimento_id: string; tipo: TipoDeRepasse; nome: string; descricao: string; valor: number; conta_sugerida: string | null; conta_paga: string | null; pago_em: string | null; criado_em: string;
 }
 export interface Socio { id: string; pessoa_id: string; nome: string; desde: string; ate: string | null }
 /** O caixa (supabase/migrations/20261102175057_financeiro_caixa.sql). Só administradores. */
@@ -1189,10 +1189,12 @@ export interface DadosFinanceiro {
 export interface DadosParcelas {
   /** Sem as excluídas, na ordem do número. */
   parcelasDoContrato(contratoId: string): Promise<Parcela[]>;
-  /** As dos contratos em que a pessoa é cliente, até PARCELAS_DA_PESSOA, das mais novas às mais antigas. Só as que quem está logado pode ver. */
+  /** Só para quem cuida do contrato: o histórico do contrato é aberto a todo o escritório. */
+  parcelasHistorico(contratoId: string): Promise<Historico[]>;
+  /** As dos contratos em que a pessoa é cliente, até PARCELAS_DA_PESSOA, das mais novas às mais antigas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
   parcelasDaPessoa(pessoaId: string): Promise<ParcelaDoEscritorio[]>;
-  /** As que vencem no período e as atrasadas de antes dele, sem as excluídas. Só as que quem está logado pode ver. */
-  parcelasDoPeriodo(de: string, ate: string): Promise<ParcelaDoEscritorio[]>;
+  /** As que vencem no período e as atrasadas até hoje que vieram de antes dele, sem as excluídas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
+  parcelasDoPeriodo(de: string, ate: string, hoje: string): Promise<ParcelaDoEscritorio[]>;
   parcelaCriar(contratoId: string, dados: { vencimento: string; valor: number }): Promise<Parcela>;
   parcelaAtualizar(id: string, dados: { vencimento: string; valor: number }): Promise<void>;
   /** Excluir só esconde; restaurar devolve como estava. */

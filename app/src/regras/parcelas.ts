@@ -5,7 +5,7 @@
 // - o "desconto" do contrato não entra na conta (como em valorParcela);
 // - ao receber, o valor pode ser ajustado, e a parcela conta como recebida, sem sobra automática;
 // - quem é sócio sai de uma lista com datas, e vale quem era sócio na data do recebimento.
-import type { CategoriaHonorario, Contrato, Parcela, ParaReceber, ParticipanteGravado, RecebimentoGravado, Socio, TerceiroDoRecebimento } from '../dados/tipos';
+import type { CategoriaHonorario, Coluna, Contrato, Parcela, ParaReceber, ParticipanteGravado, RecebimentoGravado, Socio, TerceiroDoRecebimento } from '../dados/tipos';
 import { VALOR_MAXIMO_DO_LANCAMENTO } from '../dados/limites';
 import { anoAceito, dataExiste } from './calendario';
 import { centavosNoCampo, fmtCentavos, paraCentavos } from './caixa';
@@ -44,6 +44,13 @@ export function parcelasDoContrato(k: CamposDasParcelas, hoje: string): ParcelaN
   const base = partes > 0 ? Math.floor(resto / partes) : 0;
   const valores = [...(entrada > 0 ? [entrada] : []), ...Array.from({ length: partes }, (_, i) => i === partes - 1 ? resto - base * (partes - 1) : base)];
   return valores.map((valor, i) => ({ vencimento: somarMeses(primeiro, i), valor }));
+}
+
+/** O contrato já passou da assinatura: tem a data dela, ou está na coluna de assinado ou numa depois dela. */
+export function chegouAoAssinado(colunas: Pick<Coluna, 'id' | 'ordem' | 'marco'>[], etapaId: string | null, assinadoEm: string | null) {
+  if (assinadoEm) return true;
+  const marco = colunas.find(c => c.marco === 'assinado'), atual = colunas.find(c => c.id === etapaId);
+  return !!marco && !!atual && atual.ordem >= marco.ordem;
 }
 
 // ---------- como a parcela aparece ----------
@@ -98,8 +105,9 @@ export interface FormDoRecebimento { data: string; valor: string; contaId: strin
 export const recebimentoNovo = (p: Pick<Parcela, 'valor'>, hoje: string, contas: ParaReceber['contas']): FormDoRecebimento =>
   ({ data: hoje, valor: centavosNoCampo(p.valor), contaId: (contas.find(c => c.tem_das) ?? contas[0])?.id ?? '', taxa: '' });
 
-export function errosDoFormDeRecebimento(f: FormDoRecebimento): Partial<Record<keyof FormDoRecebimento, string>> {
-  const valor = lerCentavos(f.valor, null), taxa = lerCentavos(f.taxa, 0);
+/** A taxa só conta em conta com DAS: nas outras, o campo nem aparece. */
+export function errosDoFormDeRecebimento(f: FormDoRecebimento, contaComDas: boolean): Partial<Record<keyof FormDoRecebimento, string>> {
+  const valor = lerCentavos(f.valor, null), taxa = contaComDas ? lerCentavos(f.taxa, 0) : { centavos: 0 };
   return {
     ...(dataBoa(f.data) ? {} : { data: 'Informe uma data válida.' }),
     ...('erro' in valor ? { valor: valor.erro } : {}),
@@ -110,18 +118,16 @@ export function errosDoFormDeRecebimento(f: FormDoRecebimento): Partial<Record<k
 
 /** O que o banco recebe: em conta sem DAS, não há taxa de máquina. */
 export function dadosDoRecebimento(f: FormDoRecebimento, contaComDas: boolean): { data: string; valor: number; contaId: string; taxa: number } {
-  const valor = lerCentavos(f.valor, null), taxa = lerCentavos(f.taxa, 0);
+  const valor = lerCentavos(f.valor, null), taxa = contaComDas ? lerCentavos(f.taxa, 0) : { centavos: 0 };
   if ('erro' in valor) throw new Error(valor.erro);
   if ('erro' in taxa) throw new Error(taxa.erro);
-  return { data: f.data, valor: valor.centavos, contaId: f.contaId, taxa: contaComDas ? taxa.centavos : 0 };
+  return { data: f.data, valor: valor.centavos, contaId: f.contaId, taxa: taxa.centavos };
 }
 
 /** A divisão que o banco vai fazer, para mostrar antes de salvar. O banco refaz a mesma conta. Com campo por preencher, o erro vem vazio: o aviso fica no campo. */
 export function previaDoRecebimento(f: FormDoRecebimento, prep: ParaReceber): { divisao: Divisao; aliquota: number; aviso: string | null } | { erro: string } {
-  const problemas = errosDoFormDeRecebimento(f);
-  if (Object.keys(problemas).length) return { erro: '' };
   const conta = prep.contas.find(c => c.id === f.contaId);
-  if (!conta) return { erro: '' };
+  if (!conta || Object.keys(errosDoFormDeRecebimento(f, conta.tem_das)).length) return { erro: '' };
   const das = dasDoMes(prep.das, f.data.slice(0, 7));
   if (conta.tem_das && !das) return { erro: 'Nenhum DAS lançado até este mês. Peça a um administrador para lançar.' };
   const dados = dadosDoRecebimento(f, conta.tem_das);

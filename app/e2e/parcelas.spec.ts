@@ -63,8 +63,11 @@ test.describe('Parcelas do contrato', () => {
     await expect(linhas).toHaveCount(6);
     await expect(linhas.nth(1)).toContainText(dinheiro('600,00'));
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
-    await abrirSecao(cartao, 'Histórico de alterações');
+    await abrirSecao(cartao, 'Histórico das parcelas');
     await expect(cartao.getByText('5 geradas', { exact: false })).toBeVisible();
+    // E o histórico do contrato, aberto a todo o escritório, não fala de dinheiro
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText('5 geradas', { exact: false })).toHaveCount(1);
   });
 
   test('quando o contrato é de êxito, então não gera sozinho: lança à mão, muda e exclui, com desfazer', async ({ page }) => {
@@ -176,6 +179,26 @@ test.describe('Receber', () => {
     await expect(page.getByRole('definition').filter({ hasText: dinheiro('322,50') }).first()).toBeVisible();
   });
 
+  test('quando tudo vai para a conta e há outro advogado com 10%, então o cadastro aceita e a divisão é a confirmada: 185 / 740 / 92,50', async ({ page }) => {
+    // Dado: o exemplo confirmado pelo escritório em 02/11/2026
+    const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByText('100% do que o cliente pagar').click();
+    await cartao.getByRole('button', { name: 'Adicionar participante' }).click();
+    await cartao.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('bruno');
+    await cartao.getByRole('button', { name: /BRUNO EXEMPLO SOUZA/ }).click();
+    await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await abrirSecao(cartao, 'Parcelas');
+    await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
+    // Quando
+    const form = await receberPrimeira(cartao);
+    // Então
+    const divisao = form.getByLabel('Como fica a divisão');
+    await expect(divisao).toContainText('O responsável repassa a BRUNO EXEMPLO SOUZA');
+    for (const valor of ['185,00', '740,00', '92,50', '647,50']) await expect(divisao).toContainText(dinheiro(valor));
+  });
+
   test('quando estorna, então a parcela volta a receber e o caixa fica como estava; desfazer devolve', async ({ page }) => {
     // Dado
     const cartao = await contratoComParcelas(page);
@@ -189,7 +212,7 @@ test.describe('Receber', () => {
     // Então
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 1' })).toBeVisible();
     await expect(primeira).not.toContainText('Recebida');
-    await abrirSecao(cartao, 'Histórico de alterações');
+    await abrirSecao(cartao, 'Histórico das parcelas');
     await expect(cartao.getByText('Recebimento estornado')).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Desfazer' }).last().click();

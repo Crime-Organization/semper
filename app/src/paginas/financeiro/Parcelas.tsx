@@ -2,11 +2,11 @@
 // no cartão do contrato, no da pessoa e na página de Parcelas. Quem vê é quem pode: um administrador ou o responsável pelo contrato.
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { SD, type Contrato, type Parcela, type ParaReceber, type ParcelaDoEscritorio, type RecebimentoGravado } from '../../dados';
+import { SD, type Coluna, type Contrato, type Parcela, type ParaReceber, type ParcelaDoEscritorio, type RecebimentoGravado } from '../../dados';
 import { PARCELAS_DA_PESSOA } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
 import {
-  avisoDaSoma, dadosDaParcela, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
+  avisoDaSoma, chegouAoAssinado, dadosDaParcela, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
   previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao
 } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
@@ -14,7 +14,9 @@ import { falha, feito, useMudancas } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
+import { HistoricoDoCartao } from '../HistoricoDoCartao';
 
 function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string }) {
   return <dl className="financeiro-divisao" aria-label={rotulo}>
@@ -85,7 +87,7 @@ function FormReceber({ parcela, aoTerminar, aoCancelar }: { parcela: Parcela; ao
   const [lido, setLido] = useState<Preparo | null>(null);
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const dataBoa = !errosDoFormDeRecebimento({ ...f, contaId: 'qualquer' }).data;
+  const dataBoa = !errosDoFormDeRecebimento({ ...f, contaId: 'qualquer' }, false).data;
 
   // A divisão depende da data: quem era sócio e o DAS do mês. Só vale a leitura mais recente.
   useEffect(() => {
@@ -102,15 +104,15 @@ function FormReceber({ parcela, aoTerminar, aoCancelar }: { parcela: Parcela; ao
   const prep = atual && 'prep' in atual ? atual.prep : null;
   // Até a pessoa escolher, vale a conta que recolhe DAS.
   const form: FormDoRecebimento = { ...f, contaId: f.contaId || (prep ? recebimentoNovo(parcela, f.data, prep.contas).contaId : '') };
-  const erros = conferido ? errosDoFormDeRecebimento(form) : {};
-  const previa = prep ? previaDoRecebimento(form, prep) : null;
   const conta = prep?.contas.find(c => c.id === form.contaId);
+  const erros = conferido ? errosDoFormDeRecebimento(form, !!conta?.tem_das) : {};
+  const previa = prep ? previaDoRecebimento(form, prep) : null;
   const nomes = new Map([...(prep?.terceiros ?? []), ...(prep?.socio_indicador ? [prep.socio_indicador] : [])].map(x => [x.id, x.nome]));
 
   async function enviar(ev: FormEvent) {
     ev.preventDefault();
     setConferido(true);
-    if (ocupado || !prep || !conta || Object.keys(errosDoFormDeRecebimento(form)).length || !previa || 'erro' in previa) return;
+    if (ocupado || !prep || !conta || Object.keys(errosDoFormDeRecebimento(form, conta.tem_das)).length || !previa || 'erro' in previa) return;
     setOcupado(true);
     try {
       const { data, valor, contaId, taxa } = dadosDoRecebimento(form, conta.tem_das);
@@ -219,13 +221,16 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
 /** A seção do cartão do contrato. */
 export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () => void }) {
   const [lista, setLista] = useState<Parcela[] | string | null>(null);
+  const [colunas, setColunas] = useState<Coluna[]>([]);
   const [nova, setNova] = useState(false);
   const [versao, setVersao] = useState(0);
   const recarregar = () => setVersao(v => v + 1);
   const hoje = hojeISO();
   useEffect(() => {
     let vivo = true;
-    SD.parcelasDoContrato(k.id).then(x => { if (vivo) setLista(x); }).catch(e => { if (vivo) setLista((e as Error).message); });
+    Promise.all([SD.parcelasDoContrato(k.id), SD.colunasListar('contratos')])
+      .then(([x, c]) => { if (vivo) { setLista(x); setColunas(c); } })
+      .catch(e => { if (vivo) setLista((e as Error).message); });
     return () => { vivo = false; };
   }, [k.id, versao]);
   useMudancas(() => { setNova(false); recarregar(); });
@@ -241,10 +246,14 @@ export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () =>
   async function gerar() {
     try { await SD.parcelasGerar(k.id); mudou(); } catch (e) { falha(e); }
   }
-  const podeGerar = !lista.length && parcelasDoContrato(k, hoje).length > 0;
+  const geraSozinho = parcelasDoContrato(k, hoje).length > 0;
+  const podeGerar = !lista.length && geraSozinho && chegouAoAssinado(colunas, k.etapa_id, k.assinado_em);
+  const vazio = !geraSozinho ? 'Nenhuma parcela. Este contrato não gera parcelas sozinho: lance cada uma quando souber o valor.'
+    : podeGerar ? 'Nenhuma parcela. Este contrato foi assinado antes de o financeiro existir: gere as parcelas ou lance à mão.'
+    : 'Nenhuma parcela ainda. Elas nascem quando o contrato chega à coluna de assinado.';
   const soma = avisoDaSoma(lista, k.valor);
   return <div className="financeiro-form">
-    {!lista.length && <Vazio>{podeGerar ? 'Nenhuma parcela ainda. Elas nascem quando o contrato chega à coluna de assinado.' : 'Nenhuma parcela. Este contrato não gera parcelas sozinho: lance cada uma quando souber o valor.'}</Vazio>}
+    {!lista.length && <Vazio>{vazio}</Vazio>}
     {soma && <Aviso tipo="info">{soma}</Aviso>}
     <GestaoDeParcelas lista={lista} hoje={hoje} aoMudar={mudou} />
     {nova && <FormParcela rotulo="Nova parcela" inicial={parcelaNova(hoje)} salvar={criar} aoCancelar={() => setNova(false)} />}
@@ -252,6 +261,9 @@ export function ParcelasDoContrato({ k, aoMudar }: { k: Contrato; aoMudar: () =>
       {podeGerar && <Botao variante="principal" onClick={gerar}>Gerar parcelas</Botao>}
       {!nova && <button type="button" className={estiloBotao()} onClick={() => setNova(true)}><Icone nome="mais" tam={15} /> Nova parcela</button>}
     </div>
+    <Recolhivel titulo="Histórico das parcelas" icone="relogio" preferencia="contratos.cartao.parcelas.historico">
+      <HistoricoDoCartao carregar={() => SD.parcelasHistorico(k.id)} campos={{}} valor={(_campo, v) => v === null || v === undefined ? '—' : String(v)} versao={versao} />
+    </Recolhivel>
   </div>;
 }
 

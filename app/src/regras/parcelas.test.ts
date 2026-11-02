@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ParaReceber, RecebimentoGravado } from '../dados/tipos';
 import { dividirRecebimento } from './financeiro';
 import {
-  avisoDaSoma, cruzaOutroPeriodo, dadosDaParcela, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
+  avisoDaSoma, chegouAoAssinado, cruzaOutroPeriodo, dadosDaParcela, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
   parcelasDoContrato, partesDoRecebimento, periodoDoSocio, previaDoRecebimento, recebimentoNovo, resumoDasParcelas, situacaoDaParcela, somarMeses
 } from './parcelas';
 
@@ -71,6 +71,21 @@ describe('Quando as parcelas nascem', () => {
   it('quando a primeira data é absurda, então não gera', () => {
     // Então
     expect(parcelasDoContrato({ ...CONTRATO, primeiro_pagamento: '1900-01-01' }, HOJE)).toEqual([]);
+  });
+});
+
+describe('Contrato que já passou da assinatura', () => {
+  const COLUNAS = [{ id: 'a', ordem: 1, marco: null }, { id: 'b', ordem: 2, marco: 'assinado' as const }, { id: 'c', ordem: 3, marco: null }];
+
+  it.each([['a', null, false], ['b', null, true], ['c', null, true], [null, null, false], ['sumiu', null, false], ['a', '2026-01-01', true]])(
+    'quando a coluna é %s e a assinatura é %s, então já passou: %s', (etapa, assinado, passou) => {
+      // Então
+      expect(chegouAoAssinado(COLUNAS, etapa, assinado)).toBe(passou);
+    });
+
+  it('quando o quadro não tem a coluna de assinado, então só a data conta', () => {
+    // Então
+    expect(chegouAoAssinado([{ id: 'a', ordem: 1, marco: null }], 'a', null)).toBe(false);
   });
 });
 
@@ -167,12 +182,22 @@ describe('Formulário do recebimento', () => {
     expect(dadosDoRecebimento(FORM, true)).toEqual({ data: HOJE, valor: 100000, contaId: 'pj', taxa: 3000 });
   });
 
+  it('quando sobrou texto errado na taxa e a conta não recolhe DAS, então o campo escondido não trava', () => {
+    // Dado
+    const f = { ...FORM, contaId: 'pf', taxa: 'abc' };
+    // Então
+    expect(errosDoFormDeRecebimento(f, false)).toEqual({});
+    expect(dadosDoRecebimento(f, false).taxa).toBe(0);
+    expect(previaDoRecebimento(f, { ...PREP, das: [] })).toMatchObject({ divisao: { liquido: 100000 } });
+    expect(errosDoFormDeRecebimento({ ...f, contaId: 'pj' }, true)).toEqual({ taxa: 'Use um valor como 1.500,00.' });
+  });
+
   it('quando um campo está por preencher, então o aviso fica no campo, sem prévia', () => {
     // Então
-    expect(errosDoFormDeRecebimento({ ...FORM, valor: '' })).toEqual({ valor: 'Informe o valor.' });
-    expect(errosDoFormDeRecebimento({ ...FORM, data: '' })).toEqual({ data: 'Informe uma data válida.' });
-    expect(errosDoFormDeRecebimento({ ...FORM, contaId: '' })).toEqual({ contaId: 'Escolha a conta.' });
-    expect(errosDoFormDeRecebimento({ ...FORM, taxa: 'abc' })).toEqual({ taxa: 'Use um valor como 1.500,00.' });
+    expect(errosDoFormDeRecebimento({ ...FORM, valor: '' }, true)).toEqual({ valor: 'Informe o valor.' });
+    expect(errosDoFormDeRecebimento({ ...FORM, data: '' }, true)).toEqual({ data: 'Informe uma data válida.' });
+    expect(errosDoFormDeRecebimento({ ...FORM, contaId: '' }, true)).toEqual({ contaId: 'Escolha a conta.' });
+    expect(errosDoFormDeRecebimento({ ...FORM, taxa: 'abc' }, true)).toEqual({ taxa: 'Use um valor como 1.500,00.' });
     expect(previaDoRecebimento({ ...FORM, valor: '' }, PREP)).toEqual({ erro: '' });
     expect(previaDoRecebimento({ ...FORM, contaId: 'sumiu' }, PREP)).toEqual({ erro: '' });
   });

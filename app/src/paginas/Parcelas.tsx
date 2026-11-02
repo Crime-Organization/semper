@@ -62,7 +62,7 @@ function Repasses({ lista, admin, contas, hoje, aoMudar }: { lista: Repasse[]; a
   const terminou = () => { setPagando(null); aoMudar(); };
   async function desfazer(r: Repasse) {
     try {
-      const { conta_sugerida: conta, pago_em: data } = r;
+      const { conta_paga: conta, pago_em: data } = r;
       await SD.financeiroDesfazerPagamento(r.id);
       feito('Pagamento desfeito.', 'desfazer o pagamento', async () => { if (conta && data) await SD.financeiroPagarRepasse(r.id, conta, data); });
       terminou();
@@ -107,7 +107,7 @@ export default function Parcelas() {
     if (!pode) return;
     let vivo = true;
     const { de, ate } = diasDoMes(mes);
-    Promise.all([SD.parcelasDoPeriodo(de, ate), SD.financeiroRepasses(de, ate), admin ? SD.financeiroContas() : Promise.resolve([])])
+    Promise.all([SD.parcelasDoPeriodo(de, ate, hojeISO()), SD.financeiroRepasses(de, ate), admin ? SD.financeiroContas() : Promise.resolve([])])
       .then(([parcelas, repasses, c]) => { if (vivo) { setLido({ chave: mes, parcelas, repasses }); setContas(c.filter(x => !x.arquivada_em)); } })
       .catch(e => { if (vivo) setLido({ chave: mes, erro: (e as Error).message }); });
     return () => { vivo = false; };
@@ -133,7 +133,7 @@ export default function Parcelas() {
       </dl>
       {!dados.parcelas.length && <Vazio>{admin ? 'Nenhuma parcela neste mês.' : 'Nenhuma parcela dos seus contratos neste mês.'}</Vazio>}
       <GestaoDeParcelas key={mes} lista={dados.parcelas} hoje={hoje} contrato={p => p} aoMudar={recarregar} />
-      {!!dados.parcelas.length && <Nota>Além das que vencem no mês, aparecem as atrasadas de antes dele.</Nota>}
+      {!!dados.parcelas.length && <Nota>Além das que vencem no mês, aparecem as atrasadas de antes dele. As a receber de contratos arquivados só aparecem no contrato.</Nota>}
       <section className="financeiro-ajustes" aria-label="Repasses">
         <TituloSecao>{admin ? 'Repasses' : 'Meus repasses'}</TituloSecao>
         <Repasses lista={dados.repasses} admin={admin} contas={contas} hoje={hoje} aoMudar={recarregar} />

@@ -256,12 +256,14 @@ const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_M
 const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
 const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, criado_por, criado_em, atualizado_em';
 const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
-const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id)';
+const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em)';
 const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador';
-const CAMPOS_DO_REPASSE = 'id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida, pago_em, criado_em';
+const CAMPOS_DO_REPASSE = 'id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida, conta_paga, pago_em, criado_em';
 const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
-type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null } };
+type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null } };
 const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id });
+/** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
+const naLista = (p: LinhaDaParcela) => !!p.recebimento_id || !p.contrato.arquivado_em;
 type LinhaDoSocio = Omit<Socio, 'nome'> & { pessoa: { nome: string } | null };
 const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pessoa?.nome ?? 'Pessoa excluída' });
 /** Nenhuma linha mudou: a pessoa não é mais administradora, ou o item não existe mais. */
@@ -947,20 +949,26 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA).eq('contrato_id', contratoId).is('excluido_em', null).order('numero'));
     return data;
   },
+  async parcelasHistorico(contratoId) {
+    const { data } = await rodar(sb.from('contrato_parcelas_historico').select('id, alteracoes, feito_por, em').eq('contrato_id', contratoId).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
+    return data;
+  },
   async parcelasDaPessoa(pessoaId) {
     const { data: ligados } = await rodar(sb.from('contrato_clientes').select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA));
     if (!ligados.length) return [];
     const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).in('contrato_id', ligados.map((x: { contrato_id: string }) => x.contrato_id)).is('excluido_em', null)
       .order('vencimento', { ascending: false }).order('numero', { ascending: false }).limit(PARCELAS_DA_PESSOA));
-    return (data as unknown as LinhaDaParcela[]).map(parcelaDoEscritorio);
+    return (data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio);
   },
-  async parcelasDoPeriodo(de, ate) {
+  async parcelasDoPeriodo(de, ate, hoje) {
+    // As trazidas de antes do período são as atrasadas: num mês futuro, o que ainda vai vencer não entra.
+    const antesDe = hoje < de ? hoje : de;
     const todas: ParcelaDoEscritorio[] = [];
     for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
       const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).is('excluido_em', null)
-        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebimento_id.is.null,vencimento.lt.${de})`)
+        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebimento_id.is.null,vencimento.lt.${antesDe})`)
         .order('vencimento').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
-      todas.push(...(data as unknown as LinhaDaParcela[]).map(parcelaDoEscritorio));
+      todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
       if (data.length < LINHAS_POR_CONSULTA) return todas;
     }
   },

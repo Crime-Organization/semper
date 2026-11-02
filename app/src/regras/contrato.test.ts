@@ -76,7 +76,10 @@ describe('Percentual do responsável', () => {
     [20, [], null, 80],
     [20, [10], 10, 60],
     [30, [10, 5.5], null, 54.5],
-    [100, [], null, 0],
+    [100, [], null, 70],
+    [100, [], 10, 70],
+    [100, [10, 5], null, 65],
+    [100, [85], null, null],
     [30, [60], 20, null]
   ] as [number | null, number[], number | null, number | null][])('quando o escritório tem %s%%, os participantes %j e o indicador %s%%, então o responsável fica com %s',
   (escritorio, participantes, indicador, esperado) => {
@@ -300,7 +303,7 @@ describe('Etapas do cadastro de contrato', () => {
   it.each([
     ['nada preenchido', {}, 0],
     ['só as partes preenchidas', { clientes: ['p1'], responsavelId: 'u1' }, 1],
-    ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '10' }, 3],
+    ['a soma da divisão passando de 100%', { ...minimo, percentualEscritorio: '100', indicadorId: 'p3', indicadorPercentual: '90' }, 3],
     ['tudo certo', minimo, -1]
   ])('quando há %s, então a primeira etapa com erro é a %s', (_caso, extra, esperada) => {
     // Quando

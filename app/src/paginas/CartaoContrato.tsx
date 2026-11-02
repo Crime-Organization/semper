@@ -155,7 +155,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     ]} />
 
     <Dados titulo="Divisão" icone="divisao" preferencia="contratos.cartao.divisao" linhas={[
-      ['Enviado ao escritório', V('percentual_escritorio')],
+      ['Enviado à conta da empresa', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante</small></>]

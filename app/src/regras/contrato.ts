@@ -40,11 +40,16 @@ export function valorParcela(valor: number | null, entrada: number | null, parce
 }
 
 /**
- * % do responsável: o que sobra do total depois do escritório, dos participantes e do indicador (todos sobre o total,
- * como a conta da planilha Caixa). null se a soma passar de 100%.
+ * % do responsável, para mostrar no cadastro: o que sobra depois do escritório, dos participantes e do indicador. null se a soma passar
+ * de 100%. Regra do escritório de 02/11/2026 (a conta exata é dividirRecebimento, em financeiro.ts): quando tudo vai para a conta da
+ * empresa, o escritório fica com 30% do líquido, ou 20% se houver terceiro; abaixo disso, com o que chega à conta.
  */
-export function percentualResponsavel(escritorio: number | null, participantes: (number | null)[], indicador: number | null): number | null {
-  const resto = 100 - (escritorio || 0) - participantes.reduce<number>((soma, p) => soma + (p || 0), 0) - (indicador || 0);
+const PARTE_DO_ESCRITORIO_QUANDO_TUDO_VAI_PARA_A_CONTA = { semTerceiro: 30, comTerceiro: 20 };
+export function percentualResponsavel(parteNaConta: number | null, participantes: (number | null)[], indicador: number | null): number | null {
+  const terceiros = participantes.reduce<number>((soma, p) => soma + (p || 0), 0) + (indicador || 0);
+  const { semTerceiro, comTerceiro } = PARTE_DO_ESCRITORIO_QUANDO_TUDO_VAI_PARA_A_CONTA;
+  const escritorio = parteNaConta === 100 ? (terceiros > 0 ? comTerceiro : semTerceiro) : parteNaConta || 0;
+  const resto = 100 - escritorio - terceiros;
   return resto < 0 ? null : centavos(resto);
 }
 

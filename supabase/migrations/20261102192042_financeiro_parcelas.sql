@@ -11,6 +11,8 @@
 --   - Repasses: o que o escritório deve ao responsável e ao sócio que indicou. Pagar cria a saída no caixa; só um administrador
 --     paga. Quem recebe vê os seus. O terceiro que não é sócio recebe do responsável: fica só como informação no recebimento.
 --   - Sócio responsável com tudo na conta da empresa não recebe a parte dele na hora: ela fica no escritório e conta para o lucro.
+--   - Depois que o contrato tem parcelas, só um administrador muda o responsável e a divisão: é deles que saem o acesso e a conta.
+--   - O nome de quem recebeu fica nos registros financeiros mesmo depois de excluir a pessoa: guarda por obrigação fiscal.
 --   Só acrescenta (tabelas, funções e uma coluna). Com o módulo desligado, nada nasce sozinho: mover um contrato continua igual, a
 --   versão anterior do site continua funcionando, e quem liga o módulo é uma pessoa, depois de conferir um mês inteiro.
 -- =====================================================================
@@ -173,7 +175,22 @@ create trigger preparar before insert or update on public.contrato_parcelas for 
 create trigger carimbo before update on public.contrato_parcelas for each row execute function privado.carimbar();
 create trigger auditoria after insert or update or delete on public.contrato_parcelas for each row execute function privado.auditar();
 
--- O que acontece com cada parcela aparece no histórico do contrato, já como a pessoa lê.
+-- O que acontece com cada parcela fica num histórico à parte, já como a pessoa lê. O do contrato é aberto a todo o escritório, e o
+-- dinheiro só aparece para quem cuida do contrato.
+create table public.contrato_parcelas_historico (
+  id            bigint generated always as identity primary key,
+  escritorio_id uuid not null references public.escritorios on delete cascade,
+  contrato_id   uuid not null references public.contratos on delete cascade,
+  alteracoes    jsonb not null,
+  feito_por     uuid references auth.users on delete set null,
+  em            timestamptz not null default now()
+);
+create index contrato_parcelas_historico_contrato on public.contrato_parcelas_historico (contrato_id, em desc);
+alter table public.contrato_parcelas_historico enable row level security;
+revoke all on public.contrato_parcelas_historico from anon;
+revoke insert, update, delete on public.contrato_parcelas_historico from authenticated;
+create policy leitura on public.contrato_parcelas_historico for select to authenticated using (privado.cuido_do_contrato(contrato_id));
+
 create function privado.historico_parcela() returns trigger
 language plpgsql security definer set search_path = '' as $$
 declare a jsonb := '{}'; v_nome text := 'Parcela ' || new.numero;
@@ -196,7 +213,7 @@ begin
     end if;
   end if;
   if a <> '{}' then
-    insert into public.contrato_historico (escritorio_id, contrato_id, alteracoes, feito_por) values (new.escritorio_id, new.contrato_id, a, auth.uid());
+    insert into public.contrato_parcelas_historico (escritorio_id, contrato_id, alteracoes, feito_por) values (new.escritorio_id, new.contrato_id, a, auth.uid());
   end if;
   return null;
 end $$;
@@ -243,14 +260,15 @@ begin
     v_quantas := v_quantas + 1;
   end loop;
   if v_quantas > 0 then
-    insert into public.contrato_historico (escritorio_id, contrato_id, alteracoes, feito_por)
+    insert into public.contrato_parcelas_historico (escritorio_id, contrato_id, alteracoes, feito_por)
     values (k.escritorio_id, k.id, jsonb_build_object('Parcelas', jsonb_build_object('de', null, 'para', v_quantas || ' geradas, somando ' || privado.em_reais(v_total))), auth.uid());
   end if;
   return v_quantas;
 end $$;
 revoke execute on function privado.gerar_parcelas(public.contratos, date) from public, anon, authenticated;
 
--- Nascem uma vez só, quando o contrato chega à coluna de assinado. Com o módulo desligado, nada acontece.
+-- Nascem uma vez só, quando o contrato chega à coluna de assinado, e nunca por cima do que já foi lançado à mão. Com o módulo
+-- desligado, nada acontece. O contrato já assinado quando o módulo é ligado não gera sozinho, nem se sair e voltar para a coluna.
 create table privado.contratos_com_parcelas (
   contrato_id uuid primary key references public.contratos on delete cascade,
   em          timestamptz not null default now()
@@ -265,11 +283,34 @@ begin
   if not coalesce((select (modulos ->> 'financeiro')::boolean from public.escritorios where id = new.escritorio_id), false) then return null; end if;
   insert into privado.contratos_com_parcelas (contrato_id) values (new.id) on conflict do nothing;
   if not found then return null; end if;
+  if exists (select 1 from public.contrato_parcelas where contrato_id = new.id and excluido_em is null) then return null; end if;
   perform privado.gerar_parcelas(new, (now() at time zone 'America/Sao_Paulo')::date);
   return null;
 end $$;
 create trigger parcelas_automaticas after insert or update of etapa_id on public.contratos
   for each row execute function privado.parcelas_do_contrato_assinado();
+
+-- O contrato que já passou da assinatura: tem a data dela, ou está na coluna de assinado ou numa depois dela.
+create function privado.contrato_ja_assinado(k public.contratos) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select k.assinado_em is not null or exists (
+    select 1 from public.quadro_colunas c
+    join public.quadro_colunas a on a.escritorio_id = c.escritorio_id and a.modulo = 'contratos' and a.marco = 'assinado'
+    where c.id = k.etapa_id and c.ordem >= a.ordem)
+$$;
+revoke execute on function privado.contrato_ja_assinado(public.contratos) from public, anon, authenticated;
+
+create function privado.marcar_contratos_ao_ligar() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  insert into privado.contratos_com_parcelas (contrato_id)
+  select k.id from public.contratos k where k.escritorio_id = new.id and privado.contrato_ja_assinado(k)
+  on conflict do nothing;
+  return null;
+end $$;
+create trigger financeiro_ligado after update of modulos on public.escritorios for each row
+  when (coalesce((old.modulos ->> 'financeiro')::boolean, false) = false and coalesce((new.modulos ->> 'financeiro')::boolean, false))
+  execute function privado.marcar_contratos_ao_ligar();
 
 -- O contrato assinado antes de ligar o módulo, ou o que ficou sem parcelas, gera por aqui.
 create function public.contrato_gerar_parcelas(p_contrato uuid) returns integer
@@ -278,6 +319,7 @@ declare k public.contratos;
 begin
   if not privado.cuido_do_contrato(p_contrato) then raise exception 'Só o responsável pelo contrato ou um administrador gera as parcelas.' using errcode = '42501'; end if;
   select * into k from public.contratos where id = p_contrato for update;
+  if not privado.contrato_ja_assinado(k) then raise exception 'Este contrato ainda não foi assinado. As parcelas nascem na coluna de assinado.'; end if;
   if exists (select 1 from public.contrato_parcelas where contrato_id = p_contrato and excluido_em is null) then
     raise exception 'Este contrato já tem parcelas.';
   end if;
@@ -286,6 +328,28 @@ begin
 end $$;
 revoke execute on function public.contrato_gerar_parcelas(uuid) from public, anon;
 grant execute on function public.contrato_gerar_parcelas(uuid) to authenticated;
+
+-- Depois que há parcelas, o responsável e a divisão só mudam por um administrador: é deles que saem o acesso às parcelas e a conta de
+-- cada recebimento. Antes disso, só o próprio responsável passa o contrato adiante. Com o módulo desligado, tudo continua como antes.
+-- As funções do sistema (esquecer uma pessoa, por exemplo) não passam por aqui.
+create function privado.trava_da_divisao() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare v_tem_parcelas boolean;
+begin
+  if privado.sou_admin() or not coalesce((select (modulos ->> 'financeiro')::boolean from public.escritorios where id = new.escritorio_id), false) then return new; end if;
+  v_tem_parcelas := exists (select 1 from public.contrato_parcelas where contrato_id = new.id and excluido_em is null);
+  if new.responsavel_id is distinct from old.responsavel_id then
+    if old.responsavel_id is distinct from auth.uid() then raise exception 'Só um administrador ou o responsável atual troca o responsável do contrato.'; end if;
+    if v_tem_parcelas then raise exception 'Este contrato tem parcelas: só um administrador troca o responsável.'; end if;
+  end if;
+  if v_tem_parcelas and (new.percentual_escritorio, new.indicador_id, new.indicador_percentual, new.participantes, new.participante_id, new.participante_percentual)
+     is distinct from (old.percentual_escritorio, old.indicador_id, old.indicador_percentual, old.participantes, old.participante_id, old.participante_percentual) then
+    raise exception 'Este contrato tem parcelas: só um administrador muda a divisão.';
+  end if;
+  return new;
+end $$;
+create trigger trava_da_divisao before update on public.contratos
+  for each row when (current_user = 'authenticated') execute function privado.trava_da_divisao();
 
 -- 5. Recebimentos
 create table public.financeiro_recebimentos (
@@ -342,6 +406,7 @@ create table public.financeiro_repasses (
   descricao      text not null,
   valor          bigint not null check (valor > 0),
   conta_sugerida uuid references public.financeiro_contas,
+  conta_paga     uuid references public.financeiro_contas,
   pago_em        date,
   lancamento_id  uuid references public.financeiro_lancamentos,
   cancelado_em   timestamptz,
@@ -557,6 +622,8 @@ begin
   select * into r from public.financeiro_recebimentos where id = p_recebimento for update;
   if r.id is null or not privado.cuido_do_contrato(r.contrato_id) then raise exception 'Só o responsável pelo contrato ou um administrador estorna o recebimento.' using errcode = '42501'; end if;
   if r.estornado_em is not null then raise exception 'Este recebimento já foi estornado.'; end if;
+  -- Trava os repasses antes de olhar: quem está pagando agora termina primeiro, e o pagamento aparece aqui.
+  perform 1 from public.financeiro_repasses where recebimento_id = r.id for update;
   if exists (select 1 from public.financeiro_repasses where recebimento_id = r.id and pago_em is not null) then
     raise exception 'Há repasse já pago deste recebimento. Peça a um administrador para desfazer o pagamento antes.';
   end if;
@@ -601,7 +668,7 @@ begin
   values (r.escritorio_id, p_conta, p_data, 'saida', case r.tipo when 'responsavel' then 'repasse' else 'indicacao' end, r.valor,
           left('Repasse a ' || r.nome || ': ' || r.descricao, 300), 'repasse', auth.uid())
   returning id into v_lancamento;
-  update public.financeiro_repasses set pago_em = p_data, lancamento_id = v_lancamento where id = r.id;
+  update public.financeiro_repasses set pago_em = p_data, conta_paga = p_conta, lancamento_id = v_lancamento where id = r.id;
   return v_lancamento;
 end $$;
 revoke execute on function public.financeiro_pagar_repasse(uuid, uuid, date) from public, anon;
@@ -616,7 +683,7 @@ begin
   if r.id is null then raise exception 'Repasse não encontrado neste escritório.'; end if;
   if r.pago_em is null then return; end if;
   update public.financeiro_lancamentos set excluido_em = now() where id = r.lancamento_id;
-  update public.financeiro_repasses set pago_em = null, lancamento_id = null where id = r.id;
+  update public.financeiro_repasses set pago_em = null, conta_paga = null, lancamento_id = null where id = r.id;
 end $$;
 revoke execute on function public.financeiro_desfazer_pagamento(uuid) from public, anon;
 grant execute on function public.financeiro_desfazer_pagamento(uuid) to authenticated;
