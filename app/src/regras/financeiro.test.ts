@@ -35,6 +35,36 @@ describe('Os exemplos confirmados pelo escritório', () => {
   });
 });
 
+describe('As decisões do escritório de 02/11/2026', () => {
+  it('quando o indicador tem 15%, então o escritório continua com 20%, e o responsável fica com o resto', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, terceiros: [{ id: 'ind', percentual: 15 }] });
+    // Então
+    expect(d).toMatchObject({ escritorio: 18500, responsavelFica: 60125, terceiros: [{ id: 'ind', valor: 13875 }] });
+  });
+
+  it('quando só 30% vão para a conta, sem máquina, e o indicador tem 10%, então ele recebe R$ 98,65, do que ficou com o advogado', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, parteNaConta: 30, taxaMaquina: 0, terceiros: [{ id: 'ind', percentual: 10 }] });
+    // Então
+    expect(d).toMatchObject({ escritorio: 28650, ficouComOAdvogado: 70000, terceiros: [{ id: 'ind', valor: 9865 }], responsavelFica: 60135 });
+  });
+
+  it('quando só 30% vão para a conta e houve máquina, então a taxa é do advogado', () => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, parteNaConta: 30 });
+    // Então
+    expect(d).toMatchObject({ escritorio: 28650, ficouComOAdvogado: 67000, responsavelFica: 67000, escritorioFinal: 28650 });
+  });
+
+  it.each([[20, 20000, 80000], [30, 30000, 70000]] as const)('quando o dinheiro entra em conta sem DAS, em contrato de %i%%, então vale a mesma parte', (parteNaConta, escritorio, ficou) => {
+    // Quando
+    const d = dividirRecebimento({ ...BASE, parteNaConta, contaComDas: false });
+    // Então
+    expect(d).toMatchObject({ das: 0, taxaMaquina: 0, escritorio, ficouComOAdvogado: ficou });
+  });
+});
+
 describe('A divisão fecha', () => {
   it.each([
     ['parte integral', BASE],
@@ -53,12 +83,14 @@ describe('A divisão fecha', () => {
     expect(d.escritorioFinal).toBe(d.escritorio - (d.socioIndicador?.valor ?? 0));
   });
 
-  it.each([[20], [30]] as const)('quando %i%% vão para a conta da empresa, então o que chegou mais o que ficou com o advogado dá o que o cliente pagou', parteNaConta => {
+  it.each([[20, 0], [30, 0], [20, 777], [30, 777]] as const)('quando %i%% vão para a conta da empresa, com taxa de %i centavos, então tudo fecha com o que o cliente pagou', (parteNaConta, taxaMaquina) => {
     // Quando
-    const d = dividirRecebimento({ ...BASE, valor: 100001, parteNaConta, taxaMaquina: 0 });
+    const d = dividirRecebimento({ ...BASE, valor: 100001, parteNaConta, taxaMaquina, terceiros: [{ id: 'a', percentual: 7.5 }] });
     // Então
-    expect(d.naConta + d.ficouComOAdvogado).toBe(100001);
+    expect(d.naConta + d.ficouComOAdvogado + d.taxaMaquina).toBe(100001);
     expect(d.escritorio + d.das).toBe(d.naConta);
+    expect(d.escritorio + d.ficouComOAdvogado).toBe(d.liquido);
+    expect(d.responsavelFica + d.terceiros[0].valor).toBe(d.ficouComOAdvogado);
   });
 
   it('quando todo o líquido do responsável vai para os terceiros, então o arredondamento não o deixa negativo', () => {
@@ -103,11 +135,11 @@ describe('Outros casos da divisão', () => {
     expect(d).toMatchObject({ naConta: 20000, das: 900, escritorio: 19100, socioIndicador: { valor: 10000 }, escritorioFinal: 9100 });
   });
 
-  it('quando a parte na conta é menor e houve máquina e terceiro, então a taxa e o repasse saem do que ficou com o advogado, e o repasse é sobre o que o cliente pagou', () => {
+  it('quando a parte na conta é menor e houve máquina e terceiro, então a taxa e o repasse saem do que ficou com o advogado, e o repasse desconta o DAS e a taxa', () => {
     // Quando
     const d = dividirRecebimento({ ...BASE, parteNaConta: 30, terceiros: [{ id: 'ind', percentual: 10 }] });
-    // Então
-    expect(d).toMatchObject({ escritorio: 28650, ficouComOAdvogado: 67000, terceiros: [{ id: 'ind', valor: 10000 }], responsavelFica: 57000 });
+    // Então: R$ 1.000 - 13,50 - 30 = 956,50
+    expect(d).toMatchObject({ liquido: 95650, escritorio: 28650, ficouComOAdvogado: 67000, terceiros: [{ id: 'ind', valor: 9565 }], responsavelFica: 57435 });
   });
 });
 
@@ -158,11 +190,18 @@ describe('O que não dá para dividir', () => {
 describe('O DAS de cada mês', () => {
   const LISTA = [{ mes: '2026-07', aliquota: 5 }, { mes: '2026-01', aliquota: 4.5 }, { mes: '2026-10', aliquota: 6 }];
 
-  it.each([
-    ['2026-01', 4.5], ['2026-06', 4.5], ['2026-07', 5], ['2026-09', 5], ['2026-10', 6], ['2027-03', 6]
-  ])('quando o mês é %s, então vale o lançado para ele ou o último antes dele', (mes, aliquota) => {
+  it.each([['2026-01', 4.5], ['2026-07', 5], ['2026-10', 6]])('quando %s tem DAS lançado, então vale ele, sem aviso', (mes, aliquota) => {
     // Então
-    expect(dasDoMes(LISTA, mes)).toBe(aliquota);
+    expect(dasDoMes(LISTA, mes)).toEqual({ aliquota, aviso: null });
+  });
+
+  it.each([
+    ['2026-06', 4.5, 'O DAS deste mês ainda não foi lançado. Está valendo o de 01/2026.'],
+    ['2026-09', 5, 'O DAS deste mês ainda não foi lançado. Está valendo o de 07/2026.'],
+    ['2027-03', 6, 'O DAS deste mês ainda não foi lançado. Está valendo o de 10/2026.']
+  ])('quando %s não tem DAS lançado, então vale o último, com aviso', (mes, aliquota, aviso) => {
+    // Então
+    expect(dasDoMes(LISTA, mes)).toEqual({ aliquota, aviso });
   });
 
   it('quando não há nada lançado até aquele mês, então não há DAS, e o sistema não inventa um', () => {
@@ -177,7 +216,7 @@ describe('O DAS de cada mês', () => {
     // Quando: o DAS de outubro é corrigido
     const depois = dasDoMes(LISTA.map(a => a.mes === '2026-10' ? { ...a, aliquota: 7 } : a), '2026-09');
     // Então
-    expect(depois).toBe(antes);
+    expect(depois).toEqual(antes);
   });
 
   it.each([

@@ -1,7 +1,11 @@
 // A divisão de cada recebimento: quanto chega ao escritório, quanto fica com o responsável, quanto ele repassa e o que o
 // escritório paga ao sócio que indicou. Tudo puro, sem tela nem banco. Os valores são em centavos (número inteiro), para a
 // soma nunca perder um centavo; os percentuais são números como 4,5 ou 30. As regras foram confirmadas pelo escritório em
-// 28/10 e 02/11/2026, com exemplos (veja financeiro.test.ts).
+// 28/10 e 02/11/2026, com exemplos (veja financeiro.test.ts). Decisões de 02/11/2026:
+// - com terceiro de qualquer percentual, o escritório fica fixo em 20% do líquido, e o responsável, com o resto;
+// - abaixo da parte integral, o terceiro recebe sobre o que o cliente pagou menos o DAS e a taxa (a conta da planilha);
+// - abaixo da parte integral, a taxa da máquina é do advogado;
+// - em conta sem DAS (PF, ESPÉCIE), vale a mesma parte do contrato: são situações pontuais.
 
 /** Quanto do que o cliente paga o advogado manda para a conta da empresa: um campo do contrato. */
 export type ParteNaConta = 20 | 30 | 100;
@@ -37,7 +41,9 @@ export interface Divisao {
   /** O que o advogado já ficou direto, quando a parte na conta é menor que a integral. */
   ficouComOAdvogado: number;
   das: number;
+  /** Na parte integral, sai da conta; abaixo dela, do que ficou com o advogado. */
   taxaMaquina: number;
+  /** O que o cliente pagou, menos o DAS e a taxa: é o que se divide. */
   liquido: number;
   /** A parte do escritório, antes de pagar o sócio que indicou. */
   escritorio: number;
@@ -81,7 +87,8 @@ export function erroDoRecebimento(r: Recebimento): string | null {
   // Abaixo da parte integral, a taxa e os repasses saem do que ficou com o advogado.
   const ficou = r.valor - naConta - taxa;
   if (ficou < 0) return 'A taxa da máquina passa do que ficou com o advogado.';
-  const repasses = r.terceiros.reduce((s, t) => s + parte(r.valor, t.percentual), 0);
+  const das = r.contaComDas ? parte(naConta, r.aliquotaDas) : 0;
+  const repasses = r.terceiros.reduce((s, t) => s + parte(r.valor - das - taxa, t.percentual), 0);
   return repasses > ficou ? 'Os repasses passam do que ficou com o advogado.' : null;
 }
 
@@ -109,13 +116,14 @@ export function dividirRecebimento(r: Recebimento): Divisao {
 
   if (!integral) {
     // Abaixo da parte integral, o que chega à conta fica com o escritório, que paga o DAS; o advogado já ficou com o resto.
-    // É dele a taxa da máquina e, do que ficou com ele, os repasses, calculados sobre o que o cliente pagou.
+    // É dele a taxa da máquina e, do que ficou com ele, saem os repasses.
     const ficou = r.valor - naConta - taxaMaquina;
-    const terceiros = r.terceiros.map(t => ({ id: t.id, valor: parte(r.valor, t.percentual) }));
+    const liquido = r.valor - das - taxaMaquina;
+    const terceiros = r.terceiros.map(t => ({ id: t.id, valor: parte(liquido, t.percentual) }));
     const repassado = terceiros.reduce((s, t) => s + t.valor, 0);
     const escritorio = naConta - das;
     return {
-      naConta, ficouComOAdvogado: ficou, das, taxaMaquina, liquido: escritorio, escritorio, responsavelRecebe: 0, responsavelFica: ficou - repassado, terceiros, socioIndicador,
+      naConta, ficouComOAdvogado: ficou, das, taxaMaquina, liquido, escritorio, responsavelRecebe: 0, responsavelFica: ficou - repassado, terceiros, socioIndicador,
       escritorioFinal: escritorio - (socioIndicador?.valor ?? 0)
     };
   }
@@ -129,16 +137,18 @@ export function dividirRecebimento(r: Recebimento): Divisao {
 }
 
 // ---------- DAS ----------
-/** O percentual do DAS a partir de um mês ("aaaa-mm"). Ele muda de mês a mês, e os meses já fechados não mudam. */
+/** O percentual do DAS de um mês ("aaaa-mm"). Ele muda de mês a mês. Cada recebimento guarda o percentual que usou: corrigir o DAS depois não muda o que já foi recebido. */
 export interface AliquotaDoMes { mes: string; aliquota: number }
 
 const erroDoPercentualDoDas = (aliquota: number) =>
   aliquota >= 0 && aliquota <= 100 && temAteDuasCasas(aliquota) ? null : 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.';
 
-/** O DAS de um mês: o lançado para ele ou, sem isso, o do último mês lançado antes. null se não há nenhum até aquele mês. */
-export function dasDoMes(lista: AliquotaDoMes[], mes: string): number | null {
-  const anteriores = lista.filter(a => a.mes <= mes).toSorted((a, b) => b.mes.localeCompare(a.mes));
-  return anteriores[0]?.aliquota ?? null;
+/** O DAS de um mês: o lançado para ele ou, sem isso, o do último mês lançado antes, com aviso de que ninguém lançou o do mês.
+ *  null se não há nenhum até aquele mês. */
+export function dasDoMes(lista: AliquotaDoMes[], mes: string): { aliquota: number; aviso: string | null } | null {
+  const ultimo = lista.filter(a => a.mes <= mes).toSorted((a, b) => b.mes.localeCompare(a.mes))[0];
+  if (!ultimo) return null;
+  return { aliquota: ultimo.aliquota, aviso: ultimo.mes === mes ? null : `O DAS deste mês ainda não foi lançado. Está valendo o de ${ultimo.mes.slice(5)}/${ultimo.mes.slice(0, 4)}.` };
 }
 
 /** O que há de errado no DAS lançado, ou null. */
