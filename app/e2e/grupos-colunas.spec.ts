@@ -107,6 +107,23 @@ test.describe('Grupos de colunas', () => {
     await expect(page.getByRole('button', { name: 'Fechar o grupo Início' })).toBeFocused();
   });
 
+  test('quando o grupo está fechado, então o nome fica embaixo na faixa, lido de baixo para cima, abaixo da quantidade', async ({ page }) => {
+    // Dado
+    await abrirQuadro(page);
+    await criarGrupo(page, 'Início');
+    // Quando
+    await page.getByRole('button', { name: 'Fechar o grupo Início' }).click();
+    // Então
+    const faixa = page.getByRole('button', { name: /^Abrir o grupo Início/ });
+    const nome = faixa.getByText('Início', { exact: true }), quantidade = faixa.getByText('0', { exact: true });
+    const [caixaDaFaixa, caixaDoNome, caixaDaQuantidade] = await Promise.all([faixa.boundingBox(), nome.boundingBox(), quantidade.boundingBox()]);
+    const peDaFaixa = caixaDaFaixa!.y + caixaDaFaixa!.height, FOLGA_DA_FAIXA = 16;
+    expect(peDaFaixa - (caixaDoNome!.y + caixaDoNome!.height)).toBeLessThanOrEqual(FOLGA_DA_FAIXA);
+    expect(caixaDoNome!.y).toBeGreaterThan(caixaDaQuantidade!.y);
+    await expect(nome).toHaveCSS('writing-mode', 'vertical-rl');
+    await expect(nome).not.toHaveCSS('transform', 'none');
+  });
+
   test('quando o nome do grupo é longo e a tela é baixa, então a quantidade de cartões continua à vista na faixa', async ({ page }) => {
     // Dado
     await page.setViewportSize({ width: 1366, height: 500 });

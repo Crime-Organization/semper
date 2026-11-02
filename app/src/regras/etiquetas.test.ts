@@ -1,12 +1,19 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Etiqueta } from '../dados/tipos';
-import { erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta } from './etiquetas';
+import { erroDaEtiqueta, etiquetasNaOrdem, etiquetasQueCombinam, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta } from './etiquetas';
 
 const etiqueta = (id: string, cor: Etiqueta['cor'], texto: string | null): Etiqueta => ({ id, cor, texto, criado_por: 'u-ana' });
 const URGENTE = etiqueta('e1', 'vermelho', 'Urgência do cliente'), VERDE = etiqueta('e2', 'verde', null);
 
 describe('Etiquetas', () => {
+  it.each([
+    ['urgencia', [URGENTE]], ['  CLIENTE ', [URGENTE]], ['verde', [VERDE]], ['', [URGENTE, VERDE]], ['nada disso', []]
+  ])('quando pesquisa "%s", então vêm só as que combinam, sem contar maiúsculas nem acentos', (termo, achadas) => {
+    // Então
+    expect(etiquetasQueCombinam([URGENTE, VERDE], termo)).toEqual(achadas);
+  });
+
   it.each([['  Urgência   do  cliente ', 'Urgência do cliente'], ['   ', null], ['', null]])('quando o texto digitado é "%s", então fica guardado como %j', (digitado, guardado) => {
     // Então
     expect(textoDaEtiqueta(digitado)).toBe(guardado);

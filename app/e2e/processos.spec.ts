@@ -50,6 +50,14 @@ test.describe('Menu de processos', () => {
     await expect(page.getByRole('list', { name: 'Distribuído', exact: true })).toHaveCount(0);
   });
 
+  test('quando abre o submenu, então Administrativo vem antes de Judicial', async ({ page }) => {
+    // Quando
+    await page.goto('/processos/judicial/');
+    // Então
+    const links = page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: /^(Administrativo|Judicial)$/ });
+    await expect(links).toHaveText(['Administrativo', 'Judicial']);
+  });
+
   test('quando se abre o endereço geral de processos, então vai para o quadro judicial', async ({ page }) => {
     // Quando
     await page.goto('/processos/');

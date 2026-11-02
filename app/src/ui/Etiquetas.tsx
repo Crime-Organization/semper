@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
-import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta } from '../regras/etiquetas';
+import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta, etiquetasQueCombinam } from '../regras/etiquetas';
 import { falha, feito, sinalizarMudanca, useMudancas } from './avisos';
 import { Aviso, Campo, estiloBotao, Nota, propsDoCampo } from './base';
 import { BotaoDuplo } from './Botoes';
@@ -128,28 +128,40 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
   </section>;
 }
 
+const SEM_RESULTADO = 'Nenhuma etiqueta combina com essa pesquisa.';
+/** O campo que pesquisa as etiquetas já criadas, acima da lista. */
+function BuscaDeEtiquetas({ termo, aoMudar }: { termo: string; aoMudar: (termo: string) => void }) {
+  return <input type="search" className="campo" aria-label="Pesquisar etiquetas" placeholder="Pesquisar etiquetas…" value={termo} onChange={ev => aoMudar(ev.target.value)} />;
+}
+
 /** Na barra de ações em lote: aplica ou tira uma etiqueta de todos os cartões selecionados. */
 export function EtiquetasEmLote({ modulo, ids }: { modulo: ModuloComEtiquetas; ids: string[] }) {
   const etiquetas = useEtiquetas();
   const [botao, setBotao] = useState<HTMLElement | null>(null);
+  const [termo, setTermo] = useState('');
+  const achadas = etiquetasQueCombinam(etiquetas, termo);
+
+  // Ao fechar, a pesquisa volta a ficar em branco, como no painel do cartão.
+  const fechar = () => { setBotao(null); setTermo(''); };
 
   async function agir(e: Etiqueta, aplicar: boolean) {
-    setBotao(null);
+    fechar();
     try { await (aplicar ? aplicarEtiqueta : tirarEtiqueta)(modulo, ids, e); } catch (err) { falha(err); }
   }
 
   return <>
-    <button type="button" className={estiloBotao({ forma: 'mini' })} aria-expanded={!!botao} onClick={ev => { const alvo = ev.currentTarget; setBotao(b => b ? null : alvo); }}>
+    <button type="button" className={estiloBotao({ forma: 'mini' })} aria-expanded={!!botao} onClick={ev => { const alvo = ev.currentTarget; setTermo(''); setBotao(b => b ? null : alvo); }}>
       <Icone nome="etiqueta" tam={15} /> Etiquetas
     </button>
-    {botao && <MenuFlutuante painel rotulo="Etiquetas dos selecionados" botao={botao} aoFechar={() => setBotao(null)}>
+    {botao && <MenuFlutuante painel rotulo="Etiquetas dos selecionados" botao={botao} aoFechar={fechar}>
       <div className="etq-painel">
         <p className="rotulo-caps etq-lote-titulo">{emCartoes(ids.length)} {ids.length === 1 ? 'selecionado' : 'selecionados'}</p>
-        {etiquetas.length ? <ul className="etq-lista" aria-label="Etiquetas do escritório">{etiquetas.map(e => <li key={e.id}>
+        {etiquetas.length > 0 && <BuscaDeEtiquetas termo={termo} aoMudar={setTermo} />}
+        {achadas.length ? <ul className="etq-lista" aria-label="Etiquetas do escritório">{achadas.map(e => <li key={e.id}>
           <span className="etq-opcao"><SeloEtiqueta e={e} /></span>
           <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Aplicar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, true)}>Aplicar</button>
           <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Tirar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, false)}>Tirar</button>
-        </li>)}</ul> : <Nota>Nenhuma etiqueta ainda. Crie a primeira na seção "Etiquetas" de um cartão.</Nota>}
+        </li>)}</ul> : <Nota>{etiquetas.length ? SEM_RESULTADO : 'Nenhuma etiqueta ainda. Crie a primeira na seção "Etiquetas" de um cartão.'}</Nota>}
       </div>
     </MenuFlutuante>}
   </>;
@@ -159,8 +171,12 @@ function PainelEtiquetas({ etiquetas, ids, aoMarcar, aoMudar, aoCriar }: { etiqu
   const ctx = useCtx();
   // O que o formulário está fazendo: criando (null) ou mudando uma etiqueta.
   const [mudando, setMudando] = useState<Etiqueta | null>(null);
+  const [termo, setTermo] = useState('');
+  const achadas = etiquetasQueCombinam(etiquetas, termo);
   return <div className="etq-painel">
-    {etiquetas.length > 0 && <ul className="etq-lista" aria-label="Etiquetas do escritório">{etiquetas.map(e => <li key={e.id}>
+    {etiquetas.length > 0 && <BuscaDeEtiquetas termo={termo} aoMudar={setTermo} />}
+    {etiquetas.length > 0 && !achadas.length && <Nota>{SEM_RESULTADO}</Nota>}
+    {achadas.length > 0 && <ul className="etq-lista" aria-label="Etiquetas do escritório">{achadas.map(e => <li key={e.id}>
       <label className="etq-opcao">
         <input type="checkbox" className="marca" aria-label={nomeDaEtiqueta(e)} checked={ids.includes(e.id)} onChange={ev => aoMarcar(e, ev.target.checked)} />
         <SeloEtiqueta e={e} />
