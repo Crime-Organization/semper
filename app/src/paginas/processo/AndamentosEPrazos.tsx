@@ -1,9 +1,9 @@
 // No cartão do processo: o alerta dos prazos vencidos e dos que vencem hoje, e as seções de prazos e de andamentos.
 // Lê tudo ao abrir o cartão, para o alerta e os contadores aparecerem mesmo com as seções fechadas.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type AndamentoDeProcesso, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { alertaDosPrazos, aTratar } from '../../regras/andamentos';
-import { useMudancas } from '../../ui/avisos';
+import { falha, useMudancas } from '../../ui/avisos';
 import { Aviso, Carregando } from '../../ui/base';
 import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
@@ -15,9 +15,22 @@ interface Lido { andamentos: AndamentoDeProcesso[]; prazos: PrazoDeProcesso[]; o
 
 export function AndamentosEPrazos({ processo: p, aoMudar }: { processo: Processo; aoMudar: () => void }) {
   const [lido, setLido] = useState<Lido | string | null>(null);
-  const carregar = useCallback(() => Promise.all([SD.processoAndamentos(p.id), SD.processoPrazos(p.id), SD.orgaosListar()])
-    .then(([andamentos, prazos, orgaos]) => setLido({ andamentos, prazos, orgaos }))
-    .catch(e => setLido((e as Error).message)), [p.id]);
+  // Só vale a leitura mais recente: uma resposta atrasada não pode trocar o que já está na tela por algo mais velho.
+  const ultimaLeitura = useRef(0);
+  const jaLeu = useRef(false);
+  const carregar = useCallback(async () => {
+    const esta = ++ultimaLeitura.current;
+    try {
+      const [andamentos, prazos, orgaos] = await Promise.all([SD.processoAndamentos(p.id), SD.processoPrazos(p.id), SD.orgaosListar()]);
+      if (esta !== ultimaLeitura.current) return;
+      jaLeu.current = true;
+      setLido({ andamentos, prazos, orgaos });
+    } catch (e) {
+      if (esta !== ultimaLeitura.current) return;
+      // Numa releitura que falhou, a tela fica com o que já tinha (e o formulário aberto não some).
+      if (jaLeu.current) falha(e); else setLido((e as Error).message);
+    }
+  }, [p.id]);
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra como ficou.
   useMudancas(() => { void carregar(); aoMudar(); });

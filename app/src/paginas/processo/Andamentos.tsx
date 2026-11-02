@@ -10,15 +10,16 @@ import {
 } from '../../regras/andamentos';
 import { falha, feito } from '../../ui/avisos';
 import { Campo, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
-import { BotaoDuplo } from '../../ui/Botoes';
+import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { useCtx } from '../../ui/sessao';
 import { dataHora, hojeISO } from '../../ui/util';
 import { FormDoPrazo } from './FormDoPrazo';
-import { apagarTarefaCriada, criarTarefaLigada } from './tarefaDoProcesso';
+import { arquivarTarefaCriada, criarTarefaLigada, quemRecebe } from './tarefaDoProcesso';
 
-/** O que dá para regravar: para desfazer uma mudança ou uma exclusão. */
-const comoEstava = ({ tipo, data, hora, local, texto, tratada_em, tarefa_id }: AndamentoDeProcesso) => ({ tipo, data, hora, local, texto, tratada_em, tarefa_id });
+/** O que o formulário grava: para desfazer uma mudança sem mexer no que veio depois (tarefa). tratada_em volta só se a mudança a limpou. */
+const comoEstava = ({ tipo, data, hora, local, texto, tratada_em }: AndamentoDeProcesso, mudouOTipo: boolean) =>
+  ({ tipo, data, hora, local, texto, ...(mudouOTipo ? { tratada_em } : {}) });
 
 /** O que está aberto no cartão: o formulário de novo andamento, a mudança de um andamento ou o prazo que nasce de uma intimação. */
 type Aberto = { o: 'novo' } | { o: 'mudar'; id: string } | { o: 'prazo'; id: string } | null;
@@ -90,13 +91,13 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
   }
   async function mudar(a: AndamentoDeProcesso, f: FormDoAndamento) {
     await SD.processoAndamentoAtualizar(a.id, mudancaDoAndamento(f));
-    feito('Andamento atualizado.', 'mudança do andamento', async () => { await SD.processoAndamentoAtualizar(a.id, comoEstava(a)); });
+    feito('Andamento atualizado.', 'mudança do andamento', async () => { await SD.processoAndamentoAtualizar(a.id, comoEstava(a, f.tipo !== a.tipo)); });
     setAberto(null); await aoMudar();
   }
   async function excluir(a: AndamentoDeProcesso) {
     try {
       await SD.processoAndamentoExcluir(a.id);
-      feito('Andamento excluído.', 'exclusão do andamento', async () => { await SD.processoAndamentoCriar(p.id, comoEstava(a)); });
+      feito('Andamento excluído.', 'exclusão do andamento', async () => { await SD.processoAndamentoRestaurar(a.id); });
       await aoMudar();
     } catch (e) { falha(e); }
   }
@@ -111,14 +112,14 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
   }
   async function criarTarefa(a: AndamentoDeProcesso) {
     try {
-      const r = await criarTarefaLigada(tarefaDaIntimacao(p, a, ctx.equipe.map(m => m.id)));
-      await SD.processoAndamentoAtualizar(a.id, { tarefa_id: r.id, tratada_em: new Date().toISOString() });
+      const r = await criarTarefaLigada(tarefaDaIntimacao(p, a, quemRecebe(ctx.perfil.id, ctx.equipe)),
+        id => SD.processoAndamentoAtualizar(a.id, { tarefa_id: id, tratada_em: new Date().toISOString() }));
       feito(`Tarefa ${r.codigo} criada.`, 'criação da tarefa', async () => {
-        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: a.tarefa_id, tratada_em: a.tratada_em });
-        await apagarTarefaCriada(r.id);
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: null, tratada_em: a.tratada_em });
+        await arquivarTarefaCriada(r.id);
       });
-      await aoMudar();
     } catch (e) { falha(e); }
+    await aoMudar();
   }
   async function lancarPrazo(dados: DadosPrazo) {
     const novo = await SD.processoPrazoCriar(p.id, dados);
@@ -146,10 +147,10 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
           <div className="acomp-acoes">
             {a.tarefa ? <Link className={estiloBotao({ forma: 'mini' })} to={'/tarefas/?id=' + a.tarefa.id}>Tarefa {a.tarefa.codigo}</Link>
               : a.tarefa_id ? <span className="nota">Tarefa ligada (você não tem acesso a ela)</span> : null}
-            {!somenteLer && a.tipo === 'intimacao' && !a.tarefa_id && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void criarTarefa(a)}>Criar tarefa</button>}
+            {!somenteLer && a.tipo === 'intimacao' && !a.tarefa_id && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(a)}>Criar tarefa</Botao>}
             {!somenteLer && a.tipo === 'intimacao' && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setAberto({ o: 'prazo', id: a.id })}>Lançar prazo</button>}
-            {!somenteLer && aTratar(a) && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void marcarTratada(a, true)}>Não precisa de tarefa</button>}
-            {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void marcarTratada(a, false)}>Voltar a tratar</button>}
+            {!somenteLer && aTratar(a) && <Botao forma="mini" onClick={() => marcarTratada(a, true)}>Não precisa de tarefa</Botao>}
+            {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id && <Botao forma="mini" onClick={() => marcarTratada(a, false)}>Voltar a tratar</Botao>}
             {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o andamento de ${quandoDoAndamento(a)}`} onClick={() => setAberto({ o: 'mudar', id: a.id })}><Icone nome="editar" tam={13} /> Mudar</button>}
             {!somenteLer && <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: excluir este andamento" aoConfirmar={() => excluir(a)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
           </div>

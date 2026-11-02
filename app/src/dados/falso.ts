@@ -104,8 +104,8 @@ interface Banco {
   historicoProcessos?: (Historico & { processo_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
-  andamentos?: Omit<AndamentoDeProcesso, 'tarefa'>[];
-  prazos?: Omit<PrazoDeProcesso, 'tarefa'>[];
+  andamentos?: AndamentoGuardado[];
+  prazos?: PrazoGuardado[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -124,6 +124,8 @@ type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> &
 /** Processo como fica guardado: os clientes pelo id; os nomes são lidos na hora. */
 type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes: string[] };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
+type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
+type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
@@ -755,6 +757,9 @@ const acharTarefa = (id: string) => {
  */
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados };
+  // Como o banco: a ligação com o processo nasce com a tarefa, e só com um processo que existe.
+  if (t.processo_id !== undefined && atual) throw new Error('Você não tem permissão para fazer isso.');
+  if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
   if (t.titulo !== undefined) {
     t.titulo = t.titulo.trim();
     if (!t.titulo) throw new Error('Dê um título à tarefa.');
@@ -835,6 +840,8 @@ const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
   const t = id ? bd.tarefas!.find(x => x.id === id) : null;
   return t ? { id: t.id, codigo: t.codigo } : null;
 };
+/** Como o banco devolve: com a tarefa ligada e sem a coluna de exclusão (a tela não lê). */
+const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
 const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
@@ -844,7 +851,7 @@ function historicoDoAcompanhamento(processoId: string, campo: 'andamento' | 'pra
   bd.historicoProcessos!.unshift({ id: Date.now() + Math.random(), processo_id: processoId, alteracoes: { [campo]: { de, para } }, feito_por: eu, em: agora() });
 }
 /** Como as regras check do banco: o que cada andamento pode ter. */
-function conferirAndamento(a: Omit<AndamentoDeProcesso, 'tarefa'>) {
+function conferirAndamento(a: AndamentoGuardado) {
   const marcado = a.tipo === 'audiencia' || a.tipo === 'pericia';
   a.texto = a.texto.trim();
   a.local = a.local?.trim() || null;
@@ -854,7 +861,7 @@ function conferirAndamento(a: Omit<AndamentoDeProcesso, 'tarefa'>) {
   if (a.local && a.local.length > TAMANHO_ANDAMENTO.local) throw new Error(FORMATO_INVALIDO);
   if (a.tarefa_id && !bd.tarefas!.some(t => t.id === a.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
 }
-function conferirPrazo(p: Omit<PrazoDeProcesso, 'tarefa'>) {
+function conferirPrazo(p: PrazoGuardado) {
   p.descricao = p.descricao.trim();
   if (!p.descricao || p.descricao.length > TAMANHO_PRAZO.descricao || !anoAceito(p.final) || !dataExiste(p.final)) throw new Error(FORMATO_INVALIDO);
   const semCalculo = p.intimacao === null;
@@ -1555,7 +1562,9 @@ export const SD: Dados = {
       const t = bd.tarefas!.find(x => x.id === id);
       if (!t || !t.arquivado_em) return;
       bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
-      [...bd.andamentos!, ...bd.prazos!].forEach(x => { if (x.tarefa_id === id) x.tarefa_id = null; });
+      // Como o on delete set null e o gatilho do banco: a intimação que ficou sem a tarefa volta a ficar a tratar.
+      bd.prazos!.forEach(z => { if (z.tarefa_id === id) z.tarefa_id = null; });
+      bd.andamentos!.forEach(a => { if (a.tarefa_id === id) { a.tarefa_id = null; a.tratada_em = null; } });
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
@@ -1688,46 +1697,54 @@ export const SD: Dados = {
   async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
 
   // ---------- andamentos e prazos do processo (como supabase/migrations/20261102125539_andamentos_e_prazos.sql) ----------
-  processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId).toSorted(porDataDoAndamento)
-    .slice(0, ANDAMENTOS_DO_PROCESSO).map(a => ({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) }))),
+  processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId && !a.excluido_em).toSorted(porDataDoAndamento)
+    .slice(0, ANDAMENTOS_DO_PROCESSO).map(comTarefa)),
   async processoAndamentoCriar(processoId, dados) {
     if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
-    const a: Omit<AndamentoDeProcesso, 'tarefa'> = { tratada_em: null, tarefa_id: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    const a: AndamentoGuardado = { tratada_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
     conferirAndamento(a);
     bd.andamentos!.push(a);
     historicoDoAcompanhamento(processoId, 'andamento', null, linhaDoAndamento(a));
     auditar('processo_andamentos', 'inclusao', a); gravar();
-    return espera({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) });
+    return espera(comTarefa(a));
   },
   async processoAndamentoAtualizar(id, dados) {
     const a = bd.andamentos!.find(x => x.id === id);
     if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
     const novo = { ...a, ...dados, atualizado_em: agora() };
+    // Como o gatilho do banco: a tarefa desligada sem mexer na marcação faz a intimação voltar a ficar a tratar.
+    if (a.tarefa_id && !novo.tarefa_id && novo.tratada_em === a.tratada_em) novo.tratada_em = null;
     conferirAndamento(novo);
     historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), linhaDoAndamento(novo));
     Object.assign(a, novo); auditar('processo_andamentos', 'alteracao', a); gravar();
-    return espera({ ...a, tarefa: tarefaLigadaA(a.tarefa_id) });
+    return espera(comTarefa(a));
   },
   async processoAndamentoExcluir(id) {
     const a = bd.andamentos!.find(x => x.id === id);
     if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
-    bd.andamentos = bd.andamentos!.filter(x => x.id !== id);
-    // O prazo que nasceu dele continua, sem a ligação (on delete set null).
-    bd.prazos!.forEach(p => { if (p.andamento_id === id) p.andamento_id = null; });
-    historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), null);
-    auditar('processo_andamentos', 'exclusao', a); gravar();
+    if (!a.excluido_em) historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), null);
+    a.excluido_em ??= agora();
+    auditar('processo_andamentos', 'alteracao', a); gravar();
     return espera(undefined);
   },
-  processoPrazos: processoId => espera(bd.prazos!.filter(p => p.processo_id === processoId).toSorted((a, b) => b.final.localeCompare(a.final))
-    .slice(0, PRAZOS_DO_PROCESSO).map(p => ({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) }))),
+  async processoAndamentoRestaurar(id) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    if (a.excluido_em) historicoDoAcompanhamento(a.processo_id, 'andamento', null, linhaDoAndamento(a));
+    a.excluido_em = null;
+    auditar('processo_andamentos', 'alteracao', a); gravar();
+    return espera(undefined);
+  },
+  processoPrazos: processoId => espera(bd.prazos!.filter(p => p.processo_id === processoId && !p.excluido_em).toSorted((a, b) => b.final.localeCompare(a.final))
+    .slice(0, PRAZOS_DO_PROCESSO).map(comTarefa)),
   async processoPrazoCriar(processoId, dados) {
     if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
-    const p: Omit<PrazoDeProcesso, 'tarefa'> = { concluido_em: null, tarefa_id: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    const p: PrazoGuardado = { concluido_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
     conferirPrazo(p);
     bd.prazos!.push(p);
     historicoDoAcompanhamento(processoId, 'prazo', null, linhaDoPrazo(p));
     auditar('processo_prazos', 'inclusao', p); gravar();
-    return espera({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) });
+    return espera(comTarefa(p));
   },
   async processoPrazoAtualizar(id, dados) {
     const p = bd.prazos!.find(x => x.id === id);
@@ -1736,14 +1753,22 @@ export const SD: Dados = {
     conferirPrazo(novo);
     historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), linhaDoPrazo(novo));
     Object.assign(p, novo); auditar('processo_prazos', 'alteracao', p); gravar();
-    return espera({ ...p, tarefa: tarefaLigadaA(p.tarefa_id) });
+    return espera(comTarefa(p));
   },
   async processoPrazoExcluir(id) {
     const p = bd.prazos!.find(x => x.id === id);
     if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
-    bd.prazos = bd.prazos!.filter(x => x.id !== id);
-    historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), null);
-    auditar('processo_prazos', 'exclusao', p); gravar();
+    if (!p.excluido_em) historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), null);
+    p.excluido_em ??= agora();
+    auditar('processo_prazos', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
+  async processoPrazoRestaurar(id) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    if (p.excluido_em) historicoDoAcompanhamento(p.processo_id, 'prazo', null, linhaDoPrazo(p));
+    p.excluido_em = null;
+    auditar('processo_prazos', 'alteracao', p); gravar();
     return espera(undefined);
   },
   tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),

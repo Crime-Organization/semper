@@ -965,7 +965,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(salvar).rejects.toThrow('Este andamento não é deste processo.');
       });
 
-      it('quando exclui a intimação, então o prazo que nasceu dela continua, sem a ligação', async () => {
+      it('quando exclui a intimação, o prazo que nasceu dela continua; ao desfazer, ela volta como estava, com a mesma ligação', async () => {
         // Dado
         const { id } = await novoProcesso();
         const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' });
@@ -974,7 +974,26 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.processoAndamentoExcluir(a.id);
         // Então
         expect(await SD.processoAndamentos(id)).toEqual([]);
-        expect((await SD.processoPrazos(id))[0].andamento_id).toBeNull();
+        expect(await SD.processoPrazos(id)).toHaveLength(1);
+        // Quando
+        await SD.processoAndamentoRestaurar(a.id);
+        // Então
+        expect(await SD.processoAndamentos(id)).toEqual([a]);
+        expect((await SD.processoPrazos(id))[0].andamento_id).toBe(a.id);
+      });
+
+      it('quando exclui o prazo e desfaz, então ele volta como estava, cumprido e com a tarefa', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Cumprir', responsavel_id: 'u-ana', processo_id: id });
+        const z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        const antes = await SD.processoPrazoAtualizar(z.id, { tarefa_id: t.id, concluido_em: new Date().toISOString() });
+        // Quando
+        await SD.processoPrazoExcluir(z.id);
+        expect(await SD.processoPrazos(id)).toEqual([]);
+        await SD.processoPrazoRestaurar(z.id);
+        // Então
+        expect(await SD.processoPrazos(id)).toEqual([antes]);
       });
 
       it('quando muda o prazo, então o histórico mostra como estava e como ficou; o que não muda a linha não entra', async () => {
@@ -994,7 +1013,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(h[0].prazo).toEqual({ de: 'Contestação: 15/12/2026', para: 'Contestação: 15/12/2026 (cumprido)' });
       });
 
-      it('quando exclui o andamento, então o histórico registra o que saiu', async () => {
+      it('quando exclui o andamento e desfaz, então o histórico registra o que saiu e o que voltou', async () => {
         // Dado
         const { id } = await novoProcesso();
         const a = await SD.processoAndamentoCriar(id, ANDAMENTO);
@@ -1002,6 +1021,49 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.processoAndamentoExcluir(a.id);
         // Então
         expect((await historico(id))[0].andamento).toEqual({ de: 'Andamento de 10/11/2026: Juntada de petição', para: null });
+        // Quando
+        await SD.processoAndamentoRestaurar(a.id);
+        // Então
+        expect((await historico(id))[0].andamento).toEqual({ de: null, para: 'Andamento de 10/11/2026: Juntada de petição' });
+      });
+
+      it('quando muda o texto depois de muitos caracteres, ou marca a intimação como tratada, então entra no histórico', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao', texto: 'y'.repeat(300) });
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { texto: 'y'.repeat(299) + 'z' });
+        // Então
+        expect((await historico(id))[0].andamento?.para).toContain('y'.repeat(299) + 'z');
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { tratada_em: new Date().toISOString() });
+        // Então
+        expect((await historico(id))[0].andamento?.para).toContain('(tratada)');
+      });
+
+      it('quando excluem a tarefa da intimação, então ela volta a ficar a tratar', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Cumprir', responsavel_id: 'u-ana', processo_id: id });
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' });
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t.id, tratada_em: new Date().toISOString() });
+        // Quando
+        await SD.tarefasArquivar([t.id], true);
+        await SD.tarefasExcluir([t.id]);
+        // Então
+        expect((await SD.processoAndamentos(id))[0]).toMatchObject({ tarefa_id: null, tratada_em: null });
+      });
+
+      it('quando a tarefa aponta um processo que não existe, ou tenta trocar a ligação, então é recusado', async () => {
+        // Dado
+        const p = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Ligada', responsavel_id: 'u-ana', processo_id: p.id });
+        // Quando
+        const inexistente = SD.tarefaCriar({ titulo: 'Fora', responsavel_id: 'u-ana', processo_id: 'nao-existe' });
+        const trocar = SD.tarefaAtualizar(t.id, { processo_id: null } as Parameters<Dados['tarefaAtualizar']>[1]);
+        // Então
+        await expect(inexistente).rejects.toThrow('Processo não encontrado neste escritório.');
+        await expect(trocar).rejects.toThrow('Você não tem permissão para fazer isso.');
       });
 
       it('quando o processo está arquivado, então lê, mas não lança, não muda e não exclui', async () => {
@@ -1013,7 +1075,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Quando
         const tentativas = [
           SD.processoAndamentoCriar(id, ANDAMENTO), SD.processoPrazoCriar(id, PRAZO_DIGITADO), SD.processoAndamentoAtualizar(a.id, { texto: 'x' }),
-          SD.processoPrazoAtualizar(z.id, { descricao: 'x' }), SD.processoAndamentoExcluir(a.id), SD.processoPrazoExcluir(z.id)
+          SD.processoPrazoAtualizar(z.id, { descricao: 'x' }), SD.processoAndamentoExcluir(a.id), SD.processoPrazoExcluir(z.id),
+          SD.processoAndamentoRestaurar(a.id), SD.processoPrazoRestaurar(z.id)
         ];
         const resultados = await Promise.allSettled(tentativas);
         // Então
@@ -1043,7 +1106,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.tarefasArquivar([t1.id], true);
         await SD.tarefasExcluir([t1.id]);
         // Então
-        expect((await SD.processoAndamentos(p.id))[0]).toMatchObject({ tarefa_id: null, tarefa: null });
+        expect((await SD.processoAndamentos(p.id))[0]).toMatchObject({ tarefa_id: null, tarefa: null, tratada_em: null });
         // Quando
         await SD.processosArquivar([p.id], true);
         await SD.processosExcluir([p.id]);

@@ -30,6 +30,8 @@ export function FormDoPrazo({ inicial, orgao, siglaDoProcesso, mudando, aoSalvar
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const mudar = (m: Partial<Form>) => setF(x => ({ ...x, ...m }));
+  // A data já foi escolhida (digitada, ou é a de um prazo salvo). Enquanto não foi, "Digitar" começa pelo cálculo mais recente.
+  const [dataEscolhida, setDataEscolhida] = useState(!!inicial.final);
 
   const { resultado, foraDoRecesso } = useContagem({ orgao, intimacao: f.intimacao, dias: Number(f.dias), contagem: f.contagem, disponibilizacao: f.disponibilizacao, semRecesso: f.semRecesso });
   const contado = typeof resultado === 'object' ? resultado : null;
@@ -38,7 +40,7 @@ export function FormDoPrazo({ inicial, orgao, siglaDoProcesso, mudando, aoSalvar
 
   function escolherModo(modo: ModoDoPrazo) {
     // Passando a digitar, a data calculada vira o ponto de partida.
-    mudar(modo === 'digitar' && finalCalculado && !f.final ? { modo, final: finalCalculado } : { modo });
+    mudar(modo === 'digitar' && !dataEscolhida ? { modo, final: finalCalculado ?? '' } : { modo });
   }
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
@@ -60,7 +62,7 @@ export function FormDoPrazo({ inicial, orgao, siglaDoProcesso, mudando, aoSalvar
 
     {f.modo === 'digitar'
       ? <Campo rotulo="Último dia" para={id + 'final'} obrigatorio erro={erros.final}>
-          <input type="date" {...propsDoCampo(id + 'final', { erro: erros.final })} value={f.final} onChange={e => mudar({ final: e.target.value })} />
+          <input type="date" {...propsDoCampo(id + 'final', { erro: erros.final })} value={f.final} onChange={e => { setDataEscolhida(true); mudar({ final: e.target.value }); }} />
         </Campo>
       : <>
         {siglaDoProcesso && !orgao && <Aviso tipo="info">O órgão {siglaDoProcesso} não está cadastrado em Feriados e prazos: a conta usa só os feriados nacionais e os dias lançados para todos os órgãos.</Aviso>}

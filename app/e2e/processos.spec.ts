@@ -527,6 +527,71 @@ test.describe('Andamentos, prazos e intimações', () => {
     await expect(cartao.getByText('Este processo tem 1 prazo vencido.')).toBeVisible();
   });
 
+  test('quando volta de "Digitar" para "Calcular" e muda os dias, então "Digitar" traz o cálculo novo', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    const resultado = form.getByRole('status', { name: 'Resultado do prazo' });
+    await form.getByLabel('Intimação').fill('2026-03-02');
+    await form.getByLabel('Dias', { exact: true }).fill('30');
+    await expect(resultado).toContainText('01/04/2026');
+    await form.getByText('Digitar a data').click();
+    await expect(form.getByLabel('Último dia')).toHaveValue('2026-04-01');
+    // Quando
+    await form.getByText('Calcular pelo calendário').click();
+    await form.getByLabel('Dias', { exact: true }).fill('5');
+    await expect(resultado).toContainText('09/03/2026');
+    await form.getByText('Digitar a data').click();
+    // Então
+    await expect(form.getByLabel('Último dia')).toHaveValue('2026-03-09');
+    // Quando: digita à mão e passeia pelos modos
+    await form.getByLabel('Último dia').fill('2026-05-20');
+    await form.getByText('Calcular pelo calendário').click();
+    await form.getByText('Digitar a data').click();
+    // Então: a data digitada fica
+    await expect(form.getByLabel('Último dia')).toHaveValue('2026-05-20');
+  });
+
+  test('quando dá dois cliques em "Criar tarefa", então nasce uma tarefa só', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Andamentos');
+    await lancarAndamento(cartao, 'Intimação', 'Intimado uma vez');
+    const lista = cartao.getByRole('list', { name: 'Andamentos do processo' });
+    // Quando
+    await lista.getByRole('button', { name: 'Criar tarefa' }).dblclick();
+    await expect(lista.getByRole('link', { name: /^Tarefa / })).toBeVisible();
+    // Então
+    await abrirSecao(cartao, 'Tarefas');
+    await expect(cartao.getByRole('link', { name: /Intimação: Intimado uma vez/ })).toHaveCount(1);
+  });
+
+  test('quando muda o último dia de um prazo com tarefa, então a tarefa acompanha', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page);
+    await abrirSecao(cartao, 'Prazos');
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    let form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await form.getByLabel('Que prazo é este').fill('Réplica');
+    await form.getByText('Digitar a data').click();
+    await form.getByLabel('Último dia').fill('2030-03-15');
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    const lista = cartao.getByRole('list', { name: 'Prazos do processo' });
+    await lista.getByRole('button', { name: 'Criar tarefa' }).click();
+    await expect(lista.getByRole('link', { name: /^Tarefa / })).toBeVisible();
+    // Quando
+    await lista.getByRole('button', { name: 'Mudar o prazo Réplica' }).click();
+    form = cartao.getByRole('form', { name: 'Mudar prazo' });
+    await form.getByLabel('Último dia').fill('2030-01-10');
+    await form.getByRole('button', { name: 'Salvar prazo' }).click();
+    await expect(lista).toContainText('10/01/2030');
+    // Então
+    await lista.getByRole('link', { name: /^Tarefa / }).click();
+    await expect(page.getByRole('dialog')).toContainText('10/01/2030');
+  });
+
   test('quando exclui um prazo, então ele some, e desfazer traz de volta', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page);
@@ -605,7 +670,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     await expect(tarefa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ })).toBeVisible();
   });
 
-  test('quando desfaz a tarefa criada da intimação, então ela volta a ficar a tratar', async ({ page }) => {
+  test('quando desfaz a tarefa criada da intimação, então ela volta a ficar a tratar, e a tarefa vai para o arquivo', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Andamentos');
@@ -619,7 +684,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     await expect(lista.getByText('A tratar', { exact: true })).toBeVisible();
     await expect(lista.getByRole('link', { name: /^Tarefa / })).toHaveCount(0);
     await abrirSecao(cartao, 'Tarefas');
-    await expect(cartao.getByText('Nenhuma tarefa ligada a este processo.', { exact: false })).toBeVisible();
+    await expect(cartao.getByRole('link', { name: /Intimação: Intimado para pagar/ })).toContainText('Arquivada');
   });
 
   test('quando a intimação não precisa de tarefa, então sai de "a tratar", e pode voltar', async ({ page }) => {

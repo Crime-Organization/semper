@@ -47,7 +47,7 @@ export const mudancaDoAndamento = (f: FormDoAndamento): MudancaNoAndamento =>
   ({ ...dadosDoAndamento(f), ...(f.tipo === 'intimacao' ? {} : { tratada_em: null }) });
 
 /** Intimação que ainda não virou tarefa nem foi marcada como sem tarefa. */
-export const aTratar = (a: Pick<AndamentoDeProcesso, 'tipo' | 'tratada_em'>) => a.tipo === 'intimacao' && !a.tratada_em;
+export const aTratar = (a: Pick<AndamentoDeProcesso, 'tipo' | 'tratada_em' | 'tarefa_id'>) => a.tipo === 'intimacao' && !a.tratada_em && !a.tarefa_id;
 
 /** Os mais novos primeiro: pela data e, no mesmo dia, por quando foi lançado. */
 export const porDataDoAndamento = (a: Pick<AndamentoDeProcesso, 'data' | 'criado_em'>, b: Pick<AndamentoDeProcesso, 'data' | 'criado_em'>) =>
@@ -57,11 +57,11 @@ export const porDataDoAndamento = (a: Pick<AndamentoDeProcesso, 'data' | 'criado
 export const quandoDoAndamento = (a: Pick<AndamentoDeProcesso, 'data' | 'hora' | 'local'>) =>
   fmtData(a.data) + (a.hora ? ` às ${a.hora}` : '') + (a.local ? ` em ${a.local}` : '');
 
-/** Quantos caracteres do texto entram na linha do histórico e no título da tarefa. */
-const TEXTO_CURTO = 120;
+/** Quantos caracteres do texto da intimação entram no título da tarefa. */
+const TEXTO_NO_TITULO = 120;
 /** A linha do andamento no histórico do processo (igual à função privado.linha_do_andamento do banco). */
-export const linhaDoAndamento = (a: Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto'>) =>
-  `${TIPOS_DE_ANDAMENTO[a.tipo].nome} de ${quandoDoAndamento(a)}: ${a.texto.slice(0, TEXTO_CURTO)}`;
+export const linhaDoAndamento = (a: Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em'>) =>
+  `${TIPOS_DE_ANDAMENTO[a.tipo].nome} de ${quandoDoAndamento(a)}: ${a.texto}${a.tratada_em ? ' (tratada)' : ''}`;
 
 // ---------- prazos ----------
 /** Como a data do prazo é definida: calculada pelo calendário ou digitada à mão. */
@@ -80,9 +80,9 @@ export const prazoNovo = (hoje: string, contagem: Contagem = CONTAGEM_PADRAO, in
   descricao: '', modo: 'calcular', intimacao: intimacao?.data ?? hoje, dias: String(DIAS_INICIAIS_DO_PRAZO), contagem,
   disponibilizacao: false, semRecesso: false, final: '', andamentoId: intimacao?.id ?? null
 });
-export const formDoPrazo = (p: PrazoDeProcesso, hoje: string): FormDoPrazo => ({
+export const formDoPrazo = (p: PrazoDeProcesso, hoje: string, contagemDoOrgao: Contagem = CONTAGEM_PADRAO): FormDoPrazo => ({
   descricao: p.descricao, modo: p.dias === null ? 'digitar' : 'calcular', intimacao: p.intimacao ?? hoje, dias: String(p.dias ?? DIAS_INICIAIS_DO_PRAZO),
-  contagem: p.contagem ?? CONTAGEM_PADRAO, disponibilizacao: p.disponibilizacao, semRecesso: p.sem_recesso, final: p.final, andamentoId: p.andamento_id
+  contagem: p.contagem ?? contagemDoOrgao, disponibilizacao: p.disponibilizacao, semRecesso: p.sem_recesso, final: p.final, andamentoId: p.andamento_id
 });
 
 /** finalCalculado: o último dia que a contagem deu, quando ela já terminou. */
@@ -168,8 +168,8 @@ export function alertaDosPrazos(prazos: Pick<PrazoDeProcesso, 'final' | 'conclui
 }
 
 /** A linha do prazo no histórico do processo (igual à função privado.linha_do_prazo do banco). */
-export const linhaDoPrazo = (p: Pick<PrazoDeProcesso, 'descricao' | 'final' | 'concluido_em'>) =>
-  `${p.descricao}: ${fmtData(p.final)}${p.concluido_em ? ' (cumprido)' : ''}`;
+export const linhaDoPrazo = (p: Pick<PrazoDeProcesso, 'descricao' | 'final' | 'dias' | 'contagem' | 'intimacao' | 'concluido_em'>) =>
+  `${p.descricao}: ${fmtData(p.final)}${p.dias === null ? '' : ` (${comoFoiContado(p)})`}${p.concluido_em ? ' (cumprido)' : ''}`;
 
 /** Os nomes dessas linhas no histórico de alterações do cartão. */
 export const CAMPOS_NO_HISTORICO: Record<string, string> = { andamento: 'Andamento', prazo: 'Prazo' };
@@ -177,21 +177,24 @@ export const CAMPOS_NO_HISTORICO: Record<string, string> = { andamento: 'Andamen
 // ---------- a tarefa que nasce ----------
 type ProcessoDaTarefa = Pick<Processo, 'id' | 'numero' | 'titulo' | 'cliente_nome' | 'responsavel_id' | 'colaboradores'> & { clientes: { id: string }[] };
 
-/** Ligada ao processo, com o responsável, os colaboradores que ainda estão na equipe e os clientes dele. */
-const tarefaLigada = (p: ProcessoDaTarefa, equipe: string[], titulo: string, detalhe: string, prazo: string | null): DadosTarefa => ({
+/** Quem pode receber a tarefa: quem cria e quem da equipe está ativo. */
+export interface QuemRecebe { eu: string; ativos: string[] }
+/** Ligada ao processo, com os clientes dele. O responsável é o do processo; se ele não está mais ativo, quem está criando.
+ *  Os participantes são os colaboradores ainda ativos. */
+const tarefaLigada = (p: ProcessoDaTarefa, { eu, ativos }: QuemRecebe, titulo: string, detalhe: string, prazo: string | null): DadosTarefa => ({
   titulo: titulo.slice(0, TAMANHO_TAREFA.titulo),
   descricao: `Processo ${p.numero} (${nomeDoProcesso(p)})\n\n${detalhe}`.slice(0, TAMANHO_TAREFA.descricao),
   prazo,
-  responsavel_id: p.responsavel_id,
-  participantes: p.colaboradores.filter(id => equipe.includes(id)),
+  responsavel_id: ativos.includes(p.responsavel_id) ? p.responsavel_id : eu,
+  participantes: p.colaboradores.filter(id => ativos.includes(id)),
   pessoas: p.clientes.map(c => c.id),
   processo_id: p.id
 });
 
 /** A tarefa de cumprir uma intimação. */
-export const tarefaDaIntimacao = (p: ProcessoDaTarefa, a: Pick<AndamentoDeProcesso, 'data' | 'texto'>, equipe: string[]) =>
-  tarefaLigada(p, equipe, `Intimação: ${a.texto.slice(0, TEXTO_CURTO)}`, `Intimação de ${fmtData(a.data)}:\n${a.texto}`, null);
+export const tarefaDaIntimacao = (p: ProcessoDaTarefa, a: Pick<AndamentoDeProcesso, 'data' | 'texto'>, quem: QuemRecebe) =>
+  tarefaLigada(p, quem, `Intimação: ${a.texto.slice(0, TEXTO_NO_TITULO)}`, `Intimação de ${fmtData(a.data)}:\n${a.texto}`, null);
 
-/** A tarefa de cumprir um prazo: o prazo da tarefa é o último dia dele. */
-export const tarefaDoPrazo = (p: ProcessoDaTarefa, z: Pick<PrazoDeProcesso, 'descricao' | 'final' | 'dias' | 'contagem' | 'intimacao'>, equipe: string[]) =>
-  tarefaLigada(p, equipe, `Prazo: ${z.descricao}`, `Último dia: ${fmtData(z.final)}. ${comoFoiContado(z)}.`, z.final);
+/** A tarefa de cumprir um prazo: o prazo da tarefa é o último dia dele (a data fica só no campo, que acompanha o prazo). */
+export const tarefaDoPrazo = (p: ProcessoDaTarefa, z: Pick<PrazoDeProcesso, 'descricao' | 'final'>, quem: QuemRecebe) =>
+  tarefaLigada(p, quem, `Prazo: ${z.descricao}`, `Cumprir o prazo: ${z.descricao}.`, z.final);

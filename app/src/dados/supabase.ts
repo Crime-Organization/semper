@@ -685,7 +685,7 @@ export const SD: Dados = {
 
   // ---------- andamentos e prazos do processo ----------
   async processoAndamentos(processoId) {
-    const { data } = await rodar(sb.from('processo_andamentos').select(CAMPOS_ANDAMENTO).eq('processo_id', processoId)
+    const { data } = await rodar(sb.from('processo_andamentos').select(CAMPOS_ANDAMENTO).eq('processo_id', processoId).is('excluido_em', null)
       .order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(ANDAMENTOS_DO_PROCESSO));
     return (data as AndamentoDeProcesso[]).map(andamentoLido);
   },
@@ -698,11 +698,15 @@ export const SD: Dados = {
     return andamentoLido(primeira<AndamentoDeProcesso>(data));
   },
   async processoAndamentoExcluir(id) {
-    const { data } = await rodar(sb.from('processo_andamentos').delete().eq('id', id).select('id').maybeSingle());
+    const { data } = await rodar(sb.from('processo_andamentos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoAndamentoRestaurar(id) {
+    const { data } = await rodar(sb.from('processo_andamentos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
     primeira(data);
   },
   async processoPrazos(processoId) {
-    const { data } = await rodar(sb.from('processo_prazos').select(CAMPOS_PRAZO).eq('processo_id', processoId).order('final', { ascending: false }).limit(PRAZOS_DO_PROCESSO));
+    const { data } = await rodar(sb.from('processo_prazos').select(CAMPOS_PRAZO).eq('processo_id', processoId).is('excluido_em', null).order('final', { ascending: false }).limit(PRAZOS_DO_PROCESSO));
     return data;
   },
   async processoPrazoCriar(processoId, dados) {
@@ -714,7 +718,11 @@ export const SD: Dados = {
     return primeira<PrazoDeProcesso>(data);
   },
   async processoPrazoExcluir(id) {
-    const { data } = await rodar(sb.from('processo_prazos').delete().eq('id', id).select('id').maybeSingle());
+    const { data } = await rodar(sb.from('processo_prazos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoPrazoRestaurar(id) {
+    const { data } = await rodar(sb.from('processo_prazos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
     primeira(data);
   },
   async tarefasDoProcesso(processoId) {

@@ -59,6 +59,7 @@ describe('Lista de andamentos', () => {
     expect(aTratar(andamento())).toBe(true);
     expect(aTratar(andamento({ tratada_em: 'x' }))).toBe(false);
     expect(aTratar(andamento({ tipo: 'andamento' }))).toBe(false);
+    expect(aTratar(andamento({ tarefa_id: 't1' }))).toBe(false);
   });
 
   it('quando ordena, então vêm os de data mais nova e, no mesmo dia, os lançados por último', () => {
@@ -74,7 +75,8 @@ describe('Lista de andamentos', () => {
     // Então
     expect(quandoDoAndamento(a)).toBe('10/11/2026 às 14:30 em Fórum');
     expect(linhaDoAndamento(a)).toBe('Audiência de 10/11/2026 às 14:30 em Fórum: Texto');
-    expect(linhaDoAndamento(andamento({ tipo: 'andamento', data: '2026-11-10', texto: 'y'.repeat(200) }))).toBe('Andamento de 10/11/2026: ' + 'y'.repeat(120));
+    expect(linhaDoAndamento(andamento({ tipo: 'andamento', data: '2026-11-10', texto: 'y'.repeat(200) }))).toBe('Andamento de 10/11/2026: ' + 'y'.repeat(200));
+    expect(linhaDoAndamento(andamento({ data: '2026-11-10', texto: 'T', tratada_em: 'x' }))).toBe('Intimação de 10/11/2026: T (tratada)');
   });
 });
 
@@ -90,7 +92,9 @@ describe('Formulário do prazo', () => {
   it('quando abre um prazo calculado ou digitado, então volta no mesmo modo', () => {
     // Então
     expect(formDoPrazo(prazo(), HOJE)).toMatchObject({ modo: 'calcular', intimacao: '2026-11-09', dias: '15', contagem: 'uteis', final: '2026-12-01' });
-    expect(formDoPrazo(prazo({ intimacao: null, dias: null, contagem: null }), HOJE)).toMatchObject({ modo: 'digitar', intimacao: HOJE, final: '2026-12-01' });
+    expect(formDoPrazo(prazo({ intimacao: null, dias: null, contagem: null }), HOJE)).toMatchObject({ modo: 'digitar', intimacao: HOJE, final: '2026-12-01', contagem: 'corridos' });
+    expect(formDoPrazo(prazo({ intimacao: null, dias: null, contagem: null }), HOJE, 'uteis').contagem).toBe('uteis');
+    expect(formDoPrazo(prazo({ contagem: 'corridos' }), HOJE, 'uteis').contagem).toBe('corridos');
   });
 
   it('quando falta a descrição, ou ela é longa demais, então avisa', () => {
@@ -178,15 +182,16 @@ describe('Situação do prazo', () => {
 
   it('quando grava no histórico, então a linha é igual à do banco', () => {
     // Então
-    expect(linhaDoPrazo(prazo())).toBe('Contestação: 01/12/2026');
-    expect(linhaDoPrazo(prazo({ concluido_em: 'x' }))).toBe('Contestação: 01/12/2026 (cumprido)');
+    expect(linhaDoPrazo(prazo())).toBe('Contestação: 01/12/2026 (15 dias úteis desde 09/11/2026)');
+    expect(linhaDoPrazo(prazo({ dias: 1, contagem: 'uteis' }))).toBe('Contestação: 01/12/2026 (1 dia útil desde 09/11/2026)');
+    expect(linhaDoPrazo(prazo({ intimacao: null, dias: null, contagem: null, concluido_em: 'x' }))).toBe('Contestação: 01/12/2026 (cumprido)');
   });
 });
 
 describe('A tarefa que nasce', () => {
   it('quando nasce de uma intimação, então fica ligada ao processo, com o responsável, os clientes e os colaboradores que ainda estão na equipe', () => {
     // Quando
-    const t = tarefaDaIntimacao(PROCESSO, andamento(), ['u1', 'u2']);
+    const t = tarefaDaIntimacao(PROCESSO, andamento(), { eu: 'u9', ativos: ['u1', 'u2'] });
     // Então
     expect(t).toMatchObject({ titulo: 'Intimação: Intimação para contestar', prazo: null, responsavel_id: 'u1', participantes: ['u2'], pessoas: ['c1'], processo_id: 'p1' });
     expect(t.descricao).toContain('0001234-97.2026.8.13.0024');
@@ -195,16 +200,23 @@ describe('A tarefa que nasce', () => {
 
   it('quando nasce de um prazo, então o prazo da tarefa é o último dia', () => {
     // Quando
-    const t = tarefaDoPrazo(PROCESSO, prazo(), ['u1']);
+    const t = tarefaDoPrazo(PROCESSO, prazo(), { eu: 'u9', ativos: ['u1'] });
     // Então
     expect(t).toMatchObject({ titulo: 'Prazo: Contestação', prazo: '2026-12-01', participantes: [], processo_id: 'p1' });
-    expect(t.descricao).toContain('15 dias úteis desde 09/11/2026');
+    expect(t.descricao).not.toContain('01/12/2026');
+  });
+
+  it('quando o responsável do processo não está mais ativo, então a tarefa fica com quem está criando', () => {
+    // Quando
+    const t = tarefaDoPrazo(PROCESSO, prazo(), { eu: 'u9', ativos: ['u2', 'u9'] });
+    // Então
+    expect(t).toMatchObject({ responsavel_id: 'u9', participantes: ['u2'] });
   });
 
   it('quando o texto é longo, então título e descrição cabem no que o banco aceita', () => {
     // Quando
-    const t = tarefaDaIntimacao(PROCESSO, andamento({ texto: 'x'.repeat(TAMANHO_ANDAMENTO.texto) }), []);
-    const z = tarefaDoPrazo(PROCESSO, prazo({ descricao: 'y'.repeat(TAMANHO_PRAZO.descricao) }), []);
+    const t = tarefaDaIntimacao(PROCESSO, andamento({ texto: 'x'.repeat(TAMANHO_ANDAMENTO.texto) }), { eu: 'u1', ativos: [] });
+    const z = tarefaDoPrazo(PROCESSO, prazo({ descricao: 'y'.repeat(TAMANHO_PRAZO.descricao) }), { eu: 'u1', ativos: [] });
     // Então
     expect(t.titulo!.length).toBeLessThanOrEqual(TAMANHO_TAREFA.titulo);
     expect(t.descricao!.length).toBeLessThanOrEqual(TAMANHO_TAREFA.descricao);

@@ -523,7 +523,8 @@ export interface DadosTarefas {
   tarefasDaEtapa(etapaId: string | null, f?: FiltroTarefas, deslocamento?: number, limite?: number): Promise<Pagina<TarefaLista>>;
   tarefaObter(id: string): Promise<Tarefa | null>;
   tarefaCriar(dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
-  tarefaAtualizar(id: string, dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
+  /** A ligação com o processo nasce com a tarefa e não muda. */
+  tarefaAtualizar(id: string, dados: Omit<DadosTarefa, 'processo_id'>): Promise<{ id: string; codigo: string }>;
   tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
   tarefasExcluir(ids: string[]): Promise<Exclusao>;
@@ -977,16 +978,17 @@ export interface DadosComentarios {
 export interface DadosAcompanhamento {
   /** Os mais novos primeiro. */
   processoAndamentos(processoId: string): Promise<AndamentoDeProcesso[]>;
-  /** tratada_em e tarefa_id servem para desfazer uma exclusão. */
-  processoAndamentoCriar(processoId: string, dados: DadosAndamento & Partial<Pick<AndamentoDeProcesso, 'tratada_em' | 'tarefa_id'>>): Promise<AndamentoDeProcesso>;
+  processoAndamentoCriar(processoId: string, dados: DadosAndamento): Promise<AndamentoDeProcesso>;
   processoAndamentoAtualizar(id: string, dados: MudancaNoAndamento): Promise<AndamentoDeProcesso>;
+  /** Excluir só esconde; restaurar devolve como estava (mesmo id, autor, data e ligações). */
   processoAndamentoExcluir(id: string): Promise<void>;
+  processoAndamentoRestaurar(id: string): Promise<void>;
   /** Os do último dia mais novo primeiro (a tela põe na ordem dela). */
   processoPrazos(processoId: string): Promise<PrazoDeProcesso[]>;
-  /** concluido_em e tarefa_id servem para desfazer uma exclusão. */
-  processoPrazoCriar(processoId: string, dados: DadosPrazo & Partial<Pick<PrazoDeProcesso, 'concluido_em' | 'tarefa_id'>>): Promise<PrazoDeProcesso>;
+  processoPrazoCriar(processoId: string, dados: DadosPrazo): Promise<PrazoDeProcesso>;
   processoPrazoAtualizar(id: string, dados: MudancaNoPrazo): Promise<PrazoDeProcesso>;
   processoPrazoExcluir(id: string): Promise<void>;
+  processoPrazoRestaurar(id: string): Promise<void>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
 }
