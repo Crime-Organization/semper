@@ -1,0 +1,3 @@
+import{br as e}from"./index-C_EJhbVO.js";function t(e){let t=e.filter(e=>e.feito_em).length,n=e.length;return{feitos:t,total:n,percentual:n?Math.round(100*t/n):0}}var n=(t,n)=>t.feito_em?null:e(t.prazo,n);function r(e,t,n){let r=t+n;if(t<0||t>=e.length||r<0||r>=e.length)return[];let i=[...e];return[i[t],i[r]]=[i[r],i[t]],i.map((e,t)=>({id:e.id,ordem:t+1})).filter(t=>e.find(e=>e.id===t.id).ordem!==t.ordem)}var i=e=>e.split(`
+`).map(e=>e.trim()).filter(Boolean),a=e=>e.join(`
+`);export{a,t as i,r as n,n as r,i as t};
