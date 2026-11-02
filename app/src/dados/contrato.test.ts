@@ -1116,6 +1116,141 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Painel de processos', () => {
+      const HOJE = hojeISO();
+      const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+      };
+      const PRAZO = { descricao: 'P', intimacao: null, dias: null, contagem: null, disponibilizacao: false, sem_recesso: false, andamento_id: null };
+      const andamento = (tipo: 'andamento' | 'intimacao' | 'audiencia' | 'pericia', data: string) => ({ tipo, data, hora: null, local: null, texto: marca() });
+      const painel = (meus = false) => SD.processosPainel({ hoje: HOJE, meus });
+
+      it('quando há prazos, então vêm os abertos até 7 dias, do que vence antes ao que vence depois', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [vencido, hoje, seteDias, oitoDias, cumprido] = [
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(0) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(7) }),
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(8) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-1) })
+        ];
+        await SD.processoPrazoAtualizar(cumprido.id, { concluido_em: new Date().toISOString() });
+        // Quando
+        const ids = (await painel()).prazos.map(z => z.id);
+        // Então
+        expect(ids.filter(i => [vencido.id, hoje.id, seteDias.id].includes(i))).toEqual([vencido.id, hoje.id, seteDias.id]);
+        expect(ids).not.toContain(oitoDias.id);
+        expect(ids).not.toContain(cumprido.id);
+      });
+
+      it('quando há audiências e perícias, então vêm só as de hoje até 15 dias', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const criarAndamento = (tipo: 'andamento' | 'audiencia' | 'pericia', n: number) => SD.processoAndamentoCriar(id, andamento(tipo, dias(n)));
+        const [ontem, hoje, quinze, dezesseis, comum] = [await criarAndamento('audiencia', -1), await criarAndamento('pericia', 0), await criarAndamento('audiencia', 15), await criarAndamento('audiencia', 16), await criarAndamento('andamento', 1)];
+        // Quando
+        const ids = (await painel()).marcados.map(a => a.id);
+        // Então
+        expect(ids).toEqual(expect.arrayContaining([hoje.id, quinze.id]));
+        [ontem, dezesseis, comum].forEach(a => expect(ids).not.toContain(a.id));
+      });
+
+      it('quando a intimação vira tarefa ou é tratada, então sai de "a tratar"', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [a, b, c] = [await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE)), await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE)), await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE))];
+        const t = await SD.tarefaCriar({ titulo: 'T', responsavel_id: 'u-ana', processo_id: id });
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t.id, tratada_em: new Date().toISOString() });
+        await SD.processoAndamentoAtualizar(b.id, { tratada_em: new Date().toISOString() });
+        // Então
+        const ids = (await painel()).intimacoes.map(x => x.id);
+        expect(ids).toContain(c.id);
+        expect(ids).not.toContain(a.id);
+        expect(ids).not.toContain(b.id);
+      });
+
+      it('quando lista os últimos andamentos, então vêm os mais novos, até hoje, sem os excluídos', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const novo = await SD.processoAndamentoCriar(id, andamento('andamento', HOJE));
+        const futuro = await SD.processoAndamentoCriar(id, andamento('audiencia', dias(5)));
+        const excluido = await SD.processoAndamentoCriar(id, andamento('andamento', HOJE));
+        await SD.processoAndamentoExcluir(excluido.id);
+        // Quando
+        const ids = (await painel()).ultimos.map(a => a.id);
+        // Então
+        expect(ids[0]).toBe(novo.id);
+        expect(ids).not.toContain(futuro.id);
+        expect(ids).not.toContain(excluido.id);
+      });
+
+      it('quando o processo passa dos dias sem andamento, então aparece parado; com andamento novo, sai', async () => {
+        // Dado
+        await SD.processosDiasParadoSalvar(10);
+        const { id } = await novoProcesso({ distribuicao: dias(-30) });
+        const parado = async () => (await painel()).parados.find(x => x.processo.id === id);
+        // Então
+        expect(await parado()).toMatchObject({ ultimo: dias(-30), dias: 30 });
+        // Quando
+        const antigo = await SD.processoAndamentoCriar(id, andamento('andamento', dias(-20)));
+        // Então
+        expect(await parado()).toMatchObject({ ultimo: dias(-20), dias: 20 });
+        // Quando
+        await SD.processoAndamentoAtualizar(antigo.id, { data: dias(-5) });
+        // Então
+        expect(await parado()).toBeUndefined();
+        await SD.processosDiasParadoSalvar(60);
+      });
+
+      it.each([[0], [3651], [1.5]])('quando os dias são %s, então é recusado', async n => {
+        // Quando
+        const salvar = SD.processosDiasParadoSalvar(n);
+        // Então
+        await expect(salvar).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando o processo é arquivado, então sai de todas as listas', async () => {
+        // Dado
+        const { id } = await novoProcesso({ distribuicao: dias(-400) });
+        await SD.processoPrazoCriar(id, { ...PRAZO, final: HOJE });
+        await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE));
+        // Quando
+        await SD.processosArquivar([id], true);
+        // Então
+        const p = await painel();
+        expect([...p.prazos, ...p.intimacoes, ...p.ultimos, ...p.parados].map(x => x.processo.id)).not.toContain(id);
+      });
+
+      it('quando escolhe "Meus", então ficam só os processos em que a pessoa é responsável ou colaboradora', async () => {
+        // Dado
+        const ctx = await SD.contexto();
+        const eu = ctx!.perfil!.id, outro = ctx!.equipe.find(m => m.id !== eu)!.id;
+        const meu = await novoProcesso({ responsavel_id: eu });
+        const comigo = await novoProcesso({ responsavel_id: outro, colaboradores: [eu] });
+        const alheio = await novoProcesso({ responsavel_id: outro });
+        for (const p of [meu, comigo, alheio]) await SD.processoPrazoCriar(p.id, { ...PRAZO, final: HOJE });
+        // Quando
+        const [meus, todos] = [await painel(true), await painel(false)];
+        // Então
+        expect(meus.prazos.map(z => z.processo.id)).toEqual(expect.arrayContaining([meu.id, comigo.id]));
+        expect(meus.prazos.map(z => z.processo.id)).not.toContain(alheio.id);
+        expect(todos.prazos.map(z => z.processo.id)).toContain(alheio.id);
+      });
+
+      it('quando conta as fases, então soma por tipo e por coluna, e a lista filtra pela mesma coluna', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('processos_judiciais'))[0];
+        const antes = (await painel()).fases.find(f => f.tipo === 'judicial' && f.etapa_id === coluna.id)?.n ?? 0;
+        // Quando
+        await novoProcesso({ etapa_id: coluna.id });
+        // Então
+        const depois = (await painel()).fases.find(f => f.tipo === 'judicial' && f.etapa_id === coluna.id)?.n;
+        expect(depois).toBe(antes + 1);
+        expect((await SD.processosListar({ tipo: 'judicial', etapa: coluna.id, situacao: 'ativos' })).total).toBe(depois);
+      });
+    });
+
     describe('Campos dos processos', () => {
       const processoCom = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
         const { id: cliente } = await criar(marca());

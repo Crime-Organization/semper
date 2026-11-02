@@ -8,9 +8,10 @@ import type {
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
-  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento
+  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
+import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
@@ -24,6 +25,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
+import { DIAS_PARADO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -104,6 +106,8 @@ interface Banco {
   historicoProcessos?: (Historico & { processo_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
+  diasParado?: number;
   andamentos?: AndamentoGuardado[];
   prazos?: PrazoGuardado[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
@@ -337,6 +341,7 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
 bd.prazos ??= [];
 bd.historicoProcessos ??= [];
@@ -883,6 +888,7 @@ function filtrarProcessos(f: FiltroProcessos) {
   return bd.processos!.filter(p => p.tipo === f.tipo && (f.situacao === 'arquivados' ? p.arquivado_em : !p.arquivado_em)
     && (!f.pessoa || p.responsavel_id === f.pessoa || p.colaboradores.includes(f.pessoa))
     && (!f.orgao || p.orgao === f.orgao)
+    && (!f.etapa || (f.etapa === SEM_FASE ? !p.etapa_id : p.etapa_id === f.etapa))
     && (!f.etiqueta || temEtiqueta('processos', p.id, f.etiqueta))
     && (!t || buscaProcesso(p).includes(t)));
 }
@@ -1772,6 +1778,47 @@ export const SD: Dados = {
     return espera(undefined);
   },
   tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),
+
+  // ---------- painel de processos (como public.painel_de_processos) ----------
+  async processosPainel({ hoje, meus }) {
+    const { ate_prazos, ate_marcados } = datasDoPainel(hoje);
+    const base = new Map(bd.processos!.filter(p => !p.arquivado_em && (!meus || p.responsavel_id === eu || p.colaboradores.includes(eu))).map(p => [p.id, p]));
+    const noPainel = (p: ProcessoGuardado): ProcessoNoPainel => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes),
+      responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, clientes: p.clientes });
+    const andamentos = bd.andamentos!.filter(a => !a.excluido_em && base.has(a.processo_id)).map(({ processo_id, excluido_em: _e, ...a }) => ({ ...a, processo: noPainel(base.get(processo_id)!) }));
+    const prazos = bd.prazos!.filter(z => !z.excluido_em && !z.concluido_em && base.has(z.processo_id) && z.final <= ate_prazos)
+      .toSorted((a, b) => a.final.localeCompare(b.final)).map(z => ({ id: z.id, descricao: z.descricao, final: z.final, tarefa_id: z.tarefa_id, processo: noPainel(base.get(z.processo_id)!) }));
+    const marcados = andamentos.filter(a => (a.tipo === 'audiencia' || a.tipo === 'pericia') && a.data >= hoje && a.data <= ate_marcados)
+      .toSorted((a, b) => a.data.localeCompare(b.data) || (a.hora ?? '99').localeCompare(b.hora ?? '99'));
+    const intimacoes = andamentos.filter(a => a.tipo === 'intimacao' && !a.tratada_em && !a.tarefa_id)
+      .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em));
+    const parados = [...base.values()].flatMap(p => {
+      if (bd.colunas.find(c => c.id === p.etapa_id)?.marco === 'concluido') return [];
+      const datas = bd.andamentos!.filter(a => a.processo_id === p.id && !a.excluido_em && a.data <= hoje).map(a => a.data).toSorted();
+      const ultimo = datas.at(-1) ?? p.distribuicao ?? p.criado_em.slice(0, 10);
+      const dias = Math.round((Date.parse(hoje) - Date.parse(ultimo)) / DIA);
+      return dias > bd.diasParado! ? [{ processo: noPainel(p), ultimo, dias }] : [];
+    }).toSorted((a, b) => b.dias - a.dias);
+    const fases = new Map<string, FaseNoPainel>();
+    for (const p of base.values()) {
+      const chave = p.tipo + '/' + p.etapa_id;
+      fases.set(chave, { tipo: p.tipo, etapa_id: p.etapa_id, n: (fases.get(chave)?.n ?? 0) + 1 });
+    }
+    return espera({
+      prazos: prazos.slice(0, ITENS_POR_LISTA), total_prazos: prazos.length,
+      marcados: marcados.slice(0, ITENS_POR_LISTA), total_marcados: marcados.length,
+      intimacoes: intimacoes.slice(0, ITENS_POR_LISTA), total_intimacoes: intimacoes.length,
+      ultimos: andamentos.filter(a => a.data <= hoje).toSorted(porDataDoAndamento).slice(0, ULTIMOS_ANDAMENTOS),
+      parados: parados.slice(0, ITENS_POR_LISTA), total_parados: parados.length,
+      dias_parado: bd.diasParado!,
+      fases: [...fases.values()]
+    });
+  },
+  async processosDiasParadoSalvar(dias) {
+    if (!Number.isInteger(dias) || dias < DIAS_PARADO.minimo || dias > DIAS_PARADO.maximo) return erro(FORMATO_INVALIDO);
+    bd.diasParado = dias; gravar();
+    return espera(undefined);
+  },
 
   // ---------- processos (como supabase/migrations/20261101155218_processos.sql) ----------
   processosListar(f) {

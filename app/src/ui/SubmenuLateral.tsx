@@ -2,7 +2,7 @@
 // Aberto ou fechado é escolha de cada pessoa, guardada no perfil. Ao entrar numa tela do submenu, ele abre sozinho, para
 // a pessoa ver onde está; dali, ainda pode fechá-lo.
 import { useId, useState, type ComponentProps, type ReactNode } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Icone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
@@ -13,13 +13,16 @@ interface Props {
   rotulo: string;
   /** Os endereços das telas que ficam dentro do submenu (ex.: ["/calendario"]). */
   caminhos: string[];
+  /** A tela do próprio item (ex.: o painel de Processos): clicar nele leva a ela, e só recolhe quando já está nela. */
+  para?: string;
   children: ReactNode;
 }
 
-export function SubmenuLateral({ id, icone, rotulo, caminhos, children }: Props) {
+export function SubmenuLateral({ id, icone, rotulo, caminhos, para, children }: Props) {
   const chave = `menu.${id}.aberto`;
   const painel = useId();
   const { pathname } = useLocation();
+  const navegar = useNavigate();
   const dentro = caminhos.some(c => pathname.startsWith(c));
   const [aberto, setAberto] = useState(() => lerPreferencia(chave, false));
   // Entrou numa tela do submenu agora: abre (sem mudar a escolha guardada).
@@ -30,6 +33,7 @@ export function SubmenuLateral({ id, icone, rotulo, caminhos, children }: Props)
   }
 
   function alternar() {
+    if (para && pathname.replace(/\/$/, '') !== para.replace(/\/$/, '')) { navegar(para); return; }
     setAberto(!aberto);
     salvarPreferencia(chave, !aberto);
   }
