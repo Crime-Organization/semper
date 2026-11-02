@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { dasDoMes, dividirRecebimento, erroDoDas, erroDoRecebimento, type Recebimento } from './financeiro';
+import { dasDoMes, dividirRecebimento, erroDoDas, erroDoRecebimento, lerAliquota, type Recebimento } from './financeiro';
 
 // R$ 1.000, em centavos, com o DAS de 4,5% e a taxa da máquina de R$ 30: os exemplos confirmados pelo escritório em 02/11/2026.
 const BASE: Recebimento = { valor: 100000, parteNaConta: 100, contaComDas: true, aliquotaDas: 4.5, taxaMaquina: 3000, terceiros: [], socioIndicador: null };
@@ -231,5 +231,20 @@ describe('O DAS de cada mês', () => {
   it('quando está certo, então não há erro', () => {
     // Então
     expect(erroDoDas({ mes: '2026-11', aliquota: 4.5 })).toBeNull();
+  });
+
+  it.each([['4,5', 4.5], ['4.5', 4.5], ['4,5%', 4.5], [' 5 ', 5], ['0', 0], ['100', 100]])('quando digita "%s", então é %d%%', (texto, aliquota) => {
+    // Então
+    expect(lerAliquota(texto)).toEqual({ aliquota });
+  });
+
+  it.each([['1e1'], ['0x10'], ['101'], ['4,567'], ['abc'], ['-1']])('quando digita "%s", então avisa, sem virar outro número', texto => {
+    // Então
+    expect(lerAliquota(texto)).toEqual({ erro: 'O DAS precisa ser um percentual de 0 a 100, com até duas casas.' });
+  });
+
+  it('quando não digita nada, então pede', () => {
+    // Então
+    expect(lerAliquota('  ')).toEqual({ erro: 'Informe o percentual.' });
   });
 });

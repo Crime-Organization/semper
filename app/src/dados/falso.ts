@@ -9,9 +9,10 @@ import type {
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
-  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
+  AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
+import { erroDoDas } from '../regras/financeiro';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -30,6 +31,7 @@ import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
 import { DIAS_PARADO } from './limites';
+import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -113,6 +115,11 @@ interface Banco {
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  contasFinanceiras?: ContaFinanceira[];
+  lancamentos?: LancamentoGuardado[];
+  historicoLancamentos?: (Historico & { lancamento_id: string })[];
+  dasDoEscritorio?: AliquotaDoDas[];
+  ajustesFinanceiros?: Historico[];
   /** As demandas ligadas aos processos (processo_demandas no banco). */
   processoDemandas?: { processo_id: string; demanda_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
@@ -139,6 +146,7 @@ type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes
 /** Compromisso como fica guardado: as pessoas pelo id; os nomes e o processo são lidos na hora. */
 type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[] };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
+type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
@@ -352,6 +360,11 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.contasFinanceiras ??= [];
+bd.lancamentos ??= [];
+bd.historicoLancamentos ??= [];
+bd.dasDoEscritorio ??= [];
+bd.ajustesFinanceiros ??= [];
 bd.processoDemandas ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
@@ -1000,6 +1013,45 @@ const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
 const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+// ---------- caixa ----------
+const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
+const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro'];
+/** Como as regras check e o gatilho do banco. */
+function conferirLancamento(l: LancamentoGuardado) {
+  l.descricao = l.descricao.trim();
+  const conta = bd.contasFinanceiras!.find(c => c.id === l.conta_id);
+  if (!conta) throw new Error('Conta não encontrada neste escritório.');
+  if (!Number.isInteger(l.valor) || l.valor <= 0 || l.valor > VALOR_MAXIMO_DO_LANCAMENTO || !l.descricao || l.descricao.length > TAMANHO_FINANCEIRO.descricao || !dataExiste(l.data) || !anoAceito(l.data)) throw new Error(FORMATO_INVALIDO);
+  const servePara = l.categoria === 'transferencia' || (l.tipo === 'entrada' ? CATEGORIAS_DE_ENTRADA : CATEGORIAS_DE_SAIDA).includes(l.categoria);
+  if (!servePara) throw new Error(FORMATO_INVALIDO);
+  return conta;
+}
+function conferirContaEData(l: LancamentoGuardado) {
+  const conta = conferirLancamento(l);
+  if (conta.arquivada_em) throw new Error('Esta conta está arquivada.');
+  if (l.data < conta.saldo_inicial_em) throw new Error('Esta data é anterior ao saldo inicial da conta.');
+}
+function historicoDoLancamento(l: LancamentoGuardado, novo: Partial<LancamentoGuardado>) {
+  const alteracoes: Historico['alteracoes'] = {};
+  for (const k of ['conta_id', 'data', 'tipo', 'categoria', 'valor', 'descricao', 'excluido_em'] as const) {
+    if (novo[k] === undefined || novo[k] === l[k]) continue;
+    const nomeDaConta = (id: unknown) => bd.contasFinanceiras!.find(c => c.id === id)?.nome ?? null;
+    if (k === 'conta_id') alteracoes.conta = { de: nomeDaConta(l[k]), para: nomeDaConta(novo[k]) };
+    else alteracoes[k] = { de: l[k], para: novo[k] };
+  }
+  if (Object.keys(alteracoes).length) bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: l.id, alteracoes, feito_por: eu, em: agora() });
+}
+const SEM_ACESSO_AO_CAIXA = 'Não foi possível: atualize a página e confira.';
+const registrarAjuste = (alteracoes: Historico['alteracoes']) => { bd.ajustesFinanceiros!.unshift({ id: Date.now() + Math.random(), alteracoes, feito_por: eu, em: agora() }); };
+/** Como as regras check da conta. */
+function conferirConta(c: Pick<ContaFinanceira, 'nome' | 'saldo_inicial' | 'saldo_inicial_em'>) {
+  if (!c.nome.trim() || c.nome.trim().length > TAMANHO_FINANCEIRO.nomeDaConta || !dataExiste(c.saldo_inicial_em) || !anoAceito(c.saldo_inicial_em) || !Number.isInteger(c.saldo_inicial) || Math.abs(c.saldo_inicial) > VALOR_MAXIMO_DO_LANCAMENTO) throw new Error(FORMATO_INVALIDO);
+}
+function novoLancamento(dados: DadosLancamento & { par_id?: string | null }) {
+  const l: LancamentoGuardado = { par_id: null, ...dados, id: novoId(), excluido_em: null, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+  conferirContaEData(l);
+  return l;
+}
 const TAREFA_JA_LIGADA = 'Já existe uma tarefa ligada a este item.';
 const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
 /** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
@@ -1363,7 +1415,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: m.email },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: true, ehMaster: true
     };
     return espera(c);
@@ -2025,6 +2077,98 @@ export const SD: Dados = {
     const p = bd.processos!.find(x => x.id === l.processo_id);
     return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
   }) }),
+
+  // ---------- caixa (como supabase/migrations/20261102175057_financeiro_caixa.sql) ----------
+  financeiroContas: () => espera([...bd.contasFinanceiras!]),
+  async financeiroContaCriar(dados) {
+    const nome = dados.nome.trim();
+    conferirConta(dados);
+    if (bd.contasFinanceiras!.some(c => normal(c.nome) === normal(nome))) return erro('Já existe uma conta com esse nome.');
+    const c: ContaFinanceira = { ...dados, nome, id: novoId(), arquivada_em: null };
+    bd.contasFinanceiras!.push(c); auditar('financeiro_contas', 'inclusao', c); gravar();
+    return espera({ ...c });
+  },
+  async financeiroContaAtualizar(id, dados) {
+    const c = bd.contasFinanceiras!.find(x => x.id === id);
+    if (!c) return erro(SEM_ACESSO_AO_CAIXA);
+    const novo = { ...c, ...dados };
+    conferirConta(novo);
+    if (bd.contasFinanceiras!.some(x => x.id !== id && normal(x.nome) === normal(novo.nome))) return erro('Já existe uma conta com esse nome.');
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em && bd.lancamentos!.some(l => l.conta_id === id && !l.excluido_em && l.data < novo.saldo_inicial_em)) return erro('Há lançamentos antes dessa data. Escolha um dia igual ou anterior ao primeiro lançamento.');
+    const ajustes: Historico['alteracoes'] = {};
+    if (novo.saldo_inicial !== c.saldo_inicial) ajustes['Saldo inicial de ' + novo.nome] = { de: c.saldo_inicial, para: novo.saldo_inicial };
+    if (novo.saldo_inicial_em !== c.saldo_inicial_em) ajustes['Início de ' + novo.nome] = { de: c.saldo_inicial_em, para: novo.saldo_inicial_em };
+    if (Object.keys(ajustes).length) registrarAjuste(ajustes);
+    Object.assign(c, dados, { nome: novo.nome.trim() }); auditar('financeiro_contas', 'alteracao', c); gravar();
+    return espera(undefined);
+  },
+  financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
+    .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
+  financeiroSaldoAntes(contaId, data) {
+    const conta = bd.contasFinanceiras!.find(c => c.id === contaId);
+    if (!conta) return espera(0);
+    return espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data < data).reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), conta.saldo_inicial));
+  },
+  async financeiroLancamentoCriar(dados) {
+    const l = novoLancamento(dados);
+    bd.lancamentos!.push(l); auditar('financeiro_lancamentos', 'inclusao', l); gravar();
+    return espera(semOExcluido(l));
+  },
+  async financeiroLancamentoAtualizar(id, dados) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    if (l.excluido_em) return erro('Este lançamento foi excluído.');
+    const novo = { ...l, ...dados };
+    if (l.par_id && (novo.valor !== l.valor || novo.data !== l.data || novo.conta_id !== l.conta_id || novo.tipo !== l.tipo || novo.categoria !== l.categoria)) return erro('A transferência não muda depois de criada: exclua e lance de novo.');
+    if (novo.conta_id !== l.conta_id || novo.data !== l.data) conferirContaEData(novo); else conferirLancamento(novo);
+    historicoDoLancamento(l, novo);
+    Object.assign(l, novo, { atualizado_em: agora() }); auditar('financeiro_lancamentos', 'alteracao', l); gravar();
+    return espera(undefined);
+  },
+  async financeiroLancamentoExcluir(id) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    for (const x of bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id)) {
+      if (x.excluido_em) continue;
+      const quando = agora();
+      historicoDoLancamento(x, { excluido_em: quando });
+      x.excluido_em = quando;
+    }
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroLancamentoRestaurar(id) {
+    const l = bd.lancamentos!.find(x => x.id === id);
+    if (!l) return erro(SEM_ACESSO_AO_CAIXA);
+    const pontas = bd.lancamentos!.filter(y => y.id === id || y.id === l.par_id);
+    pontas.forEach(conferirContaEData);
+    for (const x of pontas) {
+      if (!x.excluido_em) continue;
+      bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: x.id, alteracoes: { excluido_em: { de: x.excluido_em, para: null } }, feito_por: eu, em: agora() });
+      x.excluido_em = null;
+    }
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroTransferir({ de, para, data, valor, descricao }) {
+    if (de === para) return erro('Escolha duas contas diferentes.');
+    const saida = novoLancamento({ conta_id: de, data, tipo: 'saida', categoria: 'transferencia', valor, descricao });
+    const entrada = novoLancamento({ conta_id: para, data, tipo: 'entrada', categoria: 'transferencia', valor, descricao, par_id: saida.id });
+    saida.par_id = entrada.id;
+    bd.lancamentos!.push(saida, entrada); gravar();
+    return espera(saida.id);
+  },
+  financeiroHistorico: lancamentoId => espera(bd.historicoLancamentos!.filter(h => h.lancamento_id === lancamentoId).map(({ lancamento_id: _l, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO)),
+  financeiroDas: () => espera(bd.dasDoEscritorio!.toSorted((a, b) => a.mes.localeCompare(b.mes))),
+  async financeiroDasSalvar(mes, aliquota) {
+    if (erroDoDas({ mes, aliquota })) return erro(FORMATO_INVALIDO);
+    const ja = bd.dasDoEscritorio!.find(a => a.mes === mes);
+    if (!ja || ja.aliquota !== aliquota) registrarAjuste({ ['DAS de ' + mes]: { de: ja?.aliquota ?? null, para: aliquota } });
+    if (ja) ja.aliquota = aliquota; else bd.dasDoEscritorio!.push({ mes, aliquota });
+    gravar();
+    return espera(undefined);
+  },
+  financeiroAjustes: () => espera(bd.ajustesFinanceiros!.slice(0, HISTORICO_DO_PROCESSO)),
 
   // ---------- painel de processos (como public.painel_de_processos) ----------
   async processosPainel({ hoje, meus }) {
