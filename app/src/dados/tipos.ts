@@ -975,6 +975,8 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
+/** A demanda no cartão do processo, com quem a vê: para saber se a tarefa pode herdá-la. */
+export type DemandaDoProcesso = DemandaLigada & Pick<Demanda, 'contrato_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
 /** O processo como aparece no painel. Os clientes vêm só pelo id. */
 export type ProcessoNoPainel = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'responsavel_id' | 'colaboradores'> & { clientes: string[] };
 export type PrazoNoPainel = Pick<PrazoDeProcesso, 'id' | 'descricao' | 'final' | 'tarefa_id'> & { processo: ProcessoNoPainel };
@@ -1011,6 +1013,12 @@ export interface DadosAcompanhamento {
   processoPrazoRestaurar(id: string): Promise<void>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
+  /** Liga o processo à demanda de que ele nasceu. Ligar de novo não muda nada. */
+  processoDemandaLigar(processoId: string, demandaId: string): Promise<void>;
+  /** As demandas ligadas ao processo que quem está logado pode ver. */
+  demandasDoProcesso(processoId: string): Promise<DemandaDoProcesso[]>;
+  /** Os processos ligados à demanda que quem está logado pode ver, e quantos há que ele não pode abrir. */
+  processosDaDemanda(demandaId: string): Promise<{ visiveis: ProcessoLigado[]; ocultos: number }>;
   /** O painel de Processos. meus: só os processos em que a pessoa é responsável ou colaboradora. */
   processosPainel(f: { hoje: string; meus: boolean }): Promise<PainelDeProcessos>;
   /** Só administradores. */

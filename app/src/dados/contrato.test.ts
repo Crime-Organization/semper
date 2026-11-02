@@ -1132,6 +1132,58 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Processo e demanda', () => {
+      const novoProcesso = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const novaDemanda = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+
+      it('quando liga, então a demanda aparece no processo e o processo na demanda; ligar de novo não repete', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        // Quando
+        await SD.processoDemandaLigar(p.id, d.id);
+        await SD.processoDemandaLigar(p.id, d.id);
+        // Então
+        expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
+        expect((await SD.processosDaDemanda(d.id)).visiveis.map(x => x.id)).toEqual([p.id]);
+      });
+
+      it('quando o processo está arquivado, ou a demanda não existe, então é recusado', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        await SD.processosArquivar([p.id], true);
+        const q = await novoProcesso();
+        // Quando
+        const arquivado = SD.processoDemandaLigar(p.id, d.id);
+        const inexistente = SD.processoDemandaLigar(q.id, 'nao-existe');
+        // Então
+        await expect(arquivado).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(inexistente).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando excluem o processo ou a demanda, então a ligação sai', async () => {
+        // Dado
+        const [p, d, e] = [await novoProcesso(), await novaDemanda(), await novaDemanda()];
+        await SD.processoDemandaLigar(p.id, d.id);
+        await SD.processoDemandaLigar(p.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        await SD.demandasExcluir([e.id]);
+        // Então
+        expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
+        // Quando
+        await SD.processosArquivar([p.id], true);
+        await SD.processosExcluir([p.id]);
+        // Então
+        expect(await SD.processosDaDemanda(d.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+    });
+
     describe('Painel de processos', () => {
       const HOJE = hojeISO();
       const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);

@@ -3,6 +3,7 @@
 // Concluído) e o cartão de cada uma. A estrutura da página vem de <PaginaModulo>; o modelo é o módulo Pessoas.
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { oferecerProcesso } from './concluirDemanda';
 import { SD, type DemandaLista, type FiltroDemandas, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
@@ -156,12 +157,14 @@ export default function Demandas() {
           aoAbrir={d => abrir(d.id)}
           aoMover={async (d, m) => {
             const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.demandasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.demandaMover(id, etapa, ordem) };
-            if (await moverNoArquivo(d.codigo, d.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_DEMANDA)) { recarregar(); return; }
+            if (await moverNoArquivo(d.codigo, d.id, m, noArquivo, id => quadro.nomeDe(id) || SEM_SITUACAO_DEMANDA)) { recarregar(); void oferecerProcesso(d, m.para, navegar); return; }
             const { de, para, ordem, ordemAnterior } = m;
             await SD.demandaMover(d.id, para, ordem);
             const voltar = async () => { await SD.demandaMover(d.id, de, ordemAnterior); };
-            if (de !== para) feito(`${d.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_DEMANDA}".`, 'movimentação do cartão', voltar);
-            else registrarDesfazer('mudança de posição do cartão', voltar);
+            if (de !== para) {
+              feito(`${d.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_DEMANDA}".`, 'movimentação do cartão', voltar);
+              void oferecerProcesso(d, para, navegar);
+            } else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/demandas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

@@ -106,6 +106,8 @@ interface Banco {
   historicoProcessos?: (Historico & { processo_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  /** As demandas ligadas aos processos (processo_demandas no banco). */
+  processoDemandas?: { processo_id: string; demanda_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
   diasParado?: number;
   andamentos?: AndamentoGuardado[];
@@ -341,6 +343,7 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.processoDemandas ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
 bd.prazos ??= [];
@@ -1508,6 +1511,7 @@ export const SD: Dados = {
       const d = bd.demandas!.find(x => x.id === id);
       if (!d || !d.arquivado_em) return;
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
+      bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
@@ -1782,6 +1786,23 @@ export const SD: Dados = {
   },
   tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),
 
+  // ---------- processo e demanda (como supabase/migrations/20261102144922_processo_demandas.sql) ----------
+  async processoDemandaLigar(processoId, demandaId) {
+    if (!processoAtivo(processoId) || !bd.demandas!.some(d => d.id === demandaId)) return erro(SEM_PERMISSAO);
+    if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId });
+    gravar();
+    return espera(undefined);
+  },
+  demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
+    const d = bd.demandas!.find(x => x.id === l.demanda_id);
+    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
+      criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, papeis: [] }] : [];
+  })),
+  processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {
+    const p = bd.processos!.find(x => x.id === l.processo_id);
+    return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
+  }) }),
+
   // ---------- painel de processos (como public.painel_de_processos) ----------
   async processosPainel({ hoje, meus }) {
     const { ate_prazos, ate_marcados } = datasDoPainel(hoje);
@@ -1867,6 +1888,7 @@ export const SD: Dados = {
       if (!p || !p.arquivado_em) return;
       bd.processos = bd.processos!.filter(x => x.id !== id);
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
+      bd.processoDemandas = bd.processoDemandas!.filter(l => l.processo_id !== id);
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });

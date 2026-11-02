@@ -3,7 +3,7 @@
 // última marcada, o sistema oferece concluir a demanda. Cada tarefa abre o cartão dela; embaixo, o atalho para uma
 // tarefa nova da demanda. As arquivadas ficam de fora.
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { SD, type Coluna, type TarefaLigada } from '../dados';
 import { ROTULOS_PRAZO, situacaoDoPrazo } from '../regras/demanda';
 import { progressoDaLista } from '../regras/listas';
@@ -28,6 +28,7 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar }: Props) {
   const [tarefas, setTarefas] = useState<TarefaLigada[] | string | null>(null);
   const [colunas, setColunas] = useState<Coluna[]>([]);
   const [recarga, setRecarga] = useState(0);
+  const navegar = useNavigate();
   useEffect(() => {
     SD.tarefasDaDemanda(demandaId).then(setTarefas).catch(e => setTarefas((e as Error).message));
     SD.colunasListar('tarefas').then(setColunas).catch(() => {});
@@ -50,7 +51,7 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar }: Props) {
       await SD.tarefaMover(t.id, para, ordemNoFim());
       feito(marcada ? `${t.titulo} foi para "${situacao(para)}".` : `${t.titulo} voltou para "${situacao(para)}".`, 'mudança de situação da tarefa',
         async () => { await SD.tarefaMover(t.id, de, ordemNoFim()); });
-      if (marcada && await oferecerConcluirDemanda(t.id, para)) aoMudar();
+      if (marcada && await oferecerConcluirDemanda(t.id, para, navegar)) aoMudar();
     } catch (e) { falha(e); }
     setRecarga(x => x + 1);
   }
