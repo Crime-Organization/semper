@@ -315,8 +315,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     if (!quadro.grupoAberto(g)) return <section key={g.id} className="grupo-colunas fechado" aria-label={`Grupo ${g.nome}`}>
       <button type="button" className="grupo-faixa" data-grupo-botao={g.id} aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${cartoesEmPalavras(total, numero)}`} title={`Abrir o grupo ${g.nome}`} onClick={alternar}>
         <Icone nome="seta" tam={14} />
-        <span className="grupo-faixa-nome">{g.nome}</span>
         <span className="coluna-n">{n}</span>
+        <span className="grupo-faixa-nome">{g.nome}</span>
       </button>
     </section>;
     return <section key={g.id} className="grupo-colunas" aria-label={`Grupo ${g.nome}`}>
