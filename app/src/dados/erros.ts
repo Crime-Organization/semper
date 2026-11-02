@@ -23,6 +23,7 @@ const REPETIDO: Regra[] = [
   { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },
   { padrao: /processo_opcoes_unica/, mensagem: 'Essa opção já está na lista.' },
   { padrao: /processo_campos_nome_unico/, mensagem: 'Já existe um campo com esse nome.' },
+  { padrao: /financeiro_contas_nome_unico/, mensagem: 'Já existe uma conta com esse nome.' },
   { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
   { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
   { mensagem: 'Esse registro já existe.' }

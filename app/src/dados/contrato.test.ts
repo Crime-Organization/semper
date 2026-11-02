@@ -1483,6 +1483,134 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Caixa', () => {
+      const novaConta = (extra: Partial<Parameters<Dados['financeiroContaCriar']>[0]> = {}) => SD.financeiroContaCriar({ nome: marca(), tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2026-01-01', ...extra });
+      const lancar = (contaId: string, extra: Partial<Parameters<Dados['financeiroLancamentoCriar']>[0]> = {}) =>
+        SD.financeiroLancamentoCriar({ conta_id: contaId, data: '2026-03-10', tipo: 'entrada', categoria: 'recebimento', valor: 10000, descricao: 'Honorários', ...extra });
+      const INVALIDO = 'Algum campo está em formato inválido.';
+
+      it('quando lança no mês, então o saldo antes do mês conta o inicial e o que veio antes, sem o do mês nem os excluídos', async () => {
+        // Dado
+        const { id } = await novaConta({ saldo_inicial: 50000 });
+        await lancar(id, { data: '2026-02-10', valor: 20000 });
+        await lancar(id, { data: '2026-02-11', tipo: 'saida', categoria: 'despesa', valor: 5000 });
+        const excluido = await lancar(id, { data: '2026-02-12', valor: 99900 });
+        const noMes = await lancar(id, { data: '2026-03-01', valor: 7000 });
+        await SD.financeiroLancamentoExcluir(excluido.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-03-01')).toBe(65000);
+        expect((await SD.financeiroLancamentos(id, '2026-03-01', '2026-03-31')).map(l => l.id)).toEqual([noMes.id]);
+        expect(await SD.financeiroLancamentos(id, '2026-02-01', '2026-02-28')).toHaveLength(2);
+      });
+
+      it('quando as contas são duas, então uma não mistura com a outra', async () => {
+        // Dado
+        const [a, b] = [await novaConta(), await novaConta()];
+        await lancar(a.id);
+        // Então
+        expect(await SD.financeiroLancamentos(b.id, '2026-01-01', '2026-12-31')).toEqual([]);
+        expect(await SD.financeiroSaldoAntes(b.id, '2027-01-01')).toBe(0);
+      });
+
+      it.each([
+        ['valor zerado', { valor: 0 }], ['valor negativo', { valor: -1 }], ['valor com fração de centavo', { valor: 10.5 }], ['descrição vazia', { descricao: '  ' }],
+        ['categoria de saída em entrada', { tipo: 'entrada' as const, categoria: 'despesa' as const }], ['categoria de entrada em saída', { tipo: 'saida' as const, categoria: 'recebimento' as const }]
+      ])('quando há %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const salvar = lancar(id, extra);
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando a data é anterior ao saldo inicial, ou a conta está arquivada, então é recusado', async () => {
+        // Dado
+        const { id } = await novaConta({ saldo_inicial_em: '2026-03-01' });
+        // Quando
+        const antes = lancar(id, { data: '2026-02-28' });
+        // Então
+        await expect(antes).rejects.toThrow('Esta data é anterior ao saldo inicial da conta.');
+        // Quando
+        await SD.financeiroContaAtualizar(id, { arquivada_em: new Date().toISOString() });
+        const arquivada = lancar(id);
+        // Então
+        await expect(arquivada).rejects.toThrow('Esta conta está arquivada.');
+      });
+
+      it('quando o nome da conta se repete, sem contar maiúsculas e acentos, então é recusado', async () => {
+        // Dado
+        const nome = 'Espécie ' + marca();
+        await novaConta({ nome });
+        // Quando
+        const repetida = novaConta({ nome: nome.toUpperCase().replace('É', 'E') });
+        // Então
+        await expect(repetida).rejects.toThrow('Já existe uma conta com esse nome.');
+      });
+
+      it('quando muda um lançamento, então o histórico mostra como estava e como ficou; excluir e desfazer devolve igual', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id);
+        // Quando
+        await SD.financeiroLancamentoAtualizar(l.id, { valor: 12000 });
+        // Então
+        expect((await SD.financeiroHistorico(l.id))[0].alteracoes.valor).toEqual({ de: 10000, para: 12000 });
+        // Quando
+        await SD.financeiroLancamentoExcluir(l.id);
+        expect(await SD.financeiroLancamentos(id, '2026-01-01', '2026-12-31')).toEqual([]);
+        await SD.financeiroLancamentoRestaurar(l.id);
+        // Então
+        expect(await SD.financeiroLancamentos(id, '2026-01-01', '2026-12-31')).toEqual([expect.objectContaining({ id: l.id, valor: 12000, criado_em: l.criado_em })]);
+      });
+
+      it('quando transfere, então sai de uma conta e entra na outra; não muda depois, e excluir uma ponta exclui as duas', async () => {
+        // Dado
+        const [pj, pf] = [await novaConta({ saldo_inicial: 100000 }), await novaConta()];
+        // Quando
+        const saida = await SD.financeiroTransferir({ de: pj.id, para: pf.id, data: '2026-03-10', valor: 30000, descricao: 'Repasse' });
+        // Então
+        expect(await SD.financeiroSaldoAntes(pj.id, '2026-04-01')).toBe(70000);
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(30000);
+        const [naPf] = await SD.financeiroLancamentos(pf.id, '2026-03-01', '2026-03-31');
+        expect(naPf).toMatchObject({ tipo: 'entrada', categoria: 'transferencia', par_id: saida });
+        // Quando
+        const mudar = SD.financeiroLancamentoAtualizar(saida, { valor: 1 });
+        // Então
+        await expect(mudar).rejects.toThrow('A transferência não muda depois de criada: exclua e lance de novo.');
+        // Quando
+        await SD.financeiroLancamentoExcluir(naPf.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(pj.id, '2026-04-01')).toBe(100000);
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(0);
+        // Quando
+        await SD.financeiroLancamentoRestaurar(saida);
+        // Então
+        expect(await SD.financeiroSaldoAntes(pf.id, '2026-04-01')).toBe(30000);
+      });
+
+      it('quando transfere para a mesma conta, então é recusado', async () => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const salvar = SD.financeiroTransferir({ de: id, para: id, data: '2026-03-10', valor: 1, descricao: 'x' });
+        // Então
+        await expect(salvar).rejects.toThrow('Escolha duas contas diferentes.');
+      });
+
+      it('quando lança o DAS do mesmo mês de novo, então troca o percentual; valor fora do aceito é recusado', async () => {
+        // Quando
+        await SD.financeiroDasSalvar('2031-05', 4.5);
+        await SD.financeiroDasSalvar('2031-05', 5.25);
+        // Então
+        expect((await SD.financeiroDas()).find(a => a.mes === '2031-05')).toEqual({ mes: '2031-05', aliquota: 5.25 });
+        // Quando
+        const fora = SD.financeiroDasSalvar('2031-06', 101);
+        // Então
+        await expect(fora).rejects.toThrow(INVALIDO);
+      });
+    });
+
     describe('Painel de processos', () => {
       const HOJE = hojeISO();
       const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);

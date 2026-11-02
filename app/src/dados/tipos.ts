@@ -1117,4 +1117,38 @@ export interface DadosAcompanhamento {
   processosDiasParadoSalvar(dias: number): Promise<void>;
 }
 
-export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}
+/** Conta do escritório. O saldo inicial é em centavos, e nada é lançado antes da data dele. */
+export interface ContaFinanceira { id: string; nome: string; tem_das: boolean; saldo_inicial: number; saldo_inicial_em: string; arquivada_em: string | null }
+export type DadosConta = Pick<ContaFinanceira, 'nome' | 'tem_das' | 'saldo_inicial' | 'saldo_inicial_em'>;
+export type TipoDeLancamento = 'entrada' | 'saida';
+export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'transferencia';
+/** Uma entrada ou uma saída numa conta, em centavos. par_id: a outra ponta de uma transferência. */
+export interface Lancamento {
+  id: string; conta_id: string; data: string; tipo: TipoDeLancamento; categoria: CategoriaDeLancamento; valor: number; descricao: string;
+  par_id: string | null; criado_por: string | null; criado_em: string; atualizado_em: string;
+}
+export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
+export interface AliquotaDoDas { mes: string; aliquota: number }
+/** O caixa (supabase/migrations/20261102175057_financeiro_caixa.sql). Só administradores. */
+export interface DadosFinanceiro {
+  financeiroContas(): Promise<ContaFinanceira[]>;
+  financeiroContaCriar(dados: DadosConta): Promise<ContaFinanceira>;
+  financeiroContaAtualizar(id: string, dados: Partial<DadosConta & Pick<ContaFinanceira, 'arquivada_em'>>): Promise<void>;
+  /** De um mês, sem os excluídos. */
+  financeiroLancamentos(contaId: string, de: string, ate: string): Promise<Lancamento[]>;
+  /** O saldo inicial da conta mais tudo o que entrou e saiu antes da data. */
+  financeiroSaldoAntes(contaId: string, data: string): Promise<number>;
+  financeiroLancamentoCriar(dados: DadosLancamento): Promise<Lancamento>;
+  financeiroLancamentoAtualizar(id: string, dados: Partial<DadosLancamento>): Promise<void>;
+  /** Excluir só esconde; restaurar devolve como estava. Numa transferência, as duas pontas juntas. */
+  financeiroLancamentoExcluir(id: string): Promise<void>;
+  financeiroLancamentoRestaurar(id: string): Promise<void>;
+  /** Uma saída e uma entrada ligadas. Devolve o id da saída. */
+  financeiroTransferir(t: { de: string; para: string; data: string; valor: number; descricao: string }): Promise<string>;
+  financeiroHistorico(lancamentoId: string): Promise<Historico[]>;
+  financeiroDas(): Promise<AliquotaDoDas[]>;
+  /** Lançar de novo o mesmo mês troca o percentual. */
+  financeiroDasSalvar(mes: string, aliquota: number): Promise<void>;
+}
+
+export interface Dados extends DadosFinanceiro, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}

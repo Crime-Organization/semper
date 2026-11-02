@@ -1,0 +1,16 @@
+/* O caixa do escritório */
+.financeiro-barra { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px }
+.financeiro-barra label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 170px }
+.financeiro-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 }
+.financeiro-resumo dt { color: var(--muted); font-size: 13px }
+.financeiro-resumo dd { margin: 0 }
+.financeiro-num { text-align: right; white-space: nowrap }
+.financeiro-fim-do-dia td { border-bottom: 2px solid var(--line2) }
+.financeiro-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.financeiro-form { display: flex; flex-direction: column; gap: 16px; margin-bottom: 12px }
+.financeiro-form .pergunta { margin: 0 }
+.financeiro-form-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; align-items: start }
+.financeiro-marcar { display: flex; align-items: center; gap: 8px }
+.financeiro-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.financeiro-lista li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; overflow-wrap: anywhere }
+.financeiro-ajustes { margin-top: 18px }
