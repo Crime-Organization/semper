@@ -356,6 +356,10 @@ export interface Tarefa {
   demanda: DemandaDaTarefa | null;
   /** O contrato, se quem vê a tarefa também pode abri-lo; senão null (e fica só o número). */
   contrato: { id: string; codigo: string; servico: string } | null;
+  /** A ligação nasce com a tarefa (de uma intimação ou de um prazo) e não muda depois. */
+  processo_id: string | null;
+  /** O processo, se quem vê a tarefa também pode abri-lo; senão null. */
+  processo: { id: string; codigo: string; tipo: TipoProcesso; numero: string } | null;
 }
 /** O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). */
 export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
@@ -367,7 +371,7 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 }
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'responsavel_id'
-  | 'participantes' | 'demanda_id' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'participantes' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
@@ -519,7 +523,8 @@ export interface DadosTarefas {
   tarefasDaEtapa(etapaId: string | null, f?: FiltroTarefas, deslocamento?: number, limite?: number): Promise<Pagina<TarefaLista>>;
   tarefaObter(id: string): Promise<Tarefa | null>;
   tarefaCriar(dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
-  tarefaAtualizar(id: string, dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
+  /** A ligação com o processo nasce com a tarefa e não muda. */
+  tarefaAtualizar(id: string, dados: Omit<DadosTarefa, 'processo_id'>): Promise<{ id: string; codigo: string }>;
   tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
   tarefasExcluir(ids: string[]): Promise<Exclusao>;
@@ -635,6 +640,39 @@ export interface Processo {
   /** Os valores dos campos que o escritório criou, por id do campo. */
   campos: Record<string, string>;
 }
+/** O que aparece de uma tarefa ligada; null quando quem está logado não pode vê-la. */
+export type TarefaDoAcompanhamento = { id: string; codigo: string } | null;
+export type TipoDeAndamento = 'andamento' | 'intimacao' | 'audiencia' | 'pericia';
+/** O que aconteceu ou vai acontecer no processo, lançado à mão. */
+export interface AndamentoDeProcesso {
+  id: string; processo_id: string; tipo: TipoDeAndamento;
+  /** aaaa-mm-dd */
+  data: string;
+  /** hh:mm, só de audiência e perícia. */
+  hora: string | null;
+  local: string | null;
+  texto: string;
+  /** Intimação: quando foi tratada (virou tarefa ou não precisou). Sem isso, fica "a tratar". */
+  tratada_em: string | null;
+  tarefa_id: string | null; tarefa: TarefaDoAcompanhamento;
+  criado_por: string | null; criado_em: string; atualizado_em: string;
+}
+export type DadosAndamento = Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto'>;
+export type MudancaNoAndamento = Partial<DadosAndamento & Pick<AndamentoDeProcesso, 'tratada_em' | 'tarefa_id'>>;
+/** Prazo do processo. O último dia (final) é o que vale; o resto diz como ele foi contado (vazio: digitado à mão). */
+export interface PrazoDeProcesso {
+  id: string; processo_id: string; descricao: string;
+  /** aaaa-mm-dd */
+  final: string;
+  intimacao: string | null; dias: number | null; contagem: Contagem | null; disponibilizacao: boolean; sem_recesso: boolean;
+  /** A intimação de que ele nasceu. */
+  andamento_id: string | null;
+  tarefa_id: string | null; tarefa: TarefaDoAcompanhamento;
+  concluido_em: string | null;
+  criado_por: string | null; criado_em: string; atualizado_em: string;
+}
+export type DadosPrazo = Pick<PrazoDeProcesso, 'descricao' | 'final' | 'intimacao' | 'dias' | 'contagem' | 'disponibilizacao' | 'sem_recesso' | 'andamento_id'>;
+export type MudancaNoPrazo = Partial<DadosPrazo & Pick<PrazoDeProcesso, 'concluido_em' | 'tarefa_id'>>;
 /** Campos que o cadastro de processo grava. */
 export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
 /** Linha das listagens de processos (tabela e quadro). */
@@ -935,4 +973,24 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos {}
+/** Andamentos, prazos e tarefas do cartão do processo (supabase/migrations/20261102125539_andamentos_e_prazos.sql).
+ *  Quem vê o processo lê; com ele ativo, também lança, muda e apaga. */
+export interface DadosAcompanhamento {
+  /** Os mais novos primeiro. */
+  processoAndamentos(processoId: string): Promise<AndamentoDeProcesso[]>;
+  processoAndamentoCriar(processoId: string, dados: DadosAndamento): Promise<AndamentoDeProcesso>;
+  processoAndamentoAtualizar(id: string, dados: MudancaNoAndamento): Promise<AndamentoDeProcesso>;
+  /** Excluir só esconde; restaurar devolve como estava (mesmo id, autor, data e ligações). */
+  processoAndamentoExcluir(id: string): Promise<void>;
+  processoAndamentoRestaurar(id: string): Promise<void>;
+  /** Os do último dia mais novo primeiro (a tela põe na ordem dela). */
+  processoPrazos(processoId: string): Promise<PrazoDeProcesso[]>;
+  processoPrazoCriar(processoId: string, dados: DadosPrazo): Promise<PrazoDeProcesso>;
+  processoPrazoAtualizar(id: string, dados: MudancaNoPrazo): Promise<PrazoDeProcesso>;
+  processoPrazoExcluir(id: string): Promise<void>;
+  processoPrazoRestaurar(id: string): Promise<void>;
+  /** Tarefas ligadas ao processo que quem está logado pode ver. */
+  tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
+}
+
+export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos {}

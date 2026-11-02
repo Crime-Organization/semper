@@ -1,9 +1,10 @@
 // Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo, o nome
 // e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
-// numa seção que recolhe (dados, clientes, histórico).
+// numa seção que recolhe (prazos, andamentos, dados, clientes, tarefas, histórico).
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
+import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
 import { CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -18,8 +19,10 @@ import type { Quadro } from '../ui/quadro/useColunas';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
+import { CartoesLigados } from './CartoesLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
+import { AndamentosEPrazos } from './processo/AndamentosEPrazos';
 
 interface Props {
   id: string;
@@ -119,6 +122,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
 
+    <AndamentosEPrazos processo={p} aoMudar={() => setVersaoHist(v => v + 1)} />
+
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados">
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
     </Recolhivel>
@@ -127,8 +132,12 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
     </Recolhivel>
 
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas">
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
+    </Recolhivel>}
+
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">
-      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
+      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
     </Recolhivel>
 
     <footer className="cartao-rodape">

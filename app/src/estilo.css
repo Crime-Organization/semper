@@ -585,7 +585,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere }
 .pergunta .req { color: var(--erro); margin-left: 2px }
 .pergunta .dica { font-size: 13px; color: var(--muted); margin: -2px 0 2px; line-height: 1.5 }
-.pergunta input[type="text"], .pergunta input[type="email"], .pergunta input[type="tel"], .pergunta select, .pergunta textarea { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font-size: 16px; color: var(--ink) }
+.pergunta input[type="text"], .pergunta input[type="email"], .pergunta input[type="tel"], .pergunta input[type="date"], .pergunta input[type="time"], .pergunta input[type="number"], .pergunta select, .pergunta textarea { width: 100%; height: 48px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font-size: 16px; color: var(--ink) }
 .pergunta textarea { height: auto; min-height: 90px; padding: 12px 14px }
 .pergunta input:focus, .pergunta select:focus, .pergunta textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .pergunta.erro input, .pergunta.erro select { border-color: var(--erro); outline-color: var(--erro) }
