@@ -18,6 +18,7 @@ import type { Quadro } from '../ui/quadro/useColunas';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
+import { CompromissosLigados } from './CompromissosLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
 
@@ -126,6 +127,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="processos.cartao.clientes" contador={p.clientes.length}>
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
     </Recolhivel>
+
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos">
+      <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo."
+        novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }} />
+    </Recolhivel>}
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">
       <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />

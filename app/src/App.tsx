@@ -22,6 +22,8 @@ const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
 const Processos = lazy(() => import('./paginas/Processos'));
 const NovoProcesso = lazy(() => import('./paginas/NovoProcesso'));
+const Compromissos = lazy(() => import('./paginas/Compromissos'));
+const NovoCompromisso = lazy(() => import('./paginas/NovoCompromisso'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
 const Tarefas = lazy(() => import('./paginas/Tarefas'));
@@ -54,6 +56,10 @@ function FormularioProcesso() {
   const { key } = useLocation();
   return <NovoProcesso key={key} />;
 }
+function FormularioCompromisso() {
+  const { key } = useLocation();
+  return <NovoCompromisso key={key} />;
+}
 function FormularioTarefa() {
   const { key } = useLocation();
   return <NovaTarefa key={key} />;
@@ -62,7 +68,7 @@ function FormularioTarefa() {
 /** Os cadastros novos (e a importação de pessoas): cada endereço, o formulário dele e o nome da janela (padrão: "Cadastro"). */
 const CADASTROS: [caminho: string, Formulario: () => React.JSX.Element, rotulo?: string][] = [
   ['pessoas/nova', FormularioPessoa], ['pessoas/importar', FormularioImportacao, 'Importar pessoas'], ['contratos/novo', FormularioContrato],
-  ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa], ['processos/novo', FormularioProcesso]
+  ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa], ['processos/novo', FormularioProcesso], ['agenda/novo', FormularioCompromisso]
 ];
 /** O caminho sem as barras das pontas ("/pessoas/nova/" → "pessoas/nova"). */
 const semBarras = (caminho: string) => caminho.replace(/^\/+|\/+$/g, '');
@@ -115,6 +121,7 @@ function Rotas() {
           <Route path="processos" element={<Navigate to="/processos/judicial/" replace />} />
           <Route path="processos/judicial" element={<Processos key="judicial" tipo="judicial" />} />
           <Route path="processos/administrativo" element={<Processos key="administrativo" tipo="administrativo" />} />
+          <Route path="agenda" element={<Compromissos />} />
           <Route path="calendario" element={<Calendario />} />
           <Route path="equipe" element={<Equipe />} />
           <Route path="equipe/perfil" element={<PerfilDaEquipe />} />

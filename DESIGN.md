@@ -175,6 +175,8 @@ Comportamento conforme o espaço disponível. É sempre pelo tamanho real do con
 - Conteúdo com 560px ou menos (zoom alto, celular): a ação principal vira um **botão redondo só com o "+"** na linha do título, e o nome dela continua como rótulo acessível e dica. A busca ocupa a largura toda; Filtros, ⋯ e Tabela/Kanban vêm abaixo.
 - Com quadro kanban, a página vira uma coluna da altura da tela e o quadro ocupa o que sobra. A página não rola, só as colunas.
 
+**Visão por data (agenda).** A visão `agenda` do `<PaginaModulo>` (Compromissos) mostra os itens por dia, semana ou mês (`paginas/agenda/VisaoPorData.tsx`, regras em `regras/agenda.ts`). A barra tem Anterior, Hoje e Próximo, o período por extenso e a troca Dia/Semana/Mês (`.abas`), que fica guardada para cada pessoa. A semana mostra sete colunas e, com 760px de conteúdo ou menos, vira uma lista de dias; o mês mostra semanas inteiras e, nesse mesmo espaço, só quantos itens cada dia tem. Sempre por container query. Hoje tem a borda e o fundo do verde. O compromisso tem a borda da esquerda verde; o prazo de demanda ou tarefa, só para consulta, é neutro e leva ao módulo de origem.
+
 ### Kanban (demandas)
 O kanban segue o modelo do Trello, **não** o do Notion:
 - O quadro ocupa a altura que sobra da janela, só pelo layout (`body.com-quadro`, `.area-quadro`), e rola **na horizontal** quando as colunas não cabem.

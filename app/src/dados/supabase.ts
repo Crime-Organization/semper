@@ -10,13 +10,14 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
+import { papeisNoCompromisso } from '../regras/compromisso';
 import { papeisNoProcesso } from '../regras/processo';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -102,7 +103,8 @@ const ETIQUETAS_DO_MODULO: Record<ModuloComEtiquetas, { tabela: string; coluna: 
   contratos: { tabela: 'contrato_etiquetas', coluna: 'contrato_id' },
   demandas: { tabela: 'demanda_etiquetas', coluna: 'demanda_id' },
   tarefas: { tabela: 'tarefa_etiquetas', coluna: 'tarefa_id' },
-  processos: { tabela: 'processo_etiquetas', coluna: 'processo_id' }
+  processos: { tabela: 'processo_etiquetas', coluna: 'processo_id' },
+  compromissos: { tabela: 'compromisso_etiquetas', coluna: 'compromisso_id' }
 };
 /** Os campos da lista mais as etiquetas do item; filtrando por uma etiqueta, só vêm os itens que a têm (ligação !inner, com outro nome, para o item continuar trazendo todas). */
 function comEtiquetas(campos: string, modulo: ModuloComEtiquetas, f: { etiqueta?: string }) {
@@ -138,7 +140,7 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id' };
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
@@ -203,6 +205,40 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+// ---------- compromissos ----------
+/** Quem só lê a Agenda geral não muda: o banco devolve zero linhas, sem erro. Sem isto, a tela diria que mudou. */
+const NAO_MUDOU = 'Você não tem permissão para fazer isso.';
+const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
+// O processo vem pelas regras de leitura dele: quem não pode abri-lo recebe null (e fica só o código e o número).
+const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+  + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores)`;
+const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
+type CompromissoLido = Omit<Compromisso, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
+const compromissoComPessoas = ({ ligadas, ...c }: CompromissoLido): Compromisso => ({ ...c, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
+// Na ordem "nome", vale o nome do cartão ou, sem ele, as pessoas (a coluna nome_ordem). O id no fim desempata a paginação.
+const ORDENS_COMPROMISSO: Record<OrdemCompromisso, (q: Livre) => Livre> = {
+  data: q => q.order('data').order('hora', { nullsFirst: true }),
+  data_desc: q => q.order('data', { ascending: false }).order('hora', { ascending: false, nullsFirst: false }),
+  manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
+  nome: q => q.order('nome_ordem'),
+  nome_desc: q => q.order('nome_ordem', { ascending: false }),
+  novos: q => q.order('criado_em', { ascending: false }),
+  antigos: q => q.order('criado_em', { ascending: true }),
+  recentes: q => q.order('atualizado_em', { ascending: false })
+};
+const ordenarCompromissos = (q: Livre, ordem: OrdemCompromisso) => ORDENS_COMPROMISSO[ordem](q).order('id');
+function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
+  q = porEtiqueta(q, f);
+  q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
+  if (f.tipo) q = q.eq('tipo', f.tipo);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
+
 // ---------- processos ----------
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
@@ -671,6 +707,88 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('demandas').select(CAMPOS_DEMANDA_LIGADA).eq('contrato_id', contratoId)
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
+  },
+
+  // ---------- compromissos ----------
+  async compromissosListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarCompromissos(sb.from('compromissos').select(comEtiquetas(CAMPOS_COMPROMISSO_LISTA, 'compromissos', f), { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarCompromissos(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'data').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async compromissosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
+    let q = filtrarCompromissos(sb.from('compromissos').select(comEtiquetas(CAMPOS_COMPROMISSO_LISTA, 'compromissos', f), { count: 'exact' }), f);
+    q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
+    const { data, count } = await rodar(ordenarCompromissos(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async compromissosDoPeriodo(de, ate, f = {}) {
+    const q = filtrarCompromissos(sb.from('compromissos').select(comEtiquetas(CAMPOS_COMPROMISSO_LISTA, 'compromissos', f)), { ...f, situacao: 'ativos' });
+    const { data } = await rodar(ordenarCompromissos(q.gte('data', de).lte('data', ate), 'data').limit(ITENS_DA_AGENDA));
+    return data;
+  },
+  async compromissoObter(id) {
+    const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO).eq('id', id).maybeSingle());
+    return data ? compromissoComPessoas(data) : null;
+  },
+  async compromissoCriar(dados) {
+    const { data } = await rodar(sb.from('compromissos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    return data;
+  },
+  async compromissoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('compromissos').update(dados).eq('id', id).select('id, codigo').single());
+    return data;
+  },
+  async compromissosArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('compromissos')
+      .update(arquivar ? { arquivado_em: new Date().toISOString(), arquivado_por: uid() } : { arquivado_em: null, arquivado_por: null })
+      .in('id', ids).select('id'));
+    if (ids.length && !data.length) throw new Error(NAO_MUDOU);
+    return data.length;
+  },
+  async compromissosExcluir(ids) {
+    const { data } = await rodar(sb.from('compromissos').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só compromissos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
+  },
+  async compromissoMover(id, etapaId, ordem) {
+    const { data } = await rodar(sb.from('compromissos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id'));
+    if (!data.length) throw new Error(NAO_MUDOU);
+  },
+  async compromissoHistorico(id) {
+    const { data } = await rodar(sb.from('compromisso_historico').select('id, alteracoes, feito_por, em')
+      .eq('compromisso_id', id).order('em', { ascending: false }).limit(HISTORICO_DO_COMPROMISSO));
+    return data;
+  },
+  async compromissosDaPessoa(pessoaId, perfilId = null) {
+    const filtros = [`pessoas.cs.{${pessoaId}}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`, `participantes.cs.{${perfilId}}`] : [])];
+    const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO_LIGADO).or(filtros.join(','))
+      .order('data', { ascending: false }).order('hora', { ascending: false }).limit(COMPROMISSOS_LIGADOS));
+    return data.map(({ pessoas, responsavel_id, participantes, ...c }: Livre) => ({ ...c, papeis: papeisNoCompromisso({ pessoas, responsavel_id, participantes }, pessoaId, perfilId) }));
+  },
+  async compromissosDoProcesso(processoId) {
+    const { data } = await rodar(sb.from('compromissos').select(CAMPOS_COMPROMISSO_LIGADO).eq('processo_id', processoId)
+      .order('data', { ascending: false }).order('hora', { ascending: false }).limit(COMPROMISSOS_LIGADOS));
+    return data.map(({ pessoas: _pessoas, responsavel_id: _responsavel, participantes: _participantes, ...c }: Livre) => ({ ...c, papeis: [] }));
+  },
+  async prazosDoPeriodo(de, ate, f = {}) {
+    // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem.
+    const [{ data: concluidas }, { data: demandas }, { data: tarefas }] = await Promise.all([
+      rodar(sb.from('quadro_colunas').select('id').eq('marco', 'concluido').in('modulo', ['demandas', 'tarefas'])),
+      rodar(filtrarDemandas(sb.from('demandas').select('id, codigo, titulo, prazo, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA)),
+      rodar(filtrarTarefas(sb.from('tarefas').select('id, codigo, titulo, prazo, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA))
+    ]);
+    const fim = new Set(concluidas.map((c: Livre) => c.id));
+    const naAgenda = (origem: PrazoNaAgenda['origem'], linhas: Livre[]): PrazoNaAgenda[] => linhas.filter(l => !fim.has(l.etapa_id))
+      .map(({ etapa_id: _etapa, ...l }) => ({ origem, ...l }));
+    return [...naAgenda('demandas', demandas), ...naAgenda('tarefas', tarefas)];
+  },
+  async processosParaLigar(termo = '') {
+    let q = sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome').is('arquivado_em', null);
+    const t = termoBusca(termo);
+    if (t) q = q.ilike('busca', `%${t}%`);
+    const { data } = await rodar(q.order('criado_em', { ascending: false }).limit(PROCESSOS_PARA_LIGAR));
+    return data;
   },
 
   // ---------- processos ----------

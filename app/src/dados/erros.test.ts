@@ -36,6 +36,8 @@ describe('Erros do banco em português', () => {
 
   it.each([
     ['usuário que não pode ser excluído', { code: '23503', message: 'violates foreign key constraint "perfis_pessoa_fkey"' }, 'Esta pessoa é usuária do sistema e não pode ser excluída.'],
+    ['pessoa que está em compromissos', { code: '23503', message: 'violates foreign key constraint "compromisso_pessoas_pessoa_id_fkey"' }, 'Esta pessoa está em compromissos e não pode ser excluída.'],
+    ['audiência sem processo', { code: '23514', message: 'violates check constraint "compromisso_tem_processo"' }, 'Audiência e perícia precisam de um processo.'],
     ['pessoa que está em contratos', { code: '23503', message: 'violates foreign key constraint "contratos_cliente_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
     ['pessoa que participa de contratos', { code: '23503', message: 'violates foreign key constraint "contrato_participantes_pessoa_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
     ['formato inválido', { code: '23514', message: 'violates check constraint' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],

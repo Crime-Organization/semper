@@ -17,10 +17,10 @@ A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, 
 
 | Pasta / arquivo | Conteúdo |
 |---|---|
-| `app/src/paginas/` | Telas: `Entrada` (login, primeiro acesso, recuperação de senha, cliente), `Inicio`, `Pessoas` e `CartaoPessoa`, `NovaPessoa` (cadastro em etapas) e `Equipe`. |
+| `app/src/paginas/` | Telas: `Entrada` (login, primeiro acesso, recuperação de senha, cliente), `Inicio`, `Pessoas` e `CartaoPessoa`, `NovaPessoa` (cadastro em etapas), `Equipe` e `Compromissos` (a agenda: por data, em tabela e em quadro, com a visão por data em `agenda/`). |
 | `app/src/ui/` | Peças comuns: `Casca` (barra lateral), `PaginaModulo` (com o menu ⋯ de `Menu`), `quadro/` (`Kanban` e `useColunas`), avisos e desfazer (Ctrl+Z), janelas, painel do cartão, tema e sessão. |
 | `app/src/dados/` | `supabase.ts` (única parte que fala com o banco), `falso.ts` (banco fictício para testes), `tipos.ts` (o formato dos dados e o contrato `Dados`, dividido por área), `contrato.test.ts` (confere que o fictício se comporta como o banco), `erros.ts` (erros do banco em português), `consultas.ts` (CNPJ na Receita e CEP) e `limites.ts` (tamanhos de página e de campo). |
-| `app/src/regras/` | Regras puras, sem banco nem internet: formatos, validação, qualificação, conversão das respostas de CNPJ e CEP, vínculos, texto comparável (`texto.ts`) e o CSV do Google Contatos (`contatosGoogle.ts`), com os testes. |
+| `app/src/regras/` | Regras puras, sem banco nem internet: formatos, validação, qualificação, conversão das respostas de CNPJ e CEP, vínculos, texto comparável (`texto.ts`), o CSV do Google Contatos (`contatosGoogle.ts`) e a agenda (`compromisso.ts` e `agenda.ts`, com o dia, a semana e o mês no horário de Brasília), com os testes. |
 | `app/e2e/` e `app/TESTES.md` | Testes de ponta a ponta (Playwright, no banco fictício) e o padrão dos testes (BDD: Dado / Quando / Então). |
 | `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |

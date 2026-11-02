@@ -230,7 +230,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         <textarea {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_TAREFA.descricao} value={c.descricao}
           onChange={e => mudar({ descricao: e.target.value })} />
       </Campo>
-      <Campo rotulo="Prazo" para="prazo" erro={erros.prazo} dica="Opcional. Quando a agenda existir, o prazo aparece nela.">
+      <Campo rotulo="Prazo" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
           onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />
       </Campo>
