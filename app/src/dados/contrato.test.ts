@@ -921,14 +921,20 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(repetido).rejects.toThrow('Já existe um campo com esse nome.');
       });
 
-      it('quando é lista sem opção, ou tem opção sem ser lista, então é recusado; as opções ficam limpas', async () => {
+      it.each([
+        ['lista sem opção', { tipo: 'lista' as const, opcoes: [] }],
+        ['opção sem ser lista', { tipo: 'texto' as const, opcoes: ['a'] }]
+      ])('quando é %s, então é recusado', async (_caso, extra) => {
         // Quando
-        const semOpcao = novoCampo({ tipo: 'lista', opcoes: [] });
-        const comOpcao = novoCampo({ tipo: 'texto', opcoes: ['a'] });
+        const salvar = novoCampo(extra);
+        // Então
+        await expect(salvar).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando a lista tem opções repetidas ou vazias, então elas ficam limpas', async () => {
+        // Quando
         const lista = await novoCampo({ tipo: 'lista', opcoes: [' Site ', 'site', '', 'Parceiro'] });
         // Então
-        await expect(semOpcao).rejects.toThrow('Algum campo está em formato inválido.');
-        await expect(comOpcao).rejects.toThrow('Algum campo está em formato inválido.');
         expect(lista.opcoes).toEqual(['Site', 'Parceiro']);
       });
 
