@@ -8,8 +8,9 @@ export function useCartaoNaUrl() {
   return {
     /** id do item aberto, ou null. */
     aberto: params.get('id'),
-    abrir: (id: string) => setParams({ id }, { replace: true }),
-    fechar: () => setParams({}, { replace: true }),
+    // O resto do endereço (ex.: o filtro que veio do painel de Processos) continua.
+    abrir: (id: string) => setParams(p => { p.set('id', id); return p; }, { replace: true }),
+    fechar: () => setParams(p => { p.delete('id'); return p; }, { replace: true }),
     /** Endereço que abre o cartão do item (o que vai para a aba nova no Ctrl+clique). */
     endereco: (id: string) => `${pathname}?${new URLSearchParams({ id })}`
   };

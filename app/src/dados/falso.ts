@@ -1791,6 +1791,7 @@ export const SD: Dados = {
     const andamentos = bd.andamentos!.filter(a => !a.excluido_em && base.has(a.processo_id)).map(({ processo_id, excluido_em: _e, ...a }) => ({ ...a, processo: noPainel(base.get(processo_id)!) }));
     const prazos = bd.prazos!.filter(z => !z.excluido_em && !z.concluido_em && base.has(z.processo_id) && z.final <= ate_prazos)
       .toSorted((a, b) => a.final.localeCompare(b.final)).map(z => ({ id: z.id, descricao: z.descricao, final: z.final, tarefa_id: z.tarefa_id, processo: noPainel(base.get(z.processo_id)!) }));
+    const vencidos = prazos.filter(z => z.final < hoje), aVencer = prazos.filter(z => z.final >= hoje);
     const marcados = andamentos.filter(a => (a.tipo === 'audiencia' || a.tipo === 'pericia') && a.data >= hoje && a.data <= ate_marcados)
       .toSorted((a, b) => a.data.localeCompare(b.data) || (a.hora ?? '99').localeCompare(b.hora ?? '99'));
     const intimacoes = andamentos.filter(a => a.tipo === 'intimacao' && !a.tratada_em && !a.tarefa_id)
@@ -1798,7 +1799,7 @@ export const SD: Dados = {
     const parados = [...base.values()].flatMap(p => {
       if (bd.colunas.find(c => c.id === p.etapa_id)?.marco === 'concluido') return [];
       const datas = bd.andamentos!.filter(a => a.processo_id === p.id && !a.excluido_em && a.data <= hoje).map(a => a.data).toSorted();
-      const ultimo = datas.at(-1) ?? p.distribuicao ?? p.criado_em.slice(0, 10);
+      const ultimo = datas.at(-1) ?? p.distribuicao ?? new Date(p.criado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
       const dias = Math.round((Date.parse(hoje) - Date.parse(ultimo)) / DIA);
       return dias > bd.diasParado! ? [{ processo: noPainel(p), ultimo, dias }] : [];
     }).toSorted((a, b) => b.dias - a.dias);
@@ -1808,7 +1809,7 @@ export const SD: Dados = {
       fases.set(chave, { tipo: p.tipo, etapa_id: p.etapa_id, n: (fases.get(chave)?.n ?? 0) + 1 });
     }
     return espera({
-      prazos: prazos.slice(0, ITENS_POR_LISTA), total_prazos: prazos.length,
+      prazos: [...vencidos.slice(0, ITENS_POR_LISTA), ...aVencer.slice(0, ITENS_POR_LISTA)], total_vencidos: vencidos.length, total_a_vencer: aVencer.length,
       marcados: marcados.slice(0, ITENS_POR_LISTA), total_marcados: marcados.length,
       intimacoes: intimacoes.slice(0, ITENS_POR_LISTA), total_intimacoes: intimacoes.length,
       ultimos: andamentos.filter(a => a.data <= hoje).toSorted(porDataDoAndamento).slice(0, ULTIMOS_ANDAMENTOS),

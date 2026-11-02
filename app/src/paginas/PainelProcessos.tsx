@@ -6,9 +6,9 @@ import { Link } from 'react-router';
 import { SD, type AndamentoNoPainel, type Coluna, type PainelDeProcessos, type ProcessoNoPainel } from '../dados';
 import { DIAS_PARADO } from '../dados/limites';
 import { quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO } from '../regras/andamentos';
-import { enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, ITENS_POR_LISTA, processoParaTarefa, rotuloNoPainel, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
+import { enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, ITENS_POR_LISTA, linhaDoProcesso, processoParaTarefa, rotuloNoPainel, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { fmtData } from '../regras/pessoa';
-import { nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
+import { SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Cartao, Escolhas, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
 import { Botao } from '../ui/Botoes';
@@ -25,7 +25,7 @@ const ALCANCES: Record<Alcance, string> = { todos: 'Todos', meus: 'Meus' };
 type Colunas = Partial<Record<keyof typeof TIPOS_PROCESSO, Coluna[]>>;
 
 /** "Mostrando 100 de 130", quando a lista veio cortada. */
-const MaisDoQueCabe = ({ total }: { total: number }) => total > ITENS_POR_LISTA ? <Nota>Mostrando {ITENS_POR_LISTA} de {total}.</Nota> : null;
+const MaisDoQueCabe = ({ total, de = '' }: { total: number; de?: string }) => total > ITENS_POR_LISTA ? <Nota>Mostrando {ITENS_POR_LISTA} de {total}{de}.</Nota> : null;
 
 export default function PainelProcessos() {
   useTitulo('Processos');
@@ -33,7 +33,7 @@ export default function PainelProcessos() {
   const eu = ctx.perfil.id;
   const [alcance, setAlcance] = useState<Alcance>(() => lerPreferencia<Alcance>('processos.painel.alcance', 'todos') === 'meus' ? 'meus' : 'todos');
   const [painel, setPainel] = useState<PainelDeProcessos | string | null>(null);
-  const [colunas, setColunas] = useState<Colunas>({});
+  const [colunas, setColunas] = useState<Colunas | string | null>(null);
   const hoje = hojeISO();
 
   // Só vale a leitura mais recente: trocar de Meus para Todos não pode trazer de volta a lista anterior.
@@ -55,7 +55,7 @@ export default function PainelProcessos() {
   useMudancas(() => { void carregar(); });
   useEffect(() => {
     Promise.all(TIPOS.map(t => SD.colunasListar(TIPOS_PROCESSO[t].quadro).then(c => [t, c] as const)))
-      .then(pares => setColunas(Object.fromEntries(pares))).catch(falha);
+      .then(pares => setColunas(Object.fromEntries(pares))).catch(e => setColunas((e as Error).message));
   }, []);
 
   function escolher(a: Alcance) { setAlcance(a); salvarPreferencia('processos.painel.alcance', a); }
@@ -84,9 +84,8 @@ export default function PainelProcessos() {
   if (!painel) return <div className="miolo">{cabecalho}<Carregando /></div>;
 
   const responsavel = (p: ProcessoNoPainel) => ctx.equipe.find(m => m.id === p.responsavel_id)?.nome || 'Usuário removido';
-  const doProcesso = (p: ProcessoNoPainel) => `${nomeDoProcesso(p)} · ${p.numero}`;
   const andamentoLigado = (a: AndamentoNoPainel): ItemLigado => ({
-    id: a.id, para: enderecoDoProcesso(a.processo), codigo: TIPOS_DE_ANDAMENTO[a.tipo].nome + ' · ' + quandoDoAndamento(a), titulo: doProcesso(a.processo), detalhe: a.texto
+    id: a.id, para: enderecoDoProcesso(a.processo), codigo: TIPOS_DE_ANDAMENTO[a.tipo].nome + ' · ' + quandoDoAndamento(a), titulo: linhaDoProcesso(a.processo), detalhe: a.texto
   });
   const grupos = gruposDePrazos(painel.prazos, hoje);
   const meus = alcance === 'meus' ? eu : null;
@@ -101,10 +100,11 @@ export default function PainelProcessos() {
         <h3 className="painel-grupo">{g.destaque ? <Selo tipo="erro">{g.titulo}</Selo> : <Selo tipo="pend">{g.titulo}</Selo>}</h3>
         <ItensLigados itens={g.prazos.map(z => ({
           id: z.id, para: enderecoDoProcesso(z.processo), codigo: rotuloNoPainel(z, hoje) + ' · ' + fmtData(z.final), titulo: z.descricao,
-          detalhe: `${doProcesso(z.processo)} · ${responsavel(z.processo)}`
+          detalhe: `${linhaDoProcesso(z.processo)} · ${responsavel(z.processo)}`
         }))} />
       </section>)}
-      <MaisDoQueCabe total={painel.total_prazos} />
+      <MaisDoQueCabe total={painel.total_vencidos} de=" vencidos" />
+      <MaisDoQueCabe total={painel.total_a_vencer} de=" a vencer" />
     </Cartao>
 
     <Cartao className="painel-parte">
@@ -117,7 +117,7 @@ export default function PainelProcessos() {
       <TituloSecao id="pIntimacoes">Intimações a tratar</TituloSecao>
       <ItensLigados vazio="Nenhuma intimação a tratar." itens={painel.intimacoes.map(a => ({
         ...andamentoLigado(a),
-        acao: <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`Criar tarefa da intimação: ${a.texto.slice(0, 60)}`} onClick={() => criarTarefa(a)}>Criar tarefa</Botao>
+        acao: ctx.escritorio?.modulos?.tarefas && <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`Criar tarefa da intimação: ${a.texto.slice(0, 60)}`} onClick={() => criarTarefa(a)}>Criar tarefa</Botao>
       }))} />
       <MaisDoQueCabe total={painel.total_intimacoes} />
     </Cartao>
@@ -131,7 +131,7 @@ export default function PainelProcessos() {
       <TituloSecao id="pParados">Processos parados</TituloSecao>
       <Nota>Sem andamento há mais de {painel.dias_parado} dias. É hora de consultar a movimentação.</Nota>
       <ItensLigados vazio="Nenhum processo parado." itens={painel.parados.map(x => ({
-        id: x.processo.id, para: enderecoDoProcesso(x.processo), codigo: `${x.dias} dias sem andamento · desde ${fmtData(x.ultimo)}`, titulo: doProcesso(x.processo), detalhe: responsavel(x.processo)
+        id: x.processo.id, para: enderecoDoProcesso(x.processo), codigo: `${x.dias} dias sem andamento · desde ${fmtData(x.ultimo)}`, titulo: linhaDoProcesso(x.processo), detalhe: responsavel(x.processo)
       }))} />
       <MaisDoQueCabe total={painel.total_parados} />
       {ctx.ehAdmin && <DiasParado atual={painel.dias_parado} aoSalvar={carregar} />}
@@ -139,7 +139,7 @@ export default function PainelProcessos() {
 
     <Cartao className="painel-parte">
       <TituloSecao id="pFases">Processos em cada fase</TituloSecao>
-      <div className="painel-fases">
+      {colunas === null ? <Carregando /> : typeof colunas === 'string' ? <Aviso tipo="erro">{colunas}</Aviso> : <div className="painel-fases">
         {TIPOS.map(t => {
           const fases = fasesDoTipo(painel.fases, t, colunas[t] ?? [], SEM_SITUACAO_PROCESSO);
           return <section key={t} aria-label={TIPOS_PROCESSO[t].titulo}>
@@ -149,7 +149,7 @@ export default function PainelProcessos() {
             </li>)}</ul> : <Nota>Nenhum processo.</Nota>}
           </section>;
         })}
-      </div>
+      </div>}
     </Cartao>
   </div>;
 }

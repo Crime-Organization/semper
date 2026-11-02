@@ -5,7 +5,8 @@
 --   - Roda com a permissão de quem consulta: as regras RLS já deixam só os processos que a pessoa pode ver.
 --   - Processo arquivado e item excluído ficam de fora. "Meus": a pessoa é responsável ou colaboradora.
 --   - Parado: sem andamento há mais dias do que o escritório escolheu (60, se ninguém mudar). Quem nunca teve andamento conta
---     da distribuição ou, sem ela, do cadastro. Quem está na última coluna do quadro (encerrado) não está parado.
+--     da distribuição ou, sem ela, do dia do cadastro em Brasília. Quem está na última coluna do quadro (encerrado) não está parado.
+--   - Os vencidos e os que ainda vão vencer são cortados à parte: muitos vencidos não escondem os prazos de hoje.
 --   Os dias e os limites são os de app/src/regras/painelProcessos.ts e DIAS_PARADO em app/src/dados/limites.ts.
 --   Só acrescenta: uma coluna com valor padrão e duas funções. A versão anterior do site continua funcionando.
 -- =====================================================================
@@ -37,13 +38,17 @@ language sql stable set search_path = '' as $$
     left join public.quadro_colunas c on c.id = b.etapa_id
     cross join lateral (
       select coalesce((select max(a.data) from public.processo_andamentos a where a.processo_id = b.id and a.excluido_em is null and a.data <= p_hoje),
-                      b.distribuicao, b.criado_em::date) as ultimo
+                      b.distribuicao, (b.criado_em at time zone 'America/Sao_Paulo')::date) as ultimo
     ) u
     where c.marco is distinct from 'concluido' and p_hoje - u.ultimo > (select n from dias)
   )
   select jsonb_build_object(
-    'prazos', coalesce((select jsonb_agg(x) from (select * from prazos order by final, id limit p_limite) x), '[]'),
-    'total_prazos', (select count(*) from prazos),
+    'prazos', coalesce((select jsonb_agg(x) from (
+      (select * from prazos where final < p_hoje order by final, id limit p_limite)
+      union all
+      (select * from prazos where final >= p_hoje order by final, id limit p_limite)) x), '[]'),
+    'total_vencidos', (select count(*) from prazos where final < p_hoje),
+    'total_a_vencer', (select count(*) from prazos where final >= p_hoje),
     'marcados', coalesce((select jsonb_agg(x) from (select * from marcados order by data, hora nulls last, id limit p_limite) x), '[]'),
     'total_marcados', (select count(*) from marcados),
     'intimacoes', coalesce((select jsonb_agg(x) from (select * from intimacoes order by data, criado_em limit p_limite) x), '[]'),

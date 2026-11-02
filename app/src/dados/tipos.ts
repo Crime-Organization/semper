@@ -984,7 +984,8 @@ export interface FaseNoPainel { tipo: TipoProcesso; etapa_id: string | null; n: 
 /** O painel de Processos. Só traz o que quem está logado pode ver, sem arquivados nem excluídos. Cada lista vem cortada em
  *  ITENS_POR_LISTA; total_* diz quantos há. */
 export interface PainelDeProcessos {
-  prazos: PrazoNoPainel[]; total_prazos: number;
+  /** Vencidos e a vencer, cada parte cortada à parte, para muitos vencidos não esconderem os de hoje. */
+  prazos: PrazoNoPainel[]; total_vencidos: number; total_a_vencer: number;
   marcados: AndamentoNoPainel[]; total_marcados: number;
   intimacoes: AndamentoNoPainel[]; total_intimacoes: number;
   ultimos: AndamentoNoPainel[];

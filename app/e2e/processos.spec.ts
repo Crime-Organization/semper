@@ -856,10 +856,36 @@ test.describe('Painel de Processos', () => {
     await judicial.getByRole('link', { name: /1 Distribuído/ }).click();
     // Então
     await expect(page).toHaveURL(/\/processos\/judicial\/\?etapa=/);
-    await expect(page.getByText('JOSÉ DA SILVA TESTE').first()).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toBeVisible();
     await page.getByRole('button', { name: 'Filtros' }).click();
-    await expect(page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Situação')).toHaveValue(/.+/);
-    await expect(page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Situação').locator('option:checked')).toHaveText('Distribuído');
+    const situacao = page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Situação');
+    await expect(situacao.locator('option:checked')).toHaveText('Distribuído');
+    // Quando: troca por uma coluna sem processo
+    await situacao.selectOption({ label: 'Sentença proferida' });
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    // Então: a lista acompanha, e o endereço também
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toHaveCount(0);
+    // Quando: o quadro, com o filtro
+    await page.getByRole('button', { name: 'Kanban', exact: true }).click();
+    // Então
+    await expect(page.getByRole('list', { name: 'Distribuído', exact: true })).not.toContainText('JOSÉ DA SILVA TESTE');
+    // Quando: o link do menu, sem filtro
+    await abrir(page, 'Judicial');
+    // Então
+    await expect(page.getByRole('list', { name: 'Distribuído', exact: true })).toContainText('JOSÉ DA SILVA TESTE');
+  });
+
+  test('quando abre e fecha um cartão com o filtro da fase, então o filtro continua no endereço', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/');
+    await page.getByRole('region', { name: 'Processos judiciais' }).getByRole('link', { name: /1 Distribuído/ }).click();
+    // Quando
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    await expect(page).toHaveURL(/etapa=.*id=/);
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // Então
+    await expect(page).toHaveURL(/\?etapa=[^&]+$/);
   });
 
   test('quando escolhe Meus, então a escolha fica guardada', async ({ page }) => {

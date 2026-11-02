@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { datasDoPainel, enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, processoParaTarefa, rotuloNoPainel, SEM_FASE } from './painelProcessos';
+import { datasDoPainel, enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, linhaDoProcesso, processoParaTarefa, rotuloNoPainel, SEM_FASE } from './painelProcessos';
 
 const HOJE = '2026-11-10';
 const PROCESSO = { id: 'p1', codigo: 'ABC', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: 'A', responsavel_id: 'u1', colaboradores: [], clientes: ['c1', 'c2'] };
@@ -65,6 +65,12 @@ describe('Processo no painel', () => {
   it('quando abre o cartão, então vai para o quadro do tipo dele', () => {
     // Então
     expect(enderecoDoProcesso({ id: 'p1', tipo: 'administrativo' })).toBe('/processos/administrativo/?id=p1');
+  });
+
+  it('quando mostra o processo, então aparecem o nome do cartão, os clientes e o número', () => {
+    // Então
+    expect(linhaDoProcesso({ titulo: 'Marca X', cliente_nome: 'ANA; BIA', numero: '123' })).toBe('Marca X · ANA e BIA · 123');
+    expect(linhaDoProcesso({ titulo: null, cliente_nome: 'ANA', numero: '123' })).toBe('ANA · 123');
   });
 
   it('quando cria a tarefa, então os clientes vão como a regra da tarefa recebe', () => {

@@ -9,6 +9,7 @@ import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { DIA } from '../ui/tempos';
+import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
@@ -1156,6 +1157,26 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(ids.filter(i => [vencido.id, hoje.id, seteDias.id].includes(i))).toEqual([vencido.id, hoje.id, seteDias.id]);
         expect(ids).not.toContain(oitoDias.id);
         expect(ids).not.toContain(cumprido.id);
+      });
+
+      it('quando a lista de prazos passa do limite, então os vencidos não escondem os de hoje', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const hoje = await SD.processoPrazoCriar(id, { ...PRAZO, final: HOJE });
+        await Promise.all(Array.from({ length: ITENS_POR_LISTA + 1 }, () => SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) })));
+        // Quando
+        const p = await painel();
+        // Então
+        expect(p.prazos.map(z => z.id)).toContain(hoje.id);
+        expect(p.total_vencidos).toBeGreaterThan(ITENS_POR_LISTA);
+        expect(p.prazos.filter(z => z.final < HOJE)).toHaveLength(ITENS_POR_LISTA);
+      });
+
+      it('quando a coluna do filtro não é um identificador, então não acha nada, sem erro', async () => {
+        // Quando
+        const r = await SD.processosListar({ tipo: 'judicial', etapa: 'link-cortado', situacao: 'ativos' });
+        // Então
+        expect(r.total).toBe(0);
       });
 
       it('quando há audiências e perícias, então vêm só as de hoje até 15 dias', async () => {

@@ -2,6 +2,7 @@
 // Tudo puro, sem tela nem banco. As datas são "aaaa-mm-dd".
 import type { Coluna, FaseNoPainel, ProcessoNoPainel, PrazoNoPainel, TipoProcesso } from '../dados/tipos';
 import { DIAS_PARADO } from '../dados/limites';
+import { clientesPorExtenso } from './contrato';
 import { DIAS_DE_PRAZO_PROXIMO, rotuloDoPrazo, situacaoDoPrazoNoProcesso, type SituacaoDoPrazoNoProcesso } from './andamentos';
 import { somarDias } from './prazos';
 import { TIPOS_PROCESSO } from './processo';
@@ -41,9 +42,14 @@ export function fasesDoTipo(fases: FaseNoPainel[], tipo: TipoProcesso, colunas: 
   const fora = doTipo.find(f => f.etapa_id === null)?.n;
   return fora ? [...contadas, { chave: SEM_FASE, nome: semSituacao, n: fora }] : contadas;
 }
-/** O quadro já filtrado por aquela coluna, com a mesma escolha de "Meus" do painel. */
+/** A lista já filtrada por aquela coluna, com a mesma escolha de "Meus" do painel. Abre em tabela: no quadro, a coluna pode
+ *  estar longe, oculta ou num grupo fechado, e o processo não apareceria. */
 export const enderecoDaFase = (tipo: TipoProcesso, chave: string, meus: string | null) =>
   `${TIPOS_PROCESSO[tipo].caminho}?etapa=${chave}${meus ? `&pessoa=${meus}` : ''}`;
+
+/** O processo numa linha: o nome do cartão, os clientes e o número. */
+export const linhaDoProcesso = (p: Pick<ProcessoNoPainel, 'titulo' | 'cliente_nome' | 'numero'>) =>
+  [p.titulo, clientesPorExtenso(p.cliente_nome), p.numero].filter(Boolean).join(' · ');
 
 /** O endereço que abre o cartão do processo. */
 export const enderecoDoProcesso = (p: Pick<ProcessoNoPainel, 'id' | 'tipo'>) => `${TIPOS_PROCESSO[p.tipo].caminho}?id=${p.id}`;

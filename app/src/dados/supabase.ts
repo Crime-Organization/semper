@@ -232,12 +232,14 @@ const ORDENS_PROCESSO: Record<Ordem, (q: Livre) => Livre> = {
   recentes: q => q.order('atualizado_em', { ascending: false })
 };
 const ordenarProcessos = (q: Livre, ordem: Ordem) => ORDENS_PROCESSO[ordem](q).order('id');
+/** A coluna vem do endereço: um valor que não é identificador (link cortado) não acha nada, em vez de dar erro no banco. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function filtrarProcessos(q: Livre, f: FiltroProcessos) {
   q = porEtiqueta(q, f).eq('tipo', f.tipo);
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
   if (f.orgao) q = q.eq('orgao', f.orgao);
-  if (f.etapa) q = f.etapa === SEM_FASE ? q.is('etapa_id', null) : q.eq('etapa_id', f.etapa);
+  if (f.etapa) q = f.etapa === SEM_FASE ? q.is('etapa_id', null) : UUID.test(f.etapa) ? q.eq('etapa_id', f.etapa) : q.in('id', []);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
