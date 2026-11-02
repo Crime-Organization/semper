@@ -722,7 +722,7 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
 // ---------- tarefas ----------
 const processoDaTarefa = (id: string | null | undefined) => {
   const p = id ? bd.processos!.find(x => x.id === id) : null;
-  return p ? { id: p.id, codigo: p.codigo, numero: p.numero } : null;
+  return p ? { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero } : null;
 };
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;

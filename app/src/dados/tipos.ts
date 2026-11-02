@@ -359,7 +359,7 @@ export interface Tarefa {
   /** A ligação nasce com a tarefa (de uma intimação ou de um prazo) e não muda depois. */
   processo_id: string | null;
   /** O processo, se quem vê a tarefa também pode abri-lo; senão null. */
-  processo: { id: string; codigo: string; numero: string } | null;
+  processo: { id: string; codigo: string; tipo: TipoProcesso; numero: string } | null;
 }
 /** O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). */
 export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;

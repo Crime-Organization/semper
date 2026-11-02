@@ -667,7 +667,11 @@ test.describe('Andamentos, prazos e intimações', () => {
     const tarefa = page.getByRole('dialog');
     await expect(tarefa.getByRole('heading', { name: 'Intimação: Intimado para contestar' })).toBeVisible();
     await abrirSecao(tarefa, 'Processo');
-    await expect(tarefa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ })).toBeVisible();
+    // Quando: abre o processo
+    await tarefa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ }).click();
+    // Então
+    await expect(page).toHaveURL(//processos/judicial/?id=/);
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
   });
 
   test('quando desfaz a tarefa criada da intimação, então ela volta a ficar a tratar, e a tarefa vai para o arquivo', async ({ page }) => {
