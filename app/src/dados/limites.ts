@@ -130,6 +130,14 @@ export const TAMANHO_ETIQUETA = 40;
 // ---------- Processos ----------
 /** Tamanhos dos campos do processo (exigidos pelo banco: supabase/migrations/20261101155218_processos.sql). */
 export const TAMANHO_PROCESSO = { numero: 60, titulo: 300, orgao: 20, comarca: 120, vara: 120, classe: 200, assunto: 200, juiz: 200, instancia: 60, advogadoContrario: 200, observacoes: 4000, opcao: 120 };
+/** Andamentos e prazos do processo (exigidos pelo banco: supabase/migrations/20261102125539_andamentos_e_prazos.sql). */
+export const TAMANHO_ANDAMENTO = { texto: 4000, local: 200 };
+export const TAMANHO_PRAZO = { descricao: 300 };
+/** Quantos andamentos e quantos prazos o cartão do processo mostra (os mais novos); passou disso, ele avisa. */
+export const ANDAMENTOS_DO_PROCESSO = 500;
+export const PRAZOS_DO_PROCESSO = 500;
+/** Dias sem andamento para o processo aparecer como parado (exigidos pelo banco: supabase/migrations/20261102135353_painel_de_processos.sql). */
+export const DIAS_PARADO = { minimo: 1, maximo: 3650, padrao: 60 };
 /** O valor da causa precisa ser menor que este: é até onde o banco guarda (numeric(16,2), na migração de processos). */
 export const VALOR_CAUSA_LIMITE = 100_000_000_000_000;
 /** Quantas alterações do histórico aparecem no cartão do processo. */

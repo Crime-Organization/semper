@@ -1,2 +1,14 @@
 /* Processos: o que não vem de Contratos.css, Demandas.css e estilo.css */
 .tabela-processos td:nth-child(2) { min-width: 260px; max-width: 420px }
+
+/* Painel de Processos */
+.painel-cabeca { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px }
+.painel-cabeca .pergunta { margin: 0; min-width: 220px }
+.painel-processos { display: flex; flex-direction: column; gap: 16px }
+.painel-parte { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+.painel-grupo { margin: 0 0 8px; font-size: inherit }
+.painel-fases { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px }
+.painel-numeros { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
+.painel-dias { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px }
+.painel-dias .pergunta { margin: 0; flex: 1 1 240px }
+.painel-cabeca .escolhas { grid-template-columns: 1fr 1fr }

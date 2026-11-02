@@ -8,8 +8,11 @@ import type {
   ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
-  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso
+  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
+  AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
+import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
+import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes } from '../regras/contrato';
@@ -26,10 +29,11 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
-import { ANOS_DO_CALENDARIO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO } from './limites';
+import { DIAS_PARADO } from './limites';
+import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import { padraoDoOrgao } from '../regras/calendario';
-import { TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
+import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
+import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
@@ -109,6 +113,12 @@ interface Banco {
   historicoCompromissos?: (Historico & { compromisso_id: string })[];
   opcoesDeProcesso?: OpcaoDeProcesso[];
   camposDeProcesso?: CampoDeProcesso[];
+  /** As demandas ligadas aos processos (processo_demandas no banco). */
+  processoDemandas?: { processo_id: string; demanda_id: string }[];
+  /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
+  diasParado?: number;
+  andamentos?: AndamentoGuardado[];
+  prazos?: PrazoGuardado[];
   /** Fotos da equipe (a pasta fotos-da-equipe no banco): os dois AVIF de cada um, guardados aqui como data: URL. */
   fotos?: Record<string, FotoDoPerfil>;
   /** Perfis profissionais da equipe (perfil_profissional no banco). */
@@ -129,7 +139,9 @@ type ProcessoGuardado = Omit<Processo, 'clientes' | 'cliente_nome'> & { clientes
 /** Compromisso como fica guardado: as pessoas pelo id; os nomes e o processo são lidos na hora. */
 type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'processo'> & { pessoas: string[] };
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
-type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato'> & { pessoas: string[] };
+type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
+type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
+type TarefaGuardada = Omit<Tarefa, 'pessoas' | 'pessoa_nome' | 'demanda' | 'contrato' | 'processo'> & { pessoas: string[] };
 // No modo de teste, o código do aplicativo autenticador é sempre 123456.
 const CODIGO_TESTE = '123456';
 const QR_TESTE = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1zM10 10h2v2h-2zM14 14h3v3h-3z" fill="#000"/></svg>');
@@ -224,7 +236,7 @@ function demandaNova(): DemandaGuardada {
 function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
-    contrato_id: null, contrato_codigo: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
+    contrato_id: null, contrato_codigo: null, processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
   };
 }
@@ -340,6 +352,10 @@ for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof ty
 // Dois processos de exemplo, um de cada tipo.
 bd.opcoesDeProcesso ??= [];
 bd.camposDeProcesso ??= [];
+bd.processoDemandas ??= [];
+bd.diasParado ??= DIAS_PARADO.padrao;
+bd.andamentos ??= [];
+bd.prazos ??= [];
 bd.historicoProcessos ??= [];
 bd.processos ??= (() => {
   const coluna = (nome: string) => bd.colunas.find(c => c.nome === nome)?.id ?? null;
@@ -739,13 +755,18 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
 // ---------- tarefas ----------
+const processoDaTarefa = (id: string | null | undefined) => {
+  const p = id ? bd.processos!.find(x => x.id === id) : null;
+  return p ? { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero } : null;
+};
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
   const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
   return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
     demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
       colaboradores: d.colaboradores } : null,
-    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
+    contrato: k ? { id: k.id, codigo: k.codigo, servico: k.servico } : null,
+    processo: processoDaTarefa(t.processo_id) };
 };
 const tarefaLista = (t: TarefaGuardada): TarefaLista => ({
   id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, responsavel_id: t.responsavel_id, participantes: t.participantes,
@@ -771,6 +792,9 @@ const acharTarefa = (id: string) => {
  */
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados };
+  // Como o banco: a ligação com o processo nasce com a tarefa, e só com um processo que existe.
+  if (t.processo_id !== undefined && atual) throw new Error('Você não tem permissão para fazer isso.');
+  if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
   if (t.titulo !== undefined) {
     t.titulo = t.titulo.trim();
     if (!t.titulo) throw new Error('Dê um título à tarefa.');
@@ -967,6 +991,43 @@ function compromissosDoProcessoExcluido(processoId: string) {
     Object.assign(c, { processo_id: null, processo_codigo: null, processo_numero: null });
   }
 }
+// ---------- andamentos e prazos do processo ----------
+const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
+  const t = id ? bd.tarefas!.find(x => x.id === id) : null;
+  return t ? { id: t.id, codigo: t.codigo } : null;
+};
+/** Como o banco devolve: com a tarefa ligada e sem a coluna de exclusão (a tela não lê). */
+const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
+const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
+const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+const TAREFA_JA_LIGADA = 'Já existe uma tarefa ligada a este item.';
+const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
+/** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
+function historicoDoAcompanhamento(processoId: string, campo: 'andamento' | 'prazo', de: string | null, para: string | null) {
+  if (de === para || !bd.processos!.some(p => p.id === processoId)) return;
+  bd.historicoProcessos!.unshift({ id: Date.now() + Math.random(), processo_id: processoId, alteracoes: { [campo]: { de, para } }, feito_por: eu, em: agora() });
+}
+/** Como as regras check do banco: o que cada andamento pode ter. */
+function conferirAndamento(a: AndamentoGuardado) {
+  const marcado = a.tipo === 'audiencia' || a.tipo === 'pericia';
+  a.texto = a.texto.trim();
+  a.local = a.local?.trim() || null;
+  if (!a.texto || a.texto.length > TAMANHO_ANDAMENTO.texto || !anoAceito(a.data) || !dataExiste(a.data)) throw new Error(FORMATO_INVALIDO);
+  if (!marcado && (a.hora || a.local)) throw new Error(FORMATO_INVALIDO);
+  if (a.tipo !== 'intimacao' && a.tratada_em) throw new Error(FORMATO_INVALIDO);
+  if (a.local && a.local.length > TAMANHO_ANDAMENTO.local) throw new Error(FORMATO_INVALIDO);
+  if (a.tarefa_id && !bd.tarefas!.some(t => t.id === a.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
+}
+function conferirPrazo(p: PrazoGuardado) {
+  p.descricao = p.descricao.trim();
+  if (!p.descricao || p.descricao.length > TAMANHO_PRAZO.descricao || !anoAceito(p.final) || !dataExiste(p.final)) throw new Error(FORMATO_INVALIDO);
+  const semCalculo = p.intimacao === null;
+  if (semCalculo !== (p.dias === null) || semCalculo !== (p.contagem === null)) throw new Error(FORMATO_INVALIDO);
+  if (p.intimacao && (!anoAceito(p.intimacao) || !dataExiste(p.intimacao))) throw new Error(FORMATO_INVALIDO);
+  if (p.dias !== null && (!Number.isInteger(p.dias) || p.dias < 1 || p.dias > PRAZO_MAXIMO_DIAS)) throw new Error(FORMATO_INVALIDO);
+  if (p.andamento_id && !bd.andamentos!.some(a => a.id === p.andamento_id && a.processo_id === p.processo_id)) throw new Error('Este andamento não é deste processo.');
+  if (p.tarefa_id && !bd.tarefas!.some(t => t.id === p.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
+}
 // ---------- processos ----------
 const processoCompleto = (p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
@@ -979,6 +1040,7 @@ function filtrarProcessos(f: FiltroProcessos) {
   return bd.processos!.filter(p => p.tipo === f.tipo && (f.situacao === 'arquivados' ? p.arquivado_em : !p.arquivado_em)
     && (!f.pessoa || p.responsavel_id === f.pessoa || p.colaboradores.includes(f.pessoa))
     && (!f.orgao || p.orgao === f.orgao)
+    && (!f.etapa || (f.etapa === SEM_FASE ? !p.etapa_id : p.etapa_id === f.etapa))
     && (!f.etiqueta || temEtiqueta('processos', p.id, f.etiqueta))
     && (!t || buscaProcesso(p).includes(t)));
 }
@@ -1604,6 +1666,7 @@ export const SD: Dados = {
       const d = bd.demandas!.find(x => x.id === id);
       if (!d || !d.arquivado_em) return;
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
+      bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
@@ -1665,6 +1728,9 @@ export const SD: Dados = {
       const t = bd.tarefas!.find(x => x.id === id);
       if (!t || !t.arquivado_em) return;
       bd.tarefas = bd.tarefas!.filter(x => x.id !== id);
+      // Como o on delete set null e o gatilho do banco: a intimação que ficou sem a tarefa volta a ficar a tratar.
+      bd.prazos!.forEach(z => { if (z.tarefa_id === id) z.tarefa_id = null; });
+      bd.andamentos!.forEach(a => { if (a.tarefa_id === id) { a.tarefa_id = null; a.tratada_em = null; } });
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
@@ -1864,6 +1930,144 @@ export const SD: Dados = {
   processosParaLigar: (texto = '') => espera(bd.processos!.filter(p => !p.arquivado_em && (!termo(texto) || buscaProcesso(p).includes(termo(texto)))).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, PROCESSOS_PARA_LIGAR)
     .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes) }))),
 
+  // ---------- andamentos e prazos do processo (como supabase/migrations/20261102125539_andamentos_e_prazos.sql) ----------
+  processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId && !a.excluido_em).toSorted(porDataDoAndamento)
+    .slice(0, ANDAMENTOS_DO_PROCESSO).map(comTarefa)),
+  async processoAndamentoCriar(processoId, dados) {
+    if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
+    const a: AndamentoGuardado = { tratada_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    conferirAndamento(a);
+    bd.andamentos!.push(a);
+    historicoDoAcompanhamento(processoId, 'andamento', null, linhaDoAndamento(a));
+    auditar('processo_andamentos', 'inclusao', a); gravar();
+    return espera(comTarefa(a));
+  },
+  async processoAndamentoAtualizar(id, dados) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    const novo = { ...a, ...dados, atualizado_em: agora() };
+    if (a.tarefa_id && novo.tarefa_id && novo.tarefa_id !== a.tarefa_id) return erro(TAREFA_JA_LIGADA);
+    // Como o gatilho do banco: a tarefa desligada sem mexer na marcação faz a intimação voltar a ficar a tratar.
+    if (a.tarefa_id && !novo.tarefa_id && novo.tratada_em === a.tratada_em) novo.tratada_em = null;
+    conferirAndamento(novo);
+    historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), linhaDoAndamento(novo));
+    Object.assign(a, novo); auditar('processo_andamentos', 'alteracao', a); gravar();
+    return espera(comTarefa(a));
+  },
+  async processoAndamentoExcluir(id) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    if (!a.excluido_em) historicoDoAcompanhamento(a.processo_id, 'andamento', linhaDoAndamento(a), null);
+    a.excluido_em ??= agora();
+    auditar('processo_andamentos', 'alteracao', a); gravar();
+    return espera(undefined);
+  },
+  async processoAndamentoRestaurar(id) {
+    const a = bd.andamentos!.find(x => x.id === id);
+    if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
+    if (a.excluido_em) historicoDoAcompanhamento(a.processo_id, 'andamento', null, linhaDoAndamento(a));
+    a.excluido_em = null;
+    auditar('processo_andamentos', 'alteracao', a); gravar();
+    return espera(undefined);
+  },
+  processoPrazos: processoId => espera(bd.prazos!.filter(p => p.processo_id === processoId && !p.excluido_em).toSorted((a, b) => b.final.localeCompare(a.final))
+    .slice(0, PRAZOS_DO_PROCESSO).map(comTarefa)),
+  async processoPrazoCriar(processoId, dados) {
+    if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
+    const p: PrazoGuardado = { concluido_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    conferirPrazo(p);
+    bd.prazos!.push(p);
+    historicoDoAcompanhamento(processoId, 'prazo', null, linhaDoPrazo(p));
+    auditar('processo_prazos', 'inclusao', p); gravar();
+    return espera(comTarefa(p));
+  },
+  async processoPrazoAtualizar(id, dados) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    const novo = { ...p, ...dados, atualizado_em: agora() };
+    if (p.tarefa_id && novo.tarefa_id && novo.tarefa_id !== p.tarefa_id) return erro(TAREFA_JA_LIGADA);
+    conferirPrazo(novo);
+    historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), linhaDoPrazo(novo));
+    Object.assign(p, novo); auditar('processo_prazos', 'alteracao', p); gravar();
+    return espera(comTarefa(p));
+  },
+  async processoPrazoExcluir(id) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    if (!p.excluido_em) historicoDoAcompanhamento(p.processo_id, 'prazo', linhaDoPrazo(p), null);
+    p.excluido_em ??= agora();
+    auditar('processo_prazos', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
+  async processoPrazoRestaurar(id) {
+    const p = bd.prazos!.find(x => x.id === id);
+    if (!p || !processoAtivo(p.processo_id)) return erro(SEM_MUDANCA);
+    if (p.excluido_em) historicoDoAcompanhamento(p.processo_id, 'prazo', null, linhaDoPrazo(p));
+    p.excluido_em = null;
+    auditar('processo_prazos', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
+  tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),
+
+  // ---------- processo e demanda (como supabase/migrations/20261102144922_processo_demandas.sql) ----------
+  async processoDemandaLigar(processoId, demandaId) {
+    if (!processoAtivo(processoId) || !bd.demandas!.some(d => d.id === demandaId)) return erro(SEM_PERMISSAO);
+    if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId });
+    gravar();
+    return espera(undefined);
+  },
+  demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
+    const d = bd.demandas!.find(x => x.id === l.demanda_id);
+    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
+      criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, papeis: [] }] : [];
+  })),
+  processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {
+    const p = bd.processos!.find(x => x.id === l.processo_id);
+    return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
+  }) }),
+
+  // ---------- painel de processos (como public.painel_de_processos) ----------
+  async processosPainel({ hoje, meus }) {
+    const { ate_prazos, ate_marcados } = datasDoPainel(hoje);
+    const base = new Map(bd.processos!.filter(p => !p.arquivado_em && (!meus || p.responsavel_id === eu || p.colaboradores.includes(eu))).map(p => [p.id, p]));
+    const noPainel = (p: ProcessoGuardado): ProcessoNoPainel => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes),
+      responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, clientes: p.clientes });
+    const andamentos = bd.andamentos!.filter(a => !a.excluido_em && base.has(a.processo_id)).map(({ processo_id, excluido_em: _e, ...a }) => ({ ...a, processo: noPainel(base.get(processo_id)!) }));
+    const prazos = bd.prazos!.filter(z => !z.excluido_em && !z.concluido_em && base.has(z.processo_id) && z.final <= ate_prazos)
+      .toSorted((a, b) => a.final.localeCompare(b.final)).map(z => ({ id: z.id, descricao: z.descricao, final: z.final, tarefa_id: z.tarefa_id, processo: noPainel(base.get(z.processo_id)!) }));
+    const vencidos = prazos.filter(z => z.final < hoje), aVencer = prazos.filter(z => z.final >= hoje);
+    const marcados = andamentos.filter(a => (a.tipo === 'audiencia' || a.tipo === 'pericia') && a.data >= hoje && a.data <= ate_marcados)
+      .toSorted((a, b) => a.data.localeCompare(b.data) || (a.hora ?? '99').localeCompare(b.hora ?? '99'));
+    const intimacoes = andamentos.filter(a => a.tipo === 'intimacao' && !a.tratada_em && !a.tarefa_id)
+      .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em));
+    const parados = [...base.values()].flatMap(p => {
+      if (bd.colunas.find(c => c.id === p.etapa_id)?.marco === 'concluido') return [];
+      const datas = bd.andamentos!.filter(a => a.processo_id === p.id && !a.excluido_em && a.data <= hoje).map(a => a.data).toSorted();
+      const ultimo = datas.at(-1) ?? p.distribuicao ?? new Date(p.criado_em).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+      const dias = Math.round((Date.parse(hoje) - Date.parse(ultimo)) / DIA);
+      return dias > bd.diasParado! ? [{ processo: noPainel(p), ultimo, dias }] : [];
+    }).toSorted((a, b) => b.dias - a.dias);
+    const fases = new Map<string, FaseNoPainel>();
+    for (const p of base.values()) {
+      const chave = p.tipo + '/' + p.etapa_id;
+      fases.set(chave, { tipo: p.tipo, etapa_id: p.etapa_id, n: (fases.get(chave)?.n ?? 0) + 1 });
+    }
+    return espera({
+      prazos: [...vencidos.slice(0, ITENS_POR_LISTA), ...aVencer.slice(0, ITENS_POR_LISTA)], total_vencidos: vencidos.length, total_a_vencer: aVencer.length,
+      marcados: marcados.slice(0, ITENS_POR_LISTA), total_marcados: marcados.length,
+      intimacoes: intimacoes.slice(0, ITENS_POR_LISTA), total_intimacoes: intimacoes.length,
+      ultimos: andamentos.filter(a => a.data <= hoje).toSorted(porDataDoAndamento).slice(0, ULTIMOS_ANDAMENTOS),
+      parados: parados.slice(0, ITENS_POR_LISTA), total_parados: parados.length,
+      dias_parado: bd.diasParado!,
+      fases: [...fases.values()]
+    });
+  },
+  async processosDiasParadoSalvar(dias) {
+    if (!Number.isInteger(dias) || dias < DIAS_PARADO.minimo || dias > DIAS_PARADO.maximo) return erro(FORMATO_INVALIDO);
+    bd.diasParado = dias; gravar();
+    return espera(undefined);
+  },
+
   // ---------- processos (como supabase/migrations/20261101155218_processos.sql) ----------
   processosListar(f) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
@@ -1908,6 +2112,10 @@ export const SD: Dados = {
       compromissosDoProcessoExcluido(id);
       bd.processos = bd.processos!.filter(x => x.id !== id);
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
+      bd.processoDemandas = bd.processoDemandas!.filter(l => l.processo_id !== id);
+      bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
+      bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
+      bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'processos' && a.cartao_id === id));
       auditar('processos', 'exclusao', p); excluidas++;
     });

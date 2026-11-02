@@ -153,8 +153,8 @@ export function periodosDoAno(ano: number, orgaos: Orgao[], lancados: DiaLancado
 export interface PedidoDeLancamento { motivo: string; tipo: TipoSemExpediente; de: string; ate: string; orgaos: (string | null)[] }
 
 /** "aaaa-mm-dd" de um dia que existe (31/02 não existe). */
-const dataExiste = (iso: string) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && somarDias(iso, 0) === iso;
-const anoAceito = (iso: string) => { const a = Number(iso.slice(0, 4)); return a >= ANOS_DO_CALENDARIO.de && a <= ANOS_DO_CALENDARIO.ate; };
+export const dataExiste = (iso: string) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && somarDias(iso, 0) === iso;
+export const anoAceito = (iso: string) => { const a = Number(iso.slice(0, 4)); return a >= ANOS_DO_CALENDARIO.de && a <= ANOS_DO_CALENDARIO.ate; };
 /** O último dia do lançamento: sem "até", é um dia só. */
 const ateDo = (p: Pick<PedidoDeLancamento, 'de' | 'ate'>) => p.ate.trim() || p.de;
 

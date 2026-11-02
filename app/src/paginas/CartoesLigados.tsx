@@ -22,8 +22,8 @@ interface Props {
   modulo: keyof typeof MODULOS;
   carregar: () => Promise<Ligado[]>;
   vazio: string;
-  /** Endereço do cadastro já ligado a este cartão, e o texto do atalho. */
-  nova: { para: string; rotulo: string };
+  /** Endereço do cadastro já ligado a este cartão, e o texto do atalho. Sem ele, a seção só mostra o que há. */
+  nova?: { para: string; rotulo: string };
   /** Muda quando o cartão muda (ex.: o contrato foi para a coluna do assinado e gerou demandas): recarrega a lista. */
   versao?: number;
 }
@@ -50,6 +50,6 @@ export function CartoesLigados({ modulo, carregar, vazio, nova, versao = 0 }: Pr
       id: x.id, para: endereco + x.id, codigo: x.codigo, titulo: x.titulo, selo: x.arquivado_em ? 'Arquivada' : undefined,
       detalhe: [x.papeis.map(p => papeis[p]).join(', '), situacao(x.etapa_id)].filter(Boolean).join(' · ') + prazo(x)
     }))} />
-    <div><BotaoLink forma="mini" to={nova.para}><Icone nome="mais" tam={13} /> {nova.rotulo}</BotaoLink></div>
+    {nova && <div><BotaoLink forma="mini" to={nova.para}><Icone nome="mais" tam={13} /> {nova.rotulo}</BotaoLink></div>}
   </>;
 }

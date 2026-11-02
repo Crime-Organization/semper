@@ -4,6 +4,8 @@
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
+import { useNavigate } from 'react-router';
+import { TIPOS_PROCESSO } from '../regras/processo';
 import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa } from '../regras/tarefa';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
@@ -36,6 +38,7 @@ interface Props {
 
 export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const ctx = useCtx();
+  const navegar = useNavigate();
   const eu = ctx.perfil.id;
   const [t, setT] = useState<Tarefa | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [erro, setErro] = useState('');
@@ -88,7 +91,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       aoMudar(); setVersaoHist(v => v + 1);
       // Relê a tarefa: chegar ou sair da coluna das concluídas muda a data de conclusão (e o resumo do tempo).
       await carregar();
-      if (t!.demanda) await oferecerConcluirDemanda(t!.id, etapa);
+      if (t!.demanda) await oferecerConcluirDemanda(t!.id, etapa, navegar);
     } catch (e) { falha(e); }
   }
 
@@ -139,6 +142,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda">
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
     </Recolhivel>
+
+    {t.processo_id && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo">
+      <ItensLigados itens={[t.processo
+        ? { id: 'processo', para: `${TIPOS_PROCESSO[t.processo.tipo].caminho}?id=${t.processo.id}`, codigo: t.processo.codigo, titulo: t.processo.numero, detalhe: 'Processo' }
+        : { id: 'processo', titulo: 'Processo ligado', detalhe: 'Você não tem acesso a este processo' }]} />
+    </Recolhivel>}
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}

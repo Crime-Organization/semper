@@ -10,14 +10,15 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import { CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
+import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNoCompromisso } from '../regras/compromisso';
 import { papeisNoProcesso } from '../regras/processo';
+import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -239,6 +240,16 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
   return q;
 }
 
+// ---------- andamentos e prazos do processo ----------
+const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+const CAMPOS_PRAZO = 'id, processo_id, descricao, final, intimacao, dias, contagem, disponibilizacao, sem_recesso, andamento_id, tarefa_id, concluido_em, '
+  + 'criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+/** O banco devolve a hora com os segundos ("14:30:00"); a tela e o formulário usam hh:mm. */
+const andamentoLido = (a: AndamentoDeProcesso): AndamentoDeProcesso => ({ ...a, hora: a.hora?.slice(0, 5) ?? null });
+/** Nenhuma linha mudou: o processo foi arquivado, ou o item já não existe. */
+const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
+const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_MUDANCA); return linha; };
+
 // ---------- processos ----------
 const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
@@ -257,11 +268,14 @@ const ORDENS_PROCESSO: Record<Ordem, (q: Livre) => Livre> = {
   recentes: q => q.order('atualizado_em', { ascending: false })
 };
 const ordenarProcessos = (q: Livre, ordem: Ordem) => ORDENS_PROCESSO[ordem](q).order('id');
+/** A coluna vem do endereço: um valor que não é identificador (link cortado) não acha nada, em vez de dar erro no banco. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function filtrarProcessos(q: Livre, f: FiltroProcessos) {
   q = porEtiqueta(q, f).eq('tipo', f.tipo);
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
   if (f.orgao) q = q.eq('orgao', f.orgao);
+  if (f.etapa) q = f.etapa === SEM_FASE ? q.is('etapa_id', null) : UUID.test(f.etapa) ? q.eq('etapa_id', f.etapa) : q.in('id', []);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -275,9 +289,9 @@ const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, particip
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
-  + 'contrato_id, contrato_codigo, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
+  + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico)';
+  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero)';
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
@@ -790,6 +804,81 @@ export const SD: Dados = {
     const { data } = await rodar(q.order('criado_em', { ascending: false }).limit(PROCESSOS_PARA_LIGAR));
     return data;
   },
+
+  // ---------- andamentos e prazos do processo ----------
+  async processoAndamentos(processoId) {
+    const { data } = await rodar(sb.from('processo_andamentos').select(CAMPOS_ANDAMENTO).eq('processo_id', processoId).is('excluido_em', null)
+      .order('data', { ascending: false }).order('criado_em', { ascending: false }).limit(ANDAMENTOS_DO_PROCESSO));
+    return (data as AndamentoDeProcesso[]).map(andamentoLido);
+  },
+  async processoAndamentoCriar(processoId, dados) {
+    const { data } = await rodar(sb.from('processo_andamentos').insert({ ...dados, processo_id: processoId, criado_por: uid() }).select(CAMPOS_ANDAMENTO).single());
+    return andamentoLido(data);
+  },
+  async processoAndamentoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processo_andamentos').update(dados).eq('id', id).select(CAMPOS_ANDAMENTO).maybeSingle());
+    return andamentoLido(primeira<AndamentoDeProcesso>(data));
+  },
+  async processoAndamentoExcluir(id) {
+    const { data } = await rodar(sb.from('processo_andamentos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoAndamentoRestaurar(id) {
+    const { data } = await rodar(sb.from('processo_andamentos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoPrazos(processoId) {
+    const { data } = await rodar(sb.from('processo_prazos').select(CAMPOS_PRAZO).eq('processo_id', processoId).is('excluido_em', null).order('final', { ascending: false }).limit(PRAZOS_DO_PROCESSO));
+    return data;
+  },
+  async processoPrazoCriar(processoId, dados) {
+    const { data } = await rodar(sb.from('processo_prazos').insert({ ...dados, processo_id: processoId, criado_por: uid() }).select(CAMPOS_PRAZO).single());
+    return data;
+  },
+  async processoPrazoAtualizar(id, dados) {
+    const { data } = await rodar(sb.from('processo_prazos').update(dados).eq('id', id).select(CAMPOS_PRAZO).maybeSingle());
+    return primeira<PrazoDeProcesso>(data);
+  },
+  async processoPrazoExcluir(id) {
+    const { data } = await rodar(sb.from('processo_prazos').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async processoPrazoRestaurar(id) {
+    const { data } = await rodar(sb.from('processo_prazos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
+    primeira(data);
+  },
+  async tarefasDoProcesso(processoId) {
+    const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('processo_id', processoId)));
+    return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
+  },
+
+  // ---------- processo e demanda ----------
+  async processoDemandaLigar(processoId, demandaId) {
+    await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }));
+  },
+  async demandasDoProcesso(processoId) {
+    const { data } = await rodar(sb.from('processo_demandas').select(`demanda:demandas(${CAMPOS_DEMANDA_LIGADA}, contrato_id, criado_por)`).eq('processo_id', processoId).order('criado_em').limit(DEMANDAS_LIGADAS));
+    // Quem não pode ver a demanda recebe a ligação sem ela: fica de fora.
+    return (data as { demanda: Livre }[]).flatMap(({ demanda }) => {
+      if (!demanda) return [];
+      const { clientes: _c, ...d } = demanda;
+      return [{ ...d, papeis: [] }];
+    });
+  },
+  async processosDaDemanda(demandaId) {
+    const { data } = await rodar(sb.from('processo_demandas').select('processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em)').eq('demanda_id', demandaId).order('criado_em').limit(PROCESSOS_LIGADOS));
+    // Quem não pode ver o processo recebe a ligação sem ele: conta, mas não abre.
+    const linhas = data as { processo: Livre }[];
+    const visiveis = linhas.flatMap(({ processo }) => processo ? [{ ...processo, papeis: [] }] : []);
+    return { visiveis, ocultos: linhas.length - visiveis.length };
+  },
+
+  // ---------- painel de processos ----------
+  processosPainel: ({ hoje, meus }) => {
+    const { ate_prazos, ate_marcados } = datasDoPainel(hoje);
+    return rpc('painel_de_processos', { p_hoje: hoje, p_ate_prazos: ate_prazos, p_ate_marcados: ate_marcados, p_meus: meus, p_limite: ITENS_POR_LISTA, p_ultimos: ULTIMOS_ANDAMENTOS });
+  },
+  async processosDiasParadoSalvar(dias) { await rpc('dias_processo_parado_salvar', { p_dias: dias }); },
 
   // ---------- processos ----------
   async processosListar(f) {

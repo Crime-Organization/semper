@@ -10,6 +10,7 @@ import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { TAMANHO_COMPROMISSO } from './limites';
 import { DIA } from '../ui/tempos';
+import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
@@ -1188,6 +1189,452 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect((await SD.processoOpcoes()).map(o => o.valor)).not.toContain(valor);
         await expect(SD.processoOpcaoCriar('sistema', valor)).resolves.toMatchObject({ valor });
+      });
+    });
+
+    describe('Andamentos e prazos dos processos', () => {
+      const novoProcesso = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const ANDAMENTO = { tipo: 'andamento' as const, data: '2026-11-10', hora: null, local: null, texto: 'Juntada de petição' };
+      const PRAZO_DIGITADO = { descricao: 'Contestação', final: '2026-12-01', intimacao: null, dias: null, contagem: null, disponibilizacao: false, sem_recesso: false, andamento_id: null };
+      const INVALIDO = 'Algum campo está em formato inválido.';
+      const historico = async (id: string) => (await SD.processoHistorico(id)).map(h => h.alteracoes);
+
+      it('quando lança andamentos, então voltam dos mais novos aos mais antigos, com o texto limpo', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        // Quando
+        await SD.processoAndamentoCriar(id, { ...ANDAMENTO, data: '2026-01-01', texto: ' Antigo ' });
+        await SD.processoAndamentoCriar(id, { ...ANDAMENTO, data: '2026-06-01', texto: 'Novo' });
+        // Então
+        expect((await SD.processoAndamentos(id)).map(a => a.texto)).toEqual(['Novo', 'Antigo']);
+      });
+
+      it('quando é audiência, então guarda hora e local; a hora volta como hh:mm', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        // Quando
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'audiencia', hora: '14:30', local: ' Fórum ' });
+        // Então
+        expect(a).toMatchObject({ hora: '14:30', local: 'Fórum' });
+      });
+
+      it.each([
+        ['hora em andamento comum', { hora: '10:00' }], ['local em intimação', { tipo: 'intimacao' as const, local: 'x' }], ['texto vazio', { texto: '   ' }],
+        ['data fora do calendário', { data: '1999-01-01' }], ['data que não existe', { data: '2026-02-31' }]
+      ])('quando o andamento tem %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novoProcesso();
+        // Quando
+        const salvar = SD.processoAndamentoCriar(id, { ...ANDAMENTO, ...extra });
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando marca como tratada algo que não é intimação, então é recusado', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, ANDAMENTO);
+        // Quando
+        const salvar = SD.processoAndamentoAtualizar(a.id, { tratada_em: new Date().toISOString() });
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it.each([
+        ['cálculo pela metade', { intimacao: '2026-11-10' }], ['dias demais', { intimacao: '2026-11-10', dias: 1831, contagem: 'uteis' as const }],
+        ['dias zerados', { intimacao: '2026-11-10', dias: 0, contagem: 'uteis' as const }], ['descrição vazia', { descricao: ' ' }], ['último dia fora do calendário', { final: '2101-01-01' }]
+      ])('quando o prazo tem %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novoProcesso();
+        // Quando
+        const salvar = SD.processoPrazoCriar(id, { ...PRAZO_DIGITADO, ...extra });
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando o prazo aponta o andamento de outro processo, então é recusado', async () => {
+        // Dado
+        const [a, b] = [await novoProcesso(), await novoProcesso()];
+        const andamento = await SD.processoAndamentoCriar(a.id, ANDAMENTO);
+        // Quando
+        const salvar = SD.processoPrazoCriar(b.id, { ...PRAZO_DIGITADO, andamento_id: andamento.id });
+        // Então
+        await expect(salvar).rejects.toThrow('Este andamento não é deste processo.');
+      });
+
+      it('quando exclui a intimação, o prazo que nasceu dela continua; ao desfazer, ela volta como estava, com a mesma ligação', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' });
+        await SD.processoPrazoCriar(id, { ...PRAZO_DIGITADO, andamento_id: a.id });
+        // Quando
+        await SD.processoAndamentoExcluir(a.id);
+        // Então
+        expect(await SD.processoAndamentos(id)).toEqual([]);
+        expect(await SD.processoPrazos(id)).toHaveLength(1);
+        // Quando
+        await SD.processoAndamentoRestaurar(a.id);
+        // Então
+        expect(await SD.processoAndamentos(id)).toEqual([a]);
+        expect((await SD.processoPrazos(id))[0].andamento_id).toBe(a.id);
+      });
+
+      it('quando exclui o prazo e desfaz, então ele volta como estava, cumprido e com a tarefa', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Cumprir', responsavel_id: 'u-ana', processo_id: id });
+        const z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        const antes = await SD.processoPrazoAtualizar(z.id, { tarefa_id: t.id, concluido_em: new Date().toISOString() });
+        // Quando
+        await SD.processoPrazoExcluir(z.id);
+        expect(await SD.processoPrazos(id)).toEqual([]);
+        await SD.processoPrazoRestaurar(z.id);
+        // Então
+        expect(await SD.processoPrazos(id)).toEqual([antes]);
+      });
+
+      it('quando muda o prazo, então o histórico mostra como estava e como ficou; o que não muda a linha não entra', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        expect((await historico(id))[0].prazo).toEqual({ de: null, para: 'Contestação: 01/12/2026' });
+        // Quando
+        await SD.processoPrazoAtualizar(z.id, { final: '2026-12-15' });
+        await SD.processoPrazoAtualizar(z.id, { concluido_em: new Date().toISOString() });
+        const antes = (await historico(id)).length;
+        await SD.processoPrazoAtualizar(z.id, { sem_recesso: true });
+        // Então
+        const h = await historico(id);
+        expect(h).toHaveLength(antes);
+        expect(h[1].prazo).toEqual({ de: 'Contestação: 01/12/2026', para: 'Contestação: 15/12/2026' });
+        expect(h[0].prazo).toEqual({ de: 'Contestação: 15/12/2026', para: 'Contestação: 15/12/2026 (cumprido)' });
+      });
+
+      it('quando exclui o andamento e desfaz, então o histórico registra o que saiu e o que voltou', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, ANDAMENTO);
+        // Quando
+        await SD.processoAndamentoExcluir(a.id);
+        // Então
+        expect((await historico(id))[0].andamento).toEqual({ de: 'Andamento de 10/11/2026: Juntada de petição', para: null });
+        // Quando
+        await SD.processoAndamentoRestaurar(a.id);
+        // Então
+        expect((await historico(id))[0].andamento).toEqual({ de: null, para: 'Andamento de 10/11/2026: Juntada de petição' });
+      });
+
+      it('quando muda o texto depois de muitos caracteres, ou marca a intimação como tratada, então entra no histórico', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao', texto: 'y'.repeat(300) });
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { texto: 'y'.repeat(299) + 'z' });
+        // Então
+        expect((await historico(id))[0].andamento?.para).toContain('y'.repeat(299) + 'z');
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { tratada_em: new Date().toISOString() });
+        // Então
+        expect((await historico(id))[0].andamento?.para).toContain('(tratada)');
+      });
+
+      it('quando excluem a tarefa da intimação, então ela volta a ficar a tratar', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Cumprir', responsavel_id: 'u-ana', processo_id: id });
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' });
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t.id, tratada_em: new Date().toISOString() });
+        // Quando
+        await SD.tarefasArquivar([t.id], true);
+        await SD.tarefasExcluir([t.id]);
+        // Então
+        expect((await SD.processoAndamentos(id))[0]).toMatchObject({ tarefa_id: null, tratada_em: null });
+      });
+
+      it('quando o item já tem tarefa, então outra não entra no lugar', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [t1, t2] = [await SD.tarefaCriar({ titulo: 'Uma', responsavel_id: 'u-ana', processo_id: id }), await SD.tarefaCriar({ titulo: 'Outra', responsavel_id: 'u-ana', processo_id: id })];
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' }), z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t1.id });
+        await SD.processoPrazoAtualizar(z.id, { tarefa_id: t1.id });
+        // Quando
+        const noAndamento = SD.processoAndamentoAtualizar(a.id, { tarefa_id: t2.id });
+        const noPrazo = SD.processoPrazoAtualizar(z.id, { tarefa_id: t2.id });
+        // Então
+        await expect(noAndamento).rejects.toThrow('Já existe uma tarefa ligada a este item.');
+        await expect(noPrazo).rejects.toThrow('Já existe uma tarefa ligada a este item.');
+      });
+
+      it('quando a tarefa aponta um processo que não existe, ou tenta trocar a ligação, então é recusado', async () => {
+        // Dado
+        const p = await novoProcesso();
+        const t = await SD.tarefaCriar({ titulo: 'Ligada', responsavel_id: 'u-ana', processo_id: p.id });
+        // Quando
+        const inexistente = SD.tarefaCriar({ titulo: 'Fora', responsavel_id: 'u-ana', processo_id: 'nao-existe' });
+        const trocar = SD.tarefaAtualizar(t.id, { processo_id: null } as Parameters<Dados['tarefaAtualizar']>[1]);
+        // Então
+        await expect(inexistente).rejects.toThrow('Processo não encontrado neste escritório.');
+        await expect(trocar).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando o processo está arquivado, então lê, mas não lança, não muda e não exclui', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(id, ANDAMENTO);
+        const z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        await SD.processosArquivar([id], true);
+        // Quando
+        const tentativas = [
+          SD.processoAndamentoCriar(id, ANDAMENTO), SD.processoPrazoCriar(id, PRAZO_DIGITADO), SD.processoAndamentoAtualizar(a.id, { texto: 'x' }),
+          SD.processoPrazoAtualizar(z.id, { descricao: 'x' }), SD.processoAndamentoExcluir(a.id), SD.processoPrazoExcluir(z.id),
+          SD.processoAndamentoRestaurar(a.id), SD.processoPrazoRestaurar(z.id)
+        ];
+        const resultados = await Promise.allSettled(tentativas);
+        // Então
+        expect(resultados.every(r => r.status === 'rejected')).toBe(true);
+        expect(await SD.processoAndamentos(id)).toHaveLength(1);
+        expect(await SD.processoPrazos(id)).toHaveLength(1);
+      });
+
+      it('quando a tarefa nasce ligada ao processo, então aparece no cartão do processo, e o cartão da tarefa mostra o processo', async () => {
+        // Dado
+        const p = await novoProcesso();
+        // Quando
+        const t = await SD.tarefaCriar({ titulo: 'Cumprir', responsavel_id: 'u-ana', processo_id: p.id });
+        // Então
+        expect((await SD.tarefasDoProcesso(p.id)).map(x => x.id)).toEqual([t.id]);
+        expect((await SD.tarefaObter(t.id))?.processo).toMatchObject({ id: p.id });
+      });
+
+      it('quando excluem a tarefa, então a intimação fica sem a ligação; quando excluem o processo, a tarefa fica sem o processo', async () => {
+        // Dado
+        const p = await novoProcesso();
+        const a = await SD.processoAndamentoCriar(p.id, { ...ANDAMENTO, tipo: 'intimacao' });
+        const t1 = await SD.tarefaCriar({ titulo: 'Uma', responsavel_id: 'u-ana', processo_id: p.id }), t2 = await SD.tarefaCriar({ titulo: 'Outra', responsavel_id: 'u-ana', processo_id: p.id });
+        const ligado = await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t1.id, tratada_em: new Date().toISOString() });
+        expect(ligado.tarefa?.codigo).toBe(t1.codigo);
+        // Quando
+        await SD.tarefasArquivar([t1.id], true);
+        await SD.tarefasExcluir([t1.id]);
+        // Então
+        expect((await SD.processoAndamentos(p.id))[0]).toMatchObject({ tarefa_id: null, tarefa: null, tratada_em: null });
+        // Quando
+        await SD.processosArquivar([p.id], true);
+        await SD.processosExcluir([p.id]);
+        // Então
+        expect(await SD.processoAndamentos(p.id)).toEqual([]);
+        expect(await SD.tarefaObter(t2.id)).toMatchObject({ processo_id: null, processo: null });
+      });
+    });
+
+    describe('Processo e demanda', () => {
+      const novoProcesso = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const novaDemanda = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+
+      it('quando liga, então a demanda aparece no processo e o processo na demanda; ligar de novo não repete', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        // Quando
+        await SD.processoDemandaLigar(p.id, d.id);
+        await SD.processoDemandaLigar(p.id, d.id);
+        // Então
+        expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
+        expect((await SD.processosDaDemanda(d.id)).visiveis.map(x => x.id)).toEqual([p.id]);
+      });
+
+      it('quando o processo está arquivado, ou a demanda não existe, então é recusado', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        await SD.processosArquivar([p.id], true);
+        const q = await novoProcesso();
+        // Quando
+        const arquivado = SD.processoDemandaLigar(p.id, d.id);
+        const inexistente = SD.processoDemandaLigar(q.id, 'nao-existe');
+        // Então
+        await expect(arquivado).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(inexistente).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando excluem o processo ou a demanda, então a ligação sai', async () => {
+        // Dado
+        const [p, d, e] = [await novoProcesso(), await novaDemanda(), await novaDemanda()];
+        await SD.processoDemandaLigar(p.id, d.id);
+        await SD.processoDemandaLigar(p.id, e.id);
+        // Quando
+        await SD.demandasArquivar([e.id], true);
+        await SD.demandasExcluir([e.id]);
+        // Então
+        expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
+        // Quando
+        await SD.processosArquivar([p.id], true);
+        await SD.processosExcluir([p.id]);
+        // Então
+        expect(await SD.processosDaDemanda(d.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+    });
+
+    describe('Painel de processos', () => {
+      const HOJE = hojeISO();
+      const dias = (n: number) => new Date(Date.parse(HOJE) + n * DIA).toISOString().slice(0, 10);
+      const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+      };
+      const PRAZO = { descricao: 'P', intimacao: null, dias: null, contagem: null, disponibilizacao: false, sem_recesso: false, andamento_id: null };
+      const andamento = (tipo: 'andamento' | 'intimacao' | 'audiencia' | 'pericia', data: string) => ({ tipo, data, hora: null, local: null, texto: marca() });
+      const painel = (meus = false) => SD.processosPainel({ hoje: HOJE, meus });
+
+      it('quando há prazos, então vêm os abertos até 7 dias, do que vence antes ao que vence depois', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [vencido, hoje, seteDias, oitoDias, cumprido] = [
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(0) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(7) }),
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(8) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-1) })
+        ];
+        await SD.processoPrazoAtualizar(cumprido.id, { concluido_em: new Date().toISOString() });
+        // Quando
+        const ids = (await painel()).prazos.map(z => z.id);
+        // Então
+        expect(ids.filter(i => [vencido.id, hoje.id, seteDias.id].includes(i))).toEqual([vencido.id, hoje.id, seteDias.id]);
+        expect(ids).not.toContain(oitoDias.id);
+        expect(ids).not.toContain(cumprido.id);
+      });
+
+      it('quando a lista de prazos passa do limite, então os vencidos não escondem os de hoje', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const hoje = await SD.processoPrazoCriar(id, { ...PRAZO, final: HOJE });
+        await Promise.all(Array.from({ length: ITENS_POR_LISTA + 1 }, () => SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) })));
+        // Quando
+        const p = await painel();
+        // Então
+        expect(p.prazos.map(z => z.id)).toContain(hoje.id);
+        expect(p.total_vencidos).toBeGreaterThan(ITENS_POR_LISTA);
+        expect(p.prazos.filter(z => z.final < HOJE)).toHaveLength(ITENS_POR_LISTA);
+      });
+
+      it('quando a coluna do filtro não é um identificador, então não acha nada, sem erro', async () => {
+        // Quando
+        const r = await SD.processosListar({ tipo: 'judicial', etapa: 'link-cortado', situacao: 'ativos' });
+        // Então
+        expect(r.total).toBe(0);
+      });
+
+      it('quando há audiências e perícias, então vêm só as de hoje até 15 dias', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const criarAndamento = (tipo: 'andamento' | 'audiencia' | 'pericia', n: number) => SD.processoAndamentoCriar(id, andamento(tipo, dias(n)));
+        const [ontem, hoje, quinze, dezesseis, comum] = [await criarAndamento('audiencia', -1), await criarAndamento('pericia', 0), await criarAndamento('audiencia', 15), await criarAndamento('audiencia', 16), await criarAndamento('andamento', 1)];
+        // Quando
+        const ids = (await painel()).marcados.map(a => a.id);
+        // Então
+        expect(ids).toEqual(expect.arrayContaining([hoje.id, quinze.id]));
+        [ontem, dezesseis, comum].forEach(a => expect(ids).not.toContain(a.id));
+      });
+
+      it('quando a intimação vira tarefa ou é tratada, então sai de "a tratar"', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [a, b, c] = [await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE)), await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE)), await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE))];
+        const t = await SD.tarefaCriar({ titulo: 'T', responsavel_id: 'u-ana', processo_id: id });
+        // Quando
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t.id, tratada_em: new Date().toISOString() });
+        await SD.processoAndamentoAtualizar(b.id, { tratada_em: new Date().toISOString() });
+        // Então
+        const ids = (await painel()).intimacoes.map(x => x.id);
+        expect(ids).toContain(c.id);
+        expect(ids).not.toContain(a.id);
+        expect(ids).not.toContain(b.id);
+      });
+
+      it('quando lista os últimos andamentos, então vêm os mais novos, até hoje, sem os excluídos', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const novo = await SD.processoAndamentoCriar(id, andamento('andamento', HOJE));
+        const futuro = await SD.processoAndamentoCriar(id, andamento('audiencia', dias(5)));
+        const excluido = await SD.processoAndamentoCriar(id, andamento('andamento', HOJE));
+        await SD.processoAndamentoExcluir(excluido.id);
+        // Quando
+        const ids = (await painel()).ultimos.map(a => a.id);
+        // Então
+        expect(ids[0]).toBe(novo.id);
+        expect(ids).not.toContain(futuro.id);
+        expect(ids).not.toContain(excluido.id);
+      });
+
+      it('quando o processo passa dos dias sem andamento, então aparece parado; com andamento novo, sai', async () => {
+        // Dado
+        await SD.processosDiasParadoSalvar(10);
+        const { id } = await novoProcesso({ distribuicao: dias(-30) });
+        const parado = async () => (await painel()).parados.find(x => x.processo.id === id);
+        // Então
+        expect(await parado()).toMatchObject({ ultimo: dias(-30), dias: 30 });
+        // Quando
+        const antigo = await SD.processoAndamentoCriar(id, andamento('andamento', dias(-20)));
+        // Então
+        expect(await parado()).toMatchObject({ ultimo: dias(-20), dias: 20 });
+        // Quando
+        await SD.processoAndamentoAtualizar(antigo.id, { data: dias(-5) });
+        // Então
+        expect(await parado()).toBeUndefined();
+        await SD.processosDiasParadoSalvar(60);
+      });
+
+      it.each([[0], [3651], [1.5]])('quando os dias são %s, então é recusado', async n => {
+        // Quando
+        const salvar = SD.processosDiasParadoSalvar(n);
+        // Então
+        await expect(salvar).rejects.toThrow('Algum campo está em formato inválido.');
+      });
+
+      it('quando o processo é arquivado, então sai de todas as listas', async () => {
+        // Dado
+        const { id } = await novoProcesso({ distribuicao: dias(-400) });
+        await SD.processoPrazoCriar(id, { ...PRAZO, final: HOJE });
+        await SD.processoAndamentoCriar(id, andamento('intimacao', HOJE));
+        // Quando
+        await SD.processosArquivar([id], true);
+        // Então
+        const p = await painel();
+        expect([...p.prazos, ...p.intimacoes, ...p.ultimos, ...p.parados].map(x => x.processo.id)).not.toContain(id);
+      });
+
+      it('quando escolhe "Meus", então ficam só os processos em que a pessoa é responsável ou colaboradora', async () => {
+        // Dado
+        const ctx = await SD.contexto();
+        const eu = ctx!.perfil!.id, outro = ctx!.equipe.find(m => m.id !== eu)!.id;
+        const meu = await novoProcesso({ responsavel_id: eu });
+        const comigo = await novoProcesso({ responsavel_id: outro, colaboradores: [eu] });
+        const alheio = await novoProcesso({ responsavel_id: outro });
+        for (const p of [meu, comigo, alheio]) await SD.processoPrazoCriar(p.id, { ...PRAZO, final: HOJE });
+        // Quando
+        const [meus, todos] = [await painel(true), await painel(false)];
+        // Então
+        expect(meus.prazos.map(z => z.processo.id)).toEqual(expect.arrayContaining([meu.id, comigo.id]));
+        expect(meus.prazos.map(z => z.processo.id)).not.toContain(alheio.id);
+        expect(todos.prazos.map(z => z.processo.id)).toContain(alheio.id);
+      });
+
+      it('quando conta as fases, então soma por tipo e por coluna, e a lista filtra pela mesma coluna', async () => {
+        // Dado
+        const coluna = (await SD.colunasListar('processos_judiciais'))[0];
+        const antes = (await painel()).fases.find(f => f.tipo === 'judicial' && f.etapa_id === coluna.id)?.n ?? 0;
+        // Quando
+        await novoProcesso({ etapa_id: coluna.id });
+        // Então
+        const depois = (await painel()).fases.find(f => f.tipo === 'judicial' && f.etapa_id === coluna.id)?.n;
+        expect(depois).toBe(antes + 1);
+        expect((await SD.processosListar({ tipo: 'judicial', etapa: coluna.id, situacao: 'ativos' })).total).toBe(depois);
       });
     });
 
