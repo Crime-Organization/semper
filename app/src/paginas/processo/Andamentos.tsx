@@ -147,7 +147,7 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
           <div className="acomp-acoes">
             {a.tarefa ? <Link className={estiloBotao({ forma: 'mini' })} to={'/tarefas/?id=' + a.tarefa.id}>Tarefa {a.tarefa.codigo}</Link>
               : a.tarefa_id ? <span className="nota">Tarefa ligada (você não tem acesso a ela)</span> : null}
-            {!somenteLer && a.tipo === 'intimacao' && !a.tarefa_id && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(a)}>Criar tarefa</Botao>}
+            {!somenteLer && ctx.escritorio?.modulos?.tarefas && a.tipo === 'intimacao' && !a.tarefa_id && <Botao forma="mini" ocupadoTexto="Criando…" onClick={() => criarTarefa(a)}>Criar tarefa</Botao>}
             {!somenteLer && a.tipo === 'intimacao' && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setAberto({ o: 'prazo', id: a.id })}>Lançar prazo</button>}
             {!somenteLer && aTratar(a) && <Botao forma="mini" onClick={() => marcarTratada(a, true)}>Não precisa de tarefa</Botao>}
             {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id && <Botao forma="mini" onClick={() => marcarTratada(a, false)}>Voltar a tratar</Botao>}

@@ -1054,6 +1054,21 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.processoAndamentos(id))[0]).toMatchObject({ tarefa_id: null, tratada_em: null });
       });
 
+      it('quando o item já tem tarefa, então outra não entra no lugar', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const [t1, t2] = [await SD.tarefaCriar({ titulo: 'Uma', responsavel_id: 'u-ana', processo_id: id }), await SD.tarefaCriar({ titulo: 'Outra', responsavel_id: 'u-ana', processo_id: id })];
+        const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, tipo: 'intimacao' }), z = await SD.processoPrazoCriar(id, PRAZO_DIGITADO);
+        await SD.processoAndamentoAtualizar(a.id, { tarefa_id: t1.id });
+        await SD.processoPrazoAtualizar(z.id, { tarefa_id: t1.id });
+        // Quando
+        const noAndamento = SD.processoAndamentoAtualizar(a.id, { tarefa_id: t2.id });
+        const noPrazo = SD.processoPrazoAtualizar(z.id, { tarefa_id: t2.id });
+        // Então
+        await expect(noAndamento).rejects.toThrow('Já existe uma tarefa ligada a este item.');
+        await expect(noPrazo).rejects.toThrow('Já existe uma tarefa ligada a este item.');
+      });
+
       it('quando a tarefa aponta um processo que não existe, ou tenta trocar a ligação, então é recusado', async () => {
         // Dado
         const p = await novoProcesso();

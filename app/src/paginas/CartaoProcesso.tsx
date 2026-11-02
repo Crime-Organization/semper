@@ -132,9 +132,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas">
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas">
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
-    </Recolhivel>
+    </Recolhivel>}
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">
       <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
