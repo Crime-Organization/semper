@@ -14,6 +14,7 @@ import { ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_PO
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNoProcesso } from '../regras/processo';
+import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL } from '../regras/equipe';
 import type { AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
@@ -231,11 +232,14 @@ const ORDENS_PROCESSO: Record<Ordem, (q: Livre) => Livre> = {
   recentes: q => q.order('atualizado_em', { ascending: false })
 };
 const ordenarProcessos = (q: Livre, ordem: Ordem) => ORDENS_PROCESSO[ordem](q).order('id');
+/** A coluna vem do endereço: um valor que não é identificador (link cortado) não acha nada, em vez de dar erro no banco. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function filtrarProcessos(q: Livre, f: FiltroProcessos) {
   q = porEtiqueta(q, f).eq('tipo', f.tipo);
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
   if (f.orgao) q = q.eq('orgao', f.orgao);
+  if (f.etapa) q = f.etapa === SEM_FASE ? q.is('etapa_id', null) : UUID.test(f.etapa) ? q.eq('etapa_id', f.etapa) : q.in('id', []);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -729,6 +733,13 @@ export const SD: Dados = {
     const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('processo_id', processoId)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));
   },
+
+  // ---------- painel de processos ----------
+  processosPainel: ({ hoje, meus }) => {
+    const { ate_prazos, ate_marcados } = datasDoPainel(hoje);
+    return rpc('painel_de_processos', { p_hoje: hoje, p_ate_prazos: ate_prazos, p_ate_marcados: ate_marcados, p_meus: meus, p_limite: ITENS_POR_LISTA, p_ultimos: ULTIMOS_ANDAMENTOS });
+  },
+  async processosDiasParadoSalvar(dias) { await rpc('dias_processo_parado_salvar', { p_dias: dias }); },
 
   // ---------- processos ----------
   async processosListar(f) {

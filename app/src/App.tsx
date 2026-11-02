@@ -21,6 +21,7 @@ const Contratos = lazy(() => import('./paginas/Contratos'));
 const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
 const Processos = lazy(() => import('./paginas/Processos'));
+const PainelProcessos = lazy(() => import('./paginas/PainelProcessos'));
 const NovoProcesso = lazy(() => import('./paginas/NovoProcesso'));
 const NovaDemanda = lazy(() => import('./paginas/NovaDemanda'));
 const ModelosDeLista = lazy(() => import('./paginas/ModelosDeLista'));
@@ -111,8 +112,8 @@ function Rotas() {
           <Route path="modelos-de-lista" element={<ModelosDeLista />} />
           <Route path="tarefas" element={<Tarefas />} />
           <Route path="tarefas/meu-tempo" element={<MeuTempo />} />
-          {/* Cada tipo tem o seu quadro: a chave faz a página começar de novo ao trocar. Por enquanto, "Processos" abre no judicial. */}
-          <Route path="processos" element={<Navigate to="/processos/judicial/" replace />} />
+          {/* Cada tipo tem o seu quadro: a chave faz a página começar de novo ao trocar. "Processos" abre o painel. */}
+          <Route path="processos" element={<PainelProcessos />} />
           <Route path="processos/judicial" element={<Processos key="judicial" tipo="judicial" />} />
           <Route path="processos/administrativo" element={<Processos key="administrativo" tipo="administrativo" />} />
           <Route path="calendario" element={<Calendario />} />

@@ -58,11 +58,12 @@ test.describe('Menu de processos', () => {
     await expect(links).toHaveText(['Administrativo', 'Judicial']);
   });
 
-  test('quando se abre o endereço geral de processos, então vai para o quadro judicial', async ({ page }) => {
+  test('quando se abre o endereço geral de processos, então abre o painel', async ({ page }) => {
     // Quando
     await page.goto('/processos/');
     // Então
-    await expect(page).toHaveURL(/\/processos\/judicial\/$/);
+    await expect(page.getByRole('heading', { name: 'Prazos' })).toBeVisible();
+    await expect(page).toHaveURL(/\/processos\/$/);
   });
 
   test('quando o processo tem órgão, então ele aparece no cartão do quadro, acima do nome', async ({ page }) => {
@@ -743,3 +744,159 @@ test.describe('Andamentos, prazos e intimações', () => {
     await expect(cartao.getByRole('button', { name: /^Mudar o andamento/ })).toHaveCount(0);
   });
 });
+
+test.describe('Painel de Processos', () => {
+  const dias = (n: number) => { const d = new Date(Date.now() + n * 24 * 60 * 60 * 1000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  async function abrirCartaoJudicial(page: Page) {
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).first().click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByLabel('Situação do processo')).toBeVisible();
+    return cartao;
+  }
+  async function lancarPrazoDigitado(cartao: Locator, descricao: string, final: string) {
+    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo prazo' });
+    await form.getByLabel('Que prazo é este').fill(descricao);
+    await form.getByText('Digitar a data').click();
+    await form.getByLabel('Último dia').fill(final);
+    await form.getByRole('button', { name: 'Lançar prazo' }).click();
+    await expect(form).toHaveCount(0);
+  }
+  async function lancarAndamento(cartao: Locator, tipo: string, texto: string, data?: string) {
+    await abrirSecao(cartao, 'Andamentos');
+    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    const form = cartao.getByRole('form', { name: 'Novo andamento' });
+    await form.getByLabel('Tipo').selectOption({ label: tipo });
+    if (data) await form.getByLabel(/^Data/).fill(data);
+    await form.getByLabel('O que aconteceu').fill(texto);
+    await form.getByRole('button', { name: 'Lançar andamento' }).click();
+    await expect(form).toHaveCount(0);
+  }
+
+  test('quando clica em Processos no menu, então o painel abre, e o submenu mostra os quadros', async ({ page }) => {
+    // Dado
+    await page.goto('/inicio/');
+    // Quando
+    await page.getByRole('navigation', { name: 'Seções' }).getByRole('button', { name: 'Processos' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/processos\/$/);
+    await expect(page.getByRole('heading', { name: 'Processos', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Intimações a tratar' })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Judicial' })).toBeVisible();
+    await expect(page.getByText('Nenhuma intimação a tratar.')).toBeVisible();
+  });
+
+  test('quando há prazos e audiências, então cada um aparece no seu grupo, e o clique abre o cartão do processo', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartaoJudicial(page);
+    await abrirSecao(cartao, 'Prazos');
+    await lancarPrazoDigitado(cartao, 'Prazo velho', dias(-3));
+    await lancarPrazoDigitado(cartao, 'Prazo de hoje', dias(0));
+    await lancarPrazoDigitado(cartao, 'Prazo perto', dias(5));
+    await lancarPrazoDigitado(cartao, 'Prazo longe', dias(30));
+    await lancarAndamento(cartao, 'Audiência', 'Conciliação marcada', dias(10));
+    // Quando
+    await page.goto('/processos/');
+    // Então
+    await expect(page.getByRole('region', { name: 'Vencidos' })).toContainText('Prazo velho');
+    await expect(page.getByRole('region', { name: 'Vencem hoje' })).toContainText('Prazo de hoje');
+    await expect(page.getByRole('region', { name: 'Próximos 7 dias' })).toContainText('Prazo perto');
+    await expect(page.getByText('Prazo longe')).toHaveCount(0);
+    await expect(page.getByText('Conciliação marcada')).toBeVisible();
+    // Quando
+    await page.getByRole('link', { name: /Prazo velho/ }).click();
+    // Então
+    await expect(page).toHaveURL(/\/processos\/judicial\/\?id=/);
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+  });
+
+  test('quando cria a tarefa de uma intimação pelo painel, então ela sai da lista, e desfazer a traz de volta', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartaoJudicial(page);
+    await lancarAndamento(cartao, 'Intimação', 'Intimação do painel');
+    await page.goto('/processos/');
+    await expect(page.getByRole('link', { name: /Intimação do painel/ }).first()).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Criar tarefa da intimação: Intimação do painel' }).click();
+    // Então
+    await expect(page.getByText('Nenhuma intimação a tratar.')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(page.getByRole('button', { name: 'Criar tarefa da intimação: Intimação do painel' })).toBeVisible();
+  });
+
+  test('quando o administrador muda os dias de parado, então a lista acompanha', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartaoJudicial(page);
+    await lancarAndamento(cartao, 'Andamento', 'Andamento antigo', dias(-10));
+    await page.goto('/processos/');
+    await expect(page.getByText('Sem andamento há mais de 60 dias.', { exact: false })).toBeVisible();
+    const form = page.getByRole('form', { name: 'Dias para considerar parado' });
+    // Quando: um valor que não serve
+    await form.getByLabel('Dias sem andamento para considerar parado').fill('0');
+    await form.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(form.getByText('Use um número de 1 a 3650.')).toBeVisible();
+    // Quando
+    await form.getByLabel('Dias sem andamento para considerar parado').fill('5');
+    await form.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(page.getByText('Sem andamento há mais de 5 dias.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('link', { name: /10 dias sem andamento/ })).toContainText('JOSÉ DA SILVA TESTE');
+  });
+
+  test('quando clica no número de uma fase, então abre o quadro filtrado por ela', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/');
+    const judicial = page.getByRole('region', { name: 'Processos judiciais' });
+    // Quando
+    await judicial.getByRole('link', { name: /1 Distribuído/ }).click();
+    // Então
+    await expect(page).toHaveURL(/\/processos\/judicial\/\?etapa=/);
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toBeVisible();
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    const situacao = page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Situação');
+    await expect(situacao.locator('option:checked')).toHaveText('Distribuído');
+    // Quando: troca por uma coluna sem processo
+    await situacao.selectOption({ label: 'Sentença proferida' });
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    // Então: a lista acompanha, e o endereço também
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toHaveCount(0);
+    // Quando: o quadro, com o filtro
+    await page.getByRole('button', { name: 'Kanban', exact: true }).click();
+    // Então
+    await expect(page.getByRole('list', { name: 'Distribuído', exact: true })).not.toContainText('JOSÉ DA SILVA TESTE');
+    // Quando: o link do menu, sem filtro
+    await abrir(page, 'Judicial');
+    // Então
+    await expect(page.getByRole('list', { name: 'Distribuído', exact: true })).toContainText('JOSÉ DA SILVA TESTE');
+  });
+
+  test('quando abre e fecha um cartão com o filtro da fase, então o filtro continua no endereço', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/');
+    await page.getByRole('region', { name: 'Processos judiciais' }).getByRole('link', { name: /1 Distribuído/ }).click();
+    // Quando
+    await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+    await expect(page).toHaveURL(/etapa=.*id=/);
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // Então
+    await expect(page).toHaveURL(/\?etapa=[^&]+$/);
+  });
+
+  test('quando escolhe Meus, então a escolha fica guardada', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/');
+    // Quando
+    await page.getByRole('group', { name: 'Mostrar' }).getByText('Meus').click();
+    await expect(page.getByRole('radio', { name: 'Meus' })).toBeChecked();
+    await page.reload();
+    // Então
+    await expect(page.getByRole('radio', { name: 'Meus' })).toBeChecked();
+  });
+});
+

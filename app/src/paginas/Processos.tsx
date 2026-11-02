@@ -2,10 +2,11 @@
 // com ações em lote, quadro e o cartão de cada processo. A estrutura da página vem de <PaginaModulo>; o modelo é o
 // módulo Pessoas. O órgão aparece como um selo neutro acima do nome do cartão, fora da lista de etiquetas.
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroProcessos, type Ordem, type Pagina, type ProcessoLista, type TipoProcesso } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
+import { SEM_FASE } from '../regras/painelProcessos';
 import { nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -45,12 +46,23 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  const [params, setParams] = useSearchParams();
+  const etapaNaUrl = params.get('etapa') ?? '';
   const [f, setF] = useState<FiltroProcessos>(() => {
-    let pessoa = lerPreferencia('processos.pessoa', '');
+    // Vindo de um número do painel, o filtro é o do painel, e não a última escolha da pessoa.
+    const etapa = etapaNaUrl;
+    let pessoa = etapa ? params.get('pessoa') ?? '' : lerPreferencia('processos.pessoa', '');
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
-    return { tipo, termo: '', pessoa, orgao: '', situacao: 'ativos', pagina: 0 };
+    return { tipo, termo: '', pessoa, orgao: '', etapa, situacao: 'ativos', pagina: 0 };
   });
-  const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('processos.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
+  // O filtro da situação segue o endereço: o link do menu, sem ele, mostra tudo de novo.
+  const [etapaVista, setEtapaVista] = useState(etapaNaUrl);
+  if (etapaNaUrl !== etapaVista) {
+    setEtapaVista(etapaNaUrl);
+    setF(atual => ({ ...atual, etapa: etapaNaUrl, pagina: 0 }));
+  }
+  // Vindo do painel, abre em tabela (sem mudar a preferência): no quadro, a coluna pode estar longe, oculta ou num grupo fechado.
+  const [visao, setVisao] = useState<Visao>(() => etapaNaUrl || lerPreferencia<Visao>('processos.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
   const ordem = useOrdem('processos', 'tabela');
   const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
@@ -76,8 +88,8 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
   }, [visao, f, ordem.valor, recarga]);
 
   // Os campos do filtro que mudam as contagens (a página da tabela não muda).
-  const { termo, pessoa, orgao, etiqueta } = f;
-  const filtroDasContagens = useMemo(() => ({ tipo, termo, pessoa, orgao, etiqueta }), [tipo, termo, pessoa, orgao, etiqueta]);
+  const { termo, pessoa, orgao, etiqueta, etapa } = f;
+  const filtroDasContagens = useMemo(() => ({ tipo, termo, pessoa, orgao, etiqueta, etapa }), [tipo, termo, pessoa, orgao, etiqueta, etapa]);
 
   // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
   const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
@@ -105,7 +117,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
     return () => { vivo = false; };
   }, [tipo, recarga]);
 
-  const filtrado = !!(f.termo || f.pessoa || f.orgao || f.etiqueta);
+  const filtrado = !!(f.termo || f.pessoa || f.orgao || f.etiqueta || f.etapa);
   const mudarFiltro = (campos: Partial<FiltroProcessos>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -133,7 +145,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.orgao, f.etiqueta].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.orgao, f.etiqueta, f.etapa].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativo', 'ativos');
   const cadastro = '/processos/novo/?tipo=' + tipo;
@@ -149,6 +161,8 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
           opcoes: [['', 'Todos os processos'], [eu, 'Comigo (responsável ou colaborador)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         ...(orgaosDoFiltro.length ? [{ id: 'orgao', rotulo: 'Órgão', valor: f.orgao || '', aoMudar: (o: string) => mudarFiltro({ orgao: o }),
           opcoes: [['', 'Todos os órgãos'], ...orgaosDoFiltro.map(o => [o, o] as [string, string])] as [string, string][] }] : []),
+        { id: 'etapa', rotulo: 'Situação', valor: f.etapa || '', aoMudar: (e: string) => setParams(p => { if (e) p.set('etapa', e); else p.delete('etapa'); return p; }),
+          opcoes: [['', 'Todas as situações'], ...quadro.colunas.map(c => [c.id, c.nome] as [string, string]), [SEM_FASE, SEM_SITUACAO_PROCESSO]] as [string, string][] },
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, e => mudarFiltro({ etiqueta: e }))
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}

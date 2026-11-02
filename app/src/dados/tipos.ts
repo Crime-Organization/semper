@@ -687,6 +687,8 @@ export interface FiltroProcessos {
   pessoa?: string;
   /** A sigla do órgão. */
   orgao?: string;
+  /** Uma coluna do quadro (ou SEM_FASE: os de fora do quadro). */
+  etapa?: string;
   situacao?: 'ativos' | 'arquivados';
   ordem?: Ordem;
   pagina?: number;
@@ -973,6 +975,24 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
+/** O processo como aparece no painel. Os clientes vêm só pelo id. */
+export type ProcessoNoPainel = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'responsavel_id' | 'colaboradores'> & { clientes: string[] };
+export type PrazoNoPainel = Pick<PrazoDeProcesso, 'id' | 'descricao' | 'final' | 'tarefa_id'> & { processo: ProcessoNoPainel };
+export type AndamentoNoPainel = Pick<AndamentoDeProcesso, 'id' | 'tipo' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em' | 'tarefa_id' | 'criado_em'> & { processo: ProcessoNoPainel };
+/** Quantos processos há numa coluna do quadro (etapa_id vazio: fora do quadro). */
+export interface FaseNoPainel { tipo: TipoProcesso; etapa_id: string | null; n: number }
+/** O painel de Processos. Só traz o que quem está logado pode ver, sem arquivados nem excluídos. Cada lista vem cortada em
+ *  ITENS_POR_LISTA; total_* diz quantos há. */
+export interface PainelDeProcessos {
+  /** Vencidos e a vencer, cada parte cortada à parte, para muitos vencidos não esconderem os de hoje. */
+  prazos: PrazoNoPainel[]; total_vencidos: number; total_a_vencer: number;
+  marcados: AndamentoNoPainel[]; total_marcados: number;
+  intimacoes: AndamentoNoPainel[]; total_intimacoes: number;
+  ultimos: AndamentoNoPainel[];
+  parados: { processo: ProcessoNoPainel; ultimo: string; dias: number }[]; total_parados: number;
+  dias_parado: number;
+  fases: FaseNoPainel[];
+}
 /** Andamentos, prazos e tarefas do cartão do processo (supabase/migrations/20261102125539_andamentos_e_prazos.sql).
  *  Quem vê o processo lê; com ele ativo, também lança, muda e apaga. */
 export interface DadosAcompanhamento {
@@ -991,6 +1011,10 @@ export interface DadosAcompanhamento {
   processoPrazoRestaurar(id: string): Promise<void>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
+  /** O painel de Processos. meus: só os processos em que a pessoa é responsável ou colaboradora. */
+  processosPainel(f: { hoje: string; meus: boolean }): Promise<PainelDeProcessos>;
+  /** Só administradores. */
+  processosDiasParadoSalvar(dias: number): Promise<void>;
 }
 
 export interface Dados extends DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos {}
