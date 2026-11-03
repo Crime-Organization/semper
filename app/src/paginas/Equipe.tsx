@@ -171,7 +171,8 @@ function PainelEquipe() {
           {lista.map(u => {
             const gerir = podeGerir(u);
             return <tr key={u.id}>
-              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div></div></div></td>
+              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div>
+                {gerir && <button type="button" className={estiloBotao({ forma: 'link' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}</div></div></td>
               <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
                 {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
               </select></td>
@@ -187,7 +188,6 @@ function PainelEquipe() {
               <td><div className="td-acoes">
                 <BotaoLink forma="mini" to={'/equipe/perfil/?id=' + u.id} aria-label={`Perfil profissional de ${u.nome}`}>Perfil</BotaoLink>
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
-                {gerir && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
                   : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
                   : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => definirAtivo(u, true)}>Reativar</button>}
