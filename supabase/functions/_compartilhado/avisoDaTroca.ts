@@ -6,7 +6,7 @@ export type DestinoDoAviso = 'antigo' | 'gestao';
 /** 'nao-confirmada': o login falhou sem resposta certa, e a troca pode ter acontecido. */
 export type SituacaoDaTroca = 'trocada' | 'nao-confirmada';
 /** O que o banco conta sobre a troca (public.equipe_email_aviso_dados). Não traz o e-mail novo. */
-export interface DadosDoAviso { escritorio: string; alvo: string; autor: string; em: string; email_antigo: string; gestao: string[] }
+export interface DadosDoAviso { escritorio: string; alvo: string; autor: string; autor_email: string; em: string; email_antigo: string; gestao: string[] }
 export interface MensagemDoAviso { destino: DestinoDoAviso; para: string; assunto: string; texto: string; html: string }
 export interface PassosDoAviso {
   dados(registro: number): Promise<DadosDoAviso | null>;
@@ -18,10 +18,25 @@ export interface PassosDoAviso {
 const FUSO = 'America/Sao_Paulo';
 const quando = (em: string) => new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short', timeZone: FUSO }).format(new Date(em));
 
+/** Quem trocou: o nome pode ter sido mudado para imitar outra pessoa, o e-mail de acesso diz quem é de fato. */
+const autor = (d: DadosDoAviso) => `${d.autor} (${d.autor_email})`;
+
 /** O fato, nas palavras de cada situação. `de` diz de quem é a conta. */
 const FATO: Record<SituacaoDaTroca, (d: DadosDoAviso, de: string) => string> = {
-  trocada: (d, de) => `${d.autor}, do escritório ${d.escritorio}, trocou o e-mail de acesso ${de} em ${quando(d.em)} (horário de Brasília).`,
-  'nao-confirmada': (d, de) => `${d.autor}, do escritório ${d.escritorio}, pediu a troca do e-mail de acesso ${de} em ${quando(d.em)} (horário de Brasília). O sistema não confirmou se ela foi concluída.`
+  trocada: (d, de) => `${autor(d)}, do escritório ${d.escritorio}, trocou o e-mail de acesso ${de} em ${quando(d.em)} (horário de Brasília).`,
+  'nao-confirmada': (d, de) => `${autor(d)}, do escritório ${d.escritorio}, pediu a troca do e-mail de acesso ${de} em ${quando(d.em)} (horário de Brasília). O sistema não confirmou se ela foi concluída.`
+};
+
+/** O que a troca muda na conta: o e-mail antigo e a senha antiga deixam de valer (trocarEmailNoLogin em servidor.ts). */
+const EFEITO: Record<SituacaoDaTroca, Record<DestinoDoAviso, string>> = {
+  trocada: {
+    antigo: 'Este endereço e a senha antiga não dão mais acesso à conta, e os aparelhos conectados foram desconectados. Quem pediu a troca cria uma senha nova em "Esqueci minha senha", com o e-mail novo.',
+    gestao: 'A senha antiga deixou de valer e os aparelhos conectados foram desconectados. A pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.'
+  },
+  'nao-confirmada': {
+    antigo: 'Os aparelhos conectados foram desconectados. Se a troca foi concluída, este endereço e a senha antiga não dão mais acesso à conta.',
+    gestao: 'Os aparelhos conectados foram desconectados. Se a troca foi concluída, a senha antiga deixou de valer, e a pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.'
+  }
 };
 
 /** O texto de cada destino. */
@@ -31,6 +46,7 @@ const MODELOS: Record<DestinoDoAviso, { assunto: string; titulo: string; paragra
     titulo: 'Troca do seu e-mail de acesso',
     paragrafos: (d, s) => [
       FATO[s](d, 'da sua conta no SEMPER'),
+      EFEITO[s].antigo,
       'Se você não pediu ou não combinou essa troca, fale agora com a administração do escritório.'
     ]
   },
@@ -39,6 +55,7 @@ const MODELOS: Record<DestinoDoAviso, { assunto: string; titulo: string; paragra
     titulo: 'Troca do e-mail de um colega',
     paragrafos: (d, s) => [
       FATO[s](d, `de ${d.alvo} no SEMPER`),
+      EFEITO[s].gestao,
       'Se essa troca não foi combinada, confira o registro de ações em Equipe e acessos e fale com a pessoa.'
     ]
   }

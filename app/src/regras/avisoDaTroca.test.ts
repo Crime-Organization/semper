@@ -5,7 +5,7 @@ import { avisarDaTroca, mensagensDoAviso, type DadosDoAviso, type MensagemDoAvis
 
 const EMAIL_NOVO = 'nova@exemplo.com';
 const DADOS: DadosDoAviso = {
-  escritorio: 'Escritório Exemplo', alvo: 'Bruno Souza', autor: 'Ana Lima', em: '2026-11-03T17:30:00Z',
+  escritorio: 'Escritório Exemplo', alvo: 'Bruno Souza', autor: 'Ana Lima', autor_email: 'ana@exemplo.com', em: '2026-11-03T17:30:00Z',
   email_antigo: 'bruno@exemplo.com', gestao: ['mateus@exemplo.com', 'carla@exemplo.com']
 };
 const REGISTRO = 7;
@@ -37,12 +37,32 @@ describe('mensagensDoAviso', () => {
     const [antigo, gestao] = mensagensDoAviso(DADOS, 'trocada');
     // Então
     for (const m of [antigo, gestao]) {
-      expect(m.texto).toContain('Ana Lima, do escritório Escritório Exemplo, trocou o e-mail de acesso');
+      expect(m.texto).toContain('Ana Lima (ana@exemplo.com), do escritório Escritório Exemplo, trocou o e-mail de acesso');
       expect(m.texto).toContain('3 de novembro de 2026');
       expect(m.texto).toContain('14:30 (horário de Brasília)');
     }
     expect(antigo.texto).toContain('da sua conta no SEMPER');
     expect(gestao.texto).toContain('de Bruno Souza no SEMPER');
+  });
+
+  it('dada uma troca concluída, quando monta o aviso, então ele diz que a senha antiga deixou de valer e como criar outra', () => {
+    // Quando
+    const mensagens = mensagensDoAviso(DADOS, 'trocada');
+    // Então
+    for (const m of mensagens) {
+      expect(m.texto).toContain('senha antiga');
+      expect(m.texto).toContain('cria uma senha nova em "Esqueci minha senha", com o e-mail novo');
+    }
+  });
+
+  it('dada uma troca não confirmada, quando monta o aviso, então não afirma que a senha já mudou', () => {
+    // Quando
+    const mensagens = mensagensDoAviso(DADOS, 'nao-confirmada');
+    // Então
+    for (const m of mensagens) {
+      expect(m.texto).toContain('Se a troca foi concluída');
+      expect(m.texto).not.toContain('A senha antiga deixou de valer');
+    }
   });
 
   it('dado o banco devolvendo um e-mail novo por engano, quando monta o aviso, então nenhuma mensagem o mostra', () => {
