@@ -10,6 +10,7 @@ import {
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
 import { falha, feito } from '../ui/avisos';
+import { enviarParaPlanilhaAntiga, lembrarDeApagarNaPlanilha } from '../improvisos/planilhaAntiga'; // PROVISORIO-219
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
@@ -324,10 +325,12 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       } else {
         if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
+        enviarParaPlanilhaAntiga(dados, resp, ctx); // PROVISORIO-219
         feito('Pessoa cadastrada.', 'cadastro da pessoa', async () => {
           await SD.pessoasArquivar([r.id], true);
           const x = await SD.pessoasExcluir([r.id]);
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
+          lembrarDeApagarNaPlanilha(ctx); // PROVISORIO-219
           return { tipo: 'pessoaCriada', id: r.id };
         });
         navegar('/pessoas/?id=' + r.id);

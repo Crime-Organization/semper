@@ -20,7 +20,8 @@ DirectoryIndex index.html
   # Política de conteúdo: só roda script deste site e só conversa com o banco e as consultas de CNPJ e CEP.
   # Se alguém conseguir injetar código numa página, ele não roda nem manda dados para fora.
   # Ao incluir um serviço novo (ex.: outro site de consulta), acrescente o endereço em connect-src.
-  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://uzafzwqjpxxiovfunxfm.supabase.co https://publica.cnpj.ws https://brasilapi.com.br https://viacep.com.br; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
+  # PROVISORIO-219: os endereços do script do Google (script.google.com e script.googleusercontent.com) saem junto com o envio à planilha antiga.
+  Header always set Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://uzafzwqjpxxiovfunxfm.supabase.co https://publica.cnpj.ws https://brasilapi.com.br https://viacep.com.br https://script.google.com/macros/s/AKfycbz_Pu4V5qsjc2wMA5sw8GzdZNpOZrZ2Z1lhJP5ofjpX_roF-tOvv6mSzGwv705knB1gdw/exec https://script.googleusercontent.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'"
   # Recursos do aparelho que o SEMPER não usa ficam bloqueados.
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 </IfModule>
