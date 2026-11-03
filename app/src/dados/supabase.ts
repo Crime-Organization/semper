@@ -4,6 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
+import { normalizarEmail } from '../regras/conta';
 import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -372,7 +373,20 @@ export const SD: Dados = {
   },
   async recuperarSenha(email, voltarPara) { await rodar(sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: voltarPara })); },
   // Os e-mails trazem só um código de uso único (token_hash), não a chave de acesso: ele é trocado aqui pela sessão.
-  async confirmarLink(codigo, tipo) { await rodar(sb.auth.verifyOtp({ token_hash: codigo, type: tipo })); ctx = null; },
+  async confirmarLink(codigo, tipo) {
+    const { data } = await rodar(sb.auth.verifyOtp({ token_hash: codigo, type: tipo }));
+    ctx = null;
+    return { comSessao: !!data.session };
+  },
+  async contaEmail() {
+    const { data } = await rodar(sb.auth.getUser());
+    return { atual: data.user?.email ?? '', pendente: data.user?.new_email ?? null };
+  },
+  async trocarEmail(novo) {
+    const { data } = await rodar(sb.auth.updateUser({ email: normalizarEmail(novo) }));
+    ctx = null;
+    return { atual: data.user?.email ?? '', pendente: data.user?.new_email ?? null };
+  },
   async novaSenha(senha) { await rodar(sb.auth.updateUser({ password: senha })); },
   async sair() { ctx = null; await sb.auth.signOut(); },
   aoMudarSessao(cb) {

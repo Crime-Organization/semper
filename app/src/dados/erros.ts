@@ -47,6 +47,8 @@ const ERROS: Regra[] = [
   { padrao: /Invalid TOTP|invalid.*code|code.*(expired|invalid)/i, mensagem: 'Código incorreto ou vencido. Digite o código que o aplicativo mostra agora.' },
   { padrao: /AAL2 required|aal2/i, mensagem: 'Para fazer isso, entre de novo com o código do aplicativo autenticador.' },
   { padrao: /Email not confirmed/i, mensagem: 'Confirme seu e-mail pelo link que enviamos antes de entrar.' },
+  { codigo: 'email_exists', mensagem: 'Este e-mail já é usado em outra conta do SEMPER.' },
+  { codigo: 'email_address_invalid', mensagem: 'Este e-mail não é aceito. Confira e tente de novo.' },
   { padrao: /already registered|already been registered/i, mensagem: 'Este e-mail já tem conta. Use "Entrar" ou recupere a senha.' },
   { padrao: /Database error saving new user/i, mensagem: 'Convite não encontrado ou vencido. Use o link mais recente que o escritório enviou para este e-mail, ou peça um novo ao administrador.' },
   { padrao: /Password should be/i, mensagem: 'A senha precisa ter pelo menos 8 caracteres.' },

@@ -77,6 +77,8 @@ export const TAMANHO_SIGILO = 5000;
 
 /** Perfil profissional: tamanho de cada texto (exigidos pelo banco: supabase/migrations/20261030140000_perfil_profissional.sql). */
 /** "item" vale para cada texto das listas (área, idioma, curso, cargo, título...); "link", para cada link. */
+/** O e-mail de acesso à conta: o maior endereço que o padrão dos e-mails aceita. */
+export const TAMANHO_EMAIL_DE_ACESSO = 254;
 export const TAMANHO_PERFIL = { nome_exibicao: 120, cargo: 120, bio_curta: 300, biografia: 5000, item: 300, link: 500, email: 254, telefone: 30 } as const;
 /** Quantas linhas cada lista do perfil aceita (inscrições, áreas, formação...). */
 export const LINHAS_DO_PERFIL = 30;

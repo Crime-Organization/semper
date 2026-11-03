@@ -3524,6 +3524,48 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Troca do e-mail de acesso', () => {
+      it('quando a pessoa pede a troca, então o e-mail atual continua valendo até a confirmação', async () => {
+        // Dado
+        const { atual } = await SD.contaEmail();
+        // Quando
+        const conta = await SD.trocarEmail('  Nova.Conta@Exemplo.COM ');
+        // Então
+        expect(conta).toEqual({ atual, pendente: 'nova.conta@exemplo.com' });
+        expect(await SD.contaEmail()).toEqual(conta);
+      });
+
+      it('quando o e-mail já é de outra conta, então a troca é recusada e nada fica pendente', async () => {
+        // Dado
+        const antes = await SD.contaEmail();
+        const outro = (await SD.equipeListar()).find(m => m.email !== antes.atual)!;
+        // Quando / Então
+        await expect(SD.trocarEmail(outro.email)).rejects.toThrow('Este e-mail já é usado em outra conta do SEMPER.');
+        expect(await SD.contaEmail()).toEqual(antes);
+      });
+
+      it('quando os dois links são abertos, então só o segundo conclui, e o e-mail novo passa a valer na sessão e na equipe', async () => {
+        // Dado
+        await SD.trocarEmail('nova.conta@exemplo.com');
+        // Quando
+        const primeiro = await SD.confirmarLink('link-do-atual', 'email_change');
+        const antesDoSegundo = await SD.contaEmail();
+        const segundo = await SD.confirmarLink('link-do-novo', 'email_change');
+        // Então
+        expect(primeiro).toEqual({ comSessao: false });
+        expect(antesDoSegundo.pendente).toBe('nova.conta@exemplo.com');
+        expect(segundo).toEqual({ comSessao: true });
+        expect(await SD.contaEmail()).toEqual({ atual: 'nova.conta@exemplo.com', pendente: null });
+        expect((await SD.sessao())?.user.email).toBe('nova.conta@exemplo.com');
+        expect((await SD.equipeListar()).map(m => m.email)).toContain('nova.conta@exemplo.com');
+      });
+
+      it('quando não há troca pendente, então o link é recusado', async () => {
+        // Dado / Quando / Então
+        await expect(SD.confirmarLink('link-velho', 'email_change')).rejects.toThrow('Este link já foi usado ou venceu.');
+      });
+    });
+
     describe('Sessão', () => {
       it('quando a pessoa sai, então não há mais sessão nem contexto', async () => {
         // Quando

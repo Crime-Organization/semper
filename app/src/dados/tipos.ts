@@ -409,6 +409,9 @@ export interface CadastroDuasEtapas { id: string; qr: string; segredo: string }
 /** Tipos de link enviados por e-mail (parâmetro "type" do link). */
 export type TipoLink = 'email' | 'recovery' | 'email_change';
 
+/** O e-mail de acesso da conta e, enquanto a troca espera a confirmação, o e-mail novo. */
+export interface EmailDaConta { atual: string; pendente: string | null }
+
 // Contrato da camada de dados: as telas só conversam com o banco por aqui. É dividido por área, para cada tela
 // ou peça poder depender só da parte que usa (ex.: Pick<DadosPessoas, 'pessoasListar'>). supabase.ts e falso.ts
 // implementam o contrato inteiro (Dados), e contrato.test.ts confere que se comportam igual.
@@ -420,8 +423,15 @@ export interface DadosSessao {
   /** Cria a conta pelo convite: além do e-mail, vai o código do link que o convidado recebeu. */
   primeiroAcesso(email: string, senha: string, voltarPara: string, codigo: string): Promise<{ entrou: boolean }>;
   recuperarSenha(email: string, voltarPara: string): Promise<void>;
-  /** Link dos e-mails (confirmação, nova senha, troca de e-mail): troca o código de uso único pela sessão. */
-  confirmarLink(codigo: string, tipo: TipoLink): Promise<void>;
+  /**
+   * Link dos e-mails (confirmação, nova senha, troca de e-mail): troca o código de uso único pela sessão. Sem sessão na
+   * resposta, o link valeu, mas falta outro: na troca de e-mail, o atual e o novo podem receber um link cada.
+   */
+  confirmarLink(codigo: string, tipo: TipoLink): Promise<{ comSessao: boolean }>;
+  /** Lê da conta, e não da sessão guardada no navegador: a troca pode ter sido confirmada em outro aparelho. */
+  contaEmail(): Promise<EmailDaConta>;
+  /** Pede a troca do e-mail de acesso. Quem decide se ela espera confirmação é a configuração do login. */
+  trocarEmail(novo: string): Promise<EmailDaConta>;
   novaSenha(senha: string): Promise<void>;
   sair(): Promise<void>;
   aoMudarSessao(cb: (evento: string) => void): () => void;

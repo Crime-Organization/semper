@@ -16,6 +16,62 @@ test.describe('Minha conta', () => {
     await expect(page.getByRole('heading', { name: 'Perfil profissional' })).toBeVisible();
   });
 
+  test('quando a pessoa pede a troca do e-mail, então o atual continua valendo e a tela mostra o que falta confirmar', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await expect(page.getByText('mateus@exemplo.com')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('Mateus.Novo@Exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByText('Pedido enviado. Confirme pelo link que chegará por e-mail.')).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Troca aguardando confirmação para mateus.novo@exemplo.com' })).toBeVisible();
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus@exemplo.com');
+  });
+
+  for (const [caso, email, mensagem] of [
+    ['inválido', 'mateus@', 'Informe um e-mail válido.'],
+    ['igual ao atual', 'MATEUS@exemplo.com', 'Este já é o seu e-mail de acesso.'],
+    ['de outra pessoa da equipe', 'ana@exemplo.com', 'Este e-mail já é usado em outra conta do SEMPER.']
+  ]) test(`quando o e-mail novo é ${caso}, então a tela avisa no campo e nada fica pendente`, async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    // Quando
+    await page.getByLabel('E-mail novo').fill(email);
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByRole('alert').filter({ hasText: mensagem })).toBeVisible();
+    await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
+  });
+
+  test('quando os dois links da troca são abertos, então o primeiro diz o que falta e o segundo conclui', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    // Quando
+    await page.goto('/?token_hash=link-do-atual&type=email_change');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Para concluir a troca, abra também o link enviado ao outro e-mail.' })).toBeVisible();
+    // Quando
+    await page.goto('/?token_hash=link-do-novo&type=email_change');
+    // Então
+    await expect(page).toHaveURL(/\/minha-conta\/$/);
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
+    await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
+  });
+
+  test('quando o link da troca não vale mais, então a entrada avisa', async ({ page }) => {
+    // Quando
+    await page.goto('/?token_hash=link-velho&type=email_change');
+    // Então
+    await expect(page.getByRole('alert').filter({ hasText: 'Este link já foi usado ou venceu.' })).toBeVisible();
+  });
+
   test('quando a pessoa preenche e salva o perfil, então ele volta igual ao reabrir a página', async ({ page }) => {
     // Dado
     await page.goto('/minha-conta/');
