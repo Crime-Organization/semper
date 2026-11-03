@@ -11,7 +11,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { Lancamento, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio } from './tipos';
+import type { Lancamento, MeuValor, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
@@ -1015,6 +1015,10 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
     return data;
   },
+  financeiroMeusValores: async (de, ate) => await rpc('financeiro_meus_valores', { p_de: de, p_ate: ate }) as MeuValor[],
+  financeiroAPassar: async (de, ate) => await rpc('financeiro_a_passar', { p_de: de, p_ate: ate }) as ValorAPassar[],
+  financeiroTerceiroMarcarPago: async (recebimento, pessoa, data) => { await rpc('financeiro_terceiro_marcar_pago', { p_recebimento: recebimento, p_pessoa: pessoa, p_data: data }); },
+  financeiroTerceiroDesfazerPago: async (recebimento, pessoa) => { await rpc('financeiro_terceiro_desfazer_pago', { p_recebimento: recebimento, p_pessoa: pessoa }); },
   financeiroEstornar: async id => { await rpc('financeiro_estornar', { p_recebimento: id }); },
   financeiroRestaurarRecebimento: async id => { await rpc('financeiro_restaurar_recebimento', { p_recebimento: id }); },
   async financeiroRepasses(de, ate) {

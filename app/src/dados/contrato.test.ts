@@ -1520,6 +1520,199 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.parcelasDoContrato(k.id)).toHaveLength(2);
       });
 
+      describe('Meus valores', () => {
+        // Quem está logado é o Mateus (p-mateus). Nos casos de quem recebe, a responsável é a Ana.
+        const MARCO = { de: '2026-03-01', ate: '2026-03-31' };
+        const NA_DIVISAO = { responsavel_id: 'u-ana', valor: 1000, parcelas: 1 };
+        const meus = async (recebimento: string) => (await SD.financeiroMeusValores(MARCO.de, MARCO.ate)).filter(l => l.recebimento_id === recebimento);
+        const aPassar = async (recebimento: string, de = MARCO.de, ate = MARCO.ate) => (await SD.financeiroAPassar(de, ate)).filter(v => v.recebimento_id === recebimento);
+        const recebido = async (extra: Parameters<typeof novoContrato>[0] = {}) => {
+          const k = await assinado(extra), conta = await contaPJ();
+          return { k, conta, id: await receber(k.parcelas[0].id, conta.id) };
+        };
+        const comBruno = { participantes: [{ pessoa_id: 'p-bruno', percentual: 10 }] };
+
+        it('dado o responsável com tudo na conta, quando o cliente paga, então vê o que o escritório deve a ele; pago o repasse, passa a recebido', async () => {
+          // Dado
+          const { id, conta, k } = await recebido();
+          // Quando
+          const [linha] = await meus(id);
+          // Então
+          expect(await meus(id)).toHaveLength(1);
+          expect(linha).toEqual({
+            recebimento_id: id, papel: 'responsavel', contrato_codigo: k.codigo, cliente_nome: expect.stringContaining('CONTRATO'), parcela_numero: 1, valor: 64750, situacao: 'a_receber',
+            recebido_em: '2026-03-10', pago_em: null, de_quem: 'escritório'
+          });
+          // Quando
+          const [rep] = await repassesDe(id);
+          await SD.financeiroPagarRepasse(rep.id, conta.id, '2026-03-20');
+          // Então
+          expect((await meus(id))[0]).toMatchObject({ situacao: 'recebido', pago_em: '2026-03-20', recebido_em: '2026-03-10' });
+          // Quando
+          await SD.financeiroDesfazerPagamento(rep.id);
+          // Então
+          expect((await meus(id))[0]).toMatchObject({ situacao: 'a_receber', pago_em: null });
+        });
+
+        it('dado o responsável abaixo da parte integral, quando o cliente paga, então a parte que ficou com ele já é recebido, numa linha só', async () => {
+          // Dado / Quando
+          const { id } = await recebido({ percentual_escritorio: 30 });
+          // Então: sem repasse, e R$ 1.000,00 menos os 30% na conta e a taxa de R$ 30,00
+          expect(await repassesDe(id)).toEqual([]);
+          expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'responsavel', valor: 67000, situacao: 'recebido', pago_em: '2026-03-10', de_quem: 'cliente' })]);
+        });
+
+        it('dado um participante, quando o responsável marca como pago, então a linha passa a recebido, sem lançamento no caixa; e dá para desfazer', async () => {
+          // Dado
+          const { id, conta } = await recebido({ ...NA_DIVISAO, participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] });
+          expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'participante', valor: 9250, situacao: 'a_receber', pago_em: null, de_quem: 'Ana Teste Lima' })]);
+          const noCaixa = (await lancamentos(conta.id)).length;
+          // Quando
+          await SD.financeiroTerceiroMarcarPago(id, 'p-mateus', '2026-03-20');
+          // Então
+          expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'recebido', pago_em: '2026-03-20', recebido_em: '2026-03-10' })]);
+          expect((await aPassar(id))[0]).toMatchObject({ pessoa_id: 'p-mateus', pago_em: '2026-03-20' });
+          expect(await lancamentos(conta.id)).toHaveLength(noCaixa);
+          // Quando
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-mateus');
+          // Então
+          expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'a_receber', pago_em: null })]);
+          expect(await lancamentos(conta.id)).toHaveLength(noCaixa);
+        });
+
+        it('dado um indicador que não é sócio, quando o cliente paga, então a linha é de indicador, e vem do responsável', async () => {
+          // Dado / Quando
+          const { id } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus', indicador_percentual: 5 });
+          // Então
+          expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'indicador', valor: 4625, situacao: 'a_receber', de_quem: 'Ana Teste Lima' })]);
+        });
+
+        it('dado o sócio que indicou, quando o administrador paga o repasse, então a linha vem do escritório e passa a recebido', async () => {
+          // Dado
+          await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
+          const { id, conta } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus' });
+          expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'indicador', valor: 10000, situacao: 'a_receber', de_quem: 'escritório' })]);
+          // Quando
+          await SD.financeiroPagarRepasse((await repassesDe(id)).find(r => r.tipo === 'socio_indicador')!.id, conta.id, '2026-03-20');
+          // Então
+          expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'recebido', pago_em: '2026-03-20' })]);
+        });
+
+        it('dado um recebimento em que a pessoa não entra, quando abre, então não vê nada dele; e quem cuida vê o que passar a cada um', async () => {
+          // Dado / Quando
+          const { id } = await recebido({ ...NA_DIVISAO, ...comBruno });
+          // Então
+          expect(await meus(id)).toEqual([]);
+          expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', nome: expect.stringContaining('BRUNO'), valor: 9250, parcela_numero: 1, recebido_em: '2026-03-10', pago_em: null })]);
+        });
+
+        it('quando pede outro mês, então só aparece o período; e parcela ainda não paga nunca aparece', async () => {
+          // Dado
+          const { id, k } = await recebido();
+          // Quando / Então
+          expect((await SD.financeiroMeusValores('2026-04-01', '2026-04-30')).filter(l => l.recebimento_id === id)).toEqual([]);
+          expect((await SD.financeiroMeusValores('2026-03-10', '2026-03-10')).filter(l => l.recebimento_id === id)).toHaveLength(1);
+          expect((await SD.financeiroMeusValores('2020-01-01', '2030-12-31')).filter(l => l.contrato_codigo === k.codigo).map(l => l.parcela_numero)).toEqual([1]);
+        });
+
+        it('dado um valor ainda não pago, quando vê o mês seguinte, então continua a passar; pago, fica só no mês dele', async () => {
+          // Dado
+          const { id } = await recebido(comBruno);
+          // Quando / Então
+          expect(await aPassar(id, '2026-04-01', '2026-04-30')).toHaveLength(1);
+          expect(await aPassar(id, '2026-02-01', '2026-02-28')).toEqual([]);
+          // Quando
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-04-02');
+          // Então
+          expect(await aPassar(id, '2026-04-01', '2026-04-30')).toEqual([]);
+          expect(await aPassar(id)).toHaveLength(1);
+        });
+
+        it.each([
+          ['pessoa fora do recebimento', 'p-ana', '2026-03-20', 'não recebe nada'],
+          ['data que não existe', 'p-bruno', '2026-02-30', 'data válida'],
+          ['data fora da faixa', 'p-bruno', '1999-12-31', 'data válida']
+        ])('quando marca com %s, então é recusado', async (_caso, pessoa, data, mensagem) => {
+          // Dado
+          const { id } = await recebido(comBruno);
+          // Quando / Então
+          await expect(SD.financeiroTerceiroMarcarPago(id, pessoa, data)).rejects.toThrow(mensagem);
+          expect((await aPassar(id))[0].pago_em).toBeNull();
+        });
+
+        it('quando marca duas vezes, então a segunda é recusada e a data fica; e desfazer duas vezes não dá erro', async () => {
+          // Dado
+          const { id } = await recebido(comBruno);
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          // Quando / Então
+          await expect(SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-21')).rejects.toThrow('já foi marcado');
+          expect((await aPassar(id))[0].pago_em).toBe('2026-03-20');
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          await expect(SD.financeiroTerceiroDesfazerPago(id, 'p-bruno')).resolves.toBeUndefined();
+        });
+
+        it('quando o recebimento não existe, então marcar e desfazer são recusados', async () => {
+          // Quando / Então
+          await expect(SD.financeiroTerceiroMarcarPago('nao-existe', 'p-bruno', '2026-03-20')).rejects.toThrow('Só o responsável');
+          await expect(SD.financeiroTerceiroDesfazerPago('nao-existe', 'p-bruno')).rejects.toThrow('Só o responsável');
+        });
+
+        it('dado um valor marcado como pago, quando estorna, então é recusado até desfazer a marcação', async () => {
+          // Dado
+          const { id } = await recebido(comBruno);
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          // Quando / Então
+          await expect(SD.financeiroEstornar(id)).rejects.toThrow('desfazer a marcação antes');
+          expect(await aPassar(id)).toHaveLength(1);
+          // Quando
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          await SD.financeiroEstornar(id);
+          // Então
+          expect(await aPassar(id)).toEqual([]);
+        });
+
+        it('dado um recebimento estornado, quando abre, então as linhas somem e não dá para marcar; restaurado, voltam', async () => {
+          // Dado
+          const { id } = await recebido(comBruno);
+          // Quando
+          await SD.financeiroEstornar(id);
+          // Então
+          expect(await meus(id)).toEqual([]);
+          expect(await aPassar(id)).toEqual([]);
+          await expect(SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20')).rejects.toThrow('foi estornado');
+          await expect(SD.financeiroTerceiroDesfazerPago(id, 'p-bruno')).rejects.toThrow('foi estornado');
+          // Quando
+          await SD.financeiroRestaurarRecebimento(id);
+          // Então
+          expect(await meus(id)).toHaveLength(1);
+          expect(await aPassar(id)).toHaveLength(1);
+        });
+
+        it('dado um indicador já pago que saiu do contrato, quando exclui a pessoa, então a exclusão funciona e a marcação fica', async () => {
+          // Dado
+          const nome = marca();
+          const { id: pessoa } = await criar(nome);
+          const { id, k } = await recebido({ indicador_id: pessoa, indicador_percentual: 5 });
+          await SD.financeiroTerceiroMarcarPago(id, pessoa, '2026-03-20');
+          await SD.pessoasArquivar([pessoa]);
+          // Quando / Então: enquanto está no contrato, a regra de hoje vale
+          expect(await SD.pessoasExcluir([pessoa])).toMatchObject({ excluidas: 0, motivo: 'Esta pessoa está em contratos e não pode ser excluída.' });
+          // Quando
+          await SD.contratoAtualizar(k.id, { indicador_id: null, indicador_percentual: null });
+          // Então
+          expect(await SD.pessoasExcluir([pessoa])).toMatchObject({ excluidas: 1 });
+          expect((await aPassar(id))[0]).toMatchObject({ nome, pago_em: '2026-03-20' });
+        });
+
+        it('quando lê o recebimento e os repasses, então os campos internos não aparecem', async () => {
+          // Dado
+          const { id } = await recebido();
+          // Quando / Então
+          expect(await SD.financeiroRecebimento(id)).not.toHaveProperty('responsavel_id');
+          expect((await repassesDe(id))[0]).not.toHaveProperty('perfil_id');
+        });
+      });
+
       describe('Lucro dos sócios', () => {
         const socio = () => SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
         const doLucro = async () => (await SD.financeiroLucro());

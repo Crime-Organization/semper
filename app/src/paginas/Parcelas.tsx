@@ -1,8 +1,8 @@
-// As parcelas de cada mês e os repasses. O administrador vê as do escritório e paga os repasses; o advogado vê as dos contratos dele e
+// As parcelas de cada mês, os repasses e o que o responsável passa aos terceiros. O administrador vê as do escritório e paga os repasses; o advogado vê as dos contratos dele e
 // os repasses dele, sem acesso ao caixa. Quem filtra é o banco. A página de módulo dá o cabeçalho.
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
-import { SD, type ContaFinanceira, type ParcelaDoEscritorio, type Repasse } from '../dados';
+import { SD, type ContaFinanceira, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../dados';
 import { anoAceito, dataExiste } from '../regras/calendario';
 import { diasDoMes, fmtCentavos, mesDe, mesValido } from '../regras/caixa';
 import { resumoDasParcelas, SITUACOES_DA_PARCELA } from '../regras/parcelas';
@@ -13,12 +13,13 @@ import { BotaoDuplo } from '../ui/Botoes';
 import { PaginaModulo } from '../ui/PaginaModulo';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
+import { ValoresAPassar } from './financeiro/APassar';
 import { GestaoDeParcelas } from './financeiro/Parcelas';
 import './Financeiro.css';
 
 const NOME_DO_REPASSE: Record<Repasse['tipo'], string> = { responsavel: 'Responsável', socio_indicador: 'Sócio que indicou' };
 
-type Lido = { chave: string; parcelas: ParcelaDoEscritorio[]; repasses: Repasse[] } | { chave: string; erro: string };
+type Lido = { chave: string; parcelas: ParcelaDoEscritorio[]; repasses: Repasse[]; aPassar: ValorAPassar[] } | { chave: string; erro: string };
 
 function FormPagar({ repasse, contas, hoje, aoTerminar, aoCancelar }: { repasse: Repasse; contas: ContaFinanceira[]; hoje: string; aoTerminar: () => void; aoCancelar: () => void }) {
   const id = useId();
@@ -107,8 +108,8 @@ export default function Parcelas() {
     if (!pode) return;
     let vivo = true;
     const { de, ate } = diasDoMes(mes);
-    Promise.all([SD.parcelasDoPeriodo(de, ate, hojeISO()), SD.financeiroRepasses(de, ate), admin ? SD.financeiroContas() : Promise.resolve([])])
-      .then(([parcelas, repasses, c]) => { if (vivo) { setLido({ chave: mes, parcelas, repasses }); setContas(c.filter(x => !x.arquivada_em)); } })
+    Promise.all([SD.parcelasDoPeriodo(de, ate, hojeISO()), SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate), admin ? SD.financeiroContas() : Promise.resolve([])])
+      .then(([parcelas, repasses, aPassar, c]) => { if (vivo) { setLido({ chave: mes, parcelas, repasses, aPassar }); setContas(c.filter(x => !x.arquivada_em)); } })
       .catch(e => { if (vivo) setLido({ chave: mes, erro: (e as Error).message }); });
     return () => { vivo = false; };
   }, [mes, versao, pode, admin]);
@@ -137,6 +138,10 @@ export default function Parcelas() {
       <section className="financeiro-ajustes" aria-label="Repasses">
         <TituloSecao>{admin ? 'Repasses' : 'Meus repasses'}</TituloSecao>
         <Repasses lista={dados.repasses} admin={admin} contas={contas} hoje={hoje} aoMudar={recarregar} />
+      </section>
+      <section className="financeiro-ajustes" aria-label="A passar a participantes e indicadores">
+        <TituloSecao>A passar a participantes e indicadores</TituloSecao>
+        <ValoresAPassar key={mes} lista={dados.aPassar} hoje={hoje} aoMudar={recarregar} />
       </section>
     </>}
   </PaginaModulo>;

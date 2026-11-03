@@ -1184,6 +1184,20 @@ export interface Repasse {
   id: string; recebimento_id: string; tipo: TipoDeRepasse; nome: string; descricao: string; valor: number; conta_sugerida: string | null; conta_paga: string | null; pago_em: string | null; criado_em: string;
 }
 export interface Socio { id: string; pessoa_id: string; nome: string; desde: string; ate: string | null }
+export type PapelNoValor = 'responsavel' | 'participante' | 'indicador';
+export type SituacaoDoValor = 'a_receber' | 'recebido';
+/** A parte de quem está logado em um recebimento. */
+export interface MeuValor {
+  recebimento_id: string; papel: PapelNoValor; contrato_codigo: string; cliente_nome: string; parcela_numero: number; valor: number; situacao: SituacaoDoValor;
+  /** recebido_em: quando o cliente pagou. pago_em: quando o valor chegou à pessoa. */
+  recebido_em: string; pago_em: string | null;
+  /** "escritório", "cliente" (o que já ficou com o responsável) ou o nome do responsável. */
+  de_quem: string;
+}
+/** O que o responsável passa a um participante ou ao indicador que não é sócio, sem passar pelo caixa. */
+export interface ValorAPassar {
+  recebimento_id: string; pessoa_id: string; nome: string; valor: number; contrato_codigo: string; cliente_nome: string; parcela_numero: number; recebido_em: string; pago_em: string | null;
+}
 /** O que a página de lucro precisa, sem o que foi estornado ou desfeito. Só administradores. */
 export interface MovimentoDoLucro {
   /** Os recebimentos em que o responsável era sócio e tudo foi para a conta da empresa. */
@@ -1237,7 +1251,14 @@ export interface DadosParcelas {
   /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
   financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
-  /** Estornar esconde tudo o que o recebimento criou, e a parcela volta a ser a receber. Repasse pago precisa ser desfeito antes. */
+  /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período (supabase/migrations/20261103220148_meus_valores.sql). */
+  financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
+  /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. */
+  financeiroAPassar(de: string, ate: string): Promise<ValorAPassar[]>;
+  /** Só quem cuida do contrato. Não cria lançamento no caixa: o responsável paga direto. */
+  financeiroTerceiroMarcarPago(recebimento: string, pessoa: string, data: string): Promise<void>;
+  financeiroTerceiroDesfazerPago(recebimento: string, pessoa: string): Promise<void>;
+  /** Estornar esconde tudo o que o recebimento criou, e a parcela volta a ser a receber. Repasse pago ou valor marcado como pago precisa ser desfeito antes. */
   financeiroEstornar(id: string): Promise<void>;
   financeiroRestaurarRecebimento(id: string): Promise<void>;
   /** Os a pagar, de qualquer data, e os pagos no período. Quem não é administrador recebe só os seus. */
