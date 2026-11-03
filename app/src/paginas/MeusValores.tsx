@@ -79,7 +79,7 @@ export default function MeusValores() {
           <TituloSecao>Cada recebimento</TituloSecao>
           <div className="financeiro-form">
             <Linhas linhas={atual.linhas} />
-            <Nota>O valor do responsável inclui o que ele passa aos participantes e ao indicador. Só aparecem as parcelas que o cliente já pagou, no mês em que pagou.</Nota>
+            <Nota>Só aparecem as parcelas que o cliente já pagou. Além dos recebimentos do mês, aparecem os valores ainda a receber de antes dele. O que o responsável passa aos participantes e ao indicador não entra na parte dele: fica em "A passar", nas Parcelas.</Nota>
           </div>
         </section>
       </>}

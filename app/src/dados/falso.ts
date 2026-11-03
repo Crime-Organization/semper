@@ -475,8 +475,8 @@ const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); 
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
 
-const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }) =>
-  bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo }, feito_por: eu, em: agora() });
+const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
+  bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo, ...detalhes }, feito_por: eu, em: agora() });
 const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
   const t = String(texto || '').trim();
@@ -1111,13 +1111,18 @@ function acharParcela(id: string) {
   return p;
 }
 /** Como privado.recebimento_do_terceiro. O banco fictício está sempre logado como o master, que cuida de todos os contratos. */
+const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
 function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
   const r = bd.recebimentos!.find(x => x.id === recebimento);
   if (!r) throw new Error('Só o responsável pelo contrato ou um administrador marca este valor como pago.');
   if (r.estornado_em) throw new Error('Este recebimento foi estornado.');
-  if (!r.terceiros.some(t => t.id === pessoa && t.valor > 0)) throw new Error('Esta pessoa não recebe nada deste recebimento.');
+  if (pessoa === pessoaDoResponsavel(r) || !r.terceiros.some(t => t.id === pessoa && t.valor > 0)) throw new Error('Esta pessoa não recebe nada deste recebimento.');
   return r;
 }
+/** O que o registro de ações guarda da marcação de pago, como o gatilho do banco (privado.auditar_terceiro_pago). */
+const auditarMarcacao = (acao: string, r: RecebimentoGuardado, pessoa: string, pagoEm: string) => auditar('financeiro_terceiros_pagos', acao, { id: pessoa, codigo: bd.contratos!.find(k => k.id === r.contrato_id)?.codigo }, {
+  parcela: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero, recebimento: r.id, pago_em: pagoEm, valor: r.terceiros.find(t => t.id === pessoa)?.valor
+});
 const nomeDoSocio = (id: string) => bd.pessoas.find(p => p.id === id)?.nome ?? 'Pessoa excluída';
 const socioLido = ({ excluido_em: _e, ...s }: SocioGuardado): Socio => ({ ...s, nome: nomeDoSocio(s.pessoa_id) });
 /** Como privado.socio_do_recebimento: o recebimento guarda de qual sócio ele é. */
@@ -2459,27 +2464,29 @@ export const SD: Dados = {
   },
   financeiroMeusValores(de, ate) {
     const minhaPessoa = EQUIPE.find(m => m.id === eu)?.pessoa_id;
-    const linhas = bd.recebimentos!.filter(r => !r.estornado_em && r.data >= de && r.data <= ate).flatMap(r => {
+    const linhas = bd.recebimentos!.filter(r => !r.estornado_em && r.data <= ate).flatMap(r => {
       const k = bd.contratos!.find(x => x.id === r.contrato_id);
       const base = { recebimento_id: r.id, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data };
       const linha = (papel: MeuValor['papel'], valor: number, pagoEm: string | null, deQuem: string): MeuValor =>
         ({ ...base, papel, valor, situacao: pagoEm ? 'recebido' : 'a_receber', pago_em: pagoEm, de_quem: deQuem });
       const repasses = bd.repasses!.filter(x => x.recebimento_id === r.id && !x.cancelado_em);
       const pagoAMim = bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === minhaPessoa)?.pago_em ?? null;
+      // Se o responsável está na lista de terceiros, ele não passa nada a si mesmo: esse valor volta para a linha dele.
+      const parteDoResponsavel = r.responsavel_fica + r.terceiros.filter(t => t.id === pessoaDoResponsavel(r)).reduce((soma, t) => soma + t.valor, 0);
       return [
-        ...repasses.filter(x => x.tipo === 'responsavel' && x.perfil_id === eu).map(x => linha('responsavel', x.valor, x.pago_em, 'escritório')),
-        ...(r.responsavel_id === eu && r.ficou_com_advogado > 0 ? [linha('responsavel', r.ficou_com_advogado, r.data, 'cliente')] : []),
+        ...repasses.filter(x => x.tipo === 'responsavel' && x.perfil_id === eu && parteDoResponsavel > 0).map(x => linha('responsavel', parteDoResponsavel, x.pago_em, 'escritório')),
+        ...(r.responsavel_id === eu && r.ficou_com_advogado > 0 && parteDoResponsavel > 0 ? [linha('responsavel', parteDoResponsavel, r.data, 'cliente')] : []),
         ...repasses.filter(x => x.tipo === 'socio_indicador' && x.pessoa_id === minhaPessoa).map(x => linha('indicador', x.valor, x.pago_em, 'escritório')),
-        ...r.terceiros.filter(t => t.id === minhaPessoa && t.valor > 0).map(t =>
-          linha(k?.indicador_id === minhaPessoa ? 'indicador' : 'participante', t.valor, pagoAMim, EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido'))
+        ...r.terceiros.filter(t => t.id === minhaPessoa && t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map(t =>
+          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido'))
       ];
-    });
+    }).filter(l => l.recebido_em >= de || !l.pago_em);
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.papel.localeCompare(b.papel)));
   },
   financeiroAPassar(de, ate) {
     const linhas = bd.recebimentos!.filter(r => !r.estornado_em).flatMap(r => {
       const k = bd.contratos!.find(x => x.id === r.contrato_id);
-      return r.terceiros.filter(t => t.valor > 0).map((t): ValorAPassar => ({
+      return r.terceiros.filter(t => t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map((t): ValorAPassar => ({
         recebimento_id: r.id, pessoa_id: t.id, nome: t.nome, valor: t.valor, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '',
         parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data,
         pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null
@@ -2492,15 +2499,15 @@ export const SD: Dados = {
     if (!dataExiste(data) || !anoAceito(data)) return erro('Informe uma data válida.');
     if (bd.terceirosPagos!.some(m => m.recebimento_id === r.id && m.pessoa_id === pessoa)) return erro('Este valor já foi marcado como pago.');
     bd.terceirosPagos!.push({ recebimento_id: r.id, pessoa_id: pessoa, pago_em: data, marcado_por: eu, marcado_em: agora() });
-    auditar('financeiro_terceiros_pagos', 'inclusao', { id: pessoa });
+    auditarMarcacao('inclusao', r, pessoa, data);
     gravar();
     return espera(undefined);
   },
   async financeiroTerceiroDesfazerPago(recebimento, pessoa) {
     const r = recebimentoDoTerceiro(recebimento, pessoa);
-    const antes = bd.terceirosPagos!.length;
-    bd.terceirosPagos = bd.terceirosPagos!.filter(m => !(m.recebimento_id === r.id && m.pessoa_id === pessoa));
-    if (bd.terceirosPagos.length < antes) auditar('financeiro_terceiros_pagos', 'exclusao', { id: pessoa });
+    const marcada = bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === pessoa);
+    bd.terceirosPagos = bd.terceirosPagos!.filter(m => m !== marcada);
+    if (marcada) auditarMarcacao('exclusao', r, pessoa, marcada.pago_em);
     gravar();
     return espera(undefined);
   },

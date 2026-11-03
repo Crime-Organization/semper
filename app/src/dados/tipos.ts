@@ -397,7 +397,7 @@ export type ConviteCriado = Convite & { codigo?: string };
 export type DestinoDoAvisoDaTroca = 'antigo' | 'gestao';
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[] } | null;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[]; parcela?: number; recebimento?: string; pago_em?: string; valor?: number } | null;
   feito_por: string | null; em: string;
 }
 
@@ -1160,7 +1160,8 @@ export interface Parcela {
   recebimento_id: string | null; recebida_em: string | null; recebido: number | null;
 }
 export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null }
-export interface TerceiroDoRecebimento { id: string; nome: string; percentual: number }
+/** papel: em que papel a pessoa entrou quando o cliente pagou. Os recebimentos gravados antes deste campo não o têm. */
+export interface TerceiroDoRecebimento { id: string; nome: string; percentual: number; papel?: Exclude<PapelNoValor, 'responsavel'> }
 /** O que a tela precisa para mostrar a divisão enquanto se digita. Quem não é administrador vê só o nome das contas. */
 export interface ParaReceber {
   parte_na_conta: 20 | 30 | 100;
@@ -1186,7 +1187,7 @@ export interface Repasse {
 export interface Socio { id: string; pessoa_id: string; nome: string; desde: string; ate: string | null }
 export type PapelNoValor = 'responsavel' | 'participante' | 'indicador';
 export type SituacaoDoValor = 'a_receber' | 'recebido';
-/** A parte de quem está logado em um recebimento. */
+/** A parte de quem está logado em um recebimento: no responsável, sem o que ele só passa aos terceiros, que fica em "A passar". */
 export interface MeuValor {
   recebimento_id: string; papel: PapelNoValor; contrato_codigo: string; cliente_nome: string; parcela_numero: number; valor: number; situacao: SituacaoDoValor;
   /** recebido_em: quando o cliente pagou. pago_em: quando o valor chegou à pessoa. */
@@ -1251,9 +1252,9 @@ export interface DadosParcelas {
   /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
   financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
-  /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período (supabase/migrations/20261103220148_meus_valores.sql). */
+  /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261103220148_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
-  /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. */
+  /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. Quem é o próprio responsável do recebimento fica de fora. */
   financeiroAPassar(de: string, ate: string): Promise<ValorAPassar[]>;
   /** Só quem cuida do contrato. Não cria lançamento no caixa: o responsável paga direto. */
   financeiroTerceiroMarcarPago(recebimento: string, pessoa: string, data: string): Promise<void>;

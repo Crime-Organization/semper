@@ -2,10 +2,13 @@
 // são em centavos; as datas, "aaaa-mm-dd". Quem escolhe as linhas é o banco (public.financeiro_meus_valores), porque ninguém pode ver a parte
 // dos colegas. Regras do escritório (tarefa #235):
 // - só há valor depois que o cliente pagou: parcelas futuras ficam de fora;
-// - o valor do responsável inclui o que ele passa aos terceiros;
+// - o valor do responsável é a parte dele: o que ele só passa aos terceiros fica em "A passar", nas Parcelas;
+// - o que ainda não foi recebido continua aparecendo nos meses seguintes; o que já foi recebido fica no mês em que o cliente pagou;
 // - participante e indicador que não é sócio recebem do responsável, sem passar pelo caixa do escritório.
 import type { MeuValor, PapelNoValor, SituacaoDoValor } from '../dados/tipos';
 import { anoAceito, dataExiste } from './calendario';
+import { fmtCentavos } from './caixa';
+import { fmtData } from './pessoa';
 
 /** Na ordem em que aparecem. */
 export const PAPEIS_DO_VALOR: Record<PapelNoValor, string> = { responsavel: 'Responsável', participante: 'Participante', indicador: 'Indicador' };
@@ -33,3 +36,8 @@ export const papeisComValor = (totais: TotaisPorPapel) => PAPEIS.filter(p => tot
 
 /** O que há de errado na data em que o responsável pagou o terceiro, ou null. O banco confere a mesma faixa. */
 export const erroDaDataDoPagamento = (data: string) => dataExiste(data) && anoAceito(data) ? null : 'Informe uma data válida.';
+
+/** O que o registro de ações mostra de uma marcação de pago: desfazer apaga a marcação, e é só lá que ficam a parcela, a data e o valor. */
+export function detalheDaMarcacao({ parcela, pago_em, valor }: { parcela?: number; pago_em?: string; valor?: number }) {
+  return [parcela && `parcela ${parcela}`, pago_em && `pago em ${fmtData(pago_em)}`, valor && fmtCentavos(valor)].filter(Boolean).join(', ');
+}

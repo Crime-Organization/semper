@@ -1,7 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { PapelNoValor, SituacaoDoValor } from '../dados/tipos';
-import { deQuemVem, erroDaDataDoPagamento, papeisComValor, PAPEIS_DO_VALOR, SITUACOES_DO_VALOR, totaisPorPapel } from './meusValores';
+import { fmtCentavos } from './caixa';
+import { deQuemVem, detalheDaMarcacao, erroDaDataDoPagamento, papeisComValor, PAPEIS_DO_VALOR, SITUACOES_DO_VALOR, totaisPorPapel } from './meusValores';
 
 const linha = (papel: PapelNoValor, situacao: SituacaoDoValor, valor: number) => ({ papel, situacao, valor });
 
@@ -31,6 +32,19 @@ describe('Meus valores', () => {
       const totais = totaisPorPapel([linha('indicador', 'recebido', 10), linha('responsavel', 'a_receber', 20)]);
       // Quando / Então
       expect(papeisComValor(totais)).toEqual(['responsavel', 'indicador']);
+    });
+  });
+
+  describe('Marcação de pago no registro de ações', () => {
+    it('dado o que o registro guardou, quando aparece, então diz a parcela, a data e o valor', () => {
+      // Quando / Então
+      expect(detalheDaMarcacao({ parcela: 1, pago_em: '2026-03-20', valor: 9250 })).toBe(`parcela 1, pago em 20/03/2026, ${fmtCentavos(9250)}`);
+    });
+
+    it('dado que falta alguma informação, quando aparece, então mostra só o que há', () => {
+      // Quando / Então
+      expect(detalheDaMarcacao({ pago_em: '2026-03-20' })).toBe('pago em 20/03/2026');
+      expect(detalheDaMarcacao({})).toBe('');
     });
   });
 
