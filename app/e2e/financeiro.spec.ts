@@ -28,6 +28,16 @@ async function lancar(page: Page, { categoria, valor, descricao, data }: { categ
   await form.getByRole('button', { name: 'Lançar' }).click();
   await expect(form).toHaveCount(0);
 }
+async function lancarAjuste(page: Page, { categoria, valor, motivo, data }: { categoria: string; valor: string; motivo: string; data: string }) {
+  await page.getByRole('button', { name: 'Novo lançamento' }).click();
+  const form = page.getByRole('form', { name: 'Novo lançamento' });
+  await form.getByLabel('Data').fill(data);
+  await form.getByLabel('Categoria').selectOption({ label: categoria });
+  await form.getByLabel('Valor').fill(valor);
+  await form.getByLabel('Motivo do ajuste').fill(motivo);
+  await form.getByRole('button', { name: 'Lançar' }).click();
+  await expect(form).toHaveCount(0);
+}
 const irParaMes = (page: Page, mes: string) => page.getByLabel('Mês', { exact: true }).first().fill(mes);
 
 test.describe('Caixa', () => {
@@ -63,6 +73,115 @@ test.describe('Caixa', () => {
     // Então
     await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
     await expect(page.getByRole('definition').filter({ hasText: '1.299,50' }).first()).toBeVisible();
+  });
+
+  test('quando lança um ajuste de saldo, então o saldo muda, e o resumo mostra o ajuste à parte das entradas e saídas', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    const resumo = page.getByLabel('Resumo do mês');
+    await lancar(page, { categoria: 'Recebimento de cliente (entrada)', valor: '500,00', descricao: 'Honorários do cliente', data: '2026-03-10' });
+    // Então: sem ajuste, a linha não aparece
+    await expect(resumo).toBeVisible();
+    await expect(resumo.getByText('Ajustes de saldo')).toHaveCount(0);
+    // Quando
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '100,00', motivo: 'Diferença do extrato de março', data: '2026-03-11' });
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a menos)', valor: '30,00', motivo: 'Tarifa que faltou lançar', data: '2026-03-12' });
+    // Então: o saldo acompanha
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    await expect(tabela.getByRole('row').filter({ hasText: 'Diferença do extrato de março' })).toContainText('Ajuste de saldo (a mais)');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Diferença do extrato de março' })).toContainText('1.600,00');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Tarifa que faltou lançar' })).toContainText('Ajuste de saldo (a menos)');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Tarifa que faltou lançar' })).toContainText('1.570,00');
+    // Então: as entradas são só o recebimento, e não há saída
+    await expect(resumo.getByRole('definition').nth(1)).toContainText('500,00');
+    await expect(resumo.getByRole('definition').nth(2)).toContainText('0,00');
+    await expect(resumo.getByText('Ajustes de saldo')).toBeVisible();
+    await expect(resumo.getByRole('definition').nth(3)).toContainText('100,00');
+    await expect(resumo.getByRole('definition').nth(3)).toContainText('30,00');
+    await expect(resumo.getByRole('definition').nth(4)).toContainText('1.570,00');
+    // Quando: o mês seguinte começa de onde este parou, sem a linha de ajustes
+    await irParaMes(page, '2026-04');
+    // Então
+    await expect(resumo.getByRole('definition').first()).toContainText('1.570,00');
+    await expect(resumo.getByText('Ajustes de saldo')).toHaveCount(0);
+  });
+
+  test('quando escolhe um ajuste sem dizer o motivo, então o campo pede o motivo e não lança', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await page.getByRole('button', { name: 'Novo lançamento' }).click();
+    const form = page.getByRole('form', { name: 'Novo lançamento' });
+    await expect(form.getByLabel('Descrição')).toBeVisible();
+    // Quando
+    await form.getByLabel('Categoria').selectOption({ label: 'Ajuste de saldo (a menos)' });
+    await form.getByLabel('Valor').fill('10,00');
+    await form.getByRole('button', { name: 'Lançar' }).click();
+    // Então
+    await expect(form.getByText('Diga o motivo do ajuste.')).toBeVisible();
+    await expect(form.getByText('não conta como receita, despesa nem lucro', { exact: false })).toBeVisible();
+    await expect(form).toBeVisible();
+  });
+
+  test('quando muda, exclui e desfaz um ajuste de saldo, então funciona como os outros, e o histórico registra', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '100,00', motivo: 'Diferença do extrato', data: '2026-03-10' });
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    const linha = tabela.getByRole('row').filter({ hasText: 'Diferença do extrato' });
+    // Quando
+    await page.getByRole('button', { name: 'Mudar o lançamento Diferença do extrato' }).click();
+    const form = page.getByRole('form', { name: 'Mudar lançamento' });
+    await abrirSecao(page, 'Histórico deste lançamento');
+    await form.getByLabel('Categoria').selectOption({ label: 'Ajuste de saldo (a menos)' });
+    await form.getByRole('button', { name: 'Salvar lançamento' }).click();
+    // Então: era mais cem, agora é menos cem
+    await expect(linha).toContainText('Ajuste de saldo (a menos)');
+    await expect(linha).toContainText('900,00');
+    // Quando: abre de novo
+    await page.getByRole('button', { name: 'Mudar o lançamento Diferença do extrato' }).click();
+    // Então
+    await expect(page.getByRole('listitem').filter({ hasText: 'Categoria:' })).toContainText('Ajuste de saldo (a mais)');
+    await expect(page.getByRole('listitem').filter({ hasText: 'Categoria:' })).toContainText('Ajuste de saldo (a menos)');
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(linha).toContainText('1.100,00');
+    // Quando
+    await tabela.getByRole('button', { name: 'Excluir' }).click();
+    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então
+    await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(linha).toContainText('1.100,00');
+  });
+
+  test('quando confere na auditoria, então todos os ajustes aparecem juntos, de todas as contas e meses', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await irParaMes(page, '2026-02');
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '100,00', motivo: 'Diferença de fevereiro', data: '2026-02-10' });
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-05' });
+    await page.getByRole('combobox', { name: 'Conta' }).selectOption({ label: 'PF' });
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a menos)', valor: '30,00', motivo: 'Diferença de março', data: '2026-03-10' });
+    // Quando
+    await abrirSecao(page, 'Todos os ajustes de saldo');
+    // Então
+    const lista = page.getByRole('table', { name: 'Todos os ajustes de saldo' });
+    await expect(lista.getByRole('row')).toHaveCount(3);
+    const [marco, fevereiro] = [lista.getByRole('row').nth(1), lista.getByRole('row').nth(2)];
+    await expect(marco).toContainText('Diferença de março');
+    await expect(marco).toContainText('PF');
+    await expect(marco).toContainText('30,00');
+    await expect(fevereiro).toContainText('Diferença de fevereiro');
+    await expect(fevereiro).toContainText('PJ');
+    await expect(fevereiro).toContainText('100,00');
+    await expect(lista).not.toContainText('Papel');
   });
 
   test('quando esquece um campo, então avisa e não lança', async ({ page }) => {

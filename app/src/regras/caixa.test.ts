@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario } from './caixa';
+  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste } from './caixa';
 import { normal } from './texto';
 
 const HOJE = '2026-11-10';
@@ -185,6 +185,88 @@ describe('Histórico', () => {
     expect(valorNoHistorico('excluido_em', '2026-11-10T10:00:00Z')).toBe('Excluído');
     expect(valorNoHistorico('excluido_em', null)).toBe('—');
     expect(valorNoHistorico('descricao', 'Luz')).toBe('Luz');
+  });
+});
+
+describe('Ajuste de saldo', () => {
+  const semEspaco = (t: string) => t.replace(/\s/g, ' ');
+  const AJUSTE_A_MAIS = { categoria: 'ajuste_a_mais', tipo: 'entrada' } as const;
+  const AJUSTE_A_MENOS = { categoria: 'ajuste_a_menos', tipo: 'saida' } as const;
+
+  it.each([['ajuste_a_mais', 'entrada', 'Ajuste de saldo (a mais)'], ['ajuste_a_menos', 'saida', 'Ajuste de saldo (a menos)']] as const)('quando lança %s, então vai como %s, com o nome certo', (categoria, tipo, nome) => {
+    // Dado
+    const form = { ...lancamentoNovo('c1', HOJE), categoria, valor: '10,00', descricao: 'Diferença do extrato' };
+    // Quando
+    const dados = dadosDoLancamento(form);
+    // Então
+    expect(dados).toMatchObject({ categoria, tipo, valor: 1000 });
+    expect(nomeDaCategoria(categoria)).toBe(nome);
+    expect(valorNoHistorico('categoria', categoria)).toBe(nome);
+    expect(rotuloDaCategoria(categoria)).toBe(nome);
+  });
+
+  it('dado um lançamento novo, quando lista as categorias, então os dois ajustes são oferecidos; as outras continuam dizendo o tipo', () => {
+    // Quando
+    const lista = categoriasDoFormulario('recebimento');
+    // Então
+    expect(lista).toEqual(expect.arrayContaining(['ajuste_a_mais', 'ajuste_a_menos']));
+    expect(rotuloDaCategoria('despesa')).toBe('Despesa (saída)');
+    expect(ehAjuste('despesa')).toBe(false);
+    expect(ehAjuste('transferencia')).toBe(false);
+  });
+
+  it('dado um ajuste sem motivo, quando confere, então pede o motivo; nas outras categorias o texto continua o mesmo', () => {
+    // Dado
+    const base = { ...lancamentoNovo('c1', HOJE), valor: '10,00', descricao: ' ' };
+    // Então
+    expect(errosDoLancamento({ ...base, categoria: 'ajuste_a_menos' }, CONTA).descricao).toBe('Diga o motivo do ajuste.');
+    expect(errosDoLancamento({ ...base, categoria: 'despesa' }, CONTA).descricao).toBe('Diga do que se trata.');
+  });
+
+  it('dado um ajuste longo demais, quando confere, então vale o mesmo limite dos outros lançamentos', () => {
+    // Dado
+    const form = { ...lancamentoNovo('c1', HOJE), categoria: 'ajuste_a_mais' as const, valor: '10,00', descricao: 'x'.repeat(301) };
+    // Então
+    expect(errosDoLancamento(form, CONTA).descricao).toBe('Use até 300 caracteres.');
+  });
+
+  it('dado um mês com ajustes, quando resume, então o saldo muda, mas entradas e saídas ficam sem eles', () => {
+    // Dado
+    const lista = [
+      lancamento({ id: 'a', data: '2026-11-01', tipo: 'entrada', valor: 1000 }),
+      lancamento({ id: 'b', data: '2026-11-02', tipo: 'saida', categoria: 'despesa', valor: 200 }),
+      lancamento({ id: 'c', data: '2026-11-03', ...AJUSTE_A_MAIS, valor: 50 }),
+      lancamento({ id: 'd', data: '2026-11-04', ...AJUSTE_A_MENOS, valor: 30 })
+    ];
+    // Quando
+    const m = mesDoCaixa(lista, 100);
+    // Então
+    expect(m).toMatchObject({ saldoAnterior: 100, entradas: 1000, saidas: 200, ajustes: { aMais: 50, aMenos: 30 }, saldoFinal: 920 });
+    expect(m.linhas.map(l => l.saldo)).toEqual([1100, 900, 950, 920]);
+  });
+
+  it('dado um mês sem ajuste, quando resume, então não há linha de ajustes', () => {
+    // Então
+    expect(mesDoCaixa([lancamento({ valor: 10 })], 0).ajustes).toBeUndefined();
+  });
+
+  it('dado ajustes que se anulam, quando resume, então a linha continua aparecendo', () => {
+    // Dado
+    const lista = [lancamento({ id: 'a', ...AJUSTE_A_MAIS, valor: 70 }), lancamento({ id: 'b', ...AJUSTE_A_MENOS, valor: 70 })];
+    // Quando
+    const m = mesDoCaixa(lista, 500);
+    // Então
+    expect(m.ajustes).toEqual({ aMais: 70, aMenos: 70 });
+    expect(m.saldoFinal).toBe(500);
+  });
+
+  it('quando mostra os ajustes, então cada lado aparece com o seu sinal, e o lado zerado não aparece', () => {
+    // Então
+    expect(semEspaco(textoDosAjustes({ aMais: 5000, aMenos: 3000 }))).toBe('+ R$ 50,00 · − R$ 30,00');
+    expect(semEspaco(textoDosAjustes({ aMais: 5000, aMenos: 0 }))).toBe('+ R$ 50,00');
+    expect(semEspaco(textoDosAjustes({ aMais: 0, aMenos: 3000 }))).toBe('− R$ 30,00');
+    expect(semEspaco(valorDoAjuste({ tipo: 'entrada', valor: 5000 }))).toBe('+ R$ 50,00');
+    expect(semEspaco(valorDoAjuste({ tipo: 'saida', valor: 3000 }))).toBe('− R$ 30,00');
   });
 });
 

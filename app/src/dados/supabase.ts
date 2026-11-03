@@ -4,6 +4,7 @@ import { AuthClient } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
+import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
@@ -926,6 +927,15 @@ export const SD: Dados = {
     for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
       const { data } = await rodar(sb.from('financeiro_lancamentos').select(CAMPOS_DO_LANCAMENTO).eq('conta_id', contaId).is('excluido_em', null).gte('data', de).lte('data', ate)
         .order('data').order('criado_em').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...data);
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
+  },
+  async financeiroAjustesDeSaldo() {
+    const todos: Lancamento[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_lancamentos').select(CAMPOS_DO_LANCAMENTO).in('categoria', CATEGORIAS_DE_AJUSTE).is('excluido_em', null)
+        .order('data', { ascending: false }).order('criado_em', { ascending: false }).order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
       todos.push(...data);
       if (data.length < LINHAS_POR_CONSULTA) return todos;
     }

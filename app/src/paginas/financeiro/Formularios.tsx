@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type DadosConta, type Lancamento } from '../../dados';
 import { TAMANHO_FINANCEIRO } from '../../dados/limites';
 import {
-  CATEGORIAS, categoriasDoFormulario, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido,
+  categoriasDoFormulario, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, ehAjuste, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido, rotuloDaCategoria,
   type FormDaConta, type FormDaTransferencia, type FormDoLancamento
 } from '../../regras/caixa';
 import { erroDoDas, lerAliquota } from '../../regras/financeiro';
@@ -13,6 +13,8 @@ import { avisar, falha, feito } from '../../ui/avisos';
 import { Campo, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+
+const DICA_DO_AJUSTE = 'Por que o saldo precisou deste acerto: é o que se confere na auditoria. O ajuste muda o saldo da conta, mas não conta como receita, despesa nem lucro.';
 
 interface PropsDoForm<F> { inicial: F; contas: ContaFinanceira[]; aoTerminar: () => void; aoCancelar: () => void }
 
@@ -32,6 +34,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
   const mudar = (m: Partial<FormDoLancamento>) => setF(x => ({ ...x, ...m }));
   const conta = contas.find(c => c.id === f.contaId);
   const erros = conferido ? errosDoLancamento(f, conta) : {};
+  const dicaDaDescricao = ehAjuste(f.categoria) ? DICA_DO_AJUSTE : undefined;
   // Numa lista longa, o formulário abre lá em cima: leva a pessoa até ele.
   const ref = useRef<HTMLFormElement>(null);
   useEffect(() => { ref.current?.scrollIntoView?.({ block: 'center' }); }, []);
@@ -65,15 +68,15 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
       </Campo>
       <Campo rotulo="Categoria" para={id + 'cat'}>
         <select {...propsDoCampo(id + 'cat')} value={f.categoria} onChange={e => mudar({ categoria: e.target.value as FormDoLancamento['categoria'] })}>
-          {categoriasDoFormulario(f.categoria).map(c => <option key={c} value={c}>{CATEGORIAS[c].nome} ({CATEGORIAS[c].tipo === 'entrada' ? 'entrada' : 'saída'})</option>)}
+          {categoriasDoFormulario(f.categoria).map(c => <option key={c} value={c}>{rotuloDaCategoria(c)}</option>)}
         </select>
       </Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>
         <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} />
       </Campo>
     </div>
-    <Campo rotulo="Descrição" para={id + 'desc'} obrigatorio erro={erros.descricao}>
-      <input type="text" {...propsDoCampo(id + 'desc', { erro: erros.descricao })} maxLength={TAMANHO_FINANCEIRO.descricao} value={f.descricao} onChange={e => mudar({ descricao: e.target.value })} />
+    <Campo rotulo={dicaDaDescricao ? 'Motivo do ajuste' : 'Descrição'} para={id + 'desc'} obrigatorio dica={dicaDaDescricao} erro={erros.descricao}>
+      <input type="text" {...propsDoCampo(id + 'desc', { dica: dicaDaDescricao, erro: erros.descricao })} maxLength={TAMANHO_FINANCEIRO.descricao} value={f.descricao} onChange={e => mudar({ descricao: e.target.value })} />
     </Campo>
     <Acoes rotulo={alvo ? 'Salvar lançamento' : 'Lançar'} ocupado={ocupado} aoCancelar={aoCancelar} />
   </form>;

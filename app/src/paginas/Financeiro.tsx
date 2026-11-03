@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type Lancamento, type Socio } from '../dados';
-import { CAMPOS_DO_LANCAMENTO, diasDoMes, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, transferenciaNova, valorNoAjuste, valorNoHistorico } from '../regras/caixa';
+import { CAMPOS_DO_LANCAMENTO, diasDoMes, ehAjuste, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido, nomeDaCategoria, textoDosAjustes, transferenciaNova, valorNoAjuste, valorNoHistorico } from '../regras/caixa';
 import { dasDoMes } from '../regras/financeiro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, estiloBotao, Nota, Vazio } from '../ui/base';
+import { Aviso, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { PaginaModulo } from '../ui/PaginaModulo';
@@ -15,6 +15,7 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
+import { AjustesDeSaldo } from './financeiro/AjustesDeSaldo';
 import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia } from './financeiro/Formularios';
 import { SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -89,6 +90,9 @@ export default function Financeiro() {
   }
   const dataNova = mesDe(hoje) === mes ? hoje : diasDoMes(mes).de;
   const ajustes = <div className="financeiro-ajustes">
+    <Recolhivel titulo="Todos os ajustes de saldo" icone="relogio" preferencia="financeiro.ajustesDeSaldo">
+      <AjustesDeSaldo contas={contas} versao={versao} />
+    </Recolhivel>
     <Recolhivel titulo="Contas" icone="configuracoes" preferencia="financeiro.contas" contador={ativas.length}>
       <ContasDoEscritorio contas={contas} hoje={hoje} aoMudar={recarregar} />
     </Recolhivel>
@@ -141,6 +145,7 @@ export default function Financeiro() {
         <div><dt>Saldo anterior</dt><dd>{fmtCentavos(dados.saldoAnterior)}</dd></div>
         <div><dt>Entradas</dt><dd>{fmtCentavos(dados.entradas)}</dd></div>
         <div><dt>Saídas</dt><dd>{fmtCentavos(dados.saidas)}</dd></div>
+        {dados.ajustes && <div><dt>Ajustes de saldo</dt><dd>{textoDosAjustes(dados.ajustes)}</dd></div>}
         <div><dt>Saldo final</dt><dd><b>{fmtCentavos(dados.saldoFinal)}</b></dd></div>
       </dl>
       {dados.linhas.length ? <div className="tabela"><table aria-label="Lançamentos do mês">
@@ -150,7 +155,7 @@ export default function Financeiro() {
           <th scope="col"><span className="sr">Ações</span></th>
         </tr></thead>
         <tbody>{dados.linhas.map(({ lancamento: l, saldo, fimDoDia }) => <tr key={l.id} className={fimDoDia ? 'financeiro-fim-do-dia' : undefined}>
-          <td>{fmtData(l.data)}</td><td>{l.descricao}</td><td>{nomeDaCategoria(l.categoria)}</td>
+          <td>{fmtData(l.data)}</td><td>{l.descricao}</td><td>{ehAjuste(l.categoria) ? <Selo tipo="pend">{nomeDaCategoria(l.categoria)}</Selo> : nomeDaCategoria(l.categoria)}</td>
           <td className="financeiro-num">{l.tipo === 'entrada' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{l.tipo === 'saida' ? fmtCentavos(l.valor) : ''}</td>
           <td className="financeiro-num">{fimDoDia ? <b>{fmtCentavos(saldo)}</b> : fmtCentavos(saldo)}</td>
