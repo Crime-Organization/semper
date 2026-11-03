@@ -280,6 +280,7 @@ test.describe('Receber', () => {
     const divisao = form.getByLabel('Como fica a divisão');
     await expect(divisao).toContainText('Conta para o lucro do sócio responsável');
     await expect(divisao).toContainText(dinheiro('925,00'));
+    await expect(divisao).toContainText(dinheiro('647,50'));
     await expect(divisao).not.toContainText('Fica com o responsável');
     await form.getByRole('button', { name: 'Registrar recebimento' }).click();
     await expect(form).toHaveCount(0);

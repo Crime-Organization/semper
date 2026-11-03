@@ -231,7 +231,7 @@ describe('Como a divisão aparece', () => {
     // Quando
     const d = dividirRecebimento({ ...BASE, responsavelSocio: true });
     // Então
-    expect(linhasDaDivisao(d, 4.5, nome, true).at(-1)).toEqual({ rotulo: 'Conta para o lucro do sócio responsável', valor: 92500 });
+    expect(linhasDaDivisao(d, 4.5, nome, true).at(-1)).toEqual({ rotulo: 'Conta para o lucro do sócio responsável', valor: 64750 });
     expect(rotulos(d, true)).not.toContain('Fica com o responsável');
   });
 

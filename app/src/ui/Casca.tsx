@@ -93,6 +93,7 @@ export function Casca({ children }: { children: ReactNode }) {
           </SubmenuLateral>
           {ctx.escritorio?.modulos?.financeiro && item('/parcelas/', 'dinheiro', 'Parcelas')}
           {ctx.ehAdmin && ctx.escritorio?.modulos?.financeiro && item('/financeiro/', 'dinheiro', 'Caixa')}
+          {ctx.ehAdmin && ctx.escritorio?.modulos?.financeiro && item('/lucros/', 'dinheiro', 'Lucro dos sócios')}
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>
