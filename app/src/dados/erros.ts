@@ -9,7 +9,7 @@ interface Regra {
   mensagem: string | null;
 }
 
-const LINK_VENCIDO = 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.';
+export const LINK_VENCIDO = 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.';
 
 // Registro repetido (código 23505): a mensagem depende da restrição que barrou.
 const REPETIDO: Regra[] = [
@@ -46,13 +46,14 @@ const ERROS: Regra[] = [
   { padrao: /permission denied|row-level security/i, mensagem: 'Você não tem permissão para fazer isso.' },
   { codigo: 'P0001', mensagem: null },
   { padrao: /Invalid login credentials/i, mensagem: 'E-mail ou senha incorretos.' },
+  // Antes da regra do código do aplicativo: esta mensagem traz o próprio e-mail, que pode conter "code".
+  { codigo: 'email_address_invalid', mensagem: 'Este e-mail não é aceito. Confira e tente de novo.' },
   { codigo: 'otp_expired', mensagem: LINK_VENCIDO },
   { padrao: /Email link is invalid or has expired/i, mensagem: LINK_VENCIDO },
   { padrao: /Invalid TOTP|invalid.*code|code.*(expired|invalid)/i, mensagem: 'Código incorreto ou vencido. Digite o código que o aplicativo mostra agora.' },
   { padrao: /AAL2 required|aal2/i, mensagem: 'Para fazer isso, entre de novo com o código do aplicativo autenticador.' },
   { padrao: /Email not confirmed/i, mensagem: 'Confirme seu e-mail pelo link que enviamos antes de entrar.' },
   { codigo: 'email_exists', mensagem: 'Este e-mail já é usado em outra conta do SEMPER.' },
-  { codigo: 'email_address_invalid', mensagem: 'Este e-mail não é aceito. Confira e tente de novo.' },
   { codigo: 'validation_failed', padrao: /Unable to validate email/i, mensagem: 'Informe um e-mail válido.' },
   { padrao: /already registered|already been registered/i, mensagem: 'Este e-mail já tem conta. Use "Entrar" ou recupere a senha.' },
   { padrao: /Database error saving new user/i, mensagem: 'Convite não encontrado ou vencido. Use o link mais recente que o escritório enviou para este e-mail, ou peça um novo ao administrador.' },

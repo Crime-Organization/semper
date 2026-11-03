@@ -12,6 +12,7 @@ import type {
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { normalizarEmail } from '../regras/conta';
+import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
@@ -1489,7 +1490,7 @@ export const SD: Dados = {
   async confirmarLink(codigo, tipo) {
     if (tipo !== 'email_change') { bd.logado = true; gravar(); return { comSessao: true }; }
     const troca = bd.emailPendente;
-    if (!troca || troca.links.includes(codigo)) return erro('Este link já foi usado ou venceu.');
+    if (!troca || troca.links.includes(codigo)) return erro(LINK_VENCIDO);
     troca.links.push(codigo);
     if (troca.links.length < LINKS_DA_TROCA_DE_EMAIL) { gravar(); return { comSessao: false }; }
     bd.emailDaConta = troca.email;

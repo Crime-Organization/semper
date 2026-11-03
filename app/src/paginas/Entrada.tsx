@@ -114,7 +114,7 @@ export default function Entrada() {
     await SD.duasEtapasEntrar(c);
     navegar(destinoDoCodigo.current);
   });
-  const sairDoCodigo = async () => { await SD.sair(); mostrar('entrar'); };
+  const sairDoCodigo = async () => { await SD.sair(); destinoDoCodigo.current = destino; mostrar('entrar'); };
   const primeiro = enviar(async (ler, form) => {
     if (!emailValido(ler('email'))) return avisar('Informe o e-mail em que você recebeu o convite.');
     if (ler('senha').length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');

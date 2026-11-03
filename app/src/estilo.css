@@ -79,7 +79,7 @@ button, input, select, textarea { font-family: inherit }
 .lead { margin: 10px 0 0; font-size: 17px; color: var(--text2); max-width: 640px }
 h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em }
 .rotulo-caps { display: block; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }
-.nota { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.6 }
+.nota { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.6; overflow-wrap: anywhere }
 .link { background: none; border: 0; padding: 0; color: var(--accent-ink); font-weight: 700; font-size: 14px; cursor: pointer; border-bottom: 1px solid currentColor }
 .carregando { color: var(--muted); font-size: 15px }
 
@@ -140,7 +140,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .linhas-repetidas li > .icone-btn { flex-shrink: 0 }
 
 /* ---------- avisos ---------- */
-.aviso { padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5 }
+.aviso { padding: 12px 14px; border-radius: 8px; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere }
 .aviso.erro { background: var(--erro-bg); color: var(--erro) }
 .aviso.ok { background: var(--ok-bg); color: var(--ok-ink) }
 .aviso.info { background: var(--warn-bg); color: var(--warn-ink) }

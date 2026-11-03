@@ -155,11 +155,37 @@ test.describe('Minha conta', () => {
     await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
   });
 
+  test('quando a pessoa desiste no código e entra com outra conta, então vai para o Início, e não para Minha conta', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Ativar verificação em duas etapas' }).click();
+    await page.getByLabel('Código do aplicativo').fill('123456');
+    await page.getByRole('button', { name: 'Ativar', exact: true }).click();
+    await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    await page.goto('/?token_hash=link-do-atual&type=email_change');
+    await expect(page.getByRole('status').filter({ hasText: 'Para concluir a troca' })).toBeVisible();
+    await page.goto('/?token_hash=link-do-novo&type=email_change');
+    await expect(page.getByRole('heading', { name: 'Código de verificação' })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Entrar com outra conta' }).click();
+    await page.getByLabel('E-mail').fill('outra@exemplo.com');
+    await page.getByLabel('Senha').fill('senha-de-teste');
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await page.getByLabel('Código de 6 números').fill('123456');
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/inicio\/?$/);
+  });
+
   test('quando o link da troca não vale mais, então a entrada avisa', async ({ page }) => {
     // Quando
     await page.goto('/?token_hash=link-velho&type=email_change');
     // Então
-    await expect(page.getByRole('alert').filter({ hasText: 'Este link já foi usado ou venceu.' })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.' })).toBeVisible();
   });
 
   test('quando a pessoa preenche e salva o perfil, então ele volta igual ao reabrir a página', async ({ page }) => {
