@@ -78,6 +78,6 @@ describe('Troca do e-mail de acesso', () => {
 
   it('dado o limite de trocas, quando recusa, então a mensagem diz o limite e que nada mudou', () => {
     // Dado / Quando / Então
-    expect(RECUSA_DA_TROCA.limite).toBe(`O escritório chegou ao limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora. Nada mudou: tente de novo mais tarde.`);
+    expect(RECUSA_DA_TROCA.limite).toBe(`O limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora foi atingido. Nada mudou: tente de novo mais tarde.`);
   });
 });

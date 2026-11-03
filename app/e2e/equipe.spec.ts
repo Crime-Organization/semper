@@ -158,24 +158,42 @@ test.describe('Equipe e acessos', () => {
       await expect(page.getByRole('region', { name: 'Registro de ações' })).not.toContainText('Carla Teste');
     });
 
-    test('quando o escritório chega ao limite de trocas na hora, então a próxima é recusada, com a explicação, e nada muda', async ({ page }) => {
-      // Dado
-      await page.evaluate(() => {
+    /** Põe 10 trocas de agora no banco fictício, feitas por essa pessoa. */
+    async function registrarDezTrocas(page: Page, feitoPor: string) {
+      await page.evaluate(quem => {
         const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
         const em = new Date().toISOString();
-        for (let i = 0; i < 10; i++) bd.auditoria.unshift({ id: 2000 + i, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em, resumo: { nome: 'Outra Pessoa', aviso_falhas: [] } });
+        for (let i = 0; i < 10; i++) bd.auditoria.unshift({ id: 2000 + i, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: quem, em, resumo: { nome: 'Outra Pessoa', aviso_falhas: [] } });
         sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
-      });
+      }, feitoPor);
       await page.reload();
-      // Quando
+    }
+
+    async function trocarOEmailDoBruno(page: Page) {
       await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
       await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
       await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+    }
+
+    test('quando o master chega ao limite de trocas na hora, então a próxima é recusada, com a explicação, e nada muda', async ({ page }) => {
+      // Dado
+      await registrarDezTrocas(page, 'u-master');
+      // Quando
+      await trocarOEmailDoBruno(page);
       // Então
-      await expect(page.getByText('O escritório chegou ao limite de 10 trocas de e-mail por hora.')).toBeVisible();
+      await expect(page.getByText('O limite de 10 trocas de e-mail por hora foi atingido.')).toBeVisible();
       await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando os administradores gastam as trocas da hora, então o master ainda consegue trocar', async ({ page }) => {
+      // Dado
+      await registrarDezTrocas(page, 'u-ana');
+      // Quando
+      await trocarOEmailDoBruno(page);
+      // Então
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno.novo@exemplo.com');
     });
 
     test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {

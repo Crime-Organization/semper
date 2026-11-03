@@ -9,8 +9,10 @@ create extension if not exists pg_cron;
 create extension if not exists pg_net with schema extensions;
 
 -- A mesma função de 20261103140000_trocar_email_pelo_administrador.sql, com o limite antes de mexer na conta. Cada troca desconecta
--- uma pessoa e gasta envios da caixa que todos os escritórios usam: são 10 por hora por escritório (TROCAS_DE_EMAIL_POR_HORA em
--- app/src/dados/limites.ts). As tentativas que falharam contam, porque também desconectam a pessoa.
+-- uma pessoa e gasta envios da caixa que todos os escritórios usam: em cada escritório, são 10 por hora para os administradores,
+-- juntos, e outras 10 para o master (TROCAS_DE_EMAIL_POR_HORA em app/src/dados/limites.ts). A conta do master é separada para um
+-- administrador mal-intencionado não gastar todas as trocas e impedir o master de desfazer o que ele fez. As tentativas que
+-- falharam contam, porque também desconectam a pessoa.
 create or replace function public.equipe_email_preparar(p_usuario uuid, p_nivel text, p_perfil uuid, p_email text)
 returns table (resultado text, registro bigint)
 language plpgsql security definer set search_path = '' as $$
@@ -55,7 +57,8 @@ begin
   -- quem só grava uma linha que aponta para o escritório.
   perform 1 from public.escritorios e where e.id = v_alvo.escritorio_id for no key update;
   if (select count(*) from public.auditoria a
-      where a.escritorio_id = v_alvo.escritorio_id and a.acao = 'troca_email' and a.em > now() - interval '1 hour') >= 10 then
+      where a.escritorio_id = v_alvo.escritorio_id and a.acao = 'troca_email' and a.em > now() - interval '1 hour'
+        and (v_quem.papel = 'master') = exists (select 1 from public.perfis p where p.id = a.feito_por and p.papel = 'master')) >= 10 then
     return query select 'limite'::text, null::bigint;
     return;
   end if;

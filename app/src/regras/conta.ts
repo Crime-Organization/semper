@@ -28,7 +28,7 @@ export const RECUSA_DA_TROCA: Record<RecusaDaTrocaDeEmail, string> = {
   'email-invalido': 'Informe um e-mail válido.',
   'email-em-uso': 'Este e-mail já é usado em outra conta do SEMPER.',
   'convite-pendente': 'Este e-mail já tem um convite pendente.',
-  limite: `O escritório chegou ao limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora. Nada mudou: tente de novo mais tarde.`,
+  limite: `O limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora foi atingido. Nada mudou: tente de novo mais tarde.`,
   erro: 'Não foi possível trocar o e-mail agora. Tente de novo.'
 };
 

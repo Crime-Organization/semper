@@ -2826,7 +2826,9 @@ export const SD: Dados = {
     if (meuEmail() === email || EQUIPE.some(x => x.email === email)) return erro(RECUSA_DA_TROCA['email-em-uso']);
     if (bd.convites.some(c => c.email.toLowerCase() === email)) return erro(RECUSA_DA_TROCA['convite-pendente']);
     const umaHoraAtras = Date.now() - HORA;
-    if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
+    // Como no banco: o master conta à parte dos administradores. Aqui a sessão é sempre a do master (eu).
+    const doMaster = (r: RegistroAuditoria) => EQUIPE.find(x => x.id === r.feito_por)?.papel === 'master';
+    if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
     gravar();
