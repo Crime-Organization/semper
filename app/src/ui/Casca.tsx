@@ -10,6 +10,7 @@ import { estiloBotao } from './base';
 import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
+import { MenuFinanceiro } from './MenuFinanceiro';
 import { useSessao } from './sessao';
 import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
@@ -48,7 +49,7 @@ export function Casca({ children }: { children: ReactNode }) {
     await SD.sair();
     navegar('/entrar/');
   };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'dinheiro' | 'equipe' | 'configuracoes', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
@@ -91,9 +92,7 @@ export function Casca({ children }: { children: ReactNode }) {
             {ctx.escritorio?.modulos?.compromissos && <NavLink to="/agenda/"><span>Agenda</span></NavLink>}
             <NavLink to="/calendario/"><span>Feriados e prazos</span></NavLink>
           </SubmenuLateral>
-          {ctx.escritorio?.modulos?.financeiro && item('/parcelas/', 'dinheiro', 'Parcelas')}
-          {ctx.ehAdmin && ctx.escritorio?.modulos?.financeiro && item('/financeiro/', 'dinheiro', 'Caixa')}
-          {ctx.ehAdmin && ctx.escritorio?.modulos?.financeiro && item('/lucros/', 'dinheiro', 'Lucro dos sócios')}
+          {ctx.escritorio?.modulos?.financeiro && <MenuFinanceiro ehAdmin={ctx.ehAdmin} />}
           {ctx.ehAdmin && item('/equipe/', 'equipe', 'Equipe e acessos')}
           {ctx.ehAdmin && item('/configuracoes/', 'configuracoes', 'Configurações')}
         </nav>
