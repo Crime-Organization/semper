@@ -11,7 +11,7 @@ import type {
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
-import { normalizarEmail } from '../regras/conta';
+import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
@@ -2816,6 +2816,17 @@ export const SD: Dados = {
   async equipeDefinirFuncao(id, funcao) {
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
     m.funcao = funcao; auditar('perfis', 'alteracao', { id, nome: m.nome }); gravar();
+  },
+  // Como public.equipe_email_preparar. Quem está logado no banco fictício é o master: pode trocar o de administradores.
+  async equipeTrocarEmail(id, novo) {
+    const m = EQUIPE.find(x => x.id === id), email = normalizarEmail(novo);
+    if (!m || m.id === eu || m.papel === 'master') return erro(RECUSA_DA_TROCA['sem-permissao']);
+    if (erroDoNovoEmail(email, '')) return erro(RECUSA_DA_TROCA['email-invalido']);
+    if (meuEmail() === email || EQUIPE.some(x => x.email === email)) return erro(RECUSA_DA_TROCA['email-em-uso']);
+    if (bd.convites.some(c => c.email.toLowerCase() === email)) return erro(RECUSA_DA_TROCA['convite-pendente']);
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email }, feito_por: eu, em: agora() });
+    m.email = email;
+    gravar();
   },
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },

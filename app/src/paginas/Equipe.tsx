@@ -5,13 +5,15 @@ import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
-import { REGISTRO_DE_ACOES } from '../dados/limites';
+import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
+import { erroDoEmailDoColega, normalizarEmail } from '../regras/conta';
 import { FUNCOES } from '../regras/equipe';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
+import { janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
 import './Equipe.css';
@@ -30,8 +32,9 @@ const TABELAS: Record<string, string> = {
 };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou', importacao: 'importou' };
 const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
-/** Ações sobre muitos cadastros de uma vez (a linha-resumo): contam quantos, em vez de nomear um. As outras dizem quem fez o quê a qual cadastro. */
+/** Ações que não cabem em "quem fez o quê a qual cadastro": as sobre muitos cadastros de uma vez contam quantos, e a troca de e-mail diz de qual para qual. */
 const LINHAS_ESPECIAIS: Partial<Record<string, (r: RegistroAuditoria, quem: string) => ReactNode>> = {
+  troca_email: ({ resumo }, quem) => <>{quem} {resumo?.situacao === 'falhou' ? 'tentou trocar' : 'trocou'} o e-mail de acesso de <b>{resumo?.nome}</b>, de {resumo?.email_antigo} para {resumo?.email_novo}{resumo?.situacao === 'falhou' && ' (a troca não aconteceu)'}</>,
   exportacao: (r, quem) => <>{quem} exportou {cadastros(r.resumo?.quantidade)} {r.resumo?.descricao && <b>({r.resumo.descricao})</b>}</>,
   // "Ana importou 120 cadastros de pessoas, completou 15; 8 com pendência" (só números: a descrição não vai ao registro)
   importacao: (r, quem) => <>{quem} importou {cadastros(r.resumo?.quantidade)}
@@ -45,6 +48,28 @@ const mensagemConvite = (c: Convite, escritorio?: string, codigo?: string) =>
 async function copiar(texto: string) {
   if (await copiarTexto(texto)) avisar('Mensagem copiada. Envie para a pessoa.');
   else avisar(texto, 'ok');
+}
+
+/** Pergunta o e-mail novo. Se houver erro, pergunta de novo, sem perder o que foi digitado. Devolve null se desistir. */
+async function pedirEmailNovo(u: Usuario, digitado = '', erro: string | null = null): Promise<string | null> {
+  const r = await janela<{ novo: string; repetido: string }>({
+    titulo: `Trocar o e-mail de acesso de ${u.nome}`,
+    corpo: <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, fica no registro de ações e tira a pessoa de todos os aparelhos em que ela estiver conectada.</Aviso>
+      <Nota>E-mail atual: <b>{u.email}</b>. A senha continua a mesma; quem não lembrar usa "Esqueci minha senha" com o e-mail novo.</Nota>
+      <Campo rotulo="E-mail novo" para="email-do-colega" erro={erro}>
+        <input {...propsDoCampo('email-do-colega', { erro })} name="novo" className="campo" type="email" autoComplete="off" maxLength={TAMANHO_EMAIL_DE_ACESSO} defaultValue={digitado} />
+      </Campo>
+      <Campo rotulo="Repita o e-mail novo" para="email-do-colega-repetido">
+        <input {...propsDoCampo('email-do-colega-repetido')} name="repetido" className="campo" type="email" autoComplete="off" maxLength={TAMANHO_EMAIL_DE_ACESSO} />
+      </Campo>
+    </div>,
+    acoes: [{ rotulo: 'Cancelar', valor: null },
+      { rotulo: 'Trocar e-mail', tipo: 'pri', valor: campos => ({ novo: String(campos.get('novo') ?? ''), repetido: String(campos.get('repetido') ?? '') }) }]
+  });
+  if (!r) return null;
+  const problema = erroDoEmailDoColega(r.novo, r.repetido, u.email);
+  return problema ? pedirEmailNovo(u, r.novo, problema) : normalizarEmail(r.novo);
 }
 
 function PainelEquipe() {
@@ -94,6 +119,15 @@ function PainelEquipe() {
         ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
       mudouEquipe();
     } catch (e) { falha(e); }
+  }
+  async function trocarEmail(u: Usuario) {
+    const email = await pedirEmailNovo(u);
+    if (!email) return;
+    try {
+      await SD.equipeTrocarEmail(u.id, email);
+      avisar(`Agora ${u.nome} entra com ${email}. Avise a pessoa: ela precisa entrar de novo, com a mesma senha.`);
+    } catch (e) { falha(e); }
+    void carregar();
   }
   async function cancelarConvite(id: string) {
     try { await SD.conviteCancelar(id); avisar('Convite cancelado.'); void carregar(); }
@@ -153,6 +187,7 @@ function PainelEquipe() {
               <td><div className="td-acoes">
                 <BotaoLink forma="mini" to={'/equipe/perfil/?id=' + u.id} aria-label={`Perfil profissional de ${u.nome}`}>Perfil</BotaoLink>
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
+                {gerir && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
                   : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
                   : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => definirAtivo(u, true)}>Reativar</button>}

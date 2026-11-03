@@ -3497,6 +3497,62 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Troca do e-mail de um colega pelo administrador', () => {
+      const emailDe = async (id: string) => (await SD.equipeListar()).find(u => u.id === id)?.email;
+
+      it('quando o master troca o e-mail de um usuário, então o e-mail novo vale e a troca fica no registro de ações', async () => {
+        // Dado
+        const antigo = await emailDe('u-bruno');
+        // Quando
+        await SD.equipeTrocarEmail('u-bruno', '  Bruno.Novo@Exemplo.COM ');
+        // Então
+        expect(await emailDe('u-bruno')).toBe('bruno.novo@exemplo.com');
+        const [registro] = await SD.auditoriaListar(1);
+        expect(registro).toMatchObject({ acao: 'troca_email', registro_id: 'u-bruno', resumo: { email_antigo: antigo, email_novo: 'bruno.novo@exemplo.com' } });
+      });
+
+      it('quando o master troca o e-mail de um administrador, então a troca vale', async () => {
+        // Quando
+        await SD.equipeTrocarEmail('u-ana', 'ana.nova@exemplo.com');
+        // Então
+        expect(await emailDe('u-ana')).toBe('ana.nova@exemplo.com');
+      });
+
+      it.each([
+        ['a própria conta', 'u-master'],
+        ['uma conta que não existe', 'u-ninguem']
+      ])('quando tenta trocar %s, então a troca é recusada', async (_caso, id) => {
+        // Quando / Então
+        await expect(SD.equipeTrocarEmail(id, 'outro@exemplo.com')).rejects.toThrow('Você não pode trocar o e-mail de acesso desta pessoa.');
+      });
+
+      it('quando o e-mail novo já é de outra conta, então a troca é recusada e nada muda', async () => {
+        // Dado
+        const antes = await emailDe('u-carla'), outro = await emailDe('u-ana');
+        // Quando / Então
+        await expect(SD.equipeTrocarEmail('u-carla', outro!)).rejects.toThrow('Este e-mail já é usado em outra conta do SEMPER.');
+        expect(await emailDe('u-carla')).toBe(antes);
+      });
+
+      it('quando o e-mail novo tem convite pendente, então a troca é recusada e nada muda', async () => {
+        // Dado
+        const antes = await emailDe('u-carla');
+        const pessoa = await criar(marca());
+        await SD.conviteCriar(pessoa.id, 'convidada@exemplo.com', 'usuario');
+        // Quando / Então
+        await expect(SD.equipeTrocarEmail('u-carla', 'Convidada@exemplo.com')).rejects.toThrow('Este e-mail já tem um convite pendente.');
+        expect(await emailDe('u-carla')).toBe(antes);
+      });
+
+      it('quando o e-mail novo é inválido, então a troca é recusada e nada muda', async () => {
+        // Dado
+        const antes = await emailDe('u-carla');
+        // Quando / Então
+        await expect(SD.equipeTrocarEmail('u-carla', 'sem-arroba')).rejects.toThrow('Informe um e-mail válido.');
+        expect(await emailDe('u-carla')).toBe(antes);
+      });
+    });
+
     describe('Convites', () => {
       it('quando um convite é criado, então aparece nos pendentes com um código de acesso, e sai ao ser cancelado', async () => {
         // Dado

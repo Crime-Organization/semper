@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import { avisoDaTroca, erroDoNovoEmail, normalizarEmail } from './conta';
+import { avisoDaTroca, erroDoEmailDoColega, erroDoNovoEmail, normalizarEmail } from './conta';
 
 describe('Troca do e-mail de acesso', () => {
   const ATUAL = 'Pessoa@Exemplo.com';
@@ -41,5 +41,16 @@ describe('Troca do e-mail de acesso', () => {
   it('dado um e-mail com espaços e maiúsculas, quando normaliza, então fica como a conta guarda', () => {
     // Dado / Quando / Então
     expect(normalizarEmail('  Nova@Exemplo.COM ')).toBe('nova@exemplo.com');
+  });
+
+  it.each([
+    ['vazio', '', '', 'Informe o e-mail novo.'],
+    ['inválido', 'sem-arroba', 'sem-arroba', 'Informe um e-mail válido.'],
+    ['igual ao atual', ' Atual@Exemplo.com', 'atual@exemplo.com', 'Este já é o e-mail de acesso desta pessoa.'],
+    ['repetido errado', 'nova@exemplo.com', 'nvoa@exemplo.com', 'Os dois e-mails não são iguais.'],
+    ['igual ao repetido, com outra caixa', 'Nova@exemplo.com', ' nova@EXEMPLO.com ', null]
+  ])('dado o e-mail de um colega %s, quando o administrador confere, então a resposta é a esperada', (_caso, novo, repetido, esperado) => {
+    // Dado / Quando / Então
+    expect(erroDoEmailDoColega(novo, repetido, 'atual@exemplo.com')).toBe(esperado);
   });
 });

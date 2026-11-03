@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
 
 test.describe('Equipe e acessos', () => {
@@ -73,6 +73,54 @@ test.describe('Equipe e acessos', () => {
     expect(await meio(eu.getByText('Você', { exact: true }))).toBe(await meio(eu.getByRole('link', { name: 'Cadastro' })));
     const carla = usuarios.getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' });
     expect(await meio(carla.getByRole('button', { name: 'Reativar' }))).toBe(await meio(carla.getByRole('link', { name: 'Cadastro' })));
+  });
+
+  test.describe('Trocar o e-mail de quem perdeu o antigo', () => {
+    const linha = (page: Page, nome: string) => page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: nome });
+
+    test('quando o master troca o e-mail de um usuário, então o e-mail novo aparece na lista e a troca fica no registro de ações', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno.novo@exemplo.com');
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza, de bruno@exemplo.com para bruno.novo@exemplo.com');
+    });
+
+    test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.nvoo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(janela.getByText('Os dois e-mails não são iguais.')).toBeVisible();
+      await expect(janela.getByLabel('E-mail novo', { exact: true })).toHaveValue('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando o e-mail novo já é de outra conta, então avisa e nada muda', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('ana@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('ana@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(page.getByText('Este e-mail já é usado em outra conta do SEMPER.')).toBeVisible();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando olha a própria linha, então não há como trocar o e-mail por aqui', async ({ page }) => {
+      // Então
+      await expect(linha(page, 'Mateus Freitas Gonçalves')).toContainText('Você');
+      await expect(page.getByRole('button', { name: 'Trocar e-mail de Mateus Freitas Gonçalves' })).toHaveCount(0);
+    });
   });
 
   test('quando o e-mail de acesso fica vazio, então avisa e não libera', async ({ page }) => {
