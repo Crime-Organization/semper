@@ -65,11 +65,11 @@ const ETAPAS = ['Lead', 'Entrar em contato', 'Retornar contato', 'Reunião/atend
   'Levantamento de informações', 'Orçamento solicitado', 'Orçamento em andamento', 'Orçamento enviado', 'Enviar carta proposta',
   'Contrato em andamento', 'Confecção de documentos', 'Mensagem de boas-vindas', 'Efetuar cobrança', 'Pesquisa de satisfação',
   'Pendência/observações', 'Pendente tratamento', 'Não conversão'];
-/** Colunas iniciais do quadro de contratos (as mesmas sugestões do banco, banco/009_contratos.sql). */
+/** Colunas iniciais do quadro de contratos (as mesmas sugestões do banco, supabase/migrations/20261027000009_contratos.sql). */
 const SITUACOES_CONTRATO = ['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido'];
-/** Colunas iniciais do quadro de demandas (banco/017_demandas.sql): a primeira e a última são colunas-marco. */
+/** Colunas iniciais do quadro de demandas (supabase/migrations/20261027000017_demandas.sql): a primeira e a última são colunas-marco. */
 const SITUACOES_DEMANDA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluído'];
-/** Colunas iniciais do quadro de tarefas (banco/020_tarefas.sql): a primeira e a última são colunas-marco. */
+/** Colunas iniciais do quadro de tarefas (supabase/migrations/20261027000020_tarefas.sql): a primeira e a última são colunas-marco. */
 const SITUACOES_TAREFA = ['Para fazer', 'Fazendo', 'Aguardando retorno', 'Concluída'];
 const SITUACOES_COMPROMISSO = ['Agendado', 'Confirmado', 'Realizado', 'Cancelado'];
 const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA, tarefas: SITUACOES_TAREFA };
@@ -1855,7 +1855,7 @@ export const SD: Dados = {
     .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
     .slice(0, DEMANDAS_LIGADAS).map(d => ({ ...demandaLigada('', null)(d), papeis: [] }))),
 
-  // ---------- tarefas (como banco/020_tarefas.sql) ----------
+  // ---------- tarefas (como supabase/migrations/20261027000020_tarefas.sql) ----------
   tarefasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
     const r = filtrarTarefas(f).sort(ORDENS_PELO_TITULO[f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos']);
@@ -1991,7 +1991,7 @@ export const SD: Dados = {
     gravar(); return espera(undefined);
   },
 
-  // ---------- listas das demandas e das tarefas (como banco/018_listas_das_demandas.sql e a migração 20261030130000) ----------
+  // ---------- listas das demandas e das tarefas (como supabase/migrations/20261027000018_listas_das_demandas.sql e a migração 20261030130000) ----------
   listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
   async listaCriar(modulo, id, nome, itens = []) {
     const { campo, achar } = CARTAO_DA_LISTA[modulo];
@@ -2724,7 +2724,7 @@ export const SD: Dados = {
   },
   async diasExcluir(ids) { const fora = new Set(ids); bd.diasLancados = bd.diasLancados!.filter(d => !fora.has(d.id)); gravar(); },
 
-  // ---------- modelos de lista (como banco/019_modelos_de_lista.sql) ----------
+  // ---------- modelos de lista (como supabase/migrations/20261027000019_modelos_de_lista.sql) ----------
   modelosListar: () => espera([...bd.modelos!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
   async modeloCriar(nome, itens) {
     const m = { id: novoId(), ...prepararModelo({ nome, itens }), criado_por: eu, atualizado_em: agora() } as ModeloDeLista;
@@ -2780,7 +2780,7 @@ export const SD: Dados = {
     gravar();
   },
 
-  // ---------- comentários (como o gatilho e as regras de banco/016_comentarios.sql) ----------
+  // ---------- comentários (como o gatilho e as regras de supabase/migrations/20261027000016_comentarios.sql) ----------
   comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId)
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, COMENTARIOS_DO_CARTAO).map(comentarioLido)),
   async comentarioCriar(modulo, cartaoId, texto) {

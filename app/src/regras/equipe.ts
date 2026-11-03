@@ -1,4 +1,4 @@
-// Função de cada membro da equipe e o que ela permite no contrato (banco/015_funcao_na_equipe.sql).
+// Função de cada membro da equipe e o que ela permite no contrato (supabase/migrations/20261027000015_funcao_na_equipe.sql).
 // A função é diferente do papel no sistema: administrador é quem gere a equipe e vê tudo; "administrativo" é uma função.
 import type { Funcao, Membro } from '../dados/tipos';
 
