@@ -83,7 +83,7 @@ test.describe('Lucro dos sócios', () => {
     await form.getByRole('button', { name: 'Confirmar pagamento' }).click();
     // Então
     await expect(form).toHaveCount(0);
-    await expect(linha.getByRole('cell').last()).toHaveText(dinheiro('0,00'));
+    await expect(linha.getByRole('cell').nth(1)).toHaveText(dinheiro('0,00'));
     const pagamentos = page.getByRole('list', { name: /Pagamentos de lucro/ });
     await expect(pagamentos).toContainText('MATEUS FREITAS');
 
@@ -100,7 +100,43 @@ test.describe('Lucro dos sócios', () => {
     await pagamentos.getByRole('button', { name: 'Confirmar: desfazer' }).click();
     // Então
     await expect(pagamentos).toHaveCount(0);
-    await expect(linha.getByRole('cell').last()).toHaveText(dinheiro('647,50'));
+    await expect(linha.getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));
+  });
+
+  test('quando paga mais do que está em aberto, então avisa, deixa pagar e explica o negativo', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComoSocio(page);
+    await page.goto('/inicio/');
+    await abrir(page, 'Lucro dos sócios');
+    // Quando
+    await page.getByRole('button', { name: 'Pagar lucro' }).click();
+    const form = page.getByRole('form', { name: 'Pagar lucro' });
+    await form.getByLabel('Valor').fill('1.000,00');
+    // Então
+    await expect(form.getByText('Isso passa do que está em aberto', { exact: false })).toBeVisible();
+    await form.getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await expect(form).toHaveCount(0);
+    await expect(page.getByText('o sócio retirou mais do que acumulou', { exact: false })).toBeVisible();
+  });
+
+  test('quando escolhe um ano que já passou, então a coluna diz que é o em aberto do fim dele', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComoSocio(page);
+    const ano = new Date().getFullYear();
+    await page.goto('/inicio/');
+    await abrir(page, 'Lucro dos sócios');
+    // Quando: paga com data do ano passado, e a página passa a mostrar esse ano
+    await page.getByRole('button', { name: 'Pagar lucro' }).click();
+    const form = page.getByRole('form', { name: 'Pagar lucro' });
+    await form.getByLabel('Data do pagamento').fill(`${ano - 1}-06-15`);
+    await form.getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await expect(form).toHaveCount(0);
+    // Então
+    await expect(page.getByLabel('Ano')).toHaveValue(String(ano - 1));
+    await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('columnheader', { name: `Em aberto no fim de ${ano - 1}` })).toBeVisible();
+    await expect(page.getByRole('list', { name: `Pagamentos de lucro de ${ano - 1}` })).toContainText('MATEUS FREITAS');
   });
 
   test('quando move dinheiro entre contas, então não conta como lucro, e a divisão de lucro não se lança à mão', async ({ page }) => {
@@ -126,7 +162,7 @@ test.describe('Lucro dos sócios', () => {
     await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Categoria').getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
     // E o em aberto continua o mesmo
     await abrir(page, 'Lucro dos sócios');
-    await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MATEUS FREITAS' }).getByRole('cell').last()).toHaveText(dinheiro('647,50'));
+    await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MATEUS FREITAS' }).getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));
     await expect(page.getByText('Nenhum pagamento de lucro neste ano.')).toBeVisible();
   });
 });

@@ -36,7 +36,7 @@ const ERROS: Regra[] = [
   { codigo: '23503', padrao: /tarefa_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em tarefas e não pode ser excluída.' },
   { codigo: '23503', padrao: /compromisso_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em compromissos e não pode ser excluída.' },
   { codigo: '23503', padrao: /processo_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em processos e não pode ser excluída.' },
-  { codigo: '23503', padrao: /financeiro_(socios|repasses|retiradas)_pessoa_id_fkey|financeiro_recebimentos_socio_pessoa_id_fkey/, mensagem: 'Esta pessoa está no financeiro e não pode ser excluída.' },
+  { codigo: '23503', padrao: /financeiro_(socios|repasses|retiradas)_pessoa_id_fkey|socio_do_recebimento_pessoa_id_fkey/, mensagem: 'Esta pessoa está no financeiro e não pode ser excluída.' },
   { codigo: '23503', padrao: /financeiro_recebimentos_(parcela|contrato)_id_fkey/, mensagem: 'Este contrato tem recebimentos e não pode ser excluído: eles ficam guardados no caixa.' },
   { codigo: '23514', padrao: /compromisso_tem_processo/, mensagem: 'Audiência e perícia precisam de um processo.' },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },

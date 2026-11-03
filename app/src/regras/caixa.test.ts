@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico
-} from './caixa';
+  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario } from './caixa';
 import { normal } from './texto';
 
 const HOJE = '2026-11-10';
@@ -186,5 +185,18 @@ describe('Histórico', () => {
     expect(valorNoHistorico('excluido_em', '2026-11-10T10:00:00Z')).toBe('Excluído');
     expect(valorNoHistorico('excluido_em', null)).toBe('—');
     expect(valorNoHistorico('descricao', 'Luz')).toBe('Luz');
+  });
+});
+
+describe('Categorias do lançamento à mão', () => {
+  it('dado um lançamento novo, quando lista, então a divisão de lucro não é oferecida: ela nasce na página de lucro', () => {
+    // Dado / Quando / Então
+    expect(categoriasDoFormulario('despesa')).not.toContain('divisao_lucro');
+    expect(categoriasDoFormulario('despesa')).toContain('despesa');
+  });
+
+  it('dado um lançamento antigo de divisão de lucro, quando abre, então continua vendo a categoria dele', () => {
+    // Dado / Quando / Então
+    expect(categoriasDoFormulario('divisao_lucro')).toContain('divisao_lucro');
   });
 });

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { MovimentoDoLucro } from '../dados/tipos';
 import { dividirRecebimento, type Recebimento } from './financeiro';
-import { anosDoLucro, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, parteDoSocio, retiradaNova, totalDasLinhas } from './lucro';
+import { anosDoLucro, avisoDaRetirada, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, parteDoSocio, retiradaNova, rotuloDoEmAberto, totalDasLinhas } from './lucro';
 
 const SEM_MOVIMENTO: MovimentoDoLucro = { recebimentos: [], indicacoes: [], retiradas: [] };
 const RECEBIMENTO: Recebimento = { valor: 100000, parteNaConta: 100, contaComDas: true, aliquotaDas: 4.5, taxaMaquina: 3000, terceiros: [], socioIndicador: null, responsavelSocio: true };
@@ -119,8 +119,19 @@ describe('Lucro do ano', () => {
 describe('Anos e em aberto até hoje', () => {
   it('dado movimento de anos antes, quando lista, então vai de hoje até o primeiro, do mais novo ao mais antigo', () => {
     // Dado / Quando / Então
-    expect(anosDoLucro({ ...SEM_MOVIMENTO, recebimentos: [entrada('2024-05-01')] }, '2026-11-03')).toEqual([2026, 2025, 2024]);
-    expect(anosDoLucro(SEM_MOVIMENTO, '2026-11-03')).toEqual([2026]);
+    expect(anosDoLucro({ ...SEM_MOVIMENTO, recebimentos: [entrada('2024-05-01')] }, '2026-11-03', 2026)).toEqual([2026, 2025, 2024]);
+    expect(anosDoLucro(SEM_MOVIMENTO, '2026-11-03', 2026)).toEqual([2026]);
+  });
+
+  it('dado um ano escolhido que ficou sem movimento, quando lista, então ele continua na lista', () => {
+    // Dado / Quando / Então
+    expect(anosDoLucro(SEM_MOVIMENTO, '2026-11-03', 2024)).toEqual([2026, 2025, 2024]);
+  });
+
+  it('dado um ano que já passou, quando mostra a coluna, então diz que é o em aberto do fim dele', () => {
+    // Dado / Quando / Então
+    expect(rotuloDoEmAberto(2025, '2026-11-03')).toBe('Em aberto no fim de 2025');
+    expect(rotuloDoEmAberto(2026, '2026-11-03')).toBe('Em aberto');
   });
 
   it('dado dois sócios, quando calcula, então o em aberto é só o de cada um, de todos os anos', () => {
@@ -154,6 +165,16 @@ describe('Pagar o lucro', () => {
     const f = { ...retiradaNova('s1', 'c', '2026-11-03', 64750), ...mudanca };
     // Quando / Então
     expect(errosDaRetirada(f, CONTA)).toEqual({ [campo]: mensagem });
+  });
+
+  it('dado um valor maior que o em aberto, quando digita, então avisa, sem impedir', () => {
+    // Dado
+    const f = { ...retiradaNova('s1', 'c', '2026-11-03', 64750), valor: '6.475,00' };
+    // Quando / Então
+    expect(avisoDaRetirada(f, 64750)?.replace(/\s/g, ' ')).toBe('Isso passa do que está em aberto (R$ 647,50). Confira o valor: o sócio ficará com saldo negativo.');
+    expect(errosDaRetirada(f, CONTA)).toEqual({});
+    expect(avisoDaRetirada({ ...f, valor: '647,50' }, 64750)).toBeNull();
+    expect(avisoDaRetirada({ ...f, valor: '' }, 64750)).toBeNull();
   });
 
   it('dado o formulário certo, quando grava, então vai em centavos e sem espaços', () => {

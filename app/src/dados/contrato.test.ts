@@ -1607,14 +1607,27 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await expect(SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).rejects.toThrow('Só sócios recebem lucro');
         });
 
-        it('quando tenta lançar a divisão de lucro à mão, ou mudar um lançamento para ela, então é recusado', async () => {
+        it('dado que a conta foi arquivada depois de desfazer, quando restaura, então é recusado, e a retirada continua fora', async () => {
           // Dado
+          await socio();
           const conta = await contaPJ();
-          const dados = { conta_id: conta.id, data: '2026-03-20', tipo: 'saida' as const, categoria: 'divisao_lucro' as const, valor: 100, descricao: 'x' };
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          await SD.financeiroDesfazerLucro(id);
+          await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
           // Quando / Então
-          await expect(SD.financeiroLancamentoCriar(dados)).rejects.toThrow('Lucro dos sócios');
-          const l = await SD.financeiroLancamentoCriar({ ...dados, categoria: 'despesa' });
-          await expect(SD.financeiroLancamentoAtualizar(l.id, { categoria: 'divisao_lucro' })).rejects.toThrow('Lucro dos sócios');
+          await expect(SD.financeiroRestaurarLucro(id)).rejects.toThrow('arquivada');
+          expect((await doLucro()).retiradas).toEqual([]);
+        });
+
+        it('quando restaura o que não foi desfeito, então nada muda', async () => {
+          // Dado
+          await socio();
+          const conta = await contaPJ();
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          // Quando
+          await SD.financeiroRestaurarLucro(id);
+          // Então
+          expect((await doLucro()).retiradas).toHaveLength(1);
         });
       });
 

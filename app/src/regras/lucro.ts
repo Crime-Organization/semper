@@ -7,7 +7,7 @@
 import type { MovimentoDoLucro, Socio } from '../dados/tipos';
 import { TAMANHO_FINANCEIRO } from '../dados/limites';
 import { anoAceito, dataExiste } from './calendario';
-import { centavosNoCampo, lerValor } from './caixa';
+import { centavosNoCampo, fmtCentavos, lerValor } from './caixa';
 import { parte, PERCENTUAL_DO_ESCRITORIO } from './financeiro';
 
 export const MESES_DO_ANO = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -84,13 +84,15 @@ export function totalDasLinhas(linhas: LinhaDoLucro[]): Omit<LinhaDoLucro, 'pess
   };
 }
 
-/** Os anos para escolher: do primeiro com movimento até o ano de hoje, do mais novo ao mais antigo. */
-export function anosDoLucro(m: MovimentoDoLucro, hoje: string): number[] {
-  const atual = anoDe(hoje);
-  const datas = [...m.recebimentos.map(r => r.data), ...m.indicacoes.map(i => i.data), ...m.retiradas.map(r => r.data)];
-  const ultimo = Math.max(atual, ...datas.map(anoDe)), primeiro = Math.min(atual, ...datas.map(anoDe));
+/** Os anos para escolher: do primeiro com movimento até o ano de hoje, do mais novo ao mais antigo. O escolhido sempre está na lista, mesmo que o movimento dele tenha sido desfeito. */
+export function anosDoLucro(m: MovimentoDoLucro, hoje: string, escolhido: number): number[] {
+  const anos = [anoDe(hoje), escolhido, ...m.recebimentos.map(r => anoDe(r.data)), ...m.indicacoes.map(i => anoDe(i.data)), ...m.retiradas.map(r => anoDe(r.data))];
+  const ultimo = Math.max(...anos), primeiro = Math.min(...anos);
   return Array.from({ length: ultimo - primeiro + 1 }, (_, i) => ultimo - i);
 }
+
+/** O nome da coluna: num ano que já passou, ela mostra como ficou no fim dele, e não o que se deve hoje. */
+export const rotuloDoEmAberto = (ano: number, hoje: string) => ano < anoDe(hoje) ? `Em aberto no fim de ${ano}` : 'Em aberto';
 
 /** Quanto do que o sócio acumulou como responsável ainda não foi pago, até hoje. */
 export function emAbertoComoResponsavel(m: MovimentoDoLucro, pessoaId: string): number {
@@ -114,6 +116,11 @@ export function errosDaRetirada(f: FormDaRetirada, conta: { saldo_inicial_em: st
   if ('erro' in valor) erros.valor = valor.erro;
   if (f.descricao.trim().length > TAMANHO_FINANCEIRO.descricao) erros.descricao = `Use até ${TAMANHO_FINANCEIRO.descricao} caracteres.`;
   return erros;
+}
+/** Pagar mais do que está em aberto é permitido (adiantamento), mas merece um aviso: pode ser erro de digitação. */
+export function avisoDaRetirada(f: FormDaRetirada, emAberto: number): string | null {
+  const valor = lerValor(f.valor);
+  return 'centavos' in valor && valor.centavos > emAberto ? `Isso passa do que está em aberto (${fmtCentavos(emAberto)}). Confira o valor: o sócio ficará com saldo negativo.` : null;
 }
 export function dadosDaRetirada(f: FormDaRetirada) {
   const valor = lerValor(f.valor);

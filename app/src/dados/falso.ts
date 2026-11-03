@@ -1092,7 +1092,6 @@ function historicoDoLancamento(l: LancamentoGuardado, novo: Partial<LancamentoGu
 }
 const SEM_ACESSO_AO_CAIXA = 'Não foi possível: atualize a página e confira.';
 const LANCAMENTO_DE_ORIGEM = 'Este lançamento nasceu de um recebimento, de um repasse ou de uma divisão de lucro: desfaça por lá.';
-const LUCRO_SO_PELA_RETIRADA = 'A divisão de lucro é lançada na página Lucro dos sócios, para ficar no nome do sócio.';
 const SEM_PARTE_NA_CONTA = 'O contrato não diz quanto vai para a conta da empresa. Preencha em "Atualizar contrato".';
 const SOCIO_NO_PERIODO = 'Esta pessoa já é sócia nesse período.';
 const CATEGORIA_DO_REPASSE: Record<Repasse['tipo'], CategoriaDeLancamento> = { responsavel: 'repasse', socio_indicador: 'indicacao' };
@@ -2193,7 +2192,6 @@ export const SD: Dados = {
     return espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data < data).reduce((s, l) => s + (l.tipo === 'entrada' ? l.valor : -l.valor), conta.saldo_inicial));
   },
   async financeiroLancamentoCriar(dados) {
-    if (dados.categoria === 'divisao_lucro') return erro(LUCRO_SO_PELA_RETIRADA);
     const l = novoLancamento(dados);
     bd.lancamentos!.push(l); auditar('financeiro_lancamentos', 'inclusao', l); gravar();
     return espera(semOExcluido(l));
@@ -2204,7 +2202,6 @@ export const SD: Dados = {
     if (l.origem) return erro(LANCAMENTO_DE_ORIGEM);
     if (l.excluido_em) return erro('Este lançamento foi excluído.');
     const novo = { ...l, ...dados };
-    if (novo.categoria === 'divisao_lucro' && l.categoria !== 'divisao_lucro') return erro(LUCRO_SO_PELA_RETIRADA);
     if (l.par_id && (novo.valor !== l.valor || novo.data !== l.data || novo.conta_id !== l.conta_id || novo.tipo !== l.tipo || novo.categoria !== l.categoria)) return erro('A transferência não muda depois de criada: exclua e lance de novo.');
     if (novo.conta_id !== l.conta_id || novo.data !== l.data) conferirContaEData(novo); else conferirLancamento(novo);
     historicoDoLancamento(l, novo);
@@ -2450,7 +2447,10 @@ export const SD: Dados = {
   async financeiroRestaurarLucro(id) {
     const r = bd.retiradas!.find(x => x.id === id);
     if (!r) return erro('Retirada não encontrada neste escritório.');
-    bd.lancamentos!.filter(l => l.id === r.lancamento_id).forEach(l => { l.excluido_em = null; });
+    if (!r.excluido_em) return espera(undefined);
+    const saidas = bd.lancamentos!.filter(l => l.id === r.lancamento_id);
+    saidas.forEach(conferirContaEData);
+    saidas.forEach(l => { l.excluido_em = null; });
     r.excluido_em = null; gravar();
     return espera(undefined);
   },

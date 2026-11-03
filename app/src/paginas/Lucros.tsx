@@ -3,8 +3,9 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
 import { Navigate } from 'react-router';
 import { SD, type ContaFinanceira, type MovimentoDoLucro, type Socio } from '../dados';
+import { TAMANHO_FINANCEIRO } from '../dados/limites';
 import { fmtCentavos } from '../regras/caixa';
-import { anosDoLucro, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, MESES_DO_ANO, retiradaNova, totalDasLinhas, type FormDaRetirada, type LinhaDoLucro } from '../regras/lucro';
+import { anosDoLucro, avisoDaRetirada, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, MESES_DO_ANO, retiradaNova, rotuloDoEmAberto, totalDasLinhas, type FormDaRetirada, type LinhaDoLucro } from '../regras/lucro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao, Vazio } from '../ui/base';
@@ -18,28 +19,28 @@ import './Financeiro.css';
 /** Zero aparece como traço, para o que importa saltar aos olhos. */
 const valorOuTraco = (centavos: number) => centavos === 0 ? '—' : fmtCentavos(centavos);
 
-function TabelaDoLucro({ rotulo, linhas, ano }: { rotulo: string; linhas: LinhaDoLucro[]; ano: number }) {
+function TabelaDoLucro({ rotulo, linhas, ano, hoje }: { rotulo: string; linhas: LinhaDoLucro[]; ano: number; hoje: string }) {
   const total = totalDasLinhas(linhas);
   return <div className="tabela"><table aria-label={rotulo}>
     <thead><tr>
-      <th scope="col">Sócio</th><th scope="col" className="financeiro-num">Antes de {ano}</th>
+      <th scope="col">Sócio</th><th scope="col" className="financeiro-num">{rotuloDoEmAberto(ano, hoje)}</th><th scope="col" className="financeiro-num">Pago em {ano}</th>
+      <th scope="col" className="financeiro-num">Antes de {ano}</th>
       {MESES_DO_ANO.map(m => <th key={m} scope="col" className="financeiro-num">{m}</th>)}
-      <th scope="col" className="financeiro-num">Pago em {ano}</th><th scope="col" className="financeiro-num">Em aberto</th>
     </tr></thead>
     <tbody>{linhas.map(l => <tr key={l.pessoaId}>
-      <td className="nome">{l.nome}</td><td className="financeiro-num">{valorOuTraco(l.anterior)}</td>
+      <td className="nome">{l.nome}</td><td className="financeiro-num"><b>{fmtCentavos(l.emAberto)}</b></td><td className="financeiro-num">{valorOuTraco(l.pago)}</td>
+      <td className="financeiro-num">{valorOuTraco(l.anterior)}</td>
       {l.meses.map((v, i) => <td key={MESES_DO_ANO[i]} className="financeiro-num">{valorOuTraco(v)}</td>)}
-      <td className="financeiro-num">{valorOuTraco(l.pago)}</td><td className="financeiro-num"><b>{fmtCentavos(l.emAberto)}</b></td>
     </tr>)}</tbody>
     <tfoot><tr>
-      <th scope="row">Total</th><td className="financeiro-num">{valorOuTraco(total.anterior)}</td>
+      <th scope="row">Total</th><td className="financeiro-num"><b>{fmtCentavos(total.emAberto)}</b></td><td className="financeiro-num">{valorOuTraco(total.pago)}</td>
+      <td className="financeiro-num">{valorOuTraco(total.anterior)}</td>
       {total.meses.map((v, i) => <td key={MESES_DO_ANO[i]} className="financeiro-num">{valorOuTraco(v)}</td>)}
-      <td className="financeiro-num">{valorOuTraco(total.pago)}</td><td className="financeiro-num"><b>{fmtCentavos(total.emAberto)}</b></td>
     </tr></tfoot>
   </table></div>;
 }
 
-function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancelar }: { socios: { id: string; nome: string }[]; contas: ContaFinanceira[]; movimento: MovimentoDoLucro; hoje: string; aoTerminar: () => void; aoCancelar: () => void }) {
+function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancelar }: { socios: { id: string; nome: string }[]; contas: ContaFinanceira[]; movimento: MovimentoDoLucro; hoje: string; aoTerminar: (ano: number) => void; aoCancelar: () => void }) {
   const id = useId();
   const emAberto = (pessoaId: string) => pessoaId ? emAbertoComoResponsavel(movimento, pessoaId) : 0;
   const [f, setF] = useState<FormDaRetirada>(() => retiradaNova(socios[0]?.id ?? '', contas[0]?.id ?? '', hoje, emAberto(socios[0]?.id ?? '')));
@@ -56,7 +57,7 @@ function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancela
     try {
       const retirada = await SD.financeiroPagarLucro(dadosDaRetirada(f));
       feito('Lucro pago.', 'pagamento do lucro', () => SD.financeiroDesfazerLucro(retirada));
-      aoTerminar();
+      aoTerminar(Number(f.data.slice(0, 4)));
     } catch (e) { falha(e); setOcupado(false); }
   }
   return <form className="cartao financeiro-form" noValidate aria-label="Pagar lucro" onSubmit={salvar}>
@@ -77,12 +78,13 @@ function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancela
       <Campo rotulo="Data do pagamento" para={id + 'data'} obrigatorio erro={erros.data}>
         <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
       </Campo>
-      <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>
-        <input inputMode="decimal" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} />
+      <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor} dica={`Em aberto até hoje: ${fmtCentavos(emAberto(f.pessoaId))}.`}>
+        <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} />
       </Campo>
     </div>
+    {avisoDaRetirada(f, emAberto(f.pessoaId)) && <Aviso tipo="info">{avisoDaRetirada(f, emAberto(f.pessoaId))}</Aviso>}
     <Campo rotulo="Descrição" para={id + 'descricao'} erro={erros.descricao} dica="Em branco, fica o nome do sócio.">
-      <input {...propsDoCampo(id + 'descricao', { erro: erros.descricao })} value={f.descricao} onChange={e => mudar({ descricao: e.target.value })} />
+      <input type="text" {...propsDoCampo(id + 'descricao', { erro: erros.descricao })} maxLength={TAMANHO_FINANCEIRO.descricao} value={f.descricao} onChange={e => mudar({ descricao: e.target.value })} />
     </Campo>
     <div className="financeiro-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado}>{ocupado ? 'Salvando…' : 'Confirmar pagamento'}</button>
@@ -137,21 +139,23 @@ export default function Lucros() {
     <div className="financeiro-barra">
       <label>Ano
         <select className="campo" value={ano} onChange={e => setAno(Number(e.target.value))}>
-          {anosDoLucro(movimento, hoje).map(a => <option key={a} value={a}>{a}</option>)}
+          {anosDoLucro(movimento, hoje, ano).map(a => <option key={a} value={a}>{a}</option>)}
         </select>
       </label>
       <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={!quemRecebe.length || !ativas.length} onClick={() => setPagando(true)}><Icone nome="mais" tam={15} /> Pagar lucro</button>
     </div>
+    {quemRecebe.length > 0 && !ativas.length && <Nota>Para pagar, crie ou reative uma conta no Caixa.</Nota>}
+    {[...responsavel, ...indicador].some(l => l.emAberto < 0) && <Nota>Valor negativo em aberto: o sócio retirou mais do que acumulou.</Nota>}
     {!quemRecebe.length && !responsavel.length && !indicador.length ? <Vazio>Nenhum sócio ainda. Coloque os sócios na lista, no Caixa, para acompanhar o lucro.</Vazio> : <>
-      {pagando && <FormPagarLucro socios={quemRecebe} contas={ativas} movimento={movimento} hoje={hoje} aoTerminar={() => { setPagando(false); recarregar(); }} aoCancelar={() => setPagando(false)} />}
+      {pagando && <FormPagarLucro socios={quemRecebe} contas={ativas} movimento={movimento} hoje={hoje} aoTerminar={anoPago => { setPagando(false); setAno(anoPago); recarregar(); }} aoCancelar={() => setPagando(false)} />}
 
       <TituloSecao>Como responsável</TituloSecao>
       <Nota>A parte do responsável nas entradas de que o sócio cuidou, quando tudo foi para a conta da empresa. A parte do escritório não entra aqui.</Nota>
-      <TabelaDoLucro rotulo="Lucro como responsável" linhas={responsavel} ano={ano} />
+      <TabelaDoLucro rotulo="Lucro como responsável" linhas={responsavel} ano={ano} hoje={hoje} />
 
       <TituloSecao>Como indicador</TituloSecao>
       <Nota>Os 10% do que o cliente pagou. O pagamento é feito em Parcelas, nos repasses.</Nota>
-      <TabelaDoLucro rotulo="Lucro como indicador" linhas={indicador} ano={ano} />
+      <TabelaDoLucro rotulo="Lucro como indicador" linhas={indicador} ano={ano} hoje={hoje} />
 
       <TituloSecao>Pagamentos de {ano}</TituloSecao>
       {doAno.length ? <ul className="financeiro-lista" aria-label={`Pagamentos de lucro de ${ano}`}>{doAno.map(r => <li key={r.id}>

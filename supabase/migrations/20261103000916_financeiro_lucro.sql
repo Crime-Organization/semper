@@ -7,32 +7,42 @@
 --   - Como indicador: os 10% do que o cliente pagou, que já são repasses (financeiro_repasses). Ficam em linhas separadas.
 --   - Em aberto: o que acumulou menos o que já foi pago. Só a retirada aqui registrada conta como pagamento: o repasse entre contas
 --     (da PJ para a PF) é transferência, não lucro.
---   Tudo isto só aparece para administradores.
---   Só acrescenta (uma tabela, colunas, funções e gatilhos) e amplia uma regra: a coluna origem dos lançamentos passa a aceitar 'lucro'.
---   A versão anterior do site continua funcionando, e o módulo segue como estiver.
+--   Tudo isto só aparece para administradores: a leitura é a função financeiro_lucro, e quem é sócio em cada recebimento fica numa tabela
+--   que ninguém lê direto.
+--   Só acrescenta (tabelas, funções e um gatilho) e amplia uma regra: a coluna origem dos lançamentos passa a aceitar 'lucro'. A versão
+--   anterior do site continua funcionando, e o módulo segue como estiver. A tela nova deixa de oferecer "Divisão de lucro" no lançamento à
+--   mão. A recusa no banco fica para uma migração depois, porque a versão anterior ainda oferece essa categoria.
 -- =====================================================================
 
--- 1. O recebimento guarda de qual sócio ele é: mudar o responsável ou a lista de sócios depois não muda o passado.
-alter table public.financeiro_recebimentos
-  add column socio_pessoa_id uuid constraint financeiro_recebimentos_socio_pessoa_id_fkey references public.pessoas on delete restrict,
-  add column socio_nome      text;
-create index financeiro_recebimentos_socio on public.financeiro_recebimentos (socio_pessoa_id) where socio_pessoa_id is not null;
+-- 1. De qual sócio é cada recebimento: mudar o responsável ou a lista de sócios depois não muda o passado. Quem é responsável pelo contrato
+-- lê o recebimento, mas não pode ver isto: fica à parte, e só as funções abaixo leem.
+create table privado.socio_do_recebimento (
+  recebimento_id uuid primary key references public.financeiro_recebimentos on delete cascade,
+  escritorio_id  uuid not null references public.escritorios on delete cascade,
+  pessoa_id      uuid not null constraint socio_do_recebimento_pessoa_id_fkey references public.pessoas on delete restrict,
+  nome           text not null
+);
+create index socio_do_recebimento_escritorio on privado.socio_do_recebimento (escritorio_id, pessoa_id);
+create index socio_do_recebimento_pessoa on privado.socio_do_recebimento (pessoa_id);
+alter table privado.socio_do_recebimento enable row level security;
+revoke all on privado.socio_do_recebimento from public, anon, authenticated;
 
-create function privado.socio_do_recebimento() returns trigger
+create function privado.guardar_socio_do_recebimento() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  if new.responsavel_socio then
-    select f.pessoa_id, p.nome into new.socio_pessoa_id, new.socio_nome
-    from public.perfis f join public.pessoas p on p.id = f.pessoa_id where f.id = new.responsavel_id;
-  end if;
-  return new;
+  insert into privado.socio_do_recebimento (recebimento_id, escritorio_id, pessoa_id, nome)
+  select new.id, new.escritorio_id, f.pessoa_id, p.nome
+  from public.perfis f join public.pessoas p on p.id = f.pessoa_id where f.id = new.responsavel_id;
+  return null;
 end $$;
-revoke execute on function privado.socio_do_recebimento() from public, anon, authenticated;
-create trigger socio_do_recebimento before insert on public.financeiro_recebimentos for each row execute function privado.socio_do_recebimento();
+revoke execute on function privado.guardar_socio_do_recebimento() from public, anon, authenticated;
+create trigger socio_do_recebimento after insert on public.financeiro_recebimentos
+  for each row when (new.responsavel_socio) execute function privado.guardar_socio_do_recebimento();
 
-update public.financeiro_recebimentos r set socio_pessoa_id = f.pessoa_id, socio_nome = p.nome
-from public.perfis f join public.pessoas p on p.id = f.pessoa_id
-where r.responsavel_socio and r.socio_pessoa_id is null and f.id = r.responsavel_id;
+insert into privado.socio_do_recebimento (recebimento_id, escritorio_id, pessoa_id, nome)
+select r.id, r.escritorio_id, f.pessoa_id, p.nome
+from public.financeiro_recebimentos r join public.perfis f on f.id = r.responsavel_id join public.pessoas p on p.id = f.pessoa_id
+where r.responsavel_socio;
 
 -- 2. O lançamento da divisão de lucro nasce da retirada, para ficar no nome do sócio.
 alter table public.financeiro_lancamentos drop constraint financeiro_lancamentos_origem_check;
@@ -47,17 +57,6 @@ begin
   end if;
   return new;
 end $$;
-
-create function privado.lucro_so_pela_retirada() returns trigger
-language plpgsql set search_path = '' as $$
-begin
-  if tg_op = 'INSERT' or old.categoria <> new.categoria then
-    raise exception 'A divisão de lucro é lançada na página Lucro dos sócios, para ficar no nome do sócio.';
-  end if;
-  return new;
-end $$;
-create trigger lucro_so_pela_retirada before insert or update on public.financeiro_lancamentos
-  for each row when (current_user = 'authenticated' and new.categoria = 'divisao_lucro') execute function privado.lucro_so_pela_retirada();
 
 -- 3. O que cada sócio já retirou como lucro.
 create table public.financeiro_retiradas (
@@ -94,7 +93,8 @@ begin
   if v_nome is null then raise exception 'Pessoa não encontrada neste escritório.'; end if;
   -- Quem saiu da lista de sócios ainda recebe o que acumulou.
   if not exists (select 1 from public.financeiro_socios where pessoa_id = p_pessoa and escritorio_id = v_escritorio and excluido_em is null)
-     and not exists (select 1 from public.financeiro_recebimentos where socio_pessoa_id = p_pessoa and escritorio_id = v_escritorio and estornado_em is null) then
+     and not exists (select 1 from privado.socio_do_recebimento s join public.financeiro_recebimentos r on r.id = s.recebimento_id
+                     where s.pessoa_id = p_pessoa and s.escritorio_id = v_escritorio and r.estornado_em is null) then
     raise exception 'Esta pessoa não é sócia. Só sócios recebem lucro.';
   end if;
   if not exists (select 1 from public.financeiro_contas where id = p_conta and escritorio_id = v_escritorio) then raise exception 'Conta não encontrada neste escritório.'; end if;
@@ -137,3 +137,26 @@ begin
 end $$;
 revoke execute on function public.financeiro_restaurar_lucro(uuid) from public, anon;
 grant execute on function public.financeiro_restaurar_lucro(uuid) to authenticated;
+
+-- 5. O que a página de lucro precisa, sem o que foi estornado ou desfeito. A conta é feita na tela (regras/lucro.ts).
+create function public.financeiro_lucro() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare v_escritorio uuid := privado.meu_escritorio();
+begin
+  if not privado.sou_admin() then raise exception 'Só um administrador vê o lucro dos sócios.' using errcode = '42501'; end if;
+  return jsonb_build_object(
+    'recebimentos', coalesce((
+      select jsonb_agg(jsonb_build_object('data', r.data, 'pessoa_id', s.pessoa_id, 'nome', s.nome, 'liquido', r.liquido, 'terceiros', r.terceiros) order by r.data, r.id)
+      from privado.socio_do_recebimento s join public.financeiro_recebimentos r on r.id = s.recebimento_id
+      where s.escritorio_id = v_escritorio and r.estornado_em is null and r.parte_na_conta = 100), '[]'::jsonb),
+    'indicacoes', coalesce((
+      select jsonb_agg(jsonb_build_object('data', r.data, 'pessoa_id', x.pessoa_id, 'nome', x.nome, 'valor', x.valor, 'pago_em', x.pago_em) order by r.data, x.id)
+      from public.financeiro_repasses x join public.financeiro_recebimentos r on r.id = x.recebimento_id
+      where x.escritorio_id = v_escritorio and x.tipo = 'socio_indicador' and x.cancelado_em is null and x.pessoa_id is not null), '[]'::jsonb),
+    'retiradas', coalesce((
+      select jsonb_agg(jsonb_build_object('id', t.id, 'pessoa_id', t.pessoa_id, 'nome', t.nome, 'conta_id', t.conta_id, 'data', t.data, 'valor', t.valor, 'descricao', t.descricao) order by t.data, t.id)
+      from public.financeiro_retiradas t
+      where t.escritorio_id = v_escritorio and t.excluido_em is null), '[]'::jsonb));
+end $$;
+revoke execute on function public.financeiro_lucro() from public, anon;
+grant execute on function public.financeiro_lucro() to authenticated;
