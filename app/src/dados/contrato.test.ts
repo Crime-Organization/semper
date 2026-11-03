@@ -1519,6 +1519,118 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.parcelasDoContrato(k.id)).toHaveLength(2);
       });
 
+      describe('Lucro dos sócios', () => {
+        const socio = () => SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
+        const doLucro = async () => (await SD.financeiroLucro());
+
+        it('quando o sócio responsável recebe com tudo na conta, então o recebimento entra no lucro dele; estornado, sai', async () => {
+          // Dado
+          await socio();
+          const k = await assinado(), conta = await contaPJ();
+          // Quando
+          const id = await receber(k.parcelas[0].id, conta.id);
+          // Então
+          expect((await doLucro()).recebimentos).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mateus', liquido: 92500, terceiros: [] })]);
+          // Quando / Então
+          await SD.financeiroEstornar(id);
+          expect((await doLucro()).recebimentos).toEqual([]);
+        });
+
+        it('dado menos que tudo na conta, ou um responsável que não é sócio, quando recebe, então não entra no lucro', async () => {
+          // Dado
+          const conta = await contaPJ();
+          const antes = await assinado();
+          await receber(antes.parcelas[0].id, conta.id);
+          await socio();
+          const k = await assinado({ percentual_escritorio: 30 });
+          // Quando
+          await receber(k.parcelas[0].id, conta.id, { taxa: 0 });
+          // Então
+          expect((await doLucro()).recebimentos).toEqual([]);
+        });
+
+        it('quando sai da lista de sócios depois, então o que acumulou continua, e ainda dá para pagar', async () => {
+          // Dado
+          const s = await socio();
+          const k = await assinado(), conta = await contaPJ();
+          await receber(k.parcelas[0].id, conta.id);
+          // Quando
+          await SD.financeiroSocioExcluir(s.id);
+          // Então
+          expect((await doLucro()).recebimentos).toHaveLength(1);
+          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).resolves.toBeTruthy();
+        });
+
+        it('quando um sócio indica, então a indicação entra à parte, com a data do recebimento; paga, mostra quando', async () => {
+          // Dado
+          await socio();
+          const k = await assinado({ responsavel_id: 'u-ana', indicador_id: 'p-mateus' }), conta = await contaPJ();
+          // Quando
+          const id = await receber(k.parcelas[0].id, conta.id);
+          // Então
+          const lucro = await doLucro();
+          expect(lucro.recebimentos).toEqual([]);
+          expect(lucro.indicacoes).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mateus', valor: 10000, pago_em: null })]);
+          // Quando / Então
+          const [repasse] = (await repassesDe(id)).filter(r => r.tipo === 'socio_indicador');
+          await SD.financeiroPagarRepasse(repasse.id, conta.id, '2026-04-01');
+          expect((await doLucro()).indicacoes[0].pago_em).toBe('2026-04-01');
+        });
+
+        it('quando paga o lucro, então cria a saída no caixa; desfazer esconde as duas coisas, e restaurar devolve', async () => {
+          // Dado
+          await socio();
+          const conta = await contaPJ();
+          // Quando
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          // Então
+          const lucro = await doLucro();
+          expect(lucro.retiradas).toEqual([expect.objectContaining({ id, pessoa_id: 'p-mateus', conta_id: conta.id, data: '2026-03-20', valor: 50000 })]);
+          expect(lucro.retiradas[0].descricao).toContain('Divisão de lucro a');
+          const [saida] = await lancamentos(conta.id);
+          expect(saida).toMatchObject({ tipo: 'saida', categoria: 'divisao_lucro', valor: 50000, origem: 'lucro' });
+          await expect(SD.financeiroLancamentoAtualizar(saida.id, { valor: 1 })).rejects.toThrow('desfaça por lá');
+          // Quando / Então
+          await SD.financeiroDesfazerLucro(id);
+          expect((await doLucro()).retiradas).toEqual([]);
+          expect(await lancamentos(conta.id)).toEqual([]);
+          // Quando / Então
+          await SD.financeiroRestaurarLucro(id);
+          expect((await doLucro()).retiradas).toHaveLength(1);
+          expect(await lancamentos(conta.id)).toHaveLength(1);
+        });
+
+        it('quando a pessoa nunca foi sócia, então não recebe lucro', async () => {
+          // Dado
+          const conta = await contaPJ();
+          // Quando / Então
+          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).rejects.toThrow('Só sócios recebem lucro');
+        });
+
+        it('dado que a conta foi arquivada depois de desfazer, quando restaura, então é recusado, e a retirada continua fora', async () => {
+          // Dado
+          await socio();
+          const conta = await contaPJ();
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          await SD.financeiroDesfazerLucro(id);
+          await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
+          // Quando / Então
+          await expect(SD.financeiroRestaurarLucro(id)).rejects.toThrow('arquivada');
+          expect((await doLucro()).retiradas).toEqual([]);
+        });
+
+        it('quando restaura o que não foi desfeito, então nada muda', async () => {
+          // Dado
+          await socio();
+          const conta = await contaPJ();
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          // Quando
+          await SD.financeiroRestaurarLucro(id);
+          // Então
+          expect((await doLucro()).retiradas).toHaveLength(1);
+        });
+      });
+
       it('dado um desconto, quando o contrato chega à coluna de assinado, então ele sai do valor antes de dividir', async () => {
         // Quando
         const k = await assinado({ descontos: 200 });

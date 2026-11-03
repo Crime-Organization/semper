@@ -63,7 +63,7 @@ export interface Divisao {
   socioIndicador: { id: string; valor: number } | null;
   /** O que sobra para o escritório, depois de pagar o sócio que indicou. */
   escritorioFinal: number;
-  /** O que o sócio responsável deixou no escritório: é o que conta para o lucro dele. */
+  /** O que o sócio responsável deixou no escritório. O lucro dele é só a parte de responsável, dentro disso (veja parteDoSocio, em lucro.ts). */
   contribuicaoDoSocio: number;
 }
 
@@ -75,7 +75,7 @@ const emInteiro = (percentual: number) => Math.round(percentual * CASAS_DO_PERCE
 const FOLGA = 1e-9;
 const temAteDuasCasas = (percentual: number) => Math.abs(percentual * CASAS_DO_PERCENTUAL - emInteiro(percentual)) < FOLGA;
 /** Centavos de um percentual, arredondando o meio para cima. */
-const parte = (centavos: number, percentual: number) => Math.round(centavos * emInteiro(percentual) / TODO);
+export const parte = (centavos: number, percentual: number) => Math.round(centavos * emInteiro(percentual) / TODO);
 
 /** O que há de errado no recebimento, ou null se dá para dividir. */
 export function erroDoRecebimento(r: Recebimento): string | null {

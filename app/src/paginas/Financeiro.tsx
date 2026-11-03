@@ -21,7 +21,7 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
 
 /** O lançamento que nasce de uma parcela só muda por lá: o caixa só mostra de onde ele veio. */
-const ORIGEM_DO_LANCAMENTO: Record<NonNullable<Lancamento['origem']>, string> = { recebimento: 'Veio de uma parcela', repasse: 'Veio de um repasse' };
+const ORIGEM_DO_LANCAMENTO: Record<NonNullable<Lancamento['origem']>, string> = { recebimento: 'Veio de uma parcela', repasse: 'Veio de um repasse', lucro: 'Veio do lucro dos sócios' };
 
 /** O que está aberto: lançamento novo, a mudança de um lançamento ou a transferência. */
 type Aberto = { o: 'novo' } | { o: 'mudar'; lancamento: Lancamento } | { o: 'transferir' } | null;

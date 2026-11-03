@@ -10,7 +10,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { Lancamento, Parcela, ParcelaDoEscritorio, Repasse, Socio } from './tipos';
+import type { Lancamento, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
@@ -1013,6 +1013,11 @@ export const SD: Dados = {
   },
   financeiroPagarRepasse: async (id, conta, data) => { await rpc('financeiro_pagar_repasse', { p_repasse: id, p_conta: conta, p_data: data }); },
   financeiroDesfazerPagamento: async id => { await rpc('financeiro_desfazer_pagamento', { p_repasse: id }); },
+  financeiroLucro: async () => await rpc('financeiro_lucro') as MovimentoDoLucro,
+  financeiroPagarLucro: async ({ pessoa, conta, data, valor, descricao }) =>
+    await rpc('financeiro_pagar_lucro', { p_pessoa: pessoa, p_conta: conta, p_data: data, p_valor: valor, p_descricao: descricao }) as string,
+  financeiroDesfazerLucro: async id => { await rpc('financeiro_desfazer_lucro', { p_retirada: id }); },
+  financeiroRestaurarLucro: async id => { await rpc('financeiro_restaurar_lucro', { p_retirada: id }); },
   async financeiroSocios() {
     const { data } = await rodar(sb.from('financeiro_socios').select(CAMPOS_DO_SOCIO).is('excluido_em', null).order('desde', { ascending: false }));
     return (data as unknown as LinhaDoSocio[]).map(socioLido);

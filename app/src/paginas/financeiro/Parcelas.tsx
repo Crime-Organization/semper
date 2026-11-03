@@ -14,6 +14,7 @@ import { falha, feito, useMudancas } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { useCtx } from '../../ui/sessao';
 import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
 import { HistoricoDoCartao } from '../HistoricoDoCartao';
@@ -82,6 +83,7 @@ type Preparo = { data: string; prep: ParaReceber } | { data: string; erro: strin
 
 /** Registrar o recebimento: a divisão aparece enquanto se digita, e o banco refaz a mesma conta ao salvar. */
 function FormReceber({ parcela, aoTerminar, aoCancelar }: { parcela: Parcela; aoTerminar: () => void; aoCancelar: () => void }) {
+  const { ehAdmin } = useCtx();
   const id = useId();
   const [f, setF] = useState<FormDoRecebimento>(() => recebimentoNovo(parcela, hojeISO(), []));
   const [lido, setLido] = useState<Preparo | null>(null);
@@ -144,7 +146,7 @@ function FormReceber({ parcela, aoTerminar, aoCancelar }: { parcela: Parcela; ao
     {previa && 'erro' in previa && previa.erro && <Aviso tipo="erro">{previa.erro}</Aviso>}
     {previa && 'divisao' in previa && <>
       {previa.aviso && <Aviso tipo="info">{previa.aviso}</Aviso>}
-      <Divisao rotulo="Como fica a divisão" linhas={linhasDaDivisao(previa.divisao, previa.aliquota, x => nomes.get(x) ?? '', prep!.responsavel_socio)} />
+      <Divisao rotulo="Como fica a divisão" linhas={linhasDaDivisao(previa.divisao, previa.aliquota, x => nomes.get(x) ?? '', prep!.responsavel_socio, ehAdmin)} />
     </>}
     <div className="financeiro-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado || !prep}>{ocupado ? 'Salvando…' : 'Registrar recebimento'}</button>
@@ -155,6 +157,7 @@ function FormReceber({ parcela, aoTerminar, aoCancelar }: { parcela: Parcela; ao
 
 /** O recebimento como ficou gravado, com o DAS usado. */
 function RecebimentoDaParcela({ parcela, aoFechar }: { parcela: Parcela; aoFechar: () => void }) {
+  const { ehAdmin } = useCtx();
   const [r, setR] = useState<RecebimentoGravado | string | null>(null);
   useEffect(() => {
     let vivo = true;
@@ -169,7 +172,7 @@ function RecebimentoDaParcela({ parcela, aoFechar }: { parcela: Parcela; aoFecha
   const nomes = nomesDoRecebimento(r);
   return <section className="cartao financeiro-form" aria-label={`Recebimento da parcela ${parcela.numero}`}>
     <Nota>Recebido em {fmtData(r.data)}: {fmtCentavos(r.valor)}.</Nota>
-    <Divisao rotulo="Como ficou a divisão" linhas={linhasDaDivisao(divisaoGravada(r), r.aliquota_das, x => nomes.get(x) ?? '', r.responsavel_socio)} />
+    <Divisao rotulo="Como ficou a divisão" linhas={linhasDaDivisao(divisaoGravada(r), r.aliquota_das, x => nomes.get(x) ?? '', r.responsavel_socio, ehAdmin)} />
     {fechar}
   </section>;
 }

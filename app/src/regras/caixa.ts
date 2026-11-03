@@ -23,11 +23,14 @@ export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>,
   divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' }
 };
 export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferencia' ? 'Repasse entre contas' : CATEGORIAS[c].nome;
-export const CATEGORIAS_EM_ORDEM = Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[];
+/** As que se lançam à mão. A divisão de lucro nasce na página Lucro dos sócios, para ficar no nome do sócio. Quem já tem essa categoria
+ *  (de antes desta regra) continua vendo a sua. */
+export const categoriasDoFormulario = (atual: keyof typeof CATEGORIAS) =>
+  (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
 
 const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
 /** O valor digitado, em centavos; ou o que há de errado com ele. */
-function lerValor(texto: string): { centavos: number } | { erro: string } {
+export function lerValor(texto: string): { centavos: number } | { erro: string } {
   let reais: number | null;
   try { reais = lerDinheiro(texto); } catch (e) { return { erro: (e as Error).message }; }
   if (!reais) return { erro: 'Informe o valor.' };

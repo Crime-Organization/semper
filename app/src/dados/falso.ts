@@ -34,7 +34,7 @@ import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CA
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA } from './limites';
-import type { CategoriaDeLancamento, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio } from './tipos';
+import type { CategoriaDeLancamento, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
@@ -128,6 +128,7 @@ interface Banco {
   recebimentos?: RecebimentoGuardado[];
   repasses?: RepasseGuardado[];
   socios?: SocioGuardado[];
+  retiradas?: RetiradaGuardada[];
   /** Os contratos que já geraram as parcelas (uma vez só, como privado.contratos_com_parcelas). */
   contratosComParcelas?: string[];
   historicoParcelas?: (Historico & { contrato_id: string })[];
@@ -159,7 +160,8 @@ type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'proces
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
 type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type ParcelaGuardada = Parcela & { excluido_em: string | null };
-type RecebimentoGuardado = RecebimentoGravado & { estornado_em: string | null; lancamento_id: string; lancamento_taxa_id: string | null };
+type RecebimentoGuardado = RecebimentoGravado & { estornado_em: string | null; lancamento_id: string; lancamento_taxa_id: string | null; socio_pessoa_id: string | null; socio_nome: string | null };
+type RetiradaGuardada = MovimentoDoLucro['retiradas'][number] & { lancamento_id: string; excluido_em: string | null };
 type RepasseGuardado = Repasse & { cancelado_em: string | null; lancamento_id: string | null; pessoa_id: string | null };
 type SocioGuardado = Omit<Socio, 'nome'> & { excluido_em: string | null };
 type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
@@ -384,6 +386,7 @@ bd.parcelas ??= [];
 bd.recebimentos ??= [];
 bd.repasses ??= [];
 bd.socios ??= [];
+bd.retiradas ??= [];
 // Como ao ligar o módulo no banco: o que já foi assinado não gera sozinho, nem se sair e voltar para a coluna.
 bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(k => k.id);
 bd.historicoParcelas ??= [];
@@ -1088,7 +1091,7 @@ function historicoDoLancamento(l: LancamentoGuardado, novo: Partial<LancamentoGu
   if (Object.keys(alteracoes).length) bd.historicoLancamentos!.unshift({ id: Date.now() + Math.random(), lancamento_id: l.id, alteracoes, feito_por: eu, em: agora() });
 }
 const SEM_ACESSO_AO_CAIXA = 'Não foi possível: atualize a página e confira.';
-const LANCAMENTO_DE_ORIGEM = 'Este lançamento nasceu de um recebimento ou de um repasse: desfaça por lá.';
+const LANCAMENTO_DE_ORIGEM = 'Este lançamento nasceu de um recebimento, de um repasse ou de uma divisão de lucro: desfaça por lá.';
 const SEM_PARTE_NA_CONTA = 'O contrato não diz quanto vai para a conta da empresa. Preencha em "Atualizar contrato".';
 const SOCIO_NO_PERIODO = 'Esta pessoa já é sócia nesse período.';
 const CATEGORIA_DO_REPASSE: Record<Repasse['tipo'], CategoriaDeLancamento> = { responsavel: 'repasse', socio_indicador: 'indicacao' };
@@ -1100,6 +1103,11 @@ function acharParcela(id: string) {
 }
 const nomeDoSocio = (id: string) => bd.pessoas.find(p => p.id === id)?.nome ?? 'Pessoa excluída';
 const socioLido = ({ excluido_em: _e, ...s }: SocioGuardado): Socio => ({ ...s, nome: nomeDoSocio(s.pessoa_id) });
+/** Como privado.socio_do_recebimento: o recebimento guarda de qual sócio ele é. */
+function socioDoRecebimento(k: ContratoGuardado, responsavelSocio: boolean) {
+  const pessoa = responsavelSocio ? EQUIPE.find(m => m.id === k.responsavel_id)?.pessoa_id ?? null : null;
+  return { socio_pessoa_id: pessoa, socio_nome: pessoa ? nomeDoSocio(pessoa) : null };
+}
 const partesDe = (k: ContratoGuardado, data: string) => partesDoRecebimento(k, bd.socios!.filter(s => !s.excluido_em), EQUIPE.find(m => m.id === k.responsavel_id)?.pessoa_id, data, nomeDoSocio);
 function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
   const k = bd.contratos!.find(x => x.id === p.contrato_id);
@@ -2334,7 +2342,7 @@ export const SD: Dados = {
       na_conta: d.naConta, ficou_com_advogado: d.ficouComOAdvogado, das: d.das, liquido: d.liquido, escritorio: d.escritorio, responsavel_recebe: d.responsavelRecebe, responsavel_fica: d.responsavelFica,
       escritorio_final: d.escritorioFinal, contribuicao_socio: d.contribuicaoDoSocio, terceiros: partes.terceiros.map(t => ({ ...t, valor: d.terceiros.find(x => x.id === t.id)!.valor })),
       socio_indicador: partes.socio_indicador && d.socioIndicador ? { ...partes.socio_indicador, valor: d.socioIndicador.valor } : null,
-      estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null
+      estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null, ...socioDoRecebimento(k, partes.responsavel_socio)
     };
     bd.recebimentos!.push(r);
     const repasse = (tipo: Repasse['tipo'], nome: string, valorDele: number, pessoaId: string | null) => bd.repasses!.push({ id: novoId(), recebimento_id: r.id, tipo, nome, descricao: texto, valor: valorDele, conta_sugerida: conta, conta_paga: null, pago_em: null, criado_em: agora(), cancelado_em: null, lancamento_id: null, pessoa_id: pessoaId });
@@ -2348,7 +2356,7 @@ export const SD: Dados = {
   financeiroRecebimento(id) {
     const r = bd.recebimentos!.find(x => x.id === id);
     if (!r) return espera(null);
-    const { estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, ...gravado } = r;
+    const { estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...gravado } = r;
     return espera(gravado);
   },
   async financeiroEstornar(id) {
@@ -2403,6 +2411,47 @@ export const SD: Dados = {
     if (!x.pago_em) return espera(undefined);
     bd.lancamentos!.filter(l => l.id === x.lancamento_id).forEach(l => { l.excluido_em = agora(); });
     Object.assign(x, { pago_em: null, conta_paga: null, lancamento_id: null }); gravar();
+    return espera(undefined);
+  },
+  financeiroLucro() {
+    const dataDoRecebimento = (id: string) => bd.recebimentos!.find(r => r.id === id)?.data ?? '';
+    return espera({
+      recebimentos: bd.recebimentos!.filter(r => !r.estornado_em && r.parte_na_conta === PARTE_INTEGRAL && r.socio_pessoa_id)
+        .map(r => ({ data: r.data, pessoa_id: r.socio_pessoa_id!, nome: r.socio_nome!, liquido: r.liquido, terceiros: r.terceiros.map(t => ({ valor: t.valor })) })),
+      indicacoes: bd.repasses!.filter(x => x.tipo === 'socio_indicador' && !x.cancelado_em && x.pessoa_id)
+        .map(x => ({ data: dataDoRecebimento(x.recebimento_id), pessoa_id: x.pessoa_id!, nome: x.nome, valor: x.valor, pago_em: x.pago_em })),
+      retiradas: bd.retiradas!.filter(r => !r.excluido_em).map(({ lancamento_id: _l, excluido_em: _e, ...r }) => r)
+    });
+  },
+  async financeiroPagarLucro({ pessoa, conta, data, valor, descricao }) {
+    const nome = bd.pessoas.find(p => p.id === pessoa)?.nome;
+    if (!nome) return erro('Pessoa não encontrada neste escritório.');
+    if (!bd.socios!.some(s => s.pessoa_id === pessoa && !s.excluido_em) && !bd.recebimentos!.some(r => r.socio_pessoa_id === pessoa && !r.estornado_em)) return erro('Esta pessoa não é sócia. Só sócios recebem lucro.');
+    if (!bd.contasFinanceiras!.some(c => c.id === conta)) return erro('Conta não encontrada neste escritório.');
+    const texto = (descricao.trim() || `Divisão de lucro a ${nome}`).slice(0, 300);
+    const saida = novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'divisao_lucro', valor, descricao: texto, origem: 'lucro' });
+    bd.lancamentos!.push(saida);
+    const r: RetiradaGuardada = { id: novoId(), pessoa_id: pessoa, nome, conta_id: conta, data, valor, descricao: texto, lancamento_id: saida.id, excluido_em: null };
+    bd.retiradas!.push(r); auditar('financeiro_retiradas', 'inclusao', r); gravar();
+    return espera(r.id);
+  },
+  async financeiroDesfazerLucro(id) {
+    const r = bd.retiradas!.find(x => x.id === id);
+    if (!r) return erro('Retirada não encontrada neste escritório.');
+    if (r.excluido_em) return espera(undefined);
+    const quando = agora();
+    bd.lancamentos!.filter(l => l.id === r.lancamento_id).forEach(l => { l.excluido_em = quando; });
+    r.excluido_em = quando; gravar();
+    return espera(undefined);
+  },
+  async financeiroRestaurarLucro(id) {
+    const r = bd.retiradas!.find(x => x.id === id);
+    if (!r) return erro('Retirada não encontrada neste escritório.');
+    if (!r.excluido_em) return espera(undefined);
+    const saidas = bd.lancamentos!.filter(l => l.id === r.lancamento_id);
+    saidas.forEach(conferirContaEData);
+    saidas.forEach(l => { l.excluido_em = null; });
+    r.excluido_em = null; gravar();
     return espera(undefined);
   },
   financeiroSocios: () => espera(bd.socios!.filter(s => !s.excluido_em).toSorted((a, b) => b.desde.localeCompare(a.desde)).map(socioLido)),

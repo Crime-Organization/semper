@@ -1126,8 +1126,8 @@ export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' 
 export interface Lancamento {
   id: string; conta_id: string; data: string; tipo: TipoDeLancamento; categoria: CategoriaDeLancamento; valor: number; descricao: string;
   par_id: string | null; criado_por: string | null; criado_em: string; atualizado_em: string;
-  /** Nasceu de um recebimento ou de um repasse: só muda por lá. */
-  origem: 'recebimento' | 'repasse' | null;
+  /** Nasceu de um recebimento, de um repasse ou de uma divisão de lucro: só muda por lá. */
+  origem: 'recebimento' | 'repasse' | 'lucro' | null;
 }
 export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
 export interface AliquotaDoDas { mes: string; aliquota: number }
@@ -1161,6 +1161,14 @@ export interface Repasse {
   id: string; recebimento_id: string; tipo: TipoDeRepasse; nome: string; descricao: string; valor: number; conta_sugerida: string | null; conta_paga: string | null; pago_em: string | null; criado_em: string;
 }
 export interface Socio { id: string; pessoa_id: string; nome: string; desde: string; ate: string | null }
+/** O que a página de lucro precisa, sem o que foi estornado ou desfeito. Só administradores. */
+export interface MovimentoDoLucro {
+  /** Os recebimentos em que o responsável era sócio e tudo foi para a conta da empresa. */
+  recebimentos: { data: string; pessoa_id: string; nome: string; liquido: number; terceiros: { valor: number }[] }[];
+  /** O que o escritório deve ao sócio que indicou; data: a do recebimento. */
+  indicacoes: { data: string; pessoa_id: string; nome: string; valor: number; pago_em: string | null }[];
+  retiradas: { id: string; pessoa_id: string; nome: string; conta_id: string; data: string; valor: number; descricao: string }[];
+}
 /** O caixa (supabase/migrations/20261102175057_financeiro_caixa.sql). Só administradores. */
 export interface DadosFinanceiro {
   financeiroContas(): Promise<ContaFinanceira[]>;
@@ -1214,6 +1222,13 @@ export interface DadosParcelas {
   /** Só administrador. Cria a saída no caixa. */
   financeiroPagarRepasse(id: string, conta: string, data: string): Promise<void>;
   financeiroDesfazerPagamento(id: string): Promise<void>;
+  /** Só administrador. */
+  financeiroLucro(): Promise<MovimentoDoLucro>;
+  /** Só administrador. Cria a saída "Divisão de lucro" no caixa. Descrição em branco: fica o nome do sócio. Devolve o id da retirada. */
+  financeiroPagarLucro(r: { pessoa: string; conta: string; data: string; valor: number; descricao: string }): Promise<string>;
+  /** Desfazer esconde a retirada e a saída no caixa; restaurar devolve como estava. */
+  financeiroDesfazerLucro(id: string): Promise<void>;
+  financeiroRestaurarLucro(id: string): Promise<void>;
   /** Só administrador. Sem os excluídos, do mais novo ao mais antigo. */
   financeiroSocios(): Promise<Socio[]>;
   financeiroSocioCriar(dados: { pessoa_id: string; desde: string; ate: string | null }): Promise<Socio>;

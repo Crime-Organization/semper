@@ -11,6 +11,7 @@ import { anoAceito, dataExiste } from './calendario';
 import { centavosNoCampo, fmtCentavos, paraCentavos } from './caixa';
 import { lerDinheiro } from './contrato';
 import { dasDoMes, dividirRecebimento, erroDoRecebimento, type Divisao, type Recebimento } from './financeiro';
+import { parteDoSocio } from './lucro';
 import { fmtData } from './pessoa';
 
 /** Cada categoria de honorário: gera parcelas sozinha ao ser assinado? Êxito e sucumbência dependem do resultado do caso. */
@@ -142,8 +143,8 @@ export function previaDoRecebimento(f: FormDoRecebimento, prep: ParaReceber): { 
 // ---------- como a divisão aparece ----------
 export interface LinhaDaDivisao { rotulo: string; valor: number }
 type NomeDe = (id: string) => string;
-/** As linhas da divisão: o que entrou, o que saiu e quanto fica com cada um. O que é zero não aparece. */
-export function linhasDaDivisao(d: Divisao, aliquota: number, nomeDe: NomeDe, responsavelSocio: boolean): LinhaDaDivisao[] {
+/** As linhas da divisão: o que entrou, o que saiu e quanto fica com cada um. O que é zero não aparece. O lucro do sócio só aparece para administrador. */
+export function linhasDaDivisao(d: Divisao, aliquota: number, nomeDe: NomeDe, responsavelSocio: boolean, verLucro = false): LinhaDaDivisao[] {
   const todas: LinhaDaDivisao[] = [
     { rotulo: 'Entra na conta', valor: d.naConta },
     { rotulo: 'Fica direto com o advogado', valor: d.ficouComOAdvogado },
@@ -155,7 +156,7 @@ export function linhasDaDivisao(d: Divisao, aliquota: number, nomeDe: NomeDe, re
     { rotulo: 'Fica com o responsável', valor: d.responsavelFica },
     ...(d.socioIndicador ? [{ rotulo: `O escritório paga a ${nomeDe(d.socioIndicador.id)}, sócio que indicou`, valor: d.socioIndicador.valor }] : []),
     ...(d.socioIndicador ? [{ rotulo: 'Sobra no escritório', valor: d.escritorioFinal }] : []),
-    { rotulo: 'Conta para o lucro do sócio responsável', valor: d.contribuicaoDoSocio }
+    { rotulo: 'Conta para o lucro do sócio responsável', valor: verLucro && d.contribuicaoDoSocio ? parteDoSocio(d) : 0 }
   ];
   return todas.filter(l => l.valor !== 0);
 }
