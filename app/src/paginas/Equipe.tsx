@@ -56,7 +56,7 @@ async function pedirEmailNovo(u: Usuario, digitado = '', erro: string | null = n
     titulo: `Trocar o e-mail de acesso de ${u.nome}`,
     corpo: <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, fica no registro de ações e tira a pessoa de todos os aparelhos em que ela estiver conectada.</Aviso>
-      <Nota>E-mail atual: <b>{u.email}</b>. A senha continua a mesma; quem não lembrar usa "Esqueci minha senha" com o e-mail novo.</Nota>
+      <Nota>E-mail atual: <b>{u.email}</b>. A senha atual deixa de valer: a pessoa cria outra em "Esqueci minha senha", com o e-mail novo.</Nota>
       <Campo rotulo="E-mail novo" para="email-do-colega" erro={erro}>
         <input {...propsDoCampo('email-do-colega', { erro })} name="novo" className="campo" type="email" autoComplete="off" maxLength={TAMANHO_EMAIL_DE_ACESSO} defaultValue={digitado} />
       </Campo>
@@ -125,7 +125,7 @@ function PainelEquipe() {
     if (!email) return;
     try {
       await SD.equipeTrocarEmail(u.id, email);
-      avisar(`Agora ${u.nome} entra com ${email}. Avise a pessoa: ela precisa entrar de novo, com a mesma senha.`);
+      avisar(`O e-mail de acesso de ${u.nome} agora é ${email}. Avise a pessoa: ela precisa criar uma senha nova em "Esqueci minha senha".`);
     } catch (e) { falha(e); }
     void carregar();
   }

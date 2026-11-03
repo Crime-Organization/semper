@@ -87,6 +87,7 @@ test.describe('Equipe e acessos', () => {
       await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
       // Então
       await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno.novo@exemplo.com');
+      await expect(page.getByText('Avise a pessoa: ela precisa criar uma senha nova em "Esqueci minha senha".', { exact: false })).toBeVisible();
       await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza, de bruno@exemplo.com para bruno.novo@exemplo.com');
     });
 

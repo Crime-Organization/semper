@@ -959,7 +959,7 @@ export interface DadosEquipe {
   /**
    * Troca na hora o e-mail de acesso de quem perdeu o e-mail antigo, sem link de confirmação. Vale para quem o administrador
    * pode gerir (nunca um master, a própria conta ou o dono da plataforma; quem alcança informações sigilosas, só o master).
-   * Encerra as sessões abertas da pessoa e fica no registro de ações.
+   * Encerra as sessões abertas da pessoa, tira a senha antiga de uso e fica no registro de ações.
    */
   equipeTrocarEmail(perfilId: string, email: string): Promise<void>;
   convitesListar(): Promise<Convite[]>;

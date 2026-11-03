@@ -1,8 +1,11 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // As partes puras da função do servidor que troca o e-mail pelo administrador (#222), em supabase/functions/_compartilhado/.
 import { describe, expect, it, vi } from 'vitest';
-import { conferirPedido, trocarEmailDaEquipe, type PassosDaTroca, type Preparo } from '../../../supabase/functions/_compartilhado/trocaDeEmail';
+import { conferirPedido, senhaDescartavel, trocarEmailDaEquipe, type PassosDaTroca, type Preparo } from '../../../supabase/functions/_compartilhado/trocaDeEmail';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
+
+/** O login guarda a senha com bcrypt, que só aceita até 72 bytes. */
+const LIMITE_DE_SENHA_DO_LOGIN = 72;
 
 const PERFIL = '00000000-0000-4000-8000-000000000001';
 const PEDIDO = { perfil: PERFIL, email: 'nova@exemplo.com' };
@@ -30,6 +33,24 @@ describe('conferirPedido', () => {
   ])('dado um pedido %s, quando confere, então recusa', (_caso, corpo) => {
     // Quando / Então
     expect(conferirPedido(corpo)).toBeNull();
+  });
+});
+
+describe('senhaDescartavel', () => {
+  it('quando gera a senha, então ela cabe no limite do login e tem letras, números e símbolo', () => {
+    // Quando
+    const senha = senhaDescartavel();
+    // Então
+    expect(senha.length).toBeLessThanOrEqual(LIMITE_DE_SENHA_DO_LOGIN);
+    expect(senha).toMatch(/[a-z]/);
+    expect(senha).toMatch(/[A-Z]/);
+    expect(senha).toMatch(/[0-9]/);
+    expect(senha).toMatch(/[^a-zA-Z0-9]/);
+  });
+
+  it('quando gera duas senhas, então elas são diferentes', () => {
+    // Quando / Então
+    expect(senhaDescartavel()).not.toBe(senhaDescartavel());
   });
 });
 

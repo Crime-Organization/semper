@@ -16,6 +16,18 @@ const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /** O maior e-mail que o login aceita (TAMANHO_EMAIL_DE_ACESSO em app/src/dados/limites.ts). */
 const TAMANHO_EMAIL = 254;
 
+/** Quantos bytes aleatórios tem a senha descartável: em hexadecimal, o dobro de letras, abaixo do limite de 72 do login. */
+const BYTES_DA_SENHA = 32;
+
+/**
+ * Uma senha que ninguém conhece, para a senha antiga deixar de valer na troca: a pessoa cria outra em "Esqueci minha senha",
+ * com o e-mail novo. Não é guardada nem devolvida. O começo fixo atende às exigências de letras, números e símbolos do login.
+ */
+export function senhaDescartavel() {
+  const aleatorio = Array.from(crypto.getRandomValues(new Uint8Array(BYTES_DA_SENHA)), b => b.toString(16).padStart(2, '0')).join('');
+  return `Aa1!${aleatorio}`;
+}
+
 /** Confere o formato do pedido; quem pode e qual e-mail vale, o banco decide. */
 export function conferirPedido(corpo: unknown): { perfil: string; email: string } | null {
   const { perfil, email } = (corpo ?? {}) as { perfil?: unknown; email?: unknown };
