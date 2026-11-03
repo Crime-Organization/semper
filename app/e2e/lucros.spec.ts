@@ -2,7 +2,7 @@
 // O lucro dos sócios. Quem está logado é o Mateus (administrador), responsável pelo contrato de JOSÉ DA SILVA TESTE, de R$ 3.000,00 em 5
 // parcelas. O banco fictício começa sem contas e sem sócios.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirNoFinanceiro, abrirSecao } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
@@ -57,7 +57,7 @@ test.describe('Lucro dos sócios', () => {
   test('quando não há sócios, então pede para colocar na lista', async ({ page }) => {
     // Quando
     await page.goto('/inicio/');
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     // Então
     await expect(page.getByText('Nenhum sócio ainda.', { exact: false })).toBeVisible();
   });
@@ -68,7 +68,7 @@ test.describe('Lucro dos sócios', () => {
     await receberComoSocio(page);
     // Quando
     await page.goto('/inicio/');
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     // Então: R$ 647,50, a parte da planilha, e não os R$ 925,00 que ficaram na conta
     const comoResponsavel = page.getByRole('table', { name: 'Lucro como responsável' });
     const linha = comoResponsavel.getByRole('row').filter({ hasText: 'MATEUS FREITAS' });
@@ -88,14 +88,14 @@ test.describe('Lucro dos sócios', () => {
     await expect(pagamentos).toContainText('MATEUS FREITAS');
 
     // E no caixa ela aparece como divisão de lucro, sem poder mudar por lá
-    await abrir(page, 'Caixa');
+    await abrirNoFinanceiro(page, 'Caixa');
     const saida = page.getByRole('row').filter({ hasText: 'Divisão de lucro a' });
     await expect(saida).toContainText('Divisão de lucro');
     await expect(saida).toContainText('Veio do lucro dos sócios');
     await expect(saida.getByRole('button')).toHaveCount(0);
 
     // Quando: desfaz
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     await pagamentos.getByRole('button', { name: 'Desfazer' }).click();
     await pagamentos.getByRole('button', { name: 'Confirmar: desfazer' }).click();
     // Então
@@ -108,7 +108,7 @@ test.describe('Lucro dos sócios', () => {
     await prepararCaixa(page);
     await receberComoSocio(page);
     await page.goto('/inicio/');
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     // Quando
     await page.getByRole('button', { name: 'Pagar lucro' }).click();
     const form = page.getByRole('form', { name: 'Pagar lucro' });
@@ -126,7 +126,7 @@ test.describe('Lucro dos sócios', () => {
     await receberComoSocio(page);
     const ano = new Date().getFullYear();
     await page.goto('/inicio/');
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     // Quando: paga com data do ano passado, e a página passa a mostrar esse ano
     await page.getByRole('button', { name: 'Pagar lucro' }).click();
     const form = page.getByRole('form', { name: 'Pagar lucro' });
@@ -161,7 +161,7 @@ test.describe('Lucro dos sócios', () => {
     await page.getByRole('button', { name: 'Novo lançamento' }).click();
     await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Categoria').getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
     // E o em aberto continua o mesmo
-    await abrir(page, 'Lucro dos sócios');
+    await abrirNoFinanceiro(page, 'Lucro dos sócios');
     await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MATEUS FREITAS' }).getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));
     await expect(page.getByText('Nenhum pagamento de lucro neste ano.')).toBeVisible();
   });

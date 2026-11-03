@@ -14,6 +14,14 @@ export async function abrir(page: Page, secao: string) {
   await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: secao, exact: true }).click();
 }
 
+/** Abre uma tela de dentro do submenu Financeiro, que começa recolhido e abre sozinho nas telas dele. */
+export async function abrirNoFinanceiro(page: Page, tela: string) {
+  const secoes = page.getByRole('navigation', { name: 'Seções' });
+  const submenu = secoes.getByRole('button', { name: 'Financeiro' });
+  if (await submenu.getAttribute('aria-expanded') !== 'true') await submenu.click();
+  await secoes.getByRole('link', { name: tela, exact: true }).click();
+}
+
 /**
  * Abre uma seção recolhível do cartão pelo título (toda seção começa recolhida; a escolha fica guardada para os
  * próximos cartões). Se já estiver aberta, deixa como está. O título pode vir seguido do contador ("Pessoas 1").
