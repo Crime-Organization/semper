@@ -1,13 +1,16 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício não guarda quem está logado como o supabase.ts guarda: isto só se prova aqui, com o login simulado e sem rede.
+import { AuthRetryableFetchError, AuthSessionMissingError } from '@supabase/auth-js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const ID = '00000000-0000-0000-0000-000000000001';
-const login = vi.hoisted(() => ({ respostaDaTroca: {} as { email: string; new_email?: string } }));
+const login = vi.hoisted(() => ({ respostaDaTroca: {} as { email: string; new_email?: string }, erroDoUsuario: null as Error | null }));
 
-vi.mock('@supabase/auth-js', () => ({
+vi.mock('@supabase/auth-js', async original => ({
+  ...await original<typeof import('@supabase/auth-js')>(),
   AuthClient: class {
+    getUser = async () => ({ data: { user: null }, error: login.erroDoUsuario });
     getSession = async () => ({ data: { session: { access_token: 'token', user: { id: ID, email: 'atual@exemplo.com' } } }, error: null });
     updateUser = async () => ({ data: { user: login.respostaDaTroca }, error: null });
   }
@@ -116,5 +119,21 @@ describe('Troca do e-mail de um colega no supabase.ts', () => {
     const SD = await responderCom(() => new Response('Bad gateway', { status: 502 }));
     // Quando / Então
     await expect(SD.equipeTrocarEmail(PERFIL, 'nova@exemplo.com')).rejects.toThrow('Não foi possível trocar o e-mail agora. Tente de novo.');
+  });
+});
+
+describe('Sessão encerrada no supabase.ts', () => {
+  it.each<[string, Error | null, boolean]>([
+    ['diz que a sessão não existe', new AuthSessionMissingError(), true],
+    ['não responde', new AuthRetryableFetchError('Failed to fetch', 0), false],
+    ['confirma quem está logado', null, false]
+  ])('quando o login %s, então sessaoEncerrada dá %s', async (_caso, erro, esperado) => {
+    // Dado
+    login.erroDoUsuario = erro;
+    const { SD } = await import('./supabase');
+    // Quando
+    const encerrada = await SD.sessaoEncerrada();
+    // Então
+    expect(encerrada).toBe(esperado);
   });
 });

@@ -436,6 +436,8 @@ export interface DadosSessao {
   trocarEmail(novo: string): Promise<EmailDaConta>;
   novaSenha(senha: string): Promise<void>;
   sair(): Promise<void>;
+  /** O login confirma que a sessão não existe mais (troca de e-mail pelo administrador, "Sair" em outro aparelho). Sem resposta certa, false. */
+  sessaoEncerrada(): Promise<boolean>;
   aoMudarSessao(cb: (evento: string) => void): () => void;
   contexto(forcar?: boolean): Promise<Contexto | null>;
   salvarPerfil(campos: Partial<Pick<Perfil, 'nome' | 'usuario' | 'cor'>>): Promise<void>;

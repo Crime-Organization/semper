@@ -31,10 +31,10 @@ const FATO: Record<SituacaoDaTroca, (d: DadosDoAviso, de: string) => string> = {
 };
 
 /**
- * Apagar as sessões só impede renovar o acesso. As regras do banco não olham a sessão: quem já estava conectado segue até o acesso
- * vencer (jwt_expiry em supabase/config.toml). O aviso não pode prometer mais do que isso; quem corta na hora é desativar a pessoa.
+ * A troca encerra as sessões da conta, e as regras do banco só aceitam um token cuja sessão ainda existe (privado.sessao_ok), então
+ * quem já estava conectado perde o acesso na hora. Vale também quando o login não confirmou a troca: as sessões saem antes de chamá-lo.
  */
-const CONECTADOS = 'Quem já estava conectado não consegue renovar o acesso, mas pode continuar usando o sistema até ele vencer, em geral em até 1 hora.';
+const CONECTADOS = 'Quem já estava conectado perdeu o acesso na hora.';
 
 /** O que a troca muda na conta: o e-mail antigo e a senha antiga deixam de valer (trocarEmailNoLogin em servidor.ts). */
 const EFEITO: Record<SituacaoDaTroca, Record<DestinoDoAviso, string>> = {
