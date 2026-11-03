@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Reforço do aviso de troca de e-mail pelo administrador (tarefa #226)
 --   Limite de trocas por escritório, por hora, e reenvio automático dos avisos que falharam ou não foram confirmados.
---   Só acrescenta: duas funções novas, a rotina e uma regra nova na função de preparo. A versão anterior do site continua
+--   Só acrescenta: duas funções novas, um índice, a rotina e uma regra nova na função de preparo. A versão anterior do site continua
 --   funcionando; se ela encontrar o limite, mostra o erro genérico da troca.
 -- =====================================================================
 
@@ -51,8 +51,9 @@ begin
     return;
   end if;
 
-  -- A trava faz duas trocas ao mesmo tempo esperarem uma pela outra, para as duas não contarem o mesmo número.
-  perform 1 from public.escritorios e where e.id = v_alvo.escritorio_id for update;
+  -- A trava faz duas trocas ao mesmo tempo esperarem uma pela outra, para as duas não contarem o mesmo número. Esta não atrapalha
+  -- quem só grava uma linha que aponta para o escritório.
+  perform 1 from public.escritorios e where e.id = v_alvo.escritorio_id for no key update;
   if (select count(*) from public.auditoria a
       where a.escritorio_id = v_alvo.escritorio_id and a.acao = 'troca_email' and a.em > now() - interval '1 hour') >= 10 then
     return query select 'limite'::text, null::bigint;
@@ -72,9 +73,14 @@ begin
   return query select 'pronto'::text, v_registro;
 end $$;
 
+-- A rotina olha só as trocas, a cada 15 minutos, sem percorrer o registro de todos os escritórios.
+create index auditoria_trocas_de_email on public.auditoria (em desc) where acao = 'troca_email';
+
 -- Os avisos a reenviar, já marcados com mais uma tentativa: se a função cair no meio, esta tentativa conta, e o aviso não fica
 -- em repetição sem fim. Entram os que falharam e os sem marca (o envio não chegou ao fim). São até 3 reenvios, nas 24 horas depois
--- da troca, e 5 por vez, para não gastar a caixa; os 5 minutos de folga são mais que o tempo máximo da função que está enviando.
+-- da troca, e 5 por vez, para não gastar a caixa.
+-- As esperas crescem (10 minutos, 2 horas e 12 horas, cada uma contada da tentativa anterior), para o aviso sobreviver a uma queda
+-- longa do SMTP ou a uma senha vencida. Os 10 minutos são mais que o tempo máximo da função que está enviando.
 -- Quem teve menos tentativas vem primeiro: com o SMTP fora do ar, os avisos mais antigos não passam na frente dos outros.
 -- A situação vem do que a conta tem agora: se o e-mail não é o novo, a troca não aconteceu de fato e o aviso diz que não foi confirmada.
 create function public.equipe_email_avisos_pendentes()
@@ -83,16 +89,19 @@ language sql security definer set search_path = '' as $$
   with devidos as (
     select a.id from public.auditoria a
     where a.acao = 'troca_email'
-      and a.em between now() - interval '24 hours' and now() - interval '5 minutes'
+      and a.em > now() - interval '24 hours'
+      and coalesce((a.resumo ->> 'aviso_tentado_em')::timestamptz, a.em) <= now() - case coalesce((a.resumo ->> 'aviso_reenvios')::int, 0)
+            when 0 then interval '10 minutes' when 1 then interval '2 hours' else interval '12 hours' end
       and a.resumo ->> 'situacao' is distinct from 'falhou'
       and (a.resumo -> 'aviso_falhas' is null or jsonb_array_length(a.resumo -> 'aviso_falhas') > 0)
       and coalesce((a.resumo ->> 'aviso_reenvios')::int, 0) < 3
+      and exists (select 1 from auth.users c where c.id::text = a.registro_id)
     order by coalesce((a.resumo ->> 'aviso_reenvios')::int, 0), a.em
     limit 5
-    for update skip locked
+    for update of a skip locked
   )
   update public.auditoria a
-  set resumo = a.resumo || jsonb_build_object('aviso_reenvios', coalesce((a.resumo ->> 'aviso_reenvios')::int, 0) + 1)
+  set resumo = a.resumo || jsonb_build_object('aviso_reenvios', coalesce((a.resumo ->> 'aviso_reenvios')::int, 0) + 1, 'aviso_tentado_em', now())
   from devidos d, auth.users u
   where a.id = d.id and u.id::text = a.registro_id
   returning a.id,
