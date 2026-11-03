@@ -65,7 +65,7 @@ const MODELOS: Record<DestinoDoAviso, { assunto: string; titulo: string; paragra
     paragrafos: (d, s) => [
       FATO[s](d, `de ${d.alvo} no SEMPER`),
       EFEITO[s].gestao,
-      'Se essa troca não foi combinada, confira o registro de ações em Equipe e acessos e fale com a pessoa. Se houver suspeita de invasão, desative o acesso dela nessa mesma tela: isso corta o acesso na hora. Se a conta for de um administrador, só o master pode desativar.'
+      'Se essa troca não foi combinada, confira o registro de ações em Equipe e acessos e fale com a pessoa. Se houver suspeita de invasão, desative nessa mesma tela o acesso da pessoa e, se a suspeita for da conta de quem fez a troca, o dessa conta também: desativar corta o acesso na hora. Só o master desativa um administrador, e um master não pode ser desativado.'
     ]
   }
 };

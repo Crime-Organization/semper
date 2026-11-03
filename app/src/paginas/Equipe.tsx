@@ -58,7 +58,7 @@ async function pedirEmailNovo(u: Usuario, digitado = '', erro: string | null = n
   const r = await janela<{ novo: string; repetido: string }>({
     titulo: `Trocar o e-mail de acesso de ${u.nome}`,
     corpo: <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, fica no registro de ações e tira a pessoa de todos os aparelhos em que ela estiver conectada.</Aviso>
+      <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, e fica no registro de ações. Quem já estava conectado não consegue renovar o acesso, mas pode continuar usando o sistema até ele vencer, em geral em até 1 hora. Se houver suspeita de invasão, desative o acesso da pessoa nesta tela: isso corta o acesso na hora.</Aviso>
       <Nota>E-mail atual: <b>{u.email}</b>. A senha atual deixa de valer: a pessoa cria outra em "Esqueci minha senha", com o e-mail novo.</Nota>
       <Campo rotulo="E-mail novo" para="email-do-colega" erro={erro}>
         <input {...propsDoCampo('email-do-colega', { erro })} name="novo" className="campo" type="email" autoComplete="off" maxLength={TAMANHO_EMAIL_DE_ACESSO} defaultValue={digitado} />

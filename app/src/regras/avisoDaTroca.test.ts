@@ -79,7 +79,10 @@ describe('mensagensDoAviso', () => {
     // Quando
     const [antigo, ...gestao] = mensagensDoAviso(DADOS, situacao);
     // Então
-    for (const m of gestao) expect(m.texto).toContain('desative o acesso dela nessa mesma tela: isso corta o acesso na hora');
+    for (const m of gestao) {
+      expect(m.texto).toContain('desative nessa mesma tela o acesso da pessoa e, se a suspeita for da conta de quem fez a troca, o dessa conta também');
+      expect(m.texto).toContain('desativar corta o acesso na hora');
+    }
     expect(antigo.texto).not.toContain('desative');
   });
 

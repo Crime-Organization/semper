@@ -6,11 +6,12 @@
 --   funções do servidor continuam funcionando.
 -- =====================================================================
 
--- A mesma função de 20261103150000_aviso_da_troca_de_email.sql. [[:cntrl:]] não pega os caracteres de formatação do Unicode: os
--- separadores de linha e parágrafo imitariam outro parágrafo, e os de direção espelhariam o texto que mostra quem fez a troca.
+-- A mesma função de 20261103150000_aviso_da_troca_de_email.sql. [[:cntrl:]] não pega os caracteres invisíveis do Unicode: os de direção
+-- espelhariam o texto que mostra quem fez a troca, e os separadores de linha e parágrafo imitariam outro parágrafo. Os separadores viram
+-- espaço; os outros somem sem deixar espaço, para não partir ao meio uma palavra colada de outro lugar.
 create or replace function privado.nome_no_aviso(p_nome text) returns text
 language sql immutable set search_path = '' as $$
-  select btrim(regexp_replace(left(p_nome, 120), '[[:cntrl:]­؜᠎​-‏ -‮⁠-⁯﻿]+', ' ', 'g'))
+  select btrim(regexp_replace(regexp_replace(left(p_nome, 120), '[\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFEFF\uFFA0\uFFF0-\uFFFB\U000E0000-\U000E0FFF]+', '', 'g'), '[[:cntrl:]\u2028\u2029]+', ' ', 'g'))
 $$;
 
 -- A mesma função de 20261103150000_aviso_da_troca_de_email.sql. Se um envio já marcou quem da administração não recebeu, só essas
@@ -37,22 +38,29 @@ $$;
 
 -- Como a versão de dois parâmetros, que fica para as funções do servidor anteriores a esta. Quem da administração não recebeu fica
 -- guardado pelo identificador da pessoa, sem acrescentar endereços ao registro. Sem a lista (null), os dados do aviso nem vieram:
--- continua valendo a marca da tentativa anterior.
+-- continua valendo a marca da tentativa anterior. Se alguém trocou de e-mail durante o envio, não dá para saber quem é: a marca sai, e
+-- o reenvio vai a toda a administração. É melhor sobrar um aviso do que alguém ficar sem ele.
 create function public.equipe_email_aviso_resultado(p_registro bigint, p_falhas text[], p_gestao_sem_aviso text[]) returns void
 language sql security definer set search_path = '' as $$
-  update public.auditoria set resumo = resumo || jsonb_build_object('aviso_falhas', to_jsonb(p_falhas))
-    || case when p_gestao_sem_aviso is null then '{}'::jsonb
-            else jsonb_build_object('aviso_gestao_falhas',
-                   (select coalesce(jsonb_agg(u.id), '[]'::jsonb) from auth.users u where u.email = any (p_gestao_sem_aviso))) end
-  where id = p_registro and acao = 'troca_email'
+  with achados as (
+    select coalesce(jsonb_agg(u.id), '[]'::jsonb) as ids, count(*) as quantos
+    from auth.users u where u.email = any (p_gestao_sem_aviso)
+  )
+  update public.auditoria a
+  set resumo = case when p_gestao_sem_aviso is null then a.resumo
+                    when q.quantos < cardinality(p_gestao_sem_aviso) then a.resumo - 'aviso_gestao_falhas'
+                    else a.resumo || jsonb_build_object('aviso_gestao_falhas', q.ids) end
+               || jsonb_build_object('aviso_falhas', to_jsonb(p_falhas))
+  from achados q
+  where a.id = p_registro and a.acao = 'troca_email'
 $$;
 
 revoke execute on function public.equipe_email_aviso_resultado(bigint, text[], text[]) from public, anon, authenticated;
 grant execute on function public.equipe_email_aviso_resultado(bigint, text[], text[]) to service_role;
 
--- A mesma função de 20261103162000_reforco_do_aviso_da_troca.sql. A situação vem do que a conta tem agora: se ainda está com o e-mail
--- antigo, a troca não aconteceu de fato e o aviso diz que não foi confirmada. Um e-mail que não é o antigo nem o novo é sinal de outra
--- troca depois desta: o endereço antigo já perdeu o acesso.
+-- A mesma função de 20261103162000_reforco_do_aviso_da_troca.sql. A situação vem do que a conta tem agora: um e-mail diferente do antigo
+-- mostra que a troca aconteceu, ainda que outra tenha vindo depois. Com o e-mail antigo, ou a troca não aconteceu de fato, ou foi desfeita:
+-- nos dois casos o aviso diz que não foi confirmada, sem afirmar que o endereço perdeu o acesso, o que seria falso.
 create or replace function public.equipe_email_avisos_pendentes()
 returns table (registro bigint, situacao text, destinos text[])
 language sql security definer set search_path = '' as $$
