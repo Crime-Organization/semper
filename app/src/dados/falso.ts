@@ -93,7 +93,7 @@ interface Banco {
   duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
   semCodigo?: boolean;   // entrou só com a senha e ainda falta o código do aplicativo
   emailDaConta?: string;   // o e-mail de acesso, depois de uma troca confirmada
-  emailPendente?: { email: string; links: number } | null;   // a troca esperando os links de confirmação
+  emailPendente?: { email: string; links: string[] } | null;   // a troca esperando os links de confirmação, e os já abertos
   escritorio?: DadosEscritorio;
   contratos?: ContratoGuardado[];
   historicoContratos?: (Historico & { contrato_id: string })[];
@@ -1486,15 +1486,17 @@ export const SD: Dados = {
   entrar: async () => { bd.logado = true; bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo); gravar(); },
   primeiroAcesso: async () => ({ entrou: false }),
   recuperarSenha: async () => {},
-  async confirmarLink(_codigo, tipo) {
+  async confirmarLink(codigo, tipo) {
     if (tipo !== 'email_change') { bd.logado = true; gravar(); return { comSessao: true }; }
     const troca = bd.emailPendente;
-    if (!troca) return erro('Este link já foi usado ou venceu.');
-    troca.links += 1;
-    if (troca.links < LINKS_DA_TROCA_DE_EMAIL) { gravar(); return { comSessao: false }; }
+    if (!troca || troca.links.includes(codigo)) return erro('Este link já foi usado ou venceu.');
+    troca.links.push(codigo);
+    if (troca.links.length < LINKS_DA_TROCA_DE_EMAIL) { gravar(); return { comSessao: false }; }
     bd.emailDaConta = troca.email;
     bd.emailPendente = null;
     bd.logado = true;
+    // O segundo link cria uma sessão nova, que ainda não passou pelo código do aplicativo.
+    bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo);
     gravar();
     return { comSessao: true };
   },
@@ -1502,7 +1504,7 @@ export const SD: Dados = {
   async trocarEmail(novo) {
     const email = normalizarEmail(novo);
     if (EQUIPE.some(m => m.id !== eu && m.email === email)) return erro('Este e-mail já é usado em outra conta do SEMPER.');
-    bd.emailPendente = { email, links: 0 };
+    bd.emailPendente = { email, links: [] };
     gravar();
     return emailDaConta();
   },

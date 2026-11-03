@@ -47,6 +47,7 @@ Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no pa
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.
 - **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
+- **Troca de e-mail** (Sign In / Providers > Email): **Confirm email** e **Secure email change** ligados, para a troca valer só com o link enviado ao e-mail atual e ao novo. O modelo "Change email address" precisa estar colado.
 - **SMTP**: Hostinger, `smtp.hostinger.com` porta 465. `nao-responda@semper.app.br` é um alias: o login (Username e senha ou senha de aplicativo) é o da caixa principal a que ele pertence, e o alias entra só como remetente (`SEMPER <nao-responda@semper.app.br>`). O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
 
 ## Testar no computador

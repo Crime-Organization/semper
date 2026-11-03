@@ -3560,6 +3560,28 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.equipeListar()).map(m => m.email)).toContain('nova.conta@exemplo.com');
       });
 
+      it('quando o mesmo link é aberto de novo, então ele é recusado e não conclui a troca', async () => {
+        // Dado
+        const { atual } = await SD.contaEmail();
+        await SD.trocarEmail('nova.conta@exemplo.com');
+        await SD.confirmarLink('link-do-atual', 'email_change');
+        // Quando / Então
+        await expect(SD.confirmarLink('link-do-atual', 'email_change')).rejects.toThrow('Este link já foi usado ou venceu.');
+        expect(await SD.contaEmail()).toEqual({ atual, pendente: 'nova.conta@exemplo.com' });
+      });
+
+      it('quando a conta tem duas etapas e a troca é concluída, então falta o código do aplicativo', async () => {
+        // Dado
+        const cadastro = await SD.duasEtapasIniciar();
+        await SD.duasEtapasConfirmar(cadastro.id, '123456');
+        await SD.trocarEmail('nova.conta@exemplo.com');
+        // Quando
+        await SD.confirmarLink('link-do-atual', 'email_change');
+        await SD.confirmarLink('link-do-novo', 'email_change');
+        // Então
+        expect(await SD.duasEtapasPendente()).toBe(true);
+      });
+
       it('quando não há troca pendente, então o link é recusado', async () => {
         // Dado / Quando / Então
         await expect(SD.confirmarLink('link-velho', 'email_change')).rejects.toThrow('Este link já foi usado ou venceu.');

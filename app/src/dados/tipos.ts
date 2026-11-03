@@ -430,7 +430,7 @@ export interface DadosSessao {
   confirmarLink(codigo: string, tipo: TipoLink): Promise<{ comSessao: boolean }>;
   /** Lê da conta, e não da sessão guardada no navegador: a troca pode ter sido confirmada em outro aparelho. */
   contaEmail(): Promise<EmailDaConta>;
-  /** Pede a troca do e-mail de acesso. Quem decide se ela espera confirmação é a configuração do login. */
+  /** Pede a troca do e-mail de acesso. A troca espera confirmação por link; a configuração do login decide se são um ou dois links. */
   trocarEmail(novo: string): Promise<EmailDaConta>;
   novaSenha(senha: string): Promise<void>;
   sair(): Promise<void>;

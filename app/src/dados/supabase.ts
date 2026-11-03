@@ -384,7 +384,8 @@ export const SD: Dados = {
   },
   async trocarEmail(novo) {
     const { data } = await rodar(sb.auth.updateUser({ email: normalizarEmail(novo) }));
-    ctx = null;
+    // Pendente, nada do contexto muda. Esquecê-lo aqui faria falhar o que depende de quem está logado, até recarregar a página.
+    if (!data.user?.new_email) ctx = null;
     return { atual: data.user?.email ?? '', pendente: data.user?.new_email ?? null };
   },
   async novaSenha(senha) { await rodar(sb.auth.updateUser({ password: senha })); },

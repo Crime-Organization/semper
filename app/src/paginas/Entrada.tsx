@@ -42,6 +42,7 @@ export default function Entrada() {
   const [ocupado, setOcupado] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
   const linkAberto = useRef(false);   // o código do link é de uso único, e o efeito abaixo pode rodar duas vezes em desenvolvimento
+  const destinoDoCodigo = useRef(destino);   // para onde ir depois do código das duas etapas
 
   useLayoutEffect(() => {
     mostrarTema('claro');
@@ -71,13 +72,16 @@ export default function Entrada() {
           if (!comSessao) {
             mostrar('entrar');
             avisar('Link confirmado. Para concluir a troca, abra também o link enviado ao outro e-mail. Depois, entre com o e-mail novo.', 'ok');
-          } else if (await SD.duasEtapasPendente()) mostrar('codigo');
-          else navegar('/minha-conta/', { replace: true });
+            return;
+          }
+          destinoDoCodigo.current = '/minha-conta/';
+          if (await SD.duasEtapasPendente()) mostrar('codigo');
+          else navegar(destinoDoCodigo.current, { replace: true });
         }
       };
       SD.confirmarLink(linkEmail.codigo, linkEmail.tipo)
         .then(({ comSessao }) => depoisDoLink[linkEmail.tipo](comSessao))
-        .catch(() => { mostrar('entrar'); avisar('Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.'); });
+        .catch((e: Error) => { mostrar('entrar'); avisar(e.message); });
     } else if (!porRecuperacao) SD.sessao().then(async s => {
       if (!s || params.has('desativado')) return;
       // Entrou com a senha, mas tem verificação em duas etapas: falta o código do aplicativo.
@@ -108,7 +112,7 @@ export default function Entrada() {
     const c = ler('codigo').replace(/\D/g, '');
     if (c.length !== 6) return avisar('Digite os 6 números que o aplicativo autenticador mostra.');
     await SD.duasEtapasEntrar(c);
-    navegar(destino);
+    navegar(destinoDoCodigo.current);
   });
   const sairDoCodigo = async () => { await SD.sair(); mostrar('entrar'); };
   const primeiro = enviar(async (ler, form) => {
