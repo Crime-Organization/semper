@@ -120,7 +120,7 @@ function PainelEquipe() {
   async function definirAtivo(u: Usuario, ativar: boolean) {
     try {
       await SD.equipeDefinirAtivo(u.id, ativar);
-      feito(ativar ? `${u.nome} pode entrar de novo.` : `${u.nome} foi desativado(a) e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
+      feito(ativar ? `${u.nome} pode entrar de novo. Se houve invasão, peça que troque a senha.` : `${u.nome} foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
         ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
       mudouEquipe();
     } catch (e) { falha(e); }
