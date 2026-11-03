@@ -347,7 +347,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         <Campo rotulo="Assinado em" para="assinadoEm" erro={erros.assinadoEm}>{data('assinadoEm')}</Campo>
         <Campo rotulo="Primeiro pagamento" para="primeiroPagamento" erro={erros.primeiroPagamento}>{data('primeiroPagamento')}</Campo>
       </div>
-      <Nota>Com entrada, ela conta como a primeira parcela: as demais dividem o que sobra.</Nota>
+      <Nota>Os descontos saem do valor. Com entrada, ela conta como a primeira parcela: as demais dividem o que sobra.</Nota>
     </>,
     divisao: () => <>
       <Escolhas rotulo="Enviado à conta da empresa" dica="Quanto do que o cliente pagar vai para a conta PJ." erro={erros.percentualEscritorio}>

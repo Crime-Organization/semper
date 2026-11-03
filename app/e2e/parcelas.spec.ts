@@ -70,6 +70,24 @@ test.describe('Parcelas do contrato', () => {
     await expect(cartao.getByText('5 geradas', { exact: false })).toHaveCount(1);
   });
 
+  test('dado um desconto no contrato, quando gera as parcelas, então ele sai do valor antes de dividir', async ({ page }) => {
+    // Dado: R$ 3.000,00, entrada de R$ 600,00, 5 parcelas e R$ 400,00 de desconto
+    const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByLabel('Descontos').fill('400,00');
+    await cartao.getByText('100% do que o cliente pagar').click();
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Quando
+    await abrirSecao(cartao, 'Parcelas');
+    await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
+    // Então: a entrada fica como foi combinada, e as outras dividem os R$ 2.000,00 que sobram
+    const linhas = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row');
+    await expect(linhas).toHaveCount(6);
+    await expect(linhas.nth(1)).toContainText(dinheiro('600,00'));
+    await expect(linhas.nth(5)).toContainText(dinheiro('500,00'));
+    await expect(cartao.getByText('As parcelas somam', { exact: false })).toHaveCount(0);
+  });
+
   test('quando muda a situação para assinado com a seção aberta, então as parcelas aparecem na hora', async ({ page }) => {
     // Dado: o contrato de JOÃO PEDRO ainda não foi assinado
     const cartao = await abrirContrato(page, 'JOÃO PEDRO FICTÍCIO');

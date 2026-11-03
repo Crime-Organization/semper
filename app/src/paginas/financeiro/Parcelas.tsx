@@ -252,7 +252,7 @@ export function ParcelasDoContrato({ k, versao, aoMudar }: { k: Contrato; versao
   const vazio = !geraSozinho ? 'Nenhuma parcela. Este contrato não gera parcelas sozinho: lance cada uma quando souber o valor.'
     : podeGerar ? 'Nenhuma parcela. Este contrato foi assinado antes de o financeiro existir: gere as parcelas ou lance à mão.'
     : 'Nenhuma parcela ainda. Elas nascem quando o contrato chega à coluna de assinado.';
-  const soma = avisoDaSoma(lista, k.valor);
+  const soma = avisoDaSoma(lista, k.valor, k.descontos);
   return <div className="financeiro-form">
     {!lista.length && <Vazio>{vazio}</Vazio>}
     {soma && <Aviso tipo="info">{soma}</Aviso>}

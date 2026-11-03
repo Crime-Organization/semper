@@ -32,11 +32,13 @@ export const numeroContrato = (sigla: string, numero: number, ano: number) => `$
 
 const centavos = (v: number) => Math.round(v * 100) / 100;
 
-/** Valor de cada parcela. A entrada conta como a primeira parcela, como nas planilhas de receitas. */
-export function valorParcela(valor: number | null, entrada: number | null, parcelas: number | null): number | null {
+/** Valor de cada parcela. Os descontos saem do valor do contrato, e a entrada conta como a primeira parcela, como nas planilhas de receitas. */
+export function valorParcela(valor: number | null, entrada: number | null, parcelas: number | null, descontos: number | null = null): number | null {
   if (!valor || !parcelas) return null;
-  if (!entrada) return centavos(valor / parcelas);
-  return parcelas > 1 ? centavos((valor - entrada) / (parcelas - 1)) : null;
+  const total = valor - (descontos ?? 0);
+  if (total <= 0) return null;
+  if (!entrada) return centavos(total / parcelas);
+  return parcelas > 1 ? centavos((total - entrada) / (parcelas - 1)) : null;
 }
 
 /**
@@ -176,6 +178,9 @@ const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
   descontos: [dinheiro('descontos'), c => {
     const valor = quieto(lerDinheiro, c.valor), descontos = quieto(lerDinheiro, c.descontos);
     return valor !== null && descontos !== null && descontos > valor ? 'Os descontos não podem passar do valor do contrato.' : null;
+  }, c => {
+    const valor = quieto(lerDinheiro, c.valor), entrada = quieto(lerDinheiro, c.entrada), descontos = quieto(lerDinheiro, c.descontos);
+    return valor !== null && entrada !== null && descontos !== null && entrada + descontos > valor ? 'A entrada e os descontos, somados, não podem passar do valor do contrato.' : null;
   }],
   parcelas: [c => {
     const t = c.parcelas.trim();
@@ -262,7 +267,7 @@ export function valorLegivelContrato(campo: string, v: unknown): string {
 export function calculadosDoContrato(c: CamposContrato) {
   const parcelas = Number(c.parcelas);
   return {
-    parcela: valorParcela(quieto(lerDinheiro, c.valor), quieto(lerDinheiro, c.entrada), Number.isInteger(parcelas) && parcelas > 0 ? parcelas : null),
+    parcela: valorParcela(quieto(lerDinheiro, c.valor), quieto(lerDinheiro, c.entrada), Number.isInteger(parcelas) && parcelas > 0 ? parcelas : null, quieto(lerDinheiro, c.descontos)),
     responsavel: percentualResponsavel(Number(c.percentualEscritorio) || null, c.participantes.map(p => quieto(lerPercentual, p.percentual)),
       quieto(lerPercentual, c.indicadorPercentual))
   };
