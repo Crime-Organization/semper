@@ -7,5 +7,5 @@ import { rpc } from './servidor.ts';
 export const PASSOS_DO_AVISO: PassosDoAviso = {
   dados: registro => rpc<DadosDoAviso | null>('equipe_email_aviso_dados', { p_registro: registro }),
   enviar: enviarEmail,
-  registrar: (registro, falhas) => rpc<void>('equipe_email_aviso_resultado', { p_registro: registro, p_falhas: falhas })
+  registrar: (registro, falhas, gestaoSemAviso) => rpc<void>('equipe_email_aviso_resultado', { p_registro: registro, p_falhas: falhas, p_gestao_sem_aviso: gestaoSemAviso })
 };

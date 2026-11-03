@@ -65,6 +65,24 @@ describe('mensagensDoAviso', () => {
     }
   });
 
+  it.each(['trocada', 'nao-confirmada'] as const)('dada uma troca %s, quando monta o aviso, então não promete que os aparelhos foram desconectados e diz até quando o acesso pode durar', situacao => {
+    // Quando
+    const mensagens = mensagensDoAviso(DADOS, situacao);
+    // Então
+    for (const m of mensagens) {
+      expect(m.texto).not.toContain('desconectados');
+      expect(m.texto).toContain('pode continuar usando o sistema até ele vencer');
+    }
+  });
+
+  it.each(['trocada', 'nao-confirmada'] as const)('dada uma troca %s, quando monta o aviso, então só a administração recebe a orientação de desativar o acesso', situacao => {
+    // Quando
+    const [antigo, ...gestao] = mensagensDoAviso(DADOS, situacao);
+    // Então
+    for (const m of gestao) expect(m.texto).toContain('desative o acesso dela nessa mesma tela: isso corta o acesso na hora');
+    expect(antigo.texto).not.toContain('desative');
+  });
+
   it('dado o banco devolvendo um e-mail novo por engano, quando monta o aviso, então nenhuma mensagem o mostra', () => {
     // Dado
     const dados = { ...DADOS, email_novo: EMAIL_NOVO };
@@ -115,22 +133,22 @@ describe('avisarDaTroca', () => {
     // Então
     expect(p.dados).toHaveBeenCalledWith(REGISTRO);
     expect(p.enviar).toHaveBeenCalledTimes(3);
-    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, []);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, [], []);
   });
 
   it.each([
-    ['o e-mail antigo', ['bruno@exemplo.com'], ['antigo']],
-    ['uma pessoa da administração', ['carla@exemplo.com'], ['gestao']],
-    ['duas pessoas da administração', ['carla@exemplo.com', 'mateus@exemplo.com'], ['gestao']],
-    ['todos', ['bruno@exemplo.com', 'carla@exemplo.com', 'mateus@exemplo.com'], ['antigo', 'gestao']]
-  ])('dado que o envio falha para %s, quando avisa, então os outros recebem e o registro diz para quem não saiu', async (_caso, enderecos, falhas) => {
+    ['o e-mail antigo', ['bruno@exemplo.com'], ['antigo'], []],
+    ['uma pessoa da administração', ['carla@exemplo.com'], ['gestao'], ['carla@exemplo.com']],
+    ['duas pessoas da administração', ['carla@exemplo.com', 'mateus@exemplo.com'], ['gestao'], ['mateus@exemplo.com', 'carla@exemplo.com']],
+    ['todos', ['bruno@exemplo.com', 'carla@exemplo.com', 'mateus@exemplo.com'], ['antigo', 'gestao'], ['mateus@exemplo.com', 'carla@exemplo.com']]
+  ])('dado que o envio falha para %s, quando avisa, então os outros recebem e o registro diz para quem não saiu', async (_caso, enderecos, falhas, gestaoSemAviso) => {
     // Dado
     const p = passos({ enviar: vi.fn(falharPara(...enderecos)) });
     // Quando
     await avisarDaTroca(REGISTRO, 'trocada', p);
     // Então
     expect(p.enviar).toHaveBeenCalledTimes(3);
-    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, falhas);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, falhas, gestaoSemAviso);
   });
 
   it('dado um erro de envio, quando avisa, então o registro do servidor leva só o código, sem o endereço', async () => {
@@ -153,7 +171,7 @@ describe('avisarDaTroca', () => {
     await avisarDaTroca(REGISTRO, 'trocada', p);
     // Então
     expect(p.enviar).not.toHaveBeenCalled();
-    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, ['antigo', 'gestao']);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, ['antigo', 'gestao'], null);
   });
 
   it('dado que o banco falha ao registrar o resultado, quando avisa, então nenhum erro sobe', async () => {
@@ -177,7 +195,7 @@ describe('reenviarAvisos', () => {
     // Então
     expect(reenviados).toBe(1);
     expect(vi.mocked(p.enviar).mock.calls.map(([m]) => m.para)).toEqual(['bruno@exemplo.com']);
-    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, []);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, [], []);
   });
 
   it('dada uma falha só para a administração, quando reenvia e falha de novo para uma pessoa, então o registro continua apontando a administração', async () => {
@@ -187,7 +205,7 @@ describe('reenviarAvisos', () => {
     await reenviarAvisos([{ registro: REGISTRO, situacao: 'trocada', destinos: ['gestao'] }], p);
     // Então
     expect(p.enviar).toHaveBeenCalledTimes(2);
-    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, ['gestao']);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, ['gestao'], ['carla@exemplo.com']);
   });
 
   it('dado que a troca não aconteceu de fato, quando reenvia, então o aviso diz que ela não foi confirmada', async () => {
@@ -208,8 +226,8 @@ describe('reenviarAvisos', () => {
       { registro: 2, situacao: 'trocada', destinos: ['antigo'] }
     ], p);
     // Então
-    expect(p.registrar).toHaveBeenCalledWith(1, ['gestao']);
-    expect(p.registrar).toHaveBeenCalledWith(2, []);
+    expect(p.registrar).toHaveBeenCalledWith(1, ['gestao'], null);
+    expect(p.registrar).toHaveBeenCalledWith(2, [], []);
   });
 
   it('dado que não há nada pendente, quando reenvia, então nada é enviado', async () => {

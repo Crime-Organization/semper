@@ -13,7 +13,8 @@ export interface AvisoPendente { registro: number; situacao: SituacaoDaTroca; de
 export interface PassosDoAviso {
   dados(registro: number): Promise<DadosDoAviso | null>;
   enviar(mensagem: MensagemDoAviso): Promise<void>;
-  registrar(registro: number, falhas: DestinoDoAviso[]): Promise<void>;
+  /** `gestaoSemAviso`: os endereços da administração que não receberam; null quando não se sabe, porque os dados não vieram. */
+  registrar(registro: number, falhas: DestinoDoAviso[], gestaoSemAviso: string[] | null): Promise<void>;
 }
 
 /** Os horários do aviso saem no fuso de Brasília, e o texto diz isso. */
@@ -29,15 +30,21 @@ const FATO: Record<SituacaoDaTroca, (d: DadosDoAviso, de: string) => string> = {
   'nao-confirmada': (d, de) => `${autor(d)}, do escritório ${d.escritorio}, pediu a troca do e-mail de acesso ${de} em ${quando(d.em)} (horário de Brasília). O sistema não confirmou se ela foi concluída.`
 };
 
+/**
+ * Apagar as sessões só impede renovar o acesso. As regras do banco não olham a sessão: quem já estava conectado segue até o acesso
+ * vencer (jwt_expiry em supabase/config.toml). O aviso não pode prometer mais do que isso; quem corta na hora é desativar a pessoa.
+ */
+const CONECTADOS = 'Quem já estava conectado não consegue renovar o acesso, mas pode continuar usando o sistema até ele vencer, em geral em até 1 hora.';
+
 /** O que a troca muda na conta: o e-mail antigo e a senha antiga deixam de valer (trocarEmailNoLogin em servidor.ts). */
 const EFEITO: Record<SituacaoDaTroca, Record<DestinoDoAviso, string>> = {
   trocada: {
-    antigo: 'Este endereço e a senha antiga não dão mais acesso à conta, e os aparelhos conectados foram desconectados. Quem pediu a troca cria uma senha nova em "Esqueci minha senha", com o e-mail novo.',
-    gestao: 'A senha antiga deixou de valer e os aparelhos conectados foram desconectados. A pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.'
+    antigo: `Este endereço e a senha antiga não dão mais acesso à conta. ${CONECTADOS} Quem pediu a troca cria uma senha nova em "Esqueci minha senha", com o e-mail novo.`,
+    gestao: `A senha antiga deixou de valer. ${CONECTADOS} A pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.`
   },
   'nao-confirmada': {
-    antigo: 'Os aparelhos conectados foram desconectados. Se a troca foi concluída, este endereço e a senha antiga não dão mais acesso à conta.',
-    gestao: 'Os aparelhos conectados foram desconectados. Se a troca foi concluída, a senha antiga deixou de valer, e a pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.'
+    antigo: `${CONECTADOS} Se a troca foi concluída, este endereço e a senha antiga não dão mais acesso à conta.`,
+    gestao: `${CONECTADOS} Se a troca foi concluída, a senha antiga deixou de valer, e a pessoa cria uma senha nova em "Esqueci minha senha", com o e-mail novo.`
   }
 };
 
@@ -58,7 +65,7 @@ const MODELOS: Record<DestinoDoAviso, { assunto: string; titulo: string; paragra
     paragrafos: (d, s) => [
       FATO[s](d, `de ${d.alvo} no SEMPER`),
       EFEITO[s].gestao,
-      'Se essa troca não foi combinada, confira o registro de ações em Equipe e acessos e fale com a pessoa.'
+      'Se essa troca não foi combinada, confira o registro de ações em Equipe e acessos e fale com a pessoa. Se houver suspeita de invasão, desative o acesso dela nessa mesma tela: isso corta o acesso na hora. Se a conta for de um administrador, só o master pode desativar.'
     ]
   }
 };
@@ -108,6 +115,7 @@ const TODOS_OS_DESTINOS: DestinoDoAviso[] = ['antigo', 'gestao'];
  */
 export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca, passos: PassosDoAviso, destinos = TODOS_OS_DESTINOS): Promise<void> {
   let falhas = destinos;
+  let gestaoSemAviso: string[] | null = null;
   try {
     const dados = await passos.dados(registro);
     if (dados) {
@@ -116,9 +124,10 @@ export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca,
       const falhou = envios.flatMap((envio, i) => {
         if (envio.status === 'fulfilled') return [];
         registrarErro('envio', envio.reason);
-        return [mensagens[i].destino];
+        return [mensagens[i]];
       });
-      falhas = [...new Set(falhou)];
+      falhas = [...new Set(falhou.map(m => m.destino))];
+      gestaoSemAviso = falhou.filter(m => m.destino === 'gestao').map(m => m.para);
     } else {
       registrarErro('dados', null);
     }
@@ -126,7 +135,7 @@ export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca,
     registrarErro('dados', e);
   }
   try {
-    await passos.registrar(registro, falhas);
+    await passos.registrar(registro, falhas, gestaoSemAviso);
   } catch (e) {
     registrarErro('registro', e);
   }
