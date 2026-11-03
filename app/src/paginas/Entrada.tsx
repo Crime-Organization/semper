@@ -41,6 +41,8 @@ export default function Entrada() {
   const [msg, setMsg] = useState<Mensagem>(params.has('desativado') ? { texto: 'Seu acesso a este escritório está desativado. Fale com o administrador.', tipo: 'info' } : null);
   const [ocupado, setOcupado] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
+  const linkAberto = useRef(false);   // o código do link é de uso único, e o efeito abaixo pode rodar duas vezes em desenvolvimento
+  const destinoDoCodigo = useRef(destino);   // para onde ir depois do código das duas etapas
 
   useLayoutEffect(() => {
     mostrarTema('claro');
@@ -59,10 +61,27 @@ export default function Entrada() {
       else if (evento === 'SIGNED_IN' && !porRecuperacao && location.hash.includes('access_token')) navegar('/inicio/', { replace: true });
     });
     if (linkEmail) {
+      if (linkAberto.current) return parar;
+      linkAberto.current = true;
       history.replaceState(null, '', location.pathname);
+      // O que cada link faz depois de aceito.
+      const depoisDoLink: Record<TipoLink, (comSessao: boolean) => void | Promise<void>> = {
+        email: () => navegar('/inicio/', { replace: true }),
+        recovery: () => mostrar('nova'),
+        email_change: async comSessao => {
+          if (!comSessao) {
+            mostrar('entrar');
+            avisar('Link confirmado. Para concluir a troca, abra também o link enviado ao outro e-mail. Depois, entre com o e-mail novo.', 'ok');
+            return;
+          }
+          destinoDoCodigo.current = '/minha-conta/';
+          if (await SD.duasEtapasPendente()) mostrar('codigo');
+          else navegar(destinoDoCodigo.current, { replace: true });
+        }
+      };
       SD.confirmarLink(linkEmail.codigo, linkEmail.tipo)
-        .then(() => { if (linkEmail.tipo === 'recovery') mostrar('nova'); else navegar('/inicio/', { replace: true }); })
-        .catch(() => { mostrar('entrar'); avisar('Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.'); });
+        .then(({ comSessao }) => depoisDoLink[linkEmail.tipo](comSessao))
+        .catch((e: Error) => { mostrar('entrar'); avisar(e.message); });
     } else if (!porRecuperacao) SD.sessao().then(async s => {
       if (!s || params.has('desativado')) return;
       // Entrou com a senha, mas tem verificação em duas etapas: falta o código do aplicativo.
@@ -93,9 +112,9 @@ export default function Entrada() {
     const c = ler('codigo').replace(/\D/g, '');
     if (c.length !== 6) return avisar('Digite os 6 números que o aplicativo autenticador mostra.');
     await SD.duasEtapasEntrar(c);
-    navegar(destino);
+    navegar(destinoDoCodigo.current);
   });
-  const sairDoCodigo = async () => { await SD.sair(); mostrar('entrar'); };
+  const sairDoCodigo = async () => { await SD.sair(); destinoDoCodigo.current = destino; mostrar('entrar'); };
   const primeiro = enviar(async (ler, form) => {
     if (!emailValido(ler('email'))) return avisar('Informe o e-mail em que você recebeu o convite.');
     if (ler('senha').length < 8) return avisar('A senha precisa ter pelo menos 8 caracteres.');

@@ -11,6 +11,8 @@ import type {
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
+import { normalizarEmail } from '../regras/conta';
+import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
@@ -91,6 +93,8 @@ interface Banco {
   vinculos?: { id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string; criado_em: string }[];
   duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
   semCodigo?: boolean;   // entrou só com a senha e ainda falta o código do aplicativo
+  emailDaConta?: string;   // o e-mail de acesso, depois de uma troca confirmada
+  emailPendente?: { email: string; links: string[] } | null;   // a troca esperando os links de confirmação, e os já abertos
   escritorio?: DadosEscritorio;
   contratos?: ContratoGuardado[];
   historicoContratos?: (Historico & { contrato_id: string })[];
@@ -1473,12 +1477,38 @@ const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObje
 const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
   [...k.clientes, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
 
+/** A troca de e-mail pede dois links, um no e-mail atual e outro no novo, como no Supabase com a troca segura ligada. */
+const LINKS_DA_TROCA_DE_EMAIL = 2;
+const meuEmail = () => bd.emailDaConta ?? EQUIPE[0].email;
+const emailDaConta = () => ({ atual: meuEmail(), pendente: bd.emailPendente?.email ?? null });
+
 export const SD: Dados = {
-  sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
+  sessao: () => espera(bd.logado ? { user: { id: eu, email: meuEmail() } } : null),
   entrar: async () => { bd.logado = true; bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo); gravar(); },
   primeiroAcesso: async () => ({ entrou: false }),
   recuperarSenha: async () => {},
-  confirmarLink: async () => { bd.logado = true; gravar(); },
+  async confirmarLink(codigo, tipo) {
+    if (tipo !== 'email_change') { bd.logado = true; gravar(); return { comSessao: true }; }
+    const troca = bd.emailPendente;
+    if (!troca || troca.links.includes(codigo)) return erro(LINK_VENCIDO);
+    troca.links.push(codigo);
+    if (troca.links.length < LINKS_DA_TROCA_DE_EMAIL) { gravar(); return { comSessao: false }; }
+    bd.emailDaConta = troca.email;
+    bd.emailPendente = null;
+    bd.logado = true;
+    // O segundo link cria uma sessão nova, que ainda não passou pelo código do aplicativo.
+    bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo);
+    gravar();
+    return { comSessao: true };
+  },
+  contaEmail: () => espera(emailDaConta()),
+  async trocarEmail(novo) {
+    const email = normalizarEmail(novo);
+    if (EQUIPE.some(m => m.id !== eu && m.email === email)) return erro('Este e-mail já é usado em outra conta do SEMPER.');
+    bd.emailPendente = { email, links: [] };
+    gravar();
+    return emailDaConta();
+  },
   novaSenha: async () => {},
   sair: async () => { bd.logado = false; bd.semCodigo = false; gravar(); },
   aoMudarSessao: () => () => {},
@@ -1486,7 +1516,7 @@ export const SD: Dados = {
     if (!bd.logado) return null;
     const m = EQUIPE[0];
     const c: Contexto = {
-      usuario: { id: eu, email: m.email },
+      usuario: { id: eu, email: meuEmail() },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario,
         papel: 'master', funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true }, ...bd.escritorio! },
@@ -2772,7 +2802,7 @@ export const SD: Dados = {
     bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
   },
 
-  equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
+  equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, email: m.id === eu ? meuEmail() : m.email, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
     // Como o índice convites_email_pendente do banco: um só convite pendente por e-mail.

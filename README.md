@@ -42,11 +42,12 @@ Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no pa
 1. Criar: `supabase migration new <nome>` e escrever o SQL. A migração **só acrescenta** (tabela, coluna, função, regra); apagar ou renomear fica para uma migração posterior, para a versão anterior do site continuar funcionando.
 2. Testar do zero num banco local (precisa do Docker): `supabase db start` e `supabase db reset --local --no-seed`. Para desligar: `supabase stop`.
 3. Abrir o PR com a migração.
-4. Aplicar em produção (por enquanto, uma pessoa com a senha do banco): `supabase link --project-ref uzafzwqjpxxiovfunxfm` e `supabase db push`. O `db push` mostra o que vai aplicar e pede confirmação.
+4. Aplicar em produção (por enquanto, uma pessoa com a senha do banco): `supabase link --project-ref uzafzwqjpxxiovfunxfm` e `supabase db push`. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
 
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.
-- **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá).
+- **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá). Mudou um modelo lá? Ele só vale depois de colado de novo no painel.
+- **Troca de e-mail** (Sign In / Providers > Email): **Confirm email** e **Secure email change** ligados, para a troca valer só com o link enviado ao e-mail atual e ao novo. O modelo "Change email address" precisa estar colado.
 - **SMTP**: Hostinger, `smtp.hostinger.com` porta 465. `nao-responda@semper.app.br` é um alias: o login (Username e senha ou senha de aplicativo) é o da caixa principal a que ele pertence, e o alias entra só como remetente (`SEMPER <nao-responda@semper.app.br>`). O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
 
 ## Testar no computador

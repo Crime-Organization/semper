@@ -16,6 +16,178 @@ test.describe('Minha conta', () => {
     await expect(page.getByRole('heading', { name: 'Perfil profissional' })).toBeVisible();
   });
 
+  test('quando a pessoa pede a troca do e-mail, então o atual continua valendo e a tela mostra o que falta confirmar', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await expect(page.getByText('mateus@exemplo.com')).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('Mateus.Novo@Exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByText('Pedido enviado. Confirme pelo link que chegará por e-mail.')).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Troca aguardando confirmação para mateus.novo@exemplo.com' })).toBeVisible();
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus@exemplo.com');
+  });
+
+  for (const [caso, email, mensagem] of [
+    ['inválido', 'mateus@', 'Informe um e-mail válido.'],
+    ['igual ao atual', 'MATEUS@exemplo.com', 'Este já é o seu e-mail de acesso.'],
+    ['de outra pessoa da equipe', 'ana@exemplo.com', 'Este e-mail já é usado em outra conta do SEMPER.']
+  ]) test(`quando o e-mail novo é ${caso}, então a tela avisa no campo e nada fica pendente`, async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    // Quando
+    await page.getByLabel('E-mail novo').fill(email);
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByRole('alert').filter({ hasText: mensagem })).toBeVisible();
+    await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
+  });
+
+  test('quando os dois links da troca são abertos, então o primeiro diz o que falta e o segundo conclui', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    // Quando
+    await page.goto('/?token_hash=link-do-atual&type=email_change');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Para concluir a troca, abra também o link enviado ao outro e-mail.' })).toBeVisible();
+    // Quando
+    await page.goto('/?token_hash=link-do-novo&type=email_change');
+    // Então
+    await expect(page).toHaveURL(/\/minha-conta\/$/);
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
+    await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
+  });
+
+  test('quando a pessoa cancela depois de um erro, então o formulário fecha, o erro some e nada fica pendente', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus@');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Informe um e-mail válido.' })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(page.getByLabel('E-mail novo')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Trocar e-mail' })).toBeFocused();
+    await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Informe um e-mail válido.' })).toHaveCount(0);
+  });
+
+  test('quando a pessoa corrige depois de um erro, então o erro some ao digitar e o pedido segue', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('joão@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: 'Informe um e-mail válido.' })).toBeVisible();
+    // Quando
+    await page.getByLabel('E-mail novo').fill('joao@exemplo.com');
+    // Então
+    await expect(page.getByRole('alert').filter({ hasText: 'Informe um e-mail válido.' })).toHaveCount(0);
+    // Quando
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Troca aguardando confirmação para joao@exemplo.com' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Pedir de novo' })).toBeFocused();
+  });
+
+  test('quando a pessoa pede de novo, então vale o último endereço', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('errado@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação para errado@exemplo.com', { exact: false })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Pedir de novo' }).click();
+    await page.getByLabel('E-mail novo').fill('certo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    // Então
+    await expect(page.getByText('Troca aguardando confirmação para certo@exemplo.com', { exact: false })).toBeVisible();
+    await expect(page.getByText('errado@exemplo.com')).toHaveCount(0);
+  });
+
+  test('quando a pessoa pede a troca, então o nome ainda pode ser salvo na mesma tela', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    // Quando
+    await page.getByLabel('Nome', { exact: true }).fill('Mateus Outro Nome');
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(page.getByText('Conta atualizada.')).toBeVisible();
+  });
+
+  test('quando a conta tem duas etapas, então o segundo link pede o código e depois volta para Minha conta', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Ativar verificação em duas etapas' }).click();
+    await page.getByLabel('Código do aplicativo').fill('123456');
+    await page.getByRole('button', { name: 'Ativar', exact: true }).click();
+    await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    await page.goto('/?token_hash=link-do-atual&type=email_change');
+    await expect(page.getByRole('status').filter({ hasText: 'Para concluir a troca' })).toBeVisible();
+    // Quando
+    await page.goto('/?token_hash=link-do-novo&type=email_change');
+    // Então
+    await expect(page.getByRole('heading', { name: 'Código de verificação' })).toBeVisible();
+    // Quando
+    await page.getByLabel('Código de 6 números').fill('123456');
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/minha-conta\/$/);
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
+  });
+
+  test('quando a pessoa desiste no código e entra com outra conta, então vai para o Início, e não para Minha conta', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    await page.getByRole('button', { name: 'Ativar verificação em duas etapas' }).click();
+    await page.getByLabel('Código do aplicativo').fill('123456');
+    await page.getByRole('button', { name: 'Ativar', exact: true }).click();
+    await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
+    await page.getByRole('button', { name: 'Trocar e-mail' }).click();
+    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByRole('button', { name: 'Enviar confirmação' }).click();
+    await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
+    await page.goto('/?token_hash=link-do-atual&type=email_change');
+    await expect(page.getByRole('status').filter({ hasText: 'Para concluir a troca' })).toBeVisible();
+    await page.goto('/?token_hash=link-do-novo&type=email_change');
+    await expect(page.getByRole('heading', { name: 'Código de verificação' })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Entrar com outra conta' }).click();
+    await page.getByLabel('E-mail').fill('outra@exemplo.com');
+    await page.getByLabel('Senha').fill('senha-de-teste');
+    await page.getByRole('button', { name: 'Entrar', exact: true }).click();
+    await page.getByLabel('Código de 6 números').fill('123456');
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/inicio\/?$/);
+  });
+
+  test('quando o link da troca não vale mais, então a entrada avisa', async ({ page }) => {
+    // Quando
+    await page.goto('/?token_hash=link-velho&type=email_change');
+    // Então
+    await expect(page.getByRole('alert').filter({ hasText: 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.' })).toBeVisible();
+  });
+
   test('quando a pessoa preenche e salva o perfil, então ele volta igual ao reabrir a página', async ({ page }) => {
     // Dado
     await page.goto('/minha-conta/');

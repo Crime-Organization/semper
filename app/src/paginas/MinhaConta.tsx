@@ -1,10 +1,12 @@
 // Minha conta: nome, @usuário, aparência e verificação em duas etapas (que ficavam no Início) e o perfil profissional,
 // a base da página de cada um no site do escritório.
-import { useEffect, useState, type FormEvent } from 'react';
-import { SD, type CadastroDuasEtapas, type FatorDuasEtapas } from '../dados';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { SD, type CadastroDuasEtapas, type EmailDaConta, type FatorDuasEtapas } from '../dados';
+import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
+import { avisoDaTroca, erroDoNovoEmail } from '../regras/conta';
 import { avisar, falha, feito } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
-import { Carregando, Cartao, estiloBotao, Nota, Selo, TituloSecao } from '../ui/base';
+import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
@@ -66,7 +68,7 @@ function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
   return <section aria-labelledby="tConta" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
     <TituloSecao id="tConta">Acesso</TituloSecao>
     <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <Nota>E-mail de acesso: <b style={{ color: 'var(--ink)' }}>{ctx.usuario.email}</b></Nota>
+      <EmailDeAcesso aoTrocar={aoSalvar} />
       <form className="grade-campos" style={{ alignItems: 'end' }} onSubmit={salvar}>
         <label>Nome<input value={nome} onChange={e => setNome(e.target.value)} required /></label>
         <label>Usuário para menções <small>(@nome nas conversas)</small><input value={usuario} onChange={e => setUsuario(e.target.value)} required /></label>
@@ -80,6 +82,59 @@ function MinhaConta({ aoSalvar }: { aoSalvar: () => void }) {
       <DuasEtapas />
     </Cartao>
   </section>;
+}
+
+// O e-mail de acesso: vem da conta, porque a troca pode ter sido confirmada em outro aparelho. Até a confirmação, vale o atual.
+function EmailDeAcesso({ aoTrocar }: { aoTrocar: () => void }) {
+  const { ctx } = useSessao();
+  const [conta, setConta] = useState<EmailDaConta | null>(null);
+  const [novo, setNovo] = useState<string | null>(null);   // null: o formulário está fechado
+  const [erro, setErro] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  useEffect(() => { SD.contaEmail().then(setConta).catch(falha); }, []);
+  const atual = conta?.atual || ctx.usuario.email || '';
+  const botao = useRef<HTMLButtonElement>(null);
+  const devolverFoco = useRef(false);
+  // O formulário some com o foco dentro: ele volta para o botão que o abriu.
+  useEffect(() => {
+    if (novo === null && devolverFoco.current) { devolverFoco.current = false; botao.current?.focus(); }
+  }, [novo]);
+  const abrir = () => { setNovo(''); setErro(null); };
+  const fechar = () => { devolverFoco.current = true; setNovo(null); setErro(null); };
+
+  async function trocar(e: FormEvent) {
+    e.preventDefault();
+    const problema = erroDoNovoEmail(novo ?? '', atual);
+    setErro(problema);
+    if (problema) return;
+    setOcupado(true);
+    try {
+      const nova = await SD.trocarEmail(novo ?? '');
+      setConta(nova);
+      fechar();
+      avisar(avisoDaTroca(nova.pendente));
+      if (!nova.pendente) aoTrocar();
+    } catch (err) { setErro((err as Error).message); }
+    setOcupado(false);
+  }
+
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <Nota>E-mail de acesso: <b style={{ color: 'var(--ink)' }}>{atual}</b></Nota>
+    {conta?.pendente && <Aviso tipo="info">
+      Troca aguardando confirmação para <b>{conta.pendente}</b>. Abra o link enviado por e-mail; se o e-mail atual também receber um, abra os dois. Até lá, continue entrando com {atual}. Se os links venceram ou não chegaram, use Pedir de novo. Sem acesso ao e-mail atual? Fale com o administrador do escritório.
+    </Aviso>}
+    {novo === null
+      ? <div><button ref={botao} className={estiloBotao({ pequeno: true })} type="button" onClick={abrir}>{conta?.pendente ? 'Pedir de novo' : 'Trocar e-mail'}</button></div>
+      : <form noValidate onSubmit={trocar} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 420 }}>
+        <Campo rotulo="E-mail novo" para="email-novo" erro={erro}>
+          <input {...propsDoCampo('email-novo', { erro })} type="email" autoComplete="email" maxLength={TAMANHO_EMAIL_DE_ACESSO} autoFocus value={novo} onChange={e => { setNovo(e.target.value); setErro(null); }} />
+        </Campo>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Enviar confirmação</button>
+          <button className={estiloBotao()} type="button" disabled={ocupado} onClick={fechar}>Cancelar</button>
+        </div>
+      </form>}
+  </div>;
 }
 
 // Verificação em duas etapas: além da senha, o código do aplicativo autenticador do celular.
