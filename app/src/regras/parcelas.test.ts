@@ -8,7 +8,7 @@ import {
 } from './parcelas';
 
 const HOJE = '2026-11-10';
-const CONTRATO = { categoria: 'pro_labore' as const, valor: 1000, entrada: null, parcelas: 3, primeiro_pagamento: '2027-01-31', assinado_em: null };
+const CONTRATO = { categoria: 'pro_labore' as const, valor: 1000, descontos: null, entrada: null, parcelas: 3, primeiro_pagamento: '2027-01-31', assinado_em: null };
 
 describe('As datas das parcelas', () => {
   it.each([
@@ -72,6 +72,21 @@ describe('Quando as parcelas nascem', () => {
     // Então
     expect(parcelasDoContrato({ ...CONTRATO, primeiro_pagamento: '1900-01-01' }, HOJE)).toEqual([]);
   });
+
+  it('dado um desconto, quando gera, então ele sai do valor antes de dividir', () => {
+    // Dado / Quando / Então
+    expect(parcelasDoContrato({ ...CONTRATO, descontos: 100 }, HOJE).map(p => p.valor)).toEqual([30000, 30000, 30000]);
+  });
+
+  it('dado um desconto e uma entrada, quando gera, então a entrada fica como foi combinada e as outras dividem o resto', () => {
+    // Dado / Quando / Então
+    expect(parcelasDoContrato({ ...CONTRATO, descontos: 100, entrada: 300 }, HOJE).map(p => p.valor)).toEqual([30000, 30000, 30000]);
+  });
+
+  it('dado um desconto do valor inteiro, quando gera, então não há parcelas', () => {
+    // Dado / Quando / Então
+    expect(parcelasDoContrato({ ...CONTRATO, descontos: 1000 }, HOJE)).toEqual([]);
+  });
 });
 
 describe('Contrato que já foi assinado', () => {
@@ -114,6 +129,8 @@ describe('Como a parcela aparece', () => {
     expect(avisoDaSoma([{ valor: 50000 }], 1000)?.replace(/\s/g, ' ')).toBe('As parcelas somam R$ 500,00, e o contrato é de R$ 1.000,00.');
     expect(avisoDaSoma([], 1000)).toBeNull();
     expect(avisoDaSoma([{ valor: 50000 }], null)).toBeNull();
+    expect(avisoDaSoma([{ valor: 90000 }], 1000, 100)).toBeNull();
+    expect(avisoDaSoma([{ valor: 100000 }], 1000, 100)?.replace(/\s/g, ' ')).toBe('As parcelas somam R$ 1.000,00, e o contrato, com os descontos, é de R$ 900,00.');
   });
 });
 

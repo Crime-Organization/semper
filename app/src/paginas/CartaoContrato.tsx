@@ -52,7 +52,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const V = (campo: keyof Contrato) => valorLegivelContrato(campo, k[campo]);
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
-  const parcela = valorParcela(k.valor, k.entrada, k.parcelas);
+  const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
   // o papel e o link para o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e

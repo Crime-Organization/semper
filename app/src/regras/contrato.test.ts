@@ -68,6 +68,17 @@ describe('Valor da parcela', () => {
     // Então
     expect(resultado).toBe(esperado);
   });
+
+  it.each([
+    ['sem entrada, o desconto sai do valor antes de dividir', 5000, null, 5, 500, 900],
+    ['com entrada, o desconto sai do que as outras parcelas dividem', 5000, 1000, 5, 500, 875],
+    ['o desconto é o valor inteiro, não há parcela', 5000, null, 5, 5000, null]
+  ])('dado um desconto, quando %s, então a parcela é %s', (_caso, valor, entrada, parcelas, descontos, esperado) => {
+    // Quando
+    const resultado = valorParcela(valor, entrada, parcelas, descontos);
+    // Então
+    expect(resultado).toBe(esperado);
+  });
 });
 
 describe('Percentual do responsável', () => {
@@ -162,6 +173,7 @@ describe('Validação do cadastro de contrato', () => {
   it.each([
     ['a entrada passa do valor', { valor: '1.000,00', entrada: '2.000,00' }, 'entrada', 'A entrada não pode passar do valor do contrato.'],
     ['os descontos passam do valor', { valor: '1.000,00', descontos: '1.500' }, 'descontos', 'Os descontos não podem passar do valor do contrato.'],
+    ['a entrada e os descontos passam do valor', { valor: '1.000,00', entrada: '800', descontos: '300' }, 'descontos', 'A entrada e os descontos, somados, não podem passar do valor do contrato.'],
     ['as parcelas não são um número inteiro', { parcelas: '2,5' }, 'parcelas', 'Informe de 1 a 360 parcelas.'],
     ['a data de assinatura não existe', { assinadoEm: '31/02/2026' }, 'assinadoEm', 'Data inexistente.'],
     ['há percentual de participante sem participante', { participantes: [{ pessoaId: '', percentual: '20' }] }, 'participantes', 'Escolha o participante deste percentual.'],

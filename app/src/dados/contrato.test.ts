@@ -1631,6 +1631,20 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         });
       });
 
+      it('dado um desconto, quando o contrato chega à coluna de assinado, então ele sai do valor antes de dividir', async () => {
+        // Quando
+        const k = await assinado({ descontos: 200 });
+        // Então
+        expect(k.parcelas.map(p => p.valor)).toEqual([40000, 40000]);
+      });
+
+      it('dado um desconto do valor inteiro, quando o contrato chega à coluna de assinado, então não nascem parcelas', async () => {
+        // Quando
+        const k = await assinado({ descontos: 1000 });
+        // Então
+        expect(k.parcelas).toEqual([]);
+      });
+
       it('quando o contrato é de êxito, então não gera, e dá para lançar à mão', async () => {
         // Quando
         const k = await assinado({ categoria: 'quota_litis' });

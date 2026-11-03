@@ -2,7 +2,7 @@
 // sem tela nem banco. Os valores são em centavos; as datas, "aaaa-mm-dd". Decisões do escritório de 02/11/2026:
 // - as parcelas nascem quando o contrato chega à coluna de assinado, todo mês no mesmo dia (ou no último, no mês mais curto);
 // - quota litis, sucumbência, pro bono e contrato sem valor não geram: lançam-se à mão;
-// - o "desconto" do contrato não entra na conta (como em valorParcela);
+// - os descontos saem do valor do contrato antes de dividir (como em valorParcela);
 // - ao receber, o valor pode ser ajustado, e a parcela conta como recebida, sem sobra automática;
 // - quem é sócio sai de uma lista com datas, e vale quem era sócio na data do recebimento.
 import type { CategoriaHonorario, Coluna, Contrato, Parcela, ParaReceber, ParticipanteGravado, RecebimentoGravado, Socio, TerceiroDoRecebimento } from '../dados/tipos';
@@ -30,12 +30,12 @@ export function somarMeses(iso: string, meses: number): string {
 }
 
 export interface ParcelaNova { vencimento: string; valor: number }
-type CamposDasParcelas = Pick<Contrato, 'categoria' | 'valor' | 'entrada' | 'parcelas' | 'primeiro_pagamento' | 'assinado_em'>;
+type CamposDasParcelas = Pick<Contrato, 'categoria' | 'valor' | 'descontos' | 'entrada' | 'parcelas' | 'primeiro_pagamento' | 'assinado_em'>;
 
 /** As parcelas de um contrato. A entrada é a primeira, o resto se divide nas seguintes, e o que sobra da divisão vai na última: a soma é
- *  sempre o valor do contrato. Sem primeiro pagamento, começa na assinatura; sem assinatura, hoje. */
+ *  sempre o valor do contrato menos os descontos. Sem primeiro pagamento, começa na assinatura; sem assinatura, hoje. */
 export function parcelasDoContrato(k: CamposDasParcelas, hoje: string): ParcelaNova[] {
-  const total = paraCentavos(k.valor ?? 0);
+  const total = paraCentavos(k.valor ?? 0) - paraCentavos(k.descontos ?? 0);
   if (!GERA_PARCELAS[k.categoria] || total <= 0) return [];
   const primeiro = k.primeiro_pagamento ?? k.assinado_em ?? hoje;
   if (primeiro < PRIMEIRA_DATA.de || primeiro > PRIMEIRA_DATA.ate) return [];
@@ -69,10 +69,11 @@ export function resumoDasParcelas(lista: Pick<Parcela, 'recebimento_id' | 'venci
 }
 
 /** A soma das parcelas é a do contrato? Ajustar à mão pode deixar diferente: é só um aviso. */
-export function avisoDaSoma(lista: Pick<Parcela, 'valor'>[], valorDoContrato: number | null): string | null {
+export function avisoDaSoma(lista: Pick<Parcela, 'valor'>[], valorDoContrato: number | null, descontos: number | null = null): string | null {
   if (!valorDoContrato || !lista.length) return null;
-  const soma = lista.reduce((s, p) => s + p.valor, 0), contrato = paraCentavos(valorDoContrato);
-  return soma === contrato ? null : `As parcelas somam ${fmtCentavos(soma)}, e o contrato é de ${fmtCentavos(contrato)}.`;
+  const soma = lista.reduce((s, p) => s + p.valor, 0), contrato = paraCentavos(valorDoContrato) - paraCentavos(descontos ?? 0);
+  if (soma === contrato) return null;
+  return `As parcelas somam ${fmtCentavos(soma)}, e o contrato${descontos ? ', com os descontos,' : ''} é de ${fmtCentavos(contrato)}.`;
 }
 
 // ---------- formulários ----------
