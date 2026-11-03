@@ -1,4 +1,5 @@
 // Ajudas das funções do servidor (Deno): ler os segredos, chamar o banco e o login com a chave de serviço, e responder.
+import { senhaDescartavel } from './trocaDeEmail.ts';
 
 /** Um segredo do servidor (Edge Functions → Secrets no painel do Supabase); sem ele, a função para com um erro claro. */
 export function segredo(nome: string) {
@@ -41,7 +42,21 @@ export async function usuarioLogado(autorizacao: string | null): Promise<string 
   return id ?? null;
 }
 
-/** Revoga um token no Google (a conta que saiu do SEMPER deixa de valer lá também). Se o Google não responder, segue. */
+/**
+ * Troca o e-mail de acesso no login, sem pedir confirmação por link (quem chama já conferiu a permissão), e tira a senha antiga
+ * de uso no mesmo passo. Um "não" do login (4xx) diz que nada mudou; outro erro não dá certeza, então lança.
+ */
+export async function trocarEmailNoLogin(perfil: string, email: string): Promise<'trocado' | 'email-em-uso' | 'recusado'> {
+  const r = await fetch(`${segredo('SUPABASE_URL')}/auth/v1/admin/users/${perfil}`, {
+    method: 'PUT', headers: comChaveDeServico(), body: JSON.stringify({ email, email_confirm: true, password: senhaDescartavel() })
+  });
+  if (r.ok) return 'trocado';
+  if (r.status >= 500) throw new Error(`o login não respondeu à troca do e-mail (${r.status})`);
+  const { error_code } = await r.json().catch(() => ({})) as { error_code?: string };
+  return error_code === 'email_exists' ? 'email-em-uso' : 'recusado';
+}
+
+/** Revoga um token no Google(a conta que saiu do SEMPER deixa de valer lá também). Se o Google não responder, segue. */
 export async function revogarNoGoogle(token: string) {
   try {
     await fetch('https://oauth2.googleapis.com/revoke', {

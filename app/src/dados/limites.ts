@@ -10,6 +10,10 @@ export const POR_COLUNA = 30;
 export const ACHADOS_DA_BUSCA = 8;
 /** Últimas ações mostradas no registro de ações (Equipe). */
 export const REGISTRO_DE_ACOES = 60;
+/** Últimas trocas de e-mail mostradas na lista própria (Equipe), para não sumirem entre as outras ações. */
+export const TROCAS_DE_EMAIL_MOSTRADAS = 20;
+/** Trocas de e-mail em uma hora, em cada escritório: esse número para os administradores, juntos, e outro igual para o master (exigido pelo banco: supabase/migrations/20261103162000_reforco_do_aviso_da_troca.sql). */
+export const TROCAS_DE_EMAIL_POR_HORA = 10;
 
 /** Cadastro de pessoas: a tabela não limita o tamanho; valem só no formulário. */
 export const TAMANHO_PESSOA = {

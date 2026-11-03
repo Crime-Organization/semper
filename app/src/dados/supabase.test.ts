@@ -71,3 +71,50 @@ describe('Troca do e-mail de acesso no supabase.ts', () => {
     expect(leiturasDePerfil()).toBeGreaterThan(antes);
   });
 });
+
+describe('Troca do e-mail de um colega no supabase.ts', () => {
+  const PERFIL = '00000000-0000-0000-0000-000000000002';
+  let pedidos: { url: string; init?: RequestInit }[];
+
+  function responderCom(resposta: () => Response) {
+    vi.resetModules();
+    pedidos = [];
+    vi.stubGlobal('fetch', async (entrada: string | URL, init?: RequestInit) => { pedidos.push({ url: String(entrada), init }); return resposta(); });
+    return import('./supabase').then(m => m.SD);
+  }
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('quando pede a troca, então manda a pessoa e o e-mail normalizado à função do servidor, com a sessão de quem está logado', async () => {
+    // Dado
+    const SD = await responderCom(() => Response.json({ resultado: 'trocado' }));
+    // Quando
+    await SD.equipeTrocarEmail(PERFIL, ' Nova@Exemplo.COM ');
+    // Então
+    const [pedido] = pedidos;
+    expect(pedido.url).toContain('/functions/v1/equipe-trocar-email');
+    expect(JSON.parse(String(pedido.init?.body))).toEqual({ perfil: PERFIL, email: 'nova@exemplo.com' });
+    expect(new Headers(pedido.init?.headers).get('Authorization')).toBe('Bearer token');
+  });
+
+  it.each([
+    ['sem-permissao', 'Você não pode trocar o e-mail de acesso desta pessoa.'],
+    ['so-o-master', 'Esta pessoa alcança informações sigilosas: só o master pode trocar o e-mail de acesso dela.'],
+    ['email-invalido', 'Informe um e-mail válido.'],
+    ['email-em-uso', 'Este e-mail já é usado em outra conta do SEMPER.'],
+    ['convite-pendente', 'Este e-mail já tem um convite pendente.'],
+    ['erro', 'Não foi possível trocar o e-mail agora. Tente de novo.'],
+    ['resposta-que-ninguem-conhece', 'Não foi possível trocar o e-mail agora. Tente de novo.']
+  ])('dado que a função responde %s, quando pede a troca, então a tela recebe a mensagem certa', async (resultado, mensagem) => {
+    // Dado
+    const SD = await responderCom(() => Response.json({ resultado }));
+    // Quando / Então
+    await expect(SD.equipeTrocarEmail(PERFIL, 'nova@exemplo.com')).rejects.toThrow(mensagem);
+  });
+
+  it('dado que a função não responde em JSON, quando pede a troca, então a troca é dada como não feita', async () => {
+    // Dado
+    const SD = await responderCom(() => new Response('Bad gateway', { status: 502 }));
+    // Quando / Então
+    await expect(SD.equipeTrocarEmail(PERFIL, 'nova@exemplo.com')).rejects.toThrow('Não foi possível trocar o e-mail agora. Tente de novo.');
+  });
+});

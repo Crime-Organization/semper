@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
 
 test.describe('Equipe e acessos', () => {
@@ -73,6 +73,165 @@ test.describe('Equipe e acessos', () => {
     expect(await meio(eu.getByText('Você', { exact: true }))).toBe(await meio(eu.getByRole('link', { name: 'Cadastro' })));
     const carla = usuarios.getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' });
     expect(await meio(carla.getByRole('button', { name: 'Reativar' }))).toBe(await meio(carla.getByRole('link', { name: 'Cadastro' })));
+  });
+
+  test.describe('Trocar o e-mail de quem perdeu o antigo', () => {
+    const linha = (page: Page, nome: string) => page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: nome });
+
+    test('quando o master troca o e-mail de um usuário, então o e-mail novo aparece na lista e a troca fica no registro de ações', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      // Então
+      await expect(janela).toContainText('pode continuar usando o sistema até ele vencer');
+      await expect(janela).toContainText('desative o acesso da pessoa nesta tela: isso corta o acesso na hora');
+      await expect(janela).not.toContainText('todos os aparelhos');
+      // Quando
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno.novo@exemplo.com');
+      await expect(page.getByText('Avise a pessoa: ela precisa criar uma senha nova em "Esqueci minha senha".', { exact: false })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza, de bruno@exemplo.com para bruno.novo@exemplo.com');
+    });
+
+    /** Põe um registro de troca no banco fictício, como a função do servidor deixaria. */
+    async function registrarTroca(page: Page, resumo: Record<string, unknown>) {
+      await page.evaluate(extras => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        bd.auditoria.unshift({ id: 999, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em: new Date().toISOString(),
+          resumo: { nome: 'Carla Teste', email_antigo: 'carla@exemplo.com', email_novo: 'carla.nova@exemplo.com', ...extras } });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      }, resumo);
+      await page.reload();
+    }
+
+    test('quando o aviso por e-mail sai para todos, então o registro de ações não acusa nada', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza');
+      await expect(registro).not.toContainText('aviso por e-mail');
+    });
+
+    test('quando o aviso por e-mail não sai, então o registro de ações mostra para quem, e a troca continua registrada', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, { aviso_falhas: ['antigo', 'gestao'] });
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('trocou o e-mail de acesso de Carla Teste, de carla@exemplo.com para carla.nova@exemplo.com (o aviso por e-mail não saiu para o e-mail antigo e a administração)');
+    });
+
+    test('quando o envio do aviso não chegou ao fim, então o registro de ações diz que ele não foi confirmado', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, {});
+      // Então
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('(o aviso por e-mail não foi confirmado)');
+    });
+
+    test('quando a troca não aconteceu, então o registro de ações não fala de aviso', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, { situacao: 'falhou' });
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('tentou trocar o e-mail de acesso de Carla Teste');
+      await expect(registro).not.toContainText('aviso por e-mail');
+    });
+
+    test('quando há mais de 60 ações depois de uma troca com aviso que falhou, então ela continua na lista própria, com destaque', async ({ page }) => {
+      // Dado
+      await page.evaluate(() => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        const em = new Date().toISOString();
+        bd.auditoria.unshift({ id: 998, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em,
+          resumo: { nome: 'Carla Teste', email_antigo: 'carla@exemplo.com', email_novo: 'carla.nova@exemplo.com', aviso_falhas: ['gestao'] } });
+        for (let i = 0; i < 61; i++) bd.auditoria.unshift({ id: 1000 + i, tabela: 'pessoas', registro_id: 'x', acao: 'alteracao', resumo: { nome: 'Pessoa ' + i }, feito_por: 'u-ana', em });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      });
+      // Quando
+      await page.reload();
+      // Então
+      const trocas = page.getByRole('region', { name: 'Trocas de e-mail' });
+      await expect(trocas).toContainText('Carla Teste');
+      await expect(trocas).toContainText('Aviso não saiu');
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).not.toContainText('Carla Teste');
+    });
+
+    /** Põe 10 trocas de agora no banco fictício, feitas por essa pessoa. */
+    async function registrarDezTrocas(page: Page, feitoPor: string) {
+      await page.evaluate(quem => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        const em = new Date().toISOString();
+        for (let i = 0; i < 10; i++) bd.auditoria.unshift({ id: 2000 + i, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: quem, em, resumo: { nome: 'Outra Pessoa', aviso_falhas: [] } });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      }, feitoPor);
+      await page.reload();
+    }
+
+    async function trocarOEmailDoBruno(page: Page) {
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+    }
+
+    test('quando o master chega ao limite de trocas na hora, então a próxima é recusada, com a explicação, e nada muda', async ({ page }) => {
+      // Dado
+      await registrarDezTrocas(page, 'u-master');
+      // Quando
+      await trocarOEmailDoBruno(page);
+      // Então
+      await expect(page.getByText('O limite de 10 trocas de e-mail por hora foi atingido.')).toBeVisible();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando os administradores gastam as trocas da hora, então o master ainda consegue trocar', async ({ page }) => {
+      // Dado
+      await registrarDezTrocas(page, 'u-ana');
+      // Quando
+      await trocarOEmailDoBruno(page);
+      // Então
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno.novo@exemplo.com');
+    });
+
+    test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.nvoo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(janela.getByText('Os dois e-mails não são iguais.')).toBeVisible();
+      await expect(janela.getByLabel('E-mail novo', { exact: true })).toHaveValue('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando o e-mail novo já é de outra conta, então avisa e nada muda', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('ana@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('ana@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(page.getByText('Este e-mail já é usado em outra conta do SEMPER.')).toBeVisible();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
+    test('quando olha a própria linha, então não há como trocar o e-mail por aqui', async ({ page }) => {
+      // Então
+      await expect(linha(page, 'Mateus Freitas Gonçalves')).toContainText('Você');
+      await expect(page.getByRole('button', { name: 'Trocar e-mail de Mateus Freitas Gonçalves' })).toHaveCount(0);
+    });
   });
 
   test('quando o e-mail de acesso fica vazio, então avisa e não libera', async ({ page }) => {

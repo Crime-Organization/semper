@@ -393,9 +393,11 @@ export interface Usuario {
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
 /** Convite recém-criado: traz o código do link (o banco guarda só o resumo, então ele só aparece agora). */
 export type ConviteCriado = Convite & { codigo?: string };
+/** A quem o aviso da troca de e-mail pelo administrador vai (função equipe-trocar-email). */
+export type DestinoDoAvisoDaTroca = 'antigo' | 'gestao';
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number } | null;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[] } | null;
   feito_por: string | null; em: string;
 }
 
@@ -943,6 +945,9 @@ export interface DadosQuadros {
   colunaExcluir(id: string): Promise<void>;
 }
 
+/** Por que a troca de e-mail pelo administrador não aconteceu. */
+export type RecusaDaTrocaDeEmail = 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'limite' | 'erro';
+
 /** Equipe, convites, registro de ações e dados do escritório (administração). */
 export interface DadosEquipe {
   equipeListar(): Promise<Usuario[]>;
@@ -953,6 +958,14 @@ export interface DadosEquipe {
   /** Só administradores; fica no registro de ações. */
   equipeDefinirFuncao(perfilId: string, funcao: Funcao): Promise<void>;
   equipeDefinirAtivo(perfilId: string, ativo: boolean): Promise<void>;
+  /**
+   * Troca na hora o e-mail de acesso de quem perdeu o e-mail antigo, sem link de confirmação. Vale para quem o administrador
+   * pode gerir (nunca um master, a própria conta ou o dono da plataforma; quem alcança informações sigilosas, só o master).
+   * Encerra as sessões abertas da pessoa, tira a senha antiga de uso e fica no registro de ações.
+   */
+  equipeTrocarEmail(perfilId: string, email: string): Promise<void>;
+  /** As últimas trocas de e-mail pelo administrador, separadas do resto do registro de ações (só administradores). */
+  trocasDeEmailListar(limite?: number): Promise<RegistroAuditoria[]>;
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;

@@ -424,3 +424,11 @@ verify_jwt = false
 # A conclusão confere o login dentro da função (usuarioLogado), para também responder ao pedido prévio do CORS, que vem sem login.
 [functions.google-concluir]
 verify_jwt = false
+
+# Troca de e-mail pelo administrador (#222): também confere o login dentro da função, pelo mesmo motivo.
+[functions.equipe-trocar-email]
+verify_jwt = false
+
+# Reenvio dos avisos de troca de e-mail (#226): quem chama é a rotina do banco, com a senha da rotina, conferida na função.
+[functions.equipe-reenviar-avisos]
+verify_jwt = false

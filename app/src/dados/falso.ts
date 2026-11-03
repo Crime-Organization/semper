@@ -11,7 +11,7 @@ import type {
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
-import { normalizarEmail } from '../regras/conta';
+import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
@@ -32,7 +32,7 @@ import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfis
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
-  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO } from './limites';
+  LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA } from './limites';
@@ -42,7 +42,7 @@ import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTO
 import { CORES } from '../regras/etiquetas';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
-import { DIA } from '../ui/tempos';
+import { DIA, HORA } from '../ui/tempos';
 
 const CHAVE = 'semper-dados-falsos';
 const espera = <T>(v: T): Promise<T> => new Promise(r => setTimeout(() => r(structuredClone(v)), 60));
@@ -466,6 +466,7 @@ bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p
 // Sessões abertas antes da importação: os cadastros ganham as colunas novas vazias (como a migração da importação).
 bd.pessoas.forEach(p => { p.importacao_id ??= null; p.referencia ??= null; p.observacoes ??= null; p.pendencias ??= []; });
 bd.importacoes ??= [];
+const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
@@ -2817,8 +2818,24 @@ export const SD: Dados = {
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
     m.funcao = funcao; auditar('perfis', 'alteracao', { id, nome: m.nome }); gravar();
   },
+  // Como public.equipe_email_preparar. Quem está logado no banco fictício é o master: pode trocar o de administradores.
+  async equipeTrocarEmail(id, novo) {
+    const m = EQUIPE.find(x => x.id === id), email = normalizarEmail(novo);
+    if (!m || m.id === eu || m.papel === 'master') return erro(RECUSA_DA_TROCA['sem-permissao']);
+    if (erroDoNovoEmail(email, '')) return erro(RECUSA_DA_TROCA['email-invalido']);
+    if (meuEmail() === email || EQUIPE.some(x => x.email === email)) return erro(RECUSA_DA_TROCA['email-em-uso']);
+    if (bd.convites.some(c => c.email.toLowerCase() === email)) return erro(RECUSA_DA_TROCA['convite-pendente']);
+    const umaHoraAtras = Date.now() - HORA;
+    // Como no banco: o master conta à parte dos administradores. Aqui a sessão é sempre a do master (eu).
+    const doMaster = (r: RegistroAuditoria) => EQUIPE.find(x => x.id === r.feito_por)?.papel === 'master';
+    if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
+    m.email = email;
+    gravar();
+  },
   convitesListar: () => espera(bd.convites),
   async conviteCancelar(id) { bd.convites = bd.convites.filter(c => c.id !== id); gravar(); },
+  trocasDeEmailListar: (n = TROCAS_DE_EMAIL_MOSTRADAS) => espera(trocasDeEmail().slice(0, n)),
   auditoriaListar: (n = 50) => espera(bd.auditoria.slice(0, n)),
   // ---------- ligação com a conta Google (sem Google: a "volta" já vem como ligada) ----------
   ligacaoGoogle: () => espera(bd.ligacaoGoogle ?? null),
