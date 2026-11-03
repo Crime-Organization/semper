@@ -22,11 +22,11 @@ export const TAMANHO_ESCRITORIO = {
 };
 /** Vínculos: nome, inverso e descrição como no banco (supabase/migrations/…_vinculos.sql); a função do representante só no formulário. */
 export const TAMANHO_VINCULO = { nome: 60, inverso: 60, descricao: 300, funcao: 120 };
-/** Contratos: os mesmos do banco (banco/009_contratos.sql e 010_contrato_objetos.sql). */
+/** Contratos: os mesmos do banco (supabase/migrations/20261027000009_contratos.sql e supabase/migrations/20261027000010_contrato_objetos.sql). */
 export const TAMANHO_CONTRATO = { objeto: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
-/** Quantos clientes um contrato pode ter (o banco recusa mais que isso: banco/013_contrato_clientes.sql). */
+/** Quantos clientes um contrato pode ter (o banco recusa mais que isso: supabase/migrations/20261027000013_contrato_clientes.sql). */
 export const CLIENTES_MAXIMOS = 10;
-/** Quantos participantes um contrato pode ter (o banco recusa mais que isso: banco/012_contrato_participantes.sql). */
+/** Quantos participantes um contrato pode ter (o banco recusa mais que isso: supabase/migrations/20261027000012_contrato_participantes.sql). */
 export const PARTICIPANTES_MAXIMOS = 10;
 /** Quantos objetos um contrato pode ter (o banco recusa mais que isso). */
 export const OBJETOS_MAXIMOS = 20;
@@ -34,13 +34,13 @@ export const OBJETOS_MAXIMOS = 20;
 export const OBJETOS_SUGERIDOS = 1000;
 /** Quantos contratos o cartão de uma pessoa mostra (os mais novos primeiro). */
 export const CONTRATOS_DA_PESSOA = 200;
-/** Demandas: os mesmos do banco (banco/017_demandas.sql). */
+/** Demandas: os mesmos do banco (supabase/migrations/20261027000017_demandas.sql). */
 export const TAMANHO_DEMANDA = { titulo: 300, descricao: 4000 };
 /** Quantos colaboradores uma demanda pode ter (o banco recusa mais que isso). */
 export const COLABORADORES_MAXIMOS = 20;
 /** Quantas demandas o cartão de uma pessoa ou de um contrato mostra (as mais novas primeiro). */
 export const DEMANDAS_LIGADAS = 200;
-/** Tarefas: os mesmos do banco (banco/020_tarefas.sql). Os participantes seguem COLABORADORES_MAXIMOS; as pessoas, CLIENTES_MAXIMOS. */
+/** Tarefas: os mesmos do banco (supabase/migrations/20261027000020_tarefas.sql). Os participantes seguem COLABORADORES_MAXIMOS; as pessoas, CLIENTES_MAXIMOS. */
 export const TAMANHO_TAREFA = { titulo: 300, descricao: 4000 };
 /** Quantas tarefas o cartão de uma pessoa, de uma demanda ou de um contrato mostra. */
 export const TAREFAS_LIGADAS = 200;
@@ -53,14 +53,14 @@ export const PERIODO_MAXIMO = 12 * 60 * 60;
 export const AJUSTE_MAXIMO = 24 * 60 * 60;
 /** Tamanho do motivo do ajuste. */
 export const TAMANHO_MOTIVO = 300;
-/** Listas das demandas: nome da lista e texto do item, os mesmos do banco (banco/018_listas_das_demandas.sql). */
+/** Listas das demandas: nome da lista e texto do item, os mesmos do banco (supabase/migrations/20261027000018_listas_das_demandas.sql). */
 export const TAMANHO_LISTA = 120;
 export const TAMANHO_ITEM = 500;
-/** Quantos itens um modelo de lista pode ter (o banco recusa mais que isso: banco/019_modelos_de_lista.sql). */
+/** Quantos itens um modelo de lista pode ter (o banco recusa mais que isso: supabase/migrations/20261027000019_modelos_de_lista.sql). */
 export const ITENS_DO_MODELO = 100;
 /** Quantos contratos (os ativos mais recentes) os cadastros de demanda e de tarefa oferecem para ligar. */
 export const CONTRATOS_PARA_LIGAR = 500;
-/** Tamanho de um comentário (o banco recusa mais que isso: banco/016_comentarios.sql). */
+/** Tamanho de um comentário (o banco recusa mais que isso: supabase/migrations/20261027000016_comentarios.sql). */
 export const TAMANHO_COMENTARIO = 5000;
 /** Quantos comentários um cartão mostra (os mais novos primeiro). */
 export const COMENTARIOS_DO_CARTAO = 200;
