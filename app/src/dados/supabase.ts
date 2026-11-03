@@ -694,7 +694,7 @@ export const SD: Dados = {
       .map(({ participacoes, clientes, responsavel_id, indicador_id, ...k }) => ({ ...k,
         papeis: papeisNoContrato({ clientes, responsavel_id, indicador_id, participantes: participacoes.map(p => p.pessoa_id) }, pessoaId, perfilId) }));
   },
-  // O banco guarda cada objeto salvo num contrato na lista do escritório (banco/010_contrato_objetos.sql).
+  // O banco guarda cada objeto salvo num contrato na lista do escritório (supabase/migrations/20261027000010_contrato_objetos.sql).
   async objetosSugeridos() {
     const { data } = await rodar(sb.from('objeto_sugestoes').select('descricao').order('descricao').limit(OBJETOS_SUGERIDOS));
     return data.map((x: { descricao: string }) => x.descricao);
@@ -1493,7 +1493,7 @@ export const SD: Dados = {
   async ligacaoGoogleDesligar() { await rpc('ligacao_google_desligar'); },
 
   // ---------- equipe e administração ----------
-  // A lista do banco é de antes da função (banco/015): a função de cada um vem dos perfis.
+  // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.
   async equipeListar() {
     const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao'))]);
     const funcaoDe = new Map<string, Funcao>(funcoes.map((f: { id: string; funcao: Funcao }) => [f.id, f.funcao]));

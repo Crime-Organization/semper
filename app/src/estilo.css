@@ -596,7 +596,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .linha-campo > input { flex: 1; min-width: 0 }
 .escolhas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px }
 .escolhas.coluna-unica { grid-template-columns: 1fr }
-.escolhas label { display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: var(--superficie); cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
+.escolhas label { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: var(--superficie); cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
 .escolhas label:hover { border-color: var(--faint) }
 .escolhas input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none }
 .escolhas label::before { content: ''; width: 18px; height: 18px; flex-shrink: 0; border-radius: 999px; border: 2px solid var(--line2); background: var(--superficie); transition: .15s }

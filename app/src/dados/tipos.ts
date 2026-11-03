@@ -604,7 +604,7 @@ export type CartaoComListas = Extract<Modulo, 'demandas' | 'tarefas'>;
 /** Lista de uma demanda ou de uma tarefa (como as do Trello), com os itens na ordem. */
 export interface ListaDoCartao { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
 
-/** Listas das demandas e das tarefas (banco/018_listas_das_demandas.sql e supabase/migrations/20261030130000_listas_nas_tarefas.sql):
+/** Listas das demandas e das tarefas (supabase/migrations/20261027000018_listas_das_demandas.sql e supabase/migrations/20261030130000_listas_nas_tarefas.sql):
  * quem vê a demanda ou a tarefa vê e mexe nas listas dela. */
 export interface DadosListas {
   /** As listas da demanda ou da tarefa, na ordem, cada uma com os itens na ordem. */
@@ -623,7 +623,7 @@ export interface DadosListas {
 /** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda ou a tarefa. */
 export interface ModeloDeLista { id: string; nome: string; itens: string[]; criado_por: string | null; atualizado_em: string }
 
-/** Modelos de lista (banco/019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
+/** Modelos de lista (supabase/migrations/20261027000019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
 export interface DadosModelos {
   /** Os modelos do escritório, por nome. */
   modelosListar(): Promise<ModeloDeLista[]>;
@@ -989,7 +989,7 @@ export interface Comentario {
   editado_em: string | null;
 }
 
-/** Comentários dos cartões, com @ (banco/016_comentarios.sql). */
+/** Comentários dos cartões, com @ (supabase/migrations/20261027000016_comentarios.sql). */
 export interface DadosComentarios {
   /** Os comentários do cartão, do mais novo para o mais antigo. */
   comentariosListar(modulo: ModuloComentado, cartaoId: string): Promise<Comentario[]>;

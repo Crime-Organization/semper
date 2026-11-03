@@ -1,5 +1,5 @@
 // Colunas-marco dos quadros: o código fixo de cada uma diz ao sistema qual ponto do fluxo ela marca, mesmo que a coluna
-// seja renomeada. Elas têm cor própria no quadro e não podem ser excluídas nem criadas à mão (banco/014_colunas_marco.sql).
+// seja renomeada. Elas têm cor própria no quadro e não podem ser excluídas nem criadas à mão (supabase/migrations/20261027000014_colunas_marco.sql).
 import type { GrupoDeColunas, MarcoColuna } from '../dados/tipos';
 
 export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }> = {

@@ -23,6 +23,33 @@ async function comecarEmpresa(page: Page, nome: string, cnpj = CNPJ_LIVRE.replac
 }
 
 test.describe('Cadastro de pessoa jurídica', () => {
+  test('quando escolhe uma opção mais abaixo na lista, na janela do cadastro, então o cadastro continua visível e segue com essa opção', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('link', { name: 'Nova pessoa' }).first().click();
+    const janela = page.getByRole('dialog');
+    await janela.getByText('Pessoa jurídica', { exact: true }).click();
+    await etapa(page, 'Dados da empresa');
+    await janela.getByLabel('Nome').fill('sociedade da lista longa');
+    await janela.getByLabel('CNPJ').fill(CNPJ_LIVRE.replace(/\D/g, ''));
+    await janela.getByLabel('Natureza jurídica').selectOption({ label: 'Entidades empresariais' });
+    await janela.getByRole('button', { name: 'Próxima' }).click();
+    await etapa(page, 'Entidades empresariais');
+    const opcao = janela.getByText('Sociedade Simples Limitada', { exact: true });
+    // Quando
+    await opcao.click();
+    // Então
+    await expect(opcao).toBeInViewport();
+    // Quando
+    await janela.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(janela.getByRole('heading', { level: 2, name: 'Pessoa jurídica' })).toBeInViewport();
+    // Quando
+    await janela.getByRole('button', { name: 'Voltar' }).click();
+    // Então
+    await expect(janela.getByRole('radio', { name: 'Sociedade Simples Limitada' })).toBeChecked();
+  });
+
   test('quando a empresa é cadastrada com o tipo de entidade, então aparece na lista com o CNPJ formatado', async ({ page }) => {
     // Dado
     await comecarEmpresa(page, 'padaria contrato e2e ltda');

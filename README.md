@@ -25,7 +25,7 @@ A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, 
 | `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
-| `supabase/` | Estrutura do banco: `migrations/` (uma migração por mudança, na ordem da data no nome; as oito primeiras eram os scripts `banco/001` a `008`) e `config.toml` (banco local do Supabase CLI, nas portas 553xx). |
+| `supabase/` | Estrutura do banco: `migrations/` (uma migração por mudança, na ordem da data no nome; as vinte primeiras eram os scripts `banco/001` a `020`) e `config.toml` (banco local do Supabase CLI, nas portas 553xx). |
 | `banco/emails/` | Modelos de e-mail do Supabase em português. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
 | `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
@@ -42,7 +42,7 @@ Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no pa
 1. Criar: `supabase migration new <nome>` e escrever o SQL. A migração **só acrescenta** (tabela, coluna, função, regra); apagar ou renomear fica para uma migração posterior, para a versão anterior do site continuar funcionando.
 2. Testar do zero num banco local (precisa do Docker): `supabase db start` e `supabase db reset --local --no-seed`. Para desligar: `supabase stop`.
 3. Abrir o PR com a migração.
-4. Aplicar em produção (por enquanto, uma pessoa com a senha do banco): `supabase link --project-ref uzafzwqjpxxiovfunxfm` e `supabase db push`. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
+4. Aplicar em produção (por enquanto, uma pessoa com a senha do banco): `supabase link --project-ref uzafzwqjpxxiovfunxfm` e `supabase db push --remote`. Na versão 3 do Supabase CLI, sem o `--remote` o comando age no banco local, não na produção. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
 
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.

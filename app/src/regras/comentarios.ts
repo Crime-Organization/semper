@@ -1,5 +1,5 @@
 // Comentários dos cartões, com @: achar as menções no texto, mostrar o texto com elas destacadas, a lista do @ enquanto
-// se digita e quem pode ser mencionado em cada módulo. O banco acha as menções do mesmo jeito (banco/016_comentarios.sql).
+// se digita e quem pode ser mencionado em cada módulo. O banco acha as menções do mesmo jeito (supabase/migrations/20261027000016_comentarios.sql).
 import type { Membro, ModuloComentado } from '../dados/tipos';
 import { normal } from './texto';
 
