@@ -6,7 +6,7 @@ import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
 import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import { erroDoEmailDoColega, normalizarEmail } from '../regras/conta';
+import { erroDoEmailDoColega, normalizarEmail, situacaoDoAvisoDaTroca } from '../regras/conta';
 import { FUNCOES } from '../regras/equipe';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
@@ -34,7 +34,10 @@ const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou
 const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
 /** Ações que não cabem em "quem fez o quê a qual cadastro": as sobre muitos cadastros de uma vez contam quantos, e a troca de e-mail diz de qual para qual. */
 const LINHAS_ESPECIAIS: Partial<Record<string, (r: RegistroAuditoria, quem: string) => ReactNode>> = {
-  troca_email: ({ resumo }, quem) => <>{quem} {resumo?.situacao === 'falhou' ? 'tentou trocar' : 'trocou'} o e-mail de acesso de <b>{resumo?.nome}</b>, de {resumo?.email_antigo} para {resumo?.email_novo}{resumo?.situacao === 'falhou' && ' (a troca não aconteceu)'}</>,
+  troca_email: ({ resumo }, quem) => {
+    const falhou = resumo?.situacao === 'falhou', aviso = falhou ? '' : situacaoDoAvisoDaTroca(resumo?.aviso_falhas);
+    return <>{quem} {falhou ? 'tentou trocar' : 'trocou'} o e-mail de acesso de <b>{resumo?.nome}</b>, de {resumo?.email_antigo} para {resumo?.email_novo}{falhou && ' (a troca não aconteceu)'}{aviso && ` (${aviso})`}</>;
+  },
   exportacao: (r, quem) => <>{quem} exportou {cadastros(r.resumo?.quantidade)} {r.resumo?.descricao && <b>({r.resumo.descricao})</b>}</>,
   // "Ana importou 120 cadastros de pessoas, completou 15; 8 com pendência" (só números: a descrição não vai ao registro)
   importacao: (r, quem) => <>{quem} importou {cadastros(r.resumo?.quantidade)}

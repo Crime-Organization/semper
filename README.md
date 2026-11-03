@@ -49,6 +49,7 @@ Configuração no painel do Supabase (Authentication):
 - **Emails**: modelos em português em `banco/emails/` (veja o `LEIA-ME.txt` de lá). Mudou um modelo lá? Ele só vale depois de colado de novo no painel.
 - **Troca de e-mail** (Sign In / Providers > Email): **Confirm email** e **Secure email change** ligados, para a troca valer só com o link enviado ao e-mail atual e ao novo. O modelo "Change email address" precisa estar colado.
 - **SMTP**: Hostinger, `smtp.hostinger.com` porta 465. `nao-responda@semper.app.br` é um alias: o login (Username e senha ou senha de aplicativo) é o da caixa principal a que ele pertence, e o alias entra só como remetente (`SEMPER <nao-responda@semper.app.br>`). O domínio semper.app.br tem SPF (`_spf.mail.hostinger.com`), DKIM (`hostingermail-a/b/c._domainkey`) e DMARC (`p=none`). Até a troca, o envio saía pelo Google Workspace da Braga Ferreira (`nao-responda@bragaferreira.adv.br`).
+- **SMTP das funções do servidor**: o painel acima só vale para os e-mails do login. O aviso de troca de e-mail (função `equipe-trocar-email`) envia pela mesma caixa, com os segredos `SMTP_USUARIO` e `SMTP_SENHA` em Edge Functions > Secrets. As funções só alcançam a porta 465: o Supabase bloqueia a 25 e a 587. Se a senha mudar na Hostinger, atualize os dois lugares.
 
 ## Testar no computador
 

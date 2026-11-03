@@ -2824,7 +2824,7 @@ export const SD: Dados = {
     if (erroDoNovoEmail(email, '')) return erro(RECUSA_DA_TROCA['email-invalido']);
     if (meuEmail() === email || EQUIPE.some(x => x.email === email)) return erro(RECUSA_DA_TROCA['email-em-uso']);
     if (bd.convites.some(c => c.email.toLowerCase() === email)) return erro(RECUSA_DA_TROCA['convite-pendente']);
-    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email }, feito_por: eu, em: agora() });
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
     gravar();
   },

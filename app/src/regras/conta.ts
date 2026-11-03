@@ -1,6 +1,6 @@
 // O e-mail de acesso de quem entrou: a regra do pedido de troca. Tudo puro, sem tela nem banco.
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import type { RecusaDaTrocaDeEmail } from '../dados/tipos';
+import type { DestinoDoAvisoDaTroca, RecusaDaTrocaDeEmail } from '../dados/tipos';
 
 /** Como o login confere o e-mail: sem acento e sem ponto duplo no domínio. É mais rígido que emailValido, que serve aos cadastros. */
 const EMAIL_QUE_O_LOGIN_ACEITA = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
@@ -30,6 +30,17 @@ export const RECUSA_DA_TROCA: Record<RecusaDaTrocaDeEmail, string> = {
   'convite-pendente': 'Este e-mail já tem um convite pendente.',
   erro: 'Não foi possível trocar o e-mail agora. Tente de novo.'
 };
+
+const DESTINO_DO_AVISO: Record<DestinoDoAvisoDaTroca, string> = { antigo: 'o e-mail antigo', gestao: 'a administração' };
+
+/**
+ * O que o registro de ações diz sobre o aviso por e-mail de uma troca. Sem a marca, o envio não chegou ao fim (a função caiu no
+ * meio ou a troca é de antes do aviso); lista vazia é que saiu para todos, e aí não há o que dizer.
+ */
+export function situacaoDoAvisoDaTroca(falhas?: DestinoDoAvisoDaTroca[]): string {
+  if (!falhas) return 'o aviso por e-mail não foi confirmado';
+  return falhas.length ? `o aviso por e-mail não saiu para ${falhas.map(f => DESTINO_DO_AVISO[f]).join(' e ')}` : '';
+}
 
 /** O que dizer depois do pedido: sem pendência, a troca já valeu. */
 export const avisoDaTroca = (pendente: string | null) => pendente ? 'Pedido enviado. Confirme pelo link que chegará por e-mail.' : 'E-mail de acesso alterado.';

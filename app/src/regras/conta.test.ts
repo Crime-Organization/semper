@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import { avisoDaTroca, erroDoEmailDoColega, erroDoNovoEmail, normalizarEmail } from './conta';
+import { avisoDaTroca, erroDoEmailDoColega, erroDoNovoEmail, normalizarEmail, situacaoDoAvisoDaTroca } from './conta';
 
 describe('Troca do e-mail de acesso', () => {
   const ATUAL = 'Pessoa@Exemplo.com';
@@ -52,5 +52,16 @@ describe('Troca do e-mail de acesso', () => {
   ])('dado o e-mail de um colega %s, quando o administrador confere, então a resposta é a esperada', (_caso, novo, repetido, esperado) => {
     // Dado / Quando / Então
     expect(erroDoEmailDoColega(novo, repetido, 'atual@exemplo.com')).toBe(esperado);
+  });
+
+  it.each([
+    ['saiu para todos', [], ''],
+    ['falhou para o e-mail antigo', ['antigo'], 'o aviso por e-mail não saiu para o e-mail antigo'],
+    ['falhou para a administração', ['gestao'], 'o aviso por e-mail não saiu para a administração'],
+    ['falhou para todos', ['antigo', 'gestao'], 'o aviso por e-mail não saiu para o e-mail antigo e a administração'],
+    ['não chegou ao fim', undefined, 'o aviso por e-mail não foi confirmado']
+  ] as const)('dado um aviso de troca que %s, quando o registro de ações mostra, então diz o que aconteceu', (_caso, falhas, esperado) => {
+    // Dado / Quando / Então
+    expect(situacaoDoAvisoDaTroca(falhas && [...falhas])).toBe(esperado);
   });
 });

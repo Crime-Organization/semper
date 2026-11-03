@@ -91,6 +91,54 @@ test.describe('Equipe e acessos', () => {
       await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza, de bruno@exemplo.com para bruno.novo@exemplo.com');
     });
 
+    /** Põe um registro de troca no banco fictício, como a função do servidor deixaria. */
+    async function registrarTroca(page: Page, resumo: Record<string, unknown>) {
+      await page.evaluate(extras => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        bd.auditoria.unshift({ id: 999, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em: new Date().toISOString(),
+          resumo: { nome: 'Carla Teste', email_antigo: 'carla@exemplo.com', email_novo: 'carla.nova@exemplo.com', ...extras } });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      }, resumo);
+      await page.reload();
+    }
+
+    test('quando o aviso por e-mail sai para todos, então o registro de ações não acusa nada', async ({ page }) => {
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('trocou o e-mail de acesso de Bruno Exemplo Souza');
+      await expect(registro).not.toContainText('aviso por e-mail');
+    });
+
+    test('quando o aviso por e-mail não sai, então o registro de ações mostra para quem, e a troca continua registrada', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, { aviso_falhas: ['antigo', 'gestao'] });
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('trocou o e-mail de acesso de Carla Teste, de carla@exemplo.com para carla.nova@exemplo.com (o aviso por e-mail não saiu para o e-mail antigo e a administração)');
+    });
+
+    test('quando o envio do aviso não chegou ao fim, então o registro de ações diz que ele não foi confirmado', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, {});
+      // Então
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('(o aviso por e-mail não foi confirmado)');
+    });
+
+    test('quando a troca não aconteceu, então o registro de ações não fala de aviso', async ({ page }) => {
+      // Dado
+      await registrarTroca(page, { situacao: 'falhou' });
+      // Então
+      const registro = page.getByRole('region', { name: 'Registro de ações' });
+      await expect(registro).toContainText('tentou trocar o e-mail de acesso de Carla Teste');
+      await expect(registro).not.toContainText('aviso por e-mail');
+    });
+
     test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {
       // Quando
       await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();

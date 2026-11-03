@@ -1,7 +1,10 @@
 // Troca de e-mail pelo administrador (#222), para quem perdeu o e-mail antigo e não consegue confirmar a troca sozinho. A página
 // de Equipe, logada, manda a pessoa e o e-mail novo. Esta função confere quem está logado; o banco decide se pode e registra
-// a ação (equipe_email_preparar); só então o login troca o e-mail, com a chave de serviço, que nunca vai ao navegador.
+// a ação (equipe_email_preparar); só então o login troca o e-mail, com a chave de serviço, que nunca vai ao navegador. Depois,
+// o aviso por e-mail sai para quem precisa saber (#224); se ele falhar, a troca continua valendo e o registro de ações mostra.
 // O login é conferido aqui mesmo (verify_jwt = false no config.toml), para responder também ao pedido prévio do CORS.
+import { avisarDaTroca, type DadosDoAviso } from '../_compartilhado/avisoDaTroca.ts';
+import { enviarEmail } from '../_compartilhado/envioDeEmail.ts';
 import { cabecalhosCors, lerSitesPermitidos, nivelDaSessao } from '../_compartilhado/ligacao.ts';
 import { json, rpc, trocarEmailNoLogin, usuarioLogado } from '../_compartilhado/servidor.ts';
 import { conferirPedido, trocarEmailDaEquipe, type Preparo, type ResultadoDaTroca } from '../_compartilhado/trocaDeEmail.ts';
@@ -22,7 +25,12 @@ Deno.serve(async req => {
         p_usuario: usuario, p_nivel: nivelDaSessao(autorizacao), p_perfil: perfil, p_email: email
       }))[0],
       trocarNoLogin: trocarEmailNoLogin,
-      marcarFalha: registro => rpc<void>('equipe_email_falhou', { p_registro: registro })
+      marcarFalha: registro => rpc<void>('equipe_email_falhou', { p_registro: registro }),
+      avisar: (registro, situacao) => avisarDaTroca(registro, situacao, {
+        dados: r => rpc<DadosDoAviso | null>('equipe_email_aviso_dados', { p_registro: r }),
+        enviar: enviarEmail,
+        registrar: (r, falhas) => rpc<void>('equipe_email_aviso_resultado', { p_registro: r, p_falhas: falhas })
+      })
     });
     return responder(resultado);
   } catch (e) {

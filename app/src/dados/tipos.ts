@@ -393,9 +393,11 @@ export interface Usuario {
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
 /** Convite recém-criado: traz o código do link (o banco guarda só o resumo, então ele só aparece agora). */
 export type ConviteCriado = Convite & { codigo?: string };
+/** A quem o aviso da troca de e-mail pelo administrador vai (função equipe-trocar-email). */
+export type DestinoDoAvisoDaTroca = 'antigo' | 'gestao';
 export interface RegistroAuditoria {
   id: string | number; tabela: string; registro_id: string | null; acao: string;
-  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou' } | null;
+  resumo: { nome?: string; email?: string; codigo?: string; descricao?: string; quantidade?: number; completadas?: number; incompletas?: number; email_antigo?: string; email_novo?: string; situacao?: 'falhou'; aviso_falhas?: DestinoDoAvisoDaTroca[] } | null;
   feito_por: string | null; em: string;
 }
 

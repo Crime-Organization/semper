@@ -11,7 +11,7 @@ const PERFIL = '00000000-0000-4000-8000-000000000001';
 const PEDIDO = { perfil: PERFIL, email: 'nova@exemplo.com' };
 
 function passos(preparo: Preparo | undefined, trocarNoLogin: PassosDaTroca['trocarNoLogin'] = async () => 'trocado') {
-  return { preparar: vi.fn(async () => preparo), trocarNoLogin: vi.fn(trocarNoLogin), marcarFalha: vi.fn(async () => {}) };
+  return { preparar: vi.fn(async () => preparo), trocarNoLogin: vi.fn(trocarNoLogin), marcarFalha: vi.fn(async () => {}), avisar: vi.fn(async () => {}) };
 }
 const PRONTO: Preparo = { resultado: 'pronto', registro: 7 };
 
@@ -66,6 +66,16 @@ describe('trocarEmailDaEquipe', () => {
     expect(p.marcarFalha).not.toHaveBeenCalled();
   });
 
+  it('dado que o login troca, quando termina, então o aviso sai depois da troca, com o registro dela', async () => {
+    // Dado
+    const p = passos(PRONTO);
+    // Quando
+    await trocarEmailDaEquipe(PEDIDO, p);
+    // Então
+    expect(p.avisar).toHaveBeenCalledWith(7, 'trocada');
+    expect(p.trocarNoLogin.mock.invocationCallOrder[0]).toBeLessThan(p.avisar.mock.invocationCallOrder[0]);
+  });
+
   it.each(['sem-permissao', 'so-o-master', 'email-invalido', 'email-em-uso', 'convite-pendente'] as const)('dado que o banco responde %s, quando pede a troca, então o login nem é chamado', async recusa => {
     // Dado
     const p = passos({ resultado: recusa, registro: null });
@@ -74,6 +84,7 @@ describe('trocarEmailDaEquipe', () => {
     // Então
     expect(resultado).toBe(recusa);
     expect(p.trocarNoLogin).not.toHaveBeenCalled();
+    expect(p.avisar).not.toHaveBeenCalled();
   });
 
   it('dado que o banco não responde nenhuma linha, quando pede a troca, então recusa sem chamar o login', async () => {
@@ -104,6 +115,7 @@ describe('trocarEmailDaEquipe', () => {
     // Então
     expect(resultado).toBe(esperado);
     expect(p.marcarFalha).toHaveBeenCalledWith(7);
+    expect(p.avisar).not.toHaveBeenCalled();
   });
 
   it('dado que o login falha sem resposta certa, quando pede a troca, então o registro continua dizendo que houve a troca', async () => {
@@ -112,5 +124,13 @@ describe('trocarEmailDaEquipe', () => {
     // Quando / Então
     await expect(trocarEmailDaEquipe(PEDIDO, p)).rejects.toThrow('sem resposta');
     expect(p.marcarFalha).not.toHaveBeenCalled();
+  });
+
+  it('dado que o login falha sem resposta certa, quando pede a troca, então o aviso sai dizendo que ela não foi confirmada', async () => {
+    // Dado
+    const p = passos(PRONTO, async () => { throw new Error('sem resposta'); });
+    // Quando / Então
+    await expect(trocarEmailDaEquipe(PEDIDO, p)).rejects.toThrow('sem resposta');
+    expect(p.avisar).toHaveBeenCalledWith(7, 'nao-confirmada');
   });
 });

@@ -1,5 +1,6 @@
 // Partes puras da troca de e-mail pelo administrador (#222), usadas pela função do servidor equipe-trocar-email.
 // Sem Deno e sem rede: dá para testar no app (app/src/regras/trocaDeEmail.test.ts).
+import type { SituacaoDaTroca } from './avisoDaTroca.ts';
 
 export type ResultadoDaTroca = 'trocado' | 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'erro';
 /** O que o banco responde antes da troca (public.equipe_email_preparar). */
@@ -10,6 +11,8 @@ export interface PassosDaTroca {
   preparar(perfil: string, email: string): Promise<Preparo | undefined>;
   trocarNoLogin(perfil: string, email: string): Promise<RespostaDoLogin>;
   marcarFalha(registro: number): Promise<void>;
+  /** Avisa por e-mail quem precisa saber (avisarDaTroca em avisoDaTroca.ts, que nunca lança um erro). */
+  avisar(registro: number, situacao: SituacaoDaTroca): Promise<void>;
 }
 
 const FORMATO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -36,17 +39,26 @@ export function conferirPedido(corpo: unknown): { perfil: string; email: string 
 }
 
 /**
- * O banco autoriza e registra, o login troca. Se o login recusar, o registro passa a dizer que não houve troca. Se o login
- * falhar sem resposta certa (ele lança um erro), o registro fica como está: a troca pode ter acontecido, e é melhor sobrar
- * um registro do que faltar.
+ * O banco autoriza e registra, o login troca e o aviso sai. Se o login recusar, o registro passa a dizer que não houve troca e
+ * ninguém é avisado. Se o login falhar sem resposta certa (ele lança um erro), o registro fica como está e o aviso sai dizendo
+ * que a troca não foi confirmada: ela pode ter acontecido, e é melhor sobrar um registro ou um aviso do que faltar.
  */
 export async function trocarEmailDaEquipe({ perfil, email }: { perfil: string; email: string }, passos: PassosDaTroca): Promise<ResultadoDaTroca> {
   const preparo = await passos.preparar(perfil, email);
   if (!preparo) return 'sem-permissao';
   if (preparo.resultado !== 'pronto') return preparo.resultado;
   if (preparo.registro === null) return 'erro';
-  const resposta = await passos.trocarNoLogin(perfil, email);
-  if (resposta === 'trocado') return 'trocado';
+  let resposta: RespostaDoLogin;
+  try {
+    resposta = await passos.trocarNoLogin(perfil, email);
+  } catch (e) {
+    await passos.avisar(preparo.registro, 'nao-confirmada');
+    throw e;
+  }
+  if (resposta === 'trocado') {
+    await passos.avisar(preparo.registro, 'trocada');
+    return 'trocado';
+  }
   await passos.marcarFalha(preparo.registro);
   return resposta === 'email-em-uso' ? 'email-em-uso' : 'erro';
 }
