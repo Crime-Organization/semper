@@ -1,7 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import { avisoDaTroca, erroDoEmailDoColega, erroDoNovoEmail, normalizarEmail, situacaoDoAvisoDaTroca } from './conta';
+import { avisoDaTroca, erroDoEmailDoColega, erroDoNovoEmail, normalizarEmail, situacaoDoAvisoDaTroca, RECUSA_DA_TROCA, seloDoAvisoDaTroca } from './conta';
+import { TROCAS_DE_EMAIL_POR_HORA } from '../dados/limites';
 
 describe('Troca do e-mail de acesso', () => {
   const ATUAL = 'Pessoa@Exemplo.com';
@@ -63,5 +64,20 @@ describe('Troca do e-mail de acesso', () => {
   ] as const)('dado um aviso de troca que %s, quando o registro de ações mostra, então diz o que aconteceu', (_caso, falhas, esperado) => {
     // Dado / Quando / Então
     expect(situacaoDoAvisoDaTroca(falhas && [...falhas])).toBe(esperado);
+  });
+
+  it.each([
+    ['saiu para todos', { aviso_falhas: [] }, 'Aviso enviado'],
+    ['falhou para alguém', { aviso_falhas: ['gestao'] }, 'Aviso não saiu'],
+    ['não chegou ao fim', {}, 'Aviso sem confirmação'],
+    ['de uma troca que o login recusou', { situacao: 'falhou', aviso_falhas: ['antigo'] }, undefined]
+  ] as const)('dado um aviso %s, quando a lista de trocas mostra, então o destaque é o esperado', (_caso, resumo, texto) => {
+    // Dado / Quando / Então
+    expect(seloDoAvisoDaTroca({ ...resumo, aviso_falhas: 'aviso_falhas' in resumo ? [...resumo.aviso_falhas] : undefined })?.texto).toBe(texto);
+  });
+
+  it('dado o limite de trocas, quando recusa, então a mensagem diz o limite e que nada mudou', () => {
+    // Dado / Quando / Então
+    expect(RECUSA_DA_TROCA.limite).toBe(`O escritório chegou ao limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora. Nada mudou: tente de novo mais tarde.`);
   });
 });

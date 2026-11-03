@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O aviso por e-mail da troca de e-mail pelo administrador (#224), em supabase/functions/_compartilhado/.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { avisarDaTroca, mensagensDoAviso, type DadosDoAviso, type MensagemDoAviso, type PassosDoAviso } from '../../../supabase/functions/_compartilhado/avisoDaTroca';
+import { avisarDaTroca, mensagensDoAviso, reenviarAvisos, senhaDaRotinaConfere, type DadosDoAviso, type MensagemDoAviso, type PassosDoAviso } from '../../../supabase/functions/_compartilhado/avisoDaTroca';
 
 const EMAIL_NOVO = 'nova@exemplo.com';
 const DADOS: DadosDoAviso = {
@@ -162,5 +162,79 @@ describe('avisarDaTroca', () => {
     // Quando / Então
     await expect(avisarDaTroca(REGISTRO, 'trocada', p)).resolves.toBeUndefined();
     expect(p.enviar).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('reenviarAvisos', () => {
+  beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}); });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('dada uma falha só para o e-mail antigo, quando reenvia, então a administração não recebe de novo', async () => {
+    // Dado
+    const p = passos();
+    // Quando
+    const reenviados = await reenviarAvisos([{ registro: REGISTRO, situacao: 'trocada', destinos: ['antigo'] }], p);
+    // Então
+    expect(reenviados).toBe(1);
+    expect(vi.mocked(p.enviar).mock.calls.map(([m]) => m.para)).toEqual(['bruno@exemplo.com']);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, []);
+  });
+
+  it('dada uma falha só para a administração, quando reenvia e falha de novo para uma pessoa, então o registro continua apontando a administração', async () => {
+    // Dado
+    const p = passos({ enviar: vi.fn(falharPara('carla@exemplo.com')) });
+    // Quando
+    await reenviarAvisos([{ registro: REGISTRO, situacao: 'trocada', destinos: ['gestao'] }], p);
+    // Então
+    expect(p.enviar).toHaveBeenCalledTimes(2);
+    expect(p.registrar).toHaveBeenCalledWith(REGISTRO, ['gestao']);
+  });
+
+  it('dado que a troca não aconteceu de fato, quando reenvia, então o aviso diz que ela não foi confirmada', async () => {
+    // Dado
+    const p = passos();
+    // Quando
+    await reenviarAvisos([{ registro: REGISTRO, situacao: 'nao-confirmada', destinos: ['antigo', 'gestao'] }], p);
+    // Então
+    for (const [m] of vi.mocked(p.enviar).mock.calls) expect(m.texto).toContain('O sistema não confirmou se ela foi concluída.');
+  });
+
+  it('dados vários avisos, quando um falha ao buscar os dados, então os outros seguem e cada um tem o próprio resultado', async () => {
+    // Dado
+    const p = passos({ dados: vi.fn(async registro => { if (registro === 1) throw new Error('banco fora do ar'); return DADOS; }) });
+    // Quando
+    await reenviarAvisos([
+      { registro: 1, situacao: 'trocada', destinos: ['gestao'] },
+      { registro: 2, situacao: 'trocada', destinos: ['antigo'] }
+    ], p);
+    // Então
+    expect(p.registrar).toHaveBeenCalledWith(1, ['gestao']);
+    expect(p.registrar).toHaveBeenCalledWith(2, []);
+  });
+
+  it('dado que não há nada pendente, quando reenvia, então nada é enviado', async () => {
+    // Dado
+    const p = passos();
+    // Quando
+    const reenviados = await reenviarAvisos([], p);
+    // Então
+    expect(reenviados).toBe(0);
+    expect(p.enviar).not.toHaveBeenCalled();
+  });
+});
+
+describe('senhaDaRotinaConfere', () => {
+  it.each([
+    ['a senha certa', 'senha-da-rotina', 'senha-da-rotina', true],
+    ['outra senha', 'senha-errada-aqui', 'senha-da-rotina', false],
+    ['só o começo da senha', 'senha', 'senha-da-rotina', false],
+    ['a senha com algo a mais', 'senha-da-rotina-e-mais', 'senha-da-rotina', false],
+    ['nenhuma senha', null, 'senha-da-rotina', false],
+    ['senha vazia', '', 'senha-da-rotina', false],
+    ['uma senha, sem o segredo no servidor', 'qualquer', undefined, false],
+    ['nada, sem o segredo no servidor', null, undefined, false]
+  ])('dado um pedido com %s, quando confere, então a resposta é a esperada', (_caso, recebida, certa, esperado) => {
+    // Quando / Então
+    expect(senhaDaRotinaConfere(recebida, certa)).toBe(esperado);
   });
 });

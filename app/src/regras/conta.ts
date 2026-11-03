@@ -1,6 +1,6 @@
 // O e-mail de acesso de quem entrou: a regra do pedido de troca. Tudo puro, sem tela nem banco.
-import { TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import type { DestinoDoAvisoDaTroca, RecusaDaTrocaDeEmail } from '../dados/tipos';
+import { TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_POR_HORA } from '../dados/limites';
+import type { DestinoDoAvisoDaTroca, RecusaDaTrocaDeEmail, RegistroAuditoria } from '../dados/tipos';
 
 /** Como o login confere o e-mail: sem acento e sem ponto duplo no domínio. É mais rígido que emailValido, que serve aos cadastros. */
 const EMAIL_QUE_O_LOGIN_ACEITA = /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/;
@@ -28,6 +28,7 @@ export const RECUSA_DA_TROCA: Record<RecusaDaTrocaDeEmail, string> = {
   'email-invalido': 'Informe um e-mail válido.',
   'email-em-uso': 'Este e-mail já é usado em outra conta do SEMPER.',
   'convite-pendente': 'Este e-mail já tem um convite pendente.',
+  limite: `O escritório chegou ao limite de ${TROCAS_DE_EMAIL_POR_HORA} trocas de e-mail por hora. Nada mudou: tente de novo mais tarde.`,
   erro: 'Não foi possível trocar o e-mail agora. Tente de novo.'
 };
 
@@ -40,6 +41,19 @@ const DESTINO_DO_AVISO: Record<DestinoDoAvisoDaTroca, string> = { antigo: 'o e-m
 export function situacaoDoAvisoDaTroca(falhas?: DestinoDoAvisoDaTroca[]): string {
   if (!falhas) return 'o aviso por e-mail não foi confirmado';
   return falhas.length ? `o aviso por e-mail não saiu para ${falhas.map(f => DESTINO_DO_AVISO[f]).join(' e ')}` : '';
+}
+
+const SELO_DO_AVISO = {
+  enviado: { tipo: 'ok', texto: 'Aviso enviado' },
+  falhou: { tipo: 'erro', texto: 'Aviso não saiu' },
+  'sem-confirmacao': { tipo: 'pend', texto: 'Aviso sem confirmação' }
+} as const;
+
+/** O destaque de uma troca na lista própria. Quando o login recusou, não houve troca, e não há aviso de que falar. */
+export function seloDoAvisoDaTroca(resumo: RegistroAuditoria['resumo']) {
+  if (resumo?.situacao === 'falhou') return null;
+  const falhas = resumo?.aviso_falhas;
+  return SELO_DO_AVISO[!falhas ? 'sem-confirmacao' : falhas.length ? 'falhou' : 'enviado'];
 }
 
 /** O que dizer depois do pedido: sem pendência, a troca já valeu. */

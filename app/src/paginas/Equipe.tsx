@@ -5,8 +5,8 @@ import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
-import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO } from '../dados/limites';
-import { erroDoEmailDoColega, normalizarEmail, situacaoDoAvisoDaTroca } from '../regras/conta';
+import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_MOSTRADAS } from '../dados/limites';
+import { erroDoEmailDoColega, normalizarEmail, seloDoAvisoDaTroca, situacaoDoAvisoDaTroca } from '../regras/conta';
 import { FUNCOES } from '../regras/equipe';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
@@ -81,6 +81,7 @@ function PainelEquipe() {
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [convites, setConvites] = useState<Convite[]>([]);
   const [registro, setRegistro] = useState<RegistroAuditoria[] | string | null>(null);
+  const [trocas, setTrocas] = useState<RegistroAuditoria[] | string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -88,6 +89,7 @@ function PainelEquipe() {
       setUsuarios(u); setConvites(c);
     } catch (e) { falha(e); }
     SD.auditoriaListar(REGISTRO_DE_ACOES).then(setRegistro).catch(e => setRegistro((e as Error).message));
+    SD.trocasDeEmailListar(TROCAS_DE_EMAIL_MOSTRADAS).then(setTrocas).catch(e => setTrocas((e as Error).message));
   }, []);
   useEffect(() => { void carregar(); }, [carregar]);
   useMudancas(() => { void carregar(); });
@@ -219,6 +221,20 @@ function PainelEquipe() {
             </div></td>
           </tr>)}</tbody>
         </table></div>}
+    </section>
+
+    <section aria-labelledby="tTrocas" className="registro" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <TituloSecao id="tTrocas">Trocas de e-mail</TituloSecao>
+      <Nota style={{ marginTop: -6 }}>Quando um administrador troca o e-mail de acesso de um colega, o e-mail antigo e a administração recebem um aviso. Se ele falhar, o sistema tenta de novo. Últimas {TROCAS_DE_EMAIL_MOSTRADAS} trocas.</Nota>
+      <Cartao>
+        {trocas === null ? <Carregando />
+          : typeof trocas === 'string' ? <Aviso tipo="erro">{trocas}</Aviso>
+          : !trocas.length ? <Nota>Nenhuma troca de e-mail ainda.</Nota>
+          : <ol>{trocas.map(r => {
+            const selo = seloDoAvisoDaTroca(r.resumo);
+            return <li key={r.id}>{LINHAS_ESPECIAIS.troca_email?.(r, nomeDe(r.feito_por))} {selo && <Selo tipo={selo.tipo}>{selo.texto}</Selo>}<span>{dataHora(r.em)}</span></li>;
+          })}</ol>}
+      </Cartao>
     </section>
 
     <section aria-labelledby="tReg" className="registro" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

@@ -946,7 +946,7 @@ export interface DadosQuadros {
 }
 
 /** Por que a troca de e-mail pelo administrador não aconteceu. */
-export type RecusaDaTrocaDeEmail = 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'erro';
+export type RecusaDaTrocaDeEmail = 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'limite' | 'erro';
 
 /** Equipe, convites, registro de ações e dados do escritório (administração). */
 export interface DadosEquipe {
@@ -964,6 +964,8 @@ export interface DadosEquipe {
    * Encerra as sessões abertas da pessoa, tira a senha antiga de uso e fica no registro de ações.
    */
   equipeTrocarEmail(perfilId: string, email: string): Promise<void>;
+  /** As últimas trocas de e-mail pelo administrador, separadas do resto do registro de ações (só administradores). */
+  trocasDeEmailListar(limite?: number): Promise<RegistroAuditoria[]>;
   convitesListar(): Promise<Convite[]>;
   conviteCancelar(id: string): Promise<void>;
   auditoriaListar(limite?: number): Promise<RegistroAuditoria[]>;

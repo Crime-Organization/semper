@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
-import { TAMANHO_COMPROMISSO } from './limites';
+import { TAMANHO_COMPROMISSO, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
@@ -3509,6 +3510,30 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await emailDe('u-bruno')).toBe('bruno.novo@exemplo.com');
         const [registro] = await SD.auditoriaListar(1);
         expect(registro).toMatchObject({ acao: 'troca_email', registro_id: 'u-bruno', resumo: { email_antigo: antigo, email_novo: 'bruno.novo@exemplo.com' } });
+      });
+
+      it('quando o escritório chega ao limite de trocas na hora, então a próxima é recusada e nada muda', async () => {
+        // Dado
+        for (let i = 0; i < TROCAS_DE_EMAIL_POR_HORA; i++) await SD.equipeTrocarEmail('u-bruno', `bruno${i}@exemplo.com`);
+        const antes = await emailDe('u-bruno');
+        // Quando / Então
+        await expect(SD.equipeTrocarEmail('u-bruno', 'bruno.demais@exemplo.com')).rejects.toThrow(RECUSA_DA_TROCA.limite);
+        expect(await emailDe('u-bruno')).toBe(antes);
+        expect(await SD.trocasDeEmailListar()).toHaveLength(TROCAS_DE_EMAIL_POR_HORA);
+      });
+
+      it('quando lista as trocas de e-mail, então só elas aparecem, da mais nova para a mais antiga, até o limite pedido', async () => {
+        // Dado
+        await SD.equipeTrocarEmail('u-bruno', 'bruno.um@exemplo.com');
+        await SD.equipeDefinirPapel('u-bruno', 'admin');
+        await SD.equipeTrocarEmail('u-bruno', 'bruno.dois@exemplo.com');
+        // Quando
+        const trocas = await SD.trocasDeEmailListar();
+        const so = await SD.trocasDeEmailListar(1);
+        // Então
+        expect(trocas.every(r => r.acao === 'troca_email')).toBe(true);
+        expect(trocas.map(r => r.resumo?.email_novo).slice(0, 2)).toEqual(['bruno.dois@exemplo.com', 'bruno.um@exemplo.com']);
+        expect(so).toHaveLength(1);
       });
 
       it('quando o master troca o e-mail de um administrador, então a troca vale', async () => {

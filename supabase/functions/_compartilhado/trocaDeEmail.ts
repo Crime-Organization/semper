@@ -2,7 +2,7 @@
 // Sem Deno e sem rede: dá para testar no app (app/src/regras/trocaDeEmail.test.ts).
 import type { SituacaoDaTroca } from './avisoDaTroca.ts';
 
-export type ResultadoDaTroca = 'trocado' | 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'erro';
+export type ResultadoDaTroca = 'trocado' | 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'limite' | 'erro';
 /** O que o banco responde antes da troca (public.equipe_email_preparar). */
 export interface Preparo { resultado: 'pronto' | Exclude<ResultadoDaTroca, 'trocado' | 'erro'>; registro: number | null }
 /** Como o login respondeu: 'recusado' é um "não" certo (nada mudou). */

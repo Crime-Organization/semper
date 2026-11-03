@@ -139,6 +139,45 @@ test.describe('Equipe e acessos', () => {
       await expect(registro).not.toContainText('aviso por e-mail');
     });
 
+    test('quando há mais de 60 ações depois de uma troca com aviso que falhou, então ela continua na lista própria, com destaque', async ({ page }) => {
+      // Dado
+      await page.evaluate(() => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        const em = new Date().toISOString();
+        bd.auditoria.unshift({ id: 998, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em,
+          resumo: { nome: 'Carla Teste', email_antigo: 'carla@exemplo.com', email_novo: 'carla.nova@exemplo.com', aviso_falhas: ['gestao'] } });
+        for (let i = 0; i < 61; i++) bd.auditoria.unshift({ id: 1000 + i, tabela: 'pessoas', registro_id: 'x', acao: 'alteracao', resumo: { nome: 'Pessoa ' + i }, feito_por: 'u-ana', em });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      });
+      // Quando
+      await page.reload();
+      // Então
+      const trocas = page.getByRole('region', { name: 'Trocas de e-mail' });
+      await expect(trocas).toContainText('Carla Teste');
+      await expect(trocas).toContainText('Aviso não saiu');
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).not.toContainText('Carla Teste');
+    });
+
+    test('quando o escritório chega ao limite de trocas na hora, então a próxima é recusada, com a explicação, e nada muda', async ({ page }) => {
+      // Dado
+      await page.evaluate(() => {
+        const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+        const em = new Date().toISOString();
+        for (let i = 0; i < 10; i++) bd.auditoria.unshift({ id: 2000 + i, tabela: 'perfis', registro_id: 'u-bruno', acao: 'troca_email', feito_por: 'u-ana', em, resumo: { nome: 'Outra Pessoa', aviso_falhas: [] } });
+        sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+      });
+      await page.reload();
+      // Quando
+      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      const janela = page.getByRole('dialog');
+      await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
+      await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
+      await janela.getByRole('button', { name: 'Trocar e-mail' }).click();
+      // Então
+      await expect(page.getByText('O escritório chegou ao limite de 10 trocas de e-mail por hora.')).toBeVisible();
+      await expect(linha(page, 'Bruno Exemplo Souza')).toContainText('bruno@exemplo.com');
+    });
+
     test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {
       // Quando
       await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();

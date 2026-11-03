@@ -76,7 +76,7 @@ describe('trocarEmailDaEquipe', () => {
     expect(p.trocarNoLogin.mock.invocationCallOrder[0]).toBeLessThan(p.avisar.mock.invocationCallOrder[0]);
   });
 
-  it.each(['sem-permissao', 'so-o-master', 'email-invalido', 'email-em-uso', 'convite-pendente'] as const)('dado que o banco responde %s, quando pede a troca, então o login nem é chamado', async recusa => {
+  it.each(['sem-permissao', 'so-o-master', 'email-invalido', 'email-em-uso', 'convite-pendente', 'limite'] as const)('dado que o banco responde %s, quando pede a troca, então o login nem é chamado', async recusa => {
     // Dado
     const p = passos({ resultado: recusa, registro: null });
     // Quando

@@ -8,6 +8,8 @@ export type SituacaoDaTroca = 'trocada' | 'nao-confirmada';
 /** O que o banco conta sobre a troca (public.equipe_email_aviso_dados). Não traz o e-mail novo. */
 export interface DadosDoAviso { escritorio: string; alvo: string; autor: string; autor_email: string; em: string; email_antigo: string; gestao: string[] }
 export interface MensagemDoAviso { destino: DestinoDoAviso; para: string; assunto: string; texto: string; html: string }
+/** Um aviso a reenviar (public.equipe_email_avisos_pendentes). */
+export interface AvisoPendente { registro: number; situacao: SituacaoDaTroca; destinos: DestinoDoAviso[] }
 export interface PassosDoAviso {
   dados(registro: number): Promise<DadosDoAviso | null>;
   enviar(mensagem: MensagemDoAviso): Promise<void>;
@@ -98,16 +100,18 @@ export const mensagensDoAviso = (dados: DadosDoAviso, situacao: SituacaoDaTroca)
 /** Só o código do erro vai para os registros do servidor: a mensagem de um erro de envio pode trazer o endereço de alguém. */
 const registrarErro = (etapa: string, e: unknown) => console.error('aviso da troca de e-mail', etapa, (e as { code?: string } | null)?.code ?? 'sem código');
 
+const TODOS_OS_DESTINOS: DestinoDoAviso[] = ['antigo', 'gestao'];
+
 /**
  * Envia o aviso e guarda no registro de ações para quem ele não saiu. Nunca lança um erro: a troca já valeu e o aviso não a
- * desfaz. Se nem os dados do aviso vierem, ele não saiu para ninguém.
+ * desfaz. Se nem os dados do aviso vierem, ele não saiu para ninguém. No reenvio, `destinos` diz quem ainda falta.
  */
-export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca, passos: PassosDoAviso): Promise<void> {
-  let falhas: DestinoDoAviso[] = ['antigo', 'gestao'];
+export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca, passos: PassosDoAviso, destinos = TODOS_OS_DESTINOS): Promise<void> {
+  let falhas = destinos;
   try {
     const dados = await passos.dados(registro);
     if (dados) {
-      const mensagens = mensagensDoAviso(dados, situacao);
+      const mensagens = mensagensDoAviso(dados, situacao).filter(m => destinos.includes(m.destino));
       const envios = await Promise.allSettled(mensagens.map(m => passos.enviar(m)));
       const falhou = envios.flatMap((envio, i) => {
         if (envio.status === 'fulfilled') return [];
@@ -126,4 +130,19 @@ export async function avisarDaTroca(registro: number, situacao: SituacaoDaTroca,
   } catch (e) {
     registrarErro('registro', e);
   }
+}
+
+/** Reenvia os avisos pendentes, ao mesmo tempo, para caber no tempo máximo da função. Devolve quantos tentou. */
+export async function reenviarAvisos(pendentes: AvisoPendente[], passos: PassosDoAviso): Promise<number> {
+  await Promise.all(pendentes.map(p => avisarDaTroca(p.registro, p.situacao, passos, p.destinos)));
+  return pendentes.length;
+}
+
+/** Confere a senha da rotina sem parar na primeira letra diferente, para o tempo da resposta não dar pistas. Sem senha certa, recusa. */
+export function senhaDaRotinaConfere(recebida: string | null, certa: string | undefined): boolean {
+  if (!recebida || !certa) return false;
+  const a = new TextEncoder().encode(recebida), b = new TextEncoder().encode(certa);
+  let diferenca = a.length ^ b.length;
+  for (let i = 0; i < b.length; i++) diferenca |= b[i] ^ (a[i] ?? 0);
+  return diferenca === 0;
 }
