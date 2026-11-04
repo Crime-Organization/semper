@@ -507,6 +507,7 @@ export interface DadosContratos {
   contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */
   contratosExcluir(ids: string[]): Promise<Exclusao>;
+  /** Recusa quem pode ver, mas não alterar, o contrato (quem só foi mencionado). */
   contratoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
   contratoHistorico(id: string): Promise<Historico[]>;
   /** Objetos já usados em contratos do escritório, em ordem alfabética, para sugerir no cadastro. */
@@ -1286,7 +1287,7 @@ export interface DadosFinanceiro {
 export interface DadosParcelas {
   /** Sem as excluídas, na ordem do número. */
   parcelasDoContrato(contratoId: string): Promise<Parcela[]>;
-  /** Só para quem cuida do contrato: o histórico do contrato é aberto a todo o escritório. */
+  /** Só para quem cuida do contrato: o histórico do contrato é aberto também a quem o criou e aos participantes. */
   parcelasHistorico(contratoId: string): Promise<Historico[]>;
   /** As dos contratos em que a pessoa é cliente, até PARCELAS_DA_PESSOA, das mais novas às mais antigas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
   parcelasDaPessoa(pessoaId: string): Promise<ParcelaDoEscritorio[]>;

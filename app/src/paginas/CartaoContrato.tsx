@@ -3,7 +3,7 @@
 // divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela } from '../regras/contrato';
+import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -48,10 +48,12 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (k === undefined) return <Carregando />;
-  if (!k) return <Vazio>Este contrato não foi encontrado. Ele pode ter sido excluído.</Vazio>;
+  if (!k) return <Vazio>Este contrato não foi encontrado. Ele pode ter sido excluído, ou você não tem acesso a ele.</Vazio>;
 
   const V = (campo: keyof Contrato) => valorLegivelContrato(campo, k[campo]);
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
+  // Quem só foi mencionado num comentário lê e comenta, mas não altera.
+  const podeAlterar = alteraOContrato({ ...k, participantes: k.participantes.map(p => p.pessoa.id) }, ctx.perfil);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
@@ -108,7 +110,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo><span className="codigo">{k.codigo}</span>
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       <div className="contrato-objetos-destaque">
@@ -122,6 +124,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     <div className="cartao-acoes">
       <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
     </div>
+    {!podeAlterar && <Nota>Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.</Nota>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {k.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'
@@ -131,7 +134,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <section className="bloco campos">
       <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação do contrato" disabled={!!k.arquivado_em} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+      <select aria-label="Situação do contrato" disabled={!!k.arquivado_em || !podeAlterar} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
         <option value="">{SEM_SITUACAO}</option>
         {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
       </select>
@@ -182,7 +185,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         nova={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }} />
     </Recolhivel>}
 
-    <SecaoComentarios modulo="contratos" cartaoId={k.id} />
+    <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso="Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir." />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico">
       <HistoricoContrato id={k.id} versao={versaoHist} />

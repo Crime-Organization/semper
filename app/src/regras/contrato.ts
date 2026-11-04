@@ -314,6 +314,18 @@ const CONFERE_PAPEL: Record<PapelNoContrato, (k: PartesDoContrato, pessoaId: str
 export const papeisNoContrato = (k: PartesDoContrato, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNoContrato[]).filter(papel => CONFERE_PAPEL[papel](k, pessoaId, perfilId));
 
+/**
+ * Quem altera o contrato, como a regra de alterar do banco: administradores, quem o criou, o responsável e os participantes.
+ * O indicador não entra: ele vê o que recebe em Meus valores. `participantes` são as pessoas, do cadastro.
+ */
+export const alteraOContrato = (k: { criado_por: string | null; responsavel_id: string; participantes: string[] },
+  m: { id: string; pessoa_id?: string | null; papel: string }) =>
+  ['master', 'admin'].includes(m.papel) || k.criado_por === m.id || k.responsavel_id === m.id
+    || (!!m.pessoa_id && k.participantes.includes(m.pessoa_id));
+/** Quem vê o contrato, como a regra de leitura do banco: quem o altera e quem outra pessoa mencionou num comentário dele. */
+export const veOContrato = (k: Parameters<typeof alteraOContrato>[0], m: Parameters<typeof alteraOContrato>[1], mencionado = false) =>
+  mencionado || alteraOContrato(k, m);
+
 /** Nomes por extenso, como se fala: "ANA", "ANA e BRUNO", "ANA, BRUNO e CARLA". */
 export const nomesPorExtenso = (nomes: string[]) => new Intl.ListFormat('pt-BR', { style: 'long', type: 'conjunction' }).format(nomes);
 /** Os clientes de um contrato por extenso, a partir do nome guardado ("A; B"). */

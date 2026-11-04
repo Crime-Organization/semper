@@ -44,3 +44,10 @@ export async function alturaParada(alvo: Locator) {
   });
   return (await alvo.boundingBox())!.height;
 }
+
+/** Passa a usar o banco fictício como outra conta da equipe ('u-bruno' é estagiário e não é administrador) e abre a tela inicial de novo. */
+export async function entrarComo(page: Page, id: string) {
+  await page.goto('/inicio/');
+  await page.evaluate(conta => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(conta), id);
+  await page.goto('/inicio/');
+}
