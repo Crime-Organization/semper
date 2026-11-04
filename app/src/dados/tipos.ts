@@ -1239,7 +1239,7 @@ export interface DadosFinanceiro {
 export interface DadosParcelas {
   /** Sem as excluídas, na ordem do número. */
   parcelasDoContrato(contratoId: string): Promise<Parcela[]>;
-  /** Só para quem cuida do contrato: o histórico do contrato é aberto a todo o escritório. */
+  /** Só para quem cuida do contrato: o histórico do contrato é aberto também a quem o criou e aos participantes. */
   parcelasHistorico(contratoId: string): Promise<Historico[]>;
   /** As dos contratos em que a pessoa é cliente, até PARCELAS_DA_PESSOA, das mais novas às mais antigas. Só as que quem está logado pode ver. As a receber de contrato arquivado não aparecem. */
   parcelasDaPessoa(pessoaId: string): Promise<ParcelaDoEscritorio[]>;

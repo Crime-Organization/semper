@@ -48,7 +48,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (k === undefined) return <Carregando />;
-  if (!k) return <Vazio>Este contrato não foi encontrado. Ele pode ter sido excluído.</Vazio>;
+  if (!k) return <Vazio>Este contrato não foi encontrado. Ele pode ter sido excluído, ou você não tem acesso a ele.</Vazio>;
 
   const V = (campo: keyof Contrato) => valorLegivelContrato(campo, k[campo]);
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);

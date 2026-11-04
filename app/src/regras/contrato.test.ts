@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, type CamposContrato
+  calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, veOContrato, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
@@ -339,6 +339,33 @@ describe('Papel da pessoa no contrato', () => {
     const papeis = papeisNoContrato(k, pessoa, perfil);
     // Então
     expect(papeis).toEqual(esperado);
+  });
+});
+
+describe('Quem vê o contrato', () => {
+  // Dado um contrato criado por u1, com u2 de responsável, a pessoa p3 de participante e a pessoa p4 de indicadora
+  const k = { criado_por: 'u1', responsavel_id: 'u2', participantes: ['p3'] };
+  const membro = (id: string, pessoa_id: string | null, papel = 'usuario') => ({ id, pessoa_id, papel });
+
+  it.each([
+    ['quem criou', membro('u1', 'p1'), true],
+    ['o responsável', membro('u2', 'p2'), true],
+    ['um participante', membro('u3', 'p3'), true],
+    ['um administrador de fora do contrato', membro('u9', 'p9', 'admin'), true],
+    ['o master de fora do contrato', membro('u9', 'p9', 'master'), true],
+    ['o indicador', membro('u4', 'p4'), false],
+    ['uma conta comum de fora do contrato', membro('u9', 'p9'), false],
+    ['uma conta sem cadastro em Pessoas', membro('u9', null), false]
+  ])('quando é %s, então ver é %s', (_caso, m, esperado) => {
+    // Quando
+    const ve = veOContrato(k, m);
+    // Então
+    expect(ve).toBe(esperado);
+  });
+
+  it('quando o contrato não diz quem o criou (importado), então uma conta comum de fora não vê', () => {
+    // Dado / Quando / Então
+    expect(veOContrato({ ...k, criado_por: null }, membro('u9', 'p9'))).toBe(false);
   });
 });
 

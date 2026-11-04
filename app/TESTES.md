@@ -80,7 +80,7 @@ test('quando o CPF tem um dígito errado, então o formulário avisa e não segu
 ```
 
 - O Playwright sobe sozinho o banco fictício (`npm run teste`, porta 8091) e o encerra no fim. Se ele já estiver rodando no computador, é aproveitado.
-- Cada teste abre uma aba nova, e o banco fictício começa do zero **com a sessão aberta** (como o master do escritório de exemplo). Para testar sem sessão, use `sair(page)` de `e2e/ajudantes.ts`.
+- Cada teste abre uma aba nova, e o banco fictício começa do zero **com a sessão aberta** (como o master do escritório de exemplo). Para testar sem sessão, use `sair(page)` de `e2e/ajudantes.ts`; para testar com outra conta, `entrarComo(page, 'u-bruno')`. Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas: nos outros módulos, toda conta vê tudo no banco fictício.
 - Os testes usam pessoas, colunas e o escritório da semente de `falso.ts` pelo nome. Mudou a semente? Rode `npm run testar-telas`.
 - Opções de rádio são clicadas pelo texto do rótulo (`getByText('Pessoa física', { exact: true })`), como a pessoa faz.
 - Para arrastar no quadro, a coluna de destino precisa estar visível na tela.
