@@ -1760,6 +1760,16 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', pago_em: null })]);
         });
 
+        it('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então quem paga é o responsável da época', async () => {
+          // Dado: a Ana recebe a primeira parcela, o contrato passa para o Mateus, e ele recebe a segunda
+          const { id, k, conta } = await recebido({ ...NA_DIVISAO, parcelas: 2, ...comBruno });
+          await SD.contratoAtualizar(k.id, { responsavel_id: 'u-master' });
+          const novo = await receber(k.parcelas[1].id, conta.id);
+          // Quando / Então
+          expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', quem_paga: 'Ana Teste Lima' })]);
+          expect(await aPassar(novo)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', quem_paga: 'Mateus Freitas Gonçalves' })]);
+        });
+
         it('dado um valor marcado como pago e desfeito, quando lê o registro de ações, então os dois dizem o contrato, a parcela, o recebimento, a data e o valor', async () => {
           // Dado
           const { id, k } = await recebido(comBruno);

@@ -2,7 +2,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(34);
+select plan(39);
 
 -- Dado um escritório com o administrador, o responsável antigo, o novo e uma colega, e outro escritório com o seu administrador.
 insert into public.escritorios (id, nome, slug) values
@@ -70,7 +70,11 @@ create function pg_temp.pago_em(p_numero integer) returns date language sql as $
   select (e.item ->> 'pago_em')::date from jsonb_array_elements(public.financeiro_a_passar('2026-03-01', '2026-03-31')) as e(item)
   where e.item ->> 'recebimento_id' = 'f0000000-0000-0000-0000-00000000000' || p_numero
 $$;
-grant execute on function pg_temp.entra(integer), pg_temp.ve(integer), pg_temp.pago_em(integer) to authenticated;
+create function pg_temp.quem_paga(p_numero integer) returns text language sql as $$
+  select e.item ->> 'quem_paga' from jsonb_array_elements(public.financeiro_a_passar('2026-03-01', '2026-03-31')) as e(item)
+  where e.item ->> 'recebimento_id' = 'f0000000-0000-0000-0000-00000000000' || p_numero
+$$;
+grant execute on function pg_temp.entra(integer), pg_temp.ve(integer), pg_temp.pago_em(integer), pg_temp.quem_paga(integer) to authenticated;
 set local role authenticated;
 
 -- O responsável da época, depois de perder o contrato.
@@ -88,6 +92,7 @@ select throws_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-
   '42501', null, 'quando o responsável da época tenta marcar o recebimento de depois, então é recusado');
 select throws_ok($$select public.financeiro_estornar('f0000000-0000-0000-0000-000000000001')$$,
   '42501', null, 'quando o responsável da época tenta estornar, então continua recusado: quem estorna não mudou');
+select is(pg_temp.quem_paga(1), 'Antigo', 'dado o recebimento de antes da troca, quando o responsável da época abre, então quem paga é ele');
 select is(pg_temp.ve(4), 0::bigint, 'dado que ele também é o participante do próprio recebimento, quando abre, então não há o que passar a si mesmo');
 select is((select count(*) from public.financeiro_recebimentos), 0::bigint, 'dado que ele já não cuida do contrato, quando lê a tabela direto, então não vê os recebimentos');
 select throws_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000004', (select pessoa_id from public.perfis where id = auth.uid()), '2026-03-20')$$,
@@ -101,12 +106,16 @@ select throws_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-
 select throws_ok($$select public.financeiro_terceiro_desfazer_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002')$$,
   '42501', null, 'quando o novo responsável tenta desfazer por fora da tela, então é recusado');
 select is(pg_temp.ve(2), 1::bigint, 'dado o recebimento de depois da troca, quando o novo responsável abre, então a linha aparece');
+select is(pg_temp.quem_paga(2), 'Novo', 'dado o recebimento de depois da troca, quando o novo responsável abre, então quem paga é ele');
 select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '2026-03-20')$$,
   'quando o novo responsável marca o recebimento de depois, então o banco aceita');
 
 -- O administrador.
 select pg_temp.entra(1);
 select is(pg_temp.ve(1) + pg_temp.ve(2) + pg_temp.ve(3), 3::bigint, 'quando o administrador abre, então vê os três recebimentos');
+select is(pg_temp.quem_paga(1), 'Antigo', 'dado o recebimento de antes da troca, quando o administrador abre, então quem paga é o responsável da época, não o atual');
+select is(pg_temp.quem_paga(2), 'Novo', 'dado o recebimento de depois da troca, quando o administrador abre, então quem paga é o novo responsável');
+select is(pg_temp.quem_paga(3), 'Usuário removido', 'dado o recebimento sem perfil, quando o administrador abre, então quem paga é "Usuário removido"');
 select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '2026-03-21')$$,
   'quando o administrador marca o recebimento de antes da troca, então o banco aceita');
 select lives_ok($$select public.financeiro_terceiro_desfazer_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002')$$,

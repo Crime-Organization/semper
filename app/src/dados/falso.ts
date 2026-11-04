@@ -17,6 +17,7 @@ import { RECUSA_DA_RESERVA } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
+import { resumoDaConferencia } from '../regras/conferencia';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
@@ -37,8 +38,8 @@ import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CA
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
-import { DIAS_PARADO, PARCELAS_DA_PESSOA } from './limites';
-import type { CategoriaDeLancamento, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
+import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA } from './limites';
+import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
@@ -135,6 +136,8 @@ interface Banco {
   dasDoEscritorio?: AliquotaDoDas[];
   ajustesFinanceiros?: Historico[];
   parcelas?: ParcelaGuardada[];
+  conferencia?: LinhaDaConferencia[];
+  historicoConferencia?: (Historico & { conferencia_id: string })[];
   recebimentos?: RecebimentoGuardado[];
   repasses?: RepasseGuardado[];
   /** O que o responsável já passou a cada terceiro (financeiro_terceiros_pagos no banco). */
@@ -238,6 +241,18 @@ bd.vinculos ??= [];
 bd.escritorio ??= { nome: 'Escritório Exemplo (teste)', logo: null, cnpj: null, oab_registro: null, logradouro: null, numero: null, complemento: null,
   bairro: null, municipio: 'Montes Claros', uf: 'MG', cep: null, telefone: null, email: null, site: null };
 // Contratos de exemplo, com clientes da semente e números como os do banco (sigla do responsável, sequencial, ano).
+/** Exemplos de cada caso: confere, só na planilha do advogado, só no caixa e de outra pessoa da equipe. */
+function sementeConferencia(): LinhaDaConferencia[] {
+  const base = { ano: 2026, responsavel_id: eu, servico: 'Honorários', referencia: null, parcela_id: null, valor_esperado: null, conta_caixa: null, motivo: null, situacao: null, observacao: null, marcado_por: null, marcado_em: null };
+  return [
+    { ...base, id: 'conf-1', cliente: 'CLIENTE QUE CONFERE', referencia: 'MA96-0001-2026', data_pago: '2026-03-10', valor_pago: 100000, valor_esperado: 30000, data_caixa: '2026-03-11', valor_caixa: 30000, conta_caixa: 'PJ', sugestao: 'confere' },
+    { ...base, id: 'conf-2', cliente: 'CLIENTE SEM ENTRADA', data_pago: '2026-04-05', valor_pago: 50000, data_caixa: null, valor_caixa: null, sugestao: 'nao_confere', motivo: 'Sem entrada na planilha geral' },
+    { ...base, id: 'conf-3', cliente: 'CLIENTE SÓ NO CAIXA', data_pago: null, valor_pago: null, data_caixa: '2026-05-20', valor_caixa: 15000, conta_caixa: 'PF', sugestao: 'nao_confere', motivo: 'Só na planilha geral' },
+    { ...base, id: 'conf-4', responsavel_id: 'u-ana', cliente: 'CLIENTE DA ANA', data_pago: '2026-02-01', valor_pago: 20000, data_caixa: '2026-02-01', valor_caixa: 6000, conta_caixa: 'PJ', sugestao: 'confere' },
+    { ...base, id: 'conf-5', ano: 2025, cliente: 'CLIENTE DE 2025', data_pago: '2025-08-01', valor_pago: 40000, data_caixa: '2025-08-02', valor_caixa: 12000, conta_caixa: 'PJ', sugestao: 'confere' },
+  ];
+}
+
 function sementeContratos(): ContratoGuardado[] {
   const ano = new Date().getFullYear();
   // [clientes (separados por ";"), responsável, objetos (separados por ";"), categoria, valor, coluna]
@@ -396,6 +411,8 @@ bd.historicoLancamentos ??= [];
 bd.dasDoEscritorio ??= [];
 bd.ajustesFinanceiros ??= [];
 bd.parcelas ??= [];
+bd.conferencia ??= sementeConferencia();
+bd.historicoConferencia ??= [];
 bd.recebimentos ??= [];
 bd.repasses ??= [];
 bd.terceirosPagos ??= [];
@@ -1139,6 +1156,7 @@ function acharParcela(id: string) {
 }
 /** Como privado.recebimento_do_terceiro. As contas que recebem aqui são sempre o master, que cuida de todos os contratos. */
 const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
+const nomeDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido';
 function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
   const r = bd.recebimentos!.find(x => x.id === recebimento);
   if (!r) throw new Error('Só quem recebeu o dinheiro ou um administrador marca este valor como pago.');
@@ -2515,6 +2533,44 @@ export const SD: Dados = {
     Object.assign(x, { pago_em: null, conta_paga: null, lancamento_id: null }); gravar();
     return espera(undefined);
   },
+  conferenciaListar: (ano, responsavel) => espera(bd.conferencia!.filter(l => l.ano === ano && (!responsavel || l.responsavel_id === responsavel))
+    .map(l => {
+      const p = l.parcela_id ? bd.parcelas!.find(x => x.id === l.parcela_id) : null;
+      return { ...l, data_pago: p?.recebida_em ?? l.data_pago, valor_pago: p?.recebido ?? l.valor_pago };
+    })
+    .toSorted((a, b) => (b.data_pago ?? b.data_caixa ?? '').localeCompare(a.data_pago ?? a.data_caixa ?? '') || a.cliente.localeCompare(b.cliente))),
+  conferenciaResumo: () => espera(resumoDaConferencia(bd.conferencia!)),
+  async conferenciaMarcar(id, situacao, observacao) {
+    const l = bd.conferencia!.find(x => x.id === id);
+    if (!l) return erro('Só o responsável pela linha ou um administrador confere.');
+    const texto = observacao?.trim() || null;
+    if (texto && texto.length > TAMANHO_CONFERENCIA.observacao) return erro('A observação está longa demais.');
+    const alteracoes: Historico['alteracoes'] = {};
+    if (situacao !== l.situacao) alteracoes['Situação'] = { de: l.situacao, para: situacao };
+    if (texto !== l.observacao) alteracoes['Observação'] = { de: l.observacao, para: texto };
+    if (Object.keys(alteracoes).length) bd.historicoConferencia!.unshift({ id: novoId(), conferencia_id: id, alteracoes, feito_por: eu, em: agora() });
+    const marcou = !!situacao || !!texto;
+    Object.assign(l, { situacao, observacao: texto, marcado_por: marcou ? eu : null, marcado_em: marcou ? agora() : null });
+    gravar();
+    return espera(undefined);
+  },
+  async conferenciaCorrigir(id, data, valor) {
+    const l = bd.conferencia!.find(x => x.id === id);
+    if (!l) return erro('Só o responsável pela linha ou um administrador corrige.');
+    if (data > hojeNoFalso()) return erro('A data do pagamento não pode estar no futuro.');
+    if (valor <= 0) return erro('Confira o valor pago.');
+    const p = l.parcela_id ? bd.parcelas!.find(x => x.id === l.parcela_id) : null;
+    if (p?.recebimento_id) return erro('Esta parcela foi recebida pelo caixa. Corrija por lá.');
+    const alteracoes: Historico['alteracoes'] = {};
+    if (data !== l.data_pago) alteracoes['Pago em'] = { de: l.data_pago ? fmtData(l.data_pago) : null, para: fmtData(data) };
+    if (valor !== l.valor_pago) alteracoes['Valor pago'] = { de: l.valor_pago === null ? null : fmtCentavos(l.valor_pago), para: fmtCentavos(valor) };
+    if (Object.keys(alteracoes).length) bd.historicoConferencia!.unshift({ id: novoId(), conferencia_id: id, alteracoes, feito_por: eu, em: agora() });
+    Object.assign(l, { data_pago: data, valor_pago: valor });
+    if (p?.recebida_em && !p.excluido_em) Object.assign(p, { recebida_em: data, recebido: valor });
+    gravar();
+    return espera(undefined);
+  },
+  conferenciaHistorico: id => espera(bd.historicoConferencia!.filter(h => h.conferencia_id === id).map(({ conferencia_id: _c, ...h }) => h).slice(0, HISTORICO_DO_PROCESSO)),
   financeiroMeusValores(de, ate) {
     const minhaPessoa = EQUIPE.find(m => m.id === eu)?.pessoa_id;
     const linhas = bd.recebimentos!.filter(r => !r.estornado_em && r.data <= ate).flatMap(r => {
@@ -2531,7 +2587,7 @@ export const SD: Dados = {
         ...(r.responsavel_id === eu && r.ficou_com_advogado > 0 && parteDoResponsavel > 0 ? [linha('responsavel', parteDoResponsavel, r.data, 'cliente')] : []),
         ...repasses.filter(x => x.tipo === 'socio_indicador' && x.pessoa_id === minhaPessoa).map(x => linha('indicador', x.valor, x.pago_em, 'escritório')),
         ...r.terceiros.filter(t => t.id === minhaPessoa && t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map(t =>
-          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido'))
+          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, nomeDoResponsavel(r)))
       ];
     }).filter(l => l.recebido_em >= de || !l.pago_em);
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.papel.localeCompare(b.papel)));
@@ -2542,7 +2598,7 @@ export const SD: Dados = {
       return r.terceiros.filter(t => t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map((t): ValorAPassar => ({
         recebimento_id: r.id, pessoa_id: t.id, nome: t.nome, valor: t.valor, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '',
         parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data,
-        pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null
+        pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null, quem_paga: nomeDoResponsavel(r)
       }));
     }).filter(v => (v.recebido_em >= de && v.recebido_em <= ate) || (!v.pago_em && v.recebido_em < de));
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.nome.localeCompare(b.nome)));

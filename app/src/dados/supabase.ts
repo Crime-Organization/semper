@@ -12,7 +12,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { Lancamento, MeuValor, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { Lancamento, LinhaDaConferencia, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
@@ -1027,6 +1027,14 @@ export const SD: Dados = {
   financeiroReceber: ({ parcela, data, valor, conta, taxa }) => rpc('financeiro_receber', { p_parcela: parcela, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa }),
   async financeiroRecebimento(id) {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
+    return data;
+  },
+  conferenciaListar: async (ano, responsavel) => await rpc('financeiro_conferencia_listar', { p_ano: ano, p_responsavel: responsavel }) as LinhaDaConferencia[],
+  conferenciaResumo: async () => await rpc('financeiro_conferencia_resumo') as ResumoDaConferencia[],
+  conferenciaMarcar: async (id, situacao, observacao) => { await rpc('financeiro_conferencia_marcar', { p_linha: id, p_situacao: situacao, p_observacao: observacao }); },
+  conferenciaCorrigir: async (id, data, valor) => { await rpc('financeiro_conferencia_corrigir', { p_linha: id, p_data: data, p_valor: valor }); },
+  async conferenciaHistorico(id) {
+    const { data } = await rodar(sb.from('financeiro_conferencia_historico').select('id, alteracoes, feito_por, em').eq('conferencia_id', id).order('em', { ascending: false }).limit(HISTORICO_DO_PROCESSO));
     return data;
   },
   financeiroMeusValores: async (de, ate) => await rpc('financeiro_meus_valores', { p_de: de, p_ate: ate }) as MeuValor[],
