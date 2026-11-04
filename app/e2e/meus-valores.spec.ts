@@ -286,6 +286,65 @@ test.describe('A passar a participantes e indicadores', () => {
     await expect(secao(page).getByRole('table')).toContainText('20/03/2026');
   });
 
+  test('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então quem paga é o responsável da época', async ({ page }) => {
+    // Dado: o Mateus recebe, e o contrato passa para a Ana
+    await prepararCaixa(page);
+    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    const cartao = await abrirContrato(page);
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    // Quando
+    await page.goto('/parcelas/');
+    // Então
+    const tabela = secao(page).getByRole('table');
+    await expect(tabela.getByRole('columnheader', { name: 'Quem paga' })).toBeVisible();
+    const linha = tabela.getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' });
+    await expect(linha).toContainText('Mateus Freitas Gonçalves');
+    await expect(linha).not.toContainText('Ana Teste Lima');
+  });
+
+  test('dado um recebimento cujo responsável não tem mais perfil, quando o administrador abre, então quem paga é "Usuário removido"', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      for (const r of bd.recebimentos) r.responsavel_id = null;
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    // Quando
+    await page.goto('/parcelas/');
+    // Então
+    await expect(secao(page).getByRole('table').getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' })).toContainText('Usuário removido');
+  });
+
+  test('dado o celular, quando abre, então quem paga aparece ao lado de para quem, sem precisar rolar a tabela', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await page.setViewportSize({ width: 375, height: 812 });
+    // Quando
+    await page.goto('/parcelas/');
+    // Então
+    const tabela = secao(page).getByRole('table');
+    await tabela.getByRole('columnheader', { name: 'Para' }).scrollIntoViewIfNeeded();
+    await expect(tabela.getByRole('cell', { name: 'Mateus Freitas Gonçalves' })).toBeInViewport({ ratio: 1 });
+  });
+
+  test('dada a tela de computador, quando abre, então a tabela cabe inteira, com a parcela junto do contrato e o botão de marcar à vista', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    // Quando
+    await page.goto('/parcelas/');
+    // Então
+    await secao(page).getByRole('columnheader', { name: 'Para' }).scrollIntoViewIfNeeded();
+    await expect(secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ })).toBeInViewport({ ratio: 1 });
+    await expect(secao(page).getByRole('table').getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' })).toContainText('Parcela 1');
+  });
+
   test('dado um participante, quando o responsável marca como pago, então fica pago, sem lançamento no caixa; e o valor de quem recebe não aparece para mim', async ({ page }) => {
     // Dado
     await prepararCaixa(page);

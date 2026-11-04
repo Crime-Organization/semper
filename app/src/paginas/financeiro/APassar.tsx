@@ -58,11 +58,11 @@ export function ValoresAPassar({ lista, hoje, aoMudar }: { lista: ValorAPassar[]
     {marcando && <FormMarcar key={marcando.recebimento_id + marcando.pessoa_id} valor={marcando} hoje={hoje} aoTerminar={terminou} aoCancelar={() => setMarcando(null)} />}
     <div className="tabela"><table aria-label="Valores a passar">
       <thead><tr>
-        <th scope="col">Para</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col">Cliente pagou em</th>
+        <th scope="col">Para</th><th scope="col">Quem paga</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Cliente pagou em</th>
         <th scope="col" className="financeiro-num">Valor</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th>
       </tr></thead>
       <tbody>{lista.map(v => <tr key={v.recebimento_id + v.pessoa_id}>
-        <td>{v.nome}</td><td>{v.contrato_codigo}</td><td>{v.cliente_nome}</td><td>{v.parcela_numero}</td><td>{fmtData(v.recebido_em)}</td>
+        <td>{v.nome}</td><td>{v.quem_paga}</td><td>{v.contrato_codigo}<div className="sub">Parcela {v.parcela_numero}</div></td><td>{v.cliente_nome}</td><td>{fmtData(v.recebido_em)}</td>
         <td className="financeiro-num">{fmtCentavos(v.valor)}</td>
         <td>{v.pago_em ? <><Selo tipo="ok">Pago</Selo> em {fmtData(v.pago_em)}</> : <Selo tipo="pend">A pagar</Selo>}</td>
         <td><span className="financeiro-acoes">{v.pago_em

@@ -1118,6 +1118,7 @@ function acharParcela(id: string) {
 }
 /** Como privado.recebimento_do_terceiro. O banco fictício está sempre logado como o master, que cuida de todos os contratos. */
 const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
+const nomeDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido';
 function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
   const r = bd.recebimentos!.find(x => x.id === recebimento);
   if (!r) throw new Error('Só quem recebeu o dinheiro ou um administrador marca este valor como pago.');
@@ -2489,7 +2490,7 @@ export const SD: Dados = {
         ...(r.responsavel_id === eu && r.ficou_com_advogado > 0 && parteDoResponsavel > 0 ? [linha('responsavel', parteDoResponsavel, r.data, 'cliente')] : []),
         ...repasses.filter(x => x.tipo === 'socio_indicador' && x.pessoa_id === minhaPessoa).map(x => linha('indicador', x.valor, x.pago_em, 'escritório')),
         ...r.terceiros.filter(t => t.id === minhaPessoa && t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map(t =>
-          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido'))
+          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, nomeDoResponsavel(r)))
       ];
     }).filter(l => l.recebido_em >= de || !l.pago_em);
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.papel.localeCompare(b.papel)));
@@ -2500,7 +2501,7 @@ export const SD: Dados = {
       return r.terceiros.filter(t => t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map((t): ValorAPassar => ({
         recebimento_id: r.id, pessoa_id: t.id, nome: t.nome, valor: t.valor, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '',
         parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data,
-        pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null
+        pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null, quem_paga: nomeDoResponsavel(r)
       }));
     }).filter(v => (v.recebido_em >= de && v.recebido_em <= ate) || (!v.pago_em && v.recebido_em < de));
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.nome.localeCompare(b.nome)));

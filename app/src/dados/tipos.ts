@@ -1200,6 +1200,8 @@ export interface MeuValor {
 /** O que o responsável passa a um participante ou ao indicador que não é sócio, sem passar pelo caixa. */
 export interface ValorAPassar {
   recebimento_id: string; pessoa_id: string; nome: string; valor: number; contrato_codigo: string; cliente_nome: string; parcela_numero: number; recebido_em: string; pago_em: string | null;
+  /** Quem está com o dinheiro: o nome do responsável gravado no recebimento, mesmo depois de uma troca no contrato, ou "Usuário removido". */
+  quem_paga: string;
 }
 /** O que a página de lucro precisa, sem o que foi estornado ou desfeito. Só administradores. */
 export interface MovimentoDoLucro {
