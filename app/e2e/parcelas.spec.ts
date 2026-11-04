@@ -55,6 +55,31 @@ async function receberPrimeira(cartao: ReturnType<Page['getByRole']>) {
 }
 
 test.describe('Parcelas do contrato', () => {
+  test('dado uma parcela paga antes do caixa, quando abre o contrato, então aparece como recebida, sem receber, mudar ou estornar', async ({ page }) => {
+    // Dado
+    await contratoComParcelas(page);
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      Object.assign(bd.parcelas.find((p: { numero: number }) => p.numero === 1), { recebida_em: '2025-03-12', recebido: 55000 });
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    await page.reload();
+    // Quando
+    const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(cartao, 'Parcelas');
+    // Então
+    const linha = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1);
+    await expect(linha).toContainText('Recebida');
+    await expect(linha).toContainText('12/03/2025');
+    await expect(linha).toContainText(dinheiro('550,00'));
+    await expect(linha).toContainText('Histórico importado');
+    await expect(linha.getByRole('button')).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Receber a parcela 2' })).toBeVisible();
+    // E o caixa não mudou
+    await page.goto('/financeiro/');
+    await expect(page.getByText('55,00').or(page.getByText('550,00'))).toHaveCount(0);
+  });
+
   test('quando gera as parcelas, então somam o valor do contrato, com a entrada primeiro', async ({ page }) => {
     // Quando
     const cartao = await contratoComParcelas(page);

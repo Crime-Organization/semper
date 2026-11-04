@@ -7,7 +7,7 @@ import { PARCELAS_DA_PESSOA } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
 import {
   avisoDaSoma, chegouAoAssinado, dadosDaParcela, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
-  previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao
+  previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, parcelaAntiga, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao
 } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito, useMudancas } from '../../ui/avisos';
@@ -210,7 +210,7 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
     {aberto?.o === 'receber' && <FormReceber key={aberto.parcela.id} parcela={aberto.parcela} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormParcela key={aberto.parcela.id} rotulo={`Mudar a parcela ${aberto.parcela.numero}`} inicial={formDaParcela(aberto.parcela)} salvar={salvarMudanca(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'ver' && <RecebimentoDaParcela key={aberto.parcela.id} parcela={aberto.parcela} aoFechar={() => setAberto(null)} />}
-    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => p.recebimento_id ? <>
+    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => parcelaAntiga(p) ? <span className="nota">Histórico importado</span> : p.recebimento_id ? <>
       <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Ver a divisão da parcela ${p.numero}`} onClick={() => setAberto({ o: 'ver', parcela: p })}>Ver divisão</button>
       <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: estornar" aoConfirmar={() => estornar(p)}>Estornar</BotaoDuplo>
     </> : <>

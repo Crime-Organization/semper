@@ -265,7 +265,7 @@ const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
 type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null } };
 const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id });
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
-const naLista = (p: LinhaDaParcela) => !!p.recebimento_id || !p.contrato.arquivado_em;
+const naLista = (p: LinhaDaParcela) => !!p.recebida_em || !p.contrato.arquivado_em;
 type LinhaDoSocio = Omit<Socio, 'nome'> & { pessoa: { nome: string } | null };
 const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pessoa?.nome ?? 'Pessoa excluída' });
 /** Nenhuma linha mudou: a pessoa não é mais administradora, ou o item não existe mais. */
@@ -997,7 +997,7 @@ export const SD: Dados = {
     const todas: ParcelaDoEscritorio[] = [];
     for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
       const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).is('excluido_em', null)
-        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebimento_id.is.null,vencimento.lt.${antesDe})`)
+        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebida_em.is.null,vencimento.lt.${antesDe})`)
         .order('vencimento').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
       todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
       if (data.length < LINHAS_POR_CONSULTA) return todas;
