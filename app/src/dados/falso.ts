@@ -1141,8 +1141,6 @@ function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
   const k = bd.contratos!.find(x => x.id === p.contrato_id);
   return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null };
 }
-/** Como o gatilho preparar_parcela do banco. */
-const PARCELA_ANTIGA_NAO_MUDA = 'Esta parcela foi paga antes do início do caixa e não muda.';
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
 const naLista = (p: ParcelaGuardada) => !!p.recebida_em || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
 const ajusteDoSocio = (s: SocioGuardado, de: string | null, para: string | null) => registrarAjuste({ ['Sócio: ' + nomeDoSocio(s.pessoa_id)]: { de, para } });
@@ -2336,7 +2334,6 @@ export const SD: Dados = {
   async parcelaAtualizar(id, dados) {
     const p = acharParcela(id);
     if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
-    if (parcelaAntiga(p)) return erro(PARCELA_ANTIGA_NAO_MUDA);
     if (p.excluido_em) return erro('Esta parcela foi excluída.');
     if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     const alteracoes: Historico['alteracoes'] = {};
@@ -2346,10 +2343,25 @@ export const SD: Dados = {
     Object.assign(p, dados); auditar('contrato_parcelas', 'alteracao', p); gravar();
     return espera(undefined);
   },
+  async parcelaCorrigirImportada(id, dados) {
+    const p = acharParcela(id);
+    if (!parcelaAntiga(p)) return erro('Só a parcela importada como paga é corrigida assim.');
+    if (p.excluido_em) return erro('Esta parcela foi excluída.');
+    if (dados.recebida_em > hojeNoFalso()) return erro('A data do recebimento não pode estar no futuro.');
+    if (dados.recebido <= 0) return erro('Confira o valor recebido.');
+    if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    const alteracoes: Historico['alteracoes'] = {};
+    if (dados.valor !== p.valor) alteracoes[`Parcela ${p.numero}: valor`] = { de: fmtCentavos(p.valor), para: fmtCentavos(dados.valor) };
+    if (dados.vencimento !== p.vencimento) alteracoes[`Parcela ${p.numero}: vencimento`] = { de: fmtData(p.vencimento), para: fmtData(dados.vencimento) };
+    if (dados.recebida_em !== p.recebida_em) alteracoes[`Parcela ${p.numero}: data recebida`] = { de: fmtData(p.recebida_em!), para: fmtData(dados.recebida_em) };
+    if (dados.recebido !== p.recebido) alteracoes[`Parcela ${p.numero}: valor recebido`] = { de: fmtCentavos(p.recebido!), para: fmtCentavos(dados.recebido) };
+    if (Object.keys(alteracoes).length) historicoDaParcela(p.contrato_id, alteracoes);
+    Object.assign(p, dados); auditar('contrato_parcelas', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
   async parcelaExcluir(id) {
     const p = acharParcela(id);
     if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
-    if (parcelaAntiga(p)) return erro(PARCELA_ANTIGA_NAO_MUDA);
     if (!p.excluido_em) historicoDaParcela(p.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: 'Excluída' } });
     p.excluido_em ??= agora(); gravar();
     return espera(undefined);
