@@ -30,6 +30,8 @@ export interface Membro {
   papel?: Papel;
   funcao?: Funcao;
   ativo?: boolean;
+  /** Conta reservada: consta na equipe e nos contratos, sem acesso ao sistema. */
+  reservada?: boolean;
   cor?: string | null;
   pessoa_id?: string | null;
   /** Link da foto pequena (150×150, redonda), para as bolinhas; sem foto, as bolinhas mostram as iniciais. */
@@ -387,7 +389,7 @@ export interface FiltroTarefas {
 }
 
 export interface Usuario {
-  id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; pessoa_id: string | null; email: string;
+  id: string; nome: string; usuario: string; papel: Papel; funcao: Funcao; ativo: boolean; reservada?: boolean; pessoa_id: string | null; email: string;
   criado_em: string; ultimo_acesso: string | null; confirmado: boolean; cor?: string | null;
 }
 export interface Convite { id: string; email: string; nome: string; papel: Papel; pessoa_id: string | null; criado_em: string }
@@ -948,6 +950,8 @@ export interface DadosQuadros {
 }
 
 /** Por que a troca de e-mail pelo administrador não aconteceu. */
+/** Por que a conta reservada não foi criada (cada resposta da função equipe-reservar-conta). */
+export type RecusaDaReserva = 'sem-permissao' | 'ja-na-equipe' | 'convite-pendente' | 'erro';
 export type RecusaDaTrocaDeEmail = 'sem-permissao' | 'so-o-master' | 'email-invalido' | 'email-em-uso' | 'convite-pendente' | 'limite' | 'erro';
 
 /** Equipe, convites, registro de ações e dados do escritório (administração). */
@@ -966,6 +970,8 @@ export interface DadosEquipe {
    * Encerra as sessões abertas da pessoa, tira a senha antiga de uso e fica no registro de ações.
    */
   equipeTrocarEmail(perfilId: string, email: string): Promise<void>;
+  /** Cadastra na equipe alguém que não entra no sistema, para constar como responsável ou participante de contratos. Só administradores; fica no registro de ações. */
+  equipeReservarConta(pessoaId: string): Promise<void>;
   /** As últimas trocas de e-mail pelo administrador, separadas do resto do registro de ações (só administradores). */
   trocasDeEmailListar(limite?: number): Promise<RegistroAuditoria[]>;
   convitesListar(): Promise<Convite[]>;

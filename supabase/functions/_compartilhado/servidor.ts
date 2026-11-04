@@ -1,4 +1,5 @@
 // Ajudas das funções do servidor (Deno): ler os segredos, chamar o banco e o login com a chave de serviço, e responder.
+import { BLOQUEIO_DA_CONTA_RESERVADA } from './reservaDeConta.ts';
 import { senhaDescartavel } from './trocaDeEmail.ts';
 
 /** Um segredo do servidor (Edge Functions → Secrets no painel do Supabase); sem ele, a função para com um erro claro. */
@@ -54,6 +55,20 @@ export async function trocarEmailNoLogin(perfil: string, email: string): Promise
   if (r.status >= 500) throw new Error(`o login não respondeu à troca do e-mail (${r.status})`);
   const { error_code } = await r.json().catch(() => ({})) as { error_code?: string };
   return error_code === 'email_exists' ? 'email-em-uso' : 'recusado';
+}
+
+/**
+ * Cria a conta reservada (#215): e-mail de marca, confirmado para nenhum e-mail sair, senha que ninguém conhece e login bloqueado.
+ * O convite vai nos dados da conta: é por ele que o gatilho ao_cadastrar_usuario cria o perfil. false é um "não" certo do login.
+ */
+export async function criarContaReservadaNoLogin(email: string, convite: string): Promise<boolean> {
+  const r = await fetch(`${segredo('SUPABASE_URL')}/auth/v1/admin/users`, {
+    method: 'POST', headers: comChaveDeServico(),
+    body: JSON.stringify({ email, email_confirm: true, password: senhaDescartavel(), user_metadata: { convite }, ban_duration: BLOQUEIO_DA_CONTA_RESERVADA })
+  });
+  if (r.ok) return true;
+  if (r.status >= 500) throw new Error(`o login não respondeu à conta reservada (${r.status})`);
+  return false;
 }
 
 /** Revoga um token no Google(a conta que saiu do SEMPER deixa de valer lá também). Se o Google não responder, segue. */
