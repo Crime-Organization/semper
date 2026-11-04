@@ -1157,9 +1157,11 @@ function acharParcela(id: string) {
 /** Como privado.recebimento_do_terceiro. As contas que recebem aqui são sempre o master, que cuida de todos os contratos. */
 const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
 const nomeDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido';
+/** Quem recebeu o dinheiro ou um administrador (como privado.marco_o_que_recebi). */
+const marcoOQueRecebi = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => souAdmin() || r.responsavel_id === eu;
 function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
   const r = bd.recebimentos!.find(x => x.id === recebimento);
-  if (!r) throw new Error('Só quem recebeu o dinheiro ou um administrador marca este valor como pago.');
+  if (!r || !marcoOQueRecebi(r)) throw new Error('Só quem recebeu o dinheiro ou um administrador marca este valor como pago.');
   if (r.estornado_em) throw new Error('Este recebimento foi estornado.');
   if (pessoa === pessoaDoResponsavel(r) || !r.terceiros.some(t => t.id === pessoa && t.valor > 0)) throw new Error('Esta pessoa não recebe nada deste recebimento.');
   return r;
@@ -2593,7 +2595,7 @@ export const SD: Dados = {
     return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.papel.localeCompare(b.papel)));
   },
   financeiroAPassar(de, ate) {
-    const linhas = bd.recebimentos!.filter(r => !r.estornado_em).flatMap(r => {
+    const linhas = bd.recebimentos!.filter(r => !r.estornado_em && marcoOQueRecebi(r)).flatMap(r => {
       const k = bd.contratos!.find(x => x.id === r.contrato_id);
       return r.terceiros.filter(t => t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map((t): ValorAPassar => ({
         recebimento_id: r.id, pessoa_id: t.id, nome: t.nome, valor: t.valor, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '',
