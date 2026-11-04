@@ -38,18 +38,52 @@ test.describe('Equipe e acessos', () => {
     await expect(pendentes).toContainText('Nenhum convite pendente.');
   });
 
-  test('quando o administrador desativa e reativa alguém, então os avisos dizem que a pessoa saiu dos aparelhos e lembram da senha', async ({ page }) => {
-    // Dado
-    const ana = page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: 'Ana Teste Lima' });
-    // Quando
-    await ana.getByRole('button', { name: 'Desativar' }).click();
-    await ana.getByRole('button', { name: 'Confirmar desativação' }).click();
-    // Então
-    await expect(page.getByText('Ana Teste Lima foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.')).toBeVisible();
-    // Quando
-    await ana.getByRole('button', { name: 'Reativar' }).click();
-    // Então
-    await expect(page.getByText('Ana Teste Lima pode entrar de novo. Se houve invasão, peça que troque a senha.')).toBeVisible();
+  test.describe('Desativar e reativar', () => {
+    const SENHA = 'A senha antiga não vale mais: a pessoa cria uma nova em "Esqueci minha senha".';
+    const linhaDaAna = (page: Page) => page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: 'Ana Teste Lima' });
+
+    async function desativarAna(page: Page) {
+      await linhaDaAna(page).getByRole('button', { name: 'Desativar' }).click();
+      await linhaDaAna(page).getByRole('button', { name: 'Confirmar desativação' }).click();
+    }
+
+    test('quando o administrador desativa alguém, então o aviso diz que a pessoa saiu dos aparelhos', async ({ page }) => {
+      // Quando
+      await desativarAna(page);
+      // Então
+      await expect(page.getByText('Ana Teste Lima foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.')).toBeVisible();
+    });
+
+    test('quando o administrador clica em "Reativar" uma vez, então ainda pede confirmação', async ({ page }) => {
+      // Dado
+      await desativarAna(page);
+      // Quando
+      await linhaDaAna(page).getByRole('button', { name: 'Reativar' }).click();
+      // Então
+      await expect(linhaDaAna(page).getByRole('button', { name: 'Confirmar reativação' })).toBeVisible();
+      await expect(linhaDaAna(page)).toContainText('Desativado');
+    });
+
+    test('quando o administrador confirma a reativação, então a pessoa volta e o aviso diz que a senha antiga não vale mais', async ({ page }) => {
+      // Dado
+      await desativarAna(page);
+      // Quando
+      await linhaDaAna(page).getByRole('button', { name: 'Reativar' }).click();
+      await linhaDaAna(page).getByRole('button', { name: 'Confirmar reativação' }).click();
+      // Então
+      await expect(page.getByText(`Ana Teste Lima foi reativado(a). ${SENHA}`)).toBeVisible();
+      await expect(linhaDaAna(page).getByRole('button', { name: 'Desativar' })).toBeVisible();
+    });
+
+    test('quando o administrador desfaz uma desativação, então o aviso também diz que a senha antiga não vale mais', async ({ page }) => {
+      // Dado
+      await desativarAna(page);
+      // Quando
+      await page.getByRole('button', { name: 'Desfazer' }).click();
+      // Então
+      await expect(page.getByText(`Desfeito: desativação. ${SENHA}`)).toBeVisible();
+      await expect(linhaDaAna(page).getByRole('button', { name: 'Desativar' })).toBeVisible();
+    });
   });
 
   test('quando o administrador muda a função de alguém, então a função nova aparece e fica no registro de ações', async ({ page }) => {

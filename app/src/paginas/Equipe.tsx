@@ -120,8 +120,10 @@ function PainelEquipe() {
   async function definirAtivo(u: Usuario, ativar: boolean) {
     try {
       await SD.equipeDefinirAtivo(u.id, ativar);
-      feito(ativar ? `${u.nome} pode entrar de novo. Se houve invasão, peça que troque a senha.` : `${u.nome} foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
-        ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
+      // Toda reativação tira a senha de uso, inclusive a do "Desfazer" de uma desativação (public.equipe_definir_ativo).
+      const senha = 'A senha antiga não vale mais: a pessoa cria uma nova em "Esqueci minha senha"';
+      feito(ativar ? `${u.nome} foi reativado(a). ${senha}.` : `${u.nome} foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
+        ativar ? 'reativação' : `desativação. ${senha}`, async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
       mudouEquipe();
     } catch (e) { falha(e); }
   }
@@ -195,7 +197,7 @@ function PainelEquipe() {
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
                   : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
-                  : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => definirAtivo(u, true)}>Reativar</button>}
+                  : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => definirAtivo(u, true)}>Reativar</BotaoDuplo>}
               </div></td>
             </tr>;
           })}
