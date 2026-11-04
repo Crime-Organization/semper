@@ -55,6 +55,8 @@ export const DEMANDAS_PARA_LIGAR = 500;
 export const PERIODO_MAXIMO = 12 * 60 * 60;
 /** Um ajuste à mão vai de -24 a +24 horas. */
 export const AJUSTE_MAXIMO = 24 * 60 * 60;
+/** A observação da conferência dos lançamentos, a mesma do banco (supabase/migrations/20261104221303_conferencia_de_lancamentos.sql). */
+export const TAMANHO_CONFERENCIA = { observacao: 1000 };
 /** Tamanho do motivo do ajuste. */
 export const TAMANHO_MOTIVO = 300;
 /** Listas das demandas: nome da lista e texto do item, os mesmos do banco (supabase/migrations/20261027000018_listas_das_demandas.sql). */
