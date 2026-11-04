@@ -2058,6 +2058,61 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(salvar).rejects.toThrow(INVALIDO);
       });
 
+      it.each([
+        ['ajuste a mais como saída', { tipo: 'saida' as const, categoria: 'ajuste_a_mais' as const }], ['ajuste a menos como entrada', { tipo: 'entrada' as const, categoria: 'ajuste_a_menos' as const }]
+      ])('quando há %s, então é recusado', async (_caso, extra) => {
+        // Dado
+        const { id } = await novaConta();
+        // Quando
+        const salvar = lancar(id, extra);
+        // Então
+        await expect(salvar).rejects.toThrow(INVALIDO);
+      });
+
+      it('quando lança ajustes de saldo, então o saldo muda como em qualquer lançamento', async () => {
+        // Dado
+        const { id } = await novaConta({ saldo_inicial: 10000 });
+        // Quando
+        await lancar(id, { data: '2026-02-10', tipo: 'entrada', categoria: 'ajuste_a_mais', valor: 5000, descricao: 'Diferença do extrato' });
+        await lancar(id, { data: '2026-02-11', tipo: 'saida', categoria: 'ajuste_a_menos', valor: 2000, descricao: 'Tarifa sem lançamento' });
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-03-01')).toBe(13000);
+      });
+
+      it('quando muda, exclui e desfaz um ajuste de saldo, então funciona como os outros, e o histórico registra', async () => {
+        // Dado
+        const { id } = await novaConta();
+        const l = await lancar(id, { tipo: 'entrada', categoria: 'ajuste_a_mais', valor: 5000, descricao: 'Diferença do extrato' });
+        // Quando
+        await SD.financeiroLancamentoAtualizar(l.id, { tipo: 'saida', categoria: 'ajuste_a_menos', valor: 4000 });
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-04-01')).toBe(-4000);
+        expect((await SD.financeiroHistorico(l.id))[0].alteracoes.categoria).toEqual({ de: 'ajuste_a_mais', para: 'ajuste_a_menos' });
+        // Quando
+        await SD.financeiroLancamentoExcluir(l.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-04-01')).toBe(0);
+        // Quando
+        await SD.financeiroLancamentoRestaurar(l.id);
+        // Então
+        expect(await SD.financeiroSaldoAntes(id, '2026-04-01')).toBe(-4000);
+      });
+
+      it('quando lista os ajustes de saldo, então vêm os de todas as contas, dos mais novos aos mais antigos, sem os outros lançamentos nem os excluídos', async () => {
+        // Dado
+        const [a, b] = [await novaConta(), await novaConta()];
+        const antes = (await SD.financeiroAjustesDeSaldo()).map(l => l.id);
+        const antigo = await lancar(a.id, { data: '2026-02-10', tipo: 'entrada', categoria: 'ajuste_a_mais', descricao: 'Antigo' });
+        const novo = await lancar(b.id, { data: '2026-03-20', tipo: 'saida', categoria: 'ajuste_a_menos', descricao: 'Novo' });
+        const excluido = await lancar(a.id, { data: '2026-03-21', tipo: 'saida', categoria: 'ajuste_a_menos', descricao: 'Excluído' });
+        await lancar(a.id, { data: '2026-03-22', descricao: 'Honorários' });
+        await SD.financeiroLancamentoExcluir(excluido.id);
+        // Quando
+        const lista = (await SD.financeiroAjustesDeSaldo()).filter(l => !antes.includes(l.id));
+        // Então
+        expect(lista.map(l => l.id)).toEqual([novo.id, antigo.id]);
+      });
+
       it('quando a data é anterior ao saldo inicial, ou a conta está arquivada, então é recusado', async () => {
         // Dado
         const { id } = await novaConta({ saldo_inicial_em: '2026-03-01' });

@@ -20,7 +20,9 @@ export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>,
   das: { nome: 'DAS', tipo: 'saida' },
   repasse: { nome: 'Repasse a advogado', tipo: 'saida' },
   indicacao: { nome: 'Indicação', tipo: 'saida' },
-  divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' }
+  divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' },
+  ajuste_a_mais: { nome: 'Ajuste de saldo (a mais)', tipo: 'entrada' },
+  ajuste_a_menos: { nome: 'Ajuste de saldo (a menos)', tipo: 'saida' }
 };
 /** O que esta versão do site sabe da categoria. Pode não saber nada: depois de voltar a versão, o banco pode ter uma categoria mais
  *  nova. Essa categoria aparece como está guardada, para a tela do caixa não quebrar. */
@@ -32,10 +34,15 @@ export function categoriasDoFormulario(atual: keyof typeof CATEGORIAS) {
   const conhecidas = (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
   return dadosDaCategoria(atual) ? conhecidas : [...conhecidas, atual];
 }
-/** Como a categoria aparece na lista do formulário. */
+
+/** O acerto que iguala o saldo do sistema ao do banco: muda o saldo, mas não é receita, despesa nem lucro. */
+export const CATEGORIAS_DE_AJUSTE: CategoriaDeLancamento[] = ['ajuste_a_mais', 'ajuste_a_menos'];
+export const ehAjuste = (c: CategoriaDeLancamento) => CATEGORIAS_DE_AJUSTE.includes(c);
+/** Como a categoria aparece na lista do formulário. O nome do ajuste já diz o sentido. */
 export function rotuloDaCategoria(c: keyof typeof CATEGORIAS) {
   const categoria = dadosDaCategoria(c);
-  return categoria ? `${categoria.nome} (${categoria.tipo === 'entrada' ? 'entrada' : 'saída'})` : nomeDaCategoria(c);
+  if (!categoria || ehAjuste(c)) return nomeDaCategoria(c);
+  return `${categoria.nome} (${categoria.tipo === 'entrada' ? 'entrada' : 'saída'})`;
 }
 
 const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
@@ -72,7 +79,9 @@ function errosComuns(f: { data: string; valor: string; descricao: string }, cont
   return erros;
 }
 export function errosDoLancamento(f: FormDoLancamento, conta: Pick<ContaFinanceira, 'saldo_inicial_em'> | undefined): ErrosDoLancamento {
-  return { ...errosComuns(f, conta), ...(f.contaId ? {} : { contaId: 'Escolha a conta.' }) };
+  const erros = errosComuns(f, conta);
+  if (ehAjuste(f.categoria) && !f.descricao.trim()) erros.descricao = 'Diga o motivo do ajuste.';
+  return { ...erros, ...(f.contaId ? {} : { contaId: 'Escolha a conta.' }) };
 }
 export function dadosDoLancamento(f: FormDoLancamento): DadosLancamento {
   const valor = lerValor(f.valor);
@@ -143,18 +152,42 @@ export function diasDoMes(mes: string) {
 export const mesValido = (mes: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(mes);
 
 export interface LinhaDoCaixa { lancamento: Lancamento; saldo: number; fimDoDia: boolean }
-export interface MesDoCaixa { linhas: LinhaDoCaixa[]; saldoAnterior: number; entradas: number; saidas: number; saldoFinal: number }
+/** O que os ajustes de saldo somaram no mês, para cada lado. */
+export interface AjustesDoMes { aMais: number; aMenos: number }
+export interface MesDoCaixa {
+  linhas: LinhaDoCaixa[]; saldoAnterior: number;
+  /** Sem os ajustes de saldo: eles não são receita nem despesa. */
+  entradas: number; saidas: number;
+  /** Só existe quando o mês tem ajuste, mesmo que os dois lados se anulem. */
+  ajustes?: AjustesDoMes;
+  saldoFinal: number;
+}
 
 /** Os lançamentos do mês em ordem, cada um com o saldo depois dele, marcando o último de cada dia: é o saldo a comparar com o banco. */
 export function mesDoCaixa(lancamentos: Lancamento[], saldoAnterior: number): MesDoCaixa {
   const ordem = lancamentos.toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em));
-  let saldo = saldoAnterior, entradas = 0, saidas = 0;
+  let saldo = saldoAnterior;
   const linhas = ordem.map((l, i): LinhaDoCaixa => {
-    if (l.tipo === 'entrada') { saldo += l.valor; entradas += l.valor; } else { saldo -= l.valor; saidas += l.valor; }
+    saldo += l.tipo === 'entrada' ? l.valor : -l.valor;
     return { lancamento: l, saldo, fimDoDia: ordem[i + 1]?.data !== l.data };
   });
-  return { linhas, saldoAnterior, entradas, saidas, saldoFinal: saldo };
+  const somar = (serve: (l: Lancamento) => boolean) => ordem.filter(serve).reduce((s, l) => s + l.valor, 0);
+  const ajustes = ordem.some(l => ehAjuste(l.categoria))
+    ? { aMais: somar(l => ehAjuste(l.categoria) && l.tipo === 'entrada'), aMenos: somar(l => ehAjuste(l.categoria) && l.tipo === 'saida') }
+    : undefined;
+  return {
+    linhas, saldoAnterior, ajustes, saldoFinal: saldo,
+    entradas: somar(l => !ehAjuste(l.categoria) && l.tipo === 'entrada'),
+    saidas: somar(l => !ehAjuste(l.categoria) && l.tipo === 'saida')
+  };
 }
+/** O valor com o sinal na frente, sem quebrar a linha entre os dois. */
+const comSinal = (sinal: string, centavos: number) => `${sinal}\u00a0${fmtCentavos(centavos)}`;
+/** Os ajustes do mês como a pessoa lê, cada lado com o seu sinal. */
+export const textoDosAjustes = ({ aMais, aMenos }: AjustesDoMes) =>
+  [aMais ? comSinal('+', aMais) : '', aMenos ? comSinal('−', aMenos) : ''].filter(Boolean).join(' · ');
+/** O valor de um ajuste com o sinal do seu lado. */
+export const valorDoAjuste = (l: Pick<Lancamento, 'tipo' | 'valor'>) => comSinal(l.tipo === 'entrada' ? '+' : '−', l.valor);
 
 /** Os nomes de cada campo no histórico do lançamento. */
 export const CAMPOS_DO_LANCAMENTO: Record<string, string> = { conta: 'Conta', data: 'Data', tipo: 'Tipo', categoria: 'Categoria', valor: 'Valor', descricao: 'Descrição', excluido_em: 'Exclusão' };
