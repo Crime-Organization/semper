@@ -16,12 +16,9 @@ export function AjustesDeSaldo({ contas, versao }: { contas: ContaFinanceira[]; 
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
   if (!lista.length) return <Nota>Nenhum ajuste de saldo lançado.</Nota>;
-  return <div className="tabela"><table aria-label="Todos os ajustes de saldo">
-    <thead><tr>
-      <th scope="col">Data</th><th scope="col">Conta</th><th scope="col">Motivo</th><th scope="col" className="financeiro-num">Ajuste</th>
-    </tr></thead>
-    <tbody>{lista.map(l => <tr key={l.id}>
-      <td>{fmtData(l.data)}</td><td>{contas.find(c => c.id === l.conta_id)?.nome}</td><td>{l.descricao}</td><td className="financeiro-num">{valorDoAjuste(l)}</td>
-    </tr>)}</tbody>
-  </table></div>;
+  // Lista empilhada, não tabela: no celular, o valor é o que se vem conferir e não pode ficar escondido à direita.
+  return <ul className="financeiro-lista" aria-label="Todos os ajustes de saldo">{lista.map(l => <li key={l.id}>
+    <span>{fmtData(l.data)} · {contas.find(c => c.id === l.conta_id)?.nome} · {l.descricao}</span>
+    <b className="financeiro-num">{valorDoAjuste(l)}</b>
+  </li>)}</ul>;
 }

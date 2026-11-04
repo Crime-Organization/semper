@@ -172,9 +172,9 @@ test.describe('Caixa', () => {
     // Quando
     await abrirSecao(page, 'Todos os ajustes de saldo');
     // Então
-    const lista = page.getByRole('table', { name: 'Todos os ajustes de saldo' });
-    await expect(lista.getByRole('row')).toHaveCount(3);
-    const [marco, fevereiro] = [lista.getByRole('row').nth(1), lista.getByRole('row').nth(2)];
+    const lista = page.getByRole('list', { name: 'Todos os ajustes de saldo' });
+    await expect(lista.getByRole('listitem')).toHaveCount(2);
+    const [marco, fevereiro] = [lista.getByRole('listitem').nth(0), lista.getByRole('listitem').nth(1)];
     await expect(marco).toContainText('Diferença de março');
     await expect(marco).toContainText('PF');
     await expect(marco).toContainText('30,00');
@@ -182,6 +182,52 @@ test.describe('Caixa', () => {
     await expect(fevereiro).toContainText('PJ');
     await expect(fevereiro).toContainText('100,00');
     await expect(lista).not.toContainText('Papel');
+  });
+
+  test('quando confere os ajustes no celular, então o valor aparece sem rolar para o lado', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 375, height: 812 });
+    await criarContas(page);
+    await irParaMes(page, '2026-02');
+    await lancarAjuste(page, { categoria: 'Ajuste de saldo (a mais)', valor: '100,00', motivo: 'Diferença do extrato de fevereiro, que ainda falta conferir com o banco na auditoria', data: '2026-02-10' });
+    // Quando
+    await abrirSecao(page, 'Todos os ajustes de saldo');
+    // Então
+    const valor = page.getByRole('list', { name: 'Todos os ajustes de saldo' }).getByText('100,00');
+    await expect(valor).toBeVisible();
+    const caixa = (await valor.boundingBox())!, tela = page.viewportSize()!;
+    expect(caixa.x + caixa.width).toBeLessThanOrEqual(tela.width);
+    const largura = await page.evaluate(() => ({ pagina: document.documentElement.scrollWidth, tela: document.documentElement.clientWidth }));
+    expect(largura.pagina).toBeLessThanOrEqual(largura.tela);
+  });
+
+  test('dado um lançamento com categoria que esta versão não conhece, quando abre o caixa, então a tela funciona e dá para excluir', async ({ page }) => {
+    // Dado: é o que acontece ao voltar a versão do site depois que o banco ganhou uma categoria nova
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      bd.lancamentos[0].categoria = 'categoria_mais_nova';
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    // Quando
+    await page.reload();
+    await irParaMes(page, '2026-03');
+    // Então
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('categoria_mais_nova');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('990,00');
+    // Quando
+    await page.getByRole('button', { name: 'Mudar o lançamento Papel' }).click();
+    // Então: o formulário mostra a categoria que está guardada, não a primeira da lista
+    await expect(page.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Categoria')).toHaveValue('categoria_mais_nova');
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Quando
+    await tabela.getByRole('button', { name: 'Excluir' }).click();
+    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então
+    await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
   });
 
   test('quando esquece um campo, então avisa e não lança', async ({ page }) => {

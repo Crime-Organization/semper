@@ -24,18 +24,26 @@ export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>,
   ajuste_a_mais: { nome: 'Ajuste de saldo (a mais)', tipo: 'entrada' },
   ajuste_a_menos: { nome: 'Ajuste de saldo (a menos)', tipo: 'saida' }
 };
-export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferencia' ? 'Repasse entre contas' : CATEGORIAS[c].nome;
+/** O que esta versão do site sabe da categoria. Pode não saber nada: depois de voltar a versão, o banco pode ter uma categoria mais
+ *  nova. Essa categoria aparece como está guardada, para a tela do caixa não quebrar. */
+const dadosDaCategoria = (c: string): { nome: string; tipo: TipoDeLancamento } | undefined => (CATEGORIAS as Partial<Record<string, { nome: string; tipo: TipoDeLancamento }>>)[c];
+export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferencia' ? 'Repasse entre contas' : dadosDaCategoria(c)?.nome ?? String(c);
 /** As que se lançam à mão. A divisão de lucro nasce na página Lucro dos sócios, para ficar no nome do sócio. Quem já tem essa categoria
- *  (de antes desta regra) continua vendo a sua. */
-export const categoriasDoFormulario = (atual: keyof typeof CATEGORIAS) =>
-  (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
+ *  (de antes desta regra) continua vendo a sua, e o mesmo vale para uma categoria que esta versão não conhece. */
+export function categoriasDoFormulario(atual: keyof typeof CATEGORIAS) {
+  const conhecidas = (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
+  return dadosDaCategoria(atual) ? conhecidas : [...conhecidas, atual];
+}
 
 /** O acerto que iguala o saldo do sistema ao do banco: muda o saldo, mas não é receita, despesa nem lucro. */
 export const CATEGORIAS_DE_AJUSTE: CategoriaDeLancamento[] = ['ajuste_a_mais', 'ajuste_a_menos'];
 export const ehAjuste = (c: CategoriaDeLancamento) => CATEGORIAS_DE_AJUSTE.includes(c);
 /** Como a categoria aparece na lista do formulário. O nome do ajuste já diz o sentido. */
-export const rotuloDaCategoria = (c: keyof typeof CATEGORIAS) =>
-  ehAjuste(c) ? CATEGORIAS[c].nome : `${CATEGORIAS[c].nome} (${CATEGORIAS[c].tipo === 'entrada' ? 'entrada' : 'saída'})`;
+export function rotuloDaCategoria(c: keyof typeof CATEGORIAS) {
+  const categoria = dadosDaCategoria(c);
+  if (!categoria || ehAjuste(c)) return nomeDaCategoria(c);
+  return `${categoria.nome} (${categoria.tipo === 'entrada' ? 'entrada' : 'saída'})`;
+}
 
 const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
 /** O valor digitado, em centavos; ou o que há de errado com ele. */
@@ -48,9 +56,16 @@ export function lerValor(texto: string): { centavos: number } | { erro: string }
 }
 
 // ---------- lançamento ----------
-export interface FormDoLancamento { contaId: string; data: string; categoria: keyof typeof CATEGORIAS; valor: string; descricao: string }
+export interface FormDoLancamento {
+  contaId: string; data: string; categoria: keyof typeof CATEGORIAS; valor: string; descricao: string;
+  /** O tipo que o lançamento já tem. Só vem quando esta versão não conhece a categoria dele e, por isso, não sabe deduzir o tipo. */
+  tipoGuardado?: TipoDeLancamento;
+}
 export const lancamentoNovo = (contaId: string, hoje: string): FormDoLancamento => ({ contaId, data: hoje, categoria: 'recebimento', valor: '', descricao: '' });
-export const formDoLancamento = (l: Lancamento): FormDoLancamento => ({ contaId: l.conta_id, data: l.data, categoria: l.categoria as keyof typeof CATEGORIAS, valor: centavosNoCampo(l.valor), descricao: l.descricao });
+export const formDoLancamento = (l: Lancamento): FormDoLancamento => ({
+  contaId: l.conta_id, data: l.data, categoria: l.categoria as keyof typeof CATEGORIAS, valor: centavosNoCampo(l.valor), descricao: l.descricao,
+  ...(dadosDaCategoria(l.categoria) ? {} : { tipoGuardado: l.tipo })
+});
 
 type ErrosDoLancamento = Partial<Record<'contaId' | 'data' | 'valor' | 'descricao', string>>;
 function errosComuns(f: { data: string; valor: string; descricao: string }, conta: Pick<ContaFinanceira, 'saldo_inicial_em'> | undefined): ErrosDoLancamento {
@@ -71,7 +86,9 @@ export function errosDoLancamento(f: FormDoLancamento, conta: Pick<ContaFinancei
 export function dadosDoLancamento(f: FormDoLancamento): DadosLancamento {
   const valor = lerValor(f.valor);
   if ('erro' in valor) throw new Error(valor.erro);
-  return { conta_id: f.contaId, data: f.data, tipo: CATEGORIAS[f.categoria].tipo, categoria: f.categoria, valor: valor.centavos, descricao: f.descricao.trim() };
+  const tipo = dadosDaCategoria(f.categoria)?.tipo ?? f.tipoGuardado;
+  if (!tipo) throw new Error('Escolha a categoria.');
+  return { conta_id: f.contaId, data: f.data, tipo, categoria: f.categoria, valor: valor.centavos, descricao: f.descricao.trim() };
 }
 
 // ---------- transferência ----------
