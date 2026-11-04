@@ -38,6 +38,20 @@ test.describe('Equipe e acessos', () => {
     await expect(pendentes).toContainText('Nenhum convite pendente.');
   });
 
+  test('quando o administrador desativa e reativa alguém, então os avisos dizem que a pessoa saiu dos aparelhos e lembram da senha', async ({ page }) => {
+    // Dado
+    const ana = page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: 'Ana Teste Lima' });
+    // Quando
+    await ana.getByRole('button', { name: 'Desativar' }).click();
+    await ana.getByRole('button', { name: 'Confirmar desativação' }).click();
+    // Então
+    await expect(page.getByText('Ana Teste Lima foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.')).toBeVisible();
+    // Quando
+    await ana.getByRole('button', { name: 'Reativar' }).click();
+    // Então
+    await expect(page.getByText('Ana Teste Lima pode entrar de novo. Se houve invasão, peça que troque a senha.')).toBeVisible();
+  });
+
   test('quando o administrador muda a função de alguém, então a função nova aparece e fica no registro de ações', async ({ page }) => {
     // Dado
     const funcao = page.getByLabel('Função de Ana Teste Lima');
