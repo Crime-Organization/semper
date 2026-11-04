@@ -20,3 +20,6 @@ export const TIQUE_DO_CRONOMETRO = SEGUNDO;
 
 /** Aviso de versão nova: de quanto em quanto tempo a aba aberta confere a versão que está no ar (/versao.txt). */
 export const CONFERIR_VERSAO_A_CADA = 5 * MINUTO;
+
+/** De quanto em quanto tempo a aba aberta confere se a sessão ainda existe, para não mostrar listas vazias a quem perdeu o acesso. */
+export const CONFERIR_SESSAO_A_CADA = MINUTO;

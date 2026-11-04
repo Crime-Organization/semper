@@ -8,6 +8,8 @@ Três tipos de teste, todos escritos no mesmo padrão (BDD, em português). Nenh
 | Componente | Peças de `src/ui/` montadas sozinhas (botões, janelas, avisos, busca…) | Vitest + Testing Library | ao lado da peça: `src/ui/*.test.tsx` | `npm run verificar` |
 | Ponta a ponta | Fluxos inteiros no navegador (entrar, cadastrar, quadro, equipe…) | Playwright | `e2e/*.spec.ts` | `npm run testar-telas` |
 
+As regras do banco têm um quarto tipo, à parte, porque precisa de um banco local de verdade: os testes em `supabase/tests/` (pgTAP), que conferem o que cada token consegue ler e gravar. Rodam com `supabase db start` e `supabase test db`, e ainda não estão na rotina do GitHub. Rode ao mexer em regras de acesso.
+
 Os comandos rodam dentro de `app/` (ou com `--prefix app` a partir da raiz). No GitHub, os três rodam na rotina `.github/workflows/testes.yml`, chamada a cada push e pull request (`verificar.yml`) e a cada versão (`publicar.yml`): se algum falhar, nada é compilado nem publicado.
 
 ## O padrão

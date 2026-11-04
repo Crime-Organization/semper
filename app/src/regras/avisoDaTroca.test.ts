@@ -65,13 +65,13 @@ describe('mensagensDoAviso', () => {
     }
   });
 
-  it.each(['trocada', 'nao-confirmada'] as const)('dada uma troca %s, quando monta o aviso, então não promete que os aparelhos foram desconectados e diz até quando o acesso pode durar', situacao => {
+  it.each(['trocada', 'nao-confirmada'] as const)('dada uma troca %s, quando monta o aviso, então diz que quem já estava conectado perdeu o acesso na hora', situacao => {
     // Quando
     const mensagens = mensagensDoAviso(DADOS, situacao);
     // Então
     for (const m of mensagens) {
-      expect(m.texto).not.toContain('desconectados');
-      expect(m.texto).toContain('pode continuar usando o sistema até ele vencer');
+      expect(m.texto).toContain('Quem já estava conectado perdeu o acesso na hora.');
+      expect(m.texto).not.toContain('até ele vencer');
     }
   });
 

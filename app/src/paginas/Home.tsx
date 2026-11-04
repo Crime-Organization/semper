@@ -18,7 +18,7 @@ import imgCadastro from '../imagens/home/cadastro.webp';
 import './Home.css';
 
 // Parâmetros dos links do sistema (convite, e-mails, volta depois do login): esses vão para a entrada.
-const DA_ENTRADA = ['primeiro-acesso', 'token_hash', 'nova-senha', 'recuperar', 'volta', 'desativado', 'cliente'];
+const DA_ENTRADA = ['primeiro-acesso', 'token_hash', 'nova-senha', 'recuperar', 'volta', 'desativado', 'encerrada', 'cliente'];
 const vaiParaEntrada = () => DA_ENTRADA.some(k => new URLSearchParams(location.search).has(k))
   || /access_token|convite=|error_description/.test(location.hash);
 

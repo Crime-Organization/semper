@@ -3670,6 +3670,11 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Sessão', () => {
+      it('dada uma sessão ativa, quando confere com o login, então ela não está encerrada', async () => {
+        // Quando / Então
+        expect(await SD.sessaoEncerrada()).toBe(false);
+      });
+
       it('quando a pessoa sai, então não há mais sessão nem contexto', async () => {
         // Quando
         await SD.sair();

@@ -16,6 +16,12 @@ type Painel = 'entrar' | 'primeiro' | 'cliente' | 'solicitar' | 'recuperar' | 'n
 interface DefPainel { titulo: string; aba?: 'entrar' | 'cliente'; enviar: (e: FormEvent<HTMLFormElement>) => Promise<void>; campos: ReactNode }
 type Mensagem = { texto: string; tipo: 'erro' | 'ok' | 'info' } | null;
 
+/** O aviso de quem chega à entrada por ter perdido o acesso (parâmetro do endereço; veja ui/sessao.tsx). */
+const AVISO_AO_CHEGAR: Record<string, string> = {
+  desativado: 'Seu acesso a este escritório está desativado. Fale com o administrador.',
+  encerrada: 'Sua sessão foi encerrada. Entre de novo para continuar.'
+};
+
 export default function Entrada() {
   useTitulo('Entrar');
   const navegar = useNavigate();
@@ -38,7 +44,8 @@ export default function Entrada() {
   const inicial: Painel = porRecuperacao ? 'nova' : params.has('primeiro-acesso') ? 'primeiro' : params.has('recuperar') ? 'recuperar' : params.has('cliente') ? 'cliente' : 'entrar';
 
   const [painel, setPainel] = useState<Painel>(inicial);
-  const [msg, setMsg] = useState<Mensagem>(params.has('desativado') ? { texto: 'Seu acesso a este escritório está desativado. Fale com o administrador.', tipo: 'info' } : null);
+  const chegada = Object.keys(AVISO_AO_CHEGAR).find(k => params.has(k));
+  const [msg, setMsg] = useState<Mensagem>(chegada ? { texto: AVISO_AO_CHEGAR[chegada], tipo: 'info' } : null);
   const [ocupado, setOcupado] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
   const linkAberto = useRef(false);   // o código do link é de uso único, e o efeito abaixo pode rodar duas vezes em desenvolvimento
@@ -83,7 +90,7 @@ export default function Entrada() {
         .then(({ comSessao }) => depoisDoLink[linkEmail.tipo](comSessao))
         .catch((e: Error) => { mostrar('entrar'); avisar(e.message); });
     } else if (!porRecuperacao) SD.sessao().then(async s => {
-      if (!s || params.has('desativado')) return;
+      if (!s || chegada) return;
       // Entrou com a senha, mas tem verificação em duas etapas: falta o código do aplicativo.
       if (await SD.duasEtapasPendente()) mostrar('codigo'); else navegar(destino, { replace: true });
     }).catch(() => { /* sem conferir a sessão, a tela de entrada continua como está */ });

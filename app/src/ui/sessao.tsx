@@ -9,6 +9,7 @@ import { aplicarTema, type Tema } from './tema';
 import { Casca } from './Casca';
 import { Aviso, Carregando } from './base';
 import { MINUTO } from './tempos';
+import { useVigiaDaSessao } from './vigiaDaSessao';
 
 interface Sessao {
   ctx: ContextoAtivo;
@@ -25,6 +26,9 @@ export function useSessao() {
 export const useCtx = () => useSessao().ctx;
 
 const RENOVAR_APOS = 10 * MINUTO;   // relê a equipe e o próprio acesso ao trocar de tela depois de 10 min
+/** A entrada, com o aviso de sessão encerrada: depois de entrar de novo, a pessoa volta para onde estava. */
+const entradaPorSessaoEncerrada = (aqui: string) => '/entrar/?encerrada&volta=' + encodeURIComponent(aqui);
+const conferirSessao = () => SD.sessaoEncerrada();
 
 /** "janela": o que se abre por cima das telas internas e também precisa de quem está logado (o cadastro novo, em App.tsx). */
 export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
@@ -46,7 +50,13 @@ export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
     }
     catch (e) { if (primeira) setErro((e as Error).message); return; }
     if (!c) { navegar('/entrar/?volta=' + encodeURIComponent(aqui.current), { replace: true }); return; }
-    if (!c.perfil) { await SD.sair().catch(() => {}); navegar('/entrar/?desativado', { replace: true }); return; }
+    if (!c.perfil) {
+      // Sem perfil: ou a conta foi desativada, ou a sessão acabou. Cada caso tem o seu aviso na entrada.
+      const encerrada = await SD.sessaoEncerrada().catch(() => false);
+      await SD.sair().catch(() => {});
+      navegar(encerrada ? entradaPorSessaoEncerrada(aqui.current) : '/entrar/?desativado', { replace: true });
+      return;
+    }
     iniciarPreferencias(c.perfil.preferencias);
     iniciarEtiquetas(c.perfil.id);
     if (primeira) aplicarTema((c.perfil.preferencias?.tema as Tema) || 'auto');
@@ -55,6 +65,11 @@ export function ExigirLogin({ janela }: { janela?: ReactNode } = {}) {
   }, [navegar]);
 
   useEffect(() => { void carregar(false, true); }, [carregar]);
+  const aoEncerrarSessao = useCallback(async () => {
+    await SD.sair().catch(() => {});
+    navegar(entradaPorSessaoEncerrada(aqui.current), { replace: true });
+  }, [navegar]);
+  useVigiaDaSessao(conferirSessao, aoEncerrarSessao);
   useEffect(() => {
     if (lidoEm.current && Date.now() - lidoEm.current > RENOVAR_APOS) void carregar(true);
   }, [local.pathname, carregar]);

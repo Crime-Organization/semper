@@ -83,8 +83,8 @@ test.describe('Equipe e acessos', () => {
       await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       // Então
-      await expect(janela).toContainText('pode continuar usando o sistema até ele vencer');
-      await expect(janela).toContainText('desative o acesso da pessoa nesta tela: isso corta o acesso na hora');
+      await expect(janela).toContainText('Quem já estava conectado perde o acesso na hora');
+      await expect(janela).toContainText('desative o acesso da pessoa nesta tela em vez de trocar o e-mail');
       await expect(janela).not.toContainText('todos os aparelhos');
       // Quando
       await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
