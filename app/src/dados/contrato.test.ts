@@ -1738,7 +1738,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await meus(novo)).map(l => l.papel)).toEqual(['indicador']);
         });
 
-        // O banco fictício está sempre logado como administrador; a regra de quem não é fica em supabase/tests/quem_recebeu_marca.test.sql.
+        // Aqui, quem está logado é um administrador; quem não é fica no fim deste arquivo e em supabase/tests/quem_recebeu_marca.test.sql.
         it('dado um recebimento e um novo responsável no contrato, quando o administrador marca como pago, então a linha continua, paga', async () => {
           // Dado
           const { id, k } = await recebido(comBruno);
@@ -4313,5 +4313,85 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
     entrarComo('u-bruno');
     // Então
     expect((await SD.pessoasListar({ porPagina: 100 })).total).toBe(total);
+  });
+});
+
+// A troca de conta só existe no banco fictício; no banco de verdade, a regra é provada em supabase/tests/quem_recebeu_marca.test.sql.
+describe('A passar: quem recebeu o dinheiro (banco fictício)', () => {
+  let SD: Dados;
+  const MARCO = { de: '2026-03-01', ate: '2026-03-31' };
+  const MENSAGEM_DE_RECUSA = 'Só quem recebeu o dinheiro ou um administrador marca este valor como pago.';
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+  const linhas = async () => (await SD.financeiroAPassar(MARCO.de, MARCO.ate)).map(v => v.quem_paga);
+
+  /** Um recebimento do Mateus, com a Ana como participante. */
+  async function recebimento() {
+    const { id: cliente } = await SD.pessoaCriar({ tipo: 'pf', nome: 'CLIENTE A PASSAR' });
+    const k = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Marca'], categoria: 'pro_labore', valor: 1000, parcelas: 1, primeiro_pagamento: '2026-03-05',
+      percentual_escritorio: 100, participantes: [{ pessoa_id: 'p-ana', percentual: 10 }] });
+    await SD.contratoMover(k.id, (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!.id, 1);
+    const [parcela] = await SD.parcelasDoContrato(k.id);
+    const conta = await SD.financeiroContaCriar({ nome: 'PJ', tem_das: true, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+    await SD.financeiroDasSalvar('2026-01', 4.5);
+    return SD.financeiroReceber({ parcela: parcela.id, conta: conta.id, data: '2026-03-10', valor: 100000, taxa: 3000 });
+  }
+
+  /** O Bruno é estagiário e não pode ser responsável pela tela: aqui ele passa a ser quem recebeu, e o contrato continua com o Mateus. */
+  async function gravarQuemRecebeu(id: string, responsavel: string) {
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { recebimentos: { id: string; responsavel_id: string }[] };
+    bd.recebimentos.find(r => r.id === id)!.responsavel_id = responsavel;
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    SD = await reabrir();
+  }
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    SD = await reabrir();
+  });
+
+  it('dado quem não é administrador e não recebeu o dinheiro, quando abre, então a linha não aparece', async () => {
+    // Dado
+    await recebimento();
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await linhas()).toEqual([]);
+  });
+
+  it('dado quem recebeu o dinheiro e não cuida mais do contrato, quando abre, então a linha aparece, e ele marca e desfaz', async () => {
+    // Dado
+    const id = await recebimento();
+    await gravarQuemRecebeu(id, 'u-bruno');
+    entrarComo('u-bruno');
+    // Quando / Então
+    expect(await linhas()).toEqual(['Bruno Exemplo Souza']);
+    await SD.financeiroTerceiroMarcarPago(id, 'p-ana', '2026-03-20');
+    expect(await SD.financeiroAPassar(MARCO.de, MARCO.ate)).toEqual([expect.objectContaining({ pessoa_id: 'p-ana', pago_em: '2026-03-20' })]);
+    await SD.financeiroTerceiroDesfazerPago(id, 'p-ana');
+    expect(await SD.financeiroAPassar(MARCO.de, MARCO.ate)).toEqual([expect.objectContaining({ pessoa_id: 'p-ana', pago_em: null })]);
+  });
+
+  it('dado quem não recebeu, quando tenta marcar ou desfazer por fora da tela, então é recusado e nada muda', async () => {
+    // Dado
+    const id = await recebimento();
+    await SD.financeiroTerceiroMarcarPago(id, 'p-ana', '2026-03-20');
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.financeiroTerceiroDesfazerPago(id, 'p-ana')).rejects.toThrow(MENSAGEM_DE_RECUSA);
+    await expect(SD.financeiroTerceiroMarcarPago(id, 'p-ana', '2026-03-21')).rejects.toThrow(MENSAGEM_DE_RECUSA);
+    entrarComo('u-master');
+    expect(await SD.financeiroAPassar(MARCO.de, MARCO.ate)).toEqual([expect.objectContaining({ pago_em: '2026-03-20' })]);
+  });
+
+  it('dado outro administrador, quando abre o que não recebeu, então vê a linha e marca', async () => {
+    // Dado
+    const id = await recebimento();
+    await gravarQuemRecebeu(id, 'u-bruno');
+    // Quando
+    entrarComo('u-ana');
+    await SD.financeiroTerceiroMarcarPago(id, 'p-ana', '2026-03-20');
+    // Então
+    expect(await SD.financeiroAPassar(MARCO.de, MARCO.ate)).toEqual([expect.objectContaining({ quem_paga: 'Bruno Exemplo Souza', pago_em: '2026-03-20' })]);
   });
 });
