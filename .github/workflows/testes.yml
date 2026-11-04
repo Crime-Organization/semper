@@ -2,7 +2,7 @@ name: Testes do SEMPER
 
 # Os testes do SEMPER num lugar só. As rotinas verificar.yml (cada envio e pull request) e publicar.yml
 # (cada versão) chamam esta e só compilam ou publicam se todos os jobs daqui passarem.
-# Três jobs em paralelo: tipos e lint, unitários e componentes, e ponta a ponta.
+# Quatro jobs em paralelo: tipos e lint, unitários e componentes, ponta a ponta, e banco.
 # Também dá para rodar à mão em qualquer ramo: Actions → Testes do SEMPER → Run workflow.
 on:
   workflow_call:
@@ -49,6 +49,25 @@ jobs:
       - name: Testes unitários e de componente
         working-directory: app
         run: npm run testar
+
+  # Sobe um banco vazio na própria máquina da rotina: sem segredo nenhum e sem acesso à produção.
+  banco:
+    name: Banco (migrações e regras de acesso)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Aplicar as migrações do zero
+        run: supabase db start
+
+      - name: Testes do banco
+        run: supabase test db
 
   ponta-a-ponta:
     name: Ponta a ponta (Playwright)
