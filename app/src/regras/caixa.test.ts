@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario } from './caixa';
+  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, rotuloDaCategoria, type FormDoLancamento } from './caixa';
 import { normal } from './texto';
 
 const HOJE = '2026-11-10';
@@ -185,6 +185,66 @@ describe('Histórico', () => {
     expect(valorNoHistorico('excluido_em', '2026-11-10T10:00:00Z')).toBe('Excluído');
     expect(valorNoHistorico('excluido_em', null)).toBe('—');
     expect(valorNoHistorico('descricao', 'Luz')).toBe('Luz');
+  });
+});
+
+describe('Categoria que esta versão do site não conhece', () => {
+  // É o que acontece ao voltar a versão do site depois que o banco ganhou uma categoria nova.
+  const DESCONHECIDA = 'categoria_mais_nova' as unknown as FormDoLancamento['categoria'];
+
+  it('quando mostra o nome, então aparece como está guardada, sem quebrar a tela', () => {
+    // Dado / Quando / Então
+    expect(nomeDaCategoria(DESCONHECIDA)).toBe('categoria_mais_nova');
+    expect(rotuloDaCategoria(DESCONHECIDA)).toBe('categoria_mais_nova');
+    expect(valorNoHistorico('categoria', 'categoria_mais_nova')).toBe('categoria_mais_nova');
+  });
+
+  it('dado uma categoria conhecida, quando mostra o rótulo, então diz o nome e o tipo', () => {
+    // Dado / Quando / Então
+    expect(rotuloDaCategoria('despesa')).toBe('Despesa (saída)');
+  });
+
+  it('dado um mês com ela, quando resume, então conta pelo tipo do lançamento', () => {
+    // Dado
+    const lancamentos = [lancamento({ categoria: DESCONHECIDA, tipo: 'saida', valor: 300 })];
+    // Quando
+    const m = mesDoCaixa(lancamentos, 1000);
+    // Então
+    expect(m).toMatchObject({ saidas: 300, saldoFinal: 700 });
+  });
+
+  it('quando abre o formulário, então ela continua na lista de categorias, e as outras seguem lá', () => {
+    // Dado / Quando
+    const lista = categoriasDoFormulario(DESCONHECIDA);
+    // Então
+    expect(lista).toContain(DESCONHECIDA);
+    expect(lista).toContain('despesa');
+    expect(lista).not.toContain('divisao_lucro');
+  });
+
+  it('quando salva sem mudar a categoria, então o lançamento mantém o tipo que já tinha', () => {
+    // Dado
+    const f = formDoLancamento(lancamento({ categoria: DESCONHECIDA, tipo: 'saida', valor: 300, descricao: 'Luz' }));
+    // Quando
+    const dados = dadosDoLancamento(f);
+    // Então
+    expect(dados).toMatchObject({ categoria: DESCONHECIDA, tipo: 'saida', valor: 300 });
+  });
+
+  it('quando troca para uma categoria conhecida, então vale o tipo dela', () => {
+    // Dado
+    const f = formDoLancamento(lancamento({ categoria: DESCONHECIDA, tipo: 'saida', valor: 300, descricao: 'Luz' }));
+    // Quando
+    const dados = dadosDoLancamento({ ...f, categoria: 'recebimento' });
+    // Então
+    expect(dados).toMatchObject({ categoria: 'recebimento', tipo: 'entrada' });
+  });
+
+  it('dado um formulário sem tipo guardado, quando salva, então pede a categoria, em vez de escolher um tipo qualquer', () => {
+    // Dado
+    const f = { ...lancamentoNovo('c1', HOJE), categoria: DESCONHECIDA, valor: '10,00', descricao: 'Luz' };
+    // Quando / Então
+    expect(() => dadosDoLancamento(f)).toThrow('Escolha a categoria.');
   });
 });
 

@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type AliquotaDoDas, type ContaFinanceira, type DadosConta, type Lancamento } from '../../dados';
 import { TAMANHO_FINANCEIRO } from '../../dados/limites';
 import {
-  CATEGORIAS, categoriasDoFormulario, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, errosDaConta, errosDaTransferencia, errosDoLancamento, mesValido,
+  categoriasDoFormulario, centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, errosDaConta, errosDaTransferencia, errosDoLancamento, rotuloDaCategoria, mesValido,
   type FormDaConta, type FormDaTransferencia, type FormDoLancamento
 } from '../../regras/caixa';
 import { erroDoDas, lerAliquota } from '../../regras/financeiro';
@@ -65,7 +65,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
       </Campo>
       <Campo rotulo="Categoria" para={id + 'cat'}>
         <select {...propsDoCampo(id + 'cat')} value={f.categoria} onChange={e => mudar({ categoria: e.target.value as FormDoLancamento['categoria'] })}>
-          {categoriasDoFormulario(f.categoria).map(c => <option key={c} value={c}>{CATEGORIAS[c].nome} ({CATEGORIAS[c].tipo === 'entrada' ? 'entrada' : 'saída'})</option>)}
+          {categoriasDoFormulario(f.categoria).map(c => <option key={c} value={c}>{rotuloDaCategoria(c)}</option>)}
         </select>
       </Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>

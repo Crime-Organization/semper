@@ -65,6 +65,35 @@ test.describe('Caixa', () => {
     await expect(page.getByRole('definition').filter({ hasText: '1.299,50' }).first()).toBeVisible();
   });
 
+  test('dado um lançamento com categoria que esta versão não conhece, quando abre o caixa, então a tela funciona e dá para excluir', async ({ page }) => {
+    // Dado: é o que acontece ao voltar a versão do site depois que o banco ganhou uma categoria nova
+    await criarContas(page);
+    await irParaMes(page, '2026-03');
+    await lancar(page, { categoria: 'Despesa (saída)', valor: '10,00', descricao: 'Papel', data: '2026-03-10' });
+    await page.evaluate(() => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
+      bd.lancamentos[0].categoria = 'categoria_mais_nova';
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    });
+    // Quando
+    await page.reload();
+    await irParaMes(page, '2026-03');
+    // Então
+    const tabela = page.getByRole('table', { name: 'Lançamentos do mês' });
+    await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('categoria_mais_nova');
+    await expect(tabela.getByRole('row').filter({ hasText: 'Papel' })).toContainText('990,00');
+    // Quando
+    await page.getByRole('button', { name: 'Mudar o lançamento Papel' }).click();
+    // Então: o formulário mostra a categoria que está guardada, não a primeira da lista
+    await expect(page.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Categoria')).toHaveValue('categoria_mais_nova');
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Quando
+    await tabela.getByRole('button', { name: 'Excluir' }).click();
+    await tabela.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então
+    await expect(page.getByText('Nenhum lançamento nesta conta neste mês.')).toBeVisible();
+  });
+
   test('quando esquece um campo, então avisa e não lança', async ({ page }) => {
     // Dado
     await criarContas(page);
