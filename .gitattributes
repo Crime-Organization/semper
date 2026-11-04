@@ -1,0 +1,2 @@
+# Os scripts rodam no Linux da rotina do GitHub e no Git Bash: precisam de fim de linha LF também neste Windows.
+*.sh text eol=lf

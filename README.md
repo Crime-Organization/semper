@@ -52,6 +52,47 @@ Configuração no painel do Supabase (Authentication):
 - **SMTP das funções do servidor**: o painel acima só vale para os e-mails do login. O aviso de troca de e-mail (função `equipe-trocar-email`) envia pela mesma caixa, com os segredos `SMTP_USUARIO` e `SMTP_SENHA` em Edge Functions > Secrets. As funções só alcançam a porta 465: o Supabase bloqueia a 25 e a 587. Se a senha mudar na Hostinger, atualize os dois lugares.
 - **Rotina de reenvio dos avisos**: a cada 15 minutos, o `pg_cron` do banco chama a função `equipe-reenviar-avisos`, que tenta de novo os avisos de troca de e-mail que falharam (até 3 vezes: depois de 10 minutos, 2 horas e 12 horas). A função é publicada com `supabase functions deploy equipe-reenviar-avisos`. Ela precisa da mesma senha em dois lugares: o segredo `SENHA_DA_ROTINA` em Edge Functions > Secrets e `semper_senha_da_rotina` no Vault, onde também fica `semper_url_do_projeto`. Sem isso, o reenvio não roda e nada avisa, além da linha em Equipe e acessos. Para conferir, veja as respostas em `net._http_response`.
 
+## Cópia de segurança do banco
+
+**O que o Supabase garante:** nada. O projeto está no plano gratuito, que não faz backup automático e pausa projetos sem uso por 1 semana (conferido em 03/11/2026 em [supabase.com/pricing](https://supabase.com/pricing)). O plano Pro faz backup diário e guarda por 7 dias, mas o backup some se o projeto for apagado.
+
+**O que existe:** a rotina `.github/workflows/copia-do-banco.yml`, que roda todo dia às 3h de Brasília e só lê o banco.
+
+- **Onde fica:** nos artefatos do GitHub Actions deste repositório privado, por 30 dias. Depois disso, o GitHub apaga sozinho. Esse prazo fica em `retention-days`, na rotina.
+- **Criptografia:** cada cópia sai criptografada com o [age](https://github.com/FiloSottile/age). A chave pública fica na variável `COPIA_CHAVE_PUBLICA`. **A chave secreta nunca vai ao GitHub** e fica num gerenciador de senhas, com quem cuida do sistema. Sem ela, nenhuma cópia abre.
+- **Quem acessa:** quem lê o repositório baixa o arquivo, mas só abre com a chave secreta. A senha do banco fica no segredo `COPIA_BANCO_URL`, que nenhuma tela mostra, mas uma rotina alterada poderia usar: quem pode escrever no repositório tem esse poder, e por isso o acesso precisa continuar restrito.
+- **O que entra:** os dados de `public` e `privado`, as contas de login (`auth.users`, inclusive o resumo das senhas), os vínculos e a verificação em duas etapas, e a estrutura.
+- **O que não entra:** as fotos da equipe (precisam ser enviadas de novo), os segredos do Vault e das funções, sessões e links de uso único.
+- **Se falhar:** a rotina fica vermelha em Actions, e o GitHub avisa por e-mail. Sem minutos disponíveis no GitHub, ela também falha.
+
+**Para ligar (uma vez, por uma pessoa):**
+1. No PowerShell, instale o programa e crie as chaves. Guarde o arquivo `chave-das-copias.txt` no gerenciador de senhas e apague-o do computador:
+   ```bash
+   winget install FiloSottile.age
+   ```
+   ```bash
+   age-keygen -o chave-das-copias.txt
+   ```
+2. Em GitHub → Settings → Secrets and variables → Actions → Variables, crie `COPIA_CHAVE_PUBLICA` com o texto `age1...` que o comando mostrou.
+3. Ainda em Actions, na aba Secrets, crie `COPIA_BANCO_URL` com o endereço **Session pooler** que aparece em Connect, no painel do Supabase, trocando `[YOUR-PASSWORD]` pela senha do banco. A rotina do GitHub só alcança esse endereço, não a conexão direta. Se a senha tiver caracteres especiais, como `@` ou `/`, eles precisam estar codificados.
+4. Em Actions → Cópia do banco → Run workflow, rode uma vez e confira se fica verde.
+
+**Testar uma cópia (faça ao ligar e de tempos em tempos):** baixe o artefato de uma execução em Actions e descompacte o `.zip`. Com o Docker aberto, no Git Bash, na raiz do projeto, carregue a cópia num banco local. O `restaurar-local.sh` só fala com o contêiner local e nunca com a produção. Os dados reais ficam no computador até o `supabase stop --no-backup`:
+
+```bash
+supabase db start && supabase db reset --local --no-seed
+```
+
+```bash
+supabase/copia/restaurar-local.sh <arquivo .age> <arquivo da chave secreta>
+```
+
+**Em caso de perda de verdade:** não improvise. Num banco vazio, aplique as migrações da versão que estava no ar e, depois, o `dados.sql` da cópia com `psql`. Em seguida, configure de novo os segredos do Vault e das funções e peça às pessoas que enviem as fotos e entrem de novo. Ensaie antes num banco local.
+
+**Testes de restauração registrados:**
+- A cada envio, com dados inventados, a rotina de testes roda `supabase/copia/testar-restauracao.sh`: confere a criptografia, restaura e compara cada tabela e as regras de acesso.
+- Primeira restauração de uma cópia real: pendente, depois de ligar a rotina (#77).
+
 ## Testar no computador
 
 Na primeira vez, instale as dependências dentro de `app/`:

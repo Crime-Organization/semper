@@ -69,6 +69,13 @@ jobs:
       - name: Testes do banco
         run: supabase test db
 
+      - name: Instalar o programa que criptografa
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      # Com dados inventados: copia, confere a criptografia, apaga, restaura e confere os dados e as regras de acesso.
+      - name: Cópia de segurança e restauração
+        run: supabase/copia/testar-restauracao.sh
+
   ponta-a-ponta:
     name: Ponta a ponta (Playwright)
     runs-on: ubuntu-latest
