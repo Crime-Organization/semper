@@ -1254,7 +1254,7 @@ export interface DadosParcelas {
   /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
   financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
-  /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261103220148_meus_valores.sql). */
+  /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
   /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. Quem é o próprio responsável do recebimento fica de fora. */
   financeiroAPassar(de: string, ate: string): Promise<ValorAPassar[]>;
