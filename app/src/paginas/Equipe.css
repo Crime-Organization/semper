@@ -1,6 +1,8 @@
 /* Equipe e acessos */
 .form-convite { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.2fr) minmax(0, .8fr) auto; gap: 12px; align-items: end }
 @media (max-width: 880px) { .form-convite { grid-template-columns: 1fr } }
+.form-reserva { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end }
+@media (max-width: 880px) { .form-reserva { grid-template-columns: 1fr } }
 .link-convite { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px }
 .link-convite code { background: var(--superficie); border: 1px solid var(--line2); border-radius: 8px; padding: 6px 10px; font-size: 13px; overflow-wrap: anywhere }
 .registro ol { list-style: none; margin: 0; padding: 0 }

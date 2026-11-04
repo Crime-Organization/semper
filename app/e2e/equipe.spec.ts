@@ -23,6 +23,19 @@ test.describe('Equipe e acessos', () => {
     await expect(pendentes.getByRole('row').filter({ hasText: 'jose@exemplo.com' })).toBeVisible();
   });
 
+  test('quando o administrador reserva uma conta, então a pessoa aparece sem acesso e sem as ações de gestão', async ({ page }) => {
+    // Quando
+    await page.getByRole('textbox', { name: 'Integrante sem acesso' }).fill('josé da');
+    await page.getByRole('button', { name: /JOSÉ DA SILVA TESTE/ }).click();
+    await page.getByRole('button', { name: 'Reservar conta' }).click();
+    // Então
+    const linha = page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' });
+    await expect(linha).toContainText('Sem acesso ao sistema');
+    await expect(linha).not.toContainText('reservada.invalid');
+    await expect(linha.getByRole('button', { name: 'Reativar' })).toHaveCount(0);
+    await expect(linha.getByRole('button', { name: /Trocar e-mail/ })).toHaveCount(0);
+  });
+
   test('quando o administrador cancela um convite pendente, então ele sai da lista', async ({ page }) => {
     // Dado
     await page.getByRole('textbox', { name: 'Pessoa' }).fill('josé da');

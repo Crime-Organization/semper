@@ -91,7 +91,7 @@ supabase/copia/restaurar-local.sh <arquivo .age> <arquivo da chave secreta>
 
 **Testes de restauração registrados:**
 - A cada envio, com dados inventados, a rotina de testes roda `supabase/copia/testar-restauracao.sh`: confere a criptografia, restaura e compara cada tabela e as regras de acesso.
-- Primeira restauração de uma cópia real: pendente, depois de ligar a rotina (#77).
+- 04/11/2026, primeira cópia real (`semper-2026-11-04-2227`), num banco local: a chave abriu o arquivo, e voltaram 2.829 pessoas, 4 contas e 2.964 ações, sem vínculo quebrado. As 148 regras de acesso estavam lá, e nenhuma tabela de `public` ficou sem RLS. Um administrador real, numa sessão criada para o teste, viu as 2.829 pessoas do escritório; com uma sessão inexistente, viu 0. Essa cópia não tinha contratos, então os dados de contratos ainda não passaram por uma restauração real. O banco de teste e os arquivos foram apagados depois. A restauração num projeto novo do Supabase ainda não foi testada.
 
 ## Testar no computador
 

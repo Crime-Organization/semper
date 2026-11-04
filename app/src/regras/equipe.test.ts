@@ -47,3 +47,17 @@ describe('Função na equipe', () => {
     expect(FUNCOES).toEqual({ advogado: 'Advogado', administrativo: 'Administrativo', estagiario: 'Estagiário' });
   });
 });
+
+describe('conta reservada nos contratos', () => {
+  const reservado: Membro = { id: 'r', nome: 'Reservada', funcao: 'advogado', ativo: false, reservada: true, pessoa_id: 'p-r' };
+  const desativado: Membro = { id: 'd', nome: 'Desativada', funcao: 'advogado', ativo: false, pessoa_id: 'p-d' };
+
+  it('dado uma conta reservada de advogado, quando escolho o responsável, então ela aparece, e a desativada não', () => {
+    expect(opcoesDeResponsavel([reservado, desativado]).map(m => m.id)).toEqual(['r']);
+  });
+
+  it('dado uma conta reservada, quando vejo se pode participar, então pode; a desativada não', () => {
+    expect(motivoParaNaoParticipar([reservado, desativado], 'p-r')).toBeNull();
+    expect(motivoParaNaoParticipar([reservado, desativado], 'p-d')).toBe('desativado na equipe');
+  });
+});
