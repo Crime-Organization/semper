@@ -4107,6 +4107,15 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
   const novoContrato = (extra: Parameters<Dados['contratoCriar']>[0] = {}) => SD.contratoCriar(
     { clientes: ['p-ana'], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore', ...extra });
   const idsDosContratos = async () => (await SD.contratosListar({ porPagina: 100 })).linhas.map(k => k.id);
+  const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
+  /** A menção entra direto na aba: pela tela, o banco fictício recusa mencionar um estagiário num contrato, e a única conta comum dele é o Bruno. */
+  const mencionar = (contrato: string, mencionado: string, autor: string) => {
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { comentarios: unknown[] };
+    const id = 'cm-' + Math.random().toString(36).slice(2);
+    bd.comentarios.push({ id, modulo: 'contratos', cartao_id: contrato, autor_id: autor, texto: 'Veja este', mencoes: [mencionado], criado_em: new Date().toISOString(), editado_em: null });
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    return id;
+  };
 
   beforeEach(async () => {
     sessionStorage.clear();
@@ -4193,6 +4202,53 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
     entrarComo('u-bruno');
     // Então
     expect(await SD.contratoObter(id)).toBeNull();
+  });
+
+  it('dada uma conta que outra pessoa mencionou num contrato alheio, quando o abre, então lê e comenta, mas não altera; sem a menção, deixa de ver', async () => {
+    // Dado
+    const { id } = await novoContrato();
+    const mencao = mencionar(id, 'u-bruno', 'u-ana');
+    SD = await reabrir();
+    entrarComo('u-bruno');
+    // Quando / Então
+    expect(await idsDosContratos()).toContain(id);
+    expect((await SD.contratoObter(id))?.id).toBe(id);
+    await expect(SD.comentarioCriar('contratos', id, 'Obrigado')).resolves.toMatchObject({ texto: 'Obrigado' });
+    await expect(SD.contratoAtualizar(id, { observacoes: 'alterado' })).rejects.toThrow('Você não tem permissão para fazer isso.');
+    await expect(SD.contratoMover(id, null, 1)).rejects.toThrow('Você não tem permissão para fazer isso.');
+    await SD.contratosArquivar([id]);
+    expect((await SD.contratoObter(id))?.arquivado_em).toBeNull();
+    // Quando
+    entrarComo('u-ana');
+    await SD.comentarioExcluir(mencao);
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.contratoObter(id)).toBeNull();
+  });
+
+  it('dada uma conta que mencionou a si mesma, quando sai do contrato, então não vê mais', async () => {
+    // Dado
+    const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+    mencionar(id, 'u-bruno', 'u-bruno');
+    SD = await reabrir();
+    await SD.contratoAtualizar(id, { participantes: [] });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.contratoObter(id)).toBeNull();
+  });
+
+  it('dada uma conta que não vê mais o contrato, quando edita um comentário dela nele, então é recusado', async () => {
+    // Dado
+    const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+    entrarComo('u-bruno');
+    const { id: comentario } = await SD.comentarioCriar('contratos', id, 'Antigo');
+    entrarComo('u-master');
+    await SD.contratoAtualizar(id, { participantes: [] });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.comentarioEditar(comentario, 'Veja, @ana.lima')).rejects.toThrow('Só quem escreveu o comentário pode editá-lo.');
   });
 
   it('dada uma demanda ligada a um contrato alheio, quando a conta comum a abre, então vê o número, mas não o contrato', async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
-  calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, veOContrato, type CamposContrato
+  calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
 
 const campos = (c: Partial<CamposContrato>): CamposContrato => ({ ...CONTRATO_VAZIO, ...c });
@@ -361,6 +361,25 @@ describe('Quem vê o contrato', () => {
     const ve = veOContrato(k, m);
     // Então
     expect(ve).toBe(esperado);
+  });
+
+  it('quando outra pessoa mencionou a conta comum num comentário, então ela vê, mas não altera', () => {
+    // Dado
+    const m = membro('u9', 'p9');
+    // Quando / Então
+    expect(veOContrato(k, m, true)).toBe(true);
+    expect(alteraOContrato(k, m)).toBe(false);
+  });
+
+  it.each([
+    ['quem criou', membro('u1', 'p1'), true],
+    ['o responsável', membro('u2', 'p2'), true],
+    ['um participante', membro('u3', 'p3'), true],
+    ['um administrador', membro('u9', 'p9', 'admin'), true],
+    ['o indicador', membro('u4', 'p4'), false]
+  ])('quando é %s, então alterar é %s', (_caso, m, esperado) => {
+    // Quando / Então
+    expect(alteraOContrato(k, m)).toBe(esperado);
   });
 
   it('quando o contrato não diz quem o criou (importado), então uma conta comum de fora não vê', () => {

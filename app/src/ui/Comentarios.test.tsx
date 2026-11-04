@@ -47,6 +47,13 @@ describe('Comentários do cartão', () => {
     expect(within(itens[0]).getByText('@mateus.goncalves')).toHaveAttribute('title', 'Mateus Freitas Gonçalves');
   });
 
+  it('dado um aviso do cartão sobre a menção, quando a seção abre, então ele aparece junto da caixa', async () => {
+    // Quando
+    render(<SecaoComentarios modulo="contratos" cartaoId="k1" aviso="Quem você mencionar passa a ver este contrato." />);
+    // Então
+    expect(await screen.findByText('Quem você mencionar passa a ver este contrato.')).toBeVisible();
+  });
+
   it('quando a pessoa digita @ e escolhe um colega com Enter, então o @usuario entra no texto', async () => {
     // Dado
     render(<SecaoComentarios modulo="pessoas" cartaoId="p1" />);

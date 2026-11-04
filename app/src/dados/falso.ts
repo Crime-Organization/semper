@@ -20,7 +20,7 @@ import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebi
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
-import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes, veOContrato } from '../regras/contrato';
+import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
@@ -667,9 +667,15 @@ const buscaContrato = (k: ContratoGuardado) => normal([k.codigo, k.codigo.replac
 const membroLogado = () => EQUIPE.find(m => m.id === eu)!;
 /** Como privado.sou_admin. */
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
+type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
+const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
+/** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta. */
+const meMencionaramNoContrato = (id: string) =>
+  bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu));
 /** Como a regra de leitura dos contratos no banco. */
-const vejoContrato = (k: Pick<ContratoGuardado, 'criado_por' | 'responsavel_id' | 'participantes'>) =>
-  veOContrato({ ...k, participantes: k.participantes.map(p => p.pessoa_id) }, membroLogado());
+const vejoContrato = (k: QuemEstaNoContrato) => veOContrato(pessoasDoContrato(k), membroLogado(), meMencionaramNoContrato(k.id));
+/** Como a regra de alterar dos contratos no banco: quem só foi mencionado lê, mas não altera. */
+const alteroContrato = (k: QuemEstaNoContrato) => alteraOContrato(pessoasDoContrato(k), membroLogado());
 const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && vejoContrato(k));
 /** Como privado.cuido_do_contrato: um administrador ou o responsável. */
 const cuidoDoContrato = (id: string) => bd.contratos!.some(k => k.id === id && (souAdmin() || k.responsavel_id === eu));
@@ -1783,6 +1789,7 @@ export const SD: Dados = {
   async contratoAtualizar(id, dados) {
     const k = acharContrato(id);
     if (dados.responsavel_id !== undefined && dados.responsavel_id !== k.responsavel_id) conferirResponsavel(dados.responsavel_id);
+    if (!alteroContrato(k)) return erro('Você não tem permissão para fazer isso.');
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     // Como no banco, a leitura confere também a linha nova: quem deixaria de ver o contrato não grava.
     if (!vejoContrato({ ...k, ...d })) return erro('Você não tem permissão para fazer isso.');
@@ -1797,7 +1804,7 @@ export const SD: Dados = {
   },
   async contratosArquivar(ids, arquivar = true) {
     ids.forEach(id => {
-      const k = bd.contratos!.find(x => x.id === id && vejoContrato(x)); if (!k) return;
+      const k = bd.contratos!.find(x => x.id === id && alteroContrato(x)); if (!k) return;
       historicoContrato(k, { arquivado_em: arquivar ? agora() : null });
       Object.assign(k, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora() });
     });
@@ -1823,6 +1830,7 @@ export const SD: Dados = {
   },
   async contratoMover(id, etapaId, ordem) {
     const k = acharContrato(id);
+    if (!alteroContrato(k)) return erro('Você não tem permissão para fazer isso.');
     if ((k.etapa_id || null) !== (etapaId || null)) {
       bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
     }
@@ -2888,7 +2896,7 @@ export const SD: Dados = {
   },
   async comentarioEditar(id, texto) {
     const c = bd.comentarios!.find(x => x.id === id);
-    if (!c || c.autor_id !== eu) return erro('Só quem escreveu o comentário pode editá-lo.');
+    if (!c || c.autor_id !== eu || !CARTAO_EXISTE[c.modulo](c.cartao_id)) return erro('Só quem escreveu o comentário pode editá-lo.');
     Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); gravar();
     return espera(comentarioLido(c));
   },

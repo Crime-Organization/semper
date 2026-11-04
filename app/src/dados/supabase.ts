@@ -667,7 +667,9 @@ export const SD: Dados = {
     return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
   },
   async contratoMover(id, etapaId, ordem) {
-    await rodar(sb.from('contratos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+    const { data } = await rodar(sb.from('contratos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle());
+    // Quem só foi mencionado vê o contrato, mas não altera: nenhuma linha muda, e o quadro precisa voltar o cartão.
+    if (!data) throw new Error('Você não tem permissão para fazer isso.');
   },
   async contratoHistorico(id) {
     const { data } = await rodar(sb.from('contrato_historico').select('id, alteracoes, feito_por, em')

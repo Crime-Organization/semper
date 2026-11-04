@@ -505,6 +505,7 @@ export interface DadosContratos {
   contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */
   contratosExcluir(ids: string[]): Promise<Exclusao>;
+  /** Recusa quem pode ver, mas não alterar, o contrato (quem só foi mencionado). */
   contratoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
   contratoHistorico(id: string): Promise<Historico[]>;
   /** Objetos já usados em contratos do escritório, em ordem alfabética, para sugerir no cadastro. */

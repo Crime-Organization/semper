@@ -62,7 +62,22 @@ end $$;
 create function pg_temp.apagou(p_contrato uuid) returns bigint language sql as $$
   with m as (delete from public.contratos where id = p_contrato returning 1) select count(*) from m
 $$;
-grant execute on function pg_temp.entrar(text), pg_temp.lidos(), pg_temp.le(uuid), pg_temp.alterou_sem_filtro(), pg_temp.apagou(uuid) to authenticated;
+create function pg_temp.mudou_contrato(p_contrato uuid) returns bigint language sql as $$
+  with m as (update public.contratos set observacoes = 'alterado' where id = p_contrato returning 1) select count(*) from m
+$$;
+-- O @ de uma conta, para escrever a menção num comentário.
+create function pg_temp.arroba(p_final text) returns text language sql as $$
+  select '@' || usuario from public.perfis where id = ('a0000000-0000-0000-0000-00000000000' || p_final)::uuid
+$$;
+create function pg_temp.editou_meus_comentarios(p_texto text) returns integer language plpgsql as $$
+declare n integer;
+begin
+  update public.comentarios set texto = p_texto;
+  get diagnostics n = row_count;
+  return n;
+end $$;
+grant execute on function pg_temp.entrar(text), pg_temp.lidos(), pg_temp.le(uuid), pg_temp.alterou_sem_filtro(), pg_temp.apagou(uuid),
+  pg_temp.mudou_contrato(uuid), pg_temp.arroba(text), pg_temp.editou_meus_comentarios(text) to authenticated;
 
 set local role authenticated;
 
@@ -168,6 +183,45 @@ select pg_temp.entrar('1');
 update public.contratos set participante_id = '10000000-0000-0000-0000-000000000002' where id = 'c0000000-0000-0000-0000-000000000003';
 select pg_temp.entrar('2');
 select is(pg_temp.le('c0000000-0000-0000-0000-000000000003'), 1::bigint, 'dada a versão anterior do site, quando grava o participante na coluna antiga, então ele passa a ver');
+
+-- Menção: quem outra pessoa mencionou lê e comenta, mas não altera, e só enquanto a menção existir.
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 0::bigint, 'dado um contrato alheio, antes da menção, então a advogada não vê');
+select pg_temp.entrar('1');
+insert into public.comentarios (id, contrato_id, autor_id, texto) values
+  ('f0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004', auth.uid(), 'Veja este, ' || pg_temp.arroba('3'));
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 1::bigint, 'dada uma advogada mencionada por outra pessoa, quando abre o contrato, então vê');
+select is((select count(*) from public.contrato_clientes where contrato_id = 'c0000000-0000-0000-0000-000000000004'), 1::bigint, 'dada uma advogada mencionada, quando lê os clientes do contrato, então vê');
+select is((select count(*) from public.comentarios where contrato_id = 'c0000000-0000-0000-0000-000000000004'), 1::bigint, 'dada uma advogada mencionada, quando lê os comentários do contrato, então vê');
+select lives_ok($$ insert into public.comentarios (contrato_id, autor_id, texto) values ('c0000000-0000-0000-0000-000000000004', auth.uid(), 'Obrigada') $$, 'dada uma advogada mencionada, quando responde no contrato, então grava');
+select is(pg_temp.mudou_contrato('c0000000-0000-0000-0000-000000000004'), 0::bigint, 'dada uma advogada mencionada, quando altera o contrato, então nada muda');
+select pg_temp.entrar('2');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 0::bigint, 'dada a menção a uma colega, quando outra conta comum abre o contrato, então continua sem ver');
+select pg_temp.entrar('1');
+update public.comentarios set texto = 'Sem menção' where id = 'f0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 0::bigint, 'dado um comentário editado sem a menção, quando a advogada abre o contrato, então deixa de ver');
+select pg_temp.entrar('1');
+update public.comentarios set texto = 'De novo, ' || pg_temp.arroba('3') where id = 'f0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 1::bigint, 'dada uma nova menção, quando a advogada abre o contrato, então volta a ver');
+select pg_temp.entrar('1');
+delete from public.comentarios where id = 'f0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000004'), 0::bigint, 'dado o comentário apagado, quando a advogada abre o contrato, então deixa de ver');
+
+-- Mencionar a si mesmo não dá acesso, e quem saiu do contrato não edita o que escreveu nele.
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000002'), 1::bigint, 'dada uma participante, antes de sair, então vê o contrato');
+insert into public.comentarios (id, contrato_id, autor_id, texto) values
+  ('f0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', auth.uid(), 'Anoto, ' || pg_temp.arroba('3'));
+select pg_temp.entrar('1');
+update public.contratos set participantes = '[]' where id = 'c0000000-0000-0000-0000-000000000002';
+select pg_temp.entrar('3');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000002'), 0::bigint, 'dada quem mencionou a si mesma, quando sai do contrato, então não vê mais');
+select is(pg_temp.editou_meus_comentarios('Veja, ' || pg_temp.arroba('2')), 0, 'dada quem saiu do contrato, quando edita sem filtro o comentário que escreveu nele, então nada muda');
+select pg_temp.entrar('2');
+select is(pg_temp.le('c0000000-0000-0000-0000-000000000002'), 0::bigint, 'dada a edição recusada, quando o colega abre o contrato, então continua sem ver');
 
 -- Sem sessão, nada
 select set_config('request.jwt.claims', jsonb_build_object('sub', 'a0000000-0000-0000-0000-000000000001', 'role', 'authenticated', 'aal', 'aal1', 'session_id', '50000000-0000-0000-0000-0000000000ff')::text, true);

@@ -65,6 +65,27 @@ test.describe('Visibilidade dos contratos', () => {
     await expect(cartao.getByRole('link', { name: /Contrato ligado/ })).toHaveCount(0);
   });
 
+  test('dada uma conta mencionada num contrato alheio, quando abre o contrato, então lê e comenta, mas não altera', async ({ page }) => {
+    // Dado: Ana mencionou Bruno num comentário. O banco fictício recusaria a menção a um estagiário, então ela entra direto na aba.
+    await entrarComo(page, 'u-bruno');
+    const id = await idDoContrato(page, 'Ação de cobrança');
+    await page.evaluate(contrato => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { comentarios: unknown[] };
+      bd.comentarios.push({ id: 'cm-mencao', modulo: 'contratos', cartao_id: contrato, autor_id: 'u-ana', texto: 'Veja este, @bruno.souza',
+        mencoes: ['u-bruno'], criado_em: new Date().toISOString(), editado_em: null });
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    }, id);
+    // Quando
+    await page.goto('/contratos/?id=' + id);
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'MARIA APARECIDA EXEMPLO' })).toBeVisible();
+    await expect(cartao.getByText('Você vê este contrato porque foi mencionado num comentário.')).toBeVisible();
+    await expect(cartao.getByLabel('Situação do contrato')).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Arquivar', exact: true })).toHaveCount(0);
+  });
+
   test('dado um administrador, quando abre Contratos, então vê os contratos de todos', async ({ page }) => {
     // Dado
     await entrarComo(page, 'u-ana');

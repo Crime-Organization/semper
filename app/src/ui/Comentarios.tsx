@@ -16,8 +16,10 @@ import { Recolhivel } from './Recolhivel';
 import { useCtx } from './sessao';
 import { dataHora, relativo } from './util';
 
-export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao }: {
+export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
   modulo: ModuloComentado; cartaoId: string;
+  /** O que a menção faz neste cartão (ex.: em contratos, dá acesso a ele). */
+  aviso?: string;
   /** Regra a mais de quem pode ser mencionado, que depende do cartão (ex.: só quem vê a demanda). */
   motivoSemMencao?: (m: Membro) => string | null;
 }) {
@@ -57,6 +59,7 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao }: {
 
   const conteudo = <div className="comentarios">
     <CaixaComentario modulo={modulo} motivoSemMencao={motivoSemMencao} rotulo="Escrever um comentário" botao="Comentar" valor={rascunho} aoMudar={setRascunho} aoEnviar={comentar} />
+    {aviso && <Nota>{aviso}</Nota>}
     {lista === null ? <Carregando />
       : !lista.length ? <Nota>Nenhum comentário ainda. Escreva acima e use @ para chamar alguém da equipe.</Nota>
       : <ol className="lista-comentarios" aria-label="Comentários do cartão">
