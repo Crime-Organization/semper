@@ -2424,7 +2424,7 @@ export const SD: Dados = {
     if (r.estornado_em) return erro('Este recebimento já foi estornado.');
     const dele = bd.repasses!.filter(x => x.recebimento_id === id);
     if (dele.some(x => x.pago_em)) return erro('Há repasse já pago deste recebimento. Peça a um administrador para desfazer o pagamento antes.');
-    if (bd.terceirosPagos!.some(m => m.recebimento_id === id)) return erro('Há valor já marcado como pago a participante ou indicador deste recebimento. É preciso desfazer a marcação antes.');
+    if (bd.terceirosPagos!.some(m => m.recebimento_id === id)) return erro('Há valor já marcado como pago a participante ou indicador deste recebimento. É preciso desfazer a marcação antes. Peça a quem recebeu o dinheiro ou a um administrador.');
     const quando = agora();
     r.estornado_em = quando;
     dele.forEach(x => { x.cancelado_em = quando; });

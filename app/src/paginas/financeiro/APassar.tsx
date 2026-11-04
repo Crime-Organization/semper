@@ -71,6 +71,6 @@ export function ValoresAPassar({ lista, hoje, aoMudar }: { lista: ValorAPassar[]
         </span></td>
       </tr>)}</tbody>
     </table></div>
-    <Nota>O responsável paga estes valores direto, sem passar pelo caixa. Além dos recebimentos do mês, aparecem os ainda não pagos de antes dele.</Nota>
+    <Nota>Quem era o responsável quando o cliente pagou passa estes valores direto, sem passar pelo caixa. Além dos recebimentos do mês, aparecem os ainda não pagos de antes dele.</Nota>
   </div>;
 }

@@ -1,7 +1,7 @@
 -- Quem passa o dinheiro a participantes e indicadores é quem o recebeu (#249). Depois de uma troca de responsável do contrato, os recebimentos
 -- antigos continuam com o responsável da época, que fica gravado em financeiro_recebimentos.responsavel_id. Por isso a seção "A passar" e a
 -- marcação de pago seguem esse campo, e não o responsável atual do contrato. O administrador continua vendo e marcando tudo: é ele quem resolve
--- o recebimento de quem saiu do escritório. Só acrescenta: as funções mantêm nome, parâmetros e resposta, e o estorno não muda.
+-- o recebimento de quem saiu do escritório. Só acrescenta: as funções mantêm nome, parâmetros e resposta, e quem pode estornar não muda.
 
 -- 1. Quem recebeu o dinheiro ou um administrador do escritório do recebimento. O coalesce é necessário: sem responsável gravado (perfil removido),
 --    a comparação dá nulo, e "not nulo" não recusaria ninguém em quem chama.
@@ -49,4 +49,27 @@ begin
     raise exception 'Esta pessoa não recebe nada deste recebimento.';
   end if;
   return r;
+end $$;
+
+-- 4. O estorno: igual à versão da migração de Meus valores, mudando só a mensagem. Quem estorna pode já não ser quem desfaz a marcação, então a
+--    recusa diz a quem pedir.
+create or replace function public.financeiro_estornar(p_recebimento uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+declare r public.financeiro_recebimentos;
+begin
+  select * into r from public.financeiro_recebimentos where id = p_recebimento for update;
+  if r.id is null or not privado.cuido_do_contrato(r.contrato_id) then raise exception 'Só o responsável pelo contrato ou um administrador estorna o recebimento.' using errcode = '42501'; end if;
+  if r.estornado_em is not null then raise exception 'Este recebimento já foi estornado.'; end if;
+  -- Trava os repasses antes de olhar: quem está pagando agora termina primeiro, e o pagamento aparece aqui.
+  perform 1 from public.financeiro_repasses where recebimento_id = r.id for update;
+  if exists (select 1 from public.financeiro_repasses where recebimento_id = r.id and pago_em is not null) then
+    raise exception 'Há repasse já pago deste recebimento. Peça a um administrador para desfazer o pagamento antes.';
+  end if;
+  if exists (select 1 from public.financeiro_terceiros_pagos where recebimento_id = r.id) then
+    raise exception 'Há valor já marcado como pago a participante ou indicador deste recebimento. É preciso desfazer a marcação antes. Peça a quem recebeu o dinheiro ou a um administrador.';
+  end if;
+  update public.financeiro_recebimentos set estornado_em = now(), estornado_por = auth.uid() where id = r.id;
+  update public.financeiro_repasses set cancelado_em = now() where recebimento_id = r.id;
+  update public.financeiro_lancamentos set excluido_em = now() where id in (r.lancamento_id, r.lancamento_taxa_id);
+  update public.contrato_parcelas set recebimento_id = null, recebida_em = null, recebido = null where id = r.parcela_id;
 end $$;

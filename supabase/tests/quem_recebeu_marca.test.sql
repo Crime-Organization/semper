@@ -2,7 +2,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(25);
+select plan(34);
 
 -- Dado um escritório com o administrador, o responsável antigo, o novo e uma colega, e outro escritório com o seu administrador.
 insert into public.escritorios (id, nome, slug) values
@@ -44,6 +44,15 @@ insert into public.financeiro_recebimentos (id, escritorio_id, parcela_id, contr
          'c0000000-0000-0000-0000-000000000001', q.responsavel, gen_random_uuid(), date '2026-03-10', 100000, 0, 4.5, 30, false, 30000, 70000, 0, 100000, 20000, 0, 70000, 20000, 0,
          jsonb_build_array(jsonb_build_object('id', '10000000-0000-0000-0000-000000000002', 'nome', 'PARTICIPANTE', 'valor', 10000, 'papel', 'participante')), gen_random_uuid()
   from (values (1, 'a0000000-0000-0000-0000-000000000002'::uuid), (2, 'a0000000-0000-0000-0000-000000000003'::uuid), (3, null::uuid)) as q(n, responsavel);
+-- E um quarto, recebido pelo responsável antigo, que também é o participante dele: não passa nada a si mesmo, nem depois de perder o contrato.
+insert into public.contrato_parcelas (id, escritorio_id, contrato_id, numero, vencimento, valor)
+  values ('d0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 4, date '2026-03-10', 100000);
+insert into public.financeiro_recebimentos (id, escritorio_id, parcela_id, contrato_id, responsavel_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta,
+    responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, lancamento_id)
+  select 'f0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004',
+         'c0000000-0000-0000-0000-000000000001', f.id, gen_random_uuid(), date '2026-03-10', 100000, 0, 4.5, 30, false, 30000, 70000, 0, 100000, 20000, 0, 70000, 20000, 0,
+         jsonb_build_array(jsonb_build_object('id', f.pessoa_id, 'nome', 'ANTIGO', 'valor', 10000, 'papel', 'participante')), gen_random_uuid()
+  from public.perfis f where f.id = 'a0000000-0000-0000-0000-000000000002' and f.pessoa_id is not null;
 set local session_replication_role = origin;
 grant usage on schema extensions to authenticated;
 
@@ -73,11 +82,16 @@ select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0
 select is(pg_temp.pago_em(1), date '2026-03-20', 'então a linha fica paga, com a data');
 select lives_ok($$select public.financeiro_terceiro_desfazer_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002')$$,
   'quando o responsável da época desfaz, então o banco aceita');
-select is(pg_temp.pago_em(1), null::date, 'então a linha volta a ficar a pagar');
+select is(pg_temp.pago_em(1), null::date, 'então a linha fica sem data de pagamento');
+select is(pg_temp.ve(1), 1::bigint, 'então a linha continua na lista, a pagar');
 select throws_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000002', '2026-03-20')$$,
   '42501', null, 'quando o responsável da época tenta marcar o recebimento de depois, então é recusado');
 select throws_ok($$select public.financeiro_estornar('f0000000-0000-0000-0000-000000000001')$$,
-  '42501', null, 'quando o responsável da época tenta estornar, então continua recusado: o estorno não mudou');
+  '42501', null, 'quando o responsável da época tenta estornar, então continua recusado: quem estorna não mudou');
+select is(pg_temp.ve(4), 0::bigint, 'dado que ele também é o participante do próprio recebimento, quando abre, então não há o que passar a si mesmo');
+select is((select count(*) from public.financeiro_recebimentos), 0::bigint, 'dado que ele já não cuida do contrato, quando lê a tabela direto, então não vê os recebimentos');
+select throws_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000004', (select pessoa_id from public.perfis where id = auth.uid()), '2026-03-20')$$,
+  'P0001', 'Esta pessoa não recebe nada deste recebimento.', 'quando ele tenta marcar um pagamento a si mesmo, então é recusado');
 
 -- O novo responsável.
 select pg_temp.entra(3);
@@ -97,9 +111,20 @@ select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0
   'quando o administrador marca o recebimento de antes da troca, então o banco aceita');
 select lives_ok($$select public.financeiro_terceiro_desfazer_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002')$$,
   'quando o administrador desfaz, então o banco aceita');
+select is(pg_temp.pago_em(1), null::date, 'então a marcação do administrador sai');
+select is(pg_temp.ve(1), 1::bigint, 'então a linha continua na lista do administrador');
+select is(pg_temp.ve(4), 0::bigint, 'dado o responsável da época que também é o participante, quando o administrador abre, então a linha não aparece');
 select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000003', '10000000-0000-0000-0000-000000000002', '2026-03-22')$$,
   'dado o responsável da época removido, quando o administrador marca, então o banco aceita');
 select is(pg_temp.pago_em(3), date '2026-03-22', 'então a linha do responsável removido fica paga');
+
+-- O novo responsável continua podendo estornar, e a recusa diz a quem pedir, porque ele não desfaz a marcação do recebimento antigo.
+select lives_ok($$select public.financeiro_terceiro_marcar_pago('f0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000002', '2026-03-21')$$,
+  'dado o administrador que marca de novo o recebimento de antes da troca, então o banco aceita');
+select pg_temp.entra(3);
+select throws_ok($$select public.financeiro_estornar('f0000000-0000-0000-0000-000000000001')$$,
+  'P0001', 'Há valor já marcado como pago a participante ou indicador deste recebimento. É preciso desfazer a marcação antes. Peça a quem recebeu o dinheiro ou a um administrador.',
+  'quando o novo responsável tenta estornar um recebimento com marcação, então a recusa diz a quem pedir');
 
 -- Quem não recebeu: sem responsável gravado, a comparação daria nulo, e a recusa não pode depender dela.
 select pg_temp.entra(4);

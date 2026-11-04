@@ -1738,15 +1738,25 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await meus(novo)).map(l => l.papel)).toEqual(['indicador']);
         });
 
-        it('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então a linha continua, e ele marca e desfaz', async () => {
-          // Dado: o banco fictício está sempre logado como administrador; a regra de quem não é fica em supabase/tests/quem_recebeu_marca.test.sql.
+        // O banco fictício está sempre logado como administrador; a regra de quem não é fica em supabase/tests/quem_recebeu_marca.test.sql.
+        it('dado um recebimento e um novo responsável no contrato, quando o administrador marca como pago, então a linha continua, paga', async () => {
+          // Dado
           const { id, k } = await recebido(comBruno);
           await SD.contratoAtualizar(k.id, { responsavel_id: 'u-ana' });
           // Quando
           await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
           // Então
           expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', pago_em: '2026-03-20' })]);
+        });
+
+        it('dado um recebimento e um novo responsável no contrato, quando o administrador desfaz a marcação, então a linha continua, a pagar', async () => {
+          // Dado
+          const { id, k } = await recebido(comBruno);
+          await SD.contratoAtualizar(k.id, { responsavel_id: 'u-ana' });
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          // Quando
           await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          // Então
           expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', pago_em: null })]);
         });
 

@@ -1258,9 +1258,9 @@ export interface DadosParcelas {
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
-  /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. Quem é o próprio responsável do recebimento fica de fora. */
+  /** Nos recebimentos em que a pessoa era a responsável (um administrador vê os do escritório): os do período e os ainda não pagos de antes dele. Quem é o próprio responsável do recebimento fica de fora. */
   financeiroAPassar(de: string, ate: string): Promise<ValorAPassar[]>;
-  /** Só quem cuida do contrato. Não cria lançamento no caixa: o responsável paga direto. */
+  /** Só quem recebeu o dinheiro ou um administrador. Não cria lançamento no caixa: o responsável paga direto. */
   financeiroTerceiroMarcarPago(recebimento: string, pessoa: string, data: string): Promise<void>;
   financeiroTerceiroDesfazerPago(recebimento: string, pessoa: string): Promise<void>;
   /** Estornar esconde tudo o que o recebimento criou, e a parcela volta a ser a receber. Repasse pago ou valor marcado como pago precisa ser desfeito antes. */
