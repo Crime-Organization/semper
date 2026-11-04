@@ -1209,6 +1209,45 @@ export interface MovimentoDoLucro {
   indicacoes: { data: string; pessoa_id: string; nome: string; valor: number; pago_em: string | null }[];
   retiradas: { id: string; pessoa_id: string; nome: string; conta_id: string; data: string; valor: number; descricao: string }[];
 }
+export type SituacaoDaConferencia = 'confere' | 'nao_confere';
+/** Um lançamento para conferir com o caixa (supabase/migrations/20261104221303_conferencia_de_lancamentos.sql). */
+export interface LinhaDaConferencia {
+  id: string;
+  ano: number;
+  responsavel_id: string | null;
+  cliente: string;
+  servico: string | null;
+  referencia: string | null;
+  parcela_id: string | null;
+  /** O que foi pago. Vazio quando o lançamento só existe no caixa. */
+  data_pago: string | null;
+  valor_pago: number | null;
+  /** A parte do escritório, que deveria entrar no caixa. */
+  valor_esperado: number | null;
+  /** O que entrou no caixa. Vazio quando o lançamento não está na planilha geral. */
+  data_caixa: string | null;
+  valor_caixa: number | null;
+  conta_caixa: string | null;
+  /** O resultado do cruzamento. */
+  sugestao: SituacaoDaConferencia;
+  motivo: string | null;
+  /** O que a pessoa marcou. Vazio é o que falta conferir. */
+  situacao: SituacaoDaConferencia | null;
+  observacao: string | null;
+  marcado_por: string | null;
+  marcado_em: string | null;
+}
+export interface ResumoDaConferencia {
+  responsavel_id: string | null;
+  ano: number;
+  total: number;
+  confere: number;
+  nao_confere: number;
+  falta: number;
+  valor_confere: number;
+  valor_nao_confere: number;
+  valor_falta: number;
+}
 /** O caixa (supabase/migrations/20261102175057_financeiro_caixa.sql). Só administradores. */
 export interface DadosFinanceiro {
   financeiroContas(): Promise<ContaFinanceira[]>;
@@ -1260,6 +1299,14 @@ export interface DadosParcelas {
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
+  /** As linhas de um ano. Quem não é administrador recebe só as dele, seja qual for o responsável pedido. */
+  conferenciaListar(ano: number, responsavel: string | null): Promise<LinhaDaConferencia[]>;
+  /** Por responsável e por ano. Só administradores. */
+  conferenciaResumo(): Promise<ResumoDaConferencia[]>;
+  conferenciaMarcar(id: string, situacao: SituacaoDaConferencia | null, observacao: string | null): Promise<void>;
+  /** Muda também a parcela importada ligada à linha. Nunca muda o caixa. */
+  conferenciaCorrigir(id: string, data: string, valor: number): Promise<void>;
+  conferenciaHistorico(id: string): Promise<Historico[]>;
   /** Nos contratos de que a pessoa cuida (um administrador vê os do escritório): os recebimentos do período e os ainda não pagos de antes dele. Quem é o próprio responsável do recebimento fica de fora. */
   financeiroAPassar(de: string, ate: string): Promise<ValorAPassar[]>;
   /** Só quem cuida do contrato. Não cria lançamento no caixa: o responsável paga direto. */

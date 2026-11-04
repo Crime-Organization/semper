@@ -80,9 +80,9 @@ export function avisoDaSoma(lista: Pick<Parcela, 'valor'>[], valorDoContrato: nu
 }
 
 // ---------- formulários ----------
-const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
+export const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
 /** O valor digitado, em centavos. Vazio vale `vazio` (null: é erro), e o texto de erro já vem pronto para o campo. */
-function lerCentavos(texto: string, vazio: number | null): { centavos: number } | { erro: string } {
+export function lerCentavos(texto: string, vazio: number | null): { centavos: number } | { erro: string } {
   let reais: number | null;
   try { reais = lerDinheiro(texto); } catch (e) { return { erro: (e as Error).message }; }
   if (!reais) return vazio === null ? { erro: 'Informe o valor.' } : { centavos: vazio };
