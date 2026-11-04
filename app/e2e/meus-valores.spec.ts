@@ -266,6 +266,26 @@ test.describe('Meus valores', () => {
 test.describe('A passar a participantes e indicadores', () => {
   const secao = (page: Page) => page.getByRole('region', { name: 'A passar a participantes e indicadores' });
 
+  test('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então a linha continua, e ele marca como pago', async ({ page }) => {
+    // Dado
+    await prepararCaixa(page);
+    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    const cartao = await abrirContrato(page);
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    // Quando
+    await page.goto('/parcelas/');
+    await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
+    const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
+    await form.getByLabel('Data do pagamento').fill('2026-03-20');
+    await form.getByRole('button', { name: 'Confirmar' }).click();
+    // Então
+    await expect(form).toHaveCount(0);
+    await expect(secao(page).getByRole('table')).toContainText('20/03/2026');
+  });
+
   test('dado um participante, quando o responsável marca como pago, então fica pago, sem lançamento no caixa; e o valor de quem recebe não aparece para mim', async ({ page }) => {
     // Dado
     await prepararCaixa(page);

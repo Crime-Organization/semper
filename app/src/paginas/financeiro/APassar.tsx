@@ -1,5 +1,5 @@
 // O que o responsável passa aos participantes e ao indicador que não é sócio. Esse dinheiro não passa pelo caixa do escritório: marcar como
-// pago só registra o fato, e é isso que muda a linha da pessoa em "Meus valores". Quem marca é o responsável pelo contrato ou um administrador.
+// pago só registra o fato, e é isso que muda a linha da pessoa em "Meus valores". Quem marca é quem recebeu o dinheiro, o responsável da época, ou um administrador.
 import { useId, useState, type FormEvent } from 'react';
 import { SD, type ValorAPassar } from '../../dados';
 import { fmtCentavos } from '../../regras/caixa';
@@ -71,6 +71,6 @@ export function ValoresAPassar({ lista, hoje, aoMudar }: { lista: ValorAPassar[]
         </span></td>
       </tr>)}</tbody>
     </table></div>
-    <Nota>O responsável paga estes valores direto, sem passar pelo caixa. Além dos recebimentos do mês, aparecem os ainda não pagos de antes dele.</Nota>
+    <Nota>Quem era o responsável quando o cliente pagou passa estes valores direto, sem passar pelo caixa. Além dos recebimentos do mês, aparecem os ainda não pagos de antes dele.</Nota>
   </div>;
 }
