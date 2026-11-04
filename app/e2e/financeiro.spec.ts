@@ -45,7 +45,9 @@ test.describe('Caixa', () => {
     // Dado
     await page.goto('/inicio/');
     // Quando
-    await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Caixa' }).click();
+    const secoes = page.getByRole('navigation', { name: 'Seções' });
+    await secoes.getByRole('button', { name: 'Financeiro' }).click();
+    await secoes.getByRole('link', { name: 'Caixa' }).click();
     // Então
     await expect(page.getByText('Nenhuma conta ainda.', { exact: false })).toBeVisible();
     // Quando
@@ -448,4 +450,13 @@ test.describe('Caixa', () => {
     // Então
     await expect(form.getByText('O DAS precisa ser um percentual de 0 a 100, com até duas casas.')).toBeVisible();
   });
+});
+
+test('quando a pessoa entra em Parcelas, então o menu Financeiro aparece aberto, com as telas dentro', async ({ page }) => {
+  // Quando
+  await page.goto('/parcelas/');
+  // Então
+  const secoes = page.getByRole('navigation', { name: 'Seções' });
+  await expect(secoes.getByRole('button', { name: 'Financeiro' })).toHaveAttribute('aria-expanded', 'true');
+  for (const tela of ['Parcelas', 'Caixa', 'Lucro dos sócios']) await expect(secoes.getByRole('link', { name: tela, exact: true })).toBeVisible();
 });

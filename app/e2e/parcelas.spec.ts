@@ -2,7 +2,7 @@
 // As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mateus (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirNoFinanceiro, abrirSecao } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
@@ -313,7 +313,7 @@ test.describe('Página de parcelas', () => {
     await contratoComParcelas(page);
     await page.goto('/inicio/');
     // Quando
-    await abrir(page, 'Parcelas');
+    await abrirNoFinanceiro(page, 'Parcelas');
     await page.getByLabel('Mês').fill(`${new Date().getFullYear() - 1}-01`);
     // Então: nada venceu antes do contrato
     await expect(page.getByText('Nenhuma parcela neste mês.')).toBeVisible();
