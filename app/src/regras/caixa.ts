@@ -20,13 +20,30 @@ export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>,
   das: { nome: 'DAS', tipo: 'saida' },
   repasse: { nome: 'Repasse a advogado', tipo: 'saida' },
   indicacao: { nome: 'Indicação', tipo: 'saida' },
-  divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' }
+  divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' },
+  ajuste_a_mais: { nome: 'Ajuste de saldo (a mais)', tipo: 'entrada' },
+  ajuste_a_menos: { nome: 'Ajuste de saldo (a menos)', tipo: 'saida' }
 };
-export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferencia' ? 'Repasse entre contas' : CATEGORIAS[c].nome;
+/** O que esta versão do site sabe da categoria. Pode não saber nada: depois de voltar a versão, o banco pode ter uma categoria mais
+ *  nova. Essa categoria aparece como está guardada, para a tela do caixa não quebrar. */
+const dadosDaCategoria = (c: string): { nome: string; tipo: TipoDeLancamento } | undefined => (CATEGORIAS as Partial<Record<string, { nome: string; tipo: TipoDeLancamento }>>)[c];
+export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferencia' ? 'Repasse entre contas' : dadosDaCategoria(c)?.nome ?? String(c);
 /** As que se lançam à mão. A divisão de lucro nasce na página Lucro dos sócios, para ficar no nome do sócio. Quem já tem essa categoria
- *  (de antes desta regra) continua vendo a sua. */
-export const categoriasDoFormulario = (atual: keyof typeof CATEGORIAS) =>
-  (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
+ *  (de antes desta regra) continua vendo a sua, e o mesmo vale para uma categoria que esta versão não conhece. */
+export function categoriasDoFormulario(atual: keyof typeof CATEGORIAS) {
+  const conhecidas = (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
+  return dadosDaCategoria(atual) ? conhecidas : [...conhecidas, atual];
+}
+
+/** O acerto que iguala o saldo do sistema ao do banco: muda o saldo, mas não é receita, despesa nem lucro. */
+export const CATEGORIAS_DE_AJUSTE: CategoriaDeLancamento[] = ['ajuste_a_mais', 'ajuste_a_menos'];
+export const ehAjuste = (c: CategoriaDeLancamento) => CATEGORIAS_DE_AJUSTE.includes(c);
+/** Como a categoria aparece na lista do formulário. O nome do ajuste já diz o sentido. */
+export function rotuloDaCategoria(c: keyof typeof CATEGORIAS) {
+  const categoria = dadosDaCategoria(c);
+  if (!categoria || ehAjuste(c)) return nomeDaCategoria(c);
+  return `${categoria.nome} (${categoria.tipo === 'entrada' ? 'entrada' : 'saída'})`;
+}
 
 const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
 /** O valor digitado, em centavos; ou o que há de errado com ele. */
@@ -39,9 +56,16 @@ export function lerValor(texto: string): { centavos: number } | { erro: string }
 }
 
 // ---------- lançamento ----------
-export interface FormDoLancamento { contaId: string; data: string; categoria: keyof typeof CATEGORIAS; valor: string; descricao: string }
+export interface FormDoLancamento {
+  contaId: string; data: string; categoria: keyof typeof CATEGORIAS; valor: string; descricao: string;
+  /** O tipo que o lançamento já tem. Só vem quando esta versão não conhece a categoria dele e, por isso, não sabe deduzir o tipo. */
+  tipoGuardado?: TipoDeLancamento;
+}
 export const lancamentoNovo = (contaId: string, hoje: string): FormDoLancamento => ({ contaId, data: hoje, categoria: 'recebimento', valor: '', descricao: '' });
-export const formDoLancamento = (l: Lancamento): FormDoLancamento => ({ contaId: l.conta_id, data: l.data, categoria: l.categoria as keyof typeof CATEGORIAS, valor: centavosNoCampo(l.valor), descricao: l.descricao });
+export const formDoLancamento = (l: Lancamento): FormDoLancamento => ({
+  contaId: l.conta_id, data: l.data, categoria: l.categoria as keyof typeof CATEGORIAS, valor: centavosNoCampo(l.valor), descricao: l.descricao,
+  ...(dadosDaCategoria(l.categoria) ? {} : { tipoGuardado: l.tipo })
+});
 
 type ErrosDoLancamento = Partial<Record<'contaId' | 'data' | 'valor' | 'descricao', string>>;
 function errosComuns(f: { data: string; valor: string; descricao: string }, conta: Pick<ContaFinanceira, 'saldo_inicial_em'> | undefined): ErrosDoLancamento {
@@ -55,12 +79,16 @@ function errosComuns(f: { data: string; valor: string; descricao: string }, cont
   return erros;
 }
 export function errosDoLancamento(f: FormDoLancamento, conta: Pick<ContaFinanceira, 'saldo_inicial_em'> | undefined): ErrosDoLancamento {
-  return { ...errosComuns(f, conta), ...(f.contaId ? {} : { contaId: 'Escolha a conta.' }) };
+  const erros = errosComuns(f, conta);
+  if (ehAjuste(f.categoria) && !f.descricao.trim()) erros.descricao = 'Diga o motivo do ajuste.';
+  return { ...erros, ...(f.contaId ? {} : { contaId: 'Escolha a conta.' }) };
 }
 export function dadosDoLancamento(f: FormDoLancamento): DadosLancamento {
   const valor = lerValor(f.valor);
   if ('erro' in valor) throw new Error(valor.erro);
-  return { conta_id: f.contaId, data: f.data, tipo: CATEGORIAS[f.categoria].tipo, categoria: f.categoria, valor: valor.centavos, descricao: f.descricao.trim() };
+  const tipo = dadosDaCategoria(f.categoria)?.tipo ?? f.tipoGuardado;
+  if (!tipo) throw new Error('Escolha a categoria.');
+  return { conta_id: f.contaId, data: f.data, tipo, categoria: f.categoria, valor: valor.centavos, descricao: f.descricao.trim() };
 }
 
 // ---------- transferência ----------
@@ -124,18 +152,42 @@ export function diasDoMes(mes: string) {
 export const mesValido = (mes: string) => /^\d{4}-(0[1-9]|1[0-2])$/.test(mes);
 
 export interface LinhaDoCaixa { lancamento: Lancamento; saldo: number; fimDoDia: boolean }
-export interface MesDoCaixa { linhas: LinhaDoCaixa[]; saldoAnterior: number; entradas: number; saidas: number; saldoFinal: number }
+/** O que os ajustes de saldo somaram no mês, para cada lado. */
+export interface AjustesDoMes { aMais: number; aMenos: number }
+export interface MesDoCaixa {
+  linhas: LinhaDoCaixa[]; saldoAnterior: number;
+  /** Sem os ajustes de saldo: eles não são receita nem despesa. */
+  entradas: number; saidas: number;
+  /** Só existe quando o mês tem ajuste, mesmo que os dois lados se anulem. */
+  ajustes?: AjustesDoMes;
+  saldoFinal: number;
+}
 
 /** Os lançamentos do mês em ordem, cada um com o saldo depois dele, marcando o último de cada dia: é o saldo a comparar com o banco. */
 export function mesDoCaixa(lancamentos: Lancamento[], saldoAnterior: number): MesDoCaixa {
   const ordem = lancamentos.toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em));
-  let saldo = saldoAnterior, entradas = 0, saidas = 0;
+  let saldo = saldoAnterior;
   const linhas = ordem.map((l, i): LinhaDoCaixa => {
-    if (l.tipo === 'entrada') { saldo += l.valor; entradas += l.valor; } else { saldo -= l.valor; saidas += l.valor; }
+    saldo += l.tipo === 'entrada' ? l.valor : -l.valor;
     return { lancamento: l, saldo, fimDoDia: ordem[i + 1]?.data !== l.data };
   });
-  return { linhas, saldoAnterior, entradas, saidas, saldoFinal: saldo };
+  const somar = (serve: (l: Lancamento) => boolean) => ordem.filter(serve).reduce((s, l) => s + l.valor, 0);
+  const ajustes = ordem.some(l => ehAjuste(l.categoria))
+    ? { aMais: somar(l => ehAjuste(l.categoria) && l.tipo === 'entrada'), aMenos: somar(l => ehAjuste(l.categoria) && l.tipo === 'saida') }
+    : undefined;
+  return {
+    linhas, saldoAnterior, ajustes, saldoFinal: saldo,
+    entradas: somar(l => !ehAjuste(l.categoria) && l.tipo === 'entrada'),
+    saidas: somar(l => !ehAjuste(l.categoria) && l.tipo === 'saida')
+  };
 }
+/** O valor com o sinal na frente, sem quebrar a linha entre os dois. */
+const comSinal = (sinal: string, centavos: number) => `${sinal}\u00a0${fmtCentavos(centavos)}`;
+/** Os ajustes do mês como a pessoa lê, cada lado com o seu sinal. */
+export const textoDosAjustes = ({ aMais, aMenos }: AjustesDoMes) =>
+  [aMais ? comSinal('+', aMais) : '', aMenos ? comSinal('−', aMenos) : ''].filter(Boolean).join(' · ');
+/** O valor de um ajuste com o sinal do seu lado. */
+export const valorDoAjuste = (l: Pick<Lancamento, 'tipo' | 'valor'>) => comSinal(l.tipo === 'entrada' ? '+' : '−', l.valor);
 
 /** Os nomes de cada campo no histórico do lançamento. */
 export const CAMPOS_DO_LANCAMENTO: Record<string, string> = { conta: 'Conta', data: 'Data', tipo: 'Tipo', categoria: 'Categoria', valor: 'Valor', descricao: 'Descrição', excluido_em: 'Exclusão' };

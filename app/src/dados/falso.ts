@@ -11,6 +11,7 @@ import type {
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
+import { ehAjuste } from '../regras/caixa';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
@@ -1078,7 +1079,7 @@ const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou 
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
 // ---------- caixa ----------
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
-const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro'];
+const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos'];
 /** Como as regras check e o gatilho do banco. */
 function conferirLancamento(l: LancamentoGuardado) {
   l.descricao = l.descricao.trim();
@@ -2242,6 +2243,8 @@ export const SD: Dados = {
   },
   financeiroLancamentos: (contaId, de, ate) => espera(bd.lancamentos!.filter(l => l.conta_id === contaId && !l.excluido_em && l.data >= de && l.data <= ate)
     .toSorted((a, b) => a.data.localeCompare(b.data) || a.criado_em.localeCompare(b.criado_em)).map(semOExcluido)),
+  financeiroAjustesDeSaldo: () => espera(bd.lancamentos!.filter(l => !l.excluido_em && ehAjuste(l.categoria))
+    .toSorted((a, b) => b.data.localeCompare(a.data) || b.criado_em.localeCompare(a.criado_em)).map(semOExcluido)),
   financeiroSaldoAntes(contaId, data) {
     const conta = bd.contasFinanceiras!.find(c => c.id === contaId);
     if (!conta) return espera(0);

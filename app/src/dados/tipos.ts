@@ -1146,7 +1146,7 @@ export interface DadosAcompanhamento {
 export interface ContaFinanceira { id: string; nome: string; tem_das: boolean; saldo_inicial: number; saldo_inicial_em: string; arquivada_em: string | null }
 export type DadosConta = Pick<ContaFinanceira, 'nome' | 'tem_das' | 'saldo_inicial' | 'saldo_inicial_em'>;
 export type TipoDeLancamento = 'entrada' | 'saida';
-export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'transferencia';
+export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'ajuste_a_mais' | 'ajuste_a_menos' | 'transferencia';
 /** Uma entrada ou uma saída numa conta, em centavos. par_id: a outra ponta de uma transferência. */
 export interface Lancamento {
   id: string; conta_id: string; data: string; tipo: TipoDeLancamento; categoria: CategoriaDeLancamento; valor: number; descricao: string;
@@ -1216,6 +1216,8 @@ export interface DadosFinanceiro {
   financeiroContaAtualizar(id: string, dados: Partial<DadosConta & Pick<ContaFinanceira, 'arquivada_em'>>): Promise<void>;
   /** De um mês, sem os excluídos. */
   financeiroLancamentos(contaId: string, de: string, ate: string): Promise<Lancamento[]>;
+  /** Os ajustes de saldo de todas as contas, sem os excluídos, dos mais novos aos mais antigos: é o que se confere na auditoria. */
+  financeiroAjustesDeSaldo(): Promise<Lancamento[]>;
   /** O saldo inicial da conta mais tudo o que entrou e saiu antes da data. */
   financeiroSaldoAntes(contaId: string, data: string): Promise<number>;
   financeiroLancamentoCriar(dados: DadosLancamento): Promise<Lancamento>;
