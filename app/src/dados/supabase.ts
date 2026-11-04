@@ -1,6 +1,6 @@
 // Camada de dados do SEMPER: a única parte do site que conversa com o Supabase.
 // As telas usam só o objeto SD (veja dados/index.ts); o contrato está em dados/tipos.ts.
-import { AuthClient } from '@supabase/auth-js';
+import { AuthClient, isAuthSessionMissingError } from '@supabase/auth-js';
 import { PostgrestClient } from '@supabase/postgrest-js';
 import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
@@ -391,6 +391,7 @@ export const SD: Dados = {
   },
   async novaSenha(senha) { await rodar(sb.auth.updateUser({ password: senha })); },
   async sair() { ctx = null; await sb.auth.signOut(); },
+  async sessaoEncerrada() { const { error } = await sb.auth.getUser(); return isAuthSessionMissingError(error); },
   aoMudarSessao(cb) {
     const { data } = sb.auth.onAuthStateChange(evento => cb(evento));
     return () => data.subscription.unsubscribe();

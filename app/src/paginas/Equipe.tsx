@@ -58,7 +58,7 @@ async function pedirEmailNovo(u: Usuario, digitado = '', erro: string | null = n
   const r = await janela<{ novo: string; repetido: string }>({
     titulo: `Trocar o e-mail de acesso de ${u.nome}`,
     corpo: <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, e fica no registro de ações. Quem já estava conectado não consegue renovar o acesso, mas pode continuar usando o sistema até ele vencer, em geral em até 1 hora. Se houver suspeita de invasão, desative o acesso da pessoa nesta tela: isso corta o acesso na hora.</Aviso>
+      <Aviso tipo="info">Use só para quem perdeu o acesso ao e-mail atual, depois de confirmar com a própria pessoa que foi ela quem pediu. A troca vale na hora, sem link de confirmação, e fica no registro de ações. Quem já estava conectado perde o acesso na hora. Se houver suspeita de invasão, desative o acesso da pessoa nesta tela em vez de trocar o e-mail.</Aviso>
       <Nota>E-mail atual: <b>{u.email}</b>. A senha atual deixa de valer: a pessoa cria outra em "Esqueci minha senha", com o e-mail novo.</Nota>
       <Campo rotulo="E-mail novo" para="email-do-colega" erro={erro}>
         <input {...propsDoCampo('email-do-colega', { erro })} name="novo" className="campo" type="email" autoComplete="off" maxLength={TAMANHO_EMAIL_DE_ACESSO} defaultValue={digitado} />
@@ -120,8 +120,10 @@ function PainelEquipe() {
   async function definirAtivo(u: Usuario, ativar: boolean) {
     try {
       await SD.equipeDefinirAtivo(u.id, ativar);
-      feito(ativar ? `${u.nome} pode entrar de novo.` : `${u.nome} foi desativado(a) e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
-        ativar ? 'reativação' : 'desativação', async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
+      // Toda reativação tira a senha de uso, inclusive a do "Desfazer" de uma desativação (public.equipe_definir_ativo).
+      const senha = 'A senha antiga não vale mais: a pessoa cria uma nova em "Esqueci minha senha"';
+      feito(ativar ? `${u.nome} foi reativado(a). ${senha}.` : `${u.nome} foi desativado(a), saiu de todos os aparelhos e perdeu o acesso aos dados. Nada do que fez foi apagado.`,
+        ativar ? 'reativação' : `desativação. ${senha}`, async () => { await SD.equipeDefinirAtivo(u.id, !ativar); void recarregar(true); });
       mudouEquipe();
     } catch (e) { falha(e); }
   }
@@ -195,7 +197,7 @@ function PainelEquipe() {
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
                 {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
                   : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
-                  : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => definirAtivo(u, true)}>Reativar</button>}
+                  : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => definirAtivo(u, true)}>Reativar</BotaoDuplo>}
               </div></td>
             </tr>;
           })}
