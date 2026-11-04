@@ -37,7 +37,7 @@ import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CA
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
 import { DIAS_PARADO, PARCELAS_DA_PESSOA } from './limites';
-import type { CategoriaDeLancamento, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio } from './tipos';
+import type { CategoriaDeLancamento, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
@@ -134,6 +134,8 @@ interface Banco {
   parcelas?: ParcelaGuardada[];
   recebimentos?: RecebimentoGuardado[];
   repasses?: RepasseGuardado[];
+  /** O que o responsável já passou a cada terceiro (financeiro_terceiros_pagos no banco). */
+  terceirosPagos?: TerceiroPago[];
   socios?: SocioGuardado[];
   retiradas?: RetiradaGuardada[];
   /** Os contratos que já geraram as parcelas (uma vez só, como privado.contratos_com_parcelas). */
@@ -167,9 +169,10 @@ type CompromissoGuardado = Omit<Compromisso, 'pessoas' | 'pessoa_nome' | 'proces
 /** Tarefa como fica guardada: as pessoas pelo id; os nomes, a demanda e o contrato são lidos na hora (como as junções do banco). */
 type LancamentoGuardado = Lancamento & { excluido_em: string | null };
 type ParcelaGuardada = Parcela & { excluido_em: string | null };
-type RecebimentoGuardado = RecebimentoGravado & { estornado_em: string | null; lancamento_id: string; lancamento_taxa_id: string | null; socio_pessoa_id: string | null; socio_nome: string | null };
+type RecebimentoGuardado = RecebimentoGravado & { responsavel_id: string | null; estornado_em: string | null; lancamento_id: string; lancamento_taxa_id: string | null; socio_pessoa_id: string | null; socio_nome: string | null };
 type RetiradaGuardada = MovimentoDoLucro['retiradas'][number] & { lancamento_id: string; excluido_em: string | null };
-type RepasseGuardado = Repasse & { cancelado_em: string | null; lancamento_id: string | null; pessoa_id: string | null };
+type RepasseGuardado = Repasse & { cancelado_em: string | null; lancamento_id: string | null; perfil_id: string | null; pessoa_id: string | null };
+interface TerceiroPago { recebimento_id: string; pessoa_id: string; pago_em: string; marcado_por: string; marcado_em: string }
 type SocioGuardado = Omit<Socio, 'nome'> & { excluido_em: string | null };
 type AndamentoGuardado = Omit<AndamentoDeProcesso, 'tarefa'> & { excluido_em: string | null };
 type PrazoGuardado = Omit<PrazoDeProcesso, 'tarefa'> & { excluido_em: string | null };
@@ -392,6 +395,7 @@ bd.ajustesFinanceiros ??= [];
 bd.parcelas ??= [];
 bd.recebimentos ??= [];
 bd.repasses ??= [];
+bd.terceirosPagos ??= [];
 bd.socios ??= [];
 bd.retiradas ??= [];
 // Como ao ligar o módulo no banco: o que já foi assinado não gera sozinho, nem se sair e voltar para a coluna.
@@ -477,8 +481,8 @@ gravar();
   encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); }
 };
 
-const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }) =>
-  bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo }, feito_por: eu, em: agora() });
+const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
+  bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo, ...detalhes }, feito_por: eu, em: agora() });
 const busca = (p: Pessoa) => normal([p.nome, p.nome_fantasia, p.documento, p.codigo, ...(p.telefones || []).map(telefoneNormal), ...(p.emails || []), p.municipio].join(' '));
 function termo(texto?: string) {
   const t = String(texto || '').trim();
@@ -1112,6 +1116,19 @@ function acharParcela(id: string) {
   if (!p) throw new Error('Só o responsável pelo contrato ou um administrador registra o recebimento.');
   return p;
 }
+/** Como privado.recebimento_do_terceiro. O banco fictício está sempre logado como o master, que cuida de todos os contratos. */
+const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
+function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
+  const r = bd.recebimentos!.find(x => x.id === recebimento);
+  if (!r) throw new Error('Só o responsável pelo contrato ou um administrador marca este valor como pago.');
+  if (r.estornado_em) throw new Error('Este recebimento foi estornado.');
+  if (pessoa === pessoaDoResponsavel(r) || !r.terceiros.some(t => t.id === pessoa && t.valor > 0)) throw new Error('Esta pessoa não recebe nada deste recebimento.');
+  return r;
+}
+/** O que o registro de ações guarda da marcação de pago, como o gatilho do banco (privado.auditar_terceiro_pago). */
+const auditarMarcacao = (acao: string, r: RecebimentoGuardado, pessoa: string, pagoEm: string) => auditar('financeiro_terceiros_pagos', acao, { id: pessoa, codigo: bd.contratos!.find(k => k.id === r.contrato_id)?.codigo }, {
+  parcela: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero, recebimento: r.id, pago_em: pagoEm, valor: r.terceiros.find(t => t.id === pessoa)?.valor
+});
 const nomeDoSocio = (id: string) => bd.pessoas.find(p => p.id === id)?.nome ?? 'Pessoa excluída';
 const socioLido = ({ excluido_em: _e, ...s }: SocioGuardado): Socio => ({ ...s, nome: nomeDoSocio(s.pessoa_id) });
 /** Como privado.socio_do_recebimento: o recebimento guarda de qual sócio ele é. */
@@ -2380,16 +2397,16 @@ export const SD: Dados = {
     const saidaTaxa = k.percentual_escritorio === PARTE_INTEGRAL && d.taxaMaquina > 0 ? novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'despesa', valor: d.taxaMaquina, descricao: 'Taxa da máquina: ' + texto, origem: 'recebimento' }) : null;
     if (saidaTaxa) bd.lancamentos!.push(saidaTaxa);
     const r: RecebimentoGuardado = {
-      id: novoId(), parcela_id: p.id, contrato_id: k.id, conta_id: conta, data, valor, taxa_maquina: d.taxaMaquina, aliquota_das: aliquota, parte_na_conta: k.percentual_escritorio, responsavel_socio: partes.responsavel_socio,
+      id: novoId(), responsavel_id: k.responsavel_id, parcela_id: p.id, contrato_id: k.id, conta_id: conta, data, valor, taxa_maquina: d.taxaMaquina, aliquota_das: aliquota, parte_na_conta: k.percentual_escritorio, responsavel_socio: partes.responsavel_socio,
       na_conta: d.naConta, ficou_com_advogado: d.ficouComOAdvogado, das: d.das, liquido: d.liquido, escritorio: d.escritorio, responsavel_recebe: d.responsavelRecebe, responsavel_fica: d.responsavelFica,
       escritorio_final: d.escritorioFinal, contribuicao_socio: d.contribuicaoDoSocio, terceiros: partes.terceiros.map(t => ({ ...t, valor: d.terceiros.find(x => x.id === t.id)!.valor })),
       socio_indicador: partes.socio_indicador && d.socioIndicador ? { ...partes.socio_indicador, valor: d.socioIndicador.valor } : null,
       estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null, ...socioDoRecebimento(k, partes.responsavel_socio)
     };
     bd.recebimentos!.push(r);
-    const repasse = (tipo: Repasse['tipo'], nome: string, valorDele: number, pessoaId: string | null) => bd.repasses!.push({ id: novoId(), recebimento_id: r.id, tipo, nome, descricao: texto, valor: valorDele, conta_sugerida: conta, conta_paga: null, pago_em: null, criado_em: agora(), cancelado_em: null, lancamento_id: null, pessoa_id: pessoaId });
-    if (d.responsavelRecebe > 0) repasse('responsavel', EQUIPE.find(m => m.id === k.responsavel_id)?.nome ?? 'Usuário removido', d.responsavelRecebe, null);
-    if (partes.socio_indicador && d.socioIndicador) repasse('socio_indicador', partes.socio_indicador.nome, d.socioIndicador.valor, partes.socio_indicador.id);
+    const repasse = (tipo: Repasse['tipo'], nome: string, valorDele: number, perfilId: string | null, pessoaId: string | null) => bd.repasses!.push({ id: novoId(), recebimento_id: r.id, tipo, nome, descricao: texto, valor: valorDele, conta_sugerida: conta, conta_paga: null, pago_em: null, criado_em: agora(), cancelado_em: null, lancamento_id: null, perfil_id: perfilId, pessoa_id: pessoaId });
+    if (d.responsavelRecebe > 0) repasse('responsavel', EQUIPE.find(m => m.id === k.responsavel_id)?.nome ?? 'Usuário removido', d.responsavelRecebe, k.responsavel_id, null);
+    if (partes.socio_indicador && d.socioIndicador) repasse('socio_indicador', partes.socio_indicador.nome, d.socioIndicador.valor, null, partes.socio_indicador.id);
     Object.assign(p, { recebimento_id: r.id, recebida_em: data, recebido: valor });
     historicoDaParcela(k.id, { ['Parcela ' + p.numero]: { de: null, para: `Recebida em ${fmtData(data)}: ${fmtCentavos(valor)}` } });
     auditar('financeiro_recebimentos', 'inclusao', r); gravar();
@@ -2398,7 +2415,7 @@ export const SD: Dados = {
   financeiroRecebimento(id) {
     const r = bd.recebimentos!.find(x => x.id === id);
     if (!r) return espera(null);
-    const { estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...gravado } = r;
+    const { responsavel_id: _r, estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...gravado } = r;
     return espera(gravado);
   },
   async financeiroEstornar(id) {
@@ -2407,6 +2424,7 @@ export const SD: Dados = {
     if (r.estornado_em) return erro('Este recebimento já foi estornado.');
     const dele = bd.repasses!.filter(x => x.recebimento_id === id);
     if (dele.some(x => x.pago_em)) return erro('Há repasse já pago deste recebimento. Peça a um administrador para desfazer o pagamento antes.');
+    if (bd.terceirosPagos!.some(m => m.recebimento_id === id)) return erro('Há valor já marcado como pago a participante ou indicador deste recebimento. É preciso desfazer a marcação antes.');
     const quando = agora();
     r.estornado_em = quando;
     dele.forEach(x => { x.cancelado_em = quando; });
@@ -2435,7 +2453,7 @@ export const SD: Dados = {
     return espera(undefined);
   },
   financeiroRepasses: (de, ate) => espera(bd.repasses!.filter(x => !x.cancelado_em && (!x.pago_em || (x.pago_em >= de && x.pago_em <= ate)))
-    .toSorted((a, b) => a.criado_em.localeCompare(b.criado_em)).map(({ cancelado_em: _c, lancamento_id: _l, pessoa_id: _p, ...x }) => x)),
+    .toSorted((a, b) => a.criado_em.localeCompare(b.criado_em)).map(({ cancelado_em: _c, lancamento_id: _l, perfil_id: _f, pessoa_id: _p, ...x }) => x)),
   async financeiroPagarRepasse(id, conta, data) {
     const x = bd.repasses!.find(y => y.id === id);
     if (!x) return erro('Repasse não encontrado neste escritório.');
@@ -2453,6 +2471,55 @@ export const SD: Dados = {
     if (!x.pago_em) return espera(undefined);
     bd.lancamentos!.filter(l => l.id === x.lancamento_id).forEach(l => { l.excluido_em = agora(); });
     Object.assign(x, { pago_em: null, conta_paga: null, lancamento_id: null }); gravar();
+    return espera(undefined);
+  },
+  financeiroMeusValores(de, ate) {
+    const minhaPessoa = EQUIPE.find(m => m.id === eu)?.pessoa_id;
+    const linhas = bd.recebimentos!.filter(r => !r.estornado_em && r.data <= ate).flatMap(r => {
+      const k = bd.contratos!.find(x => x.id === r.contrato_id);
+      const base = { recebimento_id: r.id, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data };
+      const linha = (papel: MeuValor['papel'], valor: number, pagoEm: string | null, deQuem: string): MeuValor =>
+        ({ ...base, papel, valor, situacao: pagoEm ? 'recebido' : 'a_receber', pago_em: pagoEm, de_quem: deQuem });
+      const repasses = bd.repasses!.filter(x => x.recebimento_id === r.id && !x.cancelado_em);
+      const pagoAMim = bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === minhaPessoa)?.pago_em ?? null;
+      // Se o responsável está na lista de terceiros, ele não passa nada a si mesmo: esse valor volta para a linha dele.
+      const parteDoResponsavel = r.responsavel_fica + r.terceiros.filter(t => t.id === pessoaDoResponsavel(r)).reduce((soma, t) => soma + t.valor, 0);
+      return [
+        ...repasses.filter(x => x.tipo === 'responsavel' && x.perfil_id === eu && parteDoResponsavel > 0).map(x => linha('responsavel', parteDoResponsavel, x.pago_em, 'escritório')),
+        ...(r.responsavel_id === eu && r.ficou_com_advogado > 0 && parteDoResponsavel > 0 ? [linha('responsavel', parteDoResponsavel, r.data, 'cliente')] : []),
+        ...repasses.filter(x => x.tipo === 'socio_indicador' && x.pessoa_id === minhaPessoa).map(x => linha('indicador', x.valor, x.pago_em, 'escritório')),
+        ...r.terceiros.filter(t => t.id === minhaPessoa && t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map(t =>
+          linha(t.papel ?? (k?.indicador_id === minhaPessoa ? 'indicador' : 'participante'), t.valor, pagoAMim, EQUIPE.find(m => m.id === r.responsavel_id)?.nome ?? 'Usuário removido'))
+      ];
+    }).filter(l => l.recebido_em >= de || !l.pago_em);
+    return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.papel.localeCompare(b.papel)));
+  },
+  financeiroAPassar(de, ate) {
+    const linhas = bd.recebimentos!.filter(r => !r.estornado_em).flatMap(r => {
+      const k = bd.contratos!.find(x => x.id === r.contrato_id);
+      return r.terceiros.filter(t => t.valor > 0 && t.id !== pessoaDoResponsavel(r)).map((t): ValorAPassar => ({
+        recebimento_id: r.id, pessoa_id: t.id, nome: t.nome, valor: t.valor, contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '',
+        parcela_numero: bd.parcelas!.find(p => p.id === r.parcela_id)?.numero ?? 0, recebido_em: r.data,
+        pago_em: bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === t.id)?.pago_em ?? null
+      }));
+    }).filter(v => (v.recebido_em >= de && v.recebido_em <= ate) || (!v.pago_em && v.recebido_em < de));
+    return espera(linhas.toSorted((a, b) => a.recebido_em.localeCompare(b.recebido_em) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.parcela_numero - b.parcela_numero || a.nome.localeCompare(b.nome)));
+  },
+  async financeiroTerceiroMarcarPago(recebimento, pessoa, data) {
+    const r = recebimentoDoTerceiro(recebimento, pessoa);
+    if (!dataExiste(data) || !anoAceito(data)) return erro('Informe uma data válida.');
+    if (bd.terceirosPagos!.some(m => m.recebimento_id === r.id && m.pessoa_id === pessoa)) return erro('Este valor já foi marcado como pago.');
+    bd.terceirosPagos!.push({ recebimento_id: r.id, pessoa_id: pessoa, pago_em: data, marcado_por: eu, marcado_em: agora() });
+    auditarMarcacao('inclusao', r, pessoa, data);
+    gravar();
+    return espera(undefined);
+  },
+  async financeiroTerceiroDesfazerPago(recebimento, pessoa) {
+    const r = recebimentoDoTerceiro(recebimento, pessoa);
+    const marcada = bd.terceirosPagos!.find(m => m.recebimento_id === r.id && m.pessoa_id === pessoa);
+    bd.terceirosPagos = bd.terceirosPagos!.filter(m => m !== marcada);
+    if (marcada) auditarMarcacao('exclusao', r, pessoa, marcada.pago_em);
+    gravar();
     return espera(undefined);
   },
   financeiroLucro() {

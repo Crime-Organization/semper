@@ -8,6 +8,7 @@ import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type Pes
 import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_MOSTRADAS } from '../dados/limites';
 import { erroDoEmailDoColega, normalizarEmail, seloDoAvisoDaTroca, situacaoDoAvisoDaTroca } from '../regras/conta';
 import { FUNCOES } from '../regras/equipe';
+import { detalheDaMarcacao } from '../regras/meusValores';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -28,8 +29,11 @@ export default function Equipe() {
 const TABELAS: Record<string, string> = {
   pessoas: 'cadastro de pessoa', pessoa_responsaveis: 'responsáveis de', pessoa_sigilos: 'informação sigilosa de',
   pessoa_sigilo_acessos: 'acesso às informações sigilosas de', perfis: 'usuário', convites: 'convite',
-  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato', comentarios: 'um comentário', perfil_profissional: 'o perfil profissional de', ligacoes: 'a conta Google do escritório'
+  pessoa_vinculos: 'vínculo entre pessoas', vinculo_tipos: 'tipo de vínculo', escritorios: 'os dados do escritório', contratos: 'contrato', comentarios: 'um comentário', perfil_profissional: 'o perfil profissional de', ligacoes: 'a conta Google do escritório',
+  financeiro_terceiros_pagos: 'a marcação de pago de um valor do contrato'
 };
+/** O que a ação diz além do alvo, nas tabelas em que só ele não basta. */
+const DETALHES: Partial<Record<string, (resumo: NonNullable<RegistroAuditoria['resumo']>) => string>> = { financeiro_terceiros_pagos: detalheDaMarcacao };
 const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou', exclusao: 'excluiu', leitura: 'leu', exportacao: 'exportou', importacao: 'importou' };
 const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
 /** Ações que não cabem em "quem fez o quê a qual cadastro": as sobre muitos cadastros de uma vez contam quantos, e a troca de e-mail diz de qual para qual. */
@@ -250,7 +254,8 @@ function PainelEquipe() {
             const especial = LINHAS_ESPECIAIS[r.acao];
             if (especial) return <li key={r.id}>{especial(r, nomeDe(r.feito_por))}<span>{dataHora(r.em)}</span></li>;
             const alvo = r.resumo?.nome || r.resumo?.email || r.resumo?.codigo || '';
-            return <li key={r.id}>{nomeDe(r.feito_por)} {ACOES[r.acao] || r.acao} {TABELAS[r.tabela] || r.tabela} {alvo && <b>{alvo}</b>}<span>{dataHora(r.em)}</span></li>;
+            const detalhe = r.resumo && DETALHES[r.tabela]?.(r.resumo);
+            return <li key={r.id}>{nomeDe(r.feito_por)} {ACOES[r.acao] || r.acao} {TABELAS[r.tabela] || r.tabela} {alvo && <b>{alvo}</b>}{detalhe && ` (${detalhe})`}<span>{dataHora(r.em)}</span></li>;
           })}</ol>}
       </Cartao>
     </section>

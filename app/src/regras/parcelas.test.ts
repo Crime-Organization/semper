@@ -316,7 +316,7 @@ describe('Quem entra na divisão', () => {
     // Quando
     const p = partesDoRecebimento(CONTRATO_COM_PARTES, SOCIOS, 'outro', '2026-03-01', nome);
     // Então
-    expect(p).toEqual({ terceiros: [{ id: 'part', nome: 'PART', percentual: 10 }], socio_indicador: { id: 'socio', nome: 'SOCIO' }, responsavel_socio: false });
+    expect(p).toEqual({ terceiros: [{ id: 'part', nome: 'PART', percentual: 10, papel: 'participante' }], socio_indicador: { id: 'socio', nome: 'SOCIO' }, responsavel_socio: false });
   });
 
   it('quando o indicador já não era sócio na data, então entra como terceiro, com o percentual do contrato', () => {

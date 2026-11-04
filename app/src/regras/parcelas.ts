@@ -194,8 +194,8 @@ export const cruzaOutroPeriodo = (lista: (Periodo & { id: string })[], novo: Per
 export function partesDoRecebimento(k: { participantes: ParticipanteGravado[]; indicador_id: string | null; indicador_percentual: number | null }, socios: Periodo[],
   pessoaDoResponsavel: string | null | undefined, data: string, nomeDe: NomeDe): Pick<ParaReceber, 'terceiros' | 'socio_indicador' | 'responsavel_socio'> {
   const indicadorSocio = eraSocio(socios, k.indicador_id, data);
-  const terceiros: TerceiroDoRecebimento[] = k.participantes.filter(p => (p.percentual ?? 0) > 0).map(p => ({ id: p.pessoa_id, nome: nomeDe(p.pessoa_id), percentual: p.percentual! }));
-  if (k.indicador_id && !indicadorSocio && (k.indicador_percentual ?? 0) > 0) terceiros.push({ id: k.indicador_id, nome: nomeDe(k.indicador_id), percentual: k.indicador_percentual! });
+  const terceiros: TerceiroDoRecebimento[] = k.participantes.filter(p => (p.percentual ?? 0) > 0).map(p => ({ id: p.pessoa_id, nome: nomeDe(p.pessoa_id), percentual: p.percentual!, papel: 'participante' }));
+  if (k.indicador_id && !indicadorSocio && (k.indicador_percentual ?? 0) > 0) terceiros.push({ id: k.indicador_id, nome: nomeDe(k.indicador_id), percentual: k.indicador_percentual!, papel: 'indicador' });
   return {
     terceiros, socio_indicador: indicadorSocio ? { id: k.indicador_id!, nome: nomeDe(k.indicador_id!) } : null, responsavel_socio: eraSocio(socios, pessoaDoResponsavel, data)
   };
