@@ -1120,7 +1120,7 @@ function acharParcela(id: string) {
 const pessoaDoResponsavel = (r: Pick<RecebimentoGuardado, 'responsavel_id'>) => EQUIPE.find(m => m.id === r.responsavel_id)?.pessoa_id;
 function recebimentoDoTerceiro(recebimento: string, pessoa: string) {
   const r = bd.recebimentos!.find(x => x.id === recebimento);
-  if (!r) throw new Error('Só o responsável pelo contrato ou um administrador marca este valor como pago.');
+  if (!r) throw new Error('Só quem recebeu o dinheiro ou um administrador marca este valor como pago.');
   if (r.estornado_em) throw new Error('Este recebimento foi estornado.');
   if (pessoa === pessoaDoResponsavel(r) || !r.terceiros.some(t => t.id === pessoa && t.valor > 0)) throw new Error('Esta pessoa não recebe nada deste recebimento.');
   return r;

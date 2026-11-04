@@ -1738,6 +1738,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await meus(novo)).map(l => l.papel)).toEqual(['indicador']);
         });
 
+        it('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então a linha continua, e ele marca e desfaz', async () => {
+          // Dado: o banco fictício está sempre logado como administrador; a regra de quem não é fica em supabase/tests/quem_recebeu_marca.test.sql.
+          const { id, k } = await recebido(comBruno);
+          await SD.contratoAtualizar(k.id, { responsavel_id: 'u-ana' });
+          // Quando
+          await SD.financeiroTerceiroMarcarPago(id, 'p-bruno', '2026-03-20');
+          // Então
+          expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', pago_em: '2026-03-20' })]);
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-bruno');
+          expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', pago_em: null })]);
+        });
+
         it('dado um valor marcado como pago e desfeito, quando lê o registro de ações, então os dois dizem o contrato, a parcela, o recebimento, a data e o valor', async () => {
           // Dado
           const { id, k } = await recebido(comBruno);
@@ -1790,8 +1802,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('quando o recebimento não existe, então marcar e desfazer são recusados', async () => {
           // Quando / Então
-          await expect(SD.financeiroTerceiroMarcarPago('nao-existe', 'p-bruno', '2026-03-20')).rejects.toThrow('Só o responsável');
-          await expect(SD.financeiroTerceiroDesfazerPago('nao-existe', 'p-bruno')).rejects.toThrow('Só o responsável');
+          await expect(SD.financeiroTerceiroMarcarPago('nao-existe', 'p-bruno', '2026-03-20')).rejects.toThrow('Só quem recebeu');
+          await expect(SD.financeiroTerceiroDesfazerPago('nao-existe', 'p-bruno')).rejects.toThrow('Só quem recebeu');
         });
 
         it('dado um valor marcado como pago, quando estorna, então é recusado até desfazer a marcação', async () => {
