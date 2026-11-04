@@ -17,7 +17,7 @@ import { RECUSA_DA_RESERVA } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
-import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
+import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -1142,8 +1142,10 @@ function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
   const k = bd.contratos!.find(x => x.id === p.contrato_id);
   return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null };
 }
+/** Como o gatilho preparar_parcela do banco. */
+const PARCELA_ANTIGA_NAO_MUDA = 'Esta parcela foi paga antes do início do caixa e não muda.';
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
-const naLista = (p: ParcelaGuardada) => !!p.recebimento_id || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
+const naLista = (p: ParcelaGuardada) => !!p.recebida_em || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
 const ajusteDoSocio = (s: SocioGuardado, de: string | null, para: string | null) => registrarAjuste({ ['Sócio: ' + nomeDoSocio(s.pessoa_id)]: { de, para } });
 const registrarAjuste = (alteracoes: Historico['alteracoes']) => { bd.ajustesFinanceiros!.unshift({ id: Date.now() + Math.random(), alteracoes, feito_por: eu, em: agora() }); };
 /** Como as regras check da conta. */
@@ -2322,7 +2324,7 @@ export const SD: Dados = {
     const dela = new Set(bd.contratos!.filter(k => k.clientes.includes(pessoaId)).map(k => k.id));
     return espera(bd.parcelas!.filter(p => dela.has(p.contrato_id) && !p.excluido_em && naLista(p)).toSorted((a, b) => b.vencimento.localeCompare(a.vencimento) || b.numero - a.numero).slice(0, PARCELAS_DA_PESSOA).map(parcelaDoEscritorio));
   },
-  parcelasDoPeriodo: (de, ate, hoje) => espera(bd.parcelas!.filter(p => !p.excluido_em && naLista(p) && ((p.vencimento >= de && p.vencimento <= ate) || (!p.recebimento_id && p.vencimento < (hoje < de ? hoje : de))))
+  parcelasDoPeriodo: (de, ate, hoje) => espera(bd.parcelas!.filter(p => !p.excluido_em && naLista(p) && ((p.vencimento >= de && p.vencimento <= ate) || (!p.recebida_em && p.vencimento < (hoje < de ? hoje : de))))
     .toSorted((a, b) => a.vencimento.localeCompare(b.vencimento)).map(parcelaDoEscritorio)),
   async parcelaCriar(contratoId, dados) {
     acharContrato(contratoId);
@@ -2335,6 +2337,7 @@ export const SD: Dados = {
   async parcelaAtualizar(id, dados) {
     const p = acharParcela(id);
     if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
+    if (parcelaAntiga(p)) return erro(PARCELA_ANTIGA_NAO_MUDA);
     if (p.excluido_em) return erro('Esta parcela foi excluída.');
     if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
     const alteracoes: Historico['alteracoes'] = {};
@@ -2347,6 +2350,7 @@ export const SD: Dados = {
   async parcelaExcluir(id) {
     const p = acharParcela(id);
     if (p.recebimento_id) return erro('Esta parcela já foi recebida. Estorne o recebimento antes de mudar.');
+    if (parcelaAntiga(p)) return erro(PARCELA_ANTIGA_NAO_MUDA);
     if (!p.excluido_em) historicoDaParcela(p.contrato_id, { ['Parcela ' + p.numero]: { de: null, para: 'Excluída' } });
     p.excluido_em ??= agora(); gravar();
     return espera(undefined);
@@ -2381,7 +2385,7 @@ export const SD: Dados = {
   async financeiroReceber({ parcela, data, valor, conta, taxa }) {
     const p = acharParcela(parcela);
     if (p.excluido_em) return erro('Esta parcela foi excluída.');
-    if (p.recebimento_id) return erro('Esta parcela já foi recebida.');
+    if (p.recebida_em) return erro('Esta parcela já foi recebida.');
     const k = acharContrato(p.contrato_id);
     if (k.percentual_escritorio === null) return erro(SEM_PARTE_NA_CONTA);
     const c = bd.contasFinanceiras!.find(x => x.id === conta);

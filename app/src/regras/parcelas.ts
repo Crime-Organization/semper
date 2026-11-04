@@ -58,13 +58,16 @@ export const SITUACOES_DA_PARCELA: Record<SituacaoDaParcela, { nome: string; sel
   recebida: { nome: 'Recebida', selo: 'ok' }, atrasada: { nome: 'Atrasada', selo: 'erro' }, a_receber: { nome: 'A receber', selo: 'pend' }
 };
 /** Vencer hoje ainda não é atraso. */
-export const situacaoDaParcela = (p: Pick<Parcela, 'recebimento_id' | 'vencimento'>, hoje: string): SituacaoDaParcela =>
-  p.recebimento_id ? 'recebida' : p.vencimento < hoje ? 'atrasada' : 'a_receber';
+export const situacaoDaParcela = (p: Pick<Parcela, 'recebimento_id' | 'vencimento'> & Partial<Pick<Parcela, 'recebida_em'>>, hoje: string): SituacaoDaParcela =>
+  p.recebimento_id || p.recebida_em ? 'recebida' : p.vencimento < hoje ? 'atrasada' : 'a_receber';
+
+/** Paga antes do início do caixa: veio da importação, recebida e sem recebimento. Não há o que estornar nem como mudar. */
+export const parcelaAntiga = (p: Pick<Parcela, 'recebimento_id' | 'recebida_em'>) => !p.recebimento_id && !!p.recebida_em;
 
 /** O total de cada situação. */
-export function resumoDasParcelas(lista: Pick<Parcela, 'recebimento_id' | 'vencimento' | 'valor' | 'recebido'>[], hoje: string): Record<SituacaoDaParcela, number> {
+export function resumoDasParcelas(lista: (Pick<Parcela, 'recebimento_id' | 'vencimento' | 'valor' | 'recebido'> & Partial<Pick<Parcela, 'recebida_em'>>)[], hoje: string): Record<SituacaoDaParcela, number> {
   const soma: Record<SituacaoDaParcela, number> = { recebida: 0, atrasada: 0, a_receber: 0 };
-  lista.forEach(p => { soma[situacaoDaParcela(p, hoje)] += p.recebimento_id ? p.recebido ?? p.valor : p.valor; });
+  lista.forEach(p => { soma[situacaoDaParcela(p, hoje)] += p.recebimento_id || p.recebida_em ? p.recebido ?? p.valor : p.valor; });
   return soma;
 }
 
