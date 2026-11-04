@@ -1,0 +1,48 @@
+name: Cópia do banco
+
+# Copia o banco de produção todo dia, criptografa e guarda por 30 dias (#77). Veja "Cópia de segurança do banco" no README.
+# Precisa do segredo COPIA_BANCO_URL e da variável COPIA_CHAVE_PUBLICA, em Settings → Secrets and variables → Actions.
+# Só lê o banco. Se algo falhar, a rotina fica vermelha e o GitHub avisa por e-mail.
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 3h da manhã em Brasília
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: copia-do-banco
+  cancel-in-progress: false
+
+jobs:
+  copia:
+    name: Copiar, criptografar e guardar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 3.0.0
+
+      - name: Instalar o programa que criptografa
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq age
+
+      - name: Copiar e criptografar
+        env:
+          COPIA_BANCO_URL: ${{ secrets.COPIA_BANCO_URL }}
+          COPIA_CHAVE_PUBLICA: ${{ vars.COPIA_CHAVE_PUBLICA }}
+        run: |
+          mkdir copias
+          supabase/copia/copiar.sh copias
+
+      # O arquivo já sai criptografado: comprimir de novo não adianta. Passados os 30 dias, o GitHub apaga sozinho.
+      - name: Guardar por 30 dias
+        uses: actions/upload-artifact@v4
+        with:
+          name: copia-do-banco-${{ github.run_number }}
+          path: copias/*.age
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
