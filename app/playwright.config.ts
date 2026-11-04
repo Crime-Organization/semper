@@ -3,6 +3,10 @@
 // então o banco fictício (guardado na sessão da aba) sempre começa do zero.
 import { defineConfig, devices } from '@playwright/test';
 
+/** O fuso dos testes, o de Brasília: vale para o navegador e para as datas que os próprios testes calculam, em qualquer computador. */
+const FUSO_DOS_TESTES = 'America/Sao_Paulo';
+process.env.TZ = FUSO_DOS_TESTES;
+
 const naRotina = !!process.env.CI;
 
 export default defineConfig({
@@ -14,7 +18,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:8091',
     locale: 'pt-BR',
-    timezoneId: 'America/Sao_Paulo',
+    timezoneId: FUSO_DOS_TESTES,
     trace: 'on-first-retry'
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

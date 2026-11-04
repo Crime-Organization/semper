@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Conferências antes de enviar ao main (#265). As mudanças vão direto ao main, sem pull request, e a rotina completa só roda ao publicar:
+# isto é o que segura um erro antes de ele chegar lá. Fica ligado pelo "prepare" de app/package.json, no npm install. Veja .githooks/testar-pre-push.sh.
+set -euo pipefail
+
+# Os comandos podem ser trocados no teste do gancho.
+verificar="${PRE_PUSH_VERIFICAR:-npm run verificar --prefix app}"
+docker_ligado="${PRE_PUSH_DOCKER:-docker info}"
+testar_banco="${PRE_PUSH_BANCO:-supabase db start && supabase migration up --local --include-all && supabase test db}"
+
+recusar() {
+  { echo; echo "Envio recusado: $1"; echo; } >&2
+  exit 1
+}
+
+vai_ao_main=''
+mexe_no_banco=''
+while read -r _ref_local sha_local ref_remota sha_remota; do
+  [ "$ref_remota" = refs/heads/main ] || continue
+  [[ "$sha_local" =~ ^0+$ ]] && continue   # apagar não envia nada
+  vai_ao_main=1
+  if [[ "$sha_remota" =~ ^0+$ ]]; then
+    arquivos="$(git diff --name-only "$(git hash-object -t tree /dev/null)" "$sha_local")"
+  else
+    arquivos="$(git diff --name-only "$sha_remota" "$sha_local")"
+  fi
+  if grep -q '^supabase/' <<< "$arquivos"; then mexe_no_banco=1; fi
+done
+
+[ -n "$vai_ao_main" ] || exit 0
+
+echo 'Conferindo antes de enviar ao main: tipos, lint e testes…' >&2
+bash -c "$verificar" || recusar 'os tipos, o lint ou os testes falharam. Veja o erro acima e corrija antes de enviar.'
+
+if [ -n "$mexe_no_banco" ]; then
+  bash -c "$docker_ligado" > /dev/null 2>&1 \
+    || recusar 'este envio mexe no banco (pasta supabase/), e os testes do banco precisam do Docker. Abra o Docker Desktop, espere ligar e envie de novo.'
+  echo 'Este envio mexe no banco: rodando os testes do banco no banco local…' >&2
+  bash -c "$testar_banco" || recusar 'os testes do banco falharam. Veja o erro acima e corrija antes de enviar. Nada foi aplicado na produção. Se o erro vier de dados que estão no banco local, limpe com: supabase db reset --local --no-seed (apaga só o banco local).'
+fi

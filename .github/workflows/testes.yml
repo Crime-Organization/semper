@@ -36,6 +36,9 @@ jobs:
         working-directory: app
         run: npm run lint -- --format github
 
+      - name: Conferências antes do envio
+        run: .githooks/testar-pre-push.sh
+
   unitarios:
     name: Unitários e componentes
     runs-on: ubuntu-latest

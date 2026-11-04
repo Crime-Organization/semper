@@ -4,7 +4,7 @@ Plataforma de gestão para escritórios de advocacia (SaaS multiescritório): co
 
 ## Como vai ao ar
 
-O sistema fica em `app/` (React + TypeScript + Vite). Os testes ficam numa rotina própria, `.github/workflows/testes.yml`, com três jobs em paralelo: tipos e lint, unitários e de componente, e ponta a ponta (veja [`app/TESTES.md`](app/TESTES.md)). Cada push no `main` e cada pull request passam por `.github/workflows/verificar.yml`, que chama os testes e só compila se todos passarem, mas não publica nada.
+O sistema fica em `app/` (React + TypeScript + Vite). Os testes ficam numa rotina própria, `.github/workflows/testes.yml`, com quatro jobs em paralelo: tipos e lint, unitários e de componente, banco e ponta a ponta (veja [`app/TESTES.md`](app/TESTES.md)). Para poupar os minutos do GitHub, ela só roda ao publicar e em pull request (`.github/workflows/verificar.yml`, que também compila, mas não publica). O envio direto ao `main` não dispara nada no GitHub: antes dele, o `git push` roda `npm run verificar` no computador e recusa o envio se falhar (`.githooks/pre-push`, ligado pelo `npm install`). Se o envio mexe em `supabase/`, roda também os testes do banco, com o Docker ligado.
 
 O site só muda quando sai uma **versão** (`.github/workflows/publicar.yml`):
 
@@ -41,8 +41,8 @@ Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no pa
 
 1. Criar: `supabase migration new <nome>` e escrever o SQL. A migração **só acrescenta** (tabela, coluna, função, regra); apagar ou renomear fica para uma migração posterior, para a versão anterior do site continuar funcionando.
 2. Testar do zero num banco local (precisa do Docker): `supabase db start` e `supabase db reset --local --no-seed`. Para desligar: `supabase stop`.
-3. Abrir o PR com a migração.
-4. Aplicar em produção (por enquanto, uma pessoa com a senha do banco): `supabase link --project-ref uzafzwqjpxxiovfunxfm` e `supabase db push --remote`. Na versão 3 do Supabase CLI, sem o `--remote` o comando age no banco local, não na produção. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
+3. Enviar ao `main`.
+4. Aplicar em produção pelo roteiro `/aplicar-banco` do Claude Code, que confere a cópia do dia, os testes, a ordem e se nada é apagado, explica o risco e só aplica depois do "sim". A senha fica com Mateus: quem liga o projeto digita a senha no próprio terminal (`supabase link --project-ref uzafzwqjpxxiovfunxfm`), nunca na conversa. O comando por trás é `supabase db push --remote`. Na versão 3 do Supabase CLI, sem o `--remote` o comando age no banco local, não na produção. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
 
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.
@@ -107,10 +107,16 @@ Com pessoas fictícias e sem login (nada vai para o banco), em http://localhost:
 npm run teste --prefix app
 ```
 
-Com o banco de verdade, em http://localhost:8090/:
+Com o banco local do Docker, em http://localhost:8093/ (a tela de verdade e as regras reais, sem tocar na produção). Com o Docker aberto, o comando liga o banco, aplica as migrações novas e cria um login de teste (`mestre@local.test`, senha `senha-local-de-teste`). Uma faixa no alto da tela avisa em qual banco você está:
 
 ```bash
 npm run dev --prefix app
+```
+
+Com o banco de produção, em http://localhost:8090/. **Grava em dados reais**, e a faixa avisa disso:
+
+```bash
+npm run dev-producao --prefix app
 ```
 
 Conferir os tipos, o lint e rodar os testes unitários e de componente:
@@ -131,6 +137,6 @@ Rodar os testes de ponta a ponta no navegador (sobe o banco fictício sozinho; n
 npm run testar-telas --prefix app
 ```
 
-As rotinas do GitHub rodam os dois. O padrão para escrever testes novos está em [`app/TESTES.md`](app/TESTES.md).
+A publicação roda os dois no GitHub. O padrão para escrever testes novos está em [`app/TESTES.md`](app/TESTES.md).
 
-Fluxo de trabalho: pull → editar → testar → commit → push (a verificação é automática) → quando quiser pôr no ar, publicar uma versão.
+Fluxo de trabalho: pull → editar → testar → commit → push (o computador confere antes de enviar) → quando quiser pôr no ar, aplicar o banco com `/aplicar-banco`, se houver migração, e publicar uma versão.

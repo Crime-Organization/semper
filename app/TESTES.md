@@ -10,7 +10,7 @@ Três tipos de teste, todos escritos no mesmo padrão (BDD, em português). Nenh
 
 As regras do banco têm um quarto tipo, à parte, porque precisa de um banco local de verdade: os testes em `supabase/tests/` (pgTAP), que conferem o que cada token consegue ler e gravar. Rodam com `supabase db start` e `supabase test db`, também na rotina do GitHub, num banco vazio criado só para isso. Rode antes de enviar, ao mexer em regras de acesso. No mesmo job, `supabase/copia/testar-restauracao.sh` testa a cópia de segurança com dados inventados.
 
-Os comandos rodam dentro de `app/` (ou com `--prefix app` a partir da raiz). No GitHub, os três rodam na rotina `.github/workflows/testes.yml`, chamada a cada push e pull request (`verificar.yml`) e a cada versão (`publicar.yml`): se algum falhar, nada é compilado nem publicado.
+Os comandos rodam dentro de `app/` (ou com `--prefix app` a partir da raiz). No GitHub, os quatro rodam na rotina `.github/workflows/testes.yml`, chamada a cada versão (`publicar.yml`) e em pull request (`verificar.yml`): se algum falhar, nada é compilado nem publicado. O envio direto ao `main` não dispara a rotina, para poupar minutos: antes dele, o `git push` roda `npm run verificar` no computador (`.githooks/pre-push`) e, se o envio mexe em `supabase/`, os testes do banco. As conferências desse envio têm o próprio teste, `.githooks/testar-pre-push.sh`.
 
 ## O padrão
 
@@ -41,7 +41,7 @@ describe('Documentos', () => {
 });
 ```
 
-Relógio, fuso e internet ficam sob controle: `vi.useFakeTimers()` + `vi.setSystemTime()` para datas relativas, `TZ=America/Sao_Paulo` já vem nos comandos, e `vi.stubGlobal('fetch', …)` simula a Receita, a BrasilAPI e o ViaCEP (veja `src/regras/pessoa.test.ts`).
+Relógio, fuso e internet ficam sob controle: `vi.useFakeTimers()` + `vi.setSystemTime()` para datas relativas, o fuso de Brasília já vem nas configurações (`vite.config.ts` e `playwright.config.ts`), em qualquer computador, e `vi.stubGlobal('fetch', …)` simula a Receita, a BrasilAPI e o ViaCEP (veja `src/regras/pessoa.test.ts`).
 
 ### Componente
 

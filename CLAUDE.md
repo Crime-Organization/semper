@@ -22,9 +22,12 @@ mostra o que está sendo feito, por quem e por quê. Quadro: https://github.com/
    gh project item-add 2 --owner Crime-Organization --url <link da issue>
    ```
    e preencha **Área** e **Status** no quadro.
-3. **Mantenha o Status em dia:** *In Progress* ao começar; *Em revisão* ao abrir o PR; *Bloqueado* se parar
-   esperando algo ou alguém (com um comentário dizendo o quê); *Done* vem sozinho no merge, pelo `Closes #N`.
-4. **Escopo:** se no meio do caminho aparecer outra coisa para fazer, não misture no mesmo PR. Crie uma tarefa
+3. **Mantenha o Status em dia:** *In Progress* ao começar; *Bloqueado* se parar esperando algo ou alguém (com um
+   comentário dizendo o quê); *Done* ao terminar. Se for fácil, cite o número da tarefa no commit: com `Closes #N`, ela
+   fecha e vai para *Done* sozinha quando chega ao `main`. Se não for fácil, não tem problema: nada é recusado por isso,
+   e aí você move a tarefa no quadro. O que ia na descrição do PR (o que não foi testado, passos de produção) vai como
+   comentário na tarefa.
+4. **Escopo:** se no meio do caminho aparecer outra coisa para fazer, não misture no mesmo commit. Crie uma tarefa
    nova para ela e siga com a atual.
 5. Mudança pequena (texto, um ajuste de estilo) também tem tarefa: pode ser curta, mas existe.
 
@@ -32,19 +35,21 @@ mostra o que está sendo feito, por quem e por quê. Quadro: https://github.com/
 
 O banco guarda dados reais de clientes. Um erro nele não tem "desfazer".
 
-- **Nunca rode SQL, scripts ou comandos contra o banco de produção** (projeto `uzafzwqjpxxiovfunxfm`).
-  Nem para "só consultar", nem para "limpar dados de teste". Se algo precisar ser feito em produção,
-  escreva o passo a passo e peça para uma pessoa fazer.
-- **Para desenvolver, use o banco fictício:** `npm run teste --prefix app` (http://localhost:8091/).
-  Ele roda no navegador, sem login e sem tocar no Supabase. Só use `npm run dev` (banco de verdade)
-  quando a pessoa pedir, e avise que ele usa dados reais até existir o banco de desenvolvimento (tarefa #74).
+- **Para aplicar migrações na produção** (projeto `uzafzwqjpxxiovfunxfm`), use sempre o roteiro `/aplicar-banco`: você
+  confere tudo, explica o risco em português simples, espera o "sim" da pessoa e só então aplica. Se uma conferência
+  falhar, pare. Para qualquer outra coisa na produção, inclusive "só consultar" ou "limpar dados de teste", explique o
+  que vai fazer e por quê e pergunte antes. Nunca leia dados de clientes da produção nem peça a senha do banco.
+- **Para desenvolver, há dois bancos fora da produção:** `npm run teste --prefix app` (http://localhost:8091/) usa o
+  fictício, que roda no navegador, sem login; `npm run dev --prefix app` (http://localhost:8093/) usa o banco local do
+  Docker, com a tela de verdade e as regras reais. Só use `npm run dev-producao` (dados reais) quando a pessoa pedir, e
+  avise antes.
 - **Nunca mude a estrutura do banco pelo painel do Supabase** (criar tabela ou coluna clicando).
-  Toda mudança de estrutura é uma **migração nova** em `supabase/migrations/` e passa por pull request:
+  Toda mudança de estrutura é uma **migração nova** em `supabase/migrations/`:
   - crie com `supabase migration new <nome>` (ex.: `supabase migration new contratos`), que põe a data no nome;
-  - antes do PR, aplique do zero num banco local: `supabase db start` e `supabase db reset --local --no-seed`
+  - antes de enviar, aplique do zero num banco local: `supabase db start` e `supabase db reset --local --no-seed`
     (as portas ficam em 553xx, veja `supabase/config.toml`);
   - nunca edite uma migração que já foi aplicada: corrija com uma migração nova;
-  - quem aplica em produção é uma pessoa (e, depois da #76, a rotina Publicar), nunca o agente.
+  - a produção só recebe a migração pelo roteiro `/aplicar-banco`, antes de publicar o site.
 - **Toda migração só acrescenta.** Pode criar tabela, coluna, função ou regra. Não pode apagar nem renomear
   no mesmo passo: a versão anterior do site precisa continuar funcionando com o banco novo (é o que permite
   voltar a versão do site). Apagar o que ficou sem uso é uma migração separada, depois.
@@ -144,14 +149,18 @@ export const VALIDACAO: Record<Etapa, (a: CamposCadastro) => ResultadoEtapa> = {
 - **Nunca apague, pule (`.skip`) ou afrouxe um teste para ele passar**, nem desligue uma regra do lint
   (`eslint-disable`, `@ts-ignore`). Se o teste falhou, o código está errado ou a regra mudou: explique qual dos dois.
 
-## Antes de abrir o pull request
+## Antes de enviar ao `main`
 
-1. `npm run verificar --prefix app` (tipos, lint e testes) passa.
-2. Se mexeu em tela: `npm run testar-telas --prefix app` passa e você conferiu no `npm run teste --prefix app`.
-3. Trabalhe num ramo próprio, nunca direto no `main`.
-4. Preencha o template do PR, com `Closes #N` da tarefa do quadro (veja "Toda mudança tem uma tarefa no quadro"),
-   confira os critérios de aceitação da tarefa e mova a tarefa para *Em revisão*. PR sem tarefa não deve ser aberto.
-5. Se o PR tem migração: diga no PR que ela só acrescenta e que a versão anterior do site continua funcionando.
+As mudanças vão direto ao `main`, sem pull request. O GitHub só roda a rotina completa ao publicar.
 
-O site **não** vai ao ar no merge: só quando alguém roda "Publicar o SEMPER" (veja o `README.md`). Não rode a
-publicação sem a pessoa pedir.
+1. `npm run verificar --prefix app` (tipos, lint e testes) passa. O `git push` confere isso sozinho e recusa o envio se
+   falhar. Se o envio mexe em `supabase/`, ele também roda os testes do banco, com o Docker ligado.
+2. Se mexeu em tela: rode os testes de tela afetados (`npm run testar-telas --prefix app`) e confira no
+   `npm run teste --prefix app`.
+3. Confira os critérios de aceitação da tarefa.
+4. Se tem migração: confira que ela só acrescenta e que a versão anterior do site continua funcionando.
+
+Pull request continua existindo para quando a pessoa quiser que alguém revise antes, mas não é obrigatório.
+
+O site **não** vai ao ar no envio: só quando alguém roda "Publicar o SEMPER" (veja o `README.md`). Não rode a
+publicação sem a pessoa pedir. O banco vem antes do site: se há migração nova, rode `/aplicar-banco` primeiro.

@@ -4,8 +4,8 @@
     {
       "name": "semper",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--port", "8090", "--strictPort"],
-      "port": 8090
+      "runtimeArgs": ["app/node_modules/vite/bin/vite.js", "app", "--mode", "docker", "--port", "8093", "--strictPort"],
+      "port": 8093
     },
     {
       "name": "semper-teste",

@@ -3,6 +3,7 @@
 // não muda a aparência. Comportamento (ocupado, dois cliques) fica em ../Botoes.tsx, que aceita o mesmo estilo.
 import { useId, type ComponentProps, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { Link } from 'react-router';
+import { avisoDoBanco } from '../../regras/qualBanco';
 import { estiloBotao, type EstiloBotao } from './botao';
 
 export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } from './botao';
@@ -72,6 +73,12 @@ export const naGrade = (t: TamanhoNaGrade = {}) => ({ '--p': t.p, '--m': t.m, '-
 /** Faixa de aviso dentro da tela (não confundir com os avisos do pé da tela, em ../avisos.tsx). */
 export function Aviso({ tipo, className, ...resto }: ComponentProps<'div'> & { tipo: 'erro' | 'ok' | 'info' }) {
   return <div className={['aviso', tipo, className].filter(Boolean).join(' ')} role={tipo === 'erro' ? 'alert' : 'status'} {...resto} />;
+}
+
+/** Diz em qual banco a pessoa está, só no computador de quem desenvolve. No site publicado, não aparece. */
+export function FaixaDoBanco({ modo = import.meta.env.MODE, noComputador = import.meta.env.DEV }: { modo?: string; noComputador?: boolean }) {
+  const aviso = avisoDoBanco(modo, noComputador);
+  return aviso && <Aviso tipo={aviso.tipo} className="faixa-do-banco">{aviso.texto}</Aviso>;
 }
 
 export type TipoSelo = 'ok' | 'erro' | 'pend' | 'arq' | 'escuro';

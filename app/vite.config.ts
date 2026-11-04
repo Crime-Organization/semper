@@ -3,10 +3,15 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath } from 'node:url';
 
+/** O fuso dos testes, o de Brasília, para as datas darem o mesmo resultado em qualquer computador, inclusive no Windows e na rotina do GitHub. */
+const FUSO_DOS_TESTES = 'America/Sao_Paulo';
+
 // "npm run teste" usa o modo "falso": a camada de dados vira um banco fictício na aba do navegador,
 // sem login e sem tocar no Supabase. Os testes (modo "test" do Vitest) também usam o fictício, para que
 // nenhum teste fale com o banco de verdade. Em qualquer outro modo, os dados vêm do banco de verdade.
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode }) => {
+  if (mode === 'test') process.env.TZ = FUSO_DOS_TESTES;
+  return {
   plugins: [react()],
   // A versão desta compilação, para o aviso de versão nova (ui/versaoNova.tsx). Vem da variável VERSAO, que só a rotina
   // "Publicar o SEMPER" preenche (a mesma do versao.txt); no npm run dev, no banco fictício e nos testes fica vazia.
@@ -39,4 +44,5 @@ export default defineConfig(({ mode }) => ({
       }
     }
   }
-}));
+};
+});

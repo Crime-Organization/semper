@@ -50,7 +50,7 @@ select is(pg_temp.preparar('a0000000-0000-0000-0000-000000000001', 'b0000000-000
 insert into public.contratos (escritorio_id, cliente_id, responsavel_id, participantes, servico, categoria)
 values ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000009', '[]', 'Como responsável', 'pro_labore');
 select is((select left(codigo, 4) from public.contratos where servico = 'Como responsável'), 'BI25', 'A conta reservada pode ser responsável por contrato');
-select lives_ok($$ update public.contratos set participantes = '[{"pessoa_id":"b0000000-0000-0000-0000-000000000001"}]', responsavel_id = (select id from public.perfis where usuario like 'mestre%' limit 1) where servico = 'Como responsável' $$,
+select lives_ok($$ update public.contratos set participantes = '[{"pessoa_id":"b0000000-0000-0000-0000-000000000001"}]', responsavel_id = (select id from public.perfis where usuario like 'mestre%' and escritorio_id = 'e0000000-0000-0000-0000-000000000001' limit 1) where servico = 'Como responsável' $$,
   'A conta reservada pode ser participante');
 
 -- Então reativar não é caminho para o acesso.

@@ -1,10 +1,9 @@
 name: Verificar o SEMPER
 
-# A cada envio ao main e a cada pull request, roda os testes (testes.yml) e, só se todos passarem, compila o React.
-# Não publica nada: o site só muda quando sai uma versão nova (veja publicar.yml).
+# A cada pull request, roda os testes (testes.yml) e, só se todos passarem, compila o React. O envio direto ao main não dispara nada, para
+# poupar os minutos do GitHub: quem envia já passou nos testes do computador (.githooks/pre-push), e a publicação roda todos de novo (publicar.yml).
+# Não publica nada: o site só muda quando sai uma versão nova.
 on:
-  push:
-    branches: [main]
   pull_request:
 
 permissions:

@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
+import { Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -273,5 +273,28 @@ describe('Barra de progresso', () => {
     render(<Progresso rotulo="Andamento" valor={valor} maximo={maximo} />);
     // Então
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', esperado);
+  });
+});
+
+describe('FaixaDoBanco', () => {
+  it('dado o banco local, quando aparece, então avisa que não toca na produção', () => {
+    // Quando
+    render(<FaixaDoBanco modo="docker" noComputador />);
+    // Então
+    expect(screen.getByRole('status')).toHaveTextContent('nada aqui toca na produção');
+  });
+
+  it('dado o banco de produção no computador, quando aparece, então alerta que grava em dados reais', () => {
+    // Quando
+    render(<FaixaDoBanco modo="producao" noComputador />);
+    // Então
+    expect(screen.getByRole('alert')).toHaveTextContent('dados reais');
+  });
+
+  it('dado o site publicado, quando abre, então a faixa não aparece', () => {
+    // Quando
+    const { container } = render(<FaixaDoBanco modo="production" noComputador={false} />);
+    // Então
+    expect(container).toBeEmptyDOMElement();
   });
 });

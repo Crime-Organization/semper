@@ -8,7 +8,8 @@ import '@fontsource/lato/700.css';
 import '@fontsource/lato/900.css';
 import './estilo.css';
 import { App } from './App';
+import { FaixaDoBanco } from './ui/base';
 import { aplicarCoresDaMarca } from './ui/tema';
 
 aplicarCoresDaMarca();
-createRoot(document.getElementById('raiz')!).render(<StrictMode><App /></StrictMode>);
+createRoot(document.getElementById('raiz')!).render(<StrictMode><FaixaDoBanco /><App /></StrictMode>);

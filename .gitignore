@@ -1,6 +1,8 @@
 # Segredos
 .env
 .env.*
+# A chave do banco local é pública e igual em todo computador.
+!app/.env.docker
 *.key
 
 # Dados de clientes e exportações (nunca versionar)
