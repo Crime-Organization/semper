@@ -13,6 +13,7 @@ import type {
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
+import { RECUSA_DA_RESERVA } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
@@ -55,7 +56,7 @@ const agora = () => new Date().toISOString();
 const eu = 'u-master';
 
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto' | 'reservada'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string; reservada?: boolean };
 const EQUIPE: MembroFalso[] = [
   { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
@@ -2909,6 +2910,16 @@ export const SD: Dados = {
     if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
+    gravar();
+  },
+  // Como public.equipe_reserva_preparar e equipe_reserva_concluir. Quem está logado no banco fictício é o master.
+  async equipeReservarConta(pessoaId) {
+    const p = achar(pessoaId);
+    if (EQUIPE.some(m => m.pessoa_id === pessoaId)) return erro(RECUSA_DA_RESERVA['ja-na-equipe']);
+    if (bd.convites.some(c => c.pessoa_id === pessoaId)) return erro(RECUSA_DA_RESERVA['convite-pendente']);
+    const id = novoId();
+    EQUIPE.push({ id, funcao: 'advogado', nome: p.nome, usuario: id, papel: 'usuario', ativo: false, reservada: true, cor: null, pessoa_id: pessoaId, email: `conta-${id}@reservada.invalid`, cpf: p.documento ?? '' });
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'reserva_conta', resumo: { nome: p.nome }, feito_por: eu, em: agora() });
     gravar();
   },
   convitesListar: () => espera(bd.convites),

@@ -1,6 +1,6 @@
 // Função de cada membro da equipe e o que ela permite no contrato (supabase/migrations/20261027000015_funcao_na_equipe.sql).
 // A função é diferente do papel no sistema: administrador é quem gere a equipe e vê tudo; "administrativo" é uma função.
-import type { Funcao, Membro } from '../dados/tipos';
+import type { Funcao, Membro, RecusaDaReserva } from '../dados/tipos';
 
 export const FUNCOES: Record<Funcao, string> = { advogado: 'Advogado', administrativo: 'Administrativo', estagiario: 'Estagiário' };
 /** Função de quem entra na equipe, até um administrador ajustar (o padrão do banco). */
@@ -9,12 +9,23 @@ export const FUNCAO_INICIAL: Funcao = 'advogado';
 const funcaoDe = (m: Membro) => m.funcao ?? FUNCAO_INICIAL;
 const ativo = (m: Membro) => m.ativo !== false;
 
-/** Quem pode ser o responsável: os advogados ativos e quem já é o responsável (mesmo que não seja mais, para não sair sem querer). */
-export const opcoesDeResponsavel = (equipe: Membro[], atual = '') =>
-  equipe.filter(m => (ativo(m) && funcaoDe(m) === 'advogado') || m.id === atual);
+/** Quem consta nos contratos: quem está ativo e quem tem conta reservada, que não entra no sistema mas faz parte da equipe. */
+const constaNosContratos = (m: Membro) => ativo(m) || !!m.reservada;
 
-/** Por que a pessoa não pode entrar como participante (null se pode): o participante é sempre alguém ativo da equipe. */
+/** Quem pode ser o responsável: os advogados que constam nos contratos e quem já é o responsável (mesmo que não seja mais, para não sair sem querer). */
+export const opcoesDeResponsavel = (equipe: Membro[], atual = '') =>
+  equipe.filter(m => (constaNosContratos(m) && funcaoDe(m) === 'advogado') || m.id === atual);
+
+/** Por que a pessoa não pode entrar como participante (null se pode): o participante é sempre alguém da equipe que consta nos contratos. */
 export function motivoParaNaoParticipar(equipe: Membro[], pessoaId: string): string | null {
   const m = equipe.find(x => x.pessoa_id === pessoaId);
-  return !m ? 'não é da equipe' : !ativo(m) ? 'desativado na equipe' : null;
+  return !m ? 'não é da equipe' : !constaNosContratos(m) ? 'desativado na equipe' : null;
 }
+
+/** O que a tela diz quando a conta reservada não é criada (cada resposta da função equipe-reservar-conta). */
+export const RECUSA_DA_RESERVA: Record<RecusaDaReserva, string> = {
+  'sem-permissao': 'Você não pode reservar uma conta para esta pessoa.',
+  'ja-na-equipe': 'Esta pessoa já faz parte da equipe.',
+  'convite-pendente': 'Esta pessoa já tem um convite pendente. Cancele o convite para reservar a conta.',
+  erro: 'Não foi possível reservar a conta agora. Tente de novo.'
+};
