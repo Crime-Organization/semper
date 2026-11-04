@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ParaReceber, RecebimentoGravado } from '../dados/tipos';
 import { dividirRecebimento } from './financeiro';
 import {
-  avisoDaSoma, chegouAoAssinado, cruzaOutroPeriodo, dadosDaParcela, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
+  avisoDaSoma, chegouAoAssinado, cruzaOutroPeriodo, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
   parcelasDoContrato, partesDoRecebimento, periodoDoSocio, previaDoRecebimento, recebimentoNovo, parcelaAntiga, resumoDasParcelas, situacaoDaParcela, somarMeses
 } from './parcelas';
 
@@ -119,6 +119,31 @@ describe('Como a parcela aparece', () => {
     expect(situacaoDaParcela(antiga, HOJE)).toBe('recebida');
     expect(parcelaAntiga(antiga)).toBe(true);
     expect(resumoDasParcelas([antiga], HOJE)).toEqual({ recebida: 550, atrasada: 0, a_receber: 0 });
+  });
+
+  it('dado uma parcela importada como paga, quando abre a correção, então o formulário vem com o que está gravado', () => {
+    // Dado
+    const antiga = { vencimento: '2025-03-10', valor: 60000, recebida_em: '2025-03-12', recebido: 55000 };
+    // Quando
+    const f = formDaParcelaImportada(antiga);
+    // Então
+    expect(f).toEqual({ vencimento: '2025-03-10', valor: '600,00', recebidaEm: '2025-03-12', recebido: '550,00' });
+    expect(errosDaParcelaImportada(f, HOJE)).toEqual({});
+    expect(dadosDaParcelaImportada({ ...f, recebido: '575,50' })).toEqual({ vencimento: '2025-03-10', valor: 60000, recebida_em: '2025-03-12', recebido: 57550 });
+  });
+
+  it.each([
+    ['recebidaEm', { recebidaEm: '' }, 'Informe uma data válida.'],
+    ['recebidaEm', { recebidaEm: '2027-01-01' }, 'A data do recebimento não pode estar no futuro.'],
+    ['recebido', { recebido: '' }, 'Informe o valor.'],
+    ['recebido', { recebido: '0,00' }, 'Informe o valor.'],
+    ['valor', { valor: '' }, 'Informe o valor.'],
+    ['vencimento', { vencimento: '' }, 'Informe uma data válida.'],
+  ])('dado a correção com %s errado (%j), quando confere, então avisa', (campo, mudanca, aviso) => {
+    // Dado
+    const f = { vencimento: '2025-03-10', valor: '600,00', recebidaEm: '2025-03-12', recebido: '550,00', ...mudanca };
+    // Então
+    expect(errosDaParcelaImportada(f, HOJE)).toEqual({ [campo]: aviso });
   });
 
   it('dado uma parcela recebida no caixa ou uma a receber, quando confere, então não é antiga', () => {

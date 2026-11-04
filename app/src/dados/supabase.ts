@@ -1011,6 +1011,7 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('contrato_parcelas').update(dados).eq('id', id).select('id').maybeSingle());
     if (!data) throw new Error('Não foi possível: atualize a página e confira.');
   },
+  parcelaCorrigirImportada: async (id, d) => { await rpc('parcela_corrigir_importada', { p_parcela: id, p_vencimento: d.vencimento, p_valor: d.valor, p_recebida_em: d.recebida_em, p_recebido: d.recebido }); },
   async parcelaExcluir(id) {
     const { data } = await rodar(sb.from('contrato_parcelas').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
     if (!data) throw new Error('Não foi possível: atualize a página e confira.');

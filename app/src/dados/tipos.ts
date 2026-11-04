@@ -1253,6 +1253,8 @@ export interface DadosParcelas {
   parcelasDoPeriodo(de: string, ate: string, hoje: string): Promise<ParcelaDoEscritorio[]>;
   parcelaCriar(contratoId: string, dados: { vencimento: string; valor: number }): Promise<Parcela>;
   parcelaAtualizar(id: string, dados: { vencimento: string; valor: number }): Promise<void>;
+  /** Só a parcela importada como paga, pelo responsável ou um administrador. Não passa pelo caixa. */
+  parcelaCorrigirImportada(id: string, dados: { vencimento: string; valor: number; recebida_em: string; recebido: number }): Promise<void>;
   /** Excluir só esconde; restaurar devolve como estava. */
   parcelaExcluir(id: string): Promise<void>;
   parcelaRestaurar(id: string): Promise<void>;

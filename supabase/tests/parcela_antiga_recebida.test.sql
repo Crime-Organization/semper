@@ -36,9 +36,10 @@ select is((select recebido from public.contrato_parcelas where id = 'f0000000-00
 select is((select count(*)::int from public.financeiro_lancamentos), 0, 'O caixa não muda');
 select is((select count(*)::int from public.financeiro_recebimentos) + (select count(*)::int from public.financeiro_repasses), 0, 'Não há recebimento nem repasse');
 
--- Quando tentam mexer nela, então o banco recusa.
-select throws_ok($$ update public.contrato_parcelas set valor = 1 where id = 'f0000000-0000-0000-0000-000000000001' $$, null, 'Esta parcela foi paga antes do início do caixa e não muda.', 'Não muda o valor');
-select throws_ok($$ update public.contrato_parcelas set excluido_em = now() where id = 'f0000000-0000-0000-0000-000000000001' $$, null, 'Esta parcela foi paga antes do início do caixa e não muda.', 'Não é excluída');
+-- Quando corrigem o valor ou o vencimento, então muda sem mexer no caixa (corrigir_parcela_importada.test.sql cobre o resto).
+select lives_ok($$ update public.contrato_parcelas set valor = 60001 where id = 'f0000000-0000-0000-0000-000000000001' $$, 'Corrige o valor');
+select is((select count(*)::int from public.financeiro_lancamentos), 0, 'O caixa continua sem mudar');
+-- Quando tentam receber de novo, então o banco recusa.
 select throws_ok($$ select public.financeiro_receber('f0000000-0000-0000-0000-000000000001', date '2026-11-01', 55000, 'd0000000-0000-0000-0000-000000000001', 0) $$, null, 'Esta parcela já foi recebida.', 'Não é recebida de novo');
 
 -- Pela tela, ninguém grava uma parcela já recebida.

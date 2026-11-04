@@ -6,7 +6,7 @@ import { SD, type Coluna, type Contrato, type Parcela, type ParaReceber, type Pa
 import { PARCELAS_DA_PESSOA } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
 import {
-  avisoDaSoma, chegouAoAssinado, dadosDaParcela, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
+  avisoDaSoma, chegouAoAssinado, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, type FormDaParcelaImportada, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
   previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, parcelaAntiga, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao
 } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
@@ -74,6 +74,43 @@ function FormParcela({ inicial, rotulo, salvar, aoCancelar }: { inicial: FormDaP
     </div>
     <div className="financeiro-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar parcela'}</button>
+      <button type="button" className={estiloBotao()} onClick={aoCancelar}>Cancelar</button>
+    </div>
+  </form>;
+}
+
+/** Corrigir a parcela importada como paga: o caixa não muda. */
+function FormParcelaImportada({ parcela, salvar, aoCancelar }: { parcela: Parcela; salvar: (f: FormDaParcelaImportada) => Promise<void>; aoCancelar: () => void }) {
+  const id = useId();
+  const [f, setF] = useState(() => formDaParcelaImportada(parcela));
+  const [conferido, setConferido] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const erros = conferido ? errosDaParcelaImportada(f, hojeISO()) : {};
+  async function enviar(ev: FormEvent) {
+    ev.preventDefault();
+    setConferido(true);
+    if (ocupado || Object.keys(errosDaParcelaImportada(f, hojeISO())).length) return;
+    setOcupado(true);
+    try { await salvar(f); } catch (e) { falha(e); setOcupado(false); }
+  }
+  return <form className="cartao financeiro-form" noValidate aria-label={`Corrigir a parcela ${parcela.numero}`} onSubmit={enviar}>
+    <Nota>Esta parcela veio do histórico importado. Corrigir aqui não muda o caixa, os repasses nem o lucro.</Nota>
+    <div className="financeiro-form-linha">
+      <Campo rotulo="Vencimento" para={id + 'venc'} obrigatorio erro={erros.vencimento}>
+        <input type="date" {...propsDoCampo(id + 'venc', { erro: erros.vencimento })} value={f.vencimento} onChange={e => setF({ ...f, vencimento: e.target.value })} />
+      </Campo>
+      <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>
+        <input type="text" inputMode="decimal" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => setF({ ...f, valor: e.target.value })} />
+      </Campo>
+      <Campo rotulo="Recebida em" para={id + 'data'} obrigatorio erro={erros.recebidaEm}>
+        <input type="date" {...propsDoCampo(id + 'data', { erro: erros.recebidaEm })} value={f.recebidaEm} onChange={e => setF({ ...f, recebidaEm: e.target.value })} />
+      </Campo>
+      <Campo rotulo="Valor recebido" para={id + 'recebido'} obrigatorio erro={erros.recebido}>
+        <input type="text" inputMode="decimal" {...propsDoCampo(id + 'recebido', { erro: erros.recebido })} value={f.recebido} onChange={e => setF({ ...f, recebido: e.target.value })} />
+      </Campo>
+    </div>
+    <div className="financeiro-acoes">
+      <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado}>{ocupado ? 'Salvando…' : 'Salvar correção'}</button>
       <button type="button" className={estiloBotao()} onClick={aoCancelar}>Cancelar</button>
     </div>
   </form>;
@@ -177,7 +214,7 @@ function RecebimentoDaParcela({ parcela, aoFechar }: { parcela: Parcela; aoFecha
   </section>;
 }
 
-type Aberto = { o: 'receber' | 'mudar' | 'ver'; parcela: Parcela } | null;
+type Aberto = { o: 'receber' | 'mudar' | 'ver' | 'corrigir'; parcela: Parcela } | null;
 
 /** A lista com o que se pode fazer em cada parcela. */
 export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoMudar, topo }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; aoMudar: () => void; topo?: ReactNode }) {
@@ -205,12 +242,23 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
     feito(`Parcela ${p.numero} atualizada.`, 'mudança da parcela', () => SD.parcelaAtualizar(p.id, { vencimento, valor }));
     terminou();
   };
+  const salvarCorrecao = (p: Parcela) => async (f: FormDaParcelaImportada) => {
+    const { vencimento, valor, recebida_em, recebido } = p;
+    await SD.parcelaCorrigirImportada(p.id, dadosDaParcelaImportada(f));
+    feito(`Parcela ${p.numero} corrigida.`, 'correção da parcela', () => SD.parcelaCorrigirImportada(p.id, { vencimento, valor, recebida_em: recebida_em!, recebido: recebido! }));
+    terminou();
+  };
   return <>
     {topo}
+    {aberto?.o === 'corrigir' && <FormParcelaImportada key={aberto.parcela.id} parcela={aberto.parcela} salvar={salvarCorrecao(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'receber' && <FormReceber key={aberto.parcela.id} parcela={aberto.parcela} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormParcela key={aberto.parcela.id} rotulo={`Mudar a parcela ${aberto.parcela.numero}`} inicial={formDaParcela(aberto.parcela)} salvar={salvarMudanca(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'ver' && <RecebimentoDaParcela key={aberto.parcela.id} parcela={aberto.parcela} aoFechar={() => setAberto(null)} />}
-    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => parcelaAntiga(p) ? <span className="nota">Histórico importado</span> : p.recebimento_id ? <>
+    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => parcelaAntiga(p) ? <>
+      <span className="nota">Histórico importado</span>
+      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Corrigir a parcela ${p.numero}`} onClick={() => setAberto({ o: 'corrigir', parcela: p })}><Icone nome="editar" tam={13} /> Corrigir</button>
+      <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: excluir" aoConfirmar={() => excluir(p)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>
+    </> : p.recebimento_id ? <>
       <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Ver a divisão da parcela ${p.numero}`} onClick={() => setAberto({ o: 'ver', parcela: p })}>Ver divisão</button>
       <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: estornar" aoConfirmar={() => estornar(p)}>Estornar</BotaoDuplo>
     </> : <>
