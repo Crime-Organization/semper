@@ -89,6 +89,8 @@ interface Banco {
   importacoes?: Importacao[];
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
   logado: boolean;
+  /** A sessão acabou em outro lugar (troca de e-mail pelo administrador, "Sair" em outro aparelho). Só os testes ligam: SEMPER_FALSO.encerrarSessao(). */
+  sessaoEncerrada?: boolean;
   tiposVinculo?: VinculoTipo[];
   vinculos?: { id: string; pessoa_de: string; pessoa_para: string; tipo_id: string; descricao: string | null; criado_por: string; criado_em: string }[];
   duasEtapas?: { id: string; ativo: boolean; criado_em: string }[];
@@ -473,7 +475,10 @@ bd.importacoes ??= [];
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
-(window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = { reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); } };
+(window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = {
+  reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); },
+  encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); }
+};
 
 const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
   bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela, registro_id: p?.id ?? null, acao, resumo: { nome: p?.nome, codigo: p?.codigo, ...detalhes }, feito_por: eu, em: agora() });
@@ -1528,10 +1533,13 @@ export const SD: Dados = {
     return emailDaConta();
   },
   novaSenha: async () => {},
-  sair: async () => { bd.logado = false; bd.semCodigo = false; gravar(); },
+  sair: async () => { bd.logado = false; bd.semCodigo = false; bd.sessaoEncerrada = false; gravar(); },
+  sessaoEncerrada: () => espera(!!bd.sessaoEncerrada),
   aoMudarSessao: () => () => {},
   async contexto() {
     if (!bd.logado) return null;
+    // Como no banco: sem a sessão, a regra de leitura não devolve nem o próprio perfil.
+    if (bd.sessaoEncerrada) return espera({ usuario: { id: eu, email: meuEmail() }, perfil: null, equipe: [], ehAdmin: false, ehMaster: false });
     const m = EQUIPE[0];
     const c: Contexto = {
       usuario: { id: eu, email: meuEmail() },
