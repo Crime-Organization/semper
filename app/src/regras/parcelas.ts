@@ -58,13 +58,16 @@ export const SITUACOES_DA_PARCELA: Record<SituacaoDaParcela, { nome: string; sel
   recebida: { nome: 'Recebida', selo: 'ok' }, atrasada: { nome: 'Atrasada', selo: 'erro' }, a_receber: { nome: 'A receber', selo: 'pend' }
 };
 /** Vencer hoje ainda não é atraso. */
-export const situacaoDaParcela = (p: Pick<Parcela, 'recebimento_id' | 'vencimento'>, hoje: string): SituacaoDaParcela =>
-  p.recebimento_id ? 'recebida' : p.vencimento < hoje ? 'atrasada' : 'a_receber';
+export const situacaoDaParcela = (p: Pick<Parcela, 'recebimento_id' | 'vencimento'> & Partial<Pick<Parcela, 'recebida_em'>>, hoje: string): SituacaoDaParcela =>
+  p.recebimento_id || p.recebida_em ? 'recebida' : p.vencimento < hoje ? 'atrasada' : 'a_receber';
+
+/** Paga antes do início do caixa: veio da importação, recebida e sem recebimento. Não há o que estornar; o responsável ou um administrador corrige, sem mexer no caixa. */
+export const parcelaAntiga = (p: Pick<Parcela, 'recebimento_id' | 'recebida_em'>) => !p.recebimento_id && !!p.recebida_em;
 
 /** O total de cada situação. */
-export function resumoDasParcelas(lista: Pick<Parcela, 'recebimento_id' | 'vencimento' | 'valor' | 'recebido'>[], hoje: string): Record<SituacaoDaParcela, number> {
+export function resumoDasParcelas(lista: (Pick<Parcela, 'recebimento_id' | 'vencimento' | 'valor' | 'recebido'> & Partial<Pick<Parcela, 'recebida_em'>>)[], hoje: string): Record<SituacaoDaParcela, number> {
   const soma: Record<SituacaoDaParcela, number> = { recebida: 0, atrasada: 0, a_receber: 0 };
-  lista.forEach(p => { soma[situacaoDaParcela(p, hoje)] += p.recebimento_id ? p.recebido ?? p.valor : p.valor; });
+  lista.forEach(p => { soma[situacaoDaParcela(p, hoje)] += p.recebimento_id || p.recebida_em ? p.recebido ?? p.valor : p.valor; });
   return soma;
 }
 
@@ -98,6 +101,23 @@ export function dadosDaParcela(f: FormDaParcela): ParcelaNova {
   const valor = lerCentavos(f.valor, null);
   if ('erro' in valor) throw new Error(valor.erro);
   return { vencimento: f.vencimento, valor: valor.centavos };
+}
+
+/** A parcela importada como paga, com o que o responsável ou um administrador pode corrigir. */
+export interface FormDaParcelaImportada extends FormDaParcela { recebidaEm: string; recebido: string }
+export const formDaParcelaImportada = (p: Pick<Parcela, 'vencimento' | 'valor' | 'recebida_em' | 'recebido'>): FormDaParcelaImportada => ({ ...formDaParcela(p), recebidaEm: p.recebida_em ?? '', recebido: centavosNoCampo(p.recebido ?? p.valor) });
+export function errosDaParcelaImportada(f: FormDaParcelaImportada, hoje: string): Partial<Record<keyof FormDaParcelaImportada, string>> {
+  const recebido = lerCentavos(f.recebido, null);
+  return {
+    ...errosDaParcela(f),
+    ...(!dataBoa(f.recebidaEm) ? { recebidaEm: 'Informe uma data válida.' } : f.recebidaEm > hoje ? { recebidaEm: 'A data do recebimento não pode estar no futuro.' } : {}),
+    ...('erro' in recebido ? { recebido: recebido.erro } : {})
+  };
+}
+export function dadosDaParcelaImportada(f: FormDaParcelaImportada) {
+  const recebido = lerCentavos(f.recebido, null);
+  if ('erro' in recebido) throw new Error(recebido.erro);
+  return { ...dadosDaParcela(f), recebida_em: f.recebidaEm, recebido: recebido.centavos };
 }
 
 export interface FormDoRecebimento { data: string; valor: string; contaId: string; taxa: string }

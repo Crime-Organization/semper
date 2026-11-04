@@ -21,8 +21,8 @@ import { papeisNoCompromisso } from '../regras/compromisso';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
-import { FUNCAO_INICIAL } from '../regras/equipe';
-import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import { FUNCAO_INICIAL, RECUSA_DA_RESERVA } from '../regras/equipe';
+import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -265,7 +265,7 @@ const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
 type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null } };
 const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id });
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
-const naLista = (p: LinhaDaParcela) => !!p.recebimento_id || !p.contrato.arquivado_em;
+const naLista = (p: LinhaDaParcela) => !!p.recebida_em || !p.contrato.arquivado_em;
 type LinhaDoSocio = Omit<Socio, 'nome'> & { pessoa: { nome: string } | null };
 const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pessoa?.nome ?? 'Pessoa excluída' });
 /** Nenhuma linha mudou: a pessoa não é mais administradora, ou o item não existe mais. */
@@ -439,7 +439,7 @@ export const SD: Dados = {
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, reservada, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
     ]);
     // A foto pequena de quem tem foto, para as bolinhas (um pedido só para a equipe toda).
     const membros = (equipe || []) as (Membro & { perfil_profissional: { foto_em: string | null } | { foto_em: string | null }[] | null })[];
@@ -999,7 +999,7 @@ export const SD: Dados = {
     const todas: ParcelaDoEscritorio[] = [];
     for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
       const { data } = await rodar(sb.from('contrato_parcelas').select(CAMPOS_DA_PARCELA_DO_ESCRITORIO).is('excluido_em', null)
-        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebimento_id.is.null,vencimento.lt.${antesDe})`)
+        .or(`and(vencimento.gte.${de},vencimento.lte.${ate}),and(recebida_em.is.null,vencimento.lt.${antesDe})`)
         .order('vencimento').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
       todas.push(...(data as unknown as LinhaDaParcela[]).filter(naLista).map(parcelaDoEscritorio));
       if (data.length < LINHAS_POR_CONSULTA) return todas;
@@ -1013,6 +1013,7 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('contrato_parcelas').update(dados).eq('id', id).select('id').maybeSingle());
     if (!data) throw new Error('Não foi possível: atualize a página e confira.');
   },
+  parcelaCorrigirImportada: async (id, d) => { await rpc('parcela_corrigir_importada', { p_parcela: id, p_vencimento: d.vencimento, p_valor: d.valor, p_recebida_em: d.recebida_em, p_recebido: d.recebido }); },
   async parcelaExcluir(id) {
     const { data } = await rodar(sb.from('contrato_parcelas').update({ excluido_em: new Date().toISOString() }).eq('id', id).select('id').maybeSingle());
     if (!data) throw new Error('Não foi possível: atualize a página e confira.');
@@ -1511,9 +1512,9 @@ export const SD: Dados = {
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.
   async equipeListar() {
-    const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao'))]);
-    const funcaoDe = new Map<string, Funcao>(funcoes.map((f: { id: string; funcao: Funcao }) => [f.id, f.funcao]));
-    return usuarios.map((u: Usuario) => ({ ...u, funcao: funcaoDe.get(u.id) ?? FUNCAO_INICIAL }));
+    const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao, reservada'))]);
+    const dosPerfis = new Map<string, { funcao: Funcao; reservada: boolean }>(funcoes.map((f: { id: string; funcao: Funcao; reservada: boolean }) => [f.id, f]));
+    return usuarios.map((u: Usuario) => ({ ...u, funcao: dosPerfis.get(u.id)?.funcao ?? FUNCAO_INICIAL, reservada: !!dosPerfis.get(u.id)?.reservada }));
   },
   conviteCriar: (pessoaId, email, papel) => rpc('convite_criar', { p_pessoa: pessoaId, p_email: email, p_papel: papel }),
   conviteNovoLink: id => rpc('convite_novo_link', { p_id: id }),
@@ -1527,6 +1528,13 @@ export const SD: Dados = {
     });
     const { resultado } = await r.json().catch(() => ({ resultado: 'erro' })) as { resultado?: RecusaDaTrocaDeEmail | 'trocado' };
     if (resultado !== 'trocado') throw new Error(RECUSA_DA_TROCA[resultado ?? 'erro'] ?? RECUSA_DA_TROCA.erro);
+  },
+  async equipeReservarConta(pessoaId) {
+    const r = await comSessao(`${URL_BASE}/functions/v1/equipe-reservar-conta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pessoa: pessoaId })
+    });
+    const { resultado } = await r.json().catch(() => ({ resultado: 'erro' })) as { resultado?: RecusaDaReserva | 'reservada' };
+    if (resultado !== 'reservada') throw new Error(RECUSA_DA_RESERVA[resultado ?? 'erro'] ?? RECUSA_DA_RESERVA.erro);
   },
   async convitesListar() {
     const { data } = await rodar(sb.from('convites').select('id, email, nome, papel, pessoa_id, criado_em')

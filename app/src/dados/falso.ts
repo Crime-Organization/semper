@@ -13,10 +13,11 @@ import type {
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
+import { RECUSA_DA_RESERVA } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
-import { chegouAoAssinado, cruzaOutroPeriodo, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
+import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
@@ -55,7 +56,7 @@ const agora = () => new Date().toISOString();
 let eu = 'u-master';
 
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string };
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto' | 'reservada'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string; reservada?: boolean };
 const EQUIPE: MembroFalso[] = [
   { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
@@ -1162,7 +1163,7 @@ function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
   return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null };
 }
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
-const naLista = (p: ParcelaGuardada) => !!p.recebimento_id || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
+const naLista = (p: ParcelaGuardada) => !!p.recebida_em || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
 const ajusteDoSocio = (s: SocioGuardado, de: string | null, para: string | null) => registrarAjuste({ ['Sócio: ' + nomeDoSocio(s.pessoa_id)]: { de, para } });
 const registrarAjuste = (alteracoes: Historico['alteracoes']) => { bd.ajustesFinanceiros!.unshift({ id: Date.now() + Math.random(), alteracoes, feito_por: eu, em: agora() }); };
 /** Como as regras check da conta. */
@@ -2346,7 +2347,7 @@ export const SD: Dados = {
     const dela = new Set(bd.contratos!.filter(k => k.clientes.includes(pessoaId) && cuidoDoContrato(k.id)).map(k => k.id));
     return espera(bd.parcelas!.filter(p => dela.has(p.contrato_id) && !p.excluido_em && naLista(p)).toSorted((a, b) => b.vencimento.localeCompare(a.vencimento) || b.numero - a.numero).slice(0, PARCELAS_DA_PESSOA).map(parcelaDoEscritorio));
   },
-  parcelasDoPeriodo: (de, ate, hoje) => espera(bd.parcelas!.filter(p => !p.excluido_em && cuidoDoContrato(p.contrato_id) && naLista(p) && ((p.vencimento >= de && p.vencimento <= ate) || (!p.recebimento_id && p.vencimento < (hoje < de ? hoje : de))))
+  parcelasDoPeriodo: (de, ate, hoje) => espera(bd.parcelas!.filter(p => !p.excluido_em && cuidoDoContrato(p.contrato_id) && naLista(p) && ((p.vencimento >= de && p.vencimento <= ate) || (!p.recebida_em && p.vencimento < (hoje < de ? hoje : de))))
     .toSorted((a, b) => a.vencimento.localeCompare(b.vencimento)).map(parcelaDoEscritorio)),
   async parcelaCriar(contratoId, dados) {
     acharContrato(contratoId);
@@ -2364,6 +2365,22 @@ export const SD: Dados = {
     const alteracoes: Historico['alteracoes'] = {};
     if (dados.valor !== p.valor) alteracoes[`Parcela ${p.numero}: valor`] = { de: fmtCentavos(p.valor), para: fmtCentavos(dados.valor) };
     if (dados.vencimento !== p.vencimento) alteracoes[`Parcela ${p.numero}: vencimento`] = { de: fmtData(p.vencimento), para: fmtData(dados.vencimento) };
+    if (Object.keys(alteracoes).length) historicoDaParcela(p.contrato_id, alteracoes);
+    Object.assign(p, dados); auditar('contrato_parcelas', 'alteracao', p); gravar();
+    return espera(undefined);
+  },
+  async parcelaCorrigirImportada(id, dados) {
+    const p = acharParcela(id);
+    if (!parcelaAntiga(p)) return erro('Só a parcela importada como paga é corrigida assim.');
+    if (p.excluido_em) return erro('Esta parcela foi excluída.');
+    if (dados.recebida_em > hojeNoFalso()) return erro('A data do recebimento não pode estar no futuro.');
+    if (dados.recebido <= 0) return erro('Confira o valor recebido.');
+    if (dados.valor <= 0) return erro('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+    const alteracoes: Historico['alteracoes'] = {};
+    if (dados.valor !== p.valor) alteracoes[`Parcela ${p.numero}: valor`] = { de: fmtCentavos(p.valor), para: fmtCentavos(dados.valor) };
+    if (dados.vencimento !== p.vencimento) alteracoes[`Parcela ${p.numero}: vencimento`] = { de: fmtData(p.vencimento), para: fmtData(dados.vencimento) };
+    if (dados.recebida_em !== p.recebida_em) alteracoes[`Parcela ${p.numero}: data recebida`] = { de: fmtData(p.recebida_em!), para: fmtData(dados.recebida_em) };
+    if (dados.recebido !== p.recebido) alteracoes[`Parcela ${p.numero}: valor recebido`] = { de: fmtCentavos(p.recebido!), para: fmtCentavos(dados.recebido) };
     if (Object.keys(alteracoes).length) historicoDaParcela(p.contrato_id, alteracoes);
     Object.assign(p, dados); auditar('contrato_parcelas', 'alteracao', p); gravar();
     return espera(undefined);
@@ -2405,7 +2422,7 @@ export const SD: Dados = {
   async financeiroReceber({ parcela, data, valor, conta, taxa }) {
     const p = acharParcela(parcela);
     if (p.excluido_em) return erro('Esta parcela foi excluída.');
-    if (p.recebimento_id) return erro('Esta parcela já foi recebida.');
+    if (p.recebida_em) return erro('Esta parcela já foi recebida.');
     const k = acharContrato(p.contrato_id);
     if (k.percentual_escritorio === null) return erro(SEM_PARTE_NA_CONTA);
     const c = bd.contasFinanceiras!.find(x => x.id === conta);
@@ -2935,6 +2952,16 @@ export const SD: Dados = {
     if (trocasDeEmail().filter(r => Date.parse(r.em) > umaHoraAtras && doMaster(r)).length >= TROCAS_DE_EMAIL_POR_HORA) return erro(RECUSA_DA_TROCA.limite);
     bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'troca_email', resumo: { nome: m.nome, email_antigo: m.email, email_novo: email, aviso_falhas: [] }, feito_por: eu, em: agora() });
     m.email = email;
+    gravar();
+  },
+  // Como public.equipe_reserva_preparar e equipe_reserva_concluir. Quem está logado no banco fictício é o master.
+  async equipeReservarConta(pessoaId) {
+    const p = achar(pessoaId);
+    if (EQUIPE.some(m => m.pessoa_id === pessoaId)) return erro(RECUSA_DA_RESERVA['ja-na-equipe']);
+    if (bd.convites.some(c => c.pessoa_id === pessoaId)) return erro(RECUSA_DA_RESERVA['convite-pendente']);
+    const id = novoId();
+    EQUIPE.push({ id, funcao: 'advogado', nome: p.nome, usuario: id, papel: 'usuario', ativo: false, reservada: true, cor: null, pessoa_id: pessoaId, email: `conta-${id}@reservada.invalid`, cpf: p.documento ?? '' });
+    bd.auditoria.unshift({ id: Date.now() + Math.random(), tabela: 'perfis', registro_id: id, acao: 'reserva_conta', resumo: { nome: p.nome }, feito_por: eu, em: agora() });
     gravar();
   },
   convitesListar: () => espera(bd.convites),

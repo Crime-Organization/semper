@@ -38,6 +38,7 @@ const ACOES: Record<string, string> = { inclusao: 'incluiu', alteracao: 'alterou
 const cadastros = (n = 0) => `${numero(n)} ${n === 1 ? 'cadastro de pessoa' : 'cadastros de pessoas'}`;
 /** Ações que não cabem em "quem fez o quê a qual cadastro": as sobre muitos cadastros de uma vez contam quantos, e a troca de e-mail diz de qual para qual. */
 const LINHAS_ESPECIAIS: Partial<Record<string, (r: RegistroAuditoria, quem: string) => ReactNode>> = {
+  reserva_conta: ({ resumo }, quem) => <>{quem} reservou uma conta, sem acesso ao sistema, para <b>{resumo?.nome}</b></>,
   troca_email: ({ resumo }, quem) => {
     const falhou = resumo?.situacao === 'falhou', aviso = falhou ? '' : situacaoDoAvisoDaTroca(resumo?.aviso_falhas);
     return <>{quem} {falhou ? 'tentou trocar' : 'trocou'} o e-mail de acesso de <b>{resumo?.nome}</b>, de {resumo?.email_antigo} para {resumo?.email_novo}{falhou && ' (a troca não aconteceu)'}{aviso && ` (${aviso})`}</>;
@@ -102,7 +103,7 @@ function PainelEquipe() {
 
   const lista = usuarios || [];
   const n = (fn: (u: Usuario) => boolean) => lista.filter(fn).length;
-  const podeGerir = (u: Usuario) => u.id !== eu && u.papel !== 'master' && (u.papel !== 'admin' || ctx.ehMaster);
+  const podeGerir = (u: Usuario) => !u.reservada && u.id !== eu && u.papel !== 'master' && (u.papel !== 'admin' || ctx.ehMaster);
   const nomeDe = (id: string | null) => lista.find(u => u.id === id)?.nome || ctx.equipe.find(u => u.id === id)?.nome || 'Sistema';
 
   async function trocarPapel(u: Usuario, papel: Papel) {
@@ -165,11 +166,12 @@ function PainelEquipe() {
 
     <section className="resumo" aria-label="Resumo">
       {([['Usuários ativos', n(u => u.ativo)], ['Administradores', n(u => u.ativo && u.papel !== 'usuario')],
-        ['Desativados', n(u => !u.ativo)], ['Convites pendentes', convites.length]] as const)
+        ['Desativados', n(u => !u.ativo && !u.reservada)], ['Convites pendentes', convites.length]] as const)
         .map(([r, v]) => <Cartao key={r}><b>{usuarios ? v : '…'}</b><span>{r}</span></Cartao>)}
     </section>
 
     <LiberarAcesso usuarios={lista} convites={convites} aoLiberar={carregar} />
+    <ReservarConta usuarios={lista} convites={convites} aoReservar={mudouEquipe} />
 
     <section aria-labelledby="tUsu" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tUsu">Usuários</TituloSecao>
@@ -182,7 +184,7 @@ function PainelEquipe() {
           {lista.map(u => {
             const gerir = podeGerir(u);
             return <tr key={u.id}>
-              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div>
+              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div>{!u.reservada && <><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div></>}
                 {gerir && <button type="button" className={estiloBotao({ forma: 'link' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}</div></div></td>
               <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
                 {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
@@ -193,13 +195,14 @@ function PainelEquipe() {
                 </select>
                 : <span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span>}</td>
               <td><div className="situacao-usuario">
-                {!u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}
-                <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>
+                {u.reservada ? <Selo tipo="pend">Sem acesso ao sistema</Selo> : !u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}
+                {!u.reservada && <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>}
               </div></td>
               <td><div className="td-acoes">
                 <BotaoLink forma="mini" to={'/equipe/perfil/?id=' + u.id} aria-label={`Perfil profissional de ${u.nome}`}>Perfil</BotaoLink>
                 {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
-                {!gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
+                {u.reservada ? <span className="nota">Conta reservada</span>
+                  : !gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
                   : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
                   : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => definirAtivo(u, true)}>Reativar</BotaoDuplo>}
               </div></td>
@@ -260,6 +263,38 @@ function PainelEquipe() {
       </Cartao>
     </section>
   </div>;
+}
+
+// ---------- conta reservada ----------
+function ReservarConta({ usuarios, convites, aoReservar }: { usuarios: Usuario[]; convites: Convite[]; aoReservar: () => void }) {
+  const [escolhida, setEscolhida] = useState<PessoaLista | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const ja = new Set([...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)].filter(Boolean));
+
+  async function reservar(e: FormEvent) {
+    e.preventDefault();
+    if (!escolhida) return falha(new Error('Escolha a pessoa para reservar a conta.'));
+    setOcupado(true);
+    try {
+      await SD.equipeReservarConta(escolhida.id);
+      avisar(`Conta reservada para ${escolhida.nome}. A pessoa pode constar nos contratos e não entra no sistema.`);
+      setEscolhida(null);
+      aoReservar();
+    } catch (err) { falha(err); }
+    setOcupado(false);
+  }
+
+  return <section aria-labelledby="tRes" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <TituloSecao id="tRes">Reservar conta sem acesso</TituloSecao>
+    <Cartao className="campos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <Nota>Para quem precisa constar como responsável ou participante de contratos, mas não entra no sistema, como quem já saiu do escritório. A pessoa não recebe e-mail e não consegue entrar nem criar senha. Quem vai ser responsável precisa ter o CPF no cadastro. Começa com a função de advogado; ajuste na lista de usuários.</Nota>
+      <form className="form-reserva" noValidate onSubmit={reservar}>
+        <div><BuscaPessoa rotulo="Integrante sem acesso" escolhida={escolhida} aoEscolher={setEscolhida} placeholder="Busque pelo nome ou CPF"
+          desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
+        <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Reservar conta</button>
+      </form>
+    </Cartao>
+  </section>;
 }
 
 // ---------- liberar acesso ----------

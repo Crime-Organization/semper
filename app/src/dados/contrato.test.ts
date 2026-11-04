@@ -3905,6 +3905,29 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Conta reservada', () => {
+      const semConta = async () => (await SD.pessoasListar({ termo: 'JOÃO PEDRO' })).linhas[0]!;
+
+      it('quando o administrador reserva uma conta, então a pessoa entra na equipe sem acesso e a ação fica no registro', async () => {
+        // Dado
+        const pessoa = await semConta();
+        // Quando
+        await SD.equipeReservarConta(pessoa.id);
+        // Então
+        const u = (await SD.equipeListar()).find(x => x.pessoa_id === pessoa.id);
+        expect(u).toMatchObject({ ativo: false, reservada: true, funcao: 'advogado' });
+        const [registro] = await SD.auditoriaListar(1);
+        expect(registro).toMatchObject({ acao: 'reserva_conta', resumo: { nome: pessoa.nome } });
+      });
+
+      it('quando a pessoa já é da equipe, então a reserva é recusada', async () => {
+        // Dado
+        const pessoaDaEquipe = (await SD.equipeListar()).find(x => x.id === 'u-bruno')!.pessoa_id!;
+        // Quando / Então
+        await expect(SD.equipeReservarConta(pessoaDaEquipe)).rejects.toThrow('já faz parte da equipe');
+      });
+    });
+
     describe('Troca do e-mail de um colega pelo administrador', () => {
       const emailDe = async (id: string) => (await SD.equipeListar()).find(u => u.id === id)?.email;
 
