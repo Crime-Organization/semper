@@ -51,6 +51,15 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const carregar = useCallback(() => SD.demandaObter(id).then(x => { setD(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
+  // Quantas tarefas e processos a demanda tem: o número aparece no título da seção, mesmo recolhida, para saber que há algo dentro.
+  const [ligados, setLigados] = useState<{ tarefas?: number; processos?: number }>({});
+  const comTarefas = !!ctx.escritorio?.modulos?.tarefas, comProcessos = !!ctx.escritorio?.modulos?.processos;
+  useEffect(() => {
+    let vivo = true;
+    if (comTarefas) SD.tarefasDaDemanda(id).then(x => { if (vivo) setLigados(l => ({ ...l, tarefas: x.length })); }).catch(() => {});
+    if (comProcessos) SD.processosDaDemanda(id).then(x => { if (vivo) setLigados(l => ({ ...l, processos: x.visiveis.length + x.ocultos })); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [id, versaoHist, comTarefas, comProcessos]);
   // Depois de desfazer: mostra a demanda como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
 
@@ -134,12 +143,12 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDoCartao modulo="demandas" id={d.id} />
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas">
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos">
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}>
       <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em} versao={versaoHist} />
     </Recolhivel>}
 
@@ -147,7 +156,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato">
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" contador={contrato ? 1 : 0}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
     </Recolhivel>

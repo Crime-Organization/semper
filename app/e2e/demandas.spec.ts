@@ -207,3 +207,14 @@ test.describe('Modelos de lista', () => {
     await expect(page.getByRole('listitem', { name: 'Modelo Documentos da marca' }).getByRole('listitem')).toHaveCount(3);
   });
 });
+
+test.describe('Quantos itens cada seção do cartão tem', () => {
+  test('dada a demanda "Registro de marca", com contrato e três tarefas, quando abre o cartão, então as seções mostram quantos itens têm, mesmo recolhidas', async ({ page }) => {
+    // Quando
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    // Então
+    await expect(cartao.getByRole('button', { name: 'Contrato 1' })).toHaveAttribute('aria-expanded', 'false');
+    await expect(cartao.getByRole('button', { name: 'Tarefas 3' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Clientes \d+$/ })).toBeVisible();
+  });
+});
