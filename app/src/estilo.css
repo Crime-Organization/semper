@@ -65,6 +65,10 @@
 [hidden] { display: none !important }
 html, body { margin: 0 }
 body { background: var(--bg); color: var(--ink); font-family: var(--font); -webkit-font-smoothing: antialiased; line-height: 1.5 }
+/* A barra de rolagem não empurra a tela para o lado quando aparece: o espaço dela fica reservado desde o início, em
+   toda área que rola (a página, o menu, o quadro, os cartões e as janelas). */
+html, .side, .com-quadro .conteudo, .cartao-painel:not(.centro), .cartao-painel .cartao-corpo, .cartao-painel .cartao-conteudo,
+.cartao-coluna, .janela, .kmenu { scrollbar-gutter: stable }
 body.sem-rolagem { overflow: hidden }
 a { color: inherit; text-decoration: none }
 button, input, select, textarea { font-family: inherit }
