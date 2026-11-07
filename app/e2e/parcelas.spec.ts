@@ -405,7 +405,8 @@ test.describe('O recebimento visto no Financeiro', () => {
     await expect(janela.getByRole('region', { name: 'Pagamento' })).toContainText(dinheiro('1.000,00'));
     await expect(janela.getByRole('region', { name: 'Divisão' })).toContainText('DAS (4,5%)');
     await expect(janela.getByRole('button', { name: 'Editar lançamento' })).toHaveCount(0);
-    await expect(janela).toContainText('veio do recebimento de uma parcela');
+    // A entrada de um recebimento não se edita como lançamento: corrige-se o recebimento (#267).
+    await expect(janela.getByRole('button', { name: 'Corrigir recebimento' })).toBeVisible();
   });
 
   test('quando recebe uma parcela pela janela do contrato em Direitos, então a linha do contrato passa à parcela seguinte', async ({ page }) => {
