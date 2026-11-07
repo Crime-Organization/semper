@@ -1,5 +1,7 @@
 // Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, funções, papéis,
 // desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
+// A tabela mostra o essencial; clicar no usuário abre a janela dele (UsuarioDaEquipe.tsx), onde se muda o nome, a
+// função, o papel, a sociedade, o e-mail e a situação.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
@@ -13,11 +15,13 @@ import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
 import { janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
-import { copiarTexto, dataHora, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
-import { SocioNaEquipe } from './financeiro/SocioNaEquipe';
+import { copiarTexto, dataHora, hojeISO, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
+import { PainelCartao } from '../ui/PainelCartao';
+import { periodoAtualDoSocio } from '../regras/parcelas';
+import { seloDaSituacao, UsuarioDaEquipe } from './UsuarioDaEquipe';
 import './Equipe.css';
 
 export default function Equipe() {
@@ -89,6 +93,8 @@ function PainelEquipe() {
   const [registro, setRegistro] = useState<RegistroAuditoria[] | string | null>(null);
   const [trocas, setTrocas] = useState<RegistroAuditoria[] | string | null>(null);
   const [socios, setSocios] = useState<Socio[] | null>(null);
+  // O usuário aberto na janela (o id: a lista relida traz os dados novos).
+  const [aberto, setAberto] = useState<string | null>(null);
   // Quem é sócio só aparece para o administrador, e só com o financeiro ligado.
   const veSocios = ctx.ehAdmin && !!ctx.escritorio?.modulos?.financeiro;
 
@@ -109,6 +115,9 @@ function PainelEquipe() {
   const lista = usuarios || [];
   const n = (fn: (u: Usuario) => boolean) => lista.filter(fn).length;
   const podeGerir = (u: Usuario) => !u.reservada && u.id !== eu && u.papel !== 'master' && (u.papel !== 'admin' || ctx.ehMaster);
+  const doAberto = lista.find(u => u.id === aberto) ?? null;
+  const hoje = hojeISO();
+  const eSocio = (u: Usuario) => !!socios && !!periodoAtualDoSocio(socios, u.pessoa_id, hoje);
   const nomeDe = (id: string | null) => lista.find(u => u.id === id)?.nome || ctx.equipe.find(u => u.id === id)?.nome || 'Sistema';
 
   async function trocarPapel(u: Usuario, papel: Papel) {
@@ -182,40 +191,26 @@ function PainelEquipe() {
       <TituloSecao id="tUsu">Usuários</TituloSecao>
       <Nota style={{ marginTop: -6 }}>A função diz o que cada um faz no escritório: só advogados são responsáveis por contratos, e os participantes de um contrato são sempre da equipe. O papel diz quem administra o sistema.</Nota>
       <div className="tabela"><table className="tabela-usuarios">
-        <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
+        <thead><tr><th scope="col">Usuário</th><th scope="col">Função</th><th scope="col">Papel</th><th scope="col">Situação</th></tr></thead>
         <tbody>
-          {!usuarios && <tr><td colSpan={5} className="carregando">Carregando…</td></tr>}
-          {usuarios && !usuarios.length && <tr><td colSpan={5} className="nota">Nenhum usuário.</td></tr>}
-          {lista.map(u => {
-            const gerir = podeGerir(u);
-            return <tr key={u.id}>
-              <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div><div className="nome">{u.nome}</div>{!u.reservada && <><div className="sub">@{u.usuario}</div><div className="sub">{u.email}</div></>}
-                {gerir && <button type="button" className={estiloBotao({ forma: 'link' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}</div></div></td>
-              <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
-                {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
-              </select>
-              {socios && u.pessoa_id && <SocioNaEquipe usuario={u} socios={socios} aoMudar={() => void carregar()} />}</td>
-              <td>{gerir && ctx.ehMaster
-                ? <select className="filtro" style={{ height: 36 }} aria-label={`Papel de ${u.nome}`} value={u.papel} onChange={e => trocarPapel(u, e.target.value as Papel)}>
-                  {(['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
-                </select>
-                : <span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span>}</td>
-              <td><div className="situacao-usuario">
-                {u.reservada ? <Selo tipo="pend">Sem acesso ao sistema</Selo> : !u.ativo ? <Selo tipo="erro">Desativado</Selo> : !u.confirmado ? <Selo tipo="pend">Aguardando confirmação</Selo> : <Selo tipo="ok">Ativo</Selo>}
-                {!u.reservada && <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>}
-              </div></td>
-              <td><div className="td-acoes">
-                <BotaoLink forma="mini" to={'/equipe/perfil/?id=' + u.id} aria-label={`Perfil profissional de ${u.nome}`}>Perfil</BotaoLink>
-                {u.pessoa_id && <BotaoLink forma="mini" to={'/pessoas/?id=' + u.pessoa_id}>Cadastro</BotaoLink>}
-                {u.reservada ? <span className="nota">Conta reservada</span>
-                  : !gerir ? <span className="nota">{u.id === eu ? 'Você' : u.papel === 'master' ? 'Conta protegida' : 'Só o master'}</span>
-                  : u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => definirAtivo(u, false)}>Desativar</BotaoDuplo>
-                  : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => definirAtivo(u, true)}>Reativar</BotaoDuplo>}
-              </div></td>
-            </tr>;
-          })}
+          {!usuarios && <tr><td colSpan={4} className="carregando">Carregando…</td></tr>}
+          {usuarios && !usuarios.length && <tr><td colSpan={4} className="nota">Nenhum usuário.</td></tr>}
+          {lista.map(u => <tr key={u.id} className="clicavel" onClick={() => setAberto(u.id)}>
+            <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div>
+              <button type="button" className="financeiro-abrir nome" aria-label={`Abrir ${u.nome}`} onClick={e => { e.stopPropagation(); setAberto(u.id); }}>{u.nome}</button>
+              {!u.reservada && <div className="sub">@{u.usuario}</div>}{u.id === eu && <div className="sub">Você</div>}</div></div></td>
+            <td><div className="funcao-usuario">{FUNCOES[u.funcao]}{eSocio(u) && <Selo tipo="ok">Sócio</Selo>}</div></td>
+            <td><span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span></td>
+            <td><div className="situacao-usuario">{seloDaSituacao(u)}
+              {!u.reservada && <span className="sub">{u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</span>}</div></td>
+          </tr>)}
         </tbody>
       </table></div>
+      {doAberto && <PainelCartao aoFechar={() => setAberto(null)} soNoCentro ajustado rotulo={doAberto.nome}>
+        <UsuarioDaEquipe key={doAberto.id} u={doAberto} gerir={podeGerir(doAberto)} socios={socios}
+          aoTrocarFuncao={f => trocarFuncao(doAberto, f)} aoTrocarPapel={p => trocarPapel(doAberto, p)} aoTrocarEmail={() => trocarEmail(doAberto)}
+          aoDefinirAtivo={a => definirAtivo(doAberto, a)} aoMudar={mudouEquipe} />
+      </PainelCartao>}
     </section>
 
     <section aria-labelledby="tPend" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

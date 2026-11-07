@@ -25,3 +25,12 @@
 .tabela .tabela-usuarios th, .tabela .tabela-usuarios td { padding-left: 12px; padding-right: 12px }
 /* A situação e, embaixo, o último acesso (numa coluna só, para a tabela caber na página). */
 .situacao-usuario { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
+
+/* A tabela (só o essencial) e a janela do usuário (UsuarioDaEquipe.tsx). */
+.funcao-usuario { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
+.usuario-cabeca { display: flex; align-items: center; gap: 12px; margin-top: 8px }
+.usuario-cabeca h2 { margin: 0 }
+.usuario-nome { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px }
+.usuario-nome .pergunta { flex: 1 1 260px; margin: 0 }
+.usuario-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px }
+.usuario-acesso { margin: 0; font-size: 14px; color: var(--text) }

@@ -1542,6 +1542,7 @@ export const SD: Dados = {
   equipeDefinirPapel: (perfilId, papel) => rpc('equipe_definir_papel', { p_perfil: perfilId, p_papel: papel }),
   equipeDefinirAtivo: (perfilId, ativo) => rpc('equipe_definir_ativo', { p_perfil: perfilId, p_ativo: ativo }),
   equipeDefinirFuncao: (perfilId, funcao) => rpc('equipe_definir_funcao', { p_perfil: perfilId, p_funcao: funcao }),
+  equipeDefinirNome: (perfilId, nome) => rpc('equipe_definir_nome', { p_perfil: perfilId, p_nome: nome }),
   // A função do servidor confere quem está logado (a sessão vai junto pelo comSessao), e o banco decide se a troca pode acontecer.
   async equipeTrocarEmail(perfilId, email) {
     const r = await comSessao(`${URL_BASE}/functions/v1/equipe-trocar-email`, {

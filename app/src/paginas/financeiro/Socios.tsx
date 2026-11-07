@@ -9,7 +9,7 @@ import { Campo, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 
-function CamposDoPeriodo({ f, erros, mudar }: { f: FormDoSocio; erros: Partial<Record<keyof FormDoSocio, string>>; mudar: (m: Partial<FormDoSocio>) => void }) {
+export function CamposDoPeriodo({ f, erros, mudar }: { f: FormDoSocio; erros: Partial<Record<keyof FormDoSocio, string>>; mudar: (m: Partial<FormDoSocio>) => void }) {
   const id = useId();
   return <>
     <Campo rotulo="Desde" para={id + 'desde'} obrigatorio erro={erros.desde}>
@@ -48,7 +48,7 @@ function FormNovoSocio({ hoje, aoTerminar, aoCancelar }: { hoje: string; aoTermi
   </form>;
 }
 
-function FormDoPeriodo({ socio, aoTerminar, aoCancelar }: { socio: Socio; aoTerminar: () => void; aoCancelar: () => void }) {
+export function FormDoPeriodo({ socio, aoTerminar, aoCancelar }: { socio: Socio; aoTerminar: () => void; aoCancelar: () => void }) {
   const [f, setF] = useState<FormDoSocio>({ desde: socio.desde, ate: socio.ate ?? '' });
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);

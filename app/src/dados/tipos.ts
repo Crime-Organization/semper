@@ -964,6 +964,8 @@ export interface DadosEquipe {
   equipeDefinirPapel(perfilId: string, papel: Papel): Promise<void>;
   /** Só administradores; fica no registro de ações. */
   equipeDefinirFuncao(perfilId: string, funcao: Funcao): Promise<void>;
+  /** Muda o nome de alguém da equipe (administrador; o de um administrador, só o master; o de um master, só ele). */
+  equipeDefinirNome(perfilId: string, nome: string): Promise<void>;
   equipeDefinirAtivo(perfilId: string, ativo: boolean): Promise<void>;
   /**
    * Troca na hora o e-mail de acesso de quem perdeu o e-mail antigo, sem link de confirmação. Vale para quem o administrador

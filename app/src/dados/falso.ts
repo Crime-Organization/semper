@@ -3001,6 +3001,15 @@ export const SD: Dados = {
   conviteNovoLink: () => espera(codigoConvite()),
   async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
+  async equipeDefinirNome(id, nome) {
+    const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
+    const limpo = nome.trim();
+    if (limpo.length < 2 || limpo.length > 200) return erro('Informe um nome de 2 a 200 letras.');
+    const quem = EQUIPE.find(x => x.id === eu);
+    if (id !== quem?.id && m.papel === 'master') return erro('Só o próprio master muda o nome dele.');
+    if (id !== quem?.id && m.papel === 'admin' && quem?.papel !== 'master') return erro('Só o master muda o nome de um administrador.');
+    m.nome = limpo; auditar('perfis', 'alteracao', { id, nome: limpo }); gravar();
+  },
   async equipeDefinirFuncao(id, funcao) {
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
     m.funcao = funcao; auditar('perfis', 'alteracao', { id, nome: m.nome }); gravar();
