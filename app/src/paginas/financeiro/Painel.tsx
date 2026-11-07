@@ -5,12 +5,12 @@ import { Navigate } from 'react-router';
 import { SD, type ContaFinanceira, type Lancamento } from '../../dados';
 import { fmtCentavos, nomeDaCategoria } from '../../regras/caixa';
 import {
-  FILTRO_VAZIO, MESES_DO_ANO, VISOES_DO_QUADRO, filtrarExtrato, mesDoAno, mesesComLancamento, planilhaDoExtrato, resumoDoAno, temFiltroLigado,
-  totaisDoExtrato, type FiltroDoExtrato, type VisaoDoQuadro
+  FILTRO_VAZIO, LINHAS_DO_QUADRO, MESES_DO_ANO, filtrarExtrato, mesDoAno, mesesComLancamento, planilhaDoExtrato, resumoDoAno, temFiltroLigado,
+  totaisDoExtrato, type FiltroDoExtrato
 } from '../../regras/painelFinanceiro';
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, TituloSecao, Vazio } from '../../ui/base';
+import { Aviso, Carregando, estiloBotao, Indicador, Indicadores, Segmentos, TituloSecao, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 import { PaginaModulo } from '../../ui/PaginaModulo';
 import { useCtx } from '../../ui/sessao';
@@ -39,7 +39,6 @@ export default function Painel() {
   const [ano, setAno] = useState(Number(hoje.slice(0, 4)));
   const [lido, setLido] = useState<Lido | null>(null);
   const [filtro, setFiltro] = useState<FiltroDoExtrato>(FILTRO_VAZIO);
-  const [visao, setVisao] = useState<VisaoDoQuadro>('resumo');
   const [quantas, setQuantas] = useState(LINHAS_DO_EXTRATO);
   const pode = ctx.ehAdmin && !!ctx.escritorio?.modulos?.financeiro;
 
@@ -59,7 +58,7 @@ export default function Painel() {
   }, [ano, pode, hoje]);
 
   if (!pode) return <Navigate to="/financeiro/contratos/" replace />;
-  const cabecalho = { titulo: 'Financeiro', visoes: [], acao: { rotulo: 'Novo lançamento', para: '/financeiro/lancar/' } };
+  const cabecalho = { titulo: 'Financeiro', visoes: [], acao: { rotulo: 'Nova entrada', para: '/financeiro/entradas/' } };
   const atual = lido?.ano === ano ? lido : null;
   const trocarAno = (n: number) => { setAno(n); setFiltro(f => ({ ...f, mes: null })); setQuantas(LINHAS_DO_EXTRATO); };
   const mudarFiltro = (m: Partial<FiltroDoExtrato>) => { setFiltro(f => ({ ...f, ...m })); setQuantas(LINHAS_DO_EXTRATO); };
@@ -96,19 +95,15 @@ export default function Painel() {
     {barra}
 
     <Indicadores rotulo={`Totais de ${nomeDoPeriodo}`}>
-      <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.entradas)} detalhe={`Recebido de clientes: ${fmtCentavos(doPeriodo.filter(l => l.categoria === 'recebimento').reduce((s, l) => s + l.valor, 0))}`} />
-      <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.saidas)} detalhe={`DAS: ${fmtCentavos(doPeriodo.filter(l => l.categoria === 'das').reduce((s, l) => s + l.valor, 0))}`} />
-      <Indicador tom={periodo.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.resultado)} detalhe="Entradas menos saídas, sem repasses entre contas e ajustes" />
+      <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.entradas)} />
+      <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.saidas)} />
+      <Indicador tom={periodo.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(periodo.resultado)} />
       <Indicador tom="destaque" rotulo="Saldo hoje nas contas" valor={fmtCentavos(saldoTotal)}
         detalhe={contas.filter(c => saldos.has(c.id)).map(c => `${c.nome} ${fmtCentavos(saldos.get(c.id)!)}`).join(' · ')} />
     </Indicadores>
 
     <section className="painel-secao" aria-labelledby="tQuadro">
-      <div className="secao-topo">
-        <TituloSecao id="tQuadro">O ano mês a mês</TituloSecao>
-        <Segmentos rotulo="O que o quadro mostra" atual={visao} aoEscolher={setVisao}
-          opcoes={(Object.keys(VISOES_DO_QUADRO) as VisaoDoQuadro[]).map(v => ({ id: v, rotulo: VISOES_DO_QUADRO[v].rotulo }))} />
-      </div>
+      <TituloSecao id="tQuadro">O ano mês a mês</TituloSecao>
       <div className="tabela"><table className="quadro-ano" aria-label={`O ano de ${ano} mês a mês`}>
         <thead><tr>
           <th scope="col">Linha</th>
@@ -117,13 +112,12 @@ export default function Painel() {
           </th>)}
           <th scope="col" className="financeiro-num quadro-total">Total</th>
         </tr></thead>
-        <tbody>{VISOES_DO_QUADRO[visao].linhas.map(linha => <tr key={linha.id} className={'tom-' + linha.tom}>
+        <tbody>{LINHAS_DO_QUADRO.map(linha => <tr key={linha.id} className={'tom-' + linha.tom}>
           <th scope="row">{linha.rotulo}</th>
           {ano12.meses.map(m => { const v = linha.valor(m); return <td key={m.mes} className="financeiro-num">{v ? fmtCentavos(v) : '–'}</td>; })}
           <td className="financeiro-num quadro-total"><b>{fmtCentavos(linha.valor(ano12.total))}</b></td>
         </tr>)}</tbody>
       </table></div>
-      <Nota>Clique no nome de um mês para ver só ele nos totais e no extrato. Repasses entre contas e ajustes de saldo não entram aqui.</Nota>
     </section>
 
     <section className="painel-secao" aria-labelledby="tExtrato">
@@ -133,7 +127,6 @@ export default function Painel() {
           <button type="button" className={estiloBotao()} disabled={!extrato.length} onClick={() => baixar(`financeiro-${nomeDoPeriodo.replace('/', '-')}.csv`, planilhaDoExtrato(extrato, contas))}>
             <Icone nome="baixar" tam={15} /> Baixar planilha
           </button>
-          <BotaoLink variante="principal" to="/financeiro/lancar/"><Icone nome="mais" tam={15} /> Novo lançamento</BotaoLink>
         </div>
       </div>
       <div className="financeiro-filtros" role="search" aria-label="Filtros do extrato">

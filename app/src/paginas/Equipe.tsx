@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { Navigate } from 'react-router';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { MARCA } from '../marca';
-import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Usuario } from '../dados';
+import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Socio, type Usuario } from '../dados';
 import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_MOSTRADAS } from '../dados/limites';
 import { erroDoEmailDoColega, normalizarEmail, seloDoAvisoDaTroca, situacaoDoAvisoDaTroca } from '../regras/conta';
 import { FUNCOES } from '../regras/equipe';
@@ -17,6 +17,7 @@ import { Aviso, BotaoLink, Campo, Carregando, Cartao, estiloBotao, Nota, propsDo
 import { janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
+import { SocioNaEquipe } from './financeiro/SocioNaEquipe';
 import './Equipe.css';
 
 export default function Equipe() {
@@ -87,6 +88,9 @@ function PainelEquipe() {
   const [convites, setConvites] = useState<Convite[]>([]);
   const [registro, setRegistro] = useState<RegistroAuditoria[] | string | null>(null);
   const [trocas, setTrocas] = useState<RegistroAuditoria[] | string | null>(null);
+  const [socios, setSocios] = useState<Socio[] | null>(null);
+  // Quem é sócio só aparece para o administrador, e só com o financeiro ligado.
+  const veSocios = ctx.ehAdmin && !!ctx.escritorio?.modulos?.financeiro;
 
   const carregar = useCallback(async () => {
     try {
@@ -95,7 +99,8 @@ function PainelEquipe() {
     } catch (e) { falha(e); }
     SD.auditoriaListar(REGISTRO_DE_ACOES).then(setRegistro).catch(e => setRegistro((e as Error).message));
     SD.trocasDeEmailListar(TROCAS_DE_EMAIL_MOSTRADAS).then(setTrocas).catch(e => setTrocas((e as Error).message));
-  }, []);
+    if (veSocios) SD.financeiroSocios().then(setSocios).catch(falha);
+  }, [veSocios]);
   useEffect(() => { void carregar(); }, [carregar]);
   useMudancas(() => { void carregar(); });
   // Papéis e situação mudam a equipe que as outras telas mostram.
@@ -188,7 +193,8 @@ function PainelEquipe() {
                 {gerir && <button type="button" className={estiloBotao({ forma: 'link' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={() => trocarEmail(u)}>Trocar e-mail</button>}</div></div></td>
               <td><select className="filtro" style={{ height: 36 }} aria-label={`Função de ${u.nome}`} value={u.funcao} onChange={e => trocarFuncao(u, e.target.value as Funcao)}>
                 {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
-              </select></td>
+              </select>
+              {socios && u.pessoa_id && <SocioNaEquipe usuario={u} socios={socios} aoMudar={() => void carregar()} />}</td>
               <td>{gerir && ctx.ehMaster
                 ? <select className="filtro" style={{ height: 36 }} aria-label={`Papel de ${u.nome}`} value={u.papel} onChange={e => trocarPapel(u, e.target.value as Papel)}>
                   {(['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}

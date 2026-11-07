@@ -6,7 +6,7 @@ import { SD, type ParcelaDoEscritorio } from '../../dados';
 import { fmtCentavos } from '../../regras/caixa';
 import { SITUACOES_NA_CARTEIRA, carteiraDeContratos, filtrarCarteira, totaisDaCarteira, type FiltroDaCarteira, type SituacaoNaCarteira } from '../../regras/painelFinanceiro';
 import { fmtData } from '../../regras/pessoa';
-import { Aviso, BotaoLink, Carregando, Indicador, Indicadores, Nota, Segmentos, Selo, Vazio, estiloBotao } from '../../ui/base';
+import { Aviso, BotaoLink, Carregando, Indicador, Indicadores, Segmentos, Selo, Vazio, estiloBotao } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 import { PaginaModulo } from '../../ui/PaginaModulo';
 import { useCtx } from '../../ui/sessao';
@@ -25,7 +25,7 @@ export default function Carteira() {
   const ctx = useCtx();
   const hoje = hojeISO();
   const [parcelas, setParcelas] = useState<ParcelaDoEscritorio[] | string | null>(null);
-  const [filtro, setFiltro] = useState<FiltroDaCarteira>({ situacao: '', busca: '' });
+  const [filtro, setFiltro] = useState<FiltroDaCarteira>({ situacao: '', busca: '', responsavel: '' });
   const [quantos, setQuantos] = useState(CONTRATOS_POR_VEZ);
   const pode = !!ctx.escritorio?.modulos?.financeiro;
 
@@ -37,7 +37,7 @@ export default function Carteira() {
     return () => { vivo = false; };
   }, [pode, hoje]);
 
-  const cabecalho = { titulo: 'Financeiro', visoes: [], acao: { rotulo: 'Receber parcela', para: '/financeiro/lancar/' } };
+  const cabecalho = { titulo: 'Financeiro', visoes: [], acao: { rotulo: 'Nova entrada', para: '/financeiro/entradas/' } };
   if (!pode) return <PaginaModulo {...cabecalho}><Aviso tipo="info">O financeiro não está ligado para este escritório.</Aviso></PaginaModulo>;
   if (parcelas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
   if (typeof parcelas === 'string') return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{parcelas}</Aviso></PaginaModulo>;
@@ -51,16 +51,20 @@ export default function Carteira() {
   return <PaginaModulo {...cabecalho} contador={`${carteira.length.toLocaleString('pt-BR')} contratos com parcelas`}>
     <AbasDoFinanceiro />
     <Indicadores rotulo="Totais da carteira">
-      <Indicador rotulo="Contratado" valor={fmtCentavos(t.total)} detalhe={`${lista.length.toLocaleString('pt-BR')} contratos`} />
-      <Indicador tom="entrada" rotulo="Já recebido" valor={fmtCentavos(t.recebido)} detalhe={t.total ? `${Math.round(100 * t.recebido / t.total)}% do contratado` : undefined} />
+      <Indicador rotulo="Contratado" valor={fmtCentavos(t.total)} />
+      <Indicador tom="entrada" rotulo="Já recebido" valor={fmtCentavos(t.recebido)} />
       <Indicador tom="alerta" rotulo="Falta receber" valor={fmtCentavos(t.falta)} />
-      <Indicador tom="destaque" rotulo="Em atraso" valor={fmtCentavos(t.atrasado)} detalhe={`${quantosNa('atrasado').toLocaleString('pt-BR')} contratos com parcela vencida`} />
+      <Indicador tom="destaque" rotulo="Em atraso" valor={fmtCentavos(t.atrasado)} />
     </Indicadores>
 
     <div className="financeiro-filtros" role="search" aria-label="Filtros da carteira">
       <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar contrato ou cliente</span>
         <input type="search" placeholder="Buscar contrato ou cliente" value={filtro.busca} onChange={e => mudar({ busca: e.target.value })} />
       </label>
+      {ctx.ehAdmin && <select className="campo" aria-label="Usuário" value={filtro.responsavel} onChange={e => mudar({ responsavel: e.target.value })}>
+        <option value="">Todos os usuários</option>
+        {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+      </select>}
       <Segmentos rotulo="Situação" atual={filtro.situacao || TODAS} aoEscolher={s => mudar({ situacao: s === TODAS ? '' : s as SituacaoNaCarteira })}
         opcoes={[{ id: TODAS, rotulo: 'Todos' }, ...(Object.keys(SITUACOES_NA_CARTEIRA) as SituacaoNaCarteira[]).map(s => ({ id: s, rotulo: `${SITUACOES_NA_CARTEIRA[s].nome} (${quantosNa(s)})` }))]} />
     </div>
@@ -83,7 +87,7 @@ export default function Carteira() {
             <td className="financeiro-num"><b>{c.falta ? fmtCentavos(c.falta) : '–'}</b></td>
             <td>{c.proxima ? <>{fmtData(c.proxima.vencimento)}<span className="sub"> · {fmtCentavos(c.proxima.valor)}</span></> : '–'}</td>
             <td><Selo tipo={s.selo}>{s.nome}</Selo></td>
-            <td>{c.proxima && <BotaoLink forma="mini" variante="principal" to={'/financeiro/lancar/?parcela=' + c.proxima.id}
+            <td>{c.proxima && <BotaoLink forma="mini" variante="principal" to={'/financeiro/entradas/?parcela=' + c.proxima.id}
               aria-label={`Receber a parcela ${c.proxima.numero} de ${c.codigo}`}>Receber</BotaoLink>}</td>
           </tr>;
         })}</tbody>
@@ -91,7 +95,6 @@ export default function Carteira() {
       {lista.length > quantos && <button type="button" className={estiloBotao()} onClick={() => setQuantos(q => q + CONTRATOS_POR_VEZ)}>
         Mostrar mais {Math.min(CONTRATOS_POR_VEZ, lista.length - quantos).toLocaleString('pt-BR')} de {(lista.length - quantos).toLocaleString('pt-BR')}
       </button>}
-      <Nota>O total soma as parcelas de cada contrato: as recebidas pelo que entrou, as outras pelo valor da parcela.</Nota>
     </> : <Vazio>{carteira.length ? 'Nenhum contrato com esses filtros.' : 'Nenhum contrato com parcelas ainda. As parcelas nascem quando o contrato é assinado.'}</Vazio>}
   </PaginaModulo>;
 }

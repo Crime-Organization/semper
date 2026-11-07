@@ -23,7 +23,8 @@ const Demandas = lazy(() => import('./paginas/Demandas'));
 const Processos = lazy(() => import('./paginas/Processos'));
 const Financeiro = lazy(() => import('./paginas/Financeiro'));
 const PainelFinanceiro = lazy(() => import('./paginas/financeiro/Painel'));
-const LancarNoFinanceiro = lazy(() => import('./paginas/financeiro/Lancar'));
+const EntradasDoFinanceiro = lazy(() => import('./paginas/financeiro/Entradas'));
+const SaidasDoFinanceiro = lazy(() => import('./paginas/financeiro/Saidas'));
 const CarteiraDeContratos = lazy(() => import('./paginas/financeiro/Carteira'));
 const PainelProcessos = lazy(() => import('./paginas/PainelProcessos'));
 const NovoProcesso = lazy(() => import('./paginas/NovoProcesso'));
@@ -133,7 +134,8 @@ function Rotas() {
           <Route path="agenda" element={<Compromissos />} />
           <Route path="financeiro" element={<Financeiro />} />
           <Route path="financeiro/painel" element={<PainelFinanceiro />} />
-          <Route path="financeiro/lancar" element={<LancarNoFinanceiro />} />
+          <Route path="financeiro/entradas" element={<EntradasDoFinanceiro />} />
+          <Route path="financeiro/saidas" element={<SaidasDoFinanceiro />} />
           <Route path="financeiro/contratos" element={<CarteiraDeContratos />} />
           <Route path="parcelas" element={<Parcelas />} />
           <Route path="meus-valores" element={<MeusValores />} />

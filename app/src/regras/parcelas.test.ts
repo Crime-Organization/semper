@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ParaReceber, RecebimentoGravado } from '../dados/tipos';
 import { dividirRecebimento } from './financeiro';
 import {
-  avisoDaSoma, chegouAoAssinado, cruzaOutroPeriodo, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
+  avisoDaSoma, chegouAoAssinado, desmarcarSocio, periodoAtualDoSocio, cruzaOutroPeriodo, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
   parcelasDoContrato, partesDoRecebimento, periodoDoSocio, previaDoRecebimento, recebimentoNovo, parcelaAntiga, resumoDasParcelas, situacaoDaParcela, somarMeses
 } from './parcelas';
 
@@ -378,5 +378,23 @@ describe('Quem entra na divisão', () => {
     // Então
     expect(partesDoRecebimento({ participantes: [], indicador_id: null, indicador_percentual: null }, SOCIOS, 'resp', '2026-03-01', nome).responsavel_socio).toBe(true);
     expect(partesDoRecebimento({ participantes: [], indicador_id: null, indicador_percentual: null }, SOCIOS, null, '2026-03-01', nome).responsavel_socio).toBe(false);
+  });
+});
+
+describe('A marca de sócio em Equipe e acessos', () => {
+  const LISTA = [{ id: 's1', pessoa_id: 'a', desde: '2025-01-01', ate: '2025-12-31' }, { id: 's2', pessoa_id: 'a', desde: '2026-02-01', ate: null }];
+
+  it('quando procura o período de hoje, então acha o que está valendo, e nenhum para quem não é sócio', () => {
+    // Quando / Então
+    expect(periodoAtualDoSocio(LISTA, 'a', '2026-11-07')?.id).toBe('s2');
+    expect(periodoAtualDoSocio(LISTA, 'a', '2026-01-15')).toBeUndefined();
+    expect(periodoAtualDoSocio(LISTA, 'b', '2026-11-07')).toBeUndefined();
+    expect(periodoAtualDoSocio(LISTA, null, '2026-11-07')).toBeUndefined();
+  });
+
+  it('quando desmarca, então o período que começou hoje some, e o que vem de antes termina hoje', () => {
+    // Quando / Então
+    expect(desmarcarSocio({ desde: '2026-11-07' }, '2026-11-07')).toBe('excluir');
+    expect(desmarcarSocio({ desde: '2026-02-01' }, '2026-11-07')).toBe('encerrar');
   });
 });

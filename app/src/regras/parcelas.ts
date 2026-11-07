@@ -205,6 +205,11 @@ export const periodoDoSocio = (s: Pick<Socio, 'desde' | 'ate'>) => `desde ${fmtD
 type Periodo = Pick<Socio, 'pessoa_id' | 'desde' | 'ate'>;
 export const eraSocio = (lista: Periodo[], pessoaId: string | null | undefined, data: string) =>
   !!pessoaId && lista.some(s => s.pessoa_id === pessoaId && s.desde <= data && (!s.ate || s.ate >= data));
+/** O período em que a pessoa é sócia hoje, se houver: é o que a marca "Sócio" de Equipe e acessos mostra e encerra. */
+export const periodoAtualDoSocio = <S extends Periodo>(lista: S[], pessoaId: string | null | undefined, hoje: string) =>
+  pessoaId ? lista.find(s => s.pessoa_id === pessoaId && s.desde <= hoje && (!s.ate || s.ate >= hoje)) : undefined;
+/** Desmarcar o sócio: o período que começou hoje some (foi engano); o que vem de antes termina hoje, para o histórico do lucro não mudar. */
+export const desmarcarSocio = (s: Pick<Socio, 'desde'>, hoje: string): 'excluir' | 'encerrar' => s.desde >= hoje ? 'excluir' : 'encerrar';
 /** Dois períodos da mesma pessoa não podem se cruzar. */
 export const cruzaOutroPeriodo = (lista: (Periodo & { id: string })[], novo: Periodo & { id?: string }) =>
   lista.some(s => s.id !== novo.id && s.pessoa_id === novo.pessoa_id && s.desde <= (novo.ate ?? '9999-12-31') && (s.ate ?? '9999-12-31') >= novo.desde);

@@ -37,20 +37,12 @@ export const mesesComLancamento = (lancamentos: Pick<Lancamento, 'data'>[], ano:
 
 /** Uma linha do quadro do ano: o rótulo, o tom do número e de onde ele sai em cada mês. */
 export interface LinhaDoQuadro { id: string; rotulo: string; tom: 'entrada' | 'saida' | 'resultado'; valor: (m: MesDoPainel) => number }
-const porCategoria = (c: CategoriaDeLancamento, tom: 'entrada' | 'saida'): LinhaDoQuadro =>
-  ({ id: c, rotulo: nomeDaCategoria(c), tom, valor: m => m.porCategoria[c] ?? 0 });
-/** O que cada visão do quadro mostra. Uma visão nova é uma entrada nova aqui. */
-export const VISOES_DO_QUADRO = {
-  resumo: { rotulo: 'Resumo', linhas: [
-    { id: 'entradas', rotulo: 'Entradas', tom: 'entrada', valor: m => m.entradas },
-    { id: 'saidas', rotulo: 'Saídas', tom: 'saida', valor: m => m.saidas },
-    { id: 'resultado', rotulo: 'Resultado do mês', tom: 'resultado', valor: m => m.resultado }
-  ] },
-  entradas: { rotulo: 'Entradas', linhas: [porCategoria('recebimento', 'entrada'), porCategoria('outra_entrada', 'entrada')] },
-  saidas: { rotulo: 'Saídas', linhas: [porCategoria('despesa', 'saida'), porCategoria('das', 'saida'), porCategoria('repasse', 'saida'),
-    porCategoria('indicacao', 'saida'), porCategoria('divisao_lucro', 'saida')] }
-} satisfies Record<string, { rotulo: string; linhas: LinhaDoQuadro[] }>;
-export type VisaoDoQuadro = keyof typeof VISOES_DO_QUADRO;
+/** As linhas do quadro do ano. Uma linha nova é uma entrada nova aqui. */
+export const LINHAS_DO_QUADRO: LinhaDoQuadro[] = [
+  { id: 'entradas', rotulo: 'Entradas', tom: 'entrada', valor: m => m.entradas },
+  { id: 'saidas', rotulo: 'Saídas', tom: 'saida', valor: m => m.saidas },
+  { id: 'resultado', rotulo: 'Resultado do mês', tom: 'resultado', valor: m => m.resultado }
+];
 
 // ---------- o extrato ----------
 export type FiltroDeTipo = 'todos' | TipoDeLancamento;
@@ -118,20 +110,21 @@ export function carteiraDeContratos(parcelas: ParcelaDoEscritorio[], hoje: strin
 }
 const ORDEM_NA_CARTEIRA: Record<SituacaoNaCarteira, number> = { atrasado: 0, em_dia: 1, quitado: 2 };
 
-export interface FiltroDaCarteira { situacao: SituacaoNaCarteira | ''; busca: string }
+export interface FiltroDaCarteira { situacao: SituacaoNaCarteira | ''; busca: string; /** O id do responsável; vazio é de todos. */ responsavel?: string }
 /** A busca olha o código do contrato e o nome do cliente, sem acento. */
 export function filtrarCarteira(lista: ContratoNaCarteira[], f: FiltroDaCarteira) {
   const termo = normal(f.busca);
-  return lista.filter(c => (!f.situacao || c.situacao === f.situacao) && (!termo || normal(`${c.codigo} ${c.cliente}`).includes(termo)));
+  return lista.filter(c => (!f.situacao || c.situacao === f.situacao) && (!f.responsavel || c.responsavelId === f.responsavel) && (!termo || normal(`${c.codigo} ${c.cliente}`).includes(termo)));
 }
 export function totaisDaCarteira(lista: ContratoNaCarteira[]) {
   return lista.reduce((t, c) => ({ total: t.total + c.total, recebido: t.recebido + c.recebido, falta: t.falta + c.falta, atrasado: t.atrasado + c.atrasado }),
     { total: 0, recebido: 0, falta: 0, atrasado: 0 });
 }
 
-// ---------- o lançamento rápido ----------
-/** O que se lança na aba Lançar. O recebimento de cliente sai daqui: ele só entra pela parcela, para não contar duas vezes. */
-export const CATEGORIAS_DO_LANCAR: Record<TipoDeLancamento, CategoriaDeLancamento[]> = {
-  entrada: ['outra_entrada', 'ajuste_a_mais'],
-  saida: ['despesa', 'das', 'repasse', 'indicacao', 'ajuste_a_menos']
-};
+// ---------- as entradas ----------
+/** As parcelas recebidas no mês (pela data em que o cliente pagou), da mais nova para a mais antiga, só do responsável escolhido. */
+export function entradasDoMes(parcelas: ParcelaDoEscritorio[], mes: string, responsavel = '') {
+  return parcelas.filter(p => !!p.recebida_em?.startsWith(mes) && (!responsavel || p.responsavel_id === responsavel))
+    .toSorted((a, b) => b.recebida_em!.localeCompare(a.recebida_em!) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.numero - b.numero);
+}
+export const totalRecebido = (parcelas: ParcelaDoEscritorio[]) => parcelas.reduce((s, p) => s + (p.recebido ?? p.valor), 0);

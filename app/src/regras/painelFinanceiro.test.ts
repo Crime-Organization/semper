@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Lancamento, ParcelaDoEscritorio } from '../dados/tipos';
 import {
-  CATEGORIAS_DO_LANCAR, FILTRO_VAZIO, VISOES_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, entradasDoMes, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   planilhaDoExtrato, resumoDoAno, temFiltroLigado, totaisDaCarteira, totaisDoExtrato
 } from './painelFinanceiro';
 
@@ -51,15 +51,13 @@ describe('O ano no painel', () => {
     expect(mesDoAno(2026, 11)).toBe('2026-12');
   });
 
-  it('quando o quadro mostra uma visão, então cada linha tira o número certo do mês', () => {
+  it('quando o quadro mostra o ano, então cada linha tira o número certo do mês', () => {
     // Dado
     const { total } = resumoDoAno([lancamento({ valor: 1000 }), lancamento({ tipo: 'saida', categoria: 'das', valor: 45 })], 2026);
     // Quando
-    const resumo = VISOES_DO_QUADRO.resumo.linhas.map(l => l.valor(total));
-    const saidas = VISOES_DO_QUADRO.saidas.linhas.map(l => [l.rotulo, l.valor(total)]);
+    const resumo = LINHAS_DO_QUADRO.map(l => l.valor(total));
     // Então
     expect(resumo).toEqual([1000, 45, 955]);
-    expect(saidas).toContainEqual(['DAS', 45]);
   });
 });
 
@@ -160,11 +158,32 @@ describe('A carteira de contratos', () => {
   });
 });
 
-describe('O lançamento rápido', () => {
-  it('quando lista as categorias, então o recebimento de cliente não aparece: ele entra só pela parcela', () => {
+describe('As entradas do mês', () => {
+  const lista = [
+    parcela({ numero: 1, responsavel_id: 'ana', recebimento_id: 'r1', recebida_em: '2026-03-05', recebido: 48000 }),
+    parcela({ numero: 2, responsavel_id: 'bia', recebimento_id: 'r2', recebida_em: '2026-03-20' }),
+    parcela({ numero: 3, responsavel_id: 'ana', recebimento_id: 'r3', recebida_em: '2026-04-01' }),
+    parcela({ numero: 4, responsavel_id: 'ana', vencimento: '2026-03-10' })
+  ];
+
+  it('quando lista o mês, então vêm só as recebidas nele, da mais nova para a mais antiga, e o total soma o que entrou', () => {
+    // Quando
+    const r = entradasDoMes(lista, '2026-03');
+    // Então
+    expect(r.map(p => p.numero)).toEqual([2, 1]);
+    expect(totalRecebido(r)).toBe(98000);
+  });
+
+  it('quando o master filtra por um usuário, então vêm só as entradas dos contratos dele', () => {
     // Quando / Então
-    expect(CATEGORIAS_DO_LANCAR.entrada).not.toContain('recebimento');
-    expect(CATEGORIAS_DO_LANCAR.saida).toContain('das');
-    expect(CATEGORIAS_DO_LANCAR.saida).not.toContain('divisao_lucro');
+    expect(entradasDoMes(lista, '2026-03', 'ana').map(p => p.numero)).toEqual([1]);
+    expect(entradasDoMes(lista, '2026-03', 'carla')).toEqual([]);
+  });
+
+  it('quando a carteira é filtrada por responsável, então só ficam os contratos dele', () => {
+    // Dado
+    const carteira = carteiraDeContratos([parcela({ contrato_id: 'a', responsavel_id: 'ana' }), parcela({ contrato_id: 'b', responsavel_id: 'bia' })], HOJE);
+    // Quando / Então
+    expect(filtrarCarteira(carteira, { situacao: '', busca: '', responsavel: 'bia' }).map(c => c.contratoId)).toEqual(['b']);
   });
 });

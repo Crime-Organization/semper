@@ -7,7 +7,8 @@ import { useCtx } from '../../ui/sessao';
 /** As abas na ordem em que aparecem. Uma aba nova é uma linha nova aqui. */
 export const ABAS_DO_FINANCEIRO: readonly { para: string; rotulo: string; soAdmin: boolean }[] = [
   { para: '/financeiro/painel/', rotulo: 'Painel', soAdmin: true },
-  { para: '/financeiro/lancar/', rotulo: 'Lançar', soAdmin: false },
+  { para: '/financeiro/entradas/', rotulo: 'Entradas', soAdmin: false },
+  { para: '/financeiro/saidas/', rotulo: 'Saídas', soAdmin: true },
   { para: '/financeiro/contratos/', rotulo: 'Carteira', soAdmin: false },
   { para: '/financeiro/', rotulo: 'Caixa', soAdmin: true },
   { para: '/parcelas/', rotulo: 'Parcelas', soAdmin: false },

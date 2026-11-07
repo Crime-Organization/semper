@@ -63,3 +63,8 @@
 .extrato td:nth-child(3) { min-width: 16rem }
 table[aria-label="Lançamentos do mês"] td:nth-child(2) { min-width: 18rem }
 table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }
+.financeiro-filtro { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted) }
+.financeiro-filtros { align-items: flex-end }
+.tabela tfoot th, .tabela tfoot td { padding: 12px 16px; border-top: 1px solid var(--line2); font-weight: 700; color: var(--ink); text-align: left }
+.tabela tfoot td.financeiro-num { text-align: right }
+.socio-na-equipe { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 13px; color: var(--text2) }
