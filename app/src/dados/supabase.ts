@@ -256,7 +256,7 @@ const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_M
 
 // ---------- caixa ----------
 const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
-const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, planilha, criado_por, criado_em, atualizado_em';
+const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, planilha, corrige_recebimento, criado_por, criado_em, atualizado_em';
 const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
 const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em, parcelas)';
 const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador, categoria, forma_pagamento, banco_recebido, banco_envio';
@@ -1041,6 +1041,12 @@ export const SD: Dados = {
       if (data.length < LINHAS_POR_CONSULTA) return todas;
     }
   },
+  financeiroRecebimentoTemPagamento: async recebimentoId => await rpc('financeiro_recebimento_tem_pagamento', { p_recebimento: recebimentoId }) as boolean,
+  financeiroCorrigirRecebimento: (recebimentoId, { data, valor, conta, taxa, categoria, forma, bancoRecebido, bancoEnvio, parte, percentuais, motivo }) => rpc('financeiro_corrigir_recebimento', {
+    p_recebimento: recebimentoId, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa, p_categoria: categoria ?? null, p_forma: forma ?? null,
+    p_banco_recebido: bancoRecebido ?? null, p_banco_envio: bancoEnvio ?? null, p_parte: parte ?? null, p_percentuais: percentuais ?? null, p_motivo: motivo
+  }),
+  financeiroLancarCorrecao: ({ recebimento, data, valor, conta, motivo }) => rpc('financeiro_lancar_correcao', { p_recebimento: recebimento, p_data: data, p_valor: valor, p_conta: conta, p_motivo: motivo }),
   async financeiroRecebimentoDoLancamento(lancamentoId) {
     // O recebimento gera a entrada e, às vezes, a saída da taxa da máquina: os dois lançamentos levam a ele.
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).or(`lancamento_id.eq.${lancamentoId},lancamento_taxa_id.eq.${lancamentoId}`).is('estornado_em', null).maybeSingle());

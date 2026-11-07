@@ -26,7 +26,7 @@ const PARTES: ParaReceber['parte_na_conta'][] = [20, 30, 100];
 const OUTRO_BANCO = 'outro';
 
 /** Um banco: escolhido na lista ou, em "Outro", pelo código do Banco Central. */
-function CampoDoBanco({ rotulo, valor, aoMudar }: { rotulo: string; valor: string; aoMudar: (codigo: string) => void }) {
+export function CampoDoBanco({ rotulo, valor, aoMudar }: { rotulo: string; valor: string; aoMudar: (codigo: string) => void }) {
   const id = useId();
   const naLista = !valor || BANCOS.some(b => b.codigo === valor);
   const [outro, setOutro] = useState(!naLista);

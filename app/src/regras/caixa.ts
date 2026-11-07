@@ -22,7 +22,8 @@ export const CATEGORIAS: Record<Exclude<CategoriaDeLancamento, 'transferencia'>,
   indicacao: { nome: 'Indicação', tipo: 'saida' },
   divisao_lucro: { nome: 'Divisão de lucro', tipo: 'saida' },
   ajuste_a_mais: { nome: 'Ajuste de saldo (a mais)', tipo: 'entrada' },
-  ajuste_a_menos: { nome: 'Ajuste de saldo (a menos)', tipo: 'saida' }
+  ajuste_a_menos: { nome: 'Ajuste de saldo (a menos)', tipo: 'saida' },
+  correcao_recebimento: { nome: 'Correção de recebimento', tipo: 'saida' }
 };
 /** O que esta versão do site sabe da categoria. Pode não saber nada: depois de voltar a versão, o banco pode ter uma categoria mais
  *  nova. Essa categoria aparece como está guardada, para a tela do caixa não quebrar. */
@@ -31,7 +32,9 @@ export const nomeDaCategoria = (c: CategoriaDeLancamento) => c === 'transferenci
 /** As que se lançam à mão. A divisão de lucro nasce na página Lucro dos sócios, para ficar no nome do sócio. Quem já tem essa categoria
  *  (de antes desta regra) continua vendo a sua, e o mesmo vale para uma categoria que esta versão não conhece. */
 export function categoriasDoFormulario(atual: keyof typeof CATEGORIAS) {
-  const conhecidas = (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => c !== 'divisao_lucro' || atual === 'divisao_lucro');
+  // A correção de recebimento nasce do recebimento (Corrigir, depois de algum pagamento), não se lança à mão.
+  const soPorOutroCaminho: (keyof typeof CATEGORIAS)[] = ['divisao_lucro', 'correcao_recebimento'];
+  const conhecidas = (Object.keys(CATEGORIAS) as (keyof typeof CATEGORIAS)[]).filter(c => !soPorOutroCaminho.includes(c) || atual === c);
   return dadosDaCategoria(atual) ? conhecidas : [...conhecidas, atual];
 }
 

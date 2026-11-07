@@ -1155,7 +1155,7 @@ export interface DadosAcompanhamento {
 export interface ContaFinanceira { id: string; nome: string; tem_das: boolean; saldo_inicial: number; saldo_inicial_em: string; arquivada_em: string | null }
 export type DadosConta = Pick<ContaFinanceira, 'nome' | 'tem_das' | 'saldo_inicial' | 'saldo_inicial_em'>;
 export type TipoDeLancamento = 'entrada' | 'saida';
-export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'ajuste_a_mais' | 'ajuste_a_menos' | 'transferencia';
+export type CategoriaDeLancamento = 'recebimento' | 'outra_entrada' | 'despesa' | 'das' | 'repasse' | 'indicacao' | 'divisao_lucro' | 'ajuste_a_mais' | 'ajuste_a_menos' | 'correcao_recebimento' | 'transferencia';
 /** Uma entrada ou uma saída numa conta, em centavos. par_id: a outra ponta de uma transferência. */
 export interface Lancamento {
   id: string; conta_id: string; data: string; tipo: TipoDeLancamento; categoria: CategoriaDeLancamento; valor: number; descricao: string;
@@ -1164,6 +1164,8 @@ export interface Lancamento {
   origem: 'recebimento' | 'repasse' | 'lucro' | null;
   /** O lançamento importado de uma planilha: as colunas da linha de onde veio, em pares [coluna, valor]. Só leitura. */
   planilha?: [string, string][] | null;
+  /** O recebimento que este lançamento corrige (o registro de correção, depois de algum pagamento). */
+  corrige_recebimento?: string | null;
 }
 export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
 export interface AliquotaDoDas { mes: string; aliquota: number }
@@ -1329,6 +1331,12 @@ export interface DadosParcelas {
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
   /** O recebimento (não estornado) que gerou um lançamento do caixa, para mostrar o contrato, a parcela e a divisão. */
   financeiroRecebimentoDoLancamento(lancamentoId: string): Promise<RecebimentoGravado | null>;
+  /** Algum valor deste recebimento já foi pago (repasse, participante ou indicador)? Decide se corrige ou lança a correção. */
+  financeiroRecebimentoTemPagamento(recebimentoId: string): Promise<boolean>;
+  /** Corrige um recebimento sem nada pago: estorna o original (fica no histórico) e registra o novo. Devolve o id do novo. */
+  financeiroCorrigirRecebimento(recebimentoId: string, r: Omit<DadosDoRecebimento, 'parcela'> & { motivo: string }): Promise<string>;
+  /** Depois de algum pagamento: o registro de correção, uma saída do caixa ligada ao recebimento (só administradores). */
+  financeiroLancarCorrecao(c: { recebimento: string; data: string; valor: number; conta: string; motivo: string }): Promise<string>;
   /** Os contratos que o usuário vê (não arquivados), com o que importa para os gráficos: categoria, responsável, ano e valor. */
   financeiroContratosDaCarteira(): Promise<ContratoDaCarteira[]>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */

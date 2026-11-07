@@ -696,6 +696,8 @@ const vejoContrato = (k: QuemEstaNoContrato) => veOContrato(pessoasDoContrato(k)
 const alteroContrato = (k: QuemEstaNoContrato) => alteraOContrato(pessoasDoContrato(k), membroLogado());
 const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && vejoContrato(k));
 /** Como privado.cuido_do_contrato: um administrador ou o responsável. */
+/** Algum valor do recebimento já foi pago (repasse não cancelado, ou participante/indicador marcado como pago)? */
+const recebimentoTemPagamento = (id: string) => bd.repasses!.some(x => x.recebimento_id === id && x.pago_em && !x.cancelado_em) || (bd.terceirosPagos ?? []).some(x => x.recebimento_id === id);
 const cuidoDoContrato = (id: string) => bd.contratos!.some(k => k.id === id && (souAdmin() || k.responsavel_id === eu));
 function filtrarContratos(f: FiltroContratos = {}) {
   const t = termo(f.termo);
@@ -1117,7 +1119,7 @@ const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou 
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
 // ---------- caixa ----------
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
-const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos'];
+const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos', 'correcao_recebimento'];
 /** Como as regras check e o gatilho do banco. */
 function conferirLancamento(l: LancamentoGuardado) {
   l.descricao = l.descricao.trim();
@@ -2482,6 +2484,36 @@ export const SD: Dados = {
   },
   financeiroContratosDaCarteira: () => espera(bd.contratos!.filter(k => vejoContrato(k) && !k.arquivado_em)
     .map(({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }) => ({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }))),
+  financeiroRecebimentoTemPagamento(recebimentoId) {
+    const r = bd.recebimentos!.find(x => x.id === recebimentoId);
+    if (!r || !cuidoDoContrato(r.contrato_id)) return erro('Recebimento não encontrado.');
+    return espera(recebimentoTemPagamento(r.id));
+  },
+  async financeiroCorrigirRecebimento(recebimentoId, dados) {
+    // Como public.financeiro_corrigir_recebimento: só sem nada pago; estorna e registra de novo, com o motivo no registro.
+    if (!dados.motivo.trim()) return erro('Diga o motivo da correção.');
+    const r = bd.recebimentos!.find(x => x.id === recebimentoId);
+    if (!r || !cuidoDoContrato(r.contrato_id)) return erro('Só o responsável pelo contrato ou um administrador corrige o recebimento.');
+    if (r.estornado_em) return erro('Este recebimento já foi estornado.');
+    if (recebimentoTemPagamento(r.id)) return erro('Já há pagamento feito deste recebimento: ele fica como está. Lance um registro de correção.');
+    await SD.financeiroEstornar(r.id);
+    const novo = await SD.financeiroReceber({ ...dados, parcela: r.parcela_id });
+    auditar('financeiro_recebimentos', 'alteracao', { id: novo, nome: 'Correção: ' + dados.motivo.trim() }); gravar();
+    return novo;
+  },
+  financeiroLancarCorrecao({ recebimento, data, valor, conta, motivo }) {
+    if (!souAdmin()) return erro('Só um administrador lança a correção no caixa.');
+    if (!motivo.trim()) return erro('Diga o motivo da correção.');
+    const r = bd.recebimentos!.find(x => x.id === recebimento);
+    if (!r) return erro('Recebimento não encontrado.');
+    if (r.estornado_em) return erro('Este recebimento foi estornado: não há o que corrigir.');
+    if (!(valor > 0)) return erro('Informe o valor da correção.');
+    if (!bd.contasFinanceiras!.some(c => c.id === conta && !c.arquivada_em)) return erro('Conta não encontrada neste escritório.');
+    const k = acharContrato(r.contrato_id);
+    const l = { ...novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'correcao_recebimento', valor, descricao: `Correção do recebimento de ${nomesDosClientes(k.clientes)} (${k.codigo}): ${motivo.trim()}`.slice(0, 300) }), corrige_recebimento: r.id };
+    bd.lancamentos!.push(l); auditar('financeiro_lancamentos', 'inclusao', l); gravar();
+    return espera(l.id);
+  },
   financeiroRecebimentoDoLancamento(lancamentoId) {
     const r = bd.recebimentos!.find(x => (x.lancamento_id === lancamentoId || x.lancamento_taxa_id === lancamentoId) && !x.estornado_em);
     if (!r) return espera(null);

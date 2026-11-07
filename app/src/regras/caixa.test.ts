@@ -339,3 +339,16 @@ describe('Categorias do lançamento à mão', () => {
     expect(categoriasDoFormulario('divisao_lucro')).toContain('divisao_lucro');
   });
 });
+
+describe('A correção de recebimento', () => {
+  it('dado um lançamento comum, quando abre o formulário, então a correção de recebimento não aparece (ela nasce do recebimento)', () => {
+    // Então
+    expect(categoriasDoFormulario('despesa')).not.toContain('correcao_recebimento');
+    expect(nomeDaCategoria('correcao_recebimento')).toBe('Correção de recebimento');
+  });
+
+  it('dado uma correção já lançada, quando abre para mudar, então a categoria dela continua na lista', () => {
+    // Então
+    expect(categoriasDoFormulario('correcao_recebimento')).toContain('correcao_recebimento');
+  });
+});

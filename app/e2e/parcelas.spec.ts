@@ -478,3 +478,43 @@ test.describe('A entrada completa (#266)', () => {
     await expect(pagamento).toContainText('260 · Nubank');
   });
 });
+
+test.describe('Corrigir uma parcela já recebida (#267)', () => {
+  test.beforeEach(async ({ page }) => { await prepararCaixa(page); });
+
+  test('dado nada pago, quando corrige o valor, então refaz o recebimento; com o repasse pago, a correção vira um registro no caixa', async ({ page }) => {
+    // Dado
+    const cartao = await contratoComParcelas(page);
+    const form = await receberPrimeira(cartao);
+    await form.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await expect(form).toHaveCount(0);
+    // Quando: corrige, sem nada pago
+    await acaoDaParcela(page, cartao, 'Corrigir', 1);
+    const corrigir = cartao.getByRole('form', { name: 'Corrigir o recebimento da parcela 1' });
+    await corrigir.getByLabel('Valor pago').fill('900,00');
+    await corrigir.getByRole('button', { name: 'Corrigir recebimento' }).click();
+    await expect(corrigir.getByText('Diga o motivo da correção.')).toBeVisible();
+    await corrigir.getByLabel('Motivo da correção').fill('O cliente pagou R$ 900,00');
+    await corrigir.getByRole('button', { name: 'Corrigir recebimento' }).click();
+    // Então
+    await expect(corrigir).toHaveCount(0);
+    await expect(cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1)).toContainText(dinheiro('900,00'));
+    // Quando: o repasse é pago, e tenta corrigir de novo
+    await page.goto('/parcelas/');
+    await page.getByRole('button', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).click();
+    await page.getByRole('form', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');
+    const novoCartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(novoCartao, 'Honorários');
+    await acaoDaParcela(page, novoCartao, 'Corrigir', 1);
+    // Então: o original fica, e a correção é um registro novo
+    const registro = novoCartao.getByRole('form', { name: 'Registro de correção' });
+    await expect(registro).toContainText('ele fica como está');
+    await registro.getByLabel('Valor que sai do caixa').fill('100,00');
+    await registro.getByLabel('Motivo da correção').fill('Devolvido ao cliente');
+    await registro.getByRole('button', { name: 'Lançar a correção' }).click();
+    await expect(page.getByText('Correção lançada no caixa.')).toBeVisible();
+    await page.goto('/financeiro/saidas/');
+    await expect(page.getByRole('table', { name: 'Saídas', exact: true })).toContainText('Correção de recebimento');
+  });
+});

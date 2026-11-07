@@ -19,12 +19,13 @@ import { Aviso, Carregando, estiloBotao, Nota } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { useCtx } from '../../ui/sessao';
+import { CorrigirRecebimento } from './CorrigirRecebimento';
 import { FormLancamento } from './Formularios';
 import { Divisao, ParcelasDoContrato } from './Parcelas';
 
 /** O lançamento que nasce de uma parcela, de um repasse ou do lucro só muda por lá. */
 const ORIGEM: Record<NonNullable<Lancamento['origem']>, string> = {
-  recebimento: 'Este lançamento veio do recebimento de uma parcela: para mudar, estorne a parcela no contrato.',
+  recebimento: 'Este lançamento veio do recebimento de uma parcela: para mudar, use "Corrigir recebimento".',
   repasse: 'Este lançamento veio do pagamento de um repasse: para mudar, desfaça o pagamento em Despesas.',
   lucro: 'Este lançamento veio do pagamento de lucro: para mudar, desfaça o pagamento em Lucro dos sócios.'
 };
@@ -144,6 +145,7 @@ function useLigado(ler: () => Promise<Ligado>, chave: string): Ligado | string |
 /** Uma entrada ou saída do caixa: tudo o que se sabe dela e, se puder mudar, o botão de editar e o de excluir. */
 export function DetalheDoLancamento({ lancamento: l, contas, aoTerminar }: { lancamento: Lancamento; contas: ContaFinanceira[]; aoTerminar: () => void }) {
   const [editando, setEditando] = useState(false);
+  const [corrigindo, setCorrigindo] = useState(false);
   const ligado = useLigado(async () => comContrato(l.origem === 'recebimento' ? await SD.financeiroRecebimentoDoLancamento(l.id) : null), l.id);
   const conta = contas.find(c => c.id === l.conta_id)?.nome;
   const podeMudar = !l.origem;
@@ -170,7 +172,14 @@ export function DetalheDoLancamento({ lancamento: l, contas, aoTerminar }: { lan
     </>}
     <Grupo titulo="No caixa" linhas={[['Categoria', nomeDaCategoria(l.categoria)], ['Conta', conta ?? ''], ['Descrição', l.descricao]]} />
     {!!l.planilha?.length && <Grupo titulo="Da planilha de origem" linhas={l.planilha.map(([coluna, valor]) => [coluna, valor])} />}
-    {l.origem && <Nota>{ORIGEM[l.origem]}</Nota>}
+    {l.origem === 'recebimento' && ligado && typeof ligado !== 'string' && ligado.r && (() => {
+      const parcela = ligado.parcelas.find(p => p.id === ligado.r!.parcela_id);
+      if (!parcela) return null;
+      return corrigindo
+        ? <CorrigirRecebimento recebimentoId={ligado.r.id} parcela={parcela} aoTerminar={aoTerminar} aoCancelar={() => setCorrigindo(false)} />
+        : <div className="financeiro-acoes"><button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setCorrigindo(true)}><Icone nome="editar" tam={14} /> Corrigir recebimento</button></div>;
+    })()}
+    {l.origem && l.origem !== 'recebimento' && <Nota>{ORIGEM[l.origem]}</Nota>}
     {l.par_id && <Nota>Este é um repasse entre contas: só dá para excluir, e as duas pontas saem juntas.</Nota>}
     {podeMudar && <div className="financeiro-acoes">
       {!l.par_id && <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setEditando(true)}><Icone nome="editar" tam={14} /> Editar lançamento</button>}

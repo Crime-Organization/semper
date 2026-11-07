@@ -19,6 +19,7 @@ import { useCtx } from '../../ui/sessao';
 import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
 import { HistoricoDoCartao } from '../HistoricoDoCartao';
+import { CorrigirRecebimento } from './CorrigirRecebimento';
 
 /** A divisão de um recebimento: cada parte e o valor dela. */
 export function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string }) {
@@ -220,7 +221,7 @@ function RecebimentoDaParcela({ parcela, aoFechar }: { parcela: Parcela; aoFecha
   </section>;
 }
 
-type Aberto = { o: 'receber' | 'mudar' | 'ver' | 'corrigir'; parcela: Parcela } | null;
+type Aberto = { o: 'receber' | 'mudar' | 'ver' | 'corrigir' | 'corrigirRecebimento'; parcela: Parcela } | null;
 
 /** O que o menu ⋯ de cada parcela oferece, conforme ela está. Uma ação nova é uma linha nova aqui. */
 type Situacao = 'aReceber' | 'recebida' | 'importada';
@@ -233,6 +234,7 @@ const ACOES_DA_PARCELA: Record<Situacao, AcaoDaParcela[]> = {
     { rotulo: 'Excluir', icone: 'lixeira', perigo: true, fazer: async ({ p, excluir }) => { if (await confirmar(`Excluir a parcela ${p.numero}?`, 'Dá para desfazer logo depois, no aviso do pé da tela.', 'Excluir', true)) void excluir(p); } }
   ],
   recebida: [
+    { rotulo: 'Corrigir', icone: 'editar', fazer: ({ p, abrir }) => abrir({ o: 'corrigirRecebimento', parcela: p }) },
     { rotulo: 'Estornar', icone: 'voltar', perigo: true, fazer: async ({ p, estornar }) => { if (await confirmar(`Estornar o recebimento da parcela ${p.numero}?`, 'A entrada sai do caixa e a parcela volta a ficar a receber.', 'Estornar', true)) void estornar(p); } }
   ],
   importada: [
@@ -276,6 +278,7 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, tot
   };
   return <>
     {topo}
+    {aberto?.o === 'corrigirRecebimento' && <CorrigirRecebimento key={aberto.parcela.id} recebimentoId={aberto.parcela.recebimento_id!} parcela={aberto.parcela} aoTerminar={() => { setAberto(null); aoMudar(); }} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'corrigir' && <FormParcelaImportada key={aberto.parcela.id} parcela={aberto.parcela} salvar={salvarCorrecao(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'receber' && <FormReceber key={aberto.parcela.id} parcela={aberto.parcela} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormParcela key={aberto.parcela.id} rotulo={`Mudar a parcela ${aberto.parcela.numero}`} inicial={formDaParcela(aberto.parcela)} salvar={salvarMudanca(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
