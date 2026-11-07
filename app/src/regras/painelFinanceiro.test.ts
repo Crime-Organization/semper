@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Lancamento, ParcelaDoEscritorio } from '../dados/tipos';
 import {
-  FILTRO_VAZIO, entradasDoMes, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, advogadosDaEquipe, entradasDoMes, indicadoresDoAdvogado, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   planilhaDoExtrato, resumoDoAno, temFiltroLigado, totaisDaCarteira, totaisDoExtrato
 } from './painelFinanceiro';
 
@@ -185,5 +185,34 @@ describe('As entradas do mês', () => {
     const carteira = carteiraDeContratos([parcela({ contrato_id: 'a', responsavel_id: 'ana' }), parcela({ contrato_id: 'b', responsavel_id: 'bia' })], HOJE);
     // Quando / Então
     expect(filtrarCarteira(carteira, { situacao: '', busca: '', responsavel: 'bia' }).map(c => c.contratoId)).toEqual(['b']);
+  });
+});
+
+describe('Os indicadores de um advogado', () => {
+  const lista = [
+    parcela({ contrato_id: 'k1', responsavel_id: 'ana', numero: 1, vencimento: '2026-03-01', recebimento_id: 'r1', recebida_em: '2026-03-05', recebido: 50000 }),
+    parcela({ contrato_id: 'k1', responsavel_id: 'ana', numero: 2, vencimento: '2026-10-01' }),
+    parcela({ contrato_id: 'k2', responsavel_id: 'bia', numero: 1, vencimento: '2026-12-01' })
+  ];
+
+  it('quando o administrador escolhe uma advogada, então os números são só dos contratos dela', () => {
+    // Quando
+    const r = indicadoresDoAdvogado(lista, '2026-03', HOJE, 'ana');
+    // Então
+    expect(r).toEqual({ recebido: 50000, aReceber: 50000, atrasado: 50000, emAberto: 1 });
+  });
+
+  it('quando não escolhe ninguém, então os números são do escritório todo, e o período pode ser o ano', () => {
+    // Quando
+    const r = indicadoresDoAdvogado(lista, '2026', HOJE);
+    // Então
+    expect(r).toEqual({ recebido: 50000, aReceber: 100000, atrasado: 50000, emAberto: 2 });
+  });
+
+  it('quando lista quem escolher, então vêm só os advogados, em ordem de nome', () => {
+    // Quando
+    const r = advogadosDaEquipe([{ id: '1', nome: 'Zeca', funcao: 'advogado' }, { id: '2', nome: 'Ana', funcao: 'administrativo' }, { id: '3', nome: 'Bia', funcao: 'advogado' }]);
+    // Então
+    expect(r.map(m => m.nome)).toEqual(['Bia', 'Zeca']);
   });
 });

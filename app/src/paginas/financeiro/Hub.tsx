@@ -6,7 +6,7 @@ import { Link, Navigate, useLocation } from 'react-router';
 import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { diasDoMes, fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/caixa';
 import {
-  FILTRO_VAZIO, MESES_DO_ANO, SITUACOES_NA_CARTEIRA, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, MESES_DO_ANO, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
   totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
 } from '../../regras/painelFinanceiro';
 import { fmtData } from '../../regras/pessoa';
@@ -51,6 +51,8 @@ export default function Hub() {
   const hoje = hojeISO();
   const [ano, setAno] = useState(Number(hoje.slice(0, 4)));
   const [mes, setMes] = useState<string | null>(hoje.slice(0, 7));
+  // De quem são os indicadores e as listas: o escritório todo (vazio) ou um advogado. Só o administrador escolhe.
+  const [advogado, setAdvogado] = useState('');
   const [lido, setLido] = useState<Lido | null>(null);
   const [aberto, setAberto] = useState<Aberto>(null);
   const [versao, setVersao] = useState(0);
@@ -94,6 +96,10 @@ export default function Hub() {
         const m = mesDoAno(ano, i);
         return { id: m, rotulo: nome, marcado: !!atual && 'caixa' in atual && !!atual.caixa && mesesComLancamento(atual.caixa.lancamentos, ano).has(m) };
       })]} />
+    {admin && <select className="campo financeiro-quem" aria-label="De quem" value={advogado} onChange={e => setAdvogado(e.target.value)}>
+      <option value="">Escritório todo</option>
+      {advogadosDaEquipe(ctx.equipe).map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+    </select>}
   </div>;
 
   const botoes = <div className="financeiro-acoes">
@@ -108,27 +114,26 @@ export default function Hub() {
     const { parcelas, caixa } = atual;
     const doPeriodo = caixa ? filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo }) : [];
     const t = totaisDoExtrato(doPeriodo);
-    const carteira = carteiraDeContratos(parcelas, hoje);
-    const tc = totaisDaCarteira(carteira);
-    const recebidas = parcelas.filter(p => p.recebida_em?.startsWith(periodo));
+    const ind = indicadoresDoAdvogado(parcelas, periodo, hoje, advogado);
     const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
-      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
+      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
       saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
-      receitas: () => <Receitas parcelas={parcelas} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} />,
+      receitas: () => <Receitas parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} />,
       despesas: () => <Despesas periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
     };
     corpo = <>
       <Indicadores rotulo={`Totais de ${nomeDoPeriodo}`}>
-        {caixa ? <>
+        {caixa && !advogado ? <>
           <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.entradas)} />
           <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.saidas)} />
           <Indicador tom={t.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(t.resultado)} />
           <Indicador tom="destaque" rotulo="Saldo hoje nas contas" valor={fmtCentavos([...caixa.saldos.values()].reduce((s, v) => s + v, 0))}
             detalhe={<Link className="financeiro-link-escuro" to="/financeiro/contas/">{caixa.contas.filter(c => caixa.saldos.has(c.id)).map(c => `${c.nome} ${fmtCentavos(caixa.saldos.get(c.id)!)}`).join(' · ')}</Link>} />
         </> : <>
-          <Indicador tom="entrada" rotulo={`Recebido · ${nomeDoPeriodo}`} valor={fmtCentavos(totalRecebido(recebidas))} />
-          <Indicador tom="alerta" rotulo="A receber" valor={fmtCentavos(tc.falta)} />
-          <Indicador tom="destaque" rotulo="Em atraso" valor={fmtCentavos(tc.atrasado)} />
+          <Indicador tom="entrada" rotulo={`Recebido · ${nomeDoPeriodo}`} valor={fmtCentavos(ind.recebido)} />
+          <Indicador tom="alerta" rotulo="A receber" valor={fmtCentavos(ind.aReceber)} />
+          <Indicador tom="saida" rotulo="Em atraso" valor={fmtCentavos(ind.atrasado)} />
+          <Indicador tom="destaque" rotulo="Contratos em aberto" valor={ind.emAberto.toLocaleString('pt-BR')} />
         </>}
       </Indicadores>
       <div className="financeiro-abas-linha">
@@ -216,19 +221,10 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
 }
 
 /** Entradas: o caixa inteiro para o administrador; as parcelas recebidas de um usuário (ou as suas, para quem não é administrador). */
-function Entradas({ caixa, parcelas, periodo, aoMudar }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; aoMudar: (l: Lancamento) => void }) {
-  const ctx = useCtx();
-  const [usuario, setUsuario] = useState('');
-  const filtro = ctx.ehAdmin && <div className="financeiro-filtros">
-    <select className="campo" aria-label="Usuário" value={usuario} onChange={e => setUsuario(e.target.value)}>
-      <option value="">Todos os usuários (caixa)</option>
-      {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-    </select>
-  </div>;
-  if (caixa && !usuario) return <>{filtro}<ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
+function Entradas({ caixa, parcelas, periodo, usuario, aoMudar }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; aoMudar: (l: Lancamento) => void }) {
+  if (caixa && !usuario) return <><ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
   const lista = entradasDoMes(parcelas, periodo, usuario);
   return <>
-    {filtro}
     {lista.length ? <div className="tabela"><table className="carteira" aria-label="Parcelas recebidas">
       <thead><tr><th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col" className="financeiro-num">Valor</th></tr></thead>
       <tbody>{lista.map(p => <tr key={p.id}>
@@ -241,12 +237,10 @@ function Entradas({ caixa, parcelas, periodo, aoMudar }: { caixa: Caixa | null; 
 }
 
 /** Receitas: o que ainda vai entrar, contrato por contrato. Clicar no contrato abre o cartão dele, com as parcelas. */
-function Receitas({ parcelas, aoReceber }: { parcelas: ParcelaDoEscritorio[]; aoReceber: (parcela: string) => void }) {
-  const ctx = useCtx();
+function Receitas({ parcelas, usuario, aoReceber }: { parcelas: ParcelaDoEscritorio[]; usuario: string; aoReceber: (parcela: string) => void }) {
   const hoje = hojeISO();
   const [busca, setBusca] = useState('');
   const [situacao, setSituacao] = useState<SituacaoNaCarteira | ''>('');
-  const [usuario, setUsuario] = useState('');
   const [quantos, setQuantos] = useState(LINHAS_POR_VEZ);
   const carteira = carteiraDeContratos(parcelas, hoje);
   const lista = filtrarCarteira(carteira, { situacao, busca, responsavel: usuario }).filter(c => situacao || c.situacao !== 'quitado');
@@ -256,10 +250,6 @@ function Receitas({ parcelas, aoReceber }: { parcelas: ParcelaDoEscritorio[]; ao
       <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar contrato ou cliente</span>
         <input type="search" placeholder="Buscar contrato ou cliente" value={busca} onChange={e => setBusca(e.target.value)} />
       </label>
-      {ctx.ehAdmin && <select className="campo" aria-label="Usuário" value={usuario} onChange={e => setUsuario(e.target.value)}>
-        <option value="">Todos os usuários</option>
-        {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-      </select>}
       <Segmentos rotulo="Situação" atual={situacao || TODAS} aoEscolher={s => setSituacao(s === TODAS ? '' : s as SituacaoNaCarteira)}
         opcoes={[{ id: TODAS, rotulo: 'A receber' }, ...(['atrasado', 'em_dia', 'quitado'] as SituacaoNaCarteira[]).map(s => ({ id: s, rotulo: SITUACOES_NA_CARTEIRA[s].nome }))]} />
     </div>

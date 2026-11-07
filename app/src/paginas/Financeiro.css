@@ -80,3 +80,4 @@ table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }
 .recolher-corpo > .rotulo-caps, .cartao-painel .rotulo-caps + .dados { margin-top: 4px }
 .tabela-parcelas th, .tabela-parcelas td { padding: 10px 10px }
 .tabela-parcelas th:first-child, .tabela-parcelas td:first-child { padding-left: 16px }
+.financeiro-quem { width: auto; min-width: 220px; margin-left: auto }

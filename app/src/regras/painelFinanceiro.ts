@@ -1,6 +1,6 @@
 // O painel do financeiro: o ano mês a mês, o extrato com filtros, a carteira de contratos e o arquivo para planilha. Tudo puro, sem
 // tela nem banco. Valores em centavos; datas "aaaa-mm-dd"; meses "aaaa-mm".
-import type { CategoriaDeLancamento, ContaFinanceira, Lancamento, ParcelaDoEscritorio, TipoDeLancamento } from '../dados/tipos';
+import type { CategoriaDeLancamento, ContaFinanceira, Lancamento, Membro, ParcelaDoEscritorio, TipoDeLancamento } from '../dados/tipos';
 import { centavosNoCampo, ehAjuste, nomeDaCategoria } from './caixa';
 import { situacaoDaParcela } from './parcelas';
 import { fmtData } from './pessoa';
@@ -128,3 +128,15 @@ export function entradasDoMes(parcelas: ParcelaDoEscritorio[], mes: string, resp
     .toSorted((a, b) => b.recebida_em!.localeCompare(a.recebida_em!) || a.contrato_codigo.localeCompare(b.contrato_codigo) || a.numero - b.numero);
 }
 export const totalRecebido = (parcelas: ParcelaDoEscritorio[]) => parcelas.reduce((s, p) => s + (p.recebido ?? p.valor), 0);
+
+// ---------- os indicadores de um advogado ----------
+/** Os indicadores de quem é responsável pelos contratos: o que recebeu no período, o que falta receber, o atraso e os contratos ainda em
+ *  aberto. Sem responsável, são os do escritório todo (as parcelas que quem está logado pode ver). */
+export function indicadoresDoAdvogado(parcelas: ParcelaDoEscritorio[], periodo: string, hoje: string, responsavel = '') {
+  const doAdvogado = responsavel ? parcelas.filter(p => p.responsavel_id === responsavel) : parcelas;
+  const carteira = carteiraDeContratos(doAdvogado, hoje);
+  const t = totaisDaCarteira(carteira);
+  return { recebido: totalRecebido(entradasDoMes(doAdvogado, periodo)), aReceber: t.falta, atrasado: t.atrasado, emAberto: carteira.filter(c => c.situacao !== 'quitado').length };
+}
+/** Os advogados da equipe, em ordem de nome: é entre eles que o administrador escolhe de quem ver os indicadores. */
+export const advogadosDaEquipe = (equipe: Membro[]) => equipe.filter(m => m.funcao === 'advogado').toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
