@@ -22,10 +22,7 @@ const NovoContrato = lazy(() => import('./paginas/NovoContrato'));
 const Demandas = lazy(() => import('./paginas/Demandas'));
 const Processos = lazy(() => import('./paginas/Processos'));
 const Financeiro = lazy(() => import('./paginas/Financeiro'));
-const PainelFinanceiro = lazy(() => import('./paginas/financeiro/Painel'));
-const EntradasDoFinanceiro = lazy(() => import('./paginas/financeiro/Entradas'));
-const SaidasDoFinanceiro = lazy(() => import('./paginas/financeiro/Saidas'));
-const CarteiraDeContratos = lazy(() => import('./paginas/financeiro/Carteira'));
+const HubDoFinanceiro = lazy(() => import('./paginas/financeiro/Hub'));
 const PainelProcessos = lazy(() => import('./paginas/PainelProcessos'));
 const NovoProcesso = lazy(() => import('./paginas/NovoProcesso'));
 const Compromissos = lazy(() => import('./paginas/Compromissos'));
@@ -132,11 +129,11 @@ function Rotas() {
           <Route path="processos/judicial" element={<Processos key="judicial" tipo="judicial" />} />
           <Route path="processos/administrativo" element={<Processos key="administrativo" tipo="administrativo" />} />
           <Route path="agenda" element={<Compromissos />} />
-          <Route path="financeiro" element={<Financeiro />} />
-          <Route path="financeiro/painel" element={<PainelFinanceiro />} />
-          <Route path="financeiro/entradas" element={<EntradasDoFinanceiro />} />
-          <Route path="financeiro/saidas" element={<SaidasDoFinanceiro />} />
-          <Route path="financeiro/contratos" element={<CarteiraDeContratos />} />
+          <Route path="financeiro" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/saidas" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/receitas" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/despesas" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/contas" element={<Financeiro />} />
           <Route path="parcelas" element={<Parcelas />} />
           <Route path="meus-valores" element={<MeusValores />} />
           <Route path="conferencia" element={<Conferencia />} />

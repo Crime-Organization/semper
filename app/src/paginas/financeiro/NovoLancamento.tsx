@@ -1,92 +1,23 @@
-// Entradas: registrar o que o cliente pagou e ver as entradas do mês. Cada usuário vê só as dos contratos de que é responsável (o banco
-// filtra); o administrador vê todas e escolhe de quem ver. Uma entrada sem contrato vai para o caixa, e só o administrador lança.
+// Os formulários de lançar, abertos na janela flutuante do Financeiro: a entrada de uma parcela de contrato e o lançamento direto no caixa
+// (a entrada sem contrato e a saída). Só o formulário: a janela, o título e o fechar ficam com quem abre.
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router';
 import { SD, type ContaFinanceira, type ParaReceber, type ParcelaDoEscritorio } from '../../dados';
-import { dadosDoLancamento, errosDoLancamento, fmtCentavos, mesDe, mesValido, nomeDaCategoria, type FormDoLancamento } from '../../regras/caixa';
-import { carteiraDeContratos, entradasDoMes, totalRecebido } from '../../regras/painelFinanceiro';
+import { dadosDoLancamento, errosDoLancamento, fmtCentavos, nomeDaCategoria, type FormDoLancamento } from '../../regras/caixa';
+import { carteiraDeContratos } from '../../regras/painelFinanceiro';
 import { dadosDoRecebimento, errosDoFormDeRecebimento, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo, TituloSecao, Vazio } from '../../ui/base';
-import { PaginaModulo } from '../../ui/PaginaModulo';
-import { useCtx } from '../../ui/sessao';
-import { hojeISO, useTitulo } from '../../ui/util';
-import { AbasDoFinanceiro } from './AbasDoFinanceiro';
-import { TODAS_AS_DATAS } from './Carteira';
-import '../Financeiro.css';
-
-type Origem = 'parcela' | 'avulsa';
-
-export default function Entradas() {
-  useTitulo('Entradas');
-  const ctx = useCtx();
-  const hoje = hojeISO();
-  const [parcelas, setParcelas] = useState<ParcelaDoEscritorio[] | string | null>(null);
-  const [mes, setMes] = useState(mesDe(hoje));
-  const [responsavel, setResponsavel] = useState('');
-  const [versao, setVersao] = useState(0);
-  const pode = !!ctx.escritorio?.modulos?.financeiro;
-
-  useEffect(() => {
-    if (!pode) return;
-    let vivo = true;
-    SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje)
-      .then(x => { if (vivo) setParcelas(x); }).catch(e => { if (vivo) setParcelas((e as Error).message); });
-    return () => { vivo = false; };
-  }, [pode, hoje, versao]);
-
-  const cabecalho = { titulo: 'Entradas', visoes: [] };
-  if (!pode) return <PaginaModulo {...cabecalho}><Aviso tipo="info">O financeiro não está ligado para este escritório.</Aviso></PaginaModulo>;
-  if (parcelas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
-  if (typeof parcelas === 'string') return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{parcelas}</Aviso></PaginaModulo>;
-
-  const lista = entradasDoMes(parcelas, mes, responsavel);
-  const nomeDe = new Map(ctx.equipe.map(m => [m.id, m.nome]));
-  return <PaginaModulo {...cabecalho}>
-    <AbasDoFinanceiro />
-    <NovaEntrada parcelas={parcelas} aoRegistrar={() => setVersao(v => v + 1)} />
-
-    <section className="painel-secao" aria-labelledby="tEntradas">
-      <TituloSecao id="tEntradas">Entradas do mês</TituloSecao>
-      <div className="financeiro-filtros">
-        <label className="financeiro-filtro">Mês
-          <input type="month" className="campo" value={mes} onChange={e => { if (mesValido(e.target.value)) setMes(e.target.value); }} />
-        </label>
-        {ctx.ehAdmin && <label className="financeiro-filtro">Usuário
-          <select className="campo" value={responsavel} onChange={e => setResponsavel(e.target.value)}>
-            <option value="">Todos</option>
-            {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-          </select>
-        </label>}
-      </div>
-      {lista.length ? <div className="tabela"><table className="carteira" aria-label="Entradas do mês">
-        <thead><tr>
-          <th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th>
-          {ctx.ehAdmin && <th scope="col">Usuário</th>}<th scope="col" className="financeiro-num">Valor</th>
-        </tr></thead>
-        <tbody>{lista.map(p => <tr key={p.id}>
-          <td>{fmtData(p.recebida_em!)}</td><td>{p.contrato_codigo}</td><td className="nome">{p.cliente_nome}</td><td className="num">{p.numero}ª</td>
-          {ctx.ehAdmin && <td>{nomeDe.get(p.responsavel_id ?? '') ?? '–'}</td>}
-          <td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
-        </tr>)}</tbody>
-        <tfoot><tr><th scope="row" colSpan={ctx.ehAdmin ? 5 : 4}>Total</th><td className="financeiro-num"><b>{fmtCentavos(totalRecebido(lista))}</b></td></tr></tfoot>
-      </table></div> : <Vazio>Nenhuma entrada neste mês.</Vazio>}
-    </section>
-  </PaginaModulo>;
-}
+import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo, Vazio } from '../../ui/base';
+import { hojeISO } from '../../ui/util';
 
 type Preparo = { chave: string; prep: ParaReceber } | { chave: string; erro: string };
 
-/** O formulário: o contrato, a parcela, a data, o valor e a conta. O administrador também lança entrada sem contrato. */
-function NovaEntrada({ parcelas, aoRegistrar }: { parcelas: ParcelaDoEscritorio[]; aoRegistrar: () => void }) {
-  const { ehAdmin } = useCtx();
+/** A entrada de uma parcela: o contrato, a parcela, a data, o valor e a conta. */
+export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcelas: ParcelaDoEscritorio[]; parcelaInicial?: string; aoRegistrar: () => void }) {
   const id = useId();
   const hoje = hojeISO();
-  const [params] = useSearchParams();
-  const [origem, setOrigem] = useState<Origem>('parcela');
   const abertas = parcelas.filter(p => situacaoDaParcela(p, hoje) !== 'recebida');
-  const inicial = abertas.find(p => p.id === params.get('parcela'));
+  const inicial = abertas.find(p => p.id === parcelaInicial);
   const [contrato, setContrato] = useState(inicial ? `${inicial.contrato_codigo} · ${inicial.cliente_nome}` : '');
   const [parcelaId, setParcelaId] = useState(inicial?.id ?? '');
   const [f, setF] = useState<FormDoRecebimento>({ data: hoje, valor: '', contaId: '', taxa: '' });
@@ -113,8 +44,6 @@ function NovaEntrada({ parcelas, aoRegistrar }: { parcelas: ParcelaDoEscritorio[
     return () => { vivo = false; };
   }, [parcela, f.data, dataBoa]);
 
-  if (origem === 'avulsa') return <EntradaSemContrato aoVoltar={() => setOrigem('parcela')} />;
-
   const atual = lido?.chave === chave ? lido : null;
   const prep = atual && 'prep' in atual ? atual.prep : null;
   const sugerido = parcela && prep ? recebimentoNovo(parcela, f.data, prep.contas) : null;
@@ -140,11 +69,7 @@ function NovaEntrada({ parcelas, aoRegistrar }: { parcelas: ParcelaDoEscritorio[
     setOcupado(false);
   }
 
-  return <form className="cartao financeiro-form" noValidate aria-label="Nova entrada" onSubmit={enviar}>
-    <div className="secao-topo">
-      <TituloSecao>Nova entrada</TituloSecao>
-      {ehAdmin && <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => setOrigem('avulsa')}>Entrada sem contrato</button>}
-    </div>
+  return <form className="financeiro-form" noValidate aria-label="Nova entrada" onSubmit={enviar}>
     <div className="financeiro-form-linha">
       <Campo rotulo="Contrato" para={id + 'contrato'}>
         <input type="text" list={id + 'contratos'} placeholder="Código ou cliente" autoComplete="off" {...propsDoCampo(id + 'contrato')} value={contrato}
@@ -180,15 +105,8 @@ function NovaEntrada({ parcelas, aoRegistrar }: { parcelas: ParcelaDoEscritorio[
   </form>;
 }
 
-/** Dinheiro que entra sem ser parcela: vai direto para o caixa. */
-function EntradaSemContrato({ aoVoltar }: { aoVoltar: () => void }) {
-  return <FormDoCaixa tipo="entrada" titulo="Entrada sem contrato" rotulo="Registrar entrada" voltar={{ texto: 'Entrada de contrato', aoClicar: aoVoltar }} />;
-}
-
 /** O formulário do caixa, para a entrada sem contrato e para a saída. */
-export function FormDoCaixa({ tipo, titulo, rotulo, voltar, aoRegistrar }: {
-  tipo: 'entrada' | 'saida'; titulo: string; rotulo: string; voltar?: { texto: string; aoClicar: () => void }; aoRegistrar?: () => void
-}) {
+export function FormDoCaixa({ tipo, titulo, rotulo, aoRegistrar }: { tipo: 'entrada' | 'saida'; titulo: string; rotulo: string; aoRegistrar?: () => void }) {
   const id = useId();
   const hoje = hojeISO();
   const categorias = tipo === 'entrada' ? (['outra_entrada'] as const) : (['despesa', 'das', 'repasse', 'indicacao'] as const);
@@ -225,11 +143,7 @@ export function FormDoCaixa({ tipo, titulo, rotulo, voltar, aoRegistrar }: {
     setOcupado(false);
   }
 
-  return <form className="cartao financeiro-form" noValidate aria-label={titulo} onSubmit={enviar}>
-    <div className="secao-topo">
-      <TituloSecao>{titulo}</TituloSecao>
-      {voltar && <button type="button" className={estiloBotao({ forma: 'link' })} onClick={voltar.aoClicar}>{voltar.texto}</button>}
-    </div>
+  return <form className="financeiro-form" noValidate aria-label={titulo} onSubmit={enviar}>
     <div className="financeiro-form-linha">
       <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}>
         <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />

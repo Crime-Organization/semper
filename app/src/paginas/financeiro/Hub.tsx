@@ -1,0 +1,311 @@
+// O Financeiro numa página só: o período e os totais no alto e quatro abas. Entradas e Saídas são o que já entrou e saiu das contas;
+// Receitas e Despesas, o que ainda vai entrar e sair. Lançar e mudar um lançamento abrem na janela flutuante, como o cadastro dos módulos.
+// Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas.
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link, Navigate, useLocation } from 'react-router';
+import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { diasDoMes, fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/caixa';
+import {
+  FILTRO_VAZIO, MESES_DO_ANO, SITUACOES_NA_CARTEIRA, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
+  totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
+} from '../../regras/painelFinanceiro';
+import { fmtData } from '../../regras/pessoa';
+import { somarDias } from '../../regras/prazos';
+import { falha, feito, useMudancas } from '../../ui/avisos';
+import { Aviso, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
+import { BotaoDuplo } from '../../ui/Botoes';
+import { Icone } from '../../ui/Icone';
+import { PaginaModulo } from '../../ui/PaginaModulo';
+import { PainelCartao } from '../../ui/PainelCartao';
+import { useCtx } from '../../ui/sessao';
+import { hojeISO, useTitulo } from '../../ui/util';
+import { Repasses } from '../Parcelas';
+import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
+import { ValoresAPassar } from './APassar';
+import { FormLancamento } from './Formularios';
+import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
+import '../Financeiro.css';
+
+/** As parcelas de todos os tempos: a carteira olha o contrato inteiro, não só um mês. */
+const TODAS_AS_DATAS = { de: '2000-01-01', ate: '2200-12-31' };
+/** Quantas linhas cada lista mostra de cada vez: o ano inteiro pode ter milhares. */
+const LINHAS_POR_VEZ = 100;
+const ANO_TODO = 'ano';
+const TODAS = 'todas';
+/** O lançamento que nasce de uma parcela, de um repasse ou do lucro só muda por lá. */
+const ORIGEM: Record<NonNullable<Lancamento['origem']>, string> = {
+  recebimento: 'Este lançamento veio do recebimento de uma parcela: para mudar, estorne a parcela no contrato.',
+  repasse: 'Este lançamento veio do pagamento de um repasse: para mudar, desfaça o pagamento em Despesas.',
+  lucro: 'Este lançamento veio do pagamento de lucro: para mudar, desfaça o pagamento em Lucro dos sócios.'
+};
+
+type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento } | null;
+type Caixa = { contas: ContaFinanceira[]; lancamentos: Lancamento[]; saldos: Map<string, number> };
+type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; caixa: Caixa | null } | { ano: number; erro: string };
+
+export default function Hub() {
+  useTitulo('Financeiro');
+  const ctx = useCtx();
+  const aba = abaDoCaminho(useLocation().pathname);
+  const admin = ctx.ehAdmin;
+  const hoje = hojeISO();
+  const [ano, setAno] = useState(Number(hoje.slice(0, 4)));
+  const [mes, setMes] = useState<string | null>(hoje.slice(0, 7));
+  const [lido, setLido] = useState<Lido | null>(null);
+  const [aberto, setAberto] = useState<Aberto>(null);
+  const [versao, setVersao] = useState(0);
+  const recarregar = () => setVersao(v => v + 1);
+  const pode = !!ctx.escritorio?.modulos?.financeiro;
+
+  useEffect(() => {
+    if (!pode) return;
+    let vivo = true;
+    (async () => {
+      const parcelas = SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje);
+      if (!admin) return { ano, parcelas: await parcelas, caixa: null };
+      const contas = await SD.financeiroContas();
+      const [listas, saldos] = await Promise.all([
+        Promise.all(contas.map(c => SD.financeiroLancamentos(c.id, `${ano}-01-01`, `${ano}-12-31`))),
+        Promise.all(contas.filter(c => !c.arquivada_em).map(async c => [c.id, await SD.financeiroSaldoAntes(c.id, somarDias(hoje, 1))] as const))
+      ]);
+      return { ano, parcelas: await parcelas, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
+    })().then(x => { if (vivo) setLido(x); }).catch(e => { if (vivo) setLido({ ano, erro: (e as Error).message }); });
+    return () => { vivo = false; };
+  }, [ano, admin, pode, hoje, versao]);
+  useMudancas(recarregar);
+
+  if (!pode) return <Navigate to="/inicio/" replace />;
+  if (aba === 'saidas' && !admin) return <Navigate to="/financeiro/" replace />;
+  const cabecalho = { titulo: 'Financeiro', visoes: [] };
+  const atual = lido?.ano === ano ? lido : null;
+  const fechar = () => setAberto(null);
+  const registrou = () => { recarregar(); };
+  const periodo = mes ?? String(ano);
+  const nomeDoPeriodo = mes ? `${MESES_DO_ANO[Number(mes.slice(5)) - 1]}/${ano}` : String(ano);
+
+  const barra = <div className="painel-barra">
+    <div className="painel-ano" role="group" aria-label="Ano">
+      <button type="button" className="icone-btn" aria-label="Ano anterior" onClick={() => { setAno(ano - 1); setMes(null); }}><Icone nome="voltar" tam={16} /></button>
+      <b className="num">{ano}</b>
+      <button type="button" className="icone-btn" aria-label="Próximo ano" onClick={() => { setAno(ano + 1); setMes(null); }}><Icone nome="seta" tam={16} /></button>
+    </div>
+    <Segmentos rotulo="Mês" atual={mes ?? ANO_TODO} aoEscolher={m => setMes(m === ANO_TODO ? null : m)}
+      opcoes={[{ id: ANO_TODO, rotulo: 'Ano todo' }, ...MESES_DO_ANO.map((nome, i) => {
+        const m = mesDoAno(ano, i);
+        return { id: m, rotulo: nome, marcado: !!atual && 'caixa' in atual && !!atual.caixa && mesesComLancamento(atual.caixa.lancamentos, ano).has(m) };
+      })]} />
+  </div>;
+
+  const botoes = <div className="financeiro-acoes">
+    <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setAberto({ o: 'entrada' })}><Icone nome="mais" tam={15} /> Nova entrada</button>
+    {admin && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'saida' })}><Icone nome="mais" tam={15} /> Nova saída</button>}
+  </div>;
+
+  let corpo;
+  if (!atual) corpo = <Carregando />;
+  else if ('erro' in atual) corpo = <Aviso tipo="erro">{atual.erro}</Aviso>;
+  else {
+    const { parcelas, caixa } = atual;
+    const doPeriodo = caixa ? filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo }) : [];
+    const t = totaisDoExtrato(doPeriodo);
+    const carteira = carteiraDeContratos(parcelas, hoje);
+    const tc = totaisDaCarteira(carteira);
+    const recebidas = parcelas.filter(p => p.recebida_em?.startsWith(periodo));
+    const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
+      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
+      saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
+      receitas: () => <Receitas parcelas={parcelas} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} />,
+      despesas: () => <Despesas periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
+    };
+    corpo = <>
+      <Indicadores rotulo={`Totais de ${nomeDoPeriodo}`}>
+        {caixa ? <>
+          <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.entradas)} />
+          <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.saidas)} />
+          <Indicador tom={t.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(t.resultado)} />
+          <Indicador tom="destaque" rotulo="Saldo hoje nas contas" valor={fmtCentavos([...caixa.saldos.values()].reduce((s, v) => s + v, 0))}
+            detalhe={<Link className="financeiro-link-escuro" to="/financeiro/contas/">{caixa.contas.filter(c => caixa.saldos.has(c.id)).map(c => `${c.nome} ${fmtCentavos(caixa.saldos.get(c.id)!)}`).join(' · ')}</Link>} />
+        </> : <>
+          <Indicador tom="entrada" rotulo={`Recebido · ${nomeDoPeriodo}`} valor={fmtCentavos(totalRecebido(recebidas))} />
+          <Indicador tom="alerta" rotulo="A receber" valor={fmtCentavos(tc.falta)} />
+          <Indicador tom="destaque" rotulo="Em atraso" valor={fmtCentavos(tc.atrasado)} />
+        </>}
+      </Indicadores>
+      <div className="financeiro-abas-linha">
+        <AbasDoFinanceiro />
+        {botoes}
+      </div>
+      {conteudo[aba]()}
+    </>;
+  }
+
+  return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo}>
+    {barra}
+    {corpo}
+    {aberto && <PainelCartao aoFechar={fechar} soNoCentro rotulo={TITULOS[aberto.o]}>
+      <header className="cartao-cabeca"><h2>{TITULOS[aberto.o]}</h2></header>
+      {aberto.o === 'entrada' && atual && 'parcelas' in atual && <>
+        <NovaEntrada parcelas={atual.parcelas} parcelaInicial={aberto.parcela} aoRegistrar={registrou} />
+        {admin && <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => setAberto({ o: 'avulsa' })}>Entrada sem contrato</button>}
+      </>}
+      {aberto.o === 'avulsa' && <FormDoCaixa tipo="entrada" titulo="Entrada sem contrato" rotulo="Registrar entrada" aoRegistrar={registrou} />}
+      {aberto.o === 'saida' && <FormDoCaixa tipo="saida" titulo="Nova saída" rotulo="Registrar saída" aoRegistrar={registrou} />}
+      {aberto.o === 'mudar' && atual && 'caixa' in atual && atual.caixa && <MudarLancamento lancamento={aberto.lancamento} contas={atual.caixa.contas} aoTerminar={() => { fechar(); recarregar(); }} />}
+    </PainelCartao>}
+  </PaginaModulo>;
+}
+
+const TITULOS: Record<NonNullable<Aberto>['o'], string> = { entrada: 'Nova entrada', avulsa: 'Entrada sem contrato', saida: 'Nova saída', mudar: 'Lançamento' };
+
+/** Mudar ou excluir um lançamento do caixa, na janela flutuante. */
+function MudarLancamento({ lancamento: l, contas, aoTerminar }: { lancamento: Lancamento; contas: ContaFinanceira[]; aoTerminar: () => void }) {
+  if (l.origem) return <><Nota>{ORIGEM[l.origem]}</Nota><Resumo l={l} contas={contas} /></>;
+  async function excluir() {
+    try {
+      await SD.financeiroLancamentoExcluir(l.id);
+      feito('Lançamento excluído.', 'exclusão do lançamento', async () => { await SD.financeiroLancamentoRestaurar(l.id); });
+      aoTerminar();
+    } catch (e) { falha(e); }
+  }
+  return <>
+    {l.par_id ? <Nota>Este é um repasse entre contas: só dá para excluir, e as duas pontas saem juntas.</Nota>
+      : <FormLancamento alvo={l} inicial={formDoLancamento(l)} contas={contas.filter(c => !c.arquivada_em || c.id === l.conta_id)} aoTerminar={aoTerminar} aoCancelar={aoTerminar} />}
+    <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={excluir}><Icone nome="lixeira" tam={14} /> Excluir lançamento</BotaoDuplo>
+  </>;
+}
+function Resumo({ l, contas }: { l: Lancamento; contas: ContaFinanceira[] }) {
+  return <dl className="financeiro-divisao">
+    <div><dt>Data</dt><dd>{fmtData(l.data)}</dd></div>
+    <div><dt>Conta</dt><dd>{contas.find(c => c.id === l.conta_id)?.nome}</dd></div>
+    <div><dt>Descrição</dt><dd>{l.descricao}</dd></div>
+    <div><dt>Valor</dt><dd>{fmtCentavos(l.valor)}</dd></div>
+  </dl>;
+}
+
+/** O extrato do caixa de um tipo no período. Clicar numa linha abre o lançamento. */
+function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: 'entrada' | 'saida'; periodo: string; aoMudar: (l: Lancamento) => void }) {
+  const [busca, setBusca] = useState('');
+  const [quantas, setQuantas] = useState(LINHAS_POR_VEZ);
+  const lista = filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo, tipo, busca }).filter(contaNoResultado);
+  const nomeDaConta = new Map(caixa.contas.map(c => [c.id, c.nome]));
+  const rotulo = tipo === 'entrada' ? 'Entradas' : 'Saídas';
+  return <section className="painel-secao" aria-label={rotulo}>
+    <div className="financeiro-filtros">
+      <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar</span>
+        <input type="search" placeholder="Buscar descrição" value={busca} onChange={e => { setBusca(e.target.value); setQuantas(LINHAS_POR_VEZ); }} />
+      </label>
+    </div>
+    {lista.length ? <>
+      <div className="tabela"><table className="extrato" aria-label={rotulo}>
+        <thead><tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Categoria</th>{caixa.contas.length > 1 && <th scope="col">Conta</th>}<th scope="col" className="financeiro-num">Valor</th></tr></thead>
+        <tbody>{lista.slice(0, quantas).map(l => <tr key={l.id} className="clicavel" onClick={() => aoMudar(l)}>
+          <td>{fmtData(l.data)}</td>
+          <td><button type="button" className="financeiro-abrir" onClick={e => { e.stopPropagation(); aoMudar(l); }}>{l.descricao}</button></td>
+          <td><span className="sub">{nomeDaCategoria(l.categoria)}</span></td>
+          {caixa.contas.length > 1 && <td>{nomeDaConta.get(l.conta_id)}</td>}
+          <td className={'financeiro-num ' + (tipo === 'entrada' ? 'tom-entrada' : 'tom-saida')}>{fmtCentavos(l.valor)}</td>
+        </tr>)}</tbody>
+        <tfoot><tr><th scope="row" colSpan={caixa.contas.length > 1 ? 4 : 3}>Total</th>
+          <td className="financeiro-num"><b>{fmtCentavos(lista.reduce((s, l) => s + l.valor, 0))}</b></td></tr></tfoot>
+      </table></div>
+      {lista.length > quantas && <button type="button" className={estiloBotao()} onClick={() => setQuantas(q => q + LINHAS_POR_VEZ)}>Mostrar mais</button>}
+    </> : <Vazio>Nenhuma {tipo === 'entrada' ? 'entrada' : 'saída'} neste período.</Vazio>}
+  </section>;
+}
+
+/** Entradas: o caixa inteiro para o administrador; as parcelas recebidas de um usuário (ou as suas, para quem não é administrador). */
+function Entradas({ caixa, parcelas, periodo, aoMudar }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; aoMudar: (l: Lancamento) => void }) {
+  const ctx = useCtx();
+  const [usuario, setUsuario] = useState('');
+  const filtro = ctx.ehAdmin && <div className="financeiro-filtros">
+    <select className="campo" aria-label="Usuário" value={usuario} onChange={e => setUsuario(e.target.value)}>
+      <option value="">Todos os usuários (caixa)</option>
+      {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+    </select>
+  </div>;
+  if (caixa && !usuario) return <>{filtro}<ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
+  const lista = entradasDoMes(parcelas, periodo, usuario);
+  return <>
+    {filtro}
+    {lista.length ? <div className="tabela"><table className="carteira" aria-label="Parcelas recebidas">
+      <thead><tr><th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col" className="financeiro-num">Valor</th></tr></thead>
+      <tbody>{lista.map(p => <tr key={p.id}>
+        <td>{fmtData(p.recebida_em!)}</td><td><Link to={'/contratos/?id=' + p.contrato_id}>{p.contrato_codigo}</Link></td><td className="nome">{p.cliente_nome}</td>
+        <td className="num">{p.numero}ª</td><td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
+      </tr>)}</tbody>
+      <tfoot><tr><th scope="row" colSpan={4}>Total</th><td className="financeiro-num"><b>{fmtCentavos(totalRecebido(lista))}</b></td></tr></tfoot>
+    </table></div> : <Vazio>Nenhuma parcela recebida neste período.</Vazio>}
+  </>;
+}
+
+/** Receitas: o que ainda vai entrar, contrato por contrato. Clicar no contrato abre o cartão dele, com as parcelas. */
+function Receitas({ parcelas, aoReceber }: { parcelas: ParcelaDoEscritorio[]; aoReceber: (parcela: string) => void }) {
+  const ctx = useCtx();
+  const hoje = hojeISO();
+  const [busca, setBusca] = useState('');
+  const [situacao, setSituacao] = useState<SituacaoNaCarteira | ''>('');
+  const [usuario, setUsuario] = useState('');
+  const [quantos, setQuantos] = useState(LINHAS_POR_VEZ);
+  const carteira = carteiraDeContratos(parcelas, hoje);
+  const lista = filtrarCarteira(carteira, { situacao, busca, responsavel: usuario }).filter(c => situacao || c.situacao !== 'quitado');
+  const t = totaisDaCarteira(lista);
+  return <section className="painel-secao" aria-label="Receitas">
+    <div className="financeiro-filtros">
+      <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar contrato ou cliente</span>
+        <input type="search" placeholder="Buscar contrato ou cliente" value={busca} onChange={e => setBusca(e.target.value)} />
+      </label>
+      {ctx.ehAdmin && <select className="campo" aria-label="Usuário" value={usuario} onChange={e => setUsuario(e.target.value)}>
+        <option value="">Todos os usuários</option>
+        {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+      </select>}
+      <Segmentos rotulo="Situação" atual={situacao || TODAS} aoEscolher={s => setSituacao(s === TODAS ? '' : s as SituacaoNaCarteira)}
+        opcoes={[{ id: TODAS, rotulo: 'A receber' }, ...(['atrasado', 'em_dia', 'quitado'] as SituacaoNaCarteira[]).map(s => ({ id: s, rotulo: SITUACOES_NA_CARTEIRA[s].nome }))]} />
+    </div>
+    {lista.length ? <>
+      <div className="tabela"><table className="carteira" aria-label="Receitas">
+        <thead><tr><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Próxima</th><th scope="col" className="financeiro-num">Falta</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
+        <tbody>{lista.slice(0, quantos).map(c => <tr key={c.contratoId}>
+          <td><Link to={'/contratos/?id=' + c.contratoId}>{c.codigo}</Link></td>
+          <td className="nome">{c.cliente}</td>
+          <td>{c.proxima ? <>{fmtData(c.proxima.vencimento)}<span className="sub"> · {fmtCentavos(c.proxima.valor)}</span></> : '–'}</td>
+          <td className="financeiro-num"><b>{c.falta ? fmtCentavos(c.falta) : '–'}</b></td>
+          <td><Selo tipo={SITUACOES_NA_CARTEIRA[c.situacao].selo}>{SITUACOES_NA_CARTEIRA[c.situacao].nome}</Selo></td>
+          <td>{c.proxima && <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${c.proxima.numero} de ${c.codigo}`}
+            onClick={() => aoReceber(c.proxima!.id)}>Receber</button>}</td>
+        </tr>)}</tbody>
+        <tfoot><tr><th scope="row" colSpan={3}>Total a receber</th><td className="financeiro-num"><b>{fmtCentavos(t.falta)}</b></td><td colSpan={2} /></tr></tfoot>
+      </table></div>
+      {lista.length > quantos && <button type="button" className={estiloBotao()} onClick={() => setQuantos(q => q + LINHAS_POR_VEZ)}>Mostrar mais</button>}
+    </> : <Vazio>Nenhum contrato com esses filtros.</Vazio>}
+    <Nota>Também em Receitas: <Link to="/meus-valores/">Meus valores</Link> · <Link to="/conferencia/">Conferência da importação</Link></Nota>
+  </section>;
+}
+
+type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[] } | { chave: string; erro: string };
+
+/** Despesas: o que ainda vai sair. Os repasses que o escritório paga e o que o responsável passa a participantes e indicadores. */
+function Despesas({ periodo, contas, versao, aoMudar }: { periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void }) {
+  const ctx = useCtx();
+  const hoje = hojeISO();
+  const [lido, setLido] = useState<Pagar | null>(null);
+  const { de, ate } = periodo.length === 4 ? { de: `${periodo}-01-01`, ate: `${periodo}-12-31` } : diasDoMes(periodo);
+  const chave = de + '/' + versao;
+  useEffect(() => {
+    let vivo = true;
+    const esta = de + '/' + versao;
+    Promise.all([SD.financeiroRepasses(de, ate), SD.financeiroAPassar(de, ate)])
+      .then(([repasses, aPassar]) => { if (vivo) setLido({ chave: esta, repasses, aPassar }); })
+      .catch(e => { if (vivo) setLido({ chave: esta, erro: (e as Error).message }); });
+    return () => { vivo = false; };
+  }, [de, ate, versao]);
+  const atual = lido?.chave === chave ? lido : null;
+  if (!atual) return <Carregando />;
+  if ('erro' in atual) return <Aviso tipo="erro">{atual.erro}</Aviso>;
+  return <section className="painel-secao" aria-label="Despesas">
+    <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
+    <Repasses lista={atual.repasses} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
+    <TituloSecao>A passar a participantes e indicadores</TituloSecao>
+    <ValoresAPassar lista={atual.aPassar} hoje={hoje} aoMudar={aoMudar} />
+    {ctx.ehAdmin && <Nota>Também em Despesas: <Link to="/lucros/">Lucro dos sócios</Link></Nota>}
+  </section>;
+}

@@ -59,7 +59,7 @@ function FormPagar({ repasse, contas, hoje, aoTerminar, aoCancelar }: { repasse:
   </form>;
 }
 
-function Repasses({ lista, admin, contas, hoje, aoMudar }: { lista: Repasse[]; admin: boolean; contas: ContaFinanceira[]; hoje: string; aoMudar: () => void }) {
+export function Repasses({ lista, admin, contas, hoje, aoMudar }: { lista: Repasse[]; admin: boolean; contas: ContaFinanceira[]; hoje: string; aoMudar: () => void }) {
   const [pagando, setPagando] = useState<Repasse | null>(null);
   const terminou = () => { setPagando(null); aoMudar(); };
   async function desfazer(r: Repasse) {
