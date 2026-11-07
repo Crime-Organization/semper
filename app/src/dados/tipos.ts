@@ -1170,6 +1170,8 @@ export interface Parcela {
   id: string; contrato_id: string; numero: number; vencimento: string; valor: number;
   recebimento_id: string | null; recebida_em: string | null; recebido: number | null;
 }
+/** O contrato nos gráficos do Financeiro: o valor contratado e por onde separar (categoria, responsável, ano de assinatura). */
+export type ContratoDaCarteira = Pick<Contrato, 'id' | 'codigo' | 'categoria' | 'responsavel_id' | 'assinado_em' | 'valor' | 'descontos'>;
 /** total_parcelas: quantas parcelas o contrato tem (o "10" de "1/10"); null se o contrato não diz. */
 export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null; total_parcelas: number | null }
 /** papel: em que papel a pessoa entrou quando o cliente pagou. Os recebimentos gravados antes deste campo não o têm. */
@@ -1311,6 +1313,8 @@ export interface DadosParcelas {
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
   /** O recebimento (não estornado) que gerou um lançamento do caixa, para mostrar o contrato, a parcela e a divisão. */
   financeiroRecebimentoDoLancamento(lancamentoId: string): Promise<RecebimentoGravado | null>;
+  /** Os contratos que o usuário vê (não arquivados), com o que importa para os gráficos: categoria, responsável, ano e valor. */
+  financeiroContratosDaCarteira(): Promise<ContratoDaCarteira[]>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
   /** As linhas de um ano. Quem não é administrador recebe só as dele, seja qual for o responsável pedido. */

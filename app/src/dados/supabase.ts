@@ -12,7 +12,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { Lancamento, LinhaDaConferencia, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContratoDaCarteira, Lancamento, LinhaDaConferencia, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
@@ -1028,6 +1028,15 @@ export const SD: Dados = {
   async financeiroRecebimento(id) {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
     return data;
+  },
+  async financeiroContratosDaCarteira() {
+    const todas: ContratoDaCarteira[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('contratos').select('id, codigo, categoria, responsavel_id, assinado_em, valor, descontos').is('arquivado_em', null)
+        .order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todas.push(...(data as ContratoDaCarteira[]));
+      if (data.length < LINHAS_POR_CONSULTA) return todas;
+    }
   },
   async financeiroRecebimentoDoLancamento(lancamentoId) {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('lancamento_id', lancamentoId).is('estornado_em', null).maybeSingle());

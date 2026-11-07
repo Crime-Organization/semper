@@ -4,7 +4,7 @@
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
-import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { SD, type ContaFinanceira, type ContratoDaCarteira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { diasDoMes, fmtCentavos } from '../../regras/caixa';
 import {
   FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
@@ -25,6 +25,7 @@ import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFi
 import { ValoresAPassar } from './APassar';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
+import { GraficosDoFinanceiro } from './Graficos';
 import '../Financeiro.css';
 
 /** As parcelas de todos os tempos: a carteira olha o contrato inteiro, não só um mês. */
@@ -36,7 +37,7 @@ const TODAS = 'todas';
 type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento }
   | { o: 'parcela'; parcela: ParcelaDoEscritorio } | { o: 'contrato'; contratoId: string } | null;
 type Caixa = { contas: ContaFinanceira[]; lancamentos: Lancamento[]; saldos: Map<string, number> };
-type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; caixa: Caixa | null } | { ano: number; erro: string };
+type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; contratos: ContratoDaCarteira[]; caixa: Caixa | null } | { ano: number; erro: string };
 
 export default function Hub() {
   useTitulo('Financeiro');
@@ -59,13 +60,14 @@ export default function Hub() {
     let vivo = true;
     (async () => {
       const parcelas = SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje);
-      if (!admin) return { ano, parcelas: await parcelas, caixa: null };
+      const contratos = SD.financeiroContratosDaCarteira();
+      if (!admin) return { ano, parcelas: await parcelas, contratos: await contratos, caixa: null };
       const contas = await SD.financeiroContas();
       const [listas, saldos] = await Promise.all([
         Promise.all(contas.map(c => SD.financeiroLancamentos(c.id, `${ano}-01-01`, `${ano}-12-31`))),
         Promise.all(contas.filter(c => !c.arquivada_em).map(async c => [c.id, await SD.financeiroSaldoAntes(c.id, somarDias(hoje, 1))] as const))
       ]);
-      return { ano, parcelas: await parcelas, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
+      return { ano, parcelas: await parcelas, contratos: await contratos, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
     })().then(x => { if (vivo) setLido(x); }).catch(e => { if (vivo) setLido({ ano, erro: (e as Error).message }); });
     return () => { vivo = false; };
   }, [ano, admin, pode, hoje, versao]);
@@ -106,7 +108,7 @@ export default function Hub() {
   if (!atual) corpo = <Carregando />;
   else if ('erro' in atual) corpo = <Aviso tipo="erro">{atual.erro}</Aviso>;
   else {
-    const { parcelas, caixa } = atual;
+    const { parcelas, contratos, caixa } = atual;
     const doPeriodo = caixa ? filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo }) : [];
     const t = totaisDoExtrato(doPeriodo);
     const ind = indicadoresDoAdvogado(parcelas, periodo, hoje, advogado);
@@ -131,6 +133,7 @@ export default function Hub() {
           <Indicador tom="destaque" rotulo="Contratos em aberto" valor={ind.emAberto.toLocaleString('pt-BR')} />
         </>}
       </Indicadores>
+      <GraficosDoFinanceiro ano={ano} caixa={caixa} parcelas={parcelas} contratos={contratos} advogado={advogado} />
       <div className="financeiro-abas-linha">
         <AbasDoFinanceiro />
         {botoes}

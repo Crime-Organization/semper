@@ -89,3 +89,10 @@ table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }
 .financeiro-detalhe-valor span { color: var(--muted); font-size: 14px }
 .financeiro-grupo { display: flex; flex-direction: column; gap: 8px }
 .financeiro-links { display: flex; flex-wrap: wrap; gap: 4px 12px }
+
+/* Os gráficos do topo (financeiro/Graficos.tsx): dois cartões lado a lado; um embaixo do outro quando não cabem. */
+.financeiro-graficos { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px }
+@media (max-width: 1100px) { .financeiro-graficos { grid-template-columns: minmax(0, 1fr) } }
+.financeiro-grafico { background: var(--superficie); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size }
+.financeiro-grafico-total { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--muted) }
+.financeiro-grafico-total b { color: var(--ink); font-size: 15px }

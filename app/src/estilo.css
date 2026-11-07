@@ -16,6 +16,9 @@
   --accent-ink: #2B6119;
   --accent-deep: #1F4712;
   --accent-tint: #EEF5EA;
+  /* Gráficos do Financeiro: entrada e saída (par que se distingue também para quem não vê vermelho e verde) e, nas
+     barras de contratos, o recebido (a cor da entrada) e o que falta receber (o mesmo verde, claro). */
+  --grafico-entrada: #2E6B1C; --grafico-saida: #E0904A; --grafico-aberto: #C5E0B6;
   --on-accent: #FFFFFF;
   --dark: #1A1916;
   --card: #2C2A26;
@@ -47,6 +50,7 @@
     --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
     --erro-forte: #C2412D; --erro-borda: #6E2A22;
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+    --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
     --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
@@ -57,6 +61,7 @@
   --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
   --erro-forte: #C2412D; --erro-borda: #6E2A22;
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+  --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
   --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
@@ -729,3 +734,26 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .abas-nav a { flex: 0 0 auto; padding: 10px 18px; border-radius: 10px 10px 0 0; border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 700; font-size: 15px; color: var(--muted); text-decoration: none }
 .abas-nav a:hover { color: var(--ink); background: var(--soft) }
 .abas-nav a[aria-current="page"] { color: var(--accent-ink); background: var(--accent-tint); border-bottom-color: var(--accent); font-weight: 900 }
+
+/* ---------- gráficos (ui/Graficos.tsx) ---------- */
+.grafico { margin: 0; display: flex; flex-direction: column; gap: 10px; min-width: 0 }
+.grafico-legenda { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--text) }
+.grafico-legenda li { display: inline-flex; align-items: center; gap: 6px }
+.grafico-marca { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0 }
+.grafico-svg { width: 100%; height: auto; overflow: visible }
+.grafico-grade { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke }
+.grafico-base { stroke: var(--line2); stroke-width: 1; vector-effect: non-scaling-stroke }
+.grafico-eixo { fill: var(--muted); font-size: 11px; font-family: var(--font) }
+.grafico-barra { transition: opacity .15s }
+.grafico-svg:hover .grafico-barra { opacity: .55 }
+.grafico-svg .grafico-barra:hover { opacity: 1 }
+.grafico-empilhadas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
+.grafico-empilhadas li { display: grid; grid-template-columns: minmax(90px, 30%) 1fr auto; align-items: center; gap: 10px; font-size: 13px }
+.grafico-empilhada-nome { color: var(--text); overflow-wrap: anywhere; display: flex; flex-direction: column }
+.grafico-empilhada-nome small { color: var(--muted) }
+.grafico-empilhada-trilho { min-width: 0 }
+/* Entre as partes, 2px da cor do fundo, para cada uma se ver separada. */
+.grafico-empilhada-barra { display: flex; gap: 2px; height: 14px; min-width: 4px }
+.grafico-empilhada-parte { min-width: 2px; border-radius: 3px }
+.grafico-empilhada-total { color: var(--ink); font-weight: 700; white-space: nowrap }
+@container (max-width: 420px) { .grafico-empilhadas li { grid-template-columns: 1fr auto; } .grafico-empilhada-trilho { grid-column: 1 / -1; grid-row: 2 } }

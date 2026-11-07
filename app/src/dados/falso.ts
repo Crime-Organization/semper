@@ -2474,6 +2474,8 @@ export const SD: Dados = {
     auditar('financeiro_recebimentos', 'inclusao', r); gravar();
     return espera(r.id);
   },
+  financeiroContratosDaCarteira: () => espera(bd.contratos!.filter(k => vejoContrato(k) && !k.arquivado_em)
+    .map(({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }) => ({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }))),
   financeiroRecebimentoDoLancamento(lancamentoId) {
     const r = bd.recebimentos!.find(x => x.lancamento_id === lancamentoId && !x.estornado_em);
     if (!r) return espera(null);
