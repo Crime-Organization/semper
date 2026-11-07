@@ -1,14 +1,19 @@
 // Os formulários de lançar, abertos na janela flutuante do Financeiro: a entrada de uma parcela de contrato e o lançamento direto no caixa
 // (a entrada sem contrato e a saída). Só o formulário: a janela, o título e o fechar ficam com quem abre.
+// Na entrada, ao escolher o contrato, aparecem os dados dele (cliente, objetos, categoria, responsável, participantes, indicador e a
+// parcela "1/10"), e a divisão vai sendo calculada enquanto se digita o valor.
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { SD, type ContaFinanceira, type ParaReceber, type ParcelaDoEscritorio } from '../../dados';
+import { SD, type ContaFinanceira, type Contrato, type ParaReceber, type ParcelaDoEscritorio } from '../../dados';
 import { dadosDoLancamento, errosDoLancamento, fmtCentavos, nomeDaCategoria, type FormDoLancamento } from '../../regras/caixa';
 import { carteiraDeContratos } from '../../regras/painelFinanceiro';
-import { dadosDoRecebimento, errosDoFormDeRecebimento, maiorParcelaPorContrato, numeroDaParcela, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
+import { dadosDoRecebimento, errosDoFormDeRecebimento, linhasDaDivisao, maiorParcelaPorContrato, numeroDaParcela, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo, Vazio } from '../../ui/base';
+import { useCtx } from '../../ui/sessao';
 import { hojeISO } from '../../ui/util';
+import { DadosDoContrato } from './DetalheFinanceiro';
+import { Divisao } from './Parcelas';
 
 type Preparo = { chave: string; prep: ParaReceber } | { chave: string; erro: string };
 
@@ -26,6 +31,8 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState('');
+  const [k, setK] = useState<Contrato | null>(null);
+  const { ehAdmin } = useCtx();
 
   const contratos = carteiraDeContratos(abertas, hoje);
   const escolhido = contratos.find(c => `${c.codigo} · ${c.cliente}` === contrato);
@@ -45,6 +52,15 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
     return () => { vivo = false; };
   }, [parcela, f.data, dataBoa]);
 
+  // Os dados do contrato escolhido, para mostrar na janela.
+  const contratoId = escolhido?.contratoId ?? '';
+  useEffect(() => {
+    if (!contratoId) return;
+    let vivo = true;
+    SD.contratoObter(contratoId).then(x => { if (vivo) setK(x); }).catch(() => { if (vivo) setK(null); });
+    return () => { vivo = false; };
+  }, [contratoId]);
+
   const atual = lido?.chave === chave ? lido : null;
   const prep = atual && 'prep' in atual ? atual.prep : null;
   const sugerido = parcela && prep ? recebimentoNovo(parcela, f.data, prep.contas) : null;
@@ -52,6 +68,9 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
   const conta = prep?.contas.find(c => c.id === form.contaId);
   const erros = conferido ? errosDoFormDeRecebimento(form, !!conta?.tem_das) : {};
   const mudar = (m: Partial<FormDoRecebimento>) => { setF(x => ({ ...x, ...m })); setErro(''); };
+  // A divisão enquanto se digita: só com o valor e a conta certos.
+  const previa = prep && conta && !Object.keys(errosDoFormDeRecebimento(form, conta.tem_das)).length ? previaDoRecebimento(form, prep) : null;
+  const nomes = new Map([...(prep?.terceiros ?? []), ...(prep?.socio_indicador ? [prep.socio_indicador] : [])].map(x => [x.id, x.nome]));
 
   async function enviar(ev: FormEvent) {
     ev.preventDefault();
@@ -99,6 +118,13 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
         <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'taxa', { erro: erros.taxa })} value={f.taxa} onChange={e => mudar({ taxa: e.target.value })} />
       </Campo>}
     </div>
+    {k && k.id === contratoId && <DadosDoContrato k={k} parcela={parcela} parcelas={parcelas.filter(p => p.contrato_id === k.id)} />}
+    {previa && 'erro' in previa && previa.erro && <Aviso tipo="info">{previa.erro}</Aviso>}
+    {previa && 'divisao' in previa && <section className="financeiro-grupo" aria-label="Divisão">
+      <span className="rotulo-caps">Como vai ficar a divisão</span>
+      {previa.aviso && <Aviso tipo="info">{previa.aviso}</Aviso>}
+      <Divisao rotulo="Como vai ficar a divisão" linhas={linhasDaDivisao(previa.divisao, previa.aliquota, x => nomes.get(x) ?? '', prep!.responsavel_socio, ehAdmin)} />
+    </section>}
     {(erro || (atual && 'erro' in atual)) && <Aviso tipo="erro">{erro || (atual && 'erro' in atual ? atual.erro : '')}</Aviso>}
     <div className="financeiro-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado || !parcela}>{ocupado ? 'Registrando…' : 'Registrar entrada'}</button>

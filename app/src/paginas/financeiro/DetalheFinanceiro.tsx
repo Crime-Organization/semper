@@ -9,7 +9,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type ContaFinanceira, type Contrato, type Lancamento, type Parcela, type RecebimentoGravado } from '../../dados';
 import { fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/caixa';
-import { CATEGORIAS, fmtPercentual } from '../../regras/contrato';
+import { CATEGORIAS, fmtDinheiro, fmtPercentual } from '../../regras/contrato';
 import { divisaoGravada, linhasDaDivisao, maiorParcelaPorContrato, nomesDoRecebimento, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
@@ -39,7 +39,7 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: Linha[] }) {
 }
 
 /** O contrato e a parcela: quem, o quê, quem cuida, quanto foi contratado. */
-function DadosDoContrato({ k, parcela, parcelas }: { k: Contrato; parcela?: Parcela | null; parcelas?: Parcela[] }) {
+export function DadosDoContrato({ k, parcela, parcelas }: { k: Contrato; parcela?: Parcela | null; parcelas?: Parcela[] }) {
   const ctx = useCtx();
   const nomeDe = (id: string) => ctx.equipe.find(m => m.id === id)?.nome ?? 'Usuário removido';
   const maior = parcelas ? maiorParcelaPorContrato(parcelas).get(k.id) : undefined;
@@ -52,7 +52,7 @@ function DadosDoContrato({ k, parcela, parcelas }: { k: Contrato; parcela?: Parc
     [k.participantes.length > 1 ? 'Participantes' : 'Participante', k.participantes.map(p => `${p.pessoa.nome}${p.percentual === null ? '' : ` (${fmtPercentual(p.percentual)})`}`).join(', ')],
     ['Indicador', k.indicador ? `${k.indicador.nome}${k.indicador_percentual === null ? '' : ` (${fmtPercentual(k.indicador_percentual)})`}` : ''],
     ['Parte enviada à conta da empresa', fmtPercentual(k.percentual_escritorio)],
-    ['Valor do contrato', k.valor === null ? '' : fmtCentavos(k.valor)],
+    ['Valor do contrato', k.valor === null ? '' : fmtDinheiro(k.valor)],
     ['Parcela', parcela ? numeroDaParcela(parcela.numero, k.parcelas, maior) : '']
   ]} />;
 }
