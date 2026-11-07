@@ -6,7 +6,9 @@
 // primeira mostra, logo acima dela e alinhado às setas, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas
 // abertas), que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { BotaoLink } from './base';
 import { Icone, type NomeIcone } from './Icone';
+import type { NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
 /** A inscrição, que não muda enquanto o painel está aberto (a seção se inscreve uma vez e mantém a ordem). */
@@ -68,10 +70,12 @@ interface Props {
    * clicar nela).
    */
   foraDoExpandirTudo?: boolean;
+  /** O atalho para criar um item já ligado (ex.: "Nova tarefa deste contrato"): um "+" no título, logo depois do número. */
+  novo?: NovoLigado;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, children }: Props) {
+export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, novo, children }: Props) {
   const [aberto, setAberto] = useState(() => preferencia ? lerPreferencia(preferencia, false) : false);
   const id = useId();
   const inscricao = useContext(InscricaoNoGrupo);
@@ -89,12 +93,18 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
   return <>
     {noGrupo && estado?.primeira === id && <ExpandirTudo estado={estado} />}
     <section className="bloco recolhivel">
-      <h3>
+      {/* Com o "+", ele fica entre o número e a seta (um link não pode ir dentro do botão): o resto da linha, até a
+          seta, também abre e fecha a seção. */}
+      <h3 className={novo ? 'com-novo' : undefined}>
         <button type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
           <Icone nome={icone} tam={14} />{titulo}
           {contador !== undefined && <span className={'recolher-contador' + (contador ? '' : ' vazio')}>{contador}</span>}
-          <span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span>
+          {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span>}
         </button>
+        {novo && <>
+          <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
+          <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span></span>
+        </>}
       </h3>
       {aberto && <div className="bloco-corpo" id={id}>{children}</div>}
     </section>

@@ -10,7 +10,7 @@ interface Props {
   carregar: () => Promise<CompromissoLigado[]>;
   vazio: string;
   /** Endereço do cadastro já ligado a este cartão, e o texto do atalho. */
-  novo: { para: string; rotulo: string };
+  novo?: { para: string; rotulo: string };
 }
 
 export function CompromissosLigados({ carregar, vazio, novo }: Props) {

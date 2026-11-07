@@ -153,9 +153,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos}>
-      <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo."
-        novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }} />
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }}>
+      <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo." />
     </Recolhivel>}
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico" contador={quantos.historico}>

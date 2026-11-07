@@ -230,23 +230,20 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <ParcelasDaPessoa pessoaId={p.id} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas}>
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
-        nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }}>
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}>
       <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos}>
-      <CompromissosLigados carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa."
-        novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }} />
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }}>
+      <CompromissosLigados carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa." />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa."
-        nova={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }} />
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." />
     </Recolhivel>}
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>

@@ -152,9 +152,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
-    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined}>
-      <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato."
-        nova={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }} versao={versaoHist}
+    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined} novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
+      <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
         antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
     </Recolhivel>
     : <Recolhivel titulo={k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'} icone="demandas" preferencia="contratos.cartao.objetos" contador={k.objetos.length}>
@@ -198,9 +197,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
 
-    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato."
-        nova={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }} />
+    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." />
     </Recolhivel>}
 
     <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso="Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir." />

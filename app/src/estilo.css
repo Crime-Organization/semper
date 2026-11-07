@@ -525,6 +525,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-situacao { margin-top: 16px }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
+/* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,
+   também abre e fecha. */
+.com-novo { gap: 10px }
+.com-novo .recolher { width: auto }
+.mini.secao-novo { width: 32px; height: 32px; padding: 0; flex-shrink: 0; justify-content: center; border-radius: 999px; letter-spacing: 0 }
+.recolher-resto { flex: 1; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; cursor: pointer }
+.recolher-resto:hover { color: var(--ink) }
+.com-novo:has(.recolher[aria-expanded="true"]) .recolher-seta { transform: rotate(180deg) }
 /* "Expandir tudo / Recolher tudo": logo acima da primeira seção, na coluna das setas, colado a ela (a margem negativa
    desfaz parte do espaço entre os blocos do cartão). */
 .secoes-todas { display: flex; justify-content: flex-end; margin-bottom: -18px }
