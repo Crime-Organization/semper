@@ -416,6 +416,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* A janela do cadastro novo: no centro, mais estreita e sem a coluna dos comentários. */
 .cartao-painel.centro.sem-coluna { width: min(860px, calc(100vw - 32px)) }
 .cartao-painel.centro.sem-coluna .cartao-conteudo { grid-template-columns: minmax(0, 1fr) }
+/* A janela ajustada: da altura do conteúdo, até caber na tela, e mais estreita (formulários curtos). */
+.cartao-painel.centro.ajustado { height: auto; max-height: calc(100vh - 64px); width: min(720px, calc(100vw - 32px)) }
+.cartao-painel.ajustado .cartao-corpo { padding-bottom: 28px }
+.cartao-painel.ajustado form.cartao { border: 0; padding: 0; background: transparent }
 .cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
 .comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
 /* Janela estreita: a coluna dos comentários desce para baixo do cartão. */

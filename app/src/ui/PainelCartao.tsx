@@ -69,9 +69,11 @@ interface PropsPainel {
   soNoCentro?: boolean;
   /** Nome da janela no centro para o leitor de tela (ex.: "Importar pessoas"). */
   rotulo?: string;
+  /** A janela no centro fica da altura do que mostra (um formulário curto), em vez de ocupar a tela toda. */
+  ajustado?: boolean;
   children: ReactNode;
 }
-export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro', children }: PropsPainel) {
+export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro', ajustado = false, children }: PropsPainel) {
   const [on, setOn] = useState(false);
   const [escolhido, setFormato] = useState(formatoGuardado);
   const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
@@ -101,7 +103,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
   return createPortal(<>
     {/* No cadastro, um clique fora não fecha (perderia o que foi digitado): só o X ou o Esc. */}
     <div className={'veu' + (on ? ' on' : '')} onClick={() => { if (!soNoCentro) pedirParaFechar(); }} />
-    <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? rotulo : undefined} tabIndex={-1} ref={painel}>
+    <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? rotulo : undefined} tabIndex={-1} ref={painel}>
       <div className="cartao-botoes">
         <span className="cartao-botoes-do-cartao" ref={setVaga} />
         {!soNoCentro && <button type="button" className="cartao-botao cartao-formato" aria-label={rotuloDoFormato} title={rotuloDoFormato} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>}

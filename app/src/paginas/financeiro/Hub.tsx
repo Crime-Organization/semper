@@ -142,7 +142,7 @@ export default function Hub() {
   return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo}>
     {barra}
     {corpo}
-    {aberto && <PainelCartao aoFechar={fechar} soNoCentro rotulo={TITULOS[aberto.o]}>
+    {aberto && <PainelCartao aoFechar={fechar} soNoCentro ajustado rotulo={TITULOS[aberto.o]}>
       <header className="cartao-cabeca"><h2>{TITULOS[aberto.o]}</h2></header>
       {aberto.o === 'entrada' && atual && 'parcelas' in atual && <>
         <NovaEntrada parcelas={atual.parcelas} parcelaInicial={aberto.parcela} aoRegistrar={registrou} />
@@ -170,7 +170,9 @@ function MudarLancamento({ lancamento: l, contas, aoTerminar }: { lancamento: La
   return <>
     {l.par_id ? <Nota>Este é um repasse entre contas: só dá para excluir, e as duas pontas saem juntas.</Nota>
       : <FormLancamento alvo={l} inicial={formDoLancamento(l)} contas={contas.filter(c => !c.arquivada_em || c.id === l.conta_id)} aoTerminar={aoTerminar} aoCancelar={aoTerminar} />}
-    <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={excluir}><Icone nome="lixeira" tam={14} /> Excluir lançamento</BotaoDuplo>
+    <div className="financeiro-acoes">
+      <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={excluir}><Icone nome="lixeira" tam={14} /> Excluir lançamento</BotaoDuplo>
+    </div>
   </>;
 }
 function Resumo({ l, contas }: { l: Lancamento; contas: ContaFinanceira[] }) {

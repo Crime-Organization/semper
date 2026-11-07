@@ -13,7 +13,7 @@ import { CartoesLigados } from './CartoesLigados';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
 import './Financeiro.css';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
-import { Icone, type NomeIcone } from '../ui/Icone';
+import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -146,7 +146,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} aoMudar={aoMudar} />
 
-    <Dados titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" linhas={[
+    {/* Honorários, divisão e parcelas juntos: as parcelas são o detalhe do que foi combinado. */}
+    <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios">
+      <dl className="dados">{([
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],
       ['Entrada', V('entrada')],
@@ -155,14 +157,19 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Descontos', V('descontos')],
       ['Assinado em', V('assinado_em')],
       ['Primeiro pagamento', V('primeiro_pagamento')]
-    ]} />
-
-    <Dados titulo="Divisão" icone="divisao" preferencia="contratos.cartao.divisao" linhas={[
+      ] as [string, ReactNode][]).map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
+      <span className="rotulo-caps">Divisão</span>
+      <dl className="dados">{([
       ['Enviado à conta da empresa', V('percentual_escritorio')],
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante, se não for sócio</small></>]
-    ]} />
+      ] as [string, ReactNode][]).map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
+      {ctx.escritorio?.modulos?.financeiro && (ctx.ehAdmin || k.responsavel_id === eu) && <>
+        <span className="rotulo-caps">Parcelas</span>
+        <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
+      </>}
+    </Recolhivel>
 
     <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento">
       {k.documento_url
@@ -171,9 +178,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
     </Recolhivel>
 
-    {ctx.escritorio?.modulos?.financeiro && (ctx.ehAdmin || k.responsavel_id === eu) && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="contratos.cartao.parcelas">
-      <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
-    </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas">
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhuma demanda ainda. Elas nascem quando o contrato chega à coluna do contrato assinado."
@@ -199,12 +203,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   </>;
 }
 
-/** Tópico do cartão que recolhe, como em Pessoas; começa recolhido e cada usuário guarda a sua escolha. */
-function Dados({ titulo, icone, preferencia, linhas }: { titulo: string; icone: NomeIcone; preferencia: string; linhas: [string, ReactNode][] }) {
-  return <Recolhivel titulo={titulo} icone={icone} preferencia={preferencia}>
-    <dl className="dados">{linhas.map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
-  </Recolhivel>;
-}
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
 
 // ---------- histórico ----------

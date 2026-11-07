@@ -179,3 +179,17 @@ describe('Painel travado', () => {
     expect(avisar).not.toHaveBeenCalled();
   });
 });
+
+describe('Janela ajustada ao conteúdo', () => {
+  beforeEach(() => { iniciarPreferencias({}); });
+
+  it('dado um formulário curto, quando abre ajustada, então a janela ganha a marca de ajustada; sem pedir, não ganha', () => {
+    // Quando
+    const { unmount } = render(<PainelCartao soNoCentro ajustado rotulo="Nova saída" aoFechar={() => {}}><h1>Nova saída</h1></PainelCartao>);
+    // Então
+    expect(screen.getByRole('dialog', { name: 'Nova saída' })).toHaveClass('centro', 'ajustado');
+    unmount();
+    render(<PainelCartao soNoCentro aoFechar={() => {}}><h1>Nova pessoa</h1></PainelCartao>);
+    expect(screen.getByRole('dialog')).not.toHaveClass('ajustado');
+  });
+});

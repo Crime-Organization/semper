@@ -12,8 +12,10 @@ import {
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito, useMudancas } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
-import { Botao, BotaoDuplo } from '../../ui/Botoes';
-import { Icone } from '../../ui/Icone';
+import { Botao } from '../../ui/Botoes';
+import { Icone, type NomeIcone } from '../../ui/Icone';
+import { confirmar } from '../../ui/janela';
+import { MenuFlutuante } from '../../ui/Menu';
 import { useCtx } from '../../ui/sessao';
 import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
@@ -27,7 +29,7 @@ function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string 
 
 /** A tabela. Com o contrato, é a lista do escritório ou da pessoa; sem ele, a do cartão do contrato. */
 export function TabelaDeParcelas<P extends Parcela>({ lista, hoje, contrato, acoes }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; acoes?: (p: P) => ReactNode }) {
-  return <div className="tabela"><table aria-label="Parcelas">
+  return <div className="tabela"><table className={contrato ? undefined : 'tabela-parcelas'} aria-label="Parcelas">
     <thead><tr>
       {contrato && <th scope="col">Contrato</th>}
       {contrato && <th scope="col">Cliente</th>}
@@ -216,9 +218,29 @@ function RecebimentoDaParcela({ parcela, aoFechar }: { parcela: Parcela; aoFecha
 
 type Aberto = { o: 'receber' | 'mudar' | 'ver' | 'corrigir'; parcela: Parcela } | null;
 
+/** O que o menu ⋯ de cada parcela oferece, conforme ela está. Uma ação nova é uma linha nova aqui. */
+type Situacao = 'aReceber' | 'recebida' | 'importada';
+const situacaoDoMenu = (p: Parcela): Situacao => parcelaAntiga(p) ? 'importada' : p.recebimento_id ? 'recebida' : 'aReceber';
+type Agir = { p: Parcela; abrir: (a: Aberto) => void; excluir: (p: Parcela) => Promise<void>; estornar: (p: Parcela) => Promise<void> };
+type AcaoDaParcela = { rotulo: string; icone: NomeIcone; perigo?: boolean; fazer: (x: Agir) => void | Promise<void> };
+const ACOES_DA_PARCELA: Record<Situacao, AcaoDaParcela[]> = {
+  aReceber: [
+    { rotulo: 'Mudar', icone: 'editar', fazer: ({ p, abrir }) => abrir({ o: 'mudar', parcela: p }) },
+    { rotulo: 'Excluir', icone: 'lixeira', perigo: true, fazer: async ({ p, excluir }) => { if (await confirmar(`Excluir a parcela ${p.numero}?`, 'Dá para desfazer logo depois, no aviso do pé da tela.', 'Excluir', true)) void excluir(p); } }
+  ],
+  recebida: [
+    { rotulo: 'Estornar', icone: 'voltar', perigo: true, fazer: async ({ p, estornar }) => { if (await confirmar(`Estornar o recebimento da parcela ${p.numero}?`, 'A entrada sai do caixa e a parcela volta a ficar a receber.', 'Estornar', true)) void estornar(p); } }
+  ],
+  importada: [
+    { rotulo: 'Corrigir', icone: 'editar', fazer: ({ p, abrir }) => abrir({ o: 'corrigir', parcela: p }) },
+    { rotulo: 'Excluir', icone: 'lixeira', perigo: true, fazer: async ({ p, excluir }) => { if (await confirmar(`Excluir a parcela ${p.numero}?`, 'Dá para desfazer logo depois, no aviso do pé da tela.', 'Excluir', true)) void excluir(p); } }
+  ]
+};
+
 /** A lista com o que se pode fazer em cada parcela. */
 export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoMudar, topo }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; aoMudar: () => void; topo?: ReactNode }) {
   const [aberto, setAberto] = useState<Aberto>(null);
+  const [menu, setMenu] = useState<{ botao: HTMLElement; parcela: P } | null>(null);
   useMudancas(() => setAberto(null));
   const terminou = () => { setAberto(null); aoMudar(); };
   async function excluir(p: Parcela) {
@@ -254,18 +276,18 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
     {aberto?.o === 'receber' && <FormReceber key={aberto.parcela.id} parcela={aberto.parcela} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormParcela key={aberto.parcela.id} rotulo={`Mudar a parcela ${aberto.parcela.numero}`} inicial={formDaParcela(aberto.parcela)} salvar={salvarMudanca(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'ver' && <RecebimentoDaParcela key={aberto.parcela.id} parcela={aberto.parcela} aoFechar={() => setAberto(null)} />}
-    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => parcelaAntiga(p) ? <>
-      <span className="nota">Histórico importado</span>
-      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Corrigir a parcela ${p.numero}`} onClick={() => setAberto({ o: 'corrigir', parcela: p })}><Icone nome="editar" tam={13} /> Corrigir</button>
-      <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: excluir" aoConfirmar={() => excluir(p)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>
-    </> : p.recebimento_id ? <>
-      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Ver a divisão da parcela ${p.numero}`} onClick={() => setAberto({ o: 'ver', parcela: p })}>Ver divisão</button>
-      <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: estornar" aoConfirmar={() => estornar(p)}>Estornar</BotaoDuplo>
-    </> : <>
-      <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${p.numero}`} onClick={() => setAberto({ o: 'receber', parcela: p })}>Receber</button>
-      <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar a parcela ${p.numero}`} onClick={() => setAberto({ o: 'mudar', parcela: p })}><Icone nome="editar" tam={13} /> Mudar</button>
-      <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: excluir" aoConfirmar={() => excluir(p)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>
+    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => <>
+      {parcelaAntiga(p) ? <span className="nota">Importada</span>
+        : p.recebimento_id ? <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Ver a divisão da parcela ${p.numero}`} onClick={() => setAberto({ o: 'ver', parcela: p })}>Ver divisão</button>
+        : <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${p.numero}`} onClick={() => setAberto({ o: 'receber', parcela: p })}>Receber</button>}
+      <button type="button" className="icone-btn" aria-haspopup="menu" aria-label={`Mais ações da parcela ${p.numero}`} onClick={e => setMenu({ botao: e.currentTarget, parcela: p })}><Icone nome="pontos" tam={16} /></button>
     </>} />}
+    {menu && <MenuFlutuante botao={menu.botao} aoFechar={() => setMenu(null)} rotulo={`Ações da parcela ${menu.parcela.numero}`}>
+      {ACOES_DA_PARCELA[situacaoDoMenu(menu.parcela)].map(a => <button key={a.rotulo} type="button" role="menuitem" className={a.perigo ? 'perigo' : undefined}
+        aria-label={`${a.rotulo} a parcela ${menu.parcela.numero}`} onClick={() => { const p = menu.parcela; setMenu(null); void a.fazer({ p, abrir: setAberto, excluir, estornar }); }}>
+        <Icone nome={a.icone} tam={15} /> {a.rotulo}
+      </button>)}
+    </MenuFlutuante>}
   </>;
 }
 

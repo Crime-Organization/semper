@@ -74,3 +74,9 @@ table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }
 .financeiro-abrir { border: 0; padding: 0; background: transparent; font: inherit; color: var(--ink); text-align: left; cursor: pointer }
 .financeiro-abrir:hover { text-decoration: underline }
 .financeiro-link-escuro { color: inherit; text-decoration: underline; text-decoration-color: var(--gray) }
+.tabela table.tabela-parcelas { min-width: 0 }
+.tabela-parcelas td:last-child { width: 1%; white-space: nowrap }
+.tabela-parcelas .financeiro-acoes { flex-wrap: nowrap; justify-content: flex-end }
+.recolher-corpo > .rotulo-caps, .cartao-painel .rotulo-caps + .dados { margin-top: 4px }
+.tabela-parcelas th, .tabela-parcelas td { padding: 10px 10px }
+.tabela-parcelas th:first-child, .tabela-parcelas td:first-child { padding-left: 16px }
