@@ -12,7 +12,7 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { ContratoDaCarteira, Lancamento, LinhaDaConferencia, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContratoDaCarteira, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
@@ -1035,7 +1035,7 @@ export const SD: Dados = {
   async financeiroContratosDaCarteira() {
     const todas: ContratoDaCarteira[] = [];
     for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
-      const { data } = await rodar(sb.from('contratos').select('id, codigo, categoria, responsavel_id, assinado_em, valor, descontos').is('arquivado_em', null)
+      const { data } = await rodar(sb.from('contratos').select('id, codigo, categoria, responsavel_id, assinado_em, valor, descontos, objetos').is('arquivado_em', null)
         .order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
       todas.push(...(data as ContratoDaCarteira[]));
       if (data.length < LINHAS_POR_CONSULTA) return todas;
@@ -1047,6 +1047,15 @@ export const SD: Dados = {
     p_banco_recebido: bancoRecebido ?? null, p_banco_envio: bancoEnvio ?? null, p_parte: parte ?? null, p_percentuais: percentuais ?? null, p_motivo: motivo
   }),
   financeiroLancarCorrecao: ({ recebimento, data, valor, conta, motivo }) => rpc('financeiro_lancar_correcao', { p_recebimento: recebimento, p_data: data, p_valor: valor, p_conta: conta, p_motivo: motivo }),
+  async financeiroRecebimentosDoPeriodo(de, ate) {
+    const todos: RecebimentoDoPeriodo[] = [];
+    for (let i = 0; ; i += LINHAS_POR_CONSULTA) {
+      const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO + ', responsavel_id').is('estornado_em', null)
+        .gte('data', de).lte('data', ate).order('data').order('id').range(i, i + LINHAS_POR_CONSULTA - 1));
+      todos.push(...(data as RecebimentoDoPeriodo[]));
+      if (data.length < LINHAS_POR_CONSULTA) return todos;
+    }
+  },
   async financeiroRecebimentoDoLancamento(lancamentoId) {
     // O recebimento gera a entrada e, às vezes, a saída da taxa da máquina: os dois lançamentos levam a ele.
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).or(`lancamento_id.eq.${lancamentoId},lancamento_taxa_id.eq.${lancamentoId}`).is('estornado_em', null).maybeSingle());

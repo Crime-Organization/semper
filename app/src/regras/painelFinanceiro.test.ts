@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento, ParcelaDoEscritorio } from '../dados/tipos';
 import {
   linhaDoCaixa,
-  FILTRO_VAZIO, advogadosDaEquipe, entradasDoMes, indicadoresDoAdvogado, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, advogadosDaEquipe, entradasDoMes, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   planilhaDoExtrato, resumoDoAno, temFiltroLigado, totaisDaCarteira, totaisDoExtrato
 } from './painelFinanceiro';
 
@@ -189,27 +189,8 @@ describe('As entradas do mês', () => {
   });
 });
 
-describe('Os indicadores de um advogado', () => {
-  const lista = [
-    parcela({ contrato_id: 'k1', responsavel_id: 'ana', numero: 1, vencimento: '2026-03-01', recebimento_id: 'r1', recebida_em: '2026-03-05', recebido: 50000 }),
-    parcela({ contrato_id: 'k1', responsavel_id: 'ana', numero: 2, vencimento: '2026-10-01' }),
-    parcela({ contrato_id: 'k2', responsavel_id: 'bia', numero: 1, vencimento: '2026-12-01' })
-  ];
-
-  it('quando o administrador escolhe uma advogada, então os números são só dos contratos dela', () => {
-    // Quando
-    const r = indicadoresDoAdvogado(lista, '2026-03', HOJE, 'ana');
-    // Então
-    expect(r).toEqual({ recebido: 50000, aReceber: 50000, atrasado: 50000, emAberto: 1 });
-  });
-
-  it('quando não escolhe ninguém, então os números são do escritório todo, e o período pode ser o ano', () => {
-    // Quando
-    const r = indicadoresDoAdvogado(lista, '2026', HOJE);
-    // Então
-    expect(r).toEqual({ recebido: 50000, aReceber: 100000, atrasado: 50000, emAberto: 2 });
-  });
-
+// Os indicadores (só o que já entrou) estão em graficosFinanceiros.test.ts.
+describe('De quem ver os números', () => {
   it('quando lista quem escolher, então vêm só os advogados, em ordem de nome', () => {
     // Quando
     const r = advogadosDaEquipe([{ id: '1', nome: 'Zeca', funcao: 'advogado' }, { id: '2', nome: 'Ana', funcao: 'administrativo' }, { id: '3', nome: 'Bia', funcao: 'advogado' }]);

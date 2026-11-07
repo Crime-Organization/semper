@@ -166,8 +166,10 @@ export function Abas<T extends string>({ rotulo, abas, atual, aoTrocar, painel }
 /** O tom do número de um indicador: entrada em verde, saída em vermelho, destaque no cartão escuro. */
 export type TomDoIndicador = 'neutro' | 'entrada' | 'saida' | 'alerta' | 'destaque';
 /** A grade de indicadores: os cartões dividem a linha e descem quando não cabem. */
-export function Indicadores({ rotulo, children }: { rotulo: string; children: ReactNode }) {
-  return <div className="indicadores" role="group" aria-label={rotulo}>{children}</div>;
+/** Um grupo de indicadores. Com "titulo", o nome do grupo aparece em cima (ex.: "Caixa" e "Desempenho", lado a lado na mesma tela). */
+export function Indicadores({ rotulo, titulo, children }: { rotulo: string; titulo?: string; children: ReactNode }) {
+  const grupo = <div className="indicadores" role="group" aria-label={rotulo}>{children}</div>;
+  return titulo ? <div className="indicadores-bloco"><span className="rotulo-caps" aria-hidden="true">{titulo}</span>{grupo}</div> : grupo;
 }
 /** Um número grande com o nome e, se houver, uma linha de apoio (ex.: "Entradas", "R$ 12.300,00", "12 lançamentos"). */
 export function Indicador({ rotulo, valor, detalhe, tom = 'neutro' }: { rotulo: string; valor: ReactNode; detalhe?: ReactNode; tom?: TomDoIndicador }) {

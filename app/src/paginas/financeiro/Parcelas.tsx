@@ -289,12 +289,13 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, tot
         : <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${p.numero}`} onClick={() => setAberto({ o: 'receber', parcela: p })}>Receber</button>}
       <button type="button" className="icone-btn" aria-haspopup="menu" aria-label={`Mais ações da parcela ${p.numero}`} onClick={e => setMenu({ botao: e.currentTarget, parcela: p })}><Icone nome="pontos" tam={16} /></button>
     </>} />}
-    {menu && <MenuFlutuante botao={menu.botao} aoFechar={() => setMenu(null)} rotulo={`Ações da parcela ${menu.parcela.numero}`}>
-      {ACOES_DA_PARCELA[situacaoDoMenu(menu.parcela)].map(a => <button key={a.rotulo} type="button" role="menuitem" className={a.perigo ? 'perigo' : undefined}
-        aria-label={`${a.rotulo} a parcela ${menu.parcela.numero}`} onClick={() => { const p = menu.parcela; setMenu(null); void a.fazer({ p, abrir: setAberto, excluir, estornar }); }}>
+    {/* A parcela como está agora na lista (ela pode ter mudado depois do clique, ex.: acabou de ser recebida). */}
+    {menu && (() => { const atual = lista.find(x => x.id === menu.parcela.id) ?? menu.parcela; return <MenuFlutuante botao={menu.botao} aoFechar={() => setMenu(null)} rotulo={`Ações da parcela ${atual.numero}`}>
+      {ACOES_DA_PARCELA[situacaoDoMenu(atual)].map(a => <button key={a.rotulo} type="button" role="menuitem" className={a.perigo ? 'perigo' : undefined}
+        aria-label={`${a.rotulo} a parcela ${atual.numero}`} onClick={() => { setMenu(null); void a.fazer({ p: atual, abrir: setAberto, excluir, estornar }); }}>
         <Icone nome={a.icone} tam={15} /> {a.rotulo}
       </button>)}
-    </MenuFlutuante>}
+    </MenuFlutuante>; })()}
   </>;
 }
 

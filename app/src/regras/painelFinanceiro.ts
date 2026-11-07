@@ -129,15 +129,7 @@ export function entradasDoMes(parcelas: ParcelaDoEscritorio[], mes: string, resp
 }
 export const totalRecebido = (parcelas: ParcelaDoEscritorio[]) => parcelas.reduce((s, p) => s + (p.recebido ?? p.valor), 0);
 
-// ---------- os indicadores de um advogado ----------
-/** Os indicadores de quem é responsável pelos contratos: o que recebeu no período, o que falta receber, o atraso e os contratos ainda em
- *  aberto. Sem responsável, são os do escritório todo (as parcelas que quem está logado pode ver). */
-export function indicadoresDoAdvogado(parcelas: ParcelaDoEscritorio[], periodo: string, hoje: string, responsavel = '') {
-  const doAdvogado = responsavel ? parcelas.filter(p => p.responsavel_id === responsavel) : parcelas;
-  const carteira = carteiraDeContratos(doAdvogado, hoje);
-  const t = totaisDaCarteira(carteira);
-  return { recebido: totalRecebido(entradasDoMes(doAdvogado, periodo)), aReceber: t.falta, atrasado: t.atrasado, emAberto: carteira.filter(c => c.situacao !== 'quitado').length };
-}
+// ---------- de quem ver os números ----------
 /** Os advogados da equipe, em ordem de nome: é entre eles que o administrador escolhe de quem ver os indicadores. */
 export const advogadosDaEquipe = (equipe: Membro[]) => equipe.filter(m => m.funcao === 'advogado').toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 

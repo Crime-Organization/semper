@@ -347,3 +347,13 @@ describe('Navegação em abas', () => {
     expect(screen.getByRole('link', { name: 'Lançar' })).toHaveAttribute('href', '/b/');
   });
 });
+
+describe('Grupo de indicadores com nome', () => {
+  it('dado um título, quando aparece, então o nome fica em cima e o grupo continua com o rótulo para o leitor de tela', () => {
+    // Quando
+    render(<Indicadores rotulo="Desempenho de Nov/2026" titulo="Desempenho"><Indicador rotulo="Receita bruta" valor="R$ 10,00" /></Indicadores>);
+    // Então
+    expect(screen.getByRole('group', { name: 'Desempenho de Nov/2026' })).toHaveTextContent('Receita bruta');
+    expect(screen.getByText('Desempenho')).toBeInTheDocument();
+  });
+});

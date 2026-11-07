@@ -4,10 +4,10 @@
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
-import { SD, type ContaFinanceira, type ContratoDaCarteira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
+import { SD, type ContaFinanceira, type ContratoDaCarteira, type RecebimentoDoPeriodo, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
 import { diasDoMes, fmtCentavos } from '../../regras/caixa';
 import {
-  FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
 } from '../../regras/painelFinanceiro';
 import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
@@ -26,6 +26,7 @@ import { ValoresAPassar } from './APassar';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
 import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
 import { GraficosDoFinanceiro } from './Graficos';
+import { indicadoresRealizados } from '../../regras/graficosFinanceiros';
 import '../Financeiro.css';
 
 /** As parcelas de todos os tempos: a carteira olha o contrato inteiro, não só um mês. */
@@ -37,7 +38,7 @@ const TODAS = 'todas';
 type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento }
   | { o: 'parcela'; parcela: ParcelaDoEscritorio } | { o: 'contrato'; contratoId: string } | null;
 type Caixa = { contas: ContaFinanceira[]; lancamentos: Lancamento[]; saldos: Map<string, number> };
-type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; contratos: ContratoDaCarteira[]; caixa: Caixa | null } | { ano: number; erro: string };
+type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; contratos: ContratoDaCarteira[]; recebimentos: RecebimentoDoPeriodo[]; caixa: Caixa | null } | { ano: number; erro: string };
 
 export default function Hub() {
   useTitulo('Financeiro');
@@ -61,13 +62,14 @@ export default function Hub() {
     (async () => {
       const parcelas = SD.parcelasDoPeriodo(TODAS_AS_DATAS.de, TODAS_AS_DATAS.ate, hoje);
       const contratos = SD.financeiroContratosDaCarteira();
-      if (!admin) return { ano, parcelas: await parcelas, contratos: await contratos, caixa: null };
+      const recebimentos = SD.financeiroRecebimentosDoPeriodo(`${ano}-01-01`, `${ano}-12-31`);
+      if (!admin) return { ano, parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: null };
       const contas = await SD.financeiroContas();
       const [listas, saldos] = await Promise.all([
         Promise.all(contas.map(c => SD.financeiroLancamentos(c.id, `${ano}-01-01`, `${ano}-12-31`))),
         Promise.all(contas.filter(c => !c.arquivada_em).map(async c => [c.id, await SD.financeiroSaldoAntes(c.id, somarDias(hoje, 1))] as const))
       ]);
-      return { ano, parcelas: await parcelas, contratos: await contratos, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
+      return { ano, parcelas: await parcelas, contratos: await contratos, recebimentos: await recebimentos, caixa: { contas, lancamentos: listas.flat(), saldos: new Map(saldos) } };
     })().then(x => { if (vivo) setLido(x); }).catch(e => { if (vivo) setLido({ ano, erro: (e as Error).message }); });
     return () => { vivo = false; };
   }, [ano, admin, pode, hoje, versao]);
@@ -110,10 +112,12 @@ export default function Hub() {
   if (!atual) corpo = <Carregando />;
   else if ('erro' in atual) corpo = <Aviso tipo="erro">{atual.erro}</Aviso>;
   else {
-    const { parcelas, contratos, caixa } = atual;
+    const { parcelas, contratos, recebimentos, caixa } = atual;
     const doPeriodo = caixa ? filtrarExtrato(caixa.lancamentos, { ...FILTRO_VAZIO, mes: periodo }) : [];
     const t = totaisDoExtrato(doPeriodo);
-    const ind = indicadoresDoAdvogado(parcelas, periodo, hoje, advogado);
+    // De quem são os números: o advogado escolhido pelo administrador (ou o escritório todo); para os outros, só os seus.
+    const quem = admin ? advogado : ctx.perfil.id;
+    const real = indicadoresRealizados(parcelas, recebimentos, contratos, periodo, quem);
     const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
       entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
       saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
@@ -121,21 +125,26 @@ export default function Hub() {
       obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
     };
     corpo = <>
-      <Indicadores rotulo={`Totais de ${nomeDoPeriodo}`}>
-        {caixa && !advogado ? <>
+      {caixa && !advogado && <Indicadores rotulo={`Caixa de ${nomeDoPeriodo}`} titulo="Caixa">
+        <>
           <Indicador tom="entrada" rotulo={`Entradas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.entradas)} />
           <Indicador tom="saida" rotulo={`Saídas · ${nomeDoPeriodo}`} valor={fmtCentavos(t.saidas)} />
           <Indicador tom={t.resultado < 0 ? 'saida' : 'entrada'} rotulo={`Resultado · ${nomeDoPeriodo}`} valor={fmtCentavos(t.resultado)} />
           <Indicador tom="destaque" rotulo="Saldo hoje nas contas" valor={fmtCentavos([...caixa.saldos.values()].reduce((s, v) => s + v, 0))}
             detalhe={<Link className="financeiro-link-escuro" to="/financeiro/contas/">{caixa.contas.filter(c => caixa.saldos.has(c.id)).map(c => `${c.nome} ${fmtCentavos(caixa.saldos.get(c.id)!)}`).join(' · ')}</Link>} />
-        </> : <>
-          <Indicador tom="entrada" rotulo={`Recebido · ${nomeDoPeriodo}`} valor={fmtCentavos(ind.recebido)} />
-          <Indicador tom="alerta" rotulo="A receber" valor={fmtCentavos(ind.aReceber)} />
-          <Indicador tom="saida" rotulo="Em atraso" valor={fmtCentavos(ind.atrasado)} />
-          <Indicador tom="destaque" rotulo="Contratos em aberto" valor={ind.emAberto.toLocaleString('pt-BR')} />
-        </>}
+        </>
+      </Indicadores>}
+      {/* O desempenho (só o que já entrou): de cada advogado, ou do escritório todo. */}
+      <Indicadores rotulo={`Desempenho de ${nomeDoPeriodo}`} titulo="Desempenho">
+        <Indicador tom="entrada" rotulo={`Receita bruta · ${nomeDoPeriodo}`} valor={fmtCentavos(real.bruta)} detalhe="O que os clientes pagaram" />
+        <Indicador tom="destaque" rotulo={`Receita líquida · ${nomeDoPeriodo}`} valor={fmtCentavos(real.liquida)} detalhe={quem ? 'O que ficou com o responsável' : 'O que ficou com os responsáveis'} />
+        <Indicador rotulo={`Contratos assinados · ${nomeDoPeriodo}`} valor={real.contratosAssinados.toLocaleString('pt-BR')} />
+        <Indicador rotulo="Ao escritório" valor={fmtCentavos(real.escritorio)} />
+        <Indicador rotulo="Aos indicadores" valor={fmtCentavos(real.indicadores)} />
+        <Indicador rotulo="Aos participantes" valor={fmtCentavos(real.participantes)} />
       </Indicadores>
-      <GraficosDoFinanceiro ano={ano} caixa={caixa} parcelas={parcelas} contratos={contratos} advogado={advogado} />
+      {real.temHistoricoSemDivisao && <Nota>Parte da receita deste período veio das planilhas, sem a divisão gravada: ela entra na receita bruta, mas não na líquida nem nos repasses.</Nota>}
+      <GraficosDoFinanceiro ano={ano} periodo={periodo} nomeDoPeriodo={nomeDoPeriodo} caixa={caixa} parcelas={parcelas} recebimentos={recebimentos} contratos={contratos} responsavel={quem} />
       <div className="financeiro-abas-linha">
         <AbasDoFinanceiro />
         {botoes}

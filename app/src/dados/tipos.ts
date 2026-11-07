@@ -1175,7 +1175,7 @@ export interface Parcela {
   recebimento_id: string | null; recebida_em: string | null; recebido: number | null;
 }
 /** O contrato nos gráficos do Financeiro: o valor contratado e por onde separar (categoria, responsável, ano de assinatura). */
-export type ContratoDaCarteira = Pick<Contrato, 'id' | 'codigo' | 'categoria' | 'responsavel_id' | 'assinado_em' | 'valor' | 'descontos'>;
+export type ContratoDaCarteira = Pick<Contrato, 'id' | 'codigo' | 'categoria' | 'responsavel_id' | 'assinado_em' | 'valor' | 'descontos' | 'objetos'>;
 /** total_parcelas: quantas parcelas o contrato tem (o "10" de "1/10"); null se o contrato não diz. */
 export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null; total_parcelas: number | null }
 /** papel: em que papel a pessoa entrou quando o cliente pagou. Os recebimentos gravados antes deste campo não o têm. */
@@ -1198,6 +1198,8 @@ export interface DadosDoRecebimento {
   categoria?: CategoriaHonorario; forma?: FormaDePagamento; bancoRecebido?: string; bancoEnvio?: string;
   parte?: 20 | 30 | 100; percentuais?: { id: string; percentual: number }[];
 }
+/** O recebimento de um período, para os indicadores: com quem era o responsável quando o cliente pagou. */
+export type RecebimentoDoPeriodo = RecebimentoGravado & { responsavel_id: string | null };
 /** O recebimento como ficou gravado: mudar o DAS ou a lista de sócios depois não muda nada aqui. */
 export interface RecebimentoGravado {
   id: string; parcela_id: string; contrato_id: string; conta_id: string; data: string; valor: number; taxa_maquina: number; aliquota_das: number; parte_na_conta: number; responsavel_socio: boolean;
@@ -1339,6 +1341,8 @@ export interface DadosParcelas {
   financeiroLancarCorrecao(c: { recebimento: string; data: string; valor: number; conta: string; motivo: string }): Promise<string>;
   /** Os contratos que o usuário vê (não arquivados), com o que importa para os gráficos: categoria, responsável, ano e valor. */
   financeiroContratosDaCarteira(): Promise<ContratoDaCarteira[]>;
+  /** Os recebimentos (não estornados) com data no período, dos contratos que o usuário cuida (o administrador, todos). */
+  financeiroRecebimentosDoPeriodo(de: string, ate: string): Promise<RecebimentoDoPeriodo[]>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
   /** As linhas de um ano. Quem não é administrador recebe só as dele, seja qual for o responsável pedido. */

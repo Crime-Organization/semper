@@ -409,6 +409,23 @@ test.describe('O recebimento visto no Financeiro', () => {
     await expect(janela.getByRole('button', { name: 'Corrigir recebimento' })).toBeVisible();
   });
 
+  test('quando uma parcela é recebida, então o desempenho mostra só o que entrou: receita bruta, líquida e repasses, sem valor a receber', async ({ page }) => {
+    // Dado: R$ 1.000,00 recebidos de uma parcela, e as outras quatro ainda a receber
+    const cartao = await contratoComParcelas(page);
+    const form = await receberPrimeira(cartao);
+    await form.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await expect(form).toHaveCount(0);
+    // Quando
+    await page.goto('/financeiro/');
+    // Então
+    const desempenho = page.getByRole('group', { name: /^Desempenho de/ });
+    await expect(desempenho.getByRole('region', { name: /^Receita bruta/ })).toContainText(dinheiro('1.000,00'));
+    await expect(desempenho.getByRole('region', { name: /^Receita líquida/ })).toBeVisible();
+    await expect(desempenho.getByRole('region', { name: 'Ao escritório' })).toBeVisible();
+    await expect(page.getByText('A receber', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Em atraso', { exact: true })).toHaveCount(0);
+  });
+
   test('quando recebe uma parcela pela janela do contrato em Direitos, então a linha do contrato passa à parcela seguinte', async ({ page }) => {
     // Dado
     await contratoComParcelas(page);

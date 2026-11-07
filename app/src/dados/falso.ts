@@ -2483,7 +2483,9 @@ export const SD: Dados = {
     return espera(r.id);
   },
   financeiroContratosDaCarteira: () => espera(bd.contratos!.filter(k => vejoContrato(k) && !k.arquivado_em)
-    .map(({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }) => ({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }))),
+    .map(({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos, objetos }) => ({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos, objetos }))),
+  financeiroRecebimentosDoPeriodo: (de, ate) => espera(bd.recebimentos!.filter(r => !r.estornado_em && r.data >= de && r.data <= ate && cuidoDoContrato(r.contrato_id))
+    .map(({ estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...r }) => r)),
   financeiroRecebimentoTemPagamento(recebimentoId) {
     const r = bd.recebimentos!.find(x => x.id === recebimentoId);
     if (!r || !cuidoDoContrato(r.contrato_id)) return erro('Recebimento não encontrado.');

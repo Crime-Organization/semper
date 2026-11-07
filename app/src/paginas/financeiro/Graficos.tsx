@@ -1,59 +1,52 @@
-// Os gráficos do topo do Financeiro, logo abaixo dos indicadores:
-//   - Entradas e saídas de cada mês do ano (do caixa, para o escritório todo) ou o recebido de cada mês (de um advogado,
-//     ou o seu, para quem não é administrador).
-//   - Os contratos separados por categoria, responsável ou ano de assinatura: o recebido e o que falta de cada grupo,
-//     como as colunas PAGO e EM ABERTO da planilha de Contratos.
-import { useState } from 'react';
-import type { ContaFinanceira, ContratoDaCarteira, Lancamento, ParcelaDoEscritorio } from '../../dados';
+// Os gráficos do topo do Financeiro, só com o que já entrou (#268):
+//   - por mês: as entradas e as saídas do caixa (o escritório todo) ou a receita bruta e a líquida (de um advogado, ou a
+//     sua, para quem não é administrador);
+//   - por objeto/demanda: quanto cada um rendeu no período, a bruta e, dentro dela, a líquida do responsável.
+// Nada de valor a receber ou contratado: projeção não entra.
+import type { ContaFinanceira, ContratoDaCarteira, Lancamento, ParcelaDoEscritorio, RecebimentoDoPeriodo } from '../../dados';
 import { fmtCentavos } from '../../regras/caixa';
-import { fmtCompacto, mesesDoCaixa, mesesRecebidos, segregarContratos, SEPARAR, type Mes, type SepararPor } from '../../regras/graficosFinanceiros';
-import { Segmentos, TituloSecao } from '../../ui/base';
+import { fmtCompacto, mesesDoCaixa, mesesRealizados, receitaPorObjeto, type Mes, type MesRealizado } from '../../regras/graficosFinanceiros';
+import { Nota, TituloSecao } from '../../ui/base';
 import { BarrasEmpilhadas, BarrasPorMes, type Serie } from '../../ui/Graficos';
-import { useCtx } from '../../ui/sessao';
 
 const ENTRADA: Serie = { chave: 'entradas', nome: 'Entradas', cor: 'var(--grafico-entrada)' };
 const SAIDA: Serie = { chave: 'saidas', nome: 'Saídas', cor: 'var(--grafico-saida)' };
-const RECEBIDO: Serie = { chave: 'recebido', nome: 'Recebido', cor: 'var(--grafico-entrada)' };
-/** No gráfico por mês, o recebido é o que os meses guardam em "entradas". */
-const RECEBIDO_NO_MES: Serie = { ...RECEBIDO, chave: 'entradas' };
-const EM_ABERTO: Serie = { chave: 'emAberto', nome: 'Em aberto', cor: 'var(--grafico-aberto)', contorno: 'var(--grafico-entrada)' };
+const BRUTA: Serie = { chave: 'bruta', nome: 'Receita bruta', cor: 'var(--grafico-saida)' };
+const LIQUIDA: Serie = { chave: 'liquida', nome: 'Receita líquida', cor: 'var(--grafico-entrada)' };
+const LIQUIDA_NA_BARRA: Serie = { chave: 'liquida', nome: 'Líquida do responsável', cor: 'var(--grafico-entrada)' };
+const RESTO_DA_BRUTA: Serie = { chave: 'resto', nome: 'Resto da bruta (escritório, repasses, impostos)', cor: 'var(--grafico-aberto)', contorno: 'var(--grafico-entrada)' };
+/** Quantos objetos aparecem com nome; os demais somam numa barra "Outros". */
+const OBJETOS_COM_NOME = 9;
 
-export function GraficosDoFinanceiro({ ano, caixa, parcelas, contratos, advogado }: {
-  ano: number; caixa: { contas: ContaFinanceira[]; lancamentos: Lancamento[] } | null; parcelas: ParcelaDoEscritorio[];
-  contratos: ContratoDaCarteira[]; advogado: string;
+export function GraficosDoFinanceiro({ ano, periodo, nomeDoPeriodo, caixa, parcelas, recebimentos, contratos, responsavel }: {
+  ano: number; periodo: string; nomeDoPeriodo: string; caixa: { contas: ContaFinanceira[]; lancamentos: Lancamento[] } | null;
+  parcelas: ParcelaDoEscritorio[]; recebimentos: RecebimentoDoPeriodo[]; contratos: ContratoDaCarteira[];
+  /** De quem: o perfil de um advogado, ou vazio para o escritório todo. */
+  responsavel: string;
 }) {
-  const ctx = useCtx();
-  // Quem não é administrador só vê os seus contratos: separar por responsável não diria nada.
-  const jeitos = (Object.keys(SEPARAR) as SepararPor[]).filter(j => j !== 'responsavel' || (ctx.ehAdmin && !advogado));
-  const [por, setPor] = useState<SepararPor>('categoria');
-  const separar = jeitos.includes(por) ? por : 'categoria';
-  const nomeDe = (id: string) => ctx.equipe.find(m => m.id === id)?.nome ?? 'Usuário removido';
-
-  const doCaixa = !!caixa && !advogado;
-  const meses: Mes[] = doCaixa ? mesesDoCaixa(caixa.lancamentos, ano) : mesesRecebidos(parcelas, ano, advogado);
-  // Quem não é administrador vê, dos contratos, só aqueles de que é responsável: são os mesmos cujas parcelas ele lê (nos
-  // outros, em que só participa, o recebido não chega até ele e o contrato pareceria todo em aberto).
-  const grupos = segregarContratos(contratos, parcelas, separar, nomeDe, ctx.ehAdmin ? advogado : ctx.perfil.id);
-  const total = grupos.reduce((t, g) => ({ contratado: t.contratado + g.contratado, recebido: t.recebido + g.recebido, emAberto: t.emAberto + g.emAberto }), { contratado: 0, recebido: 0, emAberto: 0 });
+  const doCaixa = !!caixa && !responsavel;
+  const objetos = receitaPorObjeto(parcelas, recebimentos, contratos, periodo, responsavel);
+  const comNome = objetos.slice(0, OBJETOS_COM_NOME), resto = objetos.slice(OBJETOS_COM_NOME);
+  const grupos = [...comNome.map(o => ({ chave: o.objeto, rotulo: o.objeto, detalhe: `${o.contratos} ${o.contratos === 1 ? 'contrato' : 'contratos'} · líquida ${fmtCentavos(o.liquida)}`, bruta: o.bruta, liquida: o.liquida })),
+    ...(resto.length ? [{ chave: 'outros', rotulo: `Outros (${resto.length} objetos)`, detalhe: `líquida ${fmtCentavos(resto.reduce((s, o) => s + o.liquida, 0))}`,
+      bruta: resto.reduce((s, o) => s + o.bruta, 0), liquida: resto.reduce((s, o) => s + o.liquida, 0) }] : [])];
 
   return <div className="financeiro-graficos">
     <section className="financeiro-grafico" aria-labelledby="grafico-meses">
-      <TituloSecao id="grafico-meses">{doCaixa ? `Entradas e saídas · ${ano}` : `Recebido por mês · ${ano}`}</TituloSecao>
-      <BarrasPorMes rotulo={doCaixa ? `Entradas e saídas de cada mês de ${ano}` : `Recebido em cada mês de ${ano}`} itens={meses}
-        series={doCaixa ? [ENTRADA, SAIDA] : [RECEBIDO_NO_MES]} valor={(m, s) => m[s as 'entradas' | 'saidas'] ?? 0}
-        formatar={fmtCentavos} formatarCurto={fmtCompacto} />
+      <TituloSecao id="grafico-meses">{doCaixa ? `Entradas e saídas do caixa · ${ano}` : `Receita bruta e líquida · ${ano}`}</TituloSecao>
+      {doCaixa
+        ? <BarrasPorMes<Mes> rotulo={`Entradas e saídas do caixa em cada mês de ${ano}`} itens={mesesDoCaixa(caixa.lancamentos, ano)} series={[ENTRADA, SAIDA]}
+          valor={(m, s) => s === 'entradas' ? m.entradas : m.saidas} formatar={fmtCentavos} formatarCurto={fmtCompacto} />
+        : <BarrasPorMes<MesRealizado> rotulo={`Receita bruta e líquida em cada mês de ${ano}`} itens={mesesRealizados(parcelas, recebimentos, ano, responsavel)} series={[BRUTA, LIQUIDA]}
+          valor={(m, s) => s === 'bruta' ? m.bruta : m.liquida} formatar={fmtCentavos} formatarCurto={fmtCompacto} />}
     </section>
-    <section className="financeiro-grafico" aria-labelledby="grafico-contratos">
-      <TituloSecao id="grafico-contratos">Contratos: recebido e em aberto</TituloSecao>
-      <p className="financeiro-grafico-total">
-        <span><b className="num">{fmtCentavos(total.contratado)}</b> contratados</span>
-        <span><b className="num">{fmtCentavos(total.recebido)}</b> recebidos</span>
-        <span><b className="num">{fmtCentavos(total.emAberto)}</b> em aberto</span>
-      </p>
-      {jeitos.length > 1 && <Segmentos rotulo="Separar os contratos" atual={separar} aoEscolher={j => setPor(j as SepararPor)}
-        opcoes={jeitos.map(j => ({ id: j, rotulo: SEPARAR[j].nome }))} />}
-      <BarrasEmpilhadas rotulo={`Contratos ${SEPARAR[separar].nome.toLowerCase()}: recebido e em aberto`} series={[RECEBIDO, EM_ABERTO]} formatar={fmtCentavos}
-        grupos={grupos.map(g => ({ chave: g.chave, rotulo: g.rotulo, detalhe: `${g.contratos} ${g.contratos === 1 ? 'contrato' : 'contratos'}`, partes: [g.recebido, g.emAberto], total: g.recebido + g.emAberto }))} />
+    <section className="financeiro-grafico" aria-labelledby="grafico-objetos">
+      <TituloSecao id="grafico-objetos">{`Receita por objeto/demanda · ${nomeDoPeriodo}`}</TituloSecao>
+      {grupos.length
+        ? <BarrasEmpilhadas rotulo={`Receita por objeto/demanda em ${nomeDoPeriodo}`} series={[LIQUIDA_NA_BARRA, RESTO_DA_BRUTA]} formatar={fmtCentavos}
+          grupos={grupos.map(g => ({ chave: g.chave, rotulo: g.rotulo, detalhe: g.detalhe, partes: [Math.min(g.liquida, g.bruta), Math.max(0, g.bruta - g.liquida)], total: g.bruta }))} />
+        : <Nota>Nenhuma receita neste período.</Nota>}
+      <Nota>O valor total de cada barra é a receita bruta. Num contrato com mais de um objeto, o valor se divide igualmente entre eles.</Nota>
     </section>
   </div>;
 }
