@@ -413,15 +413,18 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Distância mínima entre a janela no centro e as bordas da tela (menor no celular e no tablet). */
 :root { --janela-margem: 32px }
 @media (max-width: 900px) { :root { --janela-margem: 16px } }
-.veu, .veu-janela { position: fixed; inset: 0; background: rgba(26,25,22,.45); z-index: 70 }
+/* Por cima de tudo, até a borda da janela: o espaço reservado da barra de rolagem (scrollbar-gutter) fica fora do 100%,
+   e "100% - 100vw" é menos a largura dele. */
+:root { --sem-barra: calc(100% - 100vw) }
+.veu, .veu-janela { position: fixed; inset: 0; right: var(--sem-barra); background: rgba(26,25,22,.45); z-index: 70 }
 .veu { opacity: 0; transition: opacity .2s }
 .veu.on { opacity: 1 }
-.cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0; container-type: inline-size }
+.cartao-painel { position: fixed; z-index: 71; top: 0; right: var(--sem-barra); bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0; container-type: inline-size }
 .cartao-painel.on { transform: none; opacity: 1 }
 /* Janela no centro da tela, como no Trello (cada usuário escolhe no botão do cartão): o cartão à esquerda e os
    comentários na coluna da direita. A janela fica no meio da tela e da altura do que mostra; só quando o conteúdo
    passa da tela (--janela-altura) é que cada lado rola por dentro. */
-.cartao-painel.centro { --janela-altura: calc(100vh - 2 * var(--janela-margem)); --janela-altura: calc(100dvh - 2 * var(--janela-margem)); top: 50%; bottom: auto; left: 50%; right: auto; width: min(1100px, calc(100vw - 2 * var(--janela-margem))); height: auto; max-height: var(--janela-altura); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, calc(-50% + 16px)); display: flex; flex-direction: column; overflow: hidden }
+.cartao-painel.centro { --janela-altura: calc(100vh - 2 * var(--janela-margem)); --janela-altura: calc(100dvh - 2 * var(--janela-margem)); top: 50%; bottom: auto; left: 50vw; right: auto; width: min(1100px, calc(100vw - 2 * var(--janela-margem))); height: auto; max-height: var(--janela-altura); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, calc(-50% + 16px)); display: flex; flex-direction: column; overflow: hidden }
 .cartao-painel.centro.on { transform: translate(-50%, -50%) }
 .cartao-painel.centro .cartao-conteudo { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) }
 /* O conteúdo do cartão se ajusta à largura dele, não à da janela toda (que inclui a coluna). */
@@ -449,7 +452,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* No celular, nos dois formatos, o cartão sobe do pé da tela, na largura toda e da altura do conteúdo (até perto do
    topo, deixando ver a página por trás): não há o que escolher. */
 @media (max-width: 640px) {
-  .cartao-painel, .cartao-painel.centro, .cartao-painel.centro.sem-coluna, .cartao-painel.centro.ajustado { --janela-altura: calc(100vh - var(--janela-margem)); --janela-altura: calc(100dvh - var(--janela-margem)); inset: auto 0 0 0; width: auto; height: auto; max-height: var(--janela-altura); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.18); transform: translateY(24px); padding-bottom: env(safe-area-inset-bottom) }
+  .cartao-painel, .cartao-painel.centro, .cartao-painel.centro.sem-coluna, .cartao-painel.centro.ajustado { --janela-altura: calc(100vh - var(--janela-margem)); --janela-altura: calc(100dvh - var(--janela-margem)); inset: auto var(--sem-barra) 0 0; width: auto; height: auto; max-height: var(--janela-altura); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.18); transform: translateY(24px); padding-bottom: env(safe-area-inset-bottom) }
   .cartao-painel.on, .cartao-painel.centro.on { transform: none }
   .cartao-formato { display: none }
 }

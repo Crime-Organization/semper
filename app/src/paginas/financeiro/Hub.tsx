@@ -14,7 +14,7 @@ import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas'
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
 import { useMudancas } from '../../ui/avisos';
-import { Aviso, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
+import { Aviso, BotaoLink, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 import { PaginaModulo } from '../../ui/PaginaModulo';
 import { PainelCartao } from '../../ui/PainelCartao';
@@ -102,6 +102,8 @@ export default function Hub() {
   const botoes = <div className="financeiro-acoes">
     <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setAberto({ o: 'entrada' })}><Icone nome="mais" tam={15} /> Nova entrada</button>
     {admin && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'saida' })}><Icone nome="mais" tam={15} /> Nova saída</button>}
+    {/* As contas do escritório (saldo inicial, DAS, ajustes): também quando ainda não há nenhuma. */}
+    {admin && <BotaoLink forma="link" to="/financeiro/contas/">Contas e DAS</BotaoLink>}
   </div>;
 
   let corpo;

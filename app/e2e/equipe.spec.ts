@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir } from './ajudantes';
+import { expect, test, type Page } from '@playwright/test';
+import { abrir, abrirUsuario } from './ajudantes';
 
 test.describe('Equipe e acessos', () => {
   test.beforeEach(async ({ page }) => {
@@ -56,8 +56,10 @@ test.describe('Equipe e acessos', () => {
     const linhaDaAna = (page: Page) => page.getByRole('region', { name: 'Usuários' }).getByRole('row').filter({ hasText: 'Ana Teste Lima' });
 
     async function desativarAna(page: Page) {
-      await linhaDaAna(page).getByRole('button', { name: 'Desativar' }).click();
-      await linhaDaAna(page).getByRole('button', { name: 'Confirmar desativação' }).click();
+      const janela = await abrirUsuario(page, 'Ana Teste Lima');
+      await janela.getByRole('button', { name: 'Desativar' }).click();
+      await janela.getByRole('button', { name: 'Confirmar desativação' }).click();
+      return janela;
     }
 
     test('quando o administrador desativa alguém, então o aviso diz que a pessoa saiu dos aparelhos', async ({ page }) => {
@@ -69,39 +71,40 @@ test.describe('Equipe e acessos', () => {
 
     test('quando o administrador clica em "Reativar" uma vez, então ainda pede confirmação', async ({ page }) => {
       // Dado
-      await desativarAna(page);
+      const janela = await desativarAna(page);
       // Quando
-      await linhaDaAna(page).getByRole('button', { name: 'Reativar' }).click();
+      await janela.getByRole('button', { name: 'Reativar' }).click();
       // Então
-      await expect(linhaDaAna(page).getByRole('button', { name: 'Confirmar reativação' })).toBeVisible();
+      await expect(janela.getByRole('button', { name: 'Confirmar reativação' })).toBeVisible();
       await expect(linhaDaAna(page)).toContainText('Desativado');
     });
 
     test('quando o administrador confirma a reativação, então a pessoa volta e o aviso diz que a senha antiga não vale mais', async ({ page }) => {
       // Dado
-      await desativarAna(page);
+      const janela = await desativarAna(page);
       // Quando
-      await linhaDaAna(page).getByRole('button', { name: 'Reativar' }).click();
-      await linhaDaAna(page).getByRole('button', { name: 'Confirmar reativação' }).click();
+      await janela.getByRole('button', { name: 'Reativar' }).click();
+      await janela.getByRole('button', { name: 'Confirmar reativação' }).click();
       // Então
       await expect(page.getByText(`Ana Teste Lima foi reativado(a). ${SENHA}`)).toBeVisible();
-      await expect(linhaDaAna(page).getByRole('button', { name: 'Desativar' })).toBeVisible();
+      await expect(janela.getByRole('button', { name: 'Desativar' })).toBeVisible();
+      await expect(linhaDaAna(page)).toContainText('Ativo');
     });
 
     test('quando o administrador desfaz uma desativação, então o aviso também diz que a senha antiga não vale mais', async ({ page }) => {
       // Dado
-      await desativarAna(page);
+      const janela = await desativarAna(page);
       // Quando
       await page.getByRole('button', { name: 'Desfazer' }).click();
       // Então
       await expect(page.getByText(`Desfeito: desativação. ${SENHA}`)).toBeVisible();
-      await expect(linhaDaAna(page).getByRole('button', { name: 'Desativar' })).toBeVisible();
+      await expect(janela.getByRole('button', { name: 'Desativar' })).toBeVisible();
     });
   });
 
   test('quando o administrador muda a função de alguém, então a função nova aparece e fica no registro de ações', async ({ page }) => {
     // Dado
-    const funcao = page.getByLabel('Função de Ana Teste Lima');
+    const funcao = (await abrirUsuario(page, 'Ana Teste Lima')).getByRole('combobox', { name: 'Função' });
     await expect(funcao.getByRole('option', { selected: true })).toHaveText('Advogado');
     // Quando
     await funcao.selectOption({ label: 'Estagiário' });
@@ -121,19 +124,30 @@ test.describe('Equipe e acessos', () => {
     expect(tabela!.width).toBeLessThanOrEqual(secao!.width);
   });
 
-  test('quando a tela é a de um computador, então os botões de cada usuário ficam numa linha só, na mesma altura do "Você"', async ({ page }) => {
-    // Quando
-    await page.setViewportSize({ width: 1440, height: 900 });
+  // A regra mudou em 07/11/2026: as ações de cada usuário saíram da linha da tabela (que ficava apertada) para a janela dele.
+  test('quando o administrador clica num usuário, então a janela abre com o nome, a função, o papel e as ações, e a linha fica sem botões', async ({ page }) => {
+    // Dado
     const usuarios = page.getByRole('region', { name: 'Usuários' });
-    await expect(usuarios.getByRole('row')).toHaveCount(5);
-    // Então: o meio de cada botão (e do "Você") fica na mesma altura que o do botão Cadastro da mesma linha
-    const meio = async (alvo: Locator) => { const c = (await alvo.boundingBox())!; return Math.round(c.y + c.height / 2); };
     const ana = usuarios.getByRole('row').filter({ hasText: 'Ana Teste Lima' });
-    expect(await meio(ana.getByRole('button', { name: 'Desativar' }))).toBe(await meio(ana.getByRole('link', { name: 'Cadastro' })));
-    const eu = usuarios.getByRole('row').filter({ hasText: 'Mateus Freitas Gonçalves' });
-    expect(await meio(eu.getByText('Você', { exact: true }))).toBe(await meio(eu.getByRole('link', { name: 'Cadastro' })));
-    const carla = usuarios.getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' });
-    expect(await meio(carla.getByRole('button', { name: 'Reativar' }))).toBe(await meio(carla.getByRole('link', { name: 'Cadastro' })));
+    await expect(ana.getByRole('button')).toHaveCount(1);
+    // Quando
+    const janela = await abrirUsuario(page, 'Ana Teste Lima');
+    // Então
+    await expect(janela.getByRole('textbox', { name: 'Nome' })).toHaveValue('Ana Teste Lima');
+    await expect(janela.getByRole('combobox', { name: 'Função' })).toBeVisible();
+    await expect(janela.getByRole('combobox', { name: 'Papel no sistema' })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Desativar' })).toBeVisible();
+    await expect(janela.getByRole('link', { name: 'Cadastro' })).toBeVisible();
+  });
+
+  test('quando o administrador muda o nome de alguém, então o nome novo aparece na lista', async ({ page }) => {
+    // Quando
+    const janela = await abrirUsuario(page, 'Ana Teste Lima');
+    await janela.getByRole('textbox', { name: 'Nome' }).fill('Ana Teste Lima Souza');
+    await janela.getByRole('button', { name: 'Salvar nome' }).click();
+    // Então
+    await expect(page.getByText('Nome salvo: Ana Teste Lima Souza.')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Usuários' })).toContainText('Ana Teste Lima Souza');
   });
 
   test.describe('Trocar o e-mail de quem perdeu o antigo', () => {
@@ -141,7 +155,7 @@ test.describe('Equipe e acessos', () => {
 
     test('quando o master troca o e-mail de um usuário, então o e-mail novo aparece na lista e a troca fica no registro de ações', async ({ page }) => {
       // Quando
-      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      await (await abrirUsuario(page, 'Bruno Exemplo Souza')).getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       // Então
       await expect(janela).toContainText('Quem já estava conectado perde o acesso na hora');
@@ -170,7 +184,7 @@ test.describe('Equipe e acessos', () => {
 
     test('quando o aviso por e-mail sai para todos, então o registro de ações não acusa nada', async ({ page }) => {
       // Quando
-      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      await (await abrirUsuario(page, 'Bruno Exemplo Souza')).getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
       await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
@@ -236,7 +250,7 @@ test.describe('Equipe e acessos', () => {
     }
 
     async function trocarOEmailDoBruno(page: Page) {
-      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      await (await abrirUsuario(page, 'Bruno Exemplo Souza')).getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
       await janela.getByLabel('Repita o e-mail novo').fill('bruno.novo@exemplo.com');
@@ -264,7 +278,7 @@ test.describe('Equipe e acessos', () => {
 
     test('quando os dois e-mails não são iguais, então a janela avisa, guarda o que foi digitado e nada muda', async ({ page }) => {
       // Quando
-      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      await (await abrirUsuario(page, 'Bruno Exemplo Souza')).getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       await janela.getByLabel('E-mail novo', { exact: true }).fill('bruno.novo@exemplo.com');
       await janela.getByLabel('Repita o e-mail novo').fill('bruno.nvoo@exemplo.com');
@@ -278,7 +292,7 @@ test.describe('Equipe e acessos', () => {
 
     test('quando o e-mail novo já é de outra conta, então avisa e nada muda', async ({ page }) => {
       // Quando
-      await page.getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
+      await (await abrirUsuario(page, 'Bruno Exemplo Souza')).getByRole('button', { name: 'Trocar e-mail de Bruno Exemplo Souza' }).click();
       const janela = page.getByRole('dialog');
       await janela.getByLabel('E-mail novo', { exact: true }).fill('ana@exemplo.com');
       await janela.getByLabel('Repita o e-mail novo').fill('ana@exemplo.com');

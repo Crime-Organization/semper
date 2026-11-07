@@ -14,12 +14,34 @@ export async function abrir(page: Page, secao: string) {
   await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: secao, exact: true }).click();
 }
 
-/** Abre uma tela de dentro do submenu Financeiro, que começa recolhido e abre sozinho nas telas dele. */
+/**
+ * Abre a janela de um usuário em Equipe e acessos (clicando no nome dele na tabela). Desde 07/11/2026, as ações de cada
+ * usuário (nome, função, papel, sócio, e-mail, desativar) ficam nessa janela, e não mais na linha da tabela.
+ */
+export async function abrirUsuario(page: Page, nome: string) {
+  await page.getByRole('region', { name: 'Usuários' }).getByRole('button', { name: `Abrir ${nome}` }).click();
+  return page.getByRole('dialog', { name: nome });
+}
+
+/**
+ * Uma ação do menu ⋯ de uma parcela (Mudar, Excluir, Estornar ou Corrigir). Excluir e estornar pedem confirmação numa
+ * janela, que esta função confirma.
+ */
+export async function acaoDaParcela(page: Page, lugar: Page | Locator, acao: 'Mudar' | 'Excluir' | 'Estornar' | 'Corrigir', numero: number) {
+  await lugar.getByRole('button', { name: `Mais ações da parcela ${numero}` }).click();
+  await page.getByRole('menuitem', { name: `${acao} a parcela ${numero}` }).click();
+  if (acao === 'Excluir' || acao === 'Estornar') await page.getByRole('dialog', { name: new RegExp(`^${acao}`) }).getByRole('button', { name: acao, exact: true }).click();
+}
+
+/**
+ * As telas do Financeiro que não são abas da página principal, cada uma no seu endereço. O menu tem só o link do
+ * Financeiro (desde 07/11/2026): elas se abrem pelos atalhos das abas, e o teste vai direto ao endereço.
+ */
+const TELAS_DO_FINANCEIRO: Record<string, string> = {
+  Caixa: '/financeiro/contas/', 'Conferência': '/conferencia/', 'Lucro dos sócios': '/lucros/', 'Meus valores': '/meus-valores/', Parcelas: '/parcelas/'
+};
 export async function abrirNoFinanceiro(page: Page, tela: string) {
-  const secoes = page.getByRole('navigation', { name: 'Seções' });
-  const submenu = secoes.getByRole('button', { name: 'Financeiro' });
-  if (await submenu.getAttribute('aria-expanded') !== 'true') await submenu.click();
-  await secoes.getByRole('link', { name: tela, exact: true }).click();
+  await page.goto(TELAS_DO_FINANCEIRO[tela]);
 }
 
 /**

@@ -17,7 +17,7 @@ describe('O Financeiro no menu', () => {
     expect(screen.getByRole('link', { name: 'Financeiro' })).toHaveAttribute('href', '/financeiro/');
   });
 
-  it.each(['/financeiro/', '/financeiro/saidas/', '/financeiro/receitas/', '/financeiro/despesas/'])('dado que entro em %s, quando a tela abre, então o item fica marcado', endereco => {
+  it.each(['/financeiro/', '/financeiro/saidas/', '/financeiro/direitos/', '/financeiro/obrigacoes/'])('dado que entro em %s, quando a tela abre, então o item fica marcado', endereco => {
     // Quando
     abrir(endereco);
     // Então
@@ -26,7 +26,7 @@ describe('O Financeiro no menu', () => {
 });
 
 describe('A aba de cada endereço', () => {
-  it.each([['/financeiro/', 'entradas'], ['/financeiro/saidas/', 'saidas'], ['/financeiro/receitas', 'receitas'], ['/financeiro/despesas/', 'despesas'], ['/financeiro/outra/', 'entradas']])(
+  it.each([['/financeiro/', 'entradas'], ['/financeiro/saidas/', 'saidas'], ['/financeiro/direitos', 'direitos'], ['/financeiro/obrigacoes/', 'obrigacoes'], ['/financeiro/outra/', 'entradas']])(
     'quando o endereço é %s, então a aba é %s', (endereco, aba) => {
       // Quando / Então
       expect(abaDoCaminho(endereco)).toBe(aba);

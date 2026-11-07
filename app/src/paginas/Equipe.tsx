@@ -198,7 +198,7 @@ function PainelEquipe() {
           {lista.map(u => <tr key={u.id} className="clicavel" onClick={() => setAberto(u.id)}>
             <td><div className="pessoa-usuario"><Avatar p={u} tam={32} /><div>
               <button type="button" className="financeiro-abrir nome" aria-label={`Abrir ${u.nome}`} onClick={e => { e.stopPropagation(); setAberto(u.id); }}>{u.nome}</button>
-              {!u.reservada && <div className="sub">@{u.usuario}</div>}{u.id === eu && <div className="sub">Você</div>}</div></div></td>
+              {!u.reservada && <div className="sub">{u.email}</div>}{u.id === eu && <div className="sub">Você</div>}</div></div></td>
             <td><div className="funcao-usuario">{FUNCOES[u.funcao]}{eSocio(u) && <Selo tipo="ok">Sócio</Selo>}</div></td>
             <td><span className={'papel' + (u.papel === 'usuario' ? ' comum' : '')}>{PAPEIS[u.papel]}</span></td>
             <td><div className="situacao-usuario">{seloDaSituacao(u)}
@@ -208,7 +208,7 @@ function PainelEquipe() {
       </table></div>
       {doAberto && <PainelCartao aoFechar={() => setAberto(null)} soNoCentro ajustado rotulo={doAberto.nome}>
         <UsuarioDaEquipe key={doAberto.id} u={doAberto} gerir={podeGerir(doAberto)} socios={socios}
-          aoTrocarFuncao={f => trocarFuncao(doAberto, f)} aoTrocarPapel={p => trocarPapel(doAberto, p)} aoTrocarEmail={() => trocarEmail(doAberto)}
+          aoTrocarFuncao={f => trocarFuncao(doAberto, f)} aoTrocarPapel={p => trocarPapel(doAberto, p)} aoTrocarEmail={() => { setAberto(null); void trocarEmail(doAberto); }}
           aoDefinirAtivo={a => definirAtivo(doAberto, a)} aoMudar={mudouEquipe} />
       </PainelCartao>}
     </section>

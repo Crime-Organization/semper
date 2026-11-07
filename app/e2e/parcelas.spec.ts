@@ -2,13 +2,13 @@
 // As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mateus (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirNoFinanceiro, abrirSecao } from './ajudantes';
+import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
 /** Cria a conta PJ, que recolhe DAS, e o DAS de 4,5%, valendo há muito tempo. */
 async function prepararCaixa(page: Page) {
-  await page.goto('/financeiro/');
+  await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
   await page.getByRole('button', { name: 'Nova conta' }).click();
   const conta = page.getByRole('form', { name: 'Nova conta' });
@@ -66,19 +66,22 @@ test.describe('Parcelas do contrato', () => {
     await page.reload();
     // Quando
     const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     // Então
     const linha = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1);
     await expect(linha).toContainText('Recebida');
     await expect(linha).toContainText('12/03/2025');
     await expect(linha).toContainText(dinheiro('550,00'));
-    await expect(linha).toContainText('Histórico importado');
-    await expect(linha.getByRole('button', { name: 'Corrigir a parcela 1' })).toBeVisible();
+    await expect(linha).toContainText('Importada'); // a marca curta da parcela que veio do histórico
     await expect(linha.getByRole('button', { name: 'Receber a parcela 1' })).toHaveCount(0);
-    await expect(linha.getByRole('button', { name: 'Estornar' })).toHaveCount(0);
+    // No menu ⋯ da parcela importada há Corrigir, e não há Estornar.
+    await linha.getByRole('button', { name: 'Mais ações da parcela 1' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Corrigir a parcela 1' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Estornar a parcela 1' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 2' })).toBeVisible();
     // E o caixa não mudou
-    await page.goto('/financeiro/');
+    await page.goto('/financeiro/contas/');
     await expect(page.getByText('55,00').or(page.getByText('550,00'))).toHaveCount(0);
   });
 
@@ -92,10 +95,10 @@ test.describe('Parcelas do contrato', () => {
     });
     await page.reload();
     const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     const linha = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1);
     // Quando
-    await linha.getByRole('button', { name: 'Corrigir a parcela 1' }).click();
+    await acaoDaParcela(page, linha, 'Corrigir', 1);
     const form = cartao.getByRole('form', { name: 'Corrigir a parcela 1' });
     await expect(form.getByLabel('Valor recebido')).toHaveValue('550,00');
     await form.getByLabel('Recebida em').fill(`${new Date().getFullYear() + 1}-01-01`);
@@ -110,7 +113,7 @@ test.describe('Parcelas do contrato', () => {
     await abrirSecao(cartao, 'Histórico das parcelas');
     await expect(cartao.getByText('Parcela 1: valor recebido')).toBeVisible();
     // E o caixa não mudou
-    await page.goto('/financeiro/');
+    await page.goto('/financeiro/contas/');
     await expect(page.getByText('575,50')).toHaveCount(0);
   });
 
@@ -137,7 +140,7 @@ test.describe('Parcelas do contrato', () => {
     await cartao.getByText('100% do que o cliente pagar').click();
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Quando
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
     // Então: a entrada fica como foi combinada, e as outras dividem os R$ 2.000,00 que sobram
     const linhas = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row');
@@ -150,7 +153,7 @@ test.describe('Parcelas do contrato', () => {
   test('quando muda a situação para assinado com a seção aberta, então as parcelas aparecem na hora', async ({ page }) => {
     // Dado: o contrato de JOÃO PEDRO ainda não foi assinado
     const cartao = await abrirContrato(page, 'JOÃO PEDRO FICTÍCIO');
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     await expect(cartao.getByText('Elas nascem quando o contrato chega à coluna de assinado.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
     // Quando
@@ -165,7 +168,7 @@ test.describe('Parcelas do contrato', () => {
   test('quando o contrato é de êxito, então não gera sozinho: lança à mão, muda e exclui, com desfazer', async ({ page }) => {
     // Dado
     const cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     await expect(cartao.getByText('Este contrato não gera parcelas sozinho', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
     // Quando: lança
@@ -181,15 +184,14 @@ test.describe('Parcelas do contrato', () => {
     await expect(tabela).toContainText('01/05/2030');
     await expect(tabela).toContainText('A receber');
     // Quando: muda
-    await cartao.getByRole('button', { name: 'Mudar a parcela 1' }).click();
+    await acaoDaParcela(page, cartao, 'Mudar', 1);
     const mudar = cartao.getByRole('form', { name: 'Mudar a parcela 1' });
     await expect(mudar.getByLabel('Valor')).toHaveValue('500,00');
     await mudar.getByLabel('Valor').fill('750,00');
     await mudar.getByRole('button', { name: 'Salvar parcela' }).click();
     await expect(tabela).toContainText(dinheiro('750,00'));
     // Quando: exclui
-    await cartao.getByRole('button', { name: 'Excluir' }).click();
-    await cartao.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    await acaoDaParcela(page, cartao, 'Excluir', 1);
     await expect(tabela).toHaveCount(0);
     // Quando: desfaz
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
@@ -199,7 +201,7 @@ test.describe('Parcelas do contrato', () => {
   test('quando o contrato não diz quanto vai para a conta, então receber pede para preencher', async ({ page }) => {
     // Dado
     const cartao = await abrirContrato(page, 'MARIA APARECIDA EXEMPLO');
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     await cartao.getByRole('button', { name: 'Nova parcela' }).click();
     const nova = cartao.getByRole('form', { name: 'Nova parcela' });
     await nova.getByLabel('Valor').fill('500,00');
@@ -258,7 +260,7 @@ test.describe('Receber', () => {
     // Então
     await expect(repasses).toContainText('Pago');
     // Quando: abre o caixa
-    await page.goto('/financeiro/');
+    await page.goto('/financeiro/contas/');
     // Então: a entrada, a taxa e o repasse estão lá, e só mudam pela parcela
     const caixa = page.getByRole('table', { name: 'Lançamentos do mês' });
     await expect(caixa.getByRole('row')).toHaveCount(4);
@@ -281,7 +283,7 @@ test.describe('Receber', () => {
     await cartao.getByRole('button', { name: /BRUNO EXEMPLO SOUZA/ }).click();
     await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
-    await abrirSecao(cartao, 'Parcelas');
+    await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
     await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
     // Quando
     const form = await receberPrimeira(cartao);
@@ -299,8 +301,7 @@ test.describe('Receber', () => {
     await expect(form).toHaveCount(0);
     const primeira = cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1);
     // Quando
-    await cartao.getByRole('button', { name: 'Estornar' }).click();
-    await cartao.getByRole('button', { name: 'Confirmar: estornar' }).click();
+    await acaoDaParcela(page, cartao, 'Estornar', 1);
     // Então
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 1' })).toBeVisible();
     await expect(primeira).not.toContainText('Recebida');
@@ -325,9 +326,8 @@ test.describe('Receber', () => {
     await expect(repasses).toContainText('Pago');
     // Quando
     const novoCartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
-    await abrirSecao(novoCartao, 'Parcelas');
-    await novoCartao.getByRole('button', { name: 'Estornar' }).click();
-    await novoCartao.getByRole('button', { name: 'Confirmar: estornar' }).click();
+    await abrirSecao(novoCartao, 'Honorários');
+    await acaoDaParcela(page, novoCartao, 'Estornar', 1);
     // Então
     await expect(page.getByText('Há repasse já pago deste recebimento', { exact: false })).toBeVisible();
     // Quando
@@ -336,7 +336,7 @@ test.describe('Receber', () => {
     await repasses.getByRole('button', { name: 'Confirmar: desfazer' }).click();
     // Então
     await expect(repasses).toContainText('A pagar');
-    await page.goto('/financeiro/');
+    await page.goto('/financeiro/contas/');
     await expect(page.getByRole('table', { name: 'Lançamentos do mês' })).not.toContainText('Repasse a Mateus');
   });
 

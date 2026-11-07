@@ -5,7 +5,7 @@ import { abrirSecao } from './ajudantes';
 
 /** Cria as contas PJ (recolhe DAS, com saldo) e PF, a partir de janeiro. */
 async function criarContas(page: Page) {
-  await page.goto('/financeiro/');
+  await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
   for (const [nome, saldo, das] of [['PJ', '1.000,00', true], ['PF', '0,00', false]] as const) {
     await page.getByRole('button', { name: 'Nova conta' }).click();
@@ -41,13 +41,12 @@ async function lancarAjuste(page: Page, { categoria, valor, motivo, data }: { ca
 const irParaMes = (page: Page, mes: string) => page.getByLabel('Mês', { exact: true }).first().fill(mes);
 
 test.describe('Caixa', () => {
-  test('quando não há contas, então pede para criar; ao criar, o menu leva ao caixa da conta', async ({ page }) => {
+  test('quando não há contas, então o Financeiro leva às contas, que pedem para criar; ao criar, mostra o caixa da conta', async ({ page }) => {
     // Dado
     await page.goto('/inicio/');
-    // Quando
-    const secoes = page.getByRole('navigation', { name: 'Seções' });
-    await secoes.getByRole('button', { name: 'Financeiro' }).click();
-    await secoes.getByRole('link', { name: 'Caixa' }).click();
+    // Quando: o menu leva ao Financeiro, e o link Contas e DAS, às contas
+    await page.getByRole('navigation', { name: 'Seções' }).getByRole('link', { name: 'Financeiro', exact: true }).click();
+    await page.getByRole('link', { name: 'Contas e DAS' }).click();
     // Então
     await expect(page.getByText('Nenhuma conta ainda.', { exact: false })).toBeVisible();
     // Quando
@@ -452,11 +451,15 @@ test.describe('Caixa', () => {
   });
 });
 
-test('quando a pessoa entra em Parcelas, então o menu Financeiro aparece aberto, com as telas dentro', async ({ page }) => {
+// A regra mudou em 07/11/2026: o menu deixou de ter um submenu com as telas; o Financeiro é um link só, para a página
+// com as abas Entradas, Saídas, Direitos e Obrigações.
+test('quando a pessoa abre o menu, então o Financeiro é um link só, que leva à página com as quatro abas', async ({ page }) => {
   // Quando
   await page.goto('/parcelas/');
-  // Então
   const secoes = page.getByRole('navigation', { name: 'Seções' });
-  await expect(secoes.getByRole('button', { name: 'Financeiro' })).toHaveAttribute('aria-expanded', 'true');
-  for (const tela of ['Parcelas', 'Caixa', 'Lucro dos sócios']) await expect(secoes.getByRole('link', { name: tela, exact: true })).toBeVisible();
+  await expect(secoes.getByRole('button', { name: 'Financeiro' })).toHaveCount(0);
+  await secoes.getByRole('link', { name: 'Financeiro', exact: true }).click();
+  // Então
+  const abas = page.getByRole('navigation', { name: 'Abas do financeiro' });
+  for (const aba of ['Entradas', 'Saídas', 'Direitos', 'Obrigações']) await expect(abas.getByRole('link', { name: aba, exact: true })).toBeVisible();
 });

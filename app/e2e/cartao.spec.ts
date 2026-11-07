@@ -12,7 +12,7 @@ async function abrirCartao(page: Page, endereco: string, texto: string) {
 /** Onde o cartão está na tela (depois de terminar de abrir). */
 async function posicao(page: Page) {
   const c = (await page.getByRole('dialog').boundingBox())!, tela = page.viewportSize()!;
-  return { meio: Math.round(c.x + c.width / 2 - tela.width / 2), direita: Math.round(tela.width - c.x - c.width), largura: Math.round(c.width) };
+  return { meio: Math.round(c.x + c.width / 2 - tela.width / 2), direita: Math.round(tela.width - c.x - c.width), largura: Math.round(c.width), embaixo: Math.round(tela.height - c.y - c.height) };
 }
 
 test.describe('Formato do cartão', () => {
@@ -59,7 +59,8 @@ test.describe('Formato do cartão', () => {
   });
 
   for (const formato of ['ao lado', 'no centro']) {
-    test(`dado o cartão ${formato}, quando ele abre num celular, então ocupa a tela toda e não há botão de formato`, async ({ page }) => {
+    // Desde 07/11/2026, no celular o cartão sobe do pé da tela, na largura toda e da altura do conteúdo (antes, a tela toda).
+    test(`dado o cartão ${formato}, quando ele abre num celular, então ocupa a largura toda, encostado embaixo, e não há botão de formato`, async ({ page }) => {
       // Dado
       if (formato === 'no centro') {
         await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
@@ -70,6 +71,7 @@ test.describe('Formato do cartão', () => {
       await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
       // Então
       await expect.poll(async () => (await posicao(page)).largura).toBe(375);
+      await expect.poll(async () => (await posicao(page)).embaixo).toBe(0);
       await expect(page.getByRole('button', { name: /Abrir (no centro da tela|ao lado)/ })).toBeHidden();
     });
   }

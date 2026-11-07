@@ -1,6 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Minha conta e perfil profissional. No banco fictício, quem está logado é o Mateus (master); Ana é administradora.
 import { expect, test } from '@playwright/test';
+import { abrirUsuario } from './ajudantes';
 
 test.describe('Minha conta', () => {
   test('quando a pessoa clica em "Minha conta" no menu, então abre a página própria, com o acesso e o perfil profissional', async ({ page }) => {
@@ -229,7 +230,7 @@ test.describe('Perfil de alguém da equipe', () => {
     // Dado
     await page.goto('/equipe/');
     // Quando
-    await page.getByRole('link', { name: 'Perfil profissional de Ana Teste Lima' }).click();
+    await (await abrirUsuario(page, 'Ana Teste Lima')).getByRole('link', { name: 'Perfil profissional de Ana Teste Lima' }).click();
     await expect(page.getByRole('heading', { name: 'Ana Teste Lima', level: 1 })).toBeVisible();
     await page.getByLabel('Cargo no escritório', { exact: false }).fill('Advogada associada');
     await page.getByRole('checkbox', { name: 'Aparecer no site' }).check();

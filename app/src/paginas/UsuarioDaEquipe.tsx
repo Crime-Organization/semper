@@ -56,7 +56,7 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
       <div className="usuario-cabeca"><Avatar p={u} tam={44} /><div><h2>{u.nome}</h2>{!u.reservada && <span className="sub">@{u.usuario} · {u.email}</span>}</div></div>
     </header>
 
-    <section className="bloco separada" aria-label="Nome">
+    <section className="bloco separada" aria-label="Nome do usuário">
       <form className="usuario-nome" onSubmit={salvarNome} noValidate>
         <Campo rotulo="Nome" para={id + 'nome'}>
           <input type="text" {...propsDoCampo(id + 'nome')} value={nome} maxLength={200} disabled={!podeRenomear} onChange={e => setNome(e.target.value)} />
@@ -90,7 +90,7 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
       <h3 id={id + 'acesso'}>Acesso</h3>
       <p className="usuario-acesso">E-mail de acesso: <b>{u.email}</b> · {u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</p>
       {gerir && <div className="financeiro-acoes">
-        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={aoTrocarEmail}>Trocar e-mail</button>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={aoTrocarEmail}>Trocar e-mail</button>
         {u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => aoDefinirAtivo(false)}>Desativar</BotaoDuplo>
           : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => aoDefinirAtivo(true)}>Reativar</BotaoDuplo>}
       </div>}
