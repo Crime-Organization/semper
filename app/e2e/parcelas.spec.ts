@@ -40,7 +40,7 @@ async function contratoComParcelas(page: Page) {
   await cartao.getByRole('button', { name: 'Editar' }).click();
   await cartao.getByText('100% do que o cliente pagar').click();
   await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await abrirSecao(cartao, 'Parcelas');
+  await abrirSecao(cartao, 'Honorários');
   await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
   await expect(cartao.getByRole('button', { name: 'Receber a parcela 5' })).toBeVisible();
   return cartao;

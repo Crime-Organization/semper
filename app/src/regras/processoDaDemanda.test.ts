@@ -44,7 +44,7 @@ describe('Perguntar ao concluir', () => {
 
 describe('O que a tarefa nascida no processo herda', () => {
   const demanda = (extra: Partial<DemandaDoProcesso> = {}) => ({
-    id: 'd1', codigo: 'D1', titulo: 'T', prazo: null, etapa_id: null, arquivado_em: null, criado_em: '', papeis: [], contrato_id: 'k1', criado_por: 'u1', responsavel_id: 'u1', colaboradores: ['u2'], ...extra
+    id: 'd1', codigo: 'D1', titulo: 'T', objeto: null, prazo: null, etapa_id: null, arquivado_em: null, criado_em: '', papeis: [], contrato_id: 'k1', criado_por: 'u1', responsavel_id: 'u1', colaboradores: ['u2'], ...extra
   });
   const PROCESSO = { segredo: false, criado_por: 'u9', responsavel_id: 'u1', colaboradores: ['u2'] };
   const NADA = { demanda_id: null, contrato_id: null };

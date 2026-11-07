@@ -866,7 +866,7 @@ function demandasDoContratoAssinado(k: ContratoGuardado) {
     responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 }));
 }
 const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: DemandaGuardada): DemandaLigada => ({
-  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
+  id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
 // ---------- tarefas ----------
@@ -1180,7 +1180,7 @@ function socioDoRecebimento(k: ContratoGuardado, responsavelSocio: boolean) {
 const partesDe = (k: ContratoGuardado, data: string) => partesDoRecebimento(k, bd.socios!.filter(s => !s.excluido_em), EQUIPE.find(m => m.id === k.responsavel_id)?.pessoa_id, data, nomeDoSocio);
 function parcelaDoEscritorio(p: ParcelaGuardada): ParcelaDoEscritorio {
   const k = bd.contratos!.find(x => x.id === p.contrato_id);
-  return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null };
+  return { ...semExcluida(p), contrato_codigo: k?.codigo ?? '', cliente_nome: k ? nomesDosClientes(k.clientes) : '', responsavel_id: k?.responsavel_id ?? null, total_parcelas: k?.parcelas ?? null };
 }
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
 const naLista = (p: ParcelaGuardada) => !!p.recebida_em || !bd.contratos!.find(k => k.id === p.contrato_id)?.arquivado_em;
@@ -2255,7 +2255,7 @@ export const SD: Dados = {
   },
   demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
     const d = bd.demandas!.find(x => x.id === l.demanda_id);
-    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
+    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
       criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, papeis: [] }] : [];
   })),
   processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {

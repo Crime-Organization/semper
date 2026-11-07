@@ -4,7 +4,7 @@ import { useEffect, useId, useState, type FormEvent } from 'react';
 import { SD, type ContaFinanceira, type ParaReceber, type ParcelaDoEscritorio } from '../../dados';
 import { dadosDoLancamento, errosDoLancamento, fmtCentavos, nomeDaCategoria, type FormDoLancamento } from '../../regras/caixa';
 import { carteiraDeContratos } from '../../regras/painelFinanceiro';
-import { dadosDoRecebimento, errosDoFormDeRecebimento, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
+import { dadosDoRecebimento, errosDoFormDeRecebimento, maiorParcelaPorContrato, numeroDaParcela, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo, Vazio } from '../../ui/base';
@@ -17,6 +17,7 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
   const id = useId();
   const hoje = hojeISO();
   const abertas = parcelas.filter(p => situacaoDaParcela(p, hoje) !== 'recebida');
+  const maior = maiorParcelaPorContrato(parcelas);
   const inicial = abertas.find(p => p.id === parcelaInicial);
   const [contrato, setContrato] = useState(inicial ? `${inicial.contrato_codigo} · ${inicial.cliente_nome}` : '');
   const [parcelaId, setParcelaId] = useState(inicial?.id ?? '');
@@ -62,7 +63,7 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
     try {
       const { data, valor, contaId, taxa } = dadosDoRecebimento(form, conta.tem_das);
       const novo = await SD.financeiroReceber({ parcela: parcela.id, data, valor, conta: contaId, taxa });
-      feito(`Entrada registrada: ${parcela.numero}ª parcela de ${parcela.contrato_codigo}.`, 'entrada', async () => { await SD.financeiroEstornar(novo); aoRegistrar(); });
+      feito(`Entrada registrada: parcela ${numeroDaParcela(parcela.numero, parcela.total_parcelas, maior.get(parcela.contrato_id))} de ${parcela.contrato_codigo}.`, 'entrada', async () => { await SD.financeiroEstornar(novo); aoRegistrar(); });
       setParcelaId(''); setConferido(false); setF(x => ({ ...x, valor: '', taxa: '', contaId: form.contaId }));
       aoRegistrar();
     } catch (e) { falha(e); }
@@ -79,7 +80,7 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
       <Campo rotulo="Parcela" para={id + 'parcela'}>
         <select {...propsDoCampo(id + 'parcela')} value={parcela?.id ?? ''} disabled={!doContrato.length} onChange={e => { setParcelaId(e.target.value); mudar({ valor: '', taxa: '' }); }}>
           {!doContrato.length && <option value="">Escolha o contrato</option>}
-          {doContrato.map(p => <option key={p.id} value={p.id}>{p.numero}ª · vence {fmtData(p.vencimento)} · {fmtCentavos(p.valor)}</option>)}
+          {doContrato.map(p => <option key={p.id} value={p.id}>{numeroDaParcela(p.numero, p.total_parcelas, maior.get(p.contrato_id))} · vence {fmtData(p.vencimento)} · {fmtCentavos(p.valor)}</option>)}
         </select>
       </Campo>
       <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}>

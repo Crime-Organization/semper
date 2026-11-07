@@ -124,13 +124,14 @@ test.describe('Cadastro de contratos', () => {
     await salvarContrato(page);
     // Então
     const cartao = page.getByRole('dialog');
-    await abrirSecao(cartao, 'Divisão');
+    await abrirSecao(cartao, 'Honorários');
     await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByText('BRUNO EXEMPLO SOUZA (10%), ANA TESTE LIMA (5%)')).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
     // Os participantes são da equipe: ficam em bolinhas com o responsável, ao lado das ações; o indicador, de fora, fica nas partes.
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Partes']);
+    // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
+    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 10%' })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /RAIMUNDO NONATO ENSAIO/ })).toContainText('Indicador · 10%');
   });
@@ -196,7 +197,7 @@ test.describe('Função na equipe', () => {
 });
 
 test.describe('Objetos do contrato', () => {
-  test('quando a pessoa acrescenta objetos e tira um, então o cartão mostra os que ficaram, em destaque e na ordem', async ({ page }) => {
+  test('quando a pessoa acrescenta objetos e tira um, então a seção dos objetos mostra os que ficaram, na ordem', async ({ page }) => {
     // Dado
     await preencherObrigatorios(page);
     // Quando: Enter no último objeto abre uma linha nova
@@ -207,8 +208,12 @@ test.describe('Objetos do contrato', () => {
     await page.getByRole('button', { name: 'Tirar o objeto 2' }).click();
     await salvarContrato(page);
     // Então
-    const objetos = page.getByRole('dialog').getByRole('list', { name: 'Objetos do contrato' }).getByRole('listitem');
-    await expect(objetos).toHaveText(['Registro de marca no INPI', 'Busca de anterioridade']);
+    const cartao = page.getByRole('dialog');
+    // As demandas são os objetos: antes de assinar, cada objeto aparece na lista das demandas, ainda sem link.
+    await abrirSecao(cartao, 'Demandas');
+    const objetos = cartao.getByRole('list', { name: 'Demandas do contrato' }).getByRole('listitem');
+    await expect(objetos).toHaveCount(2);
+    await expect(objetos).toContainText(['Registro de marca no INPI', 'Busca de anterioridade']);
     await expect(page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' })).toContainText('Registro de marca no INPI; Busca de anterioridade');
   });
 
@@ -387,7 +392,8 @@ test.describe('Ligações em quadrinhos', () => {
     // O responsável é da equipe: fica em bolinha ao lado das ações, fora das partes (as pessoas de fora do escritório).
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Partes']);
+    // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
+    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);
     // Quando
     await cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ }).click();
     // Então

@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
+  objetosEDemandas,
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
@@ -398,5 +399,16 @@ describe('Clientes por extenso', () => {
     const texto = clientesPorExtenso(guardado);
     // Então
     expect(texto).toBe(esperado);
+  });
+});
+
+describe('Os objetos do contrato e as demandas', () => {
+  it('dado dois objetos e uma demanda que nasceu do segundo, quando junta, então o primeiro fica sem demanda', () => {
+    // Dado
+    const demanda = { id: 'd1', objeto: 'Revisional' };
+    // Quando
+    const lista = objetosEDemandas(['Contratos', 'Revisional'], [demanda, { id: 'd2', objeto: null }]);
+    // Então
+    expect(lista).toEqual([{ objeto: 'Contratos', demanda: null }, { objeto: 'Revisional', demanda }]);
   });
 });

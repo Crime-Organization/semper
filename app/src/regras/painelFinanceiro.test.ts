@@ -14,7 +14,7 @@ const lancamento = (extra: Partial<Lancamento>): Lancamento => ({
 });
 const parcela = (extra: Partial<ParcelaDoEscritorio>): ParcelaDoEscritorio => ({
   id: 'p' + ++n, contrato_id: 'k1', numero: 1, vencimento: '2026-10-10', valor: 50000, recebimento_id: null, recebida_em: null, recebido: null,
-  contrato_codigo: 'AB12-0001-2026', cliente_nome: 'CLIENTE UM', responsavel_id: 'u1', ...extra
+  contrato_codigo: 'AB12-0001-2026', cliente_nome: 'CLIENTE UM', responsavel_id: 'u1', total_parcelas: null, ...extra
 });
 
 describe('O ano no painel', () => {

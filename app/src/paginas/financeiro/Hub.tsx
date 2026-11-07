@@ -9,6 +9,7 @@ import {
   FILTRO_VAZIO, MESES_DO_ANO, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
   totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
 } from '../../regras/painelFinanceiro';
+import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
 import { falha, feito, useMudancas } from '../../ui/avisos';
@@ -224,12 +225,13 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
 function Entradas({ caixa, parcelas, periodo, usuario, aoMudar }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; aoMudar: (l: Lancamento) => void }) {
   if (caixa && !usuario) return <><ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
   const lista = entradasDoMes(parcelas, periodo, usuario);
+  const maior = maiorParcelaPorContrato(parcelas);
   return <>
     {lista.length ? <div className="tabela"><table className="carteira" aria-label="Parcelas recebidas">
       <thead><tr><th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col" className="financeiro-num">Valor</th></tr></thead>
       <tbody>{lista.map(p => <tr key={p.id}>
         <td>{fmtData(p.recebida_em!)}</td><td><Link to={'/contratos/?id=' + p.contrato_id}>{p.contrato_codigo}</Link></td><td className="nome">{p.cliente_nome}</td>
-        <td className="num">{p.numero}ª</td><td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
+        <td className="num">{numeroDaParcela(p.numero, p.total_parcelas, maior.get(p.contrato_id))}</td><td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
       </tr>)}</tbody>
       <tfoot><tr><th scope="row" colSpan={4}>Total</th><td className="financeiro-num"><b>{fmtCentavos(totalRecebido(lista))}</b></td></tr></tfoot>
     </table></div> : <Vazio>Nenhuma parcela recebida neste período.</Vazio>}

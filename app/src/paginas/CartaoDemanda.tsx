@@ -16,6 +16,7 @@ import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
@@ -62,6 +63,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   }, [id, versaoHist, comTarefas, comProcessos]);
   // Depois de desfazer: mostra a demanda como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+
+  // Quantas alterações o histórico tem, para o número ao lado do título.
+  const historico = useQuantos(() => SD.demandaHistorico(id), `${id}:${versaoHist}`);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (d === undefined) return <Carregando />;
@@ -116,6 +120,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       </div>
       <h2>{d.titulo}</h2>
       {d.descricao && <p className="demanda-descricao">{d.descricao}</p>}
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+        <select aria-label="Situação da demanda" disabled={!!d.arquivado_em} value={d.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+          <option value="">{SEM_SITUACAO_DEMANDA}</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
@@ -131,13 +142,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação da demanda" disabled={!!d.arquivado_em} value={d.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-        <option value="">{SEM_SITUACAO_DEMANDA}</option>
-        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
 
     <SecaoEtiquetas modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em} aoMudar={aoMudar} />
 
@@ -163,7 +167,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={motivoSemMencaoNaDemanda(d)} />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.demandaHistorico(d.id)} campos={CAMPOS_DEMANDA} valor={valorLegivelDemanda} versao={versaoHist} />
     </Recolhivel>
 

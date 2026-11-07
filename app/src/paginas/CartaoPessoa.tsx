@@ -18,6 +18,8 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useQuantos } from '../ui/useQuantos';
+import { quantosPreenchidos } from '../regras/secoes';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
@@ -87,6 +89,18 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     if (d.tipo === 'sigilo') setVersaoSig(v => v + 1);
   });
 
+  // O que cada seção tem, para o número ao lado do título.
+  const modulos = ctx.escritorio?.modulos;
+  const chave = `${id}:${versaoHist}`;
+  const quantos = {
+    parcelas: useQuantos(() => SD.parcelasDaPessoa(id), chave, !!modulos?.financeiro),
+    demandas: useQuantos(() => SD.demandasDaPessoa(id, perfilDaPessoa), chave, !!modulos?.demandas),
+    processos: useQuantos(() => SD.processosDaPessoa(id, perfilDaPessoa), chave, !!modulos?.processos),
+    compromissos: useQuantos(() => SD.compromissosDaPessoa(id, perfilDaPessoa), chave, !!modulos?.compromissos),
+    tarefas: useQuantos(() => SD.tarefasDaPessoa(id, perfilDaPessoa), chave, !!modulos?.tarefas),
+    historico: useQuantos(() => SD.pessoaHistorico(id), chave)
+  };
+
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (p === undefined) return <Carregando />;
   if (!p) return <Vazio>Esta pessoa não foi encontrada. Ela pode ter sido excluída.</Vazio>;
@@ -97,6 +111,14 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   const ehUsuario = ctx.equipe.some(m => m.pessoa_id === p.id);
   const local = (mun: string | null, uf: string | null) => mun ? mun + (uf ? '/' + uf : '') : '';
+  const dadosDoCadastro = [
+      { titulo: 'Identificação', linhas: [['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')], ['Nacionalidade', p.nacionalidade], ['Profissão', p.profissao], ['Estado civil', V('estado_civil')], ['RG', p.rg], ['Expedição do RG', V('rg_expedicao')]] as [string, ReactNode][] },
+      { titulo: 'Filiação e nascimento', linhas: [['Mãe', p.nome_mae], ['Pai', p.nome_pai], ['Nascimento', V('nascimento')], ['Naturalidade', local(p.nascimento_municipio, p.nascimento_uf)]] as [string, ReactNode][] },
+      { titulo: 'Empresa', linhas: [['Natureza jurídica', V('natureza')], ['Tipo de entidade', p.tipo_entidade], ['Nome fantasia', p.nome_fantasia], ['Porte', V('porte')], ['Abertura', V('abertura')], ['Representante(s)', p.representantes]] as [string, ReactNode][] },
+      { titulo: 'Endereço', linhas: [['CEP', V('cep')], ['Logradouro', [p.logradouro, p.numero].filter(Boolean).join(', ')], ['Complemento', p.complemento], ['Bairro', p.bairro], ['Município', local(p.municipio, p.uf)]] as [string, ReactNode][] },
+      { titulo: 'Contato', linhas: [['Telefones', V('telefones')], ['E-mails', V('emails')]] as [string, ReactNode][] },
+      { titulo: 'Proteção de dados (LGPD)', linhas: [['Base legal', V('lgpd_base')], ['Consentimento em', V('lgpd_consentimento')]] as [string, ReactNode][] }
+  ];
 
   async function arquivar() {
     const estava = !!p!.arquivado_em;
@@ -151,6 +173,13 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       </div>
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
+        <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
+          <option value="">Sem etapa</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
@@ -162,33 +191,26 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
-      <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
-        <option value="">Sem etapa</option>
-        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
 
     <SecaoEtiquetas modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
 
-    <section className="bloco">
+    <section className="bloco separada">
       <h3><Icone nome="conta" tam={14} />Responsáveis</h3>
       <Responsaveis p={p} aoMudar={resp => { setP({ ...p, resp: resp.map(perfil_id => ({ perfil_id })) }); aoMudar(); }} />
     </section>
 
-    {textoQual && <section className="bloco">
-      <h3><Icone nome="texto" tam={14} />Qualificação</h3>
+    {/* A qualificação recolhe como as outras seções (a escolha de cada usuário fica guardada). */}
+    {textoQual && <Recolhivel titulo="Qualificação" icone="texto" preferencia="pessoas.cartao.qualificacao">
       <div className="qualificacao" ref={qual}>{textoQual}</div>
       {/* O botão fica junto do texto que ele copia. */}
       <div className="qualificacao-acoes">
         <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={copiar}><Icone nome="copiar" tam={13} /> Copiar qualificação</button>
         <Nota>Gerada a partir do cadastro. Fica só no SEMPER.</Nota>
       </div>
-    </section>}
+    </Recolhivel>}
 
     {/* Logo depois da qualificação: o que falta conferir no cadastro (da importação) fica à vista. */}
-    {(p.observacoes || p.pendencias.length > 0) && <section className="bloco" aria-labelledby="observacoes-pessoa">
+    {(p.observacoes || p.pendencias.length > 0) && <section className="bloco separada" aria-labelledby="observacoes-pessoa">
       <h3 id="observacoes-pessoa"><Icone nome="texto" tam={14} />Observações</h3>
       {p.pendencias.length > 0 && <div className="responsaveis">
         {p.pendencias.map(x => <Selo key={x} tipo="pend">{PENDENCIAS[x]}</Selo>)}
@@ -204,25 +226,25 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.financeiro && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="pessoas.cartao.parcelas">
+    {ctx.escritorio?.modulos?.financeiro && <Recolhivel titulo="Parcelas" icone="dinheiro" preferencia="pessoas.cartao.parcelas" contador={quantos.parcelas}>
       <ParcelasDaPessoa pessoaId={p.id} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas">
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas}>
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa."
         nova={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos">
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}>
       <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos">
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos}>
       <CompromissosLigados carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa."
         novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas">
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa."
         nova={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }} />
     </Recolhivel>}
@@ -233,27 +255,18 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
-    <Recolhivel titulo="Dados do cadastro" icone="cadastro" preferencia="pessoas.cartao.dados">
-      <Grupo titulo="Identificação" linhas={[['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')],
-        ['Nacionalidade', p.nacionalidade], ['Profissão', p.profissao], ['Estado civil', V('estado_civil')], ['RG', p.rg], ['Expedição do RG', V('rg_expedicao')]]} />
-      <Grupo titulo="Filiação e nascimento" linhas={[['Mãe', p.nome_mae], ['Pai', p.nome_pai], ['Nascimento', V('nascimento')],
-        ['Naturalidade', local(p.nascimento_municipio, p.nascimento_uf)]]} />
-      <Grupo titulo="Empresa" linhas={[['Natureza jurídica', V('natureza')], ['Tipo de entidade', p.tipo_entidade], ['Nome fantasia', p.nome_fantasia],
-        ['Porte', V('porte')], ['Abertura', V('abertura')], ['Representante(s)', p.representantes]]} />
-      <Grupo titulo="Endereço" linhas={[['CEP', V('cep')], ['Logradouro', [p.logradouro, p.numero].filter(Boolean).join(', ')], ['Complemento', p.complemento],
-        ['Bairro', p.bairro], ['Município', local(p.municipio, p.uf)]]} />
-      <Grupo titulo="Contato" linhas={[['Telefones', V('telefones')], ['E-mails', V('emails')]]} />
-      <Grupo titulo="Proteção de dados (LGPD)" linhas={[['Base legal', V('lgpd_base')], ['Consentimento em', V('lgpd_consentimento')]]} />
+    <Recolhivel titulo="Dados do cadastro" icone="cadastro" preferencia="pessoas.cartao.dados" contador={quantosPreenchidos(dadosDoCadastro.flatMap(g => g.linhas.map(([, v]) => v)))}>
+      {dadosDoCadastro.map(g => <Grupo key={g.titulo} titulo={g.titulo} linhas={g.linhas} />)}
     </Recolhivel>
 
     {/* Sempre começa fechada: cada abertura é uma leitura registrada (LGPD) e o conteúdo não fica à vista de quem passa. */}
-    <Recolhivel titulo="Informações sigilosas" icone="cadeado">
+    <Recolhivel titulo="Informações sigilosas" icone="cadeado" foraDoExpandirTudo>
       <Sigilos p={p} versao={versaoSig} aoMudar={() => setVersaoSig(v => v + 1)} />
     </Recolhivel>
 
     <SecaoComentarios modulo="pessoas" cartaoId={p.id} />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.cartao.historico" contador={quantos.historico}>
       <HistoricoPessoa id={p.id} versao={versaoHist} />
     </Recolhivel>
 

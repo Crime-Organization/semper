@@ -17,6 +17,8 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useQuantos } from '../ui/useQuantos';
+import { quantosPreenchidos } from '../regras/secoes';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -44,6 +46,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra o compromisso como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+
+  // Quantas alterações o histórico tem, para o número ao lado do título.
+  const historico = useQuantos(() => SD.compromissoHistorico(id), `${id}:${versaoHist}`);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (c === undefined) return <Carregando />;
@@ -97,6 +102,13 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       </div>
       <h2>{nomeDoCompromisso(c)}</h2>
       <p className="cartao-quando">{quandoDoCompromisso(c)}</p>
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+        <select aria-label="Situação do compromisso" disabled={somenteLer} value={c.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+          <option value="">{SEM_SITUACAO_COMPROMISSO}</option>
+          {quadro.colunas.map(x => <option key={x.id} value={x.id}>{x.nome}{x.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovoCompromisso edicao={{ id: c.id, aoTerminar: terminarEdicao }} /> : <>
@@ -113,25 +125,18 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação do compromisso" disabled={somenteLer} value={c.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-        <option value="">{SEM_SITUACAO_COMPROMISSO}</option>
-        {quadro.colunas.map(x => <option key={x.id} value={x.id}>{x.nome}{x.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
 
     <SecaoEtiquetas modulo="compromissos" id={c.id} somenteLer={somenteLer} aoMudar={aoMudar} />
 
-    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados">
+    <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhasDoCompromisso(c).map(([, v]) => v))}>
       <dl className="dados">{linhasDoCompromisso(c).map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
     </Recolhivel>
 
-    {doProcesso && <Recolhivel titulo="Resultado" icone="check" preferencia="compromissos.cartao.resultado">
+    {doProcesso && <Recolhivel titulo="Resultado" icone="check" preferencia="compromissos.cartao.resultado" contador={c.resultado ? 1 : 0}>
       {c.resultado ? <p className="demanda-descricao">{c.resultado}</p> : <Nota>Ainda sem resultado. Depois do compromisso, registre aqui pelo lápis do cartão.</Nota>}
     </Recolhivel>}
 
-    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo">
+    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={processo ? 1 : 0}>
       {processo ? <ItensLigados itens={[processo]} /> : <Nota>Este compromisso não está ligado a um processo.</Nota>}
     </Recolhivel>
 
@@ -141,7 +146,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={motivoSemMencaoNoCompromisso(c, c.processo)} />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="compromissos.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="compromissos.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.compromissoHistorico(c.id)} campos={CAMPOS_COMPROMISSO} valor={valorLegivelCompromisso} versao={versaoHist} />
     </Recolhivel>
 

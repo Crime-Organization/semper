@@ -62,6 +62,19 @@ export const situacaoDaParcela = (p: Pick<Parcela, 'recebimento_id' | 'venciment
   p.recebimento_id || p.recebida_em ? 'recebida' : p.vencimento < hoje ? 'atrasada' : 'a_receber';
 
 /** Paga antes do início do caixa: veio da importação, recebida e sem recebimento. Não há o que estornar; o responsável ou um administrador corrige, sem mexer no caixa. */
+/**
+ * O número da parcela como na planilha: "1/10" (a parcela / quantas o contrato tem). Se o contrato não diz quantas são,
+ * ou diz menos do que já existe, vale a maior parcela que se conhece.
+ */
+export function numeroDaParcela(numero: number, total: number | null | undefined, maiorConhecida = numero): string {
+  return `${numero}/${Math.max(total ?? 0, maiorConhecida, numero)}`;
+}
+/** A maior parcela de cada contrato na lista (para "1/N" quando o contrato não diz quantas são). */
+export function maiorParcelaPorContrato(lista: Pick<Parcela, 'contrato_id' | 'numero'>[]): Map<string, number> {
+  const maior = new Map<string, number>();
+  for (const p of lista) maior.set(p.contrato_id, Math.max(maior.get(p.contrato_id) ?? 0, p.numero));
+  return maior;
+}
 export const parcelaAntiga = (p: Pick<Parcela, 'recebimento_id' | 'recebida_em'>) => !p.recebimento_id && !!p.recebida_em;
 
 /** O total de cada situação. */

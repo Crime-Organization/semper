@@ -4,7 +4,7 @@ import type { ParaReceber, RecebimentoGravado } from '../dados/tipos';
 import { dividirRecebimento } from './financeiro';
 import {
   avisoDaSoma, chegouAoAssinado, desmarcarSocio, periodoAtualDoSocio, cruzaOutroPeriodo, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, dadosDoRecebimento, dadosDoSocio, divisaoGravada, eraSocio, errosDaParcela, errosDoFormDeRecebimento, errosDoSocio, formDaParcela, linhasDaDivisao, nomesDoRecebimento,
-  parcelasDoContrato, partesDoRecebimento, periodoDoSocio, previaDoRecebimento, recebimentoNovo, parcelaAntiga, resumoDasParcelas, situacaoDaParcela, somarMeses
+  numeroDaParcela, parcelasDoContrato, partesDoRecebimento, periodoDoSocio, previaDoRecebimento, recebimentoNovo, parcelaAntiga, resumoDasParcelas, situacaoDaParcela, somarMeses
 } from './parcelas';
 
 const HOJE = '2026-11-10';
@@ -396,5 +396,17 @@ describe('A marca de sócio em Equipe e acessos', () => {
     // Quando / Então
     expect(desmarcarSocio({ desde: '2026-11-07' }, '2026-11-07')).toBe('excluir');
     expect(desmarcarSocio({ desde: '2026-02-01' }, '2026-11-07')).toBe('encerrar');
+  });
+});
+
+describe('O número da parcela, como na planilha', () => {
+  it.each([
+    [1, 10, undefined, '1/10'],
+    [3, null, undefined, '3/3'],
+    [2, null, 5, '2/5'],
+    [7, 6, undefined, '7/7']
+  ] as const)('dado a parcela %d de um contrato com %s parcelas (maior conhecida: %s), quando aparece, então mostra %s', (numero, total, maior, texto) => {
+    // Então
+    expect(numeroDaParcela(numero, total, maior)).toBe(texto);
   });
 });

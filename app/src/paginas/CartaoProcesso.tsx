@@ -17,6 +17,8 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useQuantos } from '../ui/useQuantos';
+import { quantosPreenchidos } from '../regras/secoes';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
@@ -50,6 +52,16 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   useEffect(() => { void lerCampos(); }, [lerCampos]);
   // Depois de desfazer: mostra o processo como ficou.
   useMudancas(() => { void carregar(); void lerCampos(); setVersaoHist(v => v + 1); });
+
+  // O que cada seção tem, para o número ao lado do título.
+  const modulos = ctx.escritorio?.modulos;
+  const chave = `${id}:${versaoHist}`;
+  const quantos = {
+    demandas: useQuantos(() => SD.demandasDoProcesso(id), chave, !!modulos?.demandas),
+    tarefas: useQuantos(() => SD.tarefasDoProcesso(id), chave, !!modulos?.tarefas),
+    compromissos: useQuantos(() => SD.compromissosDoProcesso(id), chave, !!modulos?.compromissos),
+    historico: useQuantos(() => SD.processoHistorico(id), chave)
+  };
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (p === undefined) return <Carregando />;
@@ -98,6 +110,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       </div>
       <h2>{nomeDoProcesso(p)}</h2>
       <p className="demanda-descricao">{p.numero}</p>
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+        <select aria-label="Situação do processo" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+          <option value="">{SEM_SITUACAO_PROCESSO}</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
@@ -113,19 +132,12 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação do processo" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-        <option value="">{SEM_SITUACAO_PROCESSO}</option>
-        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
 
     <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
 
     <AndamentosEPrazos processo={p} aoMudar={() => setVersaoHist(v => v + 1)} />
 
-    <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados">
+    <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
     </Recolhivel>
 
@@ -133,20 +145,20 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {p.clientes.length ? <ItensLigados itens={p.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a este processo.</Nota>}
     </Recolhivel>
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas">
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}>
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoProcesso(p.id)} vazio="Nenhuma demanda ligada a este processo que você possa abrir." versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas">
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas" contador={quantos.tarefas}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos">
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos}>
       <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo."
         novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico" contador={quantos.historico}>
       <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
     </Recolhivel>
 

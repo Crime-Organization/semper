@@ -53,3 +53,19 @@ describe('Seção recolhível', () => {
     expect(screen.getByRole('button', { name: 'Já aberta' })).toHaveAttribute('aria-expanded', 'true');
   });
 });
+
+describe('O número ao lado do título', () => {
+  it('dado uma seção conferida e vazia, quando aparece, então mostra 0 (para não confundir com "ainda não contou")', () => {
+    // Quando
+    render(<Recolhivel titulo="Tarefas" icone="tarefas" contador={0}><p>nada</p></Recolhivel>);
+    // Então
+    expect(screen.getByRole('button', { name: /^Tarefas\s?0$/ })).toBeInTheDocument();
+  });
+
+  it('dado uma seção que ainda não contou, quando aparece, então não mostra número', () => {
+    // Quando
+    render(<Recolhivel titulo="Tarefas" icone="tarefas"><p>nada</p></Recolhivel>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Tarefas' })).toBeInTheDocument();
+  });
+});

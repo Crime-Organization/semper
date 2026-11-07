@@ -401,41 +401,47 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 @media (max-width: 900px) { .coluna { flex-basis: min(85vw, 320px) } }
 
 /* ---------- painel do cartão ---------- */
+/* Distância mínima entre a janela no centro e as bordas da tela (menor no celular e no tablet). */
+:root { --janela-margem: 32px }
+@media (max-width: 900px) { :root { --janela-margem: 16px } }
 .veu, .veu-janela { position: fixed; inset: 0; background: rgba(26,25,22,.45); z-index: 70 }
 .veu { opacity: 0; transition: opacity .2s }
 .veu.on { opacity: 1 }
 .cartao-painel { position: fixed; z-index: 71; top: 0; right: 0; bottom: 0; width: min(560px, 100vw); background: var(--superficie); border-left: 1px solid var(--line); box-shadow: -12px 0 40px rgba(0,0,0,.18); overflow-y: auto; transform: translateX(24px); opacity: 0; transition: transform .25s, opacity .25s; outline: 0; container-type: inline-size }
 .cartao-painel.on { transform: none; opacity: 1 }
 /* Janela no centro da tela, como no Trello (cada usuário escolhe no botão do cartão): o cartão à esquerda e os
-   comentários na coluna da direita, cada lado com a sua rolagem. */
-.cartao-painel.centro { top: 32px; bottom: auto; left: 50%; right: auto; width: min(1100px, calc(100vw - 32px)); height: calc(100vh - 64px); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, 16px); display: flex; flex-direction: column; overflow: hidden }
-.cartao-painel.centro.on { transform: translateX(-50%) }
-.cartao-painel.centro .cartao-conteudo { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) }
+   comentários na coluna da direita. A janela fica no meio da tela e da altura do que mostra; só quando o conteúdo
+   passa da tela (--janela-altura) é que cada lado rola por dentro. */
+.cartao-painel.centro { --janela-altura: calc(100vh - 2 * var(--janela-margem)); --janela-altura: calc(100dvh - 2 * var(--janela-margem)); top: 50%; bottom: auto; left: 50%; right: auto; width: min(1100px, calc(100vw - 2 * var(--janela-margem))); height: auto; max-height: var(--janela-altura); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.24); transform: translate(-50%, calc(-50% + 16px)); display: flex; flex-direction: column; overflow: hidden }
+.cartao-painel.centro.on { transform: translate(-50%, -50%) }
+.cartao-painel.centro .cartao-conteudo { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 380px) }
 /* O conteúdo do cartão se ajusta à largura dele, não à da janela toda (que inclui a coluna). */
-.cartao-painel.centro .cartao-corpo { overflow-y: auto; container-type: inline-size }
+.cartao-painel.centro .cartao-corpo { overflow-y: auto; max-height: var(--janela-altura); container-type: inline-size }
+.cartao-painel.centro .cartao-coluna { max-height: var(--janela-altura) }
 /* A janela do cadastro novo: no centro, mais estreita e sem a coluna dos comentários. */
-.cartao-painel.centro.sem-coluna { width: min(860px, calc(100vw - 32px)) }
+.cartao-painel.centro.sem-coluna { width: min(860px, calc(100vw - 2 * var(--janela-margem))) }
 .cartao-painel.centro.sem-coluna .cartao-conteudo { grid-template-columns: minmax(0, 1fr) }
-/* A janela ajustada: da altura do conteúdo, até caber na tela, e mais estreita (formulários curtos). */
-.cartao-painel.centro.ajustado { height: auto; max-height: calc(100vh - 64px); width: min(720px, calc(100vw - 32px)) }
+/* A janela ajustada: mais estreita, para formulários curtos (a altura já acompanha o conteúdo em todas). */
+.cartao-painel.centro.ajustado { width: min(720px, calc(100vw - 2 * var(--janela-margem))) }
 .cartao-painel.ajustado .cartao-corpo { padding-bottom: 28px }
 .cartao-painel.ajustado form.cartao { border: 0; padding: 0; background: transparent }
 .cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
 .comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
 /* Janela estreita: a coluna dos comentários desce para baixo do cartão. */
 @media (max-width: 900px) {
-  .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto }
-  .cartao-painel.centro .cartao-corpo { overflow: visible }
+  .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto; max-height: var(--janela-altura) }
+  .cartao-painel.centro :is(.cartao-corpo, .cartao-coluna) { overflow: visible; max-height: none }
   .cartao-coluna { border-left: 0; border-top: 1px solid var(--line) }
 }
 /* O botão de formato e o "X" ficam presos ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
 .cartao-botoes { position: sticky; top: 14px; margin: 14px 14px -54px auto; z-index: 2; width: max-content; display: flex; gap: 8px }
 .cartao-botao { width: 40px; height: 40px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
-/* No celular o cartão ocupa a tela toda nos dois formatos: não há o que escolher. */
+/* No celular, nos dois formatos, o cartão sobe do pé da tela, na largura toda e da altura do conteúdo (até perto do
+   topo, deixando ver a página por trás): não há o que escolher. */
 @media (max-width: 640px) {
-  .cartao-painel.centro, .cartao-painel.centro.sem-coluna { inset: 0; width: auto; height: auto; border: 0; border-radius: 0; transform: translateY(16px) }
-  .cartao-painel.centro.on { transform: none }
+  .cartao-painel, .cartao-painel.centro, .cartao-painel.centro.sem-coluna, .cartao-painel.centro.ajustado { --janela-altura: calc(100vh - var(--janela-margem)); --janela-altura: calc(100dvh - var(--janela-margem)); inset: auto 0 0 0; width: auto; height: auto; max-height: var(--janela-altura); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.18); transform: translateY(24px); padding-bottom: env(safe-area-inset-bottom) }
+  .cartao-painel.on, .cartao-painel.centro.on { transform: none }
   .cartao-formato { display: none }
 }
 
@@ -509,10 +515,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .bloco { display: flex; flex-direction: column; gap: 10px }
 .bloco > h3 { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--text2); display: flex; align-items: center; gap: 8px }
 /* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */
-.recolhivel { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
+/* Toda seção do cartão abaixo do cabeçalho tem a linha fina acima (as que recolhem e as etiquetas). */
+.recolhivel, .bloco.separada { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
+/* A situação fica no cabeçalho, logo abaixo do nome do cartão. */
+.cartao-situacao { margin-top: 16px }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
+/* "Expandir tudo / Recolher tudo": logo acima da primeira seção, na coluna das setas, colado a ela (a margem negativa
+   desfaz parte do espaço entre os blocos do cartão). */
+.secoes-todas { display: flex; justify-content: flex-end; margin-bottom: -18px }
+.recolher-todas { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0; border: 0; background: none; color: var(--text2); font: inherit; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; cursor: pointer }
+.recolher-todas:hover { color: var(--ink) }
 .recolher-contador { font-size: 12px; font-weight: 700; letter-spacing: 0; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line) }
+/* Zero: a seção foi conferida e não tem nada (sem o fundo do número de quem tem). */
+.recolher-contador.vazio { background: transparent }
 .recolher-seta { margin-left: auto; display: inline-flex; transition: transform .2s }
 .recolher[aria-expanded="true"] .recolher-seta { transform: rotate(180deg) }
 .bloco-corpo { display: flex; flex-direction: column; gap: 10px }
@@ -548,6 +564,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .dados dd { color: var(--ink); overflow-wrap: anywhere }
 /* Itens ligados a um cadastro, cada um num quadrinho que abre o item (contratos da pessoa, partes do contrato, vínculos...). */
 .itens-ligados { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+/* Com itens: a lista e, à direita, o "+" redondo para criar outro já ligado. Sem itens: o texto e o botão com o nome,
+   na mesma linha (o botão desce quando não cabe). */
+.ligados-com-novo { display: flex; align-items: flex-start; gap: 12px }
+.ligados-com-novo > .itens-ligados { flex: 1; min-width: 0 }
+.mini.ligados-novo { width: 40px; height: 40px; padding: 0; flex-shrink: 0; justify-content: center; border-radius: 999px }
+.ligados-vazio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px }
 .itens-ligados > li { display: flex; align-items: center; gap: 8px }
 .item-ligado { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink); font: inherit; text-align: left }
 :is(a, button).item-ligado { cursor: pointer }

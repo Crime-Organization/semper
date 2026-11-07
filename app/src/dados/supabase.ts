@@ -258,12 +258,12 @@ const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_M
 const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
 const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, criado_por, criado_em, atualizado_em';
 const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
-const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em)';
+const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em, parcelas)';
 const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador';
 const CAMPOS_DO_REPASSE = 'id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida, conta_paga, pago_em, criado_em';
 const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
-type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null } };
-const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id });
+type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null; parcelas: number | null } };
+const parcelaDoEscritorio = ({ contrato, ...p }: LinhaDaParcela): ParcelaDoEscritorio => ({ ...p, contrato_codigo: contrato.codigo, cliente_nome: contrato.cliente_nome, responsavel_id: contrato.responsavel_id, total_parcelas: contrato.parcelas });
 /** O contrato arquivado sai das listas, mas o que já foi recebido continua contando. */
 const naLista = (p: LinhaDaParcela) => !!p.recebida_em || !p.contrato.arquivado_em;
 type LinhaDoSocio = Omit<Socio, 'nome'> & { pessoa: { nome: string } | null };
@@ -354,9 +354,9 @@ const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas,
   + 'publicacoes, lattes, email_publico, telefone_publico, linkedin, redes, no_site, ordem_no_site, atualizado_em';
 /** A coluna de demanda_listas que liga a lista ao cartão dela. */
 const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
-type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
+type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
-const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
+const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, objeto, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
 const ligada = (pessoaId: string, perfilId: string | null) => ({ clientes, responsavel_id, colaboradores, ...d }: DemandaParaLigar): DemandaLigada =>
   ({ ...d, papeis: papeisNaDemanda({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) });
 

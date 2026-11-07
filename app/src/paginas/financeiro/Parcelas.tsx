@@ -7,8 +7,7 @@ import { PARCELAS_DA_PESSOA } from '../../dados/limites';
 import { fmtCentavos } from '../../regras/caixa';
 import {
   avisoDaSoma, chegouAoAssinado, dadosDaParcela, dadosDaParcelaImportada, errosDaParcelaImportada, formDaParcelaImportada, type FormDaParcelaImportada, dadosDoRecebimento, divisaoGravada, errosDaParcela, errosDoFormDeRecebimento, formDaParcela, linhasDaDivisao, nomesDoRecebimento, parcelaNova, parcelasDoContrato,
-  previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, parcelaAntiga, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao
-} from '../../regras/parcelas';
+  previaDoRecebimento, recebimentoNovo, SITUACOES_DA_PARCELA, parcelaAntiga, situacaoDaParcela, type FormDaParcela, type FormDoRecebimento, type LinhaDaDivisao, maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito, useMudancas } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
@@ -27,8 +26,12 @@ function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string 
   </dl>;
 }
 
-/** A tabela. Com o contrato, é a lista do escritório ou da pessoa; sem ele, a do cartão do contrato. */
-export function TabelaDeParcelas<P extends Parcela>({ lista, hoje, contrato, acoes }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; acoes?: (p: P) => ReactNode }) {
+/**
+ * A tabela. Com o contrato, é a lista do escritório ou da pessoa; sem ele, a do cartão do contrato, e "total" é quantas
+ * parcelas o contrato tem. A parcela aparece como na planilha: "1/10".
+ */
+export function TabelaDeParcelas<P extends Parcela>({ lista, hoje, contrato, total, acoes }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; total?: number | null; acoes?: (p: P) => ReactNode }) {
+  const maior = maiorParcelaPorContrato(lista);
   return <div className="tabela"><table className={contrato ? undefined : 'tabela-parcelas'} aria-label="Parcelas">
     <thead><tr>
       {contrato && <th scope="col">Contrato</th>}
@@ -42,7 +45,7 @@ export function TabelaDeParcelas<P extends Parcela>({ lista, hoje, contrato, aco
       return <tr key={p.id}>
         {doContrato && <td><Link to={'/contratos/?id=' + p.contrato_id}>{doContrato.contrato_codigo}</Link></td>}
         {doContrato && <td>{doContrato.cliente_nome}</td>}
-        <td>{p.numero}</td>
+        <td className="num">{numeroDaParcela(p.numero, total ?? doContrato?.total_parcelas, maior.get(p.contrato_id))}</td>
         <td>{fmtData(p.vencimento)}</td>
         <td className="financeiro-num">{fmtCentavos(p.recebido ?? p.valor)}</td>
         <td><Selo tipo={situacao.selo}>{situacao.nome}</Selo>{p.recebida_em && <> em {fmtData(p.recebida_em)}</>}</td>
@@ -238,7 +241,7 @@ const ACOES_DA_PARCELA: Record<Situacao, AcaoDaParcela[]> = {
 };
 
 /** A lista com o que se pode fazer em cada parcela. */
-export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoMudar, topo }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; aoMudar: () => void; topo?: ReactNode }) {
+export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, total, aoMudar, topo }: { lista: P[]; hoje: string; contrato?: (p: P) => ParcelaDoEscritorio; total?: number | null; aoMudar: () => void; topo?: ReactNode }) {
   const [aberto, setAberto] = useState<Aberto>(null);
   const [menu, setMenu] = useState<{ botao: HTMLElement; parcela: P } | null>(null);
   useMudancas(() => setAberto(null));
@@ -276,7 +279,7 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, aoM
     {aberto?.o === 'receber' && <FormReceber key={aberto.parcela.id} parcela={aberto.parcela} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormParcela key={aberto.parcela.id} rotulo={`Mudar a parcela ${aberto.parcela.numero}`} inicial={formDaParcela(aberto.parcela)} salvar={salvarMudanca(aberto.parcela)} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'ver' && <RecebimentoDaParcela key={aberto.parcela.id} parcela={aberto.parcela} aoFechar={() => setAberto(null)} />}
-    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} acoes={p => <>
+    {lista.length > 0 && <TabelaDeParcelas lista={lista} hoje={hoje} contrato={contrato} total={total} acoes={p => <>
       {parcelaAntiga(p) ? <span className="nota">Importada</span>
         : p.recebimento_id ? <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Ver a divisão da parcela ${p.numero}`} onClick={() => setAberto({ o: 'ver', parcela: p })}>Ver divisão</button>
         : <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${p.numero}`} onClick={() => setAberto({ o: 'receber', parcela: p })}>Receber</button>}
@@ -329,7 +332,7 @@ export function ParcelasDoContrato({ k, versao, aoMudar }: { k: Contrato; versao
   return <div className="financeiro-form">
     {!lista.length && <Vazio>{vazio}</Vazio>}
     {soma && <Aviso tipo="info">{soma}</Aviso>}
-    <GestaoDeParcelas lista={lista} hoje={hoje} aoMudar={mudou} />
+    <GestaoDeParcelas lista={lista} hoje={hoje} total={k.parcelas} aoMudar={mudou} />
     {nova && <FormParcela rotulo="Nova parcela" inicial={parcelaNova(hoje)} salvar={criar} aoCancelar={() => setNova(false)} />}
     <div className="financeiro-acoes">
       {podeGerar && <Botao variante="principal" onClick={gerar}>Gerar parcelas</Botao>}

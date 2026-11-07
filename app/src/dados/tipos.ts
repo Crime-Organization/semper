@@ -302,7 +302,7 @@ export interface Demanda {
 /** Papel de uma pessoa numa demanda (responsável e colaboradores são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaDemanda = 'cliente' | 'responsavel' | 'colaborador';
 /** Demanda como aparece em outro cartão (da pessoa ou do contrato), com o papel da pessoa nela. */
-export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   papeis: PapelNaDemanda[];
 }
 /** Campos que o cadastro de demanda grava. */
@@ -1168,7 +1168,8 @@ export interface Parcela {
   id: string; contrato_id: string; numero: number; vencimento: string; valor: number;
   recebimento_id: string | null; recebida_em: string | null; recebido: number | null;
 }
-export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null }
+/** total_parcelas: quantas parcelas o contrato tem (o "10" de "1/10"); null se o contrato não diz. */
+export interface ParcelaDoEscritorio extends Parcela { contrato_codigo: string; cliente_nome: string; responsavel_id: string | null; total_parcelas: number | null }
 /** papel: em que papel a pessoa entrou quando o cliente pagou. Os recebimentos gravados antes deste campo não o têm. */
 export interface TerceiroDoRecebimento { id: string; nome: string; percentual: number; papel?: Exclude<PapelNoValor, 'responsavel'> }
 /** O que a tela precisa para mostrar a divisão enquanto se digita. Quem não é administrador vê só o nome das contas. */

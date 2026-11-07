@@ -56,7 +56,7 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
     } catch (e) { falha(e); }
   }
 
-  return <section className="bloco tempo-tarefa" aria-label="Tempo nesta tarefa">
+  return <section className="bloco separada tempo-tarefa" aria-label="Tempo nesta tarefa">
     <h3><Icone nome="relogio" tam={14} />Seu tempo nesta tarefa</h3>
     <div className="cronometro">
       <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>

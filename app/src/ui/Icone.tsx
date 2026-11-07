@@ -36,6 +36,8 @@ const ICONES = {
   check: '<path d="M5 12l5 5L20 7"/>',
   abaixo: '<path d="M6 9l6 6 6-6"/>',
   acima: '<path d="M6 15l6-6 6 6"/>',
+  expandir: '<path d="M7 6l5 5 5-5"/><path d="M7 13l5 5 5-5"/>',
+  recolher: '<path d="M7 18l5-5 5 5"/><path d="M7 11l5-5 5 5"/>',
   vinculo: '<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1.1 1.1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1.1-1.1"/>',
   baixar: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   subir: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',

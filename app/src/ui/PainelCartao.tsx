@@ -7,11 +7,13 @@
 // troca, e o clique fora não fecha. "rotulo" dá nome à janela para o leitor de tela (padrão: "Cadastro").
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
+// As seções que recolhem ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" acima da primeira.
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { avisar } from './avisos';
 import { Icone, type NomeIcone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
+import { GrupoDeSecoes } from './Recolhivel';
 
 type FormatoCartao = 'lado' | 'centro';
 /** Em cada formato, o botão oferece o outro. */
@@ -113,7 +115,9 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
         <TravaDoPainel.Provider value={travar}>
           <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
             <BotoesNoPainel.Provider value={formato === 'lado' || estreita ? vaga : null}>
-              <div className="cartao-corpo">{children}</div>
+              <GrupoDeSecoes>
+                <div className="cartao-corpo">{children}</div>
+              </GrupoDeSecoes>
             </BotoesNoPainel.Provider>
           </ColunaDoCartao.Provider>
         </TravaDoPainel.Provider>

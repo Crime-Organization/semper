@@ -14,9 +14,6 @@
 .rotulo-campo small { font-weight: 400; color: var(--muted) }
 .contrato-objetos { gap: 8px }
 /* Objetos do contrato em destaque no topo do cartão, logo abaixo do cliente: é o que vira demanda. */
-.contrato-objetos-destaque { margin-top: 14px; padding: 12px 14px; border-radius: 10px; border-left: 3px solid var(--accent); background: var(--accent-tint); display: flex; flex-direction: column; gap: 6px }
-.contrato-objetos-destaque .rotulo-caps { color: var(--accent-ink) }
-.contrato-objetos-destaque ol { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 16px; font-weight: 700; line-height: 1.4; color: var(--ink); overflow-wrap: anywhere }
 /* No cartão do quadro, o objeto vem logo depois do número, na cor do texto. */
 .kcartao .contrato-servico { color: var(--text); font-size: 13px; font-weight: 700 }
 /* Cada participante numa linha: a busca da pessoa, o % e o botão de tirar. No estreito, o % e o botão descem. */

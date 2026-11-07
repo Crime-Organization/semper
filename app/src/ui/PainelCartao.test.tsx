@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosSessao } from '../dados';
 import { PainelCartao, PREFERENCIA_FORMATO, useTravarPainel } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
+import { Recolhivel } from './Recolhivel';
 
 // O painel só grava a preferência do formato; o mock declara exatamente essa operação.
 const { salvarPreferencia } = vi.hoisted(() => ({ salvarPreferencia: vi.fn<DadosSessao['salvarPreferencia']>() }));
@@ -191,5 +192,39 @@ describe('Janela ajustada ao conteúdo', () => {
     unmount();
     render(<PainelCartao soNoCentro aoFechar={() => {}}><h1>Nova pessoa</h1></PainelCartao>);
     expect(screen.getByRole('dialog')).not.toHaveClass('ajustado');
+  });
+});
+
+describe('Expandir e recolher todas as seções', () => {
+  beforeEach(() => { iniciarPreferencias({}); salvarPreferencia.mockReset(); salvarPreferencia.mockResolvedValue(); });
+
+  it('dado um cartão sem seções que recolhem, quando abre, então não há o botão', () => {
+    // Quando
+    abrir();
+    // Então
+    expect(screen.queryByRole('button', { name: 'Expandir tudo' })).toBeNull();
+  });
+
+  it('dado um cartão com seções fechadas, quando clica em "Expandir tudo", então todas abrem (menos as sigilosas) e o botão vira "Recolher tudo"', async () => {
+    // Dado
+    render(<PainelCartao aoFechar={() => {}}>
+      <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
+      <Recolhivel titulo="Histórico" icone="relogio"><p>O histórico</p></Recolhivel>
+      <Recolhivel titulo="Informações sigilosas" icone="cadeado" foraDoExpandirTudo><p>O sigilo</p></Recolhivel>
+    </PainelCartao>);
+    // O botão aparece uma vez só, logo acima da primeira seção (junto das setas)
+    const expandir = screen.getByRole('button', { name: 'Expandir tudo' });
+    expect(expandir.compareDocumentPosition(screen.getByRole('button', { name: 'Partes' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Quando
+    await userEvent.click(expandir);
+    // Então
+    expect(screen.getByText('As partes')).toBeInTheDocument();
+    expect(screen.getByText('O histórico')).toBeInTheDocument();
+    expect(screen.queryByText('O sigilo')).toBeNull();
+    // E quando recolhe tudo, então todas fecham, sem gravar a escolha de cada seção
+    await userEvent.click(screen.getByRole('button', { name: 'Recolher tudo' }));
+    expect(screen.queryByText('As partes')).toBeNull();
+    expect(screen.queryByText('O histórico')).toBeNull();
+    expect(salvarPreferencia).not.toHaveBeenCalled();
   });
 });

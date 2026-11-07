@@ -27,3 +27,24 @@ describe('Itens ligados a um cadastro', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 });
+
+describe('O atalho para criar um item ligado', () => {
+  const NOVA = { para: '/tarefas/nova/?contrato=k1', rotulo: 'Nova tarefa deste contrato' };
+
+  it('dado itens na lista, quando aparece, então o atalho é só o "+", com o nome para o leitor de tela', () => {
+    // Quando
+    render(<MemoryRouter><ItensLigados vazio="Nada." novo={NOVA} itens={[{ id: 't1', para: '/tarefas/?id=t1', titulo: 'Protocolar' }]} /></MemoryRouter>);
+    // Então
+    const mais = screen.getByRole('link', { name: 'Nova tarefa deste contrato' });
+    expect(mais).toHaveAttribute('href', NOVA.para);
+    expect(mais).not.toHaveTextContent('Nova tarefa');
+  });
+
+  it('dado a lista vazia, quando aparece, então mostra o texto de vazio e o botão com o nome escrito', () => {
+    // Quando
+    render(<MemoryRouter><ItensLigados vazio="Nenhuma tarefa ligada a este contrato." novo={NOVA} itens={[]} /></MemoryRouter>);
+    // Então
+    expect(screen.getByText('Nenhuma tarefa ligada a este contrato.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveTextContent('Nova tarefa deste contrato');
+  });
+});

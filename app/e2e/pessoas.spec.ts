@@ -1,5 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { expect, test, type Page } from '@playwright/test';
+import { abrirSecao } from './ajudantes';
 
 // CPF válido que não está na semente do banco fictício. O 529.982.247-25 é de JOSÉ DA SILVA TESTE.
 const CPF_LIVRE = '286.255.878-87';
@@ -87,12 +88,14 @@ test.describe('Lista de pessoas', () => {
 });
 
 test.describe('Cartão da pessoa', () => {
-  test('quando o cartão abre, então "Copiar qualificação" fica junto do texto da qualificação, e não nas ações do topo', async ({ page, context }) => {
+  test('quando abre a seção da qualificação, então "Copiar qualificação" fica junto do texto, e não nas ações do topo', async ({ page, context }) => {
     // Dado
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/pessoas/');
     await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
     const cartao = page.getByRole('dialog');
+    // A qualificação recolhe como as outras seções.
+    await abrirSecao(cartao, 'Qualificação');
     const copiar = cartao.getByRole('button', { name: 'Copiar qualificação' });
     // Então: o botão vem depois do título "Qualificação" e do texto, bem abaixo do lápis do topo
     const [titulo, botao, atualizar] = await Promise.all([

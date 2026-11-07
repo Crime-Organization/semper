@@ -330,3 +330,11 @@ export const veOContrato = (k: Parameters<typeof alteraOContrato>[0], m: Paramet
 export const nomesPorExtenso = (nomes: string[]) => new Intl.ListFormat('pt-BR', { style: 'long', type: 'conjunction' }).format(nomes);
 /** Os clientes de um contrato por extenso, a partir do nome guardado ("A; B"). */
 export const clientesPorExtenso = (clienteNome: string) => nomesPorExtenso(clienteNome.split('; '));
+
+/**
+ * Cada objeto do contrato com a demanda que nasceu dele (a demanda guarda o objeto de que nasceu). O objeto que ainda
+ * não virou demanda vem com null. Se houver duas demandas do mesmo objeto, vale a primeira da lista.
+ */
+export function objetosEDemandas<D extends { objeto: string | null }>(objetos: string[], demandas: D[]): { objeto: string; demanda: D | null }[] {
+  return objetos.map(objeto => ({ objeto, demanda: demandas.find(d => d.objeto === objeto) ?? null }));
+}

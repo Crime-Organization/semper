@@ -116,7 +116,7 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
   }
 
   const minhas = etiquetas.filter(e => ids.includes(e.id));
-  return <section className="bloco">
+  return <section className="bloco separada">
     <h3><Icone nome="etiqueta" tam={14} />Etiquetas</h3>
     {minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} aoTirar={somenteLer ? undefined : () => marcar(e, false)} />)}</div> : <Nota>Nenhuma etiqueta.</Nota>}
     {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-expanded={!!botao} onClick={ev => { const alvo = ev.currentTarget; setBotao(b => b ? null : alvo); }}>

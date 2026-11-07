@@ -3,7 +3,8 @@
 // toda ligação entre partes do sistema aparece assim, em todos os módulos.
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { Nota, Selo } from './base';
+import { BotaoLink, Nota, Selo } from './base';
+import { Icone } from './Icone';
 
 export interface ItemLigado {
   id: string;
@@ -33,7 +34,25 @@ function Quadrinho({ item: i }: { item: ItemLigado }) {
   return <div className="item-ligado">{corpo}</div>;
 }
 
-export function ItensLigados({ itens, vazio }: { itens: ItemLigado[]; vazio?: string }) {
-  if (!itens.length) return vazio ? <Nota>{vazio}</Nota> : null;
-  return <ul className="itens-ligados">{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}</li>)}</ul>;
+/** O atalho para criar um item já ligado a este cartão (ex.: "Nova demanda deste contrato"). */
+export interface NovoLigado { para: string; rotulo: string }
+
+/**
+ * A lista de quadrinhos. Com "novo": se há itens, só um "+" redondo à direita da lista (o nome do atalho fica na dica e
+ * para o leitor de tela); se não há, o texto de vazio à esquerda e o botão com o nome à direita, na mesma linha.
+ */
+export function ItensLigados({ itens, vazio, novo, rotulo }: { itens: ItemLigado[]; vazio?: string; novo?: NovoLigado; /** Nome da lista para o leitor de tela. */ rotulo?: string }) {
+  if (!itens.length) {
+    if (!novo) return vazio ? <Nota>{vazio}</Nota> : null;
+    return <div className="ligados-vazio">
+      {vazio && <Nota>{vazio}</Nota>}
+      <BotaoLink forma="mini" to={novo.para}><Icone nome="mais" tam={13} /> {novo.rotulo}</BotaoLink>
+    </div>;
+  }
+  const lista = <ul className="itens-ligados" aria-label={rotulo}>{itens.map(i => <li key={i.id}><Quadrinho item={i} />{i.acao}</li>)}</ul>;
+  if (!novo) return lista;
+  return <div className="ligados-com-novo">
+    {lista}
+    <BotaoLink forma="mini" className="ligados-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={16} /></BotaoLink>
+  </div>;
 }

@@ -16,6 +16,7 @@ import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
@@ -51,6 +52,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra a tarefa como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+
+  // Quantas alterações o histórico tem, para o número ao lado do título.
+  const historico = useQuantos(() => SD.tarefaHistorico(id), `${id}:${versaoHist}`);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (t === undefined) return <Carregando />;
@@ -110,6 +114,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       </div>
       <h2>{t.titulo}</h2>
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+        <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+          <option value="">{SEM_SITUACAO_TAREFA}</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
@@ -125,13 +136,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-        <option value="">{SEM_SITUACAO_TAREFA}</option>
-        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
 
     <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em} aoMudar={aoMudar} />
 
@@ -139,11 +143,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDoCartao modulo="tarefas" id={t.id} />
 
-    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda">
+    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demanda ? 1 : 0}>
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
     </Recolhivel>
 
-    {t.processo_id && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo">
+    {t.processo_id && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={1}>
       <ItensLigados itens={[t.processo
         ? { id: 'processo', para: `${TIPOS_PROCESSO[t.processo.tipo].caminho}?id=${t.processo.id}`, codigo: t.processo.codigo, titulo: t.processo.numero, detalhe: 'Processo' }
         : { id: 'processo', titulo: 'Processo ligado', detalhe: 'Você não tem acesso a este processo' }]} />
@@ -153,13 +157,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato">
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contrato ? 1 : 0}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
     </Recolhivel>
 
     <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={motivoSemMencaoNaTarefa(t, t.demanda)} />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.tarefaHistorico(t.id)} campos={CAMPOS_TAREFA} valor={valorLegivelTarefa} versao={versaoHist} />
     </Recolhivel>
 

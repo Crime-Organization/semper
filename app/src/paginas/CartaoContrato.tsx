@@ -1,9 +1,10 @@
-// Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, o cliente e os objetos do contrato (o que
-// vira demanda), em destaque; as ações, com a equipe em bolinhas ao lado, e a situação; depois, cada tópico numa seção que recolhe (partes, honorários,
-// divisão, documento e observações, histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
+// Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, os clientes e a situação; as ações, com a
+// equipe em bolinhas ao lado; depois as etiquetas e cada tópico numa seção que recolhe, com o número de itens ao lado do
+// título (objetos, que abrem as demandas deles, partes, honorários com divisão e parcelas, documento, demandas, tarefas,
+// histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -16,6 +17,8 @@ import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
+import { useLista, useQuantos } from '../ui/useQuantos';
+import { quantosPreenchidos } from '../regras/secoes';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
@@ -45,6 +48,16 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra o contrato como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
+  // O que cada seção tem, para o número ao lado do título (as demandas também ligam cada objeto à demanda dele).
+  const modulos = ctx.escritorio?.modulos;
+  const chave = `${id}:${versaoHist}`;
+  const demandas = useLista(() => SD.demandasDoContrato(id), chave, !!modulos?.demandas);
+  const tarefas = useQuantos(() => SD.tarefasDoContrato(id), chave, !!modulos?.tarefas);
+  const veParcelas = !!modulos?.financeiro && (ctx.ehAdmin || k?.responsavel_id === eu);
+  const parcelas = useQuantos(() => SD.parcelasDoContrato(id), chave, veParcelas);
+  const historico = useQuantos(() => SD.contratoHistorico(id), chave);
+  // Os objetos que ainda não viraram demanda (ficam na lista das demandas, sem link).
+  const objetosSemDemanda = k ? objetosEDemandas(k.objetos, demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (k === undefined) return <Carregando />;
@@ -113,10 +126,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
-      <div className="contrato-objetos-destaque">
-        <span className="rotulo-caps" id="objetos-do-contrato">{k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'}</span>
-        <ol aria-labelledby="objetos-do-contrato">{k.objetos.map(o => <li key={o}>{o}</li>)}</ol>
-      </div>
+      {!editando && <section className="bloco campos cartao-situacao">
+        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+        <select aria-label="Situação do contrato" disabled={!!k.arquivado_em || !podeAlterar} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+          <option value="">{SEM_SITUACAO}</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+        </select>
+      </section>}
     </header>
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao }} /> : <>
@@ -132,22 +148,25 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <section className="bloco campos">
-      <h3><Icone nome="kanban" tam={14} />Situação</h3>
-      <select aria-label="Situação do contrato" disabled={!!k.arquivado_em || !podeAlterar} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-        <option value="">{SEM_SITUACAO}</option>
-        {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-      </select>
-    </section>
+    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} aoMudar={aoMudar} />
 
-    <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes">
+    {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
+        demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
+    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined}>
+      <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato."
+        nova={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }} versao={versaoHist}
+        antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
+    </Recolhivel>
+    : <Recolhivel titulo={k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'} icone="demandas" preferencia="contratos.cartao.objetos" contador={k.objetos.length}>
+      <ItensLigados rotulo="Objetos do contrato" vazio="Nenhum objeto cadastrado." itens={k.objetos.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto }))} />
+    </Recolhivel>}
+
+    <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" contador={partes.length}>
       <ItensLigados itens={partes} />
     </Recolhivel>
 
-    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} aoMudar={aoMudar} />
-
-    {/* Honorários, divisão e parcelas juntos: as parcelas são o detalhe do que foi combinado. */}
-    <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios">
+    {/* Honorários, divisão e parcelas juntos: as parcelas são o detalhe do que foi combinado. O número é o de parcelas. */}
+    <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" contador={parcelas}>
       <dl className="dados">{([
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],
@@ -165,13 +184,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante, se não for sócio</small></>]
       ] as [string, ReactNode][]).map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
-      {ctx.escritorio?.modulos?.financeiro && (ctx.ehAdmin || k.responsavel_id === eu) && <>
+      {veParcelas && <>
         <span className="rotulo-caps">Parcelas</span>
         <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
       </>}
     </Recolhivel>
 
-    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento">
+    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento" contador={quantosPreenchidos([k.documento_url, k.observacoes])}>
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
@@ -179,19 +198,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas">
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhuma demanda ainda. Elas nascem quando o contrato chega à coluna do contrato assinado."
-        nova={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }} versao={versaoHist} />
-    </Recolhivel>}
-
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas">
+    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato."
         nova={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }} />
     </Recolhivel>}
 
     <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso="Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir." />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico">
+    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico" contador={historico}>
       <HistoricoContrato id={k.id} versao={versaoHist} />
     </Recolhivel>
 
