@@ -1,9 +1,11 @@
 /* O caixa do escritório */
 .financeiro-barra { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-bottom: 12px }
 .financeiro-barra label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 170px }
-.financeiro-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0 }
-.financeiro-resumo dt { color: var(--muted); font-size: 13px }
-.financeiro-resumo dd { margin: 0 }
+.financeiro-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 12px 0 }
+.financeiro-resumo > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--white) }
+.financeiro-resumo dt { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
+.financeiro-resumo dd { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.02em; line-height: 1.15; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+.financeiro-resumo dd b { font-weight: 900 }
 .financeiro-num { text-align: right; white-space: nowrap }
 .conferencia td { vertical-align: top }
 .conferencia td:first-child { min-width: 14rem }
@@ -28,17 +30,18 @@
 .painel-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px }
 .painel-ano { display: inline-flex; align-items: center; gap: 8px }
 .painel-ano b { font-size: 20px; font-weight: 900; min-width: 3.2em; text-align: center }
-.painel-barra .segmentos { flex: 1 1 320px }
+.painel-barra .segmentos { flex: 0 1 auto }
 .painel-secao { display: flex; flex-direction: column; gap: 12px; margin-top: 28px }
-.painel-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0 12px }
-.painel-filtros .campo { width: auto; min-width: 170px; flex: 0 1 auto }
-.painel-filtros .busca-campo { max-width: 340px }
+.financeiro-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0 12px }
+.financeiro-filtros .campo { width: auto; min-width: 170px; flex: 0 1 auto }
+.financeiro-filtros .busca-campo { max-width: 340px }
 .painel-conta-filtro { margin: 0 0 8px; font-size: 13px; color: var(--muted) }
 .tom-entrada { color: var(--ok-ink) }
 .tom-saida { color: var(--erro) }
 .quadro-ano th[scope="row"] { white-space: nowrap; font-weight: 700; color: var(--ink) }
 .quadro-ano tr.tom-resultado td, .quadro-ano tr.tom-resultado th { background: var(--soft); font-weight: 900; color: var(--ink) }
-.quadro-ano td, .quadro-ano th { padding-left: 10px; padding-right: 10px }
+.quadro-ano td, .quadro-ano th { padding-left: 8px; padding-right: 8px; font-size: 13px }
+.quadro-ano th[scope="col"] { padding-top: 8px; padding-bottom: 8px }
 .quadro-mes { border: 0; background: transparent; padding: 4px 8px; border-radius: 999px; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer }
 .quadro-mes:hover { background: var(--soft2) }
 .quadro-mes[aria-pressed="true"] { background: var(--sel); color: var(--sel-txt) }
@@ -55,3 +58,8 @@
 .lancar-ultimos li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line) }
 .lancar-ultimos li > span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere }
 .lancar-ultimos .sub { font-size: 12px; color: var(--muted) }
+.carteira td:first-child, .carteira td:nth-child(3), .carteira td:nth-child(7), .extrato td:first-child { white-space: nowrap }
+.carteira td.nome { min-width: 14rem }
+.extrato td:nth-child(3) { min-width: 16rem }
+table[aria-label="Lançamentos do mês"] td:nth-child(2) { min-width: 18rem }
+table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }

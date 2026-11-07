@@ -143,7 +143,7 @@ function ReceberParcela({ parcelaInicial }: { parcelaInicial: string }) {
       {!contratos.length ? <Vazio>Nenhuma parcela a receber{ehAdmin ? '' : ' nos contratos de que você é responsável'}.</Vazio> : <>
         <div className="financeiro-form-linha">
           <Campo rotulo="Buscar contrato" para={id + 'busca'}>
-            <input type="search" placeholder="Código ou cliente" {...propsDoCampo(id + 'busca')} value={busca} onChange={e => setBusca(e.target.value)} />
+            <input type="text" placeholder="Código ou cliente" {...propsDoCampo(id + 'busca')} value={busca} onChange={e => setBusca(e.target.value)} />
           </Campo>
           <Campo rotulo="Contrato" para={id + 'contrato'}>
             <select {...propsDoCampo(id + 'contrato')} value={contratoAtual} onChange={e => escolherContrato(e.target.value)}>

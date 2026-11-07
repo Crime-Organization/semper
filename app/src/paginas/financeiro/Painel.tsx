@@ -136,7 +136,7 @@ export default function Painel() {
           <BotaoLink variante="principal" to="/financeiro/lancar/"><Icone nome="mais" tam={15} /> Novo lançamento</BotaoLink>
         </div>
       </div>
-      <div className="painel-filtros" role="search" aria-label="Filtros do extrato">
+      <div className="financeiro-filtros" role="search" aria-label="Filtros do extrato">
         <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar no extrato</span>
           <input type="search" placeholder="Buscar descrição ou categoria" value={filtro.busca} onChange={e => mudarFiltro({ busca: e.target.value })} />
         </label>
@@ -155,7 +155,7 @@ export default function Painel() {
       </div>
       {extrato.length ? <>
         <p className="painel-conta-filtro num">{noFiltro.quantos.toLocaleString('pt-BR')} lançamentos · entradas <b className="tom-entrada">{fmtCentavos(noFiltro.entradas)}</b> · saídas <b className="tom-saida">{fmtCentavos(noFiltro.saidas)}</b></p>
-        <div className="tabela"><table aria-label={`Extrato de ${nomeDoPeriodo}`}>
+        <div className="tabela"><table className="extrato" aria-label={`Extrato de ${nomeDoPeriodo}`}>
           <thead><tr>
             <th scope="col">Data</th>{contas.length > 1 && <th scope="col">Conta</th>}<th scope="col">Descrição</th><th scope="col">Categoria</th>
             <th scope="col" className="financeiro-num">Entrada</th><th scope="col" className="financeiro-num">Saída</th>

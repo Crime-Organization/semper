@@ -667,7 +667,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .tabela td > .etiquetas { margin-bottom: 4px }
 
 /* ---------- indicadores, segmentos e abas de navegação (ui/base) ---------- */
-.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px }
+.indicadores { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
+@container (max-width: 420px) { .indicadores { grid-template-columns: minmax(0, 1fr) } }
+@container (min-width: 900px) { .indicadores { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
 .indicador { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 18px 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--white) }
 .indicador-rotulo { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted) }
 .indicador-valor { font-size: clamp(22px, 2.4vw, 30px); font-weight: 900; letter-spacing: -.02em; line-height: 1.1; overflow-wrap: anywhere }
@@ -678,13 +680,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .indicador.destaque { background: var(--dark); border-color: var(--dark-borda); padding: 18px 20px; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 6px; border-radius: 12px }
 .indicador.destaque .indicador-rotulo, .indicador.destaque .indicador-detalhe { color: var(--gray) }
 
-.segmentos { display: flex; gap: 4px; padding: 4px; max-width: 100%; overflow-x: auto; background: var(--soft); border: 1px solid var(--line); border-radius: 999px; scrollbar-width: thin }
-.segmentos button { position: relative; flex: 0 0 auto; height: 34px; padding: 0 14px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--text2); cursor: pointer }
+.segmentos { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
+.segmentos::-webkit-scrollbar, .abas-nav::-webkit-scrollbar { display: none }
+.segmentos button { position: relative; flex: 0 0 auto; height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--text2); cursor: pointer }
 .segmentos button:disabled { color: var(--faint); cursor: default }
 .segmentos button[aria-pressed="true"] { background: var(--sel); color: var(--sel-txt) }
-.segmento-marca { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 999px; background: var(--accent) }
+.segmento-marca { position: absolute; bottom: 4px; left: 50%; margin-left: -2px; width: 4px; height: 4px; border-radius: 999px; background: var(--accent) }
 
-.abas-nav { display: flex; gap: 4px; max-width: 100%; overflow-x: auto; border-bottom: 1px solid var(--line); margin-bottom: 20px; scrollbar-width: thin }
-.abas-nav a { flex: 0 0 auto; padding: 10px 14px; border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 700; font-size: 14px; color: var(--muted); text-decoration: none }
+.abas-nav { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--line); margin-bottom: 20px }
+.abas-nav a { flex: 0 0 auto; padding: 10px 12px; border-bottom: 3px solid transparent; margin-bottom: -1px; font-weight: 700; font-size: 14px; color: var(--muted); text-decoration: none }
 .abas-nav a:hover { color: var(--ink) }
 .abas-nav a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent) }

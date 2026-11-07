@@ -57,7 +57,7 @@ export default function Carteira() {
       <Indicador tom="destaque" rotulo="Em atraso" valor={fmtCentavos(t.atrasado)} detalhe={`${quantosNa('atrasado').toLocaleString('pt-BR')} contratos com parcela vencida`} />
     </Indicadores>
 
-    <div className="painel-filtros" role="search" aria-label="Filtros da carteira">
+    <div className="financeiro-filtros" role="search" aria-label="Filtros da carteira">
       <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar contrato ou cliente</span>
         <input type="search" placeholder="Buscar contrato ou cliente" value={filtro.busca} onChange={e => mudar({ busca: e.target.value })} />
       </label>
@@ -66,7 +66,7 @@ export default function Carteira() {
     </div>
 
     {lista.length ? <>
-      <div className="tabela"><table aria-label="Carteira de contratos">
+      <div className="tabela"><table className="carteira" aria-label="Carteira de contratos">
         <thead><tr>
           <th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcelas</th>
           <th scope="col" className="financeiro-num">Total</th><th scope="col" className="financeiro-num">Recebido</th><th scope="col" className="financeiro-num">Falta</th>
