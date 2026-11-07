@@ -152,7 +152,7 @@ export function DetalheDaParcela({ parcela }: { parcela: Parcela }) {
 }
 
 /** Um contrato da carteira (aba Receitas): os dados dele e as parcelas, para receber ou corrigir cada uma. */
-export function ContratoNoFinanceiro({ contratoId }: { contratoId: string }) {
+export function ContratoNoFinanceiro({ contratoId, aoMudar }: { contratoId: string; aoMudar: () => void }) {
   const [versao, setVersao] = useState(0);
   const ligado = useLigado(() => comContrato(null, contratoId), `${contratoId}:${versao}`);
   if (ligado === null) return <Carregando />;
@@ -162,7 +162,7 @@ export function ContratoNoFinanceiro({ contratoId }: { contratoId: string }) {
     <DadosDoContrato k={ligado.k} parcelas={ligado.parcelas} />
     <section className="financeiro-grupo" aria-label="Parcelas">
       <span className="rotulo-caps">Parcelas</span>
-      <ParcelasDoContrato k={ligado.k} versao={versao} aoMudar={() => setVersao(v => v + 1)} />
+      <ParcelasDoContrato k={ligado.k} versao={versao} aoMudar={() => { setVersao(v => v + 1); aoMudar(); }} />
     </section>
   </div>;
 }

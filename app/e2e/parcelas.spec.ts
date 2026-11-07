@@ -385,3 +385,44 @@ test.describe('Página de parcelas', () => {
     await expect(page.getByLabel('Resumo das parcelas')).toContainText('Atrasada');
   });
 });
+
+test.describe('O recebimento visto no Financeiro', () => {
+  test.beforeEach(async ({ page }) => { await prepararCaixa(page); });
+
+  test('quando abre a entrada que o recebimento criou, então vê o contrato, o pagamento e a divisão, sem editar', async ({ page }) => {
+    // Dado
+    const cartao = await contratoComParcelas(page);
+    const form = await receberPrimeira(cartao);
+    await form.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await expect(form).toHaveCount(0);
+    // Quando
+    await page.goto('/financeiro/');
+    await page.getByRole('table', { name: 'Entradas' }).getByRole('button', { name: /^Abrir o lançamento/ }).first().click();
+    // Então
+    const janela = page.getByRole('dialog', { name: 'Lançamento' });
+    await expect(janela.getByRole('region', { name: 'Contrato' })).toContainText('JOSÉ DA SILVA TESTE');
+    await expect(janela.getByRole('region', { name: 'Contrato' })).toContainText('1/5');
+    await expect(janela.getByRole('region', { name: 'Pagamento' })).toContainText(dinheiro('1.000,00'));
+    await expect(janela.getByRole('region', { name: 'Divisão' })).toContainText('DAS (4,5%)');
+    await expect(janela.getByRole('button', { name: 'Editar lançamento' })).toHaveCount(0);
+    await expect(janela).toContainText('veio do recebimento de uma parcela');
+  });
+
+  test('quando recebe uma parcela pela janela do contrato em Direitos, então a linha do contrato passa à parcela seguinte', async ({ page }) => {
+    // Dado
+    await contratoComParcelas(page);
+    await page.goto('/financeiro/direitos/');
+    // Quando
+    await page.getByRole('table', { name: 'Direitos' }).getByRole('button', { name: /^Abrir o contrato/ }).first().click();
+    const janela = page.getByRole('dialog', { name: 'Contrato' });
+    await janela.getByRole('button', { name: 'Receber a parcela 1' }).click();
+    const receber = janela.getByRole('form', { name: 'Receber a parcela 1' });
+    await receber.getByLabel('Valor recebido').fill('1.000,00');
+    await receber.getByLabel('Taxa da máquina').fill('0,00');
+    await receber.getByRole('button', { name: 'Registrar recebimento' }).click();
+    await expect(receber).toHaveCount(0);
+    await janela.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    await expect(page.getByRole('table', { name: 'Direitos' }).getByRole('button', { name: /^Receber a parcela 2 de/ })).toBeVisible();
+  });
+});

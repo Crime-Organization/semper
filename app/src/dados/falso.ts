@@ -13,7 +13,7 @@ import type {
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
-import { RECUSA_DA_RESERVA } from '../regras/equipe';
+import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
@@ -2477,7 +2477,7 @@ export const SD: Dados = {
   financeiroContratosDaCarteira: () => espera(bd.contratos!.filter(k => vejoContrato(k) && !k.arquivado_em)
     .map(({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }) => ({ id, codigo, categoria, responsavel_id, assinado_em, valor, descontos }))),
   financeiroRecebimentoDoLancamento(lancamentoId) {
-    const r = bd.recebimentos!.find(x => x.lancamento_id === lancamentoId && !x.estornado_em);
+    const r = bd.recebimentos!.find(x => (x.lancamento_id === lancamentoId || x.lancamento_taxa_id === lancamentoId) && !x.estornado_em);
     if (!r) return espera(null);
     const { responsavel_id: _r, estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...gravado } = r;
     return espera(gravado);
@@ -3002,9 +3002,11 @@ export const SD: Dados = {
   async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
   async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
   async equipeDefinirNome(id, nome) {
+    // Na mesma ordem da função do banco (public.equipe_definir_nome): administrador, tamanho, usuário, quem pode.
+    if (!souAdmin()) return erro('Apenas administradores mudam o nome de alguém da equipe');
+    const problema = erroDoNomeDaEquipe(nome); if (problema) return erro(problema);
     const m = EQUIPE.find(x => x.id === id); if (!m) return erro('Usuário não encontrado');
     const limpo = nome.trim();
-    if (limpo.length < 2 || limpo.length > 200) return erro('Informe um nome de 2 a 200 letras.');
     const quem = EQUIPE.find(x => x.id === eu);
     if (id !== quem?.id && m.papel === 'master') return erro('Só o próprio master muda o nome dele.');
     if (id !== quem?.id && m.papel === 'admin' && quem?.papel !== 'master') return erro('Só o master muda o nome de um administrador.');

@@ -26,6 +26,8 @@ export const TAMANHO_ESCRITORIO = {
 };
 /** Vínculos: nome, inverso e descrição como no banco (supabase/migrations/…_vinculos.sql); a função do representante só no formulário. */
 export const TAMANHO_VINCULO = { nome: 60, inverso: 60, descricao: 300, funcao: 120 };
+/** O nome de quem é da equipe, mudado por um administrador: exigido pelo banco (supabase/migrations/…_equipe_nome.sql). */
+export const TAMANHO_NOME_DA_EQUIPE = { minimo: 2, maximo: 200 };
 /** Contratos: os mesmos do banco (supabase/migrations/20261027000009_contratos.sql e supabase/migrations/20261027000010_contrato_objetos.sql). */
 export const TAMANHO_CONTRATO = { objeto: 300, codigo_antigo: 40, documento_url: 500, observacoes: 4000 };
 /** Quantos clientes um contrato pode ter (o banco recusa mais que isso: supabase/migrations/20261027000013_contrato_clientes.sql). */

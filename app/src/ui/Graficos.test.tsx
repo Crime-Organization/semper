@@ -15,8 +15,10 @@ describe('Gráfico de barras por mês', () => {
     // Então
     const tabela = screen.getByRole('table', { name: 'Entradas e saídas de 2026' });
     expect(within(tabela).getByRole('row', { name: /Jan/ })).toHaveTextContent('R$ 10');
-    expect(container.querySelectorAll('rect title')[0].textContent).toBe('Jan · Entradas: R$ 10');
-    expect(container.querySelector('.grafico-legenda')).toHaveTextContent('EntradasSaídas');
+    // A dica de cada barra é o <title> de dentro dela (o que o navegador mostra ao passar o mouse).
+    expect([...container.querySelectorAll('rect > title')].map(t => t.textContent)).toContain('Jan · Entradas: R$ 10');
+    // Cada série aparece na legenda e no cabeçalho da tabela escondida.
+    expect(screen.getAllByText('Saídas')).toHaveLength(2);
   });
 });
 

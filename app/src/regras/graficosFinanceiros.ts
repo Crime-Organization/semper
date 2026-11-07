@@ -3,6 +3,7 @@
 //   - segregarContratos: os contratos separados por categoria, responsável ou ano de assinatura, com o contratado,
 //     o recebido e o que falta (como as colunas VALOR DO CONTRATO, PAGO e EM ABERTO da planilha de Contratos).
 import type { ContratoDaCarteira, Lancamento, ParcelaDoEscritorio } from '../dados/tipos';
+import { paraCentavos } from './caixa';
 import { CATEGORIAS } from './contrato';
 import { contaNoResultado, MESES_DO_ANO, mesDoAno } from './painelFinanceiro';
 
@@ -42,7 +43,8 @@ export const SEPARAR: Record<SepararPor, { nome: string; chave: (k: ContratoDaCa
 };
 
 /**
- * Os contratos separados num jeito, do maior contratado para o menor. O contratado é o valor do contrato menos os
+ * Os contratos separados num jeito, do maior contratado para o menor (tudo em centavos; o valor e os descontos do
+ * contrato vêm em reais e são convertidos aqui). O contratado é o valor do contrato menos os
  * descontos (sem valor, vale a soma das parcelas), e nunca menos do que já foi recebido (o contrato de êxito costuma ter
  * valor zero); o recebido, a soma das parcelas recebidas; o que falta, a diferença. Com "responsavel", só os contratos dele.
  */
@@ -58,7 +60,8 @@ export function segregarContratos(contratos: ContratoDaCarteira[], parcelas: Par
     const chave = SEPARAR[por].chave(k);
     const g = grupos.get(chave) ?? { chave, rotulo: SEPARAR[por].rotulo(chave, nomeDe), contratos: 0, contratado: 0, recebido: 0, emAberto: 0 };
     const pago = recebido.get(k.id) ?? 0;
-    const contratado = Math.max(pago, (k.valor ?? somaDasParcelas.get(k.id) ?? 0) - (k.descontos ?? 0));
+    const valor = k.valor === null ? somaDasParcelas.get(k.id) ?? 0 : paraCentavos(k.valor);
+    const contratado = Math.max(pago, valor - paraCentavos(k.descontos ?? 0));
     g.contratos++;
     g.contratado += contratado;
     g.recebido += pago;

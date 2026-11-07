@@ -228,3 +228,25 @@ describe('Expandir e recolher todas as seções', () => {
     expect(salvarPreferencia).not.toHaveBeenCalled();
   });
 });
+
+describe('Expandir tudo com uma seção dentro de outra', () => {
+  beforeEach(() => { iniciarPreferencias({}); salvarPreferencia.mockReset(); salvarPreferencia.mockResolvedValue(); });
+
+  it('dado uma seção dentro de outra, quando expande tudo, então só as do cartão abrem, e o botão vira "Recolher tudo"', async () => {
+    // Dado
+    render(<PainelCartao aoFechar={() => {}}>
+      <Recolhivel titulo="Honorários" icone="dinheiro"><p>Os honorários</p>
+        <Recolhivel titulo="Histórico das parcelas" icone="relogio"><p>O histórico</p></Recolhivel>
+      </Recolhivel>
+      <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
+    </PainelCartao>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
+    // Então
+    expect(screen.getByText('Os honorários')).toBeInTheDocument();
+    expect(screen.getByText('As partes')).toBeInTheDocument();
+    expect(screen.queryByText('O histórico')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Recolher tudo' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Expandir tudo|Recolher tudo/ })).toHaveLength(1);
+  });
+});

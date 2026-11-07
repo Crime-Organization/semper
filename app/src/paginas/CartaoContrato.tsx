@@ -12,6 +12,7 @@ import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
+import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -57,7 +58,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const parcelas = useQuantos(() => SD.parcelasDoContrato(id), chave, veParcelas);
   const historico = useQuantos(() => SD.contratoHistorico(id), chave);
   // Os objetos que ainda não viraram demanda (ficam na lista das demandas, sem link).
-  const objetosSemDemanda = k ? objetosEDemandas(k.objetos, demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
+  // Só antes de o contrato ser assinado: depois, a demanda de cada objeto já nasceu (e, se não existe mais, foi excluída).
+  const objetosSemDemanda = k && !chegouAoAssinado(quadro.colunas, k.etapa_id, k.assinado_em)
+    ? objetosEDemandas(k.objetos, demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (k === undefined) return <Carregando />;

@@ -4395,3 +4395,36 @@ describe('A passar: quem recebeu o dinheiro (banco fictício)', () => {
     expect(await SD.financeiroAPassar(MARCO.de, MARCO.ate)).toEqual([expect.objectContaining({ quem_paga: 'Bruno Exemplo Souza', pago_em: '2026-03-20' })]);
   });
 });
+
+// A regra do banco de verdade está provada em supabase/tests/equipe_nome.test.sql; aqui, que o fictício faz igual.
+describe('O nome de alguém da equipe (banco fictício)', () => {
+  let SD: Dados;
+  const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+
+  it('dado um usuário comum, quando tenta mudar o nome de alguém, então é recusado', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.equipeDefinirNome('u-ana', 'Outra Ana')).rejects.toThrow('Apenas administradores mudam o nome de alguém da equipe');
+  });
+
+  it('dado uma administradora, quando muda o nome do master, então é recusado; o de um usuário, muda', async () => {
+    // Dado
+    entrarComo('u-ana');
+    // Então
+    await expect(SD.equipeDefinirNome('u-master', 'Outro')).rejects.toThrow('Só o próprio master muda o nome dele.');
+    await SD.equipeDefinirNome('u-bruno', '  Bruno Souza  ');
+    expect((await SD.equipeListar()).find(u => u.id === 'u-bruno')?.nome).toBe('Bruno Souza');
+  });
+
+  it('dado o master, quando dá um nome de uma letra, então é recusado', async () => {
+    // Então
+    await expect(SD.equipeDefinirNome('u-ana', 'A')).rejects.toThrow('Informe um nome de 2 a 200 letras.');
+  });
+});

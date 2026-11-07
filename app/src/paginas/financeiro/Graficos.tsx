@@ -14,7 +14,9 @@ import { useCtx } from '../../ui/sessao';
 const ENTRADA: Serie = { chave: 'entradas', nome: 'Entradas', cor: 'var(--grafico-entrada)' };
 const SAIDA: Serie = { chave: 'saidas', nome: 'Saídas', cor: 'var(--grafico-saida)' };
 const RECEBIDO: Serie = { chave: 'recebido', nome: 'Recebido', cor: 'var(--grafico-entrada)' };
-const EM_ABERTO: Serie = { chave: 'emAberto', nome: 'Em aberto', cor: 'var(--grafico-aberto)' };
+/** No gráfico por mês, o recebido é o que os meses guardam em "entradas". */
+const RECEBIDO_NO_MES: Serie = { ...RECEBIDO, chave: 'entradas' };
+const EM_ABERTO: Serie = { chave: 'emAberto', nome: 'Em aberto', cor: 'var(--grafico-aberto)', contorno: 'var(--grafico-entrada)' };
 
 export function GraficosDoFinanceiro({ ano, caixa, parcelas, contratos, advogado }: {
   ano: number; caixa: { contas: ContaFinanceira[]; lancamentos: Lancamento[] } | null; parcelas: ParcelaDoEscritorio[];
@@ -29,14 +31,16 @@ export function GraficosDoFinanceiro({ ano, caixa, parcelas, contratos, advogado
 
   const doCaixa = !!caixa && !advogado;
   const meses: Mes[] = doCaixa ? mesesDoCaixa(caixa.lancamentos, ano) : mesesRecebidos(parcelas, ano, advogado);
-  const grupos = segregarContratos(contratos, parcelas, separar, nomeDe, advogado);
+  // Quem não é administrador vê, dos contratos, só aqueles de que é responsável: são os mesmos cujas parcelas ele lê (nos
+  // outros, em que só participa, o recebido não chega até ele e o contrato pareceria todo em aberto).
+  const grupos = segregarContratos(contratos, parcelas, separar, nomeDe, ctx.ehAdmin ? advogado : ctx.perfil.id);
   const total = grupos.reduce((t, g) => ({ contratado: t.contratado + g.contratado, recebido: t.recebido + g.recebido, emAberto: t.emAberto + g.emAberto }), { contratado: 0, recebido: 0, emAberto: 0 });
 
   return <div className="financeiro-graficos">
     <section className="financeiro-grafico" aria-labelledby="grafico-meses">
       <TituloSecao id="grafico-meses">{doCaixa ? `Entradas e saídas · ${ano}` : `Recebido por mês · ${ano}`}</TituloSecao>
       <BarrasPorMes rotulo={doCaixa ? `Entradas e saídas de cada mês de ${ano}` : `Recebido em cada mês de ${ano}`} itens={meses}
-        series={doCaixa ? [ENTRADA, SAIDA] : [RECEBIDO]} valor={(m, s) => m[s as 'entradas' | 'saidas'] ?? 0}
+        series={doCaixa ? [ENTRADA, SAIDA] : [RECEBIDO_NO_MES]} valor={(m, s) => m[s as 'entradas' | 'saidas'] ?? 0}
         formatar={fmtCentavos} formatarCurto={fmtCompacto} />
     </section>
     <section className="financeiro-grafico" aria-labelledby="grafico-contratos">

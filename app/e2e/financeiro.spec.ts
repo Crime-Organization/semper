@@ -3,6 +3,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
+/** O valor em reais como a tela mostra (o espaço depois do R$ pode ser o fino, do navegador). */
+const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
+
 /** Cria as contas PJ (recolhe DAS, com saldo) e PF, a partir de janeiro. */
 async function criarContas(page: Page) {
   await page.goto('/financeiro/contas/');
@@ -462,4 +465,39 @@ test('quando a pessoa abre o menu, então o Financeiro é um link só, que leva 
   // Então
   const abas = page.getByRole('navigation', { name: 'Abas do financeiro' });
   for (const aba of ['Entradas', 'Saídas', 'Direitos', 'Obrigações']) await expect(abas.getByRole('link', { name: aba, exact: true })).toBeVisible();
+});
+
+test.describe('A janela de cada lançamento', () => {
+  test('quando lança uma saída e clica na linha, então vê tudo do lançamento; depois edita, exclui e desfaz', async ({ page }) => {
+    // Dado
+    await criarContas(page);
+    await page.goto('/financeiro/saidas/');
+    await page.getByRole('button', { name: 'Nova saída' }).click();
+    const nova = page.getByRole('form', { name: 'Nova saída' });
+    await nova.getByLabel('Valor').fill('48,00');
+    await nova.getByLabel('Descrição').fill('Conta de água');
+    await nova.getByRole('button', { name: 'Registrar saída' }).click();
+    await page.getByRole('button', { name: 'Fechar' }).click();
+    // Quando: clica na linha (em qualquer lugar dela)
+    await page.getByRole('table', { name: 'Saídas', exact: true }).getByRole('row').filter({ hasText: 'Conta de água' }).getByRole('cell').last().click();
+    // Então: primeiro vê, sem formulário
+    const janela = page.getByRole('dialog', { name: 'Lançamento' });
+    await expect(janela.getByRole('region', { name: 'No caixa' })).toContainText('Conta de água');
+    await expect(janela).toContainText(dinheiro('48,00'));
+    await expect(janela.getByRole('form', { name: 'Mudar lançamento' })).toHaveCount(0);
+    // Quando: edita
+    await janela.getByRole('button', { name: 'Editar lançamento' }).click();
+    await janela.getByRole('form', { name: 'Mudar lançamento' }).getByLabel('Valor').fill('50,00');
+    await janela.getByRole('button', { name: 'Salvar lançamento' }).click();
+    // Então
+    await expect(page.getByRole('table', { name: 'Saídas', exact: true })).toContainText(dinheiro('50,00'));
+    // Quando: exclui
+    await page.getByRole('button', { name: 'Abrir o lançamento: Conta de água' }).click();
+    await page.getByRole('dialog', { name: 'Lançamento' }).getByRole('button', { name: 'Excluir' }).click();
+    await page.getByRole('button', { name: 'Confirmar: excluir' }).click();
+    // Então
+    await expect(page.getByText('Nenhuma saída neste período.')).toBeVisible();
+    await page.getByRole('button', { name: 'Desfazer' }).last().click();
+    await expect(page.getByRole('table', { name: 'Saídas', exact: true })).toContainText('Conta de água');
+  });
 });

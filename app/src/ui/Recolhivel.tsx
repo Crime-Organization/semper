@@ -106,7 +106,9 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
           <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span></span>
         </>}
       </h3>
-      {aberto && <div className="bloco-corpo" id={id}>{children}</div>}
+      {/* As seções de dentro desta (ex.: o histórico das parcelas, dentro de Honorários) ficam fora do grupo: o "Expandir
+          tudo" abre e fecha só as do cartão, e não diria "Expandir tudo" por causa de uma seção escondida. */}
+      {aberto && <div className="bloco-corpo" id={id}><InscricaoNoGrupo.Provider value={null}><EstadoDoGrupo.Provider value={null}>{children}</EstadoDoGrupo.Provider></InscricaoNoGrupo.Provider></div>}
     </section>
   </>;
 }

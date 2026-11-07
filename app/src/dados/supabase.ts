@@ -1039,7 +1039,8 @@ export const SD: Dados = {
     }
   },
   async financeiroRecebimentoDoLancamento(lancamentoId) {
-    const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('lancamento_id', lancamentoId).is('estornado_em', null).maybeSingle());
+    // O recebimento gera a entrada e, às vezes, a saída da taxa da máquina: os dois lançamentos levam a ele.
+    const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).or(`lancamento_id.eq.${lancamentoId},lancamento_taxa_id.eq.${lancamentoId}`).is('estornado_em', null).maybeSingle());
     return data;
   },
   conferenciaListar: async (ano, responsavel) => await rpc('financeiro_conferencia_listar', { p_ano: ano, p_responsavel: responsavel }) as LinhaDaConferencia[],

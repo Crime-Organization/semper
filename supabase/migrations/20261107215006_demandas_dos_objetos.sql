@@ -3,8 +3,10 @@
 -- sem as demandas. Esta migração cria, uma vez, a demanda de cada objeto que ainda não tem uma:
 --   - contrato na coluna do assinado: a demanda vai para a coluna de início das demandas ("Para fazer");
 --   - contrato que já passou do assinado (ex.: "Encerrado"): vai para a coluna de concluídas.
--- Só acrescenta linhas. Contratos que nunca chegaram ao assinado (não marcados) e os arquivados ficam de fora: os
--- primeiros ganham as demandas quando chegarem ao assinado. Rodar de novo não duplica (o objeto que já tem demanda sai).
+-- Só acrescenta linhas, e só nos contratos que não têm NENHUMA demanda (os que vieram das planilhas sem elas): num
+-- contrato que já tem demandas, uma que falte pode ter sido excluída de propósito, ou o objeto pode ter mudado de nome,
+-- e não é recriada. Contratos que nunca chegaram ao assinado (não marcados) e os arquivados ficam de fora: os primeiros
+-- ganham as demandas quando chegarem ao assinado. Rodar de novo não duplica.
 
 insert into public.demandas (escritorio_id, titulo, responsavel_id, clientes, contrato_id, objeto, etapa_id, etapa_ordem, criado_por)
 select c.escritorio_id, o.texto, c.responsavel_id, c.clientes, c.id, o.texto,
@@ -18,4 +20,4 @@ join privado.contratos_com_demandas x on x.contrato_id = c.id
 left join public.quadro_colunas col on col.id = c.etapa_id
 cross join lateral unnest(c.objetos) with ordinality as o(texto, n)
 where c.arquivado_em is null
-  and not exists (select 1 from public.demandas d where d.contrato_id = c.id and d.objeto = o.texto);
+  and not exists (select 1 from public.demandas d where d.contrato_id = c.id);

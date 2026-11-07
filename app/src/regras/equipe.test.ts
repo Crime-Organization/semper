@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
-import { FUNCOES, motivoParaNaoParticipar, opcoesDeResponsavel } from './equipe';
+import { erroDoNomeDaEquipe, FUNCOES, motivoParaNaoParticipar, opcoesDeResponsavel } from './equipe';
 
 const EQUIPE: Membro[] = [
   { id: 'u-adv', nome: 'Advogada', funcao: 'advogado', ativo: true, pessoa_id: 'p-adv' },
@@ -60,4 +60,12 @@ describe('conta reservada nos contratos', () => {
     expect(motivoParaNaoParticipar([reservado, desativado], 'p-r')).toBeNull();
     expect(motivoParaNaoParticipar([reservado, desativado], 'p-d')).toBe('desativado na equipe');
   });
+});
+
+describe('O nome de alguém da equipe', () => {
+  it.each([['Ana Lima', null], ['  Ana  ', null], ['A', 'Informe um nome de 2 a 200 letras.'], ['   ', 'Informe um nome de 2 a 200 letras.'], ['x'.repeat(201), 'Informe um nome de 2 a 200 letras.']])(
+    'dado o nome "%s", quando confere, então o erro é %s', (nome, erro) => {
+      // Então
+      expect(erroDoNomeDaEquipe(nome)).toBe(erro);
+    });
 });

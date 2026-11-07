@@ -9,7 +9,7 @@ const parcela = (contrato_id: string, valor: number, recebida_em: string | null,
   contrato_codigo: 'K', cliente_nome: 'C', responsavel_id: 'u1', total_parcelas: null, ...extra
 });
 const contrato = (id: string, extra: Partial<ContratoDaCarteira> = {}): ContratoDaCarteira => ({
-  id, codigo: id, categoria: 'pro_labore', responsavel_id: 'u1', assinado_em: '2025-03-01', valor: 100000, descontos: null, ...extra
+  id, codigo: id, categoria: 'pro_labore', responsavel_id: 'u1', assinado_em: '2025-03-01', valor: 1000, descontos: null, ...extra
 });
 
 describe('Entradas e saídas por mês', () => {
@@ -33,7 +33,8 @@ describe('Entradas e saídas por mês', () => {
 describe('Contratos separados, como na planilha de Contratos', () => {
   it('dado contratos com parcelas recebidas, quando separa por categoria, então mostra o contratado, o recebido e o que falta', () => {
     // Dado
-    const contratos = [contrato('a'), contrato('b', { valor: 50000, descontos: 10000 }), contrato('c', { categoria: 'quota_litis', valor: null })];
+    // O contrato guarda reais (R$ 1.000,00 é 1000); as parcelas, centavos (R$ 300,00 é 30000).
+    const contratos = [contrato('a'), contrato('b', { valor: 500, descontos: 100 }), contrato('c', { categoria: 'quota_litis', valor: null })];
     const parcelas = [parcela('a', 30000, '2026-01-10'), parcela('b', 40000, '2026-01-10'), parcela('c', 20000, '2026-01-10'), parcela('c', 20000, null)];
     // Quando
     const grupos = segregarContratos(contratos, parcelas, 'categoria', () => '');

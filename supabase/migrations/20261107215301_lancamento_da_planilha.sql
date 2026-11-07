@@ -8,3 +8,6 @@ alter table public.financeiro_lancamentos add column planilha jsonb
   check (planilha is null or jsonb_typeof(planilha) = 'array');
 comment on column public.financeiro_lancamentos.planilha is
   'Colunas da linha da planilha de onde o lançamento veio: lista de pares [coluna, valor]. Só a importação grava.';
+-- Pelo site ninguém grava a coluna: ao incluir, ela vem vazia (regra restritiva, somada às que já existem); mudar, a
+-- lista de colunas que se pode mudar (grant update) já não a inclui.
+create policy sem_planilha on public.financeiro_lancamentos as restrictive for insert to authenticated with check (planilha is null);

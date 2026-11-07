@@ -3,7 +3,8 @@
 // administrador muda; o de um administrador, só o master; o de um master, só ele mesmo.
 import { useId, useState, type FormEvent } from 'react';
 import { SD, type Funcao, type Papel, type Socio, type Usuario } from '../dados';
-import { FUNCOES } from '../regras/equipe';
+import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
+import { erroDoNomeDaEquipe, FUNCOES } from '../regras/equipe';
 import { avisar, falha } from '../ui/avisos';
 import { Avatar } from '../ui/Avatar';
 import { BotaoLink, Campo, estiloBotao, Nota, propsDoCampo, Selo } from '../ui/base';
@@ -41,6 +42,8 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
   async function salvarNome(ev: FormEvent) {
     ev.preventDefault();
     if (!mudouNome || ocupado) return;
+    const problema = erroDoNomeDaEquipe(nome);
+    if (problema) { falha(new Error(problema)); return; }
     setOcupado(true);
     try {
       await SD.equipeDefinirNome(u.id, nome.trim());
@@ -59,7 +62,7 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
     <section className="bloco separada" aria-label="Nome do usuário">
       <form className="usuario-nome" onSubmit={salvarNome} noValidate>
         <Campo rotulo="Nome" para={id + 'nome'}>
-          <input type="text" {...propsDoCampo(id + 'nome')} value={nome} maxLength={200} disabled={!podeRenomear} onChange={e => setNome(e.target.value)} />
+          <input type="text" {...propsDoCampo(id + 'nome')} value={nome} maxLength={TAMANHO_NOME_DA_EQUIPE.maximo} disabled={!podeRenomear} onChange={e => setNome(e.target.value)} />
         </Campo>
         {podeRenomear && <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={!mudouNome || ocupado}>{ocupado ? 'Salvando…' : 'Salvar nome'}</button>}
       </form>

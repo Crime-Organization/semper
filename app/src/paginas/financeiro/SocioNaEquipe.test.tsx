@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // A regra mudou em 07/11/2026: antes, marcar a caixa "Sócio" abria o período hoje, num clique; agora as datas ficam à
 // vista e só se grava ao salvar o período.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosParcelas, Socio } from '../../dados';
@@ -48,10 +48,39 @@ describe('A sociedade na janela do usuário', () => {
     // Quando
     render(<SocioNaEquipe usuario={USUARIO} socios={[socio({}), socio({ id: 's0', desde: '2024-01-01', ate: '2024-12-31' }), socio({ id: 'outro', pessoa_id: 'p-bia' })]} aoMudar={vi.fn()} />);
     // Então
-    const periodos = screen.getByRole('list', { name: 'Períodos de sócio de Ana Teste Lima' }).querySelectorAll('li');
+    const periodos = within(screen.getByRole('list', { name: 'Períodos de sócio de Ana Teste Lima' })).getAllByRole('listitem');
     expect(periodos).toHaveLength(2);
     expect(periodos[0]).toHaveTextContent('desde 01/02/2026');
     expect(periodos[1]).toHaveTextContent('desde 01/01/2024 até 31/12/2024');
     expect(screen.getByRole('button', { name: 'Outro período de sócio' })).toBeInTheDocument();
+  });
+});
+
+describe('Mudar e tirar um período de sócio', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('dado um período, quando muda a data de saída e salva, então grava o período com as datas novas', async () => {
+    // Dado
+    SD.financeiroSocioAtualizar.mockResolvedValue();
+    const aoMudar = vi.fn();
+    render(<SocioNaEquipe usuario={USUARIO} socios={[socio({})]} aoMudar={aoMudar} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar o período desde 01/02/2026' }));
+    await userEvent.type(screen.getByLabelText(/Até/), '2026-10-31');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar período' }));
+    // Então
+    expect(SD.financeiroSocioAtualizar).toHaveBeenCalledWith('s1', { desde: '2026-02-01', ate: '2026-10-31' });
+    expect(aoMudar).toHaveBeenCalled();
+  });
+
+  it('dado um período, quando tira e confirma, então o período sai', async () => {
+    // Dado
+    SD.financeiroSocioExcluir.mockResolvedValue();
+    render(<SocioNaEquipe usuario={USUARIO} socios={[socio({})]} aoMudar={vi.fn()} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Confirmar: tirar' }));
+    // Então
+    expect(SD.financeiroSocioExcluir).toHaveBeenCalledWith('s1');
   });
 });

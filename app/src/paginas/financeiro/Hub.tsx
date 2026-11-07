@@ -157,7 +157,7 @@ export default function Hub() {
       {aberto.o === 'saida' && <FormDoCaixa tipo="saida" titulo="Nova saída" rotulo="Registrar saída" aoRegistrar={registrou} />}
       {aberto.o === 'mudar' && atual && 'caixa' in atual && atual.caixa && <DetalheDoLancamento key={aberto.lancamento.id} lancamento={aberto.lancamento} contas={atual.caixa.contas} aoTerminar={() => { fechar(); recarregar(); }} />}
       {aberto.o === 'parcela' && <DetalheDaParcela key={aberto.parcela.id} parcela={aberto.parcela} />}
-      {aberto.o === 'contrato' && <ContratoNoFinanceiro key={aberto.contratoId} contratoId={aberto.contratoId} />}
+      {aberto.o === 'contrato' && <ContratoNoFinanceiro key={aberto.contratoId} contratoId={aberto.contratoId} aoMudar={recarregar} />}
     </PainelCartao>}
   </PaginaModulo>;
 }
@@ -208,7 +208,7 @@ function Entradas({ caixa, parcelas, periodo, usuario, aoMudar, aoAbrirParcela }
     {lista.length ? <div className="tabela"><table className="carteira" aria-label="Parcelas recebidas">
       <thead><tr><th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col" className="financeiro-num">Valor</th></tr></thead>
       <tbody>{lista.map(p => <tr key={p.id} className="clicavel" onClick={() => aoAbrirParcela(p)}>
-        <td><button type="button" className="financeiro-abrir" aria-label={`Abrir a parcela de ${p.contrato_codigo}`} onClick={e => { e.stopPropagation(); aoAbrirParcela(p); }}>{fmtData(p.recebida_em!)}</button></td><td>{p.contrato_codigo}</td><td className="nome">{p.cliente_nome}</td>
+        <td><button type="button" className="financeiro-abrir" aria-label={`Abrir a parcela ${numeroDaParcela(p.numero, p.total_parcelas, maior.get(p.contrato_id))} de ${p.contrato_codigo}, recebida em ${fmtData(p.recebida_em!)}`} onClick={e => { e.stopPropagation(); aoAbrirParcela(p); }}>{fmtData(p.recebida_em!)}</button></td><td>{p.contrato_codigo}</td><td className="nome">{p.cliente_nome}</td>
         <td className="num">{numeroDaParcela(p.numero, p.total_parcelas, maior.get(p.contrato_id))}</td><td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
       </tr>)}</tbody>
       <tfoot><tr><th scope="row" colSpan={4}>Total</th><td className="financeiro-num"><b>{fmtCentavos(totalRecebido(lista))}</b></td></tr></tfoot>

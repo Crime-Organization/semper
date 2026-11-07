@@ -1,6 +1,14 @@
 // Função de cada membro da equipe e o que ela permite no contrato (supabase/migrations/20261027000015_funcao_na_equipe.sql).
 // A função é diferente do papel no sistema: administrador é quem gere a equipe e vê tudo; "administrativo" é uma função.
+import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
 import type { Funcao, Membro, RecusaDaReserva } from '../dados/tipos';
+
+/** O que há de errado com o nome de alguém da equipe (o mesmo que o banco confere), ou null se está bom. */
+export function erroDoNomeDaEquipe(nome: string): string | null {
+  const limpo = nome.trim();
+  return limpo.length < TAMANHO_NOME_DA_EQUIPE.minimo || limpo.length > TAMANHO_NOME_DA_EQUIPE.maximo
+    ? `Informe um nome de ${TAMANHO_NOME_DA_EQUIPE.minimo} a ${TAMANHO_NOME_DA_EQUIPE.maximo} letras.` : null;
+}
 
 export const FUNCOES: Record<Funcao, string> = { advogado: 'Advogado', administrativo: 'Administrativo', estagiario: 'Estagiário' };
 /** Função de quem entra na equipe, até um administrador ajustar (o padrão do banco). */
