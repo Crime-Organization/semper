@@ -131,8 +131,11 @@ function Rotas() {
           <Route path="agenda" element={<Compromissos />} />
           <Route path="financeiro" element={<HubDoFinanceiro />} />
           <Route path="financeiro/saidas" element={<HubDoFinanceiro />} />
-          <Route path="financeiro/receitas" element={<HubDoFinanceiro />} />
-          <Route path="financeiro/despesas" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/direitos" element={<HubDoFinanceiro />} />
+          <Route path="financeiro/obrigacoes" element={<HubDoFinanceiro />} />
+          {/* Os nomes antigos das abas levam às novas. */}
+          <Route path="financeiro/receitas" element={<Navigate to="/financeiro/direitos/" replace />} />
+          <Route path="financeiro/despesas" element={<Navigate to="/financeiro/obrigacoes/" replace />} />
           <Route path="financeiro/contas" element={<Financeiro />} />
           <Route path="parcelas" element={<Parcelas />} />
           <Route path="meus-valores" element={<MeusValores />} />

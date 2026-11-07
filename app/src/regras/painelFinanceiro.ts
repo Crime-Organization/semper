@@ -140,3 +140,22 @@ export function indicadoresDoAdvogado(parcelas: ParcelaDoEscritorio[], periodo: 
 }
 /** Os advogados da equipe, em ordem de nome: é entre eles que o administrador escolhe de quem ver os indicadores. */
 export const advogadosDaEquipe = (equipe: Membro[]) => equipe.filter(m => m.funcao === 'advogado').toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+
+/** A marca que a importação pôs no fim da descrição ("[Planilha 2026, aba Out, linha 196]"): na lista, não precisa aparecer. */
+const MARCA_DA_PLANILHA = /\s*\[Planilha [^\]]*\]\s*$/;
+/** O valor de uma coluna da planilha de origem do lançamento (vazio se não veio de planilha ou a coluna está vazia). */
+export const colunaDaPlanilha = (l: Pick<Lancamento, 'planilha'>, coluna: string) => l.planilha?.find(([c]) => c === coluna)?.[1] ?? '';
+
+/**
+ * Como a linha aparece na lista do caixa: quem (o cliente ou o fornecedor), o quê (o serviço ou produto) e a categoria.
+ * O que veio da planilha usa as colunas dela; o lançado no SEMPER usa a descrição e a categoria do sistema.
+ */
+export function linhaDoCaixa(l: Pick<Lancamento, 'descricao' | 'categoria' | 'planilha'>) {
+  const quem = colunaDaPlanilha(l, 'CLIENTE');
+  if (!l.planilha?.length) return { quem: l.descricao.replace(MARCA_DA_PLANILHA, ''), oQue: '', categoria: nomeDaCategoria(l.categoria) };
+  return {
+    quem: quem || l.descricao.replace(MARCA_DA_PLANILHA, ''),
+    oQue: [colunaDaPlanilha(l, 'SERVIÇO/PRODUTOS'), colunaDaPlanilha(l, 'REFERENCIA/PARCELA')].filter(Boolean).join(' · '),
+    categoria: colunaDaPlanilha(l, 'CATEGORIA') || nomeDaCategoria(l.categoria)
+  };
+}

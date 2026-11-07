@@ -1,20 +1,20 @@
 // O Financeiro numa página só: o período e os totais no alto e quatro abas. Entradas e Saídas são o que já entrou e saiu das contas;
-// Receitas e Despesas, o que ainda vai entrar e sair. Lançar e mudar um lançamento abrem na janela flutuante, como o cadastro dos módulos.
+// Direitos e Obrigações, o que ainda vai entrar e sair. Clicar em qualquer linha abre a janela flutuante com tudo o que se sabe dela
+// (DetalheFinanceiro.tsx); lançar também abre ali.
 // Quem não é administrador vê só o que é dos contratos de que é responsável (o banco filtra), e não vê Saídas.
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, useLocation } from 'react-router';
 import { SD, type ContaFinanceira, type Lancamento, type ParcelaDoEscritorio, type Repasse, type ValorAPassar } from '../../dados';
-import { diasDoMes, fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/caixa';
+import { diasDoMes, fmtCentavos } from '../../regras/caixa';
 import {
-  FILTRO_VAZIO, MESES_DO_ANO, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
+  FILTRO_VAZIO, MESES_DO_ANO, linhaDoCaixa, SITUACOES_NA_CARTEIRA, advogadosDaEquipe, carteiraDeContratos, contaNoResultado, entradasDoMes, filtrarCarteira, indicadoresDoAdvogado, filtrarExtrato, mesDoAno, mesesComLancamento,
   totaisDaCarteira, totaisDoExtrato, totalRecebido, type SituacaoNaCarteira
 } from '../../regras/painelFinanceiro';
 import { maiorParcelaPorContrato, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
 import { somarDias } from '../../regras/prazos';
-import { falha, feito, useMudancas } from '../../ui/avisos';
+import { useMudancas } from '../../ui/avisos';
 import { Aviso, Carregando, estiloBotao, Indicador, Indicadores, Nota, Segmentos, Selo, TituloSecao, Vazio } from '../../ui/base';
-import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { PaginaModulo } from '../../ui/PaginaModulo';
 import { PainelCartao } from '../../ui/PainelCartao';
@@ -23,8 +23,8 @@ import { hojeISO, useTitulo } from '../../ui/util';
 import { Repasses } from '../Parcelas';
 import { AbasDoFinanceiro, abaDoCaminho, type AbaDoFinanceiro } from './AbasDoFinanceiro';
 import { ValoresAPassar } from './APassar';
-import { FormLancamento } from './Formularios';
 import { FormDoCaixa, NovaEntrada } from './NovoLancamento';
+import { ContratoNoFinanceiro, DetalheDaParcela, DetalheDoLancamento } from './DetalheFinanceiro';
 import '../Financeiro.css';
 
 /** As parcelas de todos os tempos: a carteira olha o contrato inteiro, não só um mês. */
@@ -33,14 +33,8 @@ const TODAS_AS_DATAS = { de: '2000-01-01', ate: '2200-12-31' };
 const LINHAS_POR_VEZ = 100;
 const ANO_TODO = 'ano';
 const TODAS = 'todas';
-/** O lançamento que nasce de uma parcela, de um repasse ou do lucro só muda por lá. */
-const ORIGEM: Record<NonNullable<Lancamento['origem']>, string> = {
-  recebimento: 'Este lançamento veio do recebimento de uma parcela: para mudar, estorne a parcela no contrato.',
-  repasse: 'Este lançamento veio do pagamento de um repasse: para mudar, desfaça o pagamento em Despesas.',
-  lucro: 'Este lançamento veio do pagamento de lucro: para mudar, desfaça o pagamento em Lucro dos sócios.'
-};
-
-type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento } | null;
+type Aberto = { o: 'entrada'; parcela?: string } | { o: 'saida' } | { o: 'avulsa' } | { o: 'mudar'; lancamento: Lancamento }
+  | { o: 'parcela'; parcela: ParcelaDoEscritorio } | { o: 'contrato'; contratoId: string } | null;
 type Caixa = { contas: ContaFinanceira[]; lancamentos: Lancamento[]; saldos: Map<string, number> };
 type Lido = { ano: number; parcelas: ParcelaDoEscritorio[]; caixa: Caixa | null } | { ano: number; erro: string };
 
@@ -117,10 +111,10 @@ export default function Hub() {
     const t = totaisDoExtrato(doPeriodo);
     const ind = indicadoresDoAdvogado(parcelas, periodo, hoje, advogado);
     const conteudo: Record<AbaDoFinanceiro, () => ReactNode> = {
-      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
+      entradas: () => <Entradas caixa={caixa} parcelas={parcelas} periodo={periodo} usuario={advogado} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} aoAbrirParcela={p => setAberto({ o: 'parcela', parcela: p })} />,
       saidas: () => <ListaDoCaixa caixa={caixa!} tipo="saida" periodo={periodo} aoMudar={l => setAberto({ o: 'mudar', lancamento: l })} />,
-      receitas: () => <Receitas parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} />,
-      despesas: () => <Despesas periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
+      direitos: () => <Direitos parcelas={parcelas} usuario={advogado} aoReceber={id => setAberto({ o: 'entrada', parcela: id })} aoAbrir={id => setAberto({ o: 'contrato', contratoId: id })} />,
+      obrigacoes: () => <Obrigacoes periodo={periodo} contas={caixa?.contas ?? []} versao={versao} aoMudar={recarregar} />
     };
     corpo = <>
       <Indicadores rotulo={`Totais de ${nomeDoPeriodo}`}>
@@ -156,39 +150,14 @@ export default function Hub() {
       </>}
       {aberto.o === 'avulsa' && <FormDoCaixa tipo="entrada" titulo="Entrada sem contrato" rotulo="Registrar entrada" aoRegistrar={registrou} />}
       {aberto.o === 'saida' && <FormDoCaixa tipo="saida" titulo="Nova saída" rotulo="Registrar saída" aoRegistrar={registrou} />}
-      {aberto.o === 'mudar' && atual && 'caixa' in atual && atual.caixa && <MudarLancamento lancamento={aberto.lancamento} contas={atual.caixa.contas} aoTerminar={() => { fechar(); recarregar(); }} />}
+      {aberto.o === 'mudar' && atual && 'caixa' in atual && atual.caixa && <DetalheDoLancamento key={aberto.lancamento.id} lancamento={aberto.lancamento} contas={atual.caixa.contas} aoTerminar={() => { fechar(); recarregar(); }} />}
+      {aberto.o === 'parcela' && <DetalheDaParcela key={aberto.parcela.id} parcela={aberto.parcela} />}
+      {aberto.o === 'contrato' && <ContratoNoFinanceiro key={aberto.contratoId} contratoId={aberto.contratoId} />}
     </PainelCartao>}
   </PaginaModulo>;
 }
 
-const TITULOS: Record<NonNullable<Aberto>['o'], string> = { entrada: 'Nova entrada', avulsa: 'Entrada sem contrato', saida: 'Nova saída', mudar: 'Lançamento' };
-
-/** Mudar ou excluir um lançamento do caixa, na janela flutuante. */
-function MudarLancamento({ lancamento: l, contas, aoTerminar }: { lancamento: Lancamento; contas: ContaFinanceira[]; aoTerminar: () => void }) {
-  if (l.origem) return <><Nota>{ORIGEM[l.origem]}</Nota><Resumo l={l} contas={contas} /></>;
-  async function excluir() {
-    try {
-      await SD.financeiroLancamentoExcluir(l.id);
-      feito('Lançamento excluído.', 'exclusão do lançamento', async () => { await SD.financeiroLancamentoRestaurar(l.id); });
-      aoTerminar();
-    } catch (e) { falha(e); }
-  }
-  return <>
-    {l.par_id ? <Nota>Este é um repasse entre contas: só dá para excluir, e as duas pontas saem juntas.</Nota>
-      : <FormLancamento alvo={l} inicial={formDoLancamento(l)} contas={contas.filter(c => !c.arquivada_em || c.id === l.conta_id)} aoTerminar={aoTerminar} aoCancelar={aoTerminar} />}
-    <div className="financeiro-acoes">
-      <BotaoDuplo variante="perigo" confirmar={l.par_id ? 'Confirmar: excluir as duas pontas' : 'Confirmar: excluir'} aoConfirmar={excluir}><Icone nome="lixeira" tam={14} /> Excluir lançamento</BotaoDuplo>
-    </div>
-  </>;
-}
-function Resumo({ l, contas }: { l: Lancamento; contas: ContaFinanceira[] }) {
-  return <dl className="financeiro-divisao">
-    <div><dt>Data</dt><dd>{fmtData(l.data)}</dd></div>
-    <div><dt>Conta</dt><dd>{contas.find(c => c.id === l.conta_id)?.nome}</dd></div>
-    <div><dt>Descrição</dt><dd>{l.descricao}</dd></div>
-    <div><dt>Valor</dt><dd>{fmtCentavos(l.valor)}</dd></div>
-  </dl>;
-}
+const TITULOS: Record<NonNullable<Aberto>['o'], string> = { entrada: 'Nova entrada', avulsa: 'Entrada sem contrato', saida: 'Nova saída', mudar: 'Lançamento', parcela: 'Parcela recebida', contrato: 'Contrato' };
 
 /** O extrato do caixa de um tipo no período. Clicar numa linha abre o lançamento. */
 function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: 'entrada' | 'saida'; periodo: string; aoMudar: (l: Lancamento) => void }) {
@@ -205,14 +174,18 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
     </div>
     {lista.length ? <>
       <div className="tabela"><table className="extrato" aria-label={rotulo}>
-        <thead><tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Categoria</th>{caixa.contas.length > 1 && <th scope="col">Conta</th>}<th scope="col" className="financeiro-num">Valor</th></tr></thead>
-        <tbody>{lista.slice(0, quantas).map(l => <tr key={l.id} className="clicavel" onClick={() => aoMudar(l)}>
+        <thead><tr><th scope="col">Data</th><th scope="col">{tipo === 'entrada' ? 'Cliente ou origem' : 'Para quem'}</th><th scope="col">Categoria</th>{caixa.contas.length > 1 && <th scope="col">Conta</th>}<th scope="col" className="financeiro-num">Valor</th></tr></thead>
+        <tbody>{lista.slice(0, quantas).map(l => {
+          const linha = linhaDoCaixa(l);
+          return <tr key={l.id} className="clicavel" onClick={() => aoMudar(l)}>
           <td>{fmtData(l.data)}</td>
-          <td><button type="button" className="financeiro-abrir" onClick={e => { e.stopPropagation(); aoMudar(l); }}>{l.descricao}</button></td>
-          <td><span className="sub">{nomeDaCategoria(l.categoria)}</span></td>
+          <td><button type="button" className="financeiro-abrir" aria-label={`Abrir o lançamento: ${l.descricao}`} onClick={e => { e.stopPropagation(); aoMudar(l); }}>{linha.quem}</button>
+            {linha.oQue && <span className="sub">{linha.oQue}</span>}</td>
+          <td><span className="sub">{linha.categoria}</span></td>
           {caixa.contas.length > 1 && <td>{nomeDaConta.get(l.conta_id)}</td>}
           <td className={'financeiro-num ' + (tipo === 'entrada' ? 'tom-entrada' : 'tom-saida')}>{fmtCentavos(l.valor)}</td>
-        </tr>)}</tbody>
+        </tr>;
+        })}</tbody>
         <tfoot><tr><th scope="row" colSpan={caixa.contas.length > 1 ? 4 : 3}>Total</th>
           <td className="financeiro-num"><b>{fmtCentavos(lista.reduce((s, l) => s + l.valor, 0))}</b></td></tr></tfoot>
       </table></div>
@@ -222,15 +195,15 @@ function ListaDoCaixa({ caixa, tipo, periodo, aoMudar }: { caixa: Caixa; tipo: '
 }
 
 /** Entradas: o caixa inteiro para o administrador; as parcelas recebidas de um usuário (ou as suas, para quem não é administrador). */
-function Entradas({ caixa, parcelas, periodo, usuario, aoMudar }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; aoMudar: (l: Lancamento) => void }) {
+function Entradas({ caixa, parcelas, periodo, usuario, aoMudar, aoAbrirParcela }: { caixa: Caixa | null; parcelas: ParcelaDoEscritorio[]; periodo: string; usuario: string; aoMudar: (l: Lancamento) => void; aoAbrirParcela: (p: ParcelaDoEscritorio) => void }) {
   if (caixa && !usuario) return <><ListaDoCaixa caixa={caixa} tipo="entrada" periodo={periodo} aoMudar={aoMudar} /></>;
   const lista = entradasDoMes(parcelas, periodo, usuario);
   const maior = maiorParcelaPorContrato(parcelas);
   return <>
     {lista.length ? <div className="tabela"><table className="carteira" aria-label="Parcelas recebidas">
       <thead><tr><th scope="col">Data</th><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Parcela</th><th scope="col" className="financeiro-num">Valor</th></tr></thead>
-      <tbody>{lista.map(p => <tr key={p.id}>
-        <td>{fmtData(p.recebida_em!)}</td><td><Link to={'/contratos/?id=' + p.contrato_id}>{p.contrato_codigo}</Link></td><td className="nome">{p.cliente_nome}</td>
+      <tbody>{lista.map(p => <tr key={p.id} className="clicavel" onClick={() => aoAbrirParcela(p)}>
+        <td><button type="button" className="financeiro-abrir" aria-label={`Abrir a parcela de ${p.contrato_codigo}`} onClick={e => { e.stopPropagation(); aoAbrirParcela(p); }}>{fmtData(p.recebida_em!)}</button></td><td>{p.contrato_codigo}</td><td className="nome">{p.cliente_nome}</td>
         <td className="num">{numeroDaParcela(p.numero, p.total_parcelas, maior.get(p.contrato_id))}</td><td className="financeiro-num tom-entrada">{fmtCentavos(p.recebido ?? p.valor)}</td>
       </tr>)}</tbody>
       <tfoot><tr><th scope="row" colSpan={4}>Total</th><td className="financeiro-num"><b>{fmtCentavos(totalRecebido(lista))}</b></td></tr></tfoot>
@@ -238,8 +211,8 @@ function Entradas({ caixa, parcelas, periodo, usuario, aoMudar }: { caixa: Caixa
   </>;
 }
 
-/** Receitas: o que ainda vai entrar, contrato por contrato. Clicar no contrato abre o cartão dele, com as parcelas. */
-function Receitas({ parcelas, usuario, aoReceber }: { parcelas: ParcelaDoEscritorio[]; usuario: string; aoReceber: (parcela: string) => void }) {
+/** Direitos: o que ainda vai entrar, contrato por contrato. Clicar na linha abre o contrato na janela, com as parcelas. */
+function Direitos({ parcelas, usuario, aoReceber, aoAbrir }: { parcelas: ParcelaDoEscritorio[]; usuario: string; aoReceber: (parcela: string) => void; aoAbrir: (contratoId: string) => void }) {
   const hoje = hojeISO();
   const [busca, setBusca] = useState('');
   const [situacao, setSituacao] = useState<SituacaoNaCarteira | ''>('');
@@ -247,7 +220,7 @@ function Receitas({ parcelas, usuario, aoReceber }: { parcelas: ParcelaDoEscrito
   const carteira = carteiraDeContratos(parcelas, hoje);
   const lista = filtrarCarteira(carteira, { situacao, busca, responsavel: usuario }).filter(c => situacao || c.situacao !== 'quitado');
   const t = totaisDaCarteira(lista);
-  return <section className="painel-secao" aria-label="Receitas">
+  return <section className="painel-secao" aria-label="Direitos">
     <div className="financeiro-filtros">
       <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar contrato ou cliente</span>
         <input type="search" placeholder="Buscar contrato ou cliente" value={busca} onChange={e => setBusca(e.target.value)} />
@@ -256,29 +229,29 @@ function Receitas({ parcelas, usuario, aoReceber }: { parcelas: ParcelaDoEscrito
         opcoes={[{ id: TODAS, rotulo: 'A receber' }, ...(['atrasado', 'em_dia', 'quitado'] as SituacaoNaCarteira[]).map(s => ({ id: s, rotulo: SITUACOES_NA_CARTEIRA[s].nome }))]} />
     </div>
     {lista.length ? <>
-      <div className="tabela"><table className="carteira" aria-label="Receitas">
+      <div className="tabela"><table className="carteira" aria-label="Direitos">
         <thead><tr><th scope="col">Contrato</th><th scope="col">Cliente</th><th scope="col">Próxima</th><th scope="col" className="financeiro-num">Falta</th><th scope="col">Situação</th><th scope="col"><span className="sr">Ações</span></th></tr></thead>
-        <tbody>{lista.slice(0, quantos).map(c => <tr key={c.contratoId}>
-          <td><Link to={'/contratos/?id=' + c.contratoId}>{c.codigo}</Link></td>
+        <tbody>{lista.slice(0, quantos).map(c => <tr key={c.contratoId} className="clicavel" onClick={() => aoAbrir(c.contratoId)}>
+          <td><button type="button" className="financeiro-abrir" aria-label={`Abrir o contrato ${c.codigo}`} onClick={e => { e.stopPropagation(); aoAbrir(c.contratoId); }}>{c.codigo}</button></td>
           <td className="nome">{c.cliente}</td>
           <td>{c.proxima ? <>{fmtData(c.proxima.vencimento)}<span className="sub"> · {fmtCentavos(c.proxima.valor)}</span></> : '–'}</td>
           <td className="financeiro-num"><b>{c.falta ? fmtCentavos(c.falta) : '–'}</b></td>
           <td><Selo tipo={SITUACOES_NA_CARTEIRA[c.situacao].selo}>{SITUACOES_NA_CARTEIRA[c.situacao].nome}</Selo></td>
           <td>{c.proxima && <button type="button" className={estiloBotao({ forma: 'mini', variante: 'principal' })} aria-label={`Receber a parcela ${c.proxima.numero} de ${c.codigo}`}
-            onClick={() => aoReceber(c.proxima!.id)}>Receber</button>}</td>
+            onClick={e => { e.stopPropagation(); aoReceber(c.proxima!.id); }}>Receber</button>}</td>
         </tr>)}</tbody>
         <tfoot><tr><th scope="row" colSpan={3}>Total a receber</th><td className="financeiro-num"><b>{fmtCentavos(t.falta)}</b></td><td colSpan={2} /></tr></tfoot>
       </table></div>
       {lista.length > quantos && <button type="button" className={estiloBotao()} onClick={() => setQuantos(q => q + LINHAS_POR_VEZ)}>Mostrar mais</button>}
     </> : <Vazio>Nenhum contrato com esses filtros.</Vazio>}
-    <Nota>Também em Receitas: <Link to="/meus-valores/">Meus valores</Link> · <Link to="/conferencia/">Conferência da importação</Link></Nota>
+    <Nota>Também em Direitos: <Link to="/meus-valores/">Meus valores</Link> · <Link to="/conferencia/">Conferência da importação</Link></Nota>
   </section>;
 }
 
 type Pagar = { chave: string; repasses: Repasse[]; aPassar: ValorAPassar[] } | { chave: string; erro: string };
 
-/** Despesas: o que ainda vai sair. Os repasses que o escritório paga e o que o responsável passa a participantes e indicadores. */
-function Despesas({ periodo, contas, versao, aoMudar }: { periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void }) {
+/** Obrigações: o que ainda vai sair. Os repasses que o escritório paga e o que o responsável passa a participantes e indicadores. */
+function Obrigacoes({ periodo, contas, versao, aoMudar }: { periodo: string; contas: ContaFinanceira[]; versao: number; aoMudar: () => void }) {
   const ctx = useCtx();
   const hoje = hojeISO();
   const [lido, setLido] = useState<Pagar | null>(null);
@@ -295,11 +268,11 @@ function Despesas({ periodo, contas, versao, aoMudar }: { periodo: string; conta
   const atual = lido?.chave === chave ? lido : null;
   if (!atual) return <Carregando />;
   if ('erro' in atual) return <Aviso tipo="erro">{atual.erro}</Aviso>;
-  return <section className="painel-secao" aria-label="Despesas">
+  return <section className="painel-secao" aria-label="Obrigações">
     <TituloSecao>{ctx.ehAdmin ? 'Repasses a advogados e sócios' : 'Seus repasses'}</TituloSecao>
     <Repasses lista={atual.repasses} admin={ctx.ehAdmin} contas={contas.filter(c => !c.arquivada_em)} hoje={hoje} aoMudar={aoMudar} />
     <TituloSecao>A passar a participantes e indicadores</TituloSecao>
     <ValoresAPassar lista={atual.aPassar} hoje={hoje} aoMudar={aoMudar} />
-    {ctx.ehAdmin && <Nota>Também em Despesas: <Link to="/lucros/">Lucro dos sócios</Link></Nota>}
+    {ctx.ehAdmin && <Nota>Também em Obrigações: <Link to="/lucros/">Lucro dos sócios</Link></Nota>}
   </section>;
 }

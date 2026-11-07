@@ -1160,6 +1160,8 @@ export interface Lancamento {
   par_id: string | null; criado_por: string | null; criado_em: string; atualizado_em: string;
   /** Nasceu de um recebimento, de um repasse ou de uma divisão de lucro: só muda por lá. */
   origem: 'recebimento' | 'repasse' | 'lucro' | null;
+  /** O lançamento importado de uma planilha: as colunas da linha de onde veio, em pares [coluna, valor]. Só leitura. */
+  planilha?: [string, string][] | null;
 }
 export type DadosLancamento = Pick<Lancamento, 'conta_id' | 'data' | 'tipo' | 'categoria' | 'valor' | 'descricao'>;
 export interface AliquotaDoDas { mes: string; aliquota: number }
@@ -1307,6 +1309,8 @@ export interface DadosParcelas {
   /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
   financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
+  /** O recebimento (não estornado) que gerou um lançamento do caixa, para mostrar o contrato, a parcela e a divisão. */
+  financeiroRecebimentoDoLancamento(lancamentoId: string): Promise<RecebimentoGravado | null>;
   /** Só as linhas de quem está logado, dos recebimentos não estornados com data no período e os valores ainda a receber de antes dele (supabase/migrations/20261104000000_meus_valores.sql). */
   financeiroMeusValores(de: string, ate: string): Promise<MeuValor[]>;
   /** As linhas de um ano. Quem não é administrador recebe só as dele, seja qual for o responsável pedido. */

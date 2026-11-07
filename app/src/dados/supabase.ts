@@ -256,7 +256,7 @@ const primeira = <T,>(linha: T | null): T => { if (!linha) throw new Error(SEM_M
 
 // ---------- caixa ----------
 const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arquivada_em';
-const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, criado_por, criado_em, atualizado_em';
+const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, planilha, criado_por, criado_em, atualizado_em';
 const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
 const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em, parcelas)';
 const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador';
@@ -1027,6 +1027,10 @@ export const SD: Dados = {
   financeiroReceber: ({ parcela, data, valor, conta, taxa }) => rpc('financeiro_receber', { p_parcela: parcela, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa }),
   async financeiroRecebimento(id) {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
+    return data;
+  },
+  async financeiroRecebimentoDoLancamento(lancamentoId) {
+    const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('lancamento_id', lancamentoId).is('estornado_em', null).maybeSingle());
     return data;
   },
   conferenciaListar: async (ano, responsavel) => await rpc('financeiro_conferencia_listar', { p_ano: ano, p_responsavel: responsavel }) as LinhaDaConferencia[],

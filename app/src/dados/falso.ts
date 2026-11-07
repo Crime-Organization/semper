@@ -2474,6 +2474,12 @@ export const SD: Dados = {
     auditar('financeiro_recebimentos', 'inclusao', r); gravar();
     return espera(r.id);
   },
+  financeiroRecebimentoDoLancamento(lancamentoId) {
+    const r = bd.recebimentos!.find(x => x.lancamento_id === lancamentoId && !x.estornado_em);
+    if (!r) return espera(null);
+    const { responsavel_id: _r, estornado_em: _e, lancamento_id: _l, lancamento_taxa_id: _t, socio_pessoa_id: _s, socio_nome: _n, ...gravado } = r;
+    return espera(gravado);
+  },
   financeiroRecebimento(id) {
     const r = bd.recebimentos!.find(x => x.id === id);
     if (!r) return espera(null);

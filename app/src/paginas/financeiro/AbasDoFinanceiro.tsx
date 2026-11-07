@@ -1,16 +1,17 @@
-// As quatro abas do Financeiro. Entradas e Saídas: o que já entrou e saiu das contas. Receitas e Despesas: o que ainda vai entrar e sair.
+// As quatro abas do Financeiro. Entradas e Saídas: o que já entrou e saiu das contas. Direitos e Obrigações: o que ainda vai entrar e
+// sair (as parcelas a receber e o que falta pagar).
 // Saídas é só do administrador. As telas de detalhe (Caixa por conta, Lucro dos sócios, Meus valores) mostram as mesmas abas, para voltar.
 import { useLocation } from 'react-router';
 import { NavegacaoEmAbas } from '../../ui/base';
 import { useCtx } from '../../ui/sessao';
 
-export type AbaDoFinanceiro = 'entradas' | 'saidas' | 'receitas' | 'despesas';
+export type AbaDoFinanceiro = 'entradas' | 'saidas' | 'direitos' | 'obrigacoes';
 /** As abas na ordem em que aparecem. Uma aba nova é uma linha nova aqui. */
 export const ABAS_DO_FINANCEIRO: Record<AbaDoFinanceiro, { para: string; rotulo: string; soAdmin: boolean }> = {
   entradas: { para: '/financeiro/', rotulo: 'Entradas', soAdmin: false },
   saidas: { para: '/financeiro/saidas/', rotulo: 'Saídas', soAdmin: true },
-  receitas: { para: '/financeiro/receitas/', rotulo: 'Receitas', soAdmin: false },
-  despesas: { para: '/financeiro/despesas/', rotulo: 'Despesas', soAdmin: false }
+  direitos: { para: '/financeiro/direitos/', rotulo: 'Direitos', soAdmin: false },
+  obrigacoes: { para: '/financeiro/obrigacoes/', rotulo: 'Obrigações', soAdmin: false }
 };
 
 /** A aba de um endereço ("/financeiro/saidas/" é Saídas); qualquer outro é Entradas. */

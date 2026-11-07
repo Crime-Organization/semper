@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Lancamento, ParcelaDoEscritorio } from '../dados/tipos';
 import {
+  linhaDoCaixa,
   FILTRO_VAZIO, advogadosDaEquipe, entradasDoMes, indicadoresDoAdvogado, totalRecebido, LINHAS_DO_QUADRO, carteiraDeContratos, contaNoResultado, filtrarCarteira, filtrarExtrato, mesDoAno, mesesComLancamento,
   planilhaDoExtrato, resumoDoAno, temFiltroLigado, totaisDaCarteira, totaisDoExtrato
 } from './painelFinanceiro';
@@ -214,5 +215,20 @@ describe('Os indicadores de um advogado', () => {
     const r = advogadosDaEquipe([{ id: '1', nome: 'Zeca', funcao: 'advogado' }, { id: '2', nome: 'Ana', funcao: 'administrativo' }, { id: '3', nome: 'Bia', funcao: 'advogado' }]);
     // Então
     expect(r.map(m => m.nome)).toEqual(['Bia', 'Zeca']);
+  });
+});
+
+describe('Como a linha do caixa aparece', () => {
+  it('dado um lançamento que veio da planilha, quando aparece, então mostra o cliente, o serviço com a parcela e a categoria dela', () => {
+    // Dado
+    const l = lancamento({ tipo: 'saida', categoria: 'despesa', descricao: 'NOEL GAS LTDA - AGUA - 1/1 - BANCO INTER [Planilha 2026, aba Out, linha 196]',
+      planilha: [['CLIENTE', 'NOEL GAS LTDA'], ['SERVIÇO/PRODUTOS', 'AGUA'], ['CATEGORIA', 'MANUTENÇAO DO ESCRITÓRIO'], ['REFERENCIA/PARCELA', '1/1']] });
+    // Então
+    expect(linhaDoCaixa(l)).toEqual({ quem: 'NOEL GAS LTDA', oQue: 'AGUA · 1/1', categoria: 'MANUTENÇAO DO ESCRITÓRIO' });
+  });
+
+  it('dado um lançamento feito no SEMPER, quando aparece, então mostra a descrição e a categoria do sistema', () => {
+    // Então
+    expect(linhaDoCaixa(lancamento({ categoria: 'outra_entrada', descricao: 'Aporte' }))).toEqual({ quem: 'Aporte', oQue: '', categoria: 'Outra entrada' });
   });
 });

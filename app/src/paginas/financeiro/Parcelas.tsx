@@ -20,7 +20,8 @@ import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
 import { HistoricoDoCartao } from '../HistoricoDoCartao';
 
-function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string }) {
+/** A divisão de um recebimento: cada parte e o valor dela. */
+export function Divisao({ linhas, rotulo }: { linhas: LinhaDaDivisao[]; rotulo: string }) {
   return <dl className="financeiro-divisao" aria-label={rotulo}>
     {linhas.map(l => <div key={l.rotulo}><dt>{l.rotulo}</dt><dd>{fmtCentavos(l.valor)}</dd></div>)}
   </dl>;
