@@ -96,3 +96,20 @@ table[aria-label="Lançamentos do mês"] td:first-child { white-space: nowrap }
 .financeiro-grafico { background: var(--superficie); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; min-width: 0; container-type: inline-size }
 .financeiro-grafico-total { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 13px; color: var(--muted) }
 .financeiro-grafico-total b { color: var(--ink); font-size: 15px }
+
+/* A nova entrada completa (#266): grupos na ordem do que acontece, com o nome em cima. */
+.entrada-completa { gap: 22px }
+.entrada-percentuais { display: flex; flex-direction: column; gap: 12px }
+.banco-campo { display: flex; gap: 8px }
+.banco-campo select { flex: 1; min-width: 0 }
+.banco-campo input { width: 72px; flex-shrink: 0 }
+.entrada-receitas { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px }
+.entrada-receitas div { background: var(--soft); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px }
+.entrada-receitas dt { color: var(--muted); font-size: 13px }
+.entrada-receitas dd { margin: 0; font-size: 18px; font-weight: 900; color: var(--ink) }
+/* Os textos de cada um: quem, o texto inteiro (quebrando onde precisar) e o botão de copiar. */
+.textos-do-recebimento { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
+.textos-do-recebimento li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px }
+.textos-quem { grid-column: 1; font-size: 13px; font-weight: 700; color: var(--text2) }
+.textos-texto { grid-column: 1; font-family: inherit; font-size: 13px; color: var(--ink); overflow-wrap: anywhere; white-space: normal }
+.textos-do-recebimento button { grid-column: 2; grid-row: 1 / span 2 }

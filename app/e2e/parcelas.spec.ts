@@ -426,3 +426,55 @@ test.describe('O recebimento visto no Financeiro', () => {
     await expect(page.getByRole('table', { name: 'Direitos' }).getByRole('button', { name: /^Receber a parcela 2 de/ })).toBeVisible();
   });
 });
+
+test.describe('A entrada completa (#266)', () => {
+  test.beforeEach(async ({ page }) => { await prepararCaixa(page); });
+
+  test('quando lança a entrada com forma de pagamento, bancos e o percentual ajustado, então grava tudo e mostra o texto de cada um para copiar', async ({ page, context }) => {
+    // Dado: o contrato de JOSÉ, com tudo na conta e BRUNO como participante com 10%
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByText('100% do que o cliente pagar').click();
+    await cartao.getByRole('button', { name: 'Adicionar participante' }).click();
+    await cartao.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('bruno');
+    await cartao.getByRole('button', { name: /BRUNO EXEMPLO SOUZA/ }).click();
+    await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await abrirSecao(cartao, 'Honorários');
+    await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
+    await expect(cartao.getByRole('button', { name: 'Receber a parcela 1' })).toBeVisible();
+    // Quando: lança pela nova entrada do Financeiro
+    await page.goto('/financeiro/');
+    await page.getByRole('button', { name: 'Nova entrada' }).click();
+    const janela = page.getByRole('form', { name: 'Nova entrada' });
+    const contrato = await page.locator('datalist option').evaluateAll(ops => (ops as HTMLOptionElement[]).map(o => o.value).find(v => v.includes('JOSÉ')) ?? '');
+    await janela.getByLabel('Buscar o contrato').fill(contrato);
+    // Então: os dados do contrato aparecem para conferir
+    await expect(janela.getByRole('region', { name: 'Confira os dados do contrato' })).toContainText('BRUNO EXEMPLO SOUZA (10%)');
+    // Quando
+    await janela.getByLabel('Valor pago').fill('1.000,00');
+    await janela.getByLabel('Forma de pagamento').selectOption({ label: 'Pix' });
+    await janela.getByLabel('Banco onde recebeu').selectOption({ label: '077 · Banco Inter' });
+    await janela.getByLabel('Banco de envio').selectOption({ label: '260 · Nubank' });
+    await janela.getByLabel('% de BRUNO EXEMPLO SOUZA (participante)').fill('5');
+    await janela.getByLabel('Juros da máquina').fill('0,00');
+    await expect(janela.getByText('Receita bruta')).toBeVisible();
+    await janela.getByRole('button', { name: 'Registrar entrada' }).click();
+    // Então: o texto de cada um, com o percentual deste recebimento
+    const registrada = page.getByRole('region', { name: 'Entrada registrada' });
+    const textos = registrada.getByRole('region', { name: 'Textos para enviar' });
+    await expect(textos).toContainText(/100% - ENTRADA - .* - JOSÉ DA SILVA TESTE - /);
+    await expect(textos).toContainText(/5% - SAÍDA - /);
+    await textos.getByRole('button', { name: 'Copiar o texto de BRUNO EXEMPLO SOUZA' }).click();
+    await expect(page.getByText('Texto de BRUNO EXEMPLO SOUZA copiado.')).toBeVisible();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toMatch(/^5% - SAÍDA - /);
+    // E a janela do lançamento mostra a forma e os bancos
+    await page.getByRole('button', { name: 'Fechar' }).click();
+    await page.getByRole('table', { name: 'Entradas' }).getByRole('button', { name: /^Abrir o lançamento/ }).first().click();
+    const pagamento = page.getByRole('dialog', { name: 'Lançamento' }).getByRole('region', { name: 'Pagamento' });
+    await expect(pagamento).toContainText('Pix');
+    await expect(pagamento).toContainText('077 · Banco Inter');
+    await expect(pagamento).toContainText('260 · Nubank');
+  });
+});

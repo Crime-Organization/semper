@@ -2439,37 +2439,43 @@ export const SD: Dados = {
       ...partesDe(k, data)
     });
   },
-  async financeiroReceber({ parcela, data, valor, conta, taxa }) {
+  async financeiroReceber({ parcela, data, valor, conta, taxa, categoria, forma, bancoRecebido, bancoEnvio, parte: parteAjustada, percentuais }) {
     const p = acharParcela(parcela);
     if (p.excluido_em) return erro('Esta parcela foi excluída.');
     if (p.recebida_em) return erro('Esta parcela já foi recebida.');
     const k = acharContrato(p.contrato_id);
-    if (k.percentual_escritorio === null) return erro(SEM_PARTE_NA_CONTA);
+    // Como public.financeiro_receber_completo: a parte e os percentuais ajustados só neste recebimento; 0 tira a pessoa.
+    const parte = (parteAjustada ?? k.percentual_escritorio) as ParaReceber['parte_na_conta'] | null;
+    if (parte === null) return erro('O contrato não diz quanto vai para a conta da empresa. Escolha aqui ou preencha em "Atualizar contrato".');
+    if (percentuais?.some(x => x.percentual < 0 || x.percentual > 100)) return erro('Cada percentual precisa ficar entre 0 e 100.');
     const c = bd.contasFinanceiras!.find(x => x.id === conta);
     if (!c) return erro('Conta não encontrada neste escritório.');
     const das = dasDoMes(bd.dasDoEscritorio!, data.slice(0, 7));
     if (c.tem_das && !das) return erro('Nenhum DAS lançado até este mês. Peça a um administrador para lançar.');
-    const aliquota = c.tem_das ? das!.aliquota : 0, partes = partesDe(k, data);
-    const d = dividirRecebimento({ valor, parteNaConta: k.percentual_escritorio as ParaReceber['parte_na_conta'], contaComDas: c.tem_das, aliquotaDas: aliquota, taxaMaquina: taxa,
+    const aliquota = c.tem_das ? das!.aliquota : 0, doContrato = partesDe(k, data);
+    const partes = { ...doContrato, terceiros: doContrato.terceiros.map(t => ({ ...t, percentual: percentuais?.find(x => x.id === t.id)?.percentual ?? t.percentual })).filter(t => t.percentual > 0) };
+    const d = dividirRecebimento({ valor, parteNaConta: parte, contaComDas: c.tem_das, aliquotaDas: aliquota, taxaMaquina: taxa,
       terceiros: partes.terceiros.map(t => ({ id: t.id, percentual: t.percentual })), socioIndicador: partes.socio_indicador?.id ?? null, responsavelSocio: partes.responsavel_socio });
     const texto = `${nomesDosClientes(k.clientes)} (${k.codigo}, parcela ${p.numero})`.slice(0, 280);
     const entrada = novoLancamento({ conta_id: conta, data, tipo: 'entrada', categoria: 'recebimento', valor: d.naConta, descricao: 'Recebimento: ' + texto, origem: 'recebimento' });
     bd.lancamentos!.push(entrada);
     // Abaixo da parte integral, a taxa é do advogado e não passa pela conta.
-    const saidaTaxa = k.percentual_escritorio === PARTE_INTEGRAL && d.taxaMaquina > 0 ? novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'despesa', valor: d.taxaMaquina, descricao: 'Taxa da máquina: ' + texto, origem: 'recebimento' }) : null;
+    const saidaTaxa = parte === PARTE_INTEGRAL && d.taxaMaquina > 0 ? novoLancamento({ conta_id: conta, data, tipo: 'saida', categoria: 'despesa', valor: d.taxaMaquina, descricao: 'Taxa da máquina: ' + texto, origem: 'recebimento' }) : null;
     if (saidaTaxa) bd.lancamentos!.push(saidaTaxa);
     const r: RecebimentoGuardado = {
-      id: novoId(), responsavel_id: k.responsavel_id, parcela_id: p.id, contrato_id: k.id, conta_id: conta, data, valor, taxa_maquina: d.taxaMaquina, aliquota_das: aliquota, parte_na_conta: k.percentual_escritorio, responsavel_socio: partes.responsavel_socio,
+      id: novoId(), responsavel_id: k.responsavel_id, parcela_id: p.id, contrato_id: k.id, conta_id: conta, data, valor, taxa_maquina: d.taxaMaquina, aliquota_das: aliquota, parte_na_conta: parte, responsavel_socio: partes.responsavel_socio,
       na_conta: d.naConta, ficou_com_advogado: d.ficouComOAdvogado, das: d.das, liquido: d.liquido, escritorio: d.escritorio, responsavel_recebe: d.responsavelRecebe, responsavel_fica: d.responsavelFica,
       escritorio_final: d.escritorioFinal, contribuicao_socio: d.contribuicaoDoSocio, terceiros: partes.terceiros.map(t => ({ ...t, valor: d.terceiros.find(x => x.id === t.id)!.valor })),
       socio_indicador: partes.socio_indicador && d.socioIndicador ? { ...partes.socio_indicador, valor: d.socioIndicador.valor } : null,
-      estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null, ...socioDoRecebimento(k, partes.responsavel_socio)
+      estornado_em: null, lancamento_id: entrada.id, lancamento_taxa_id: saidaTaxa?.id ?? null, ...socioDoRecebimento(k, partes.responsavel_socio),
+      categoria: categoria ?? k.categoria, forma_pagamento: forma ?? null, banco_recebido: bancoRecebido || null, banco_envio: bancoEnvio || null
     };
     bd.recebimentos!.push(r);
     const repasse = (tipo: Repasse['tipo'], nome: string, valorDele: number, perfilId: string | null, pessoaId: string | null) => bd.repasses!.push({ id: novoId(), recebimento_id: r.id, tipo, nome, descricao: texto, valor: valorDele, conta_sugerida: conta, conta_paga: null, pago_em: null, criado_em: agora(), cancelado_em: null, lancamento_id: null, perfil_id: perfilId, pessoa_id: pessoaId });
     if (d.responsavelRecebe > 0) repasse('responsavel', EQUIPE.find(m => m.id === k.responsavel_id)?.nome ?? 'Usuário removido', d.responsavelRecebe, k.responsavel_id, null);
     if (partes.socio_indicador && d.socioIndicador) repasse('socio_indicador', partes.socio_indicador.nome, d.socioIndicador.valor, null, partes.socio_indicador.id);
     Object.assign(p, { recebimento_id: r.id, recebida_em: data, recebido: valor });
+    if (!k.primeiro_pagamento) k.primeiro_pagamento = data;
     historicoDaParcela(k.id, { ['Parcela ' + p.numero]: { de: null, para: `Recebida em ${fmtData(data)}: ${fmtCentavos(valor)}` } });
     auditar('financeiro_recebimentos', 'inclusao', r); gravar();
     return espera(r.id);

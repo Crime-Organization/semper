@@ -12,7 +12,9 @@ import { fmtCentavos, formDoLancamento, nomeDaCategoria } from '../../regras/cai
 import { CATEGORIAS, fmtDinheiro, fmtPercentual } from '../../regras/contrato';
 import { divisaoGravada, linhasDaDivisao, maiorParcelaPorContrato, nomesDoRecebimento, numeroDaParcela } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
-import { falha, feito } from '../../ui/avisos';
+import { avisar, falha, feito } from '../../ui/avisos';
+import { FORMAS_DE_PAGAMENTO, nomeDoBanco, receitasDoRecebimento, textosDoRecebimento, tipoDoRecebimento } from '../../regras/recebimento';
+import { copiarTexto } from '../../ui/util';
 import { Aviso, Carregando, estiloBotao, Nota } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
@@ -39,11 +41,11 @@ function Grupo({ titulo, linhas }: { titulo: string; linhas: Linha[] }) {
 }
 
 /** O contrato e a parcela: quem, o quê, quem cuida, quanto foi contratado. */
-export function DadosDoContrato({ k, parcela, parcelas }: { k: Contrato; parcela?: Parcela | null; parcelas?: Parcela[] }) {
+export function DadosDoContrato({ k, parcela, parcelas, titulo = 'Contrato' }: { k: Contrato; parcela?: Parcela | null; parcelas?: Parcela[]; titulo?: string }) {
   const ctx = useCtx();
   const nomeDe = (id: string) => ctx.equipe.find(m => m.id === id)?.nome ?? 'Usuário removido';
   const maior = parcelas ? maiorParcelaPorContrato(parcelas).get(k.id) : undefined;
-  return <Grupo titulo="Contrato" linhas={[
+  return <Grupo titulo={titulo} linhas={[
     ['Contrato', <Link key="k" to={'/contratos/?id=' + k.id}>{k.codigo}</Link>],
     [k.clientes.length > 1 ? 'Clientes' : 'Cliente', <span key="c" className="financeiro-links">{k.clientes.map(c => <Link key={c.id} to={'/pessoas/?id=' + c.id}>{c.nome}</Link>)}</span>],
     [k.objetos.length > 1 ? 'Objetos / demandas' : 'Objeto / demanda', k.objetos.join('; ')],
@@ -58,13 +60,51 @@ export function DadosDoContrato({ k, parcela, parcelas }: { k: Contrato; parcela
 }
 
 /** O pagamento e a divisão gravados no recebimento. */
-function DadosDoRecebimento({ r, conta }: { r: RecebimentoGravado; conta?: string }) {
+/** As receitas do recebimento (bruta, líquida do responsável e os repasses) e o texto de cada um, com o botão de copiar. */
+export function ReceitasETextos({ r, k, parcela }: { r: RecebimentoGravado; k: Contrato; parcela: string }) {
+  const ctx = useCtx();
+  const nomeDe = (id: string) => ctx.equipe.find(m => m.id === id)?.nome ?? '';
+  const receitas = receitasDoRecebimento(r);
+  const textos = textosDoRecebimento(r, {
+    codigo: k.codigo, clientes: k.clientes.map(c => c.nome), objetos: k.objetos, responsavel: nomeDe(k.responsavel_id),
+    participantes: k.participantes.map(p => p.pessoa.nome), parcela
+  });
+  async function copiar(texto: string, nome: string) {
+    if (await copiarTexto(texto)) avisar(`Texto de ${nome} copiado.`);
+    else avisar(texto, 'ok');
+  }
+  return <>
+    <Grupo titulo="Receitas" linhas={[
+      ['Receita bruta (o que o cliente pagou)', fmtCentavos(receitas.bruta)],
+      [`Receita líquida de ${nomeDe(k.responsavel_id) || 'quem é responsável'}`, fmtCentavos(receitas.liquidaDoResponsavel)],
+      ['Ao escritório', fmtCentavos(receitas.escritorio)],
+      ['Aos indicadores', receitas.indicadores ? fmtCentavos(receitas.indicadores) : ''],
+      ['Aos participantes', receitas.participantes ? fmtCentavos(receitas.participantes) : '']
+    ]} />
+    <section className="financeiro-grupo" aria-label="Textos para enviar">
+      <span className="rotulo-caps">Textos para enviar com o comprovante</span>
+      <ul className="textos-do-recebimento">
+        {textos.map(x => <li key={x.chave}>
+          <span className="textos-quem">{x.nome}</span>
+          <code className="textos-texto">{x.texto}</code>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Copiar o texto de ${x.nome}`} onClick={() => void copiar(x.texto, x.nome)}><Icone nome="copiar" tam={13} /> Copiar</button>
+        </li>)}
+      </ul>
+    </section>
+  </>;
+}
+
+function DadosDoRecebimento({ r, conta, k, parcela }: { r: RecebimentoGravado; conta?: string; k: Contrato | null; parcela: string }) {
   const { ehAdmin } = useCtx();
   const nomes = nomesDoRecebimento(r);
   return <>
     <Grupo titulo="Pagamento" linhas={[
       ['Data', fmtData(r.data)],
       ['Valor pago', fmtCentavos(r.valor)],
+      ['Tipo do recebimento', k ? CATEGORIAS[tipoDoRecebimento(r, k.categoria)] : (r.categoria ? CATEGORIAS[r.categoria] : '')],
+      ['Forma de pagamento', r.forma_pagamento ? FORMAS_DE_PAGAMENTO[r.forma_pagamento] : ''],
+      ['Banco onde recebeu', nomeDoBanco(r.banco_recebido)],
+      ['Banco de envio', nomeDoBanco(r.banco_envio)],
       ['Conta', conta ?? ''],
       ['Taxa da máquina (juros)', r.taxa_maquina ? fmtCentavos(r.taxa_maquina) : ''],
       ['Parte na conta da empresa', fmtPercentual(r.parte_na_conta)],
@@ -74,10 +114,13 @@ function DadosDoRecebimento({ r, conta }: { r: RecebimentoGravado; conta?: strin
       <span className="rotulo-caps">Divisão</span>
       <Divisao rotulo="Como ficou a divisão" linhas={linhasDaDivisao(divisaoGravada(r), r.aliquota_das, x => nomes.get(x) ?? '', r.responsavel_socio, ehAdmin)} />
     </section>
+    {k && <ReceitasETextos r={r} k={k} parcela={parcela} />}
   </>;
 }
 
 type Ligado = { k: Contrato | null; parcelas: Parcela[]; r: RecebimentoGravado | null };
+/** A parcela como na planilha ("1/10"), para os textos. */
+const parcelaDe = (l: Ligado, p: Parcela | undefined) => p ? numeroDaParcela(p.numero, l.k?.parcelas, maiorParcelaPorContrato(l.parcelas).get(p.contrato_id)) : '';
 /** O contrato e as parcelas dele, junto do recebimento (quando há). */
 async function comContrato(r: RecebimentoGravado | null, contratoId?: string): Promise<Ligado> {
   const id = r?.contrato_id ?? contratoId;
@@ -123,7 +166,7 @@ export function DetalheDoLancamento({ lancamento: l, contas, aoTerminar }: { lan
     </p>
     {ligado === null ? <Carregando /> : typeof ligado === 'string' ? <Aviso tipo="erro">{ligado}</Aviso> : <>
       {ligado.k && <DadosDoContrato k={ligado.k} parcela={ligado.parcelas.find(p => p.id === ligado.r?.parcela_id)} parcelas={ligado.parcelas} />}
-      {ligado.r && <DadosDoRecebimento r={ligado.r} conta={conta} />}
+      {ligado.r && <DadosDoRecebimento r={ligado.r} conta={conta} k={ligado.k} parcela={parcelaDe(ligado, ligado.parcelas.find(p => p.id === ligado.r?.parcela_id))} />}
     </>}
     <Grupo titulo="No caixa" linhas={[['Categoria', nomeDaCategoria(l.categoria)], ['Conta', conta ?? ''], ['Descrição', l.descricao]]} />
     {!!l.planilha?.length && <Grupo titulo="Da planilha de origem" linhas={l.planilha.map(([coluna, valor]) => [coluna, valor])} />}
@@ -147,7 +190,7 @@ export function DetalheDaParcela({ parcela }: { parcela: Parcela }) {
       <span>{parcela.recebida_em ? `Recebida em ${fmtData(parcela.recebida_em)}` : `Vence em ${fmtData(parcela.vencimento)}`}</span>
     </p>
     {ligado.k && <DadosDoContrato k={ligado.k} parcela={parcela} parcelas={ligado.parcelas} />}
-    {ligado.r ? <DadosDoRecebimento r={ligado.r} /> : parcela.recebida_em && <Nota>Recebida antes do caixa do SEMPER (histórico importado): não há divisão gravada.</Nota>}
+    {ligado.r ? <DadosDoRecebimento r={ligado.r} k={ligado.k} parcela={parcelaDe(ligado, parcela)} /> : parcela.recebida_em && <Nota>Recebida antes do caixa do SEMPER (histórico importado): não há divisão gravada.</Nota>}
   </div>;
 }
 

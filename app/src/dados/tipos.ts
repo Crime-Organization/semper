@@ -1188,12 +1188,22 @@ export interface ParaReceber {
   socio_indicador: { id: string; nome: string } | null;
   responsavel_socio: boolean;
 }
+/** Como o cliente pagou. */
+export type FormaDePagamento = 'dinheiro' | 'pix' | 'ted' | 'cartao' | 'doc' | 'boleto' | 'cheque' | 'outra';
+/** O que a tela manda ao registrar um recebimento. parte e percentuais: os ajustados só neste recebimento (sem eles, os do contrato). */
+export interface DadosDoRecebimento {
+  parcela: string; data: string; valor: number; conta: string; taxa: number;
+  categoria?: CategoriaHonorario; forma?: FormaDePagamento; bancoRecebido?: string; bancoEnvio?: string;
+  parte?: 20 | 30 | 100; percentuais?: { id: string; percentual: number }[];
+}
 /** O recebimento como ficou gravado: mudar o DAS ou a lista de sócios depois não muda nada aqui. */
 export interface RecebimentoGravado {
   id: string; parcela_id: string; contrato_id: string; conta_id: string; data: string; valor: number; taxa_maquina: number; aliquota_das: number; parte_na_conta: number; responsavel_socio: boolean;
   na_conta: number; ficou_com_advogado: number; das: number; liquido: number; escritorio: number; responsavel_recebe: number; responsavel_fica: number; escritorio_final: number; contribuicao_socio: number;
   terceiros: (TerceiroDoRecebimento & { valor: number })[];
   socio_indicador: { id: string; nome: string; valor: number } | null;
+  /** Do recebimento completo (#266); vazios nos recebimentos de antes. Bancos: o código do Banco Central (3 dígitos). */
+  categoria?: CategoriaHonorario | null; forma_pagamento?: FormaDePagamento | null; banco_recebido?: string | null; banco_envio?: string | null;
 }
 export type TipoDeRepasse = 'responsavel' | 'socio_indicador';
 /** O que o escritório deve ao responsável ou ao sócio que indicou. Quem recebe vê os seus; só um administrador paga. */
@@ -1311,7 +1321,11 @@ export interface DadosParcelas {
   parcelasGerar(contratoId: string): Promise<number>;
   financeiroParaReceber(parcelaId: string, data: string): Promise<ParaReceber>;
   /** O banco refaz a divisão, cria a entrada no caixa e os repasses. Devolve o id do recebimento. */
-  financeiroReceber(r: { parcela: string; data: string; valor: number; conta: string; taxa: number }): Promise<string>;
+  /**
+   * Registra o recebimento de uma parcela. Os campos opcionais são do recebimento completo (#266): o tipo deste
+   * recebimento, a forma de pagamento, os bancos e os percentuais ajustados só aqui (sem mudar o contrato).
+   */
+  financeiroReceber(r: DadosDoRecebimento): Promise<string>;
   financeiroRecebimento(id: string): Promise<RecebimentoGravado | null>;
   /** O recebimento (não estornado) que gerou um lançamento do caixa, para mostrar o contrato, a parcela e a divisão. */
   financeiroRecebimentoDoLancamento(lancamentoId: string): Promise<RecebimentoGravado | null>;

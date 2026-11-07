@@ -259,7 +259,7 @@ const CAMPOS_DA_CONTA = 'id, nome, tem_das, saldo_inicial, saldo_inicial_em, arq
 const CAMPOS_DO_LANCAMENTO = 'id, conta_id, data, tipo, categoria, valor, descricao, par_id, origem, planilha, criado_por, criado_em, atualizado_em';
 const CAMPOS_DA_PARCELA = 'id, contrato_id, numero, vencimento, valor, recebimento_id, recebida_em, recebido';
 const CAMPOS_DA_PARCELA_DO_ESCRITORIO = CAMPOS_DA_PARCELA + ', contrato:contratos!inner(codigo, cliente_nome, responsavel_id, arquivado_em, parcelas)';
-const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador';
+const CAMPOS_DO_RECEBIMENTO = 'id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das, parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica, escritorio_final, contribuicao_socio, terceiros, socio_indicador, categoria, forma_pagamento, banco_recebido, banco_envio';
 const CAMPOS_DO_REPASSE = 'id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida, conta_paga, pago_em, criado_em';
 const CAMPOS_DO_SOCIO = 'id, pessoa_id, desde, ate, pessoa:pessoas(nome)';
 type LinhaDaParcela = Parcela & { contrato: { codigo: string; cliente_nome: string; responsavel_id: string | null; arquivado_em: string | null; parcelas: number | null } };
@@ -1024,7 +1024,10 @@ export const SD: Dados = {
   },
   parcelasGerar: contratoId => rpc('contrato_gerar_parcelas', { p_contrato: contratoId }),
   financeiroParaReceber: (parcelaId, data) => rpc('financeiro_para_receber', { p_parcela: parcelaId, p_data: data }),
-  financeiroReceber: ({ parcela, data, valor, conta, taxa }) => rpc('financeiro_receber', { p_parcela: parcela, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa }),
+  financeiroReceber: ({ parcela, data, valor, conta, taxa, categoria, forma, bancoRecebido, bancoEnvio, parte, percentuais }) => rpc('financeiro_receber_completo', {
+    p_parcela: parcela, p_data: data, p_valor: valor, p_conta: conta, p_taxa: taxa, p_categoria: categoria ?? null, p_forma: forma ?? null,
+    p_banco_recebido: bancoRecebido ?? null, p_banco_envio: bancoEnvio ?? null, p_parte: parte ?? null, p_percentuais: percentuais ?? null
+  }),
   async financeiroRecebimento(id) {
     const { data } = await rodar(sb.from('financeiro_recebimentos').select(CAMPOS_DO_RECEBIMENTO).eq('id', id).maybeSingle());
     return data;

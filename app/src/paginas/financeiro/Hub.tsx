@@ -147,7 +147,7 @@ export default function Hub() {
   return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo}>
     {barra}
     {corpo}
-    {aberto && <PainelCartao aoFechar={fechar} soNoCentro ajustado rotulo={TITULOS[aberto.o]}>
+    {aberto && <PainelCartao aoFechar={fechar} soNoCentro ajustado={aberto.o !== 'entrada'} rotulo={TITULOS[aberto.o]}>
       <header className="cartao-cabeca"><h2>{TITULOS[aberto.o]}</h2></header>
       {aberto.o === 'entrada' && atual && 'parcelas' in atual && <>
         <NovaEntrada parcelas={atual.parcelas} parcelaInicial={aberto.parcela} aoRegistrar={registrou} />
