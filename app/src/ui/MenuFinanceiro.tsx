@@ -1,13 +1,11 @@
-// O submenu do módulo Financeiro no menu lateral. Parcelas, Meus valores e Conferência são de todos; Caixa e Lucro dos sócios, só dos administradores.
+// O submenu do módulo Financeiro no menu lateral, na mesma ordem das abas do alto de cada página dele (paginas/financeiro/AbasDoFinanceiro.tsx).
+// Painel, Caixa e Lucro dos sócios são só dos administradores.
 import { NavLink } from 'react-router';
+import { ABAS_DO_FINANCEIRO } from '../paginas/financeiro/AbasDoFinanceiro';
 import { SubmenuLateral } from './SubmenuLateral';
 
 export function MenuFinanceiro({ ehAdmin }: { ehAdmin: boolean }) {
   return <SubmenuLateral id="financeiro" icone="dinheiro" rotulo="Financeiro" caminhos={['/parcelas', '/meus-valores', '/conferencia', '/financeiro', '/lucros']}>
-    <NavLink to="/parcelas/"><span>Parcelas</span></NavLink>
-    <NavLink to="/meus-valores/"><span>Meus valores</span></NavLink>
-    <NavLink to="/conferencia/"><span>Conferência</span></NavLink>
-    {ehAdmin && <NavLink to="/financeiro/"><span>Caixa</span></NavLink>}
-    {ehAdmin && <NavLink to="/lucros/"><span>Lucro dos sócios</span></NavLink>}
+    {ABAS_DO_FINANCEIRO.filter(a => ehAdmin || !a.soAdmin).map(a => <NavLink key={a.para} to={a.para} end><span>{a.rotulo}</span></NavLink>)}
   </SubmenuLateral>;
 }

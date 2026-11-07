@@ -15,6 +15,7 @@ import { PaginaModulo } from '../ui/PaginaModulo';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import './Financeiro.css';
+import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
 /** Zero aparece como traço, para o que importa saltar aos olhos. */
 const valorOuTraco = (centavos: number) => centavos === 0 ? '—' : fmtCentavos(centavos);
@@ -117,8 +118,8 @@ export default function Lucros() {
 
   if (!pode) return <Navigate to="/inicio/" replace />;
   const cabecalho = { titulo: 'Lucro dos sócios', visoes: [] };
-  if (erroInicial) return <PaginaModulo {...cabecalho}><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
-  if (!dados) return <PaginaModulo {...cabecalho}><Carregando /></PaginaModulo>;
+  if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
+  if (!dados) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 
   const { movimento, contas, socios } = dados;
   const { responsavel, indicador } = lucroDoAno(movimento, socios, ano);
@@ -136,6 +137,7 @@ export default function Lucros() {
   }
 
   return <PaginaModulo {...cabecalho}>
+    <AbasDoFinanceiro />
     <div className="financeiro-barra">
       <label>Ano
         <select className="campo" value={ano} onChange={e => setAno(Number(e.target.value))}>

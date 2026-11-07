@@ -16,6 +16,7 @@ import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
+import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
 const SEM_RESPONSAVEL = 'Sem responsável';
 
@@ -157,6 +158,7 @@ export default function Conferencia() {
   };
 
   return <PaginaModulo titulo="Conferência" visoes={[]}>
+    <AbasDoFinanceiro />
     <Nota>Confira cada lançamento com o que entrou no caixa. Corrigir aqui não muda o caixa, os repasses nem o lucro.</Nota>
     {ctx.ehAdmin && (resumo === null ? <Carregando /> : typeof resumo === 'string' ? <Aviso tipo="erro">{resumo}</Aviso>
       : resumo.length > 0 && <Resumo linhas={resumo} nomeDe={nomeDe} aoEscolher={r => { setAno(r.ano); setResponsavel(r.responsavel_id ?? ''); setQuantas(POR_PAGINA); }} />)}

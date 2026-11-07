@@ -23,3 +23,35 @@
 .financeiro-divisao div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px }
 .financeiro-divisao dt { color: var(--muted) }
 .financeiro-divisao dd { margin: 0; white-space: nowrap }
+
+/* O painel, a carteira e o lançar (abas do financeiro) */
+.painel-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 16px }
+.painel-ano { display: inline-flex; align-items: center; gap: 8px }
+.painel-ano b { font-size: 20px; font-weight: 900; min-width: 3.2em; text-align: center }
+.painel-barra .segmentos { flex: 1 1 320px }
+.painel-secao { display: flex; flex-direction: column; gap: 12px; margin-top: 28px }
+.painel-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 16px 0 12px }
+.painel-filtros .campo { width: auto; min-width: 170px; flex: 0 1 auto }
+.painel-filtros .busca-campo { max-width: 340px }
+.painel-conta-filtro { margin: 0 0 8px; font-size: 13px; color: var(--muted) }
+.tom-entrada { color: var(--ok-ink) }
+.tom-saida { color: var(--erro) }
+.quadro-ano th[scope="row"] { white-space: nowrap; font-weight: 700; color: var(--ink) }
+.quadro-ano tr.tom-resultado td, .quadro-ano tr.tom-resultado th { background: var(--soft); font-weight: 900; color: var(--ink) }
+.quadro-ano td, .quadro-ano th { padding-left: 10px; padding-right: 10px }
+.quadro-mes { border: 0; background: transparent; padding: 4px 8px; border-radius: 999px; font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer }
+.quadro-mes:hover { background: var(--soft2) }
+.quadro-mes[aria-pressed="true"] { background: var(--sel); color: var(--sel-txt) }
+.quadro-total { background: var(--soft) }
+
+.lancar-grade { container-type: inline-size; display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); gap: 20px; align-items: start; margin-top: 16px }
+@container (max-width: 860px) { .lancar-grade { grid-template-columns: minmax(0, 1fr) } }
+@media (max-width: 900px) { .lancar-grade { grid-template-columns: minmax(0, 1fr) } }
+.lancar-lado { display: flex; flex-direction: column; gap: 12px; min-width: 0 }
+.lancar-previa .indicadores { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-top: 12px }
+.lancar-previa .indicador { padding: 12px 14px }
+.lancar-previa .indicador-valor { font-size: 20px }
+.lancar-ultimos { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 10px }
+.lancar-ultimos li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line) }
+.lancar-ultimos li > span { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere }
+.lancar-ultimos .sub { font-size: 12px; color: var(--muted) }

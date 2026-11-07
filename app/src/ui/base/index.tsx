@@ -163,6 +163,39 @@ export function Abas<T extends string>({ rotulo, abas, atual, aoTrocar, painel }
   </div>;
 }
 
+/** O tom do número de um indicador: entrada em verde, saída em vermelho, destaque no cartão escuro. */
+export type TomDoIndicador = 'neutro' | 'entrada' | 'saida' | 'alerta' | 'destaque';
+/** A grade de indicadores: os cartões dividem a linha e descem quando não cabem. */
+export function Indicadores({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+  return <div className="indicadores" role="group" aria-label={rotulo}>{children}</div>;
+}
+/** Um número grande com o nome e, se houver, uma linha de apoio (ex.: "Entradas", "R$ 12.300,00", "12 lançamentos"). */
+export function Indicador({ rotulo, valor, detalhe, tom = 'neutro' }: { rotulo: string; valor: ReactNode; detalhe?: ReactNode; tom?: TomDoIndicador }) {
+  const id = useId();
+  return <section className={'indicador ' + tom} aria-labelledby={id}>
+    <span className="indicador-rotulo" id={id}>{rotulo}</span>
+    <b className="indicador-valor num">{valor}</b>
+    {detalhe && <span className="indicador-detalhe">{detalhe}</span>}
+  </section>;
+}
+
+export interface Segmento<T extends string> { id: T; rotulo: ReactNode; /** Mostra uma bolinha (ex.: o mês tem lançamentos). */ marcado?: boolean; desligado?: boolean }
+/** Botões lado a lado em que um está escolhido (ex.: os meses do ano). Rola para o lado quando não cabe. */
+export function Segmentos<T extends string>({ rotulo, opcoes, atual, aoEscolher }: { rotulo: string; opcoes: readonly Segmento<T>[]; atual: T; aoEscolher: (id: T) => void }) {
+  return <div className="segmentos" role="group" aria-label={rotulo}>
+    {opcoes.map(o => <button key={o.id} type="button" aria-pressed={o.id === atual} disabled={o.desligado} onClick={() => aoEscolher(o.id)}>
+      {o.rotulo}{o.marcado && <span className="segmento-marca" aria-hidden="true" />}
+    </button>)}
+  </div>;
+}
+
+/** Abas que trocam de página: cada uma é um link, e a da página aberta fica marcada (aria-current). */
+export function NavegacaoEmAbas({ rotulo, abas }: { rotulo: string; abas: readonly { para: string; rotulo: ReactNode; atual: boolean }[] }) {
+  return <nav className="abas-nav" aria-label={rotulo}>
+    {abas.map(a => <Link key={a.para} to={a.para} aria-current={a.atual ? 'page' : undefined}>{a.rotulo}</Link>)}
+  </nav>;
+}
+
 /** Percentual inteiro de valor em maximo, entre 0 e 100 (com máximo zero, 0). */
 export const percentual = (valor: number, maximo: number) => maximo > 0 ? Math.round(100 * Math.min(Math.max(valor, 0), maximo) / maximo) : 0;
 /** Barra de progresso (ex.: "Gravadas 400 de 1.234"): o leitor de tela ouve o percentual e a conta. */

@@ -20,6 +20,7 @@ import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia 
 import { SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
+import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
 /** O lançamento que nasce de uma parcela só muda por lá: o caixa só mostra de onde ele veio. */
 const ORIGEM_DO_LANCAMENTO: Record<NonNullable<Lancamento['origem']>, string> = { recebimento: 'Veio de uma parcela', repasse: 'Veio de um repasse', lucro: 'Veio do lucro dos sócios' };
@@ -76,8 +77,8 @@ export default function Financeiro() {
 
   if (!pode) return <Navigate to="/inicio/" replace />;
   const cabecalho = { titulo: 'Caixa', visoes: [] };
-  if (erroInicial) return <PaginaModulo {...cabecalho}><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
-  if (contas === null) return <PaginaModulo {...cabecalho}><Carregando /></PaginaModulo>;
+  if (erroInicial) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Aviso tipo="erro">{erroInicial}</Aviso></PaginaModulo>;
+  if (contas === null) return <PaginaModulo {...cabecalho}><AbasDoFinanceiro /><Carregando /></PaginaModulo>;
 
   const mudou = () => { setAberto(null); recarregar(); };
   async function excluir(l: Lancamento) {
@@ -115,6 +116,7 @@ export default function Financeiro() {
 
   // As contas ficam sempre no mesmo lugar: criar a primeira não pode fechar o formulário da segunda.
   return <PaginaModulo {...cabecalho} contador={conta?.nome}>
+    <AbasDoFinanceiro />
     {!conta ? <Vazio>{vazio}</Vazio> : <>
     <div className="financeiro-barra">
       <label>Conta

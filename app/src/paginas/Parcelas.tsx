@@ -16,6 +16,7 @@ import { hojeISO, useTitulo } from '../ui/util';
 import { ValoresAPassar } from './financeiro/APassar';
 import { GestaoDeParcelas } from './financeiro/Parcelas';
 import './Financeiro.css';
+import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
 const NOME_DO_REPASSE: Record<Repasse['tipo'], string> = { responsavel: 'Responsável', socio_indicador: 'Sócio que indicou' };
 
@@ -122,6 +123,7 @@ export default function Parcelas() {
   const resumo = dados ? resumoDasParcelas(dados.parcelas, hoje) : null;
 
   return <PaginaModulo {...cabecalho}>
+    <AbasDoFinanceiro />
     <div className="financeiro-barra">
       <label>Mês
         {/* Apagar o campo não muda nada: fica o último mês válido. */}

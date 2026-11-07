@@ -12,6 +12,7 @@ import { PaginaModulo } from '../ui/PaginaModulo';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import './Financeiro.css';
+import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
 
 type Lido = { chave: string; linhas: MeuValor[] } | { chave: string; erro: string };
 
@@ -65,6 +66,7 @@ export default function MeusValores() {
   const atual = lido?.chave === mes ? lido : null;
 
   return <PaginaModulo titulo="Meus valores" visoes={[]}>
+    <AbasDoFinanceiro />
     <div className="financeiro-barra">
       <label>Mês
         {/* Apagar o campo não muda nada: fica o último mês válido. */}

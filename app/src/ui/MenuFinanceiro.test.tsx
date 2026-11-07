@@ -13,26 +13,26 @@ const opcoes = () => screen.queryAllByRole('link').map(l => l.textContent);
 describe('Submenu do Financeiro', () => {
   beforeEach(() => iniciarPreferencias({}));
 
-  it('dado um administrador, quando abre o submenu, então vê as cinco telas', async () => {
+  it('dado um administrador, quando abre o submenu, então vê as oito telas, na ordem das abas do alto', async () => {
     // Dado
     abrir('/inicio/', true);
     expect(opcoes()).toEqual([]);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
     // Então
-    expect(opcoes()).toEqual(['Parcelas', 'Meus valores', 'Conferência', 'Caixa', 'Lucro dos sócios']);
+    expect(opcoes()).toEqual(['Painel', 'Lançar', 'Carteira', 'Caixa', 'Parcelas', 'Lucro dos sócios', 'Meus valores', 'Conferência']);
   });
 
-  it('dado quem não é administrador, quando abre o submenu, então não vê Caixa nem Lucro dos sócios', async () => {
+  it('dado quem não é administrador, quando abre o submenu, então não vê Painel, Caixa nem Lucro dos sócios', async () => {
     // Dado
     abrir('/inicio/', false);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Financeiro' }));
     // Então
-    expect(opcoes()).toEqual(['Parcelas', 'Meus valores', 'Conferência']);
+    expect(opcoes()).toEqual(['Lançar', 'Carteira', 'Parcelas', 'Meus valores', 'Conferência']);
   });
 
-  it.each(['/parcelas/', '/meus-valores/', '/conferencia/', '/financeiro/', '/lucros/'])('dado que entro em %s, quando a tela abre, então o submenu aparece aberto', endereco => {
+  it.each(['/parcelas/', '/meus-valores/', '/conferencia/', '/financeiro/', '/lucros/', '/financeiro/painel/', '/financeiro/lancar/', '/financeiro/contratos/'])('dado que entro em %s, quando a tela abre, então o submenu aparece aberto', endereco => {
     // Quando
     abrir(endereco, true);
     // Então

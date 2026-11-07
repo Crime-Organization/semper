@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
+import { Indicador, Indicadores, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -296,5 +296,54 @@ describe('FaixaDoBanco', () => {
     const { container } = render(<FaixaDoBanco modo="production" noComputador={false} />);
     // Então
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('Indicadores', () => {
+  it('quando mostra um indicador, então o número fica ligado ao nome, com o tom e a linha de apoio', () => {
+    // Quando
+    render(<Indicadores rotulo="Totais do mês"><Indicador rotulo="Entradas" valor="R$ 1.000,00" detalhe="3 lançamentos" tom="entrada" /><Indicador rotulo="Saídas" valor="R$ 0,00" /></Indicadores>);
+    // Então
+    const grupo = screen.getByRole('group', { name: 'Totais do mês' });
+    const entradas = screen.getByRole('region', { name: 'Entradas' });
+    expect(grupo).toContainElement(entradas);
+    expect(entradas).toHaveClass('indicador', 'entrada');
+    expect(entradas).toHaveTextContent('R$ 1.000,00');
+    expect(entradas).toHaveTextContent('3 lançamentos');
+    expect(screen.getByRole('region', { name: 'Saídas' })).toHaveClass('indicador', 'neutro');
+  });
+});
+
+describe('Segmentos', () => {
+  it('quando clica num segmento, então ele fica escolhido, e o desligado não responde', async () => {
+    // Dado
+    const aoEscolher = vi.fn<(id: string) => void>();
+    function Tela() {
+      const [atual, setAtual] = useState('jan');
+      return <Segmentos rotulo="Mês" atual={atual} aoEscolher={id => { aoEscolher(id); setAtual(id); }}
+        opcoes={[{ id: 'jan', rotulo: 'Jan', marcado: true }, { id: 'fev', rotulo: 'Fev' }, { id: 'mar', rotulo: 'Mar', desligado: true }]} />;
+    }
+    render(<Tela />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Fev' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mar' }));
+    // Então
+    expect(aoEscolher.mock.calls).toEqual([['fev']]);
+    expect(screen.getByRole('button', { name: 'Fev' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Jan' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('group', { name: 'Mês' })).toBeInTheDocument();
+  });
+});
+
+describe('Navegação em abas', () => {
+  it('quando mostra as abas, então cada uma é um link, e só a da página aberta fica marcada', () => {
+    // Quando
+    render(<MemoryRouter><NavegacaoEmAbas rotulo="Financeiro" abas={[{ para: '/a/', rotulo: 'Painel', atual: true }, { para: '/b/', rotulo: 'Lançar', atual: false }]} /></MemoryRouter>);
+    // Então
+    const nav = screen.getByRole('navigation', { name: 'Financeiro' });
+    expect(nav).toContainElement(screen.getByRole('link', { name: 'Painel' }));
+    expect(screen.getByRole('link', { name: 'Painel' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Lançar' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: 'Lançar' })).toHaveAttribute('href', '/b/');
   });
 });
