@@ -19,6 +19,21 @@ describe('Cartão aberto na URL', () => {
     expect(result.current.cartao.aberto).toBe('k1');
   });
 
+  it('dado um cartão aberto pela mensagem, quando abre outro ou fecha, então o comentário sai do endereço', () => {
+    // Dado
+    const { result } = montar('/tarefas/?id=t1&comentario=c1');
+    // Quando
+    act(() => result.current.cartao.abrir('t2'));
+    // Então
+    expect(result.current.local.search).toBe('?id=t2');
+    // Dado
+    const fechando = montar('/tarefas/?id=t1&comentario=c1');
+    // Quando
+    act(() => fechando.result.current.cartao.fechar());
+    // Então
+    expect(fechando.result.current.local.search).toBe('');
+  });
+
   it('quando um cartão é aberto, então o id vai para o endereço', () => {
     // Dado
     const { result } = montar('/contratos/');

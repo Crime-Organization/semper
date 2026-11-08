@@ -221,6 +221,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nav-sub { display: flex; flex-direction: column; gap: 2px; padding-left: 30px }
 .nav-sub[hidden] { display: none }
 .nav-linha { display: flex; align-items: center; gap: 2px }
+.nav-contador { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums }
 .nav-linha > a:first-child { flex: 1; min-width: 0 }
 .nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
 .nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: #fff }
@@ -480,6 +481,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .comentario-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 14px; color: var(--ink) }
 .comentario-texto { margin: 0; padding: 10px 12px; background: var(--soft); border-radius: 10px; font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere }
 .mencao { color: var(--accent-ink); font-weight: 700; background: var(--accent-tint); border-radius: 4px; padding: 0 2px }
+/* O comentário que a mensagem abriu. */
+.comentario-citado .comentario-texto { background: var(--accent-tint); outline: 1px solid var(--accent); outline-offset: -1px }
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
 .cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }

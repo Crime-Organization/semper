@@ -3,7 +3,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { iniciarPreferencias } from './preferencias';
+import { iniciarPreferencias, lerPreferencia } from './preferencias';
 import { Recolhivel } from './Recolhivel';
 
 describe('Seção recolhível', () => {
@@ -51,6 +51,18 @@ describe('Seção recolhível', () => {
     // Então
     expect(screen.getByRole('button', { name: 'Nunca mexida' })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.getByRole('button', { name: 'Já aberta' })).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
+describe('Seção aberta por quem chegou com um destino', () => {
+  it('dado a seção recolhida na preferência, quando pede para abrir ao iniciar, então aparece aberta e a preferência continua como estava', () => {
+    // Dado
+    iniciarPreferencias({ 'teste.fechada': false });
+    // Quando
+    render(<Recolhivel titulo="Comentários" icone="comentario" preferencia="teste.fechada" abertaAoIniciar><p>texto</p></Recolhivel>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Comentários' })).toHaveAttribute('aria-expanded', 'true');
+    expect(lerPreferencia('teste.fechada', false)).toBe(false);
   });
 });
 

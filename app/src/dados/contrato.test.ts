@@ -4,7 +4,7 @@
 // se ele se comportar diferente do banco de verdade, os testes das telas passam por engano.
 // Para rodar também no Supabase (com um Supabase local), basta chamar contrato() com a outra implementação.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
@@ -547,6 +547,100 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         await expect(gravar).rejects.toThrow('Escolha uma conta ativa do escritório para o dinheiro deste contrato.');
         expect((await SD.contasParaEscolher()).map(c => c.nome)).not.toContain('PF ' + id);
+      });
+    });
+
+    describe('Caixa de mensagens (#112)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      const marcaMsg = () => 'MSG ' + Math.random().toString(36).slice(2);
+      afterEach(() => entrarComo('u-master'));
+      const novaPessoa = async () => (await SD.pessoaCriar({ tipo: 'contato', nome: marcaMsg() })).id;
+
+      it('dado um comentário que marca a Ana, quando ela abre a caixa, então a mensagem vem não lida, com o cartão e o comentário', async () => {
+        // Dado
+        const pessoa = await novaPessoa();
+        const c = await SD.comentarioCriar('pessoas', pessoa, 'Ligar, @ana.lima');
+        // Quando
+        entrarComo('u-ana');
+        const [m] = await SD.mensagensListar();
+        // Então
+        expect(await SD.mensagensNaoLidas()).toBeGreaterThan(0);
+        expect(m.lido_em).toBeNull();
+        expect(m.comentario).toMatchObject({ id: c.id, autor_id: 'u-master', texto: 'Ligar, @ana.lima', modulo: 'pessoas', cartao_id: pessoa });
+      });
+
+      it('dado o Bruno marcado numa demanda, quando sai dela, então a mensagem continua, mas sem o texto, e ainda dá para marcar como lida', async () => {
+        // Dado
+        const { id: demanda } = await SD.demandaCriar({ titulo: marcaMsg(), responsavel_id: 'u-ana', colaboradores: ['u-bruno'] });
+        const c = await SD.comentarioCriar('demandas', demanda, 'Veja, @bruno.souza');
+        entrarComo('u-bruno');
+        await SD.mensagensMarcarTodasLidas();
+        entrarComo('u-master');
+        await SD.comentarioEditar(c.id, 'Veja, @bruno.souza, por favor');
+        const outro = await SD.comentarioCriar('demandas', demanda, 'Outra, @bruno.souza');
+        // Quando
+        await SD.demandaAtualizar(demanda, { colaboradores: [] });
+        entrarComo('u-bruno');
+        const lista = await SD.mensagensListar();
+        // Então: sem acesso ao cartão, nada do comentário aparece
+        expect(lista.map(m => m.comentario?.id)).not.toContain(outro.id);
+        const semAcesso = lista.filter(m => !m.comentario && !m.lido_em);
+        expect(semAcesso).toHaveLength(1);
+        await SD.mensagemMarcarLida(semAcesso[0].id);
+        expect(await SD.mensagensNaoLidas()).toBe(0);
+      });
+
+      it('dado que quem escreveu se marcou, quando abre a caixa, então não recebe a própria menção', async () => {
+        // Dado
+        const antes = (await SD.mensagensListar()).length;
+        // Quando
+        await SD.comentarioCriar('pessoas', await novaPessoa(), 'Lembrete, @mateus.goncalves');
+        // Então
+        expect(await SD.mensagensListar()).toHaveLength(antes);
+      });
+
+      it('dado a mensagem da Ana, quando outra pessoa abre a caixa, então não a vê', async () => {
+        // Dado
+        const c = await SD.comentarioCriar('pessoas', await novaPessoa(), 'Veja, @ana.lima');
+        // Quando
+        entrarComo('u-bruno');
+        const lista = await SD.mensagensListar();
+        // Então
+        expect(lista.map(m => m.comentario?.id)).not.toContain(c.id);
+      });
+
+      it('dado duas mensagens, quando marca uma e depois todas como lidas, então o contador vai caindo até zerar', async () => {
+        // Dado
+        const pessoa = await novaPessoa();
+        entrarComo('u-ana'); await SD.mensagensMarcarTodasLidas(); entrarComo('u-master');
+        await SD.comentarioCriar('pessoas', pessoa, 'Um, @ana.lima');
+        await SD.comentarioCriar('pessoas', pessoa, 'Dois, @ana.lima');
+        entrarComo('u-ana');
+        // Quando
+        await SD.mensagemMarcarLida((await SD.mensagensListar())[0].id);
+        const depoisDeUma = await SD.mensagensNaoLidas();
+        await SD.mensagensMarcarTodasLidas();
+        // Então
+        expect(depoisDeUma).toBe(1);
+        expect(await SD.mensagensNaoLidas()).toBe(0);
+      });
+
+      it('dado o comentário editado, quando troca quem foi marcado, então a mensagem muda de pessoa; e apagar o comentário apaga a mensagem', async () => {
+        // Dado
+        const { id } = await SD.comentarioCriar('pessoas', await novaPessoa(), 'Para @ana.lima');
+        // Quando
+        await SD.comentarioEditar(id, 'Para @bruno.souza');
+        entrarComo('u-ana');
+        const daAna = (await SD.mensagensListar()).map(m => m.comentario?.id);
+        entrarComo('u-bruno');
+        const doBruno = (await SD.mensagensListar()).map(m => m.comentario?.id);
+        entrarComo('u-master');
+        await SD.comentarioExcluir(id);
+        entrarComo('u-bruno');
+        // Então
+        expect(daAna).not.toContain(id);
+        expect(doBruno).toContain(id);
+        expect((await SD.mensagensListar()).map(m => m.comentario?.id)).not.toContain(id);
       });
     });
 

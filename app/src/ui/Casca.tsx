@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { MARCA } from '../marca';
+import { rotuloDoMenu, textoDoContador } from '../regras/mensagens';
 import { SD } from '../dados';
 import { Avatar } from './Avatar';
 import { Icone } from './Icone';
@@ -10,6 +11,7 @@ import { estiloBotao } from './base';
 import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
+import { naoLidas, useConferirNaoLidas } from './mensagens';
 import { MenuFinanceiro } from './MenuFinanceiro';
 import { useSessao } from './sessao';
 import { SubmenuLateral } from './SubmenuLateral';
@@ -20,6 +22,8 @@ export function Casca({ children }: { children: ReactNode }) {
   const { ctx } = useSessao();
   const p = ctx.perfil;
   const nomeEsc = ctx.escritorio?.nome || MARCA.nome;
+  const quantasNaoLidas = naoLidas.usar();
+  useConferirNaoLidas();
   const tema = useTema();
   const navegar = useNavigate();
   const local = useLocation();
@@ -67,6 +71,10 @@ export function Casca({ children }: { children: ReactNode }) {
         </Link>
         <nav className="nav" aria-label="Seções">
           {item('/inicio/', 'inicio', 'Início')}
+          <NavLink to="/mensagens/" aria-label={rotuloDoMenu(quantasNaoLidas)}>
+            <Icone nome="sino" /><span>Mensagens</span>
+            {quantasNaoLidas > 0 && <span className="nav-contador">{textoDoContador(quantasNaoLidas)}</span>}
+          </NavLink>
           <div className="nav-linha">
             {item('/pessoas/', 'pessoas', 'Pessoas')}
             <Link className="nav-mais" to="/pessoas/nova/" aria-label="Cadastrar pessoa" title="Cadastrar pessoa"><Icone nome="mais" tam={15} /></Link>

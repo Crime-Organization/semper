@@ -5,7 +5,7 @@
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
-  ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
+  Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
@@ -34,7 +34,7 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
+import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
@@ -108,6 +108,7 @@ interface Banco {
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
   comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
+  mensagens?: { id: string; perfil_id: string; comentario_id: string; criado_em: string; lido_em: string | null }[];
   demandas?: DemandaGuardada[];
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
@@ -521,6 +522,9 @@ bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p
 // Sessões abertas antes da importação: os cadastros ganham as colunas novas vazias (como a migração da importação).
 bd.pessoas.forEach(p => { p.importacao_id ??= null; p.referencia ??= null; p.observacoes ??= null; p.pendencias ??= []; });
 bd.importacoes ??= [];
+// As menções que já existiam entram como lidas, como na migração.
+bd.mensagens ??= bd.comentarios.flatMap(c => c.mencoes.filter(perfil => perfil !== c.autor_id)
+  .map(perfil => ({ id: novoId(), perfil_id: perfil, comentario_id: c.id, criado_em: c.criado_em, lido_em: agora() })));
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
@@ -1598,6 +1602,41 @@ const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
   tarefas: id => bd.tarefas!.some(t => t.id === id),
   compromissos: id => bd.compromissos!.some(c => c.id === id)
 };
+/** O código e o nome do cartão do comentário, para a caixa de mensagens. */
+const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: string; nome: string | null } | undefined> = {
+  pessoas: id => bd.pessoas.find(p => p.id === id),
+  contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k && { codigo: k.codigo, nome: k.servico }; },
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d && { codigo: d.codigo, nome: d.titulo }; },
+  tarefas: id => { const t = bd.tarefas!.find(x => x.id === id); return t && { codigo: t.codigo, nome: t.titulo }; },
+  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return c && { codigo: c.codigo, nome: c.titulo }; }
+};
+/** Se quem está logado vê o cartão (como a regra de leitura dos comentários, que passa pela do cartão). */
+const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
+  pessoas: id => bd.pessoas.some(p => p.id === id),
+  contratos: vejoContratoDoId,
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return !!d && veADemanda(d, membroLogado()); },
+  tarefas: id => {
+    const t = bd.tarefas!.find(x => x.id === id);
+    return !!t && veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null);
+  },
+  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); }
+};
+/** Como o gatilho privado.mensagens_do_comentario: quem foi marcado recebe a mensagem, menos quem escreveu; quem deixou de ser marcado perde a dele. */
+function mensagensDoComentario(c: NonNullable<Banco['comentarios']>[number]) {
+  bd.mensagens = bd.mensagens!.filter(m => m.comentario_id !== c.id || c.mencoes.includes(m.perfil_id) || !EQUIPE.find(p => p.id === m.perfil_id)?.ativo);
+  for (const perfil of c.mencoes) {
+    if (perfil !== c.autor_id && !bd.mensagens.some(m => m.comentario_id === c.id && m.perfil_id === perfil)) {
+      bd.mensagens.push({ id: novoId(), perfil_id: perfil, comentario_id: c.id, criado_em: agora(), lido_em: null });
+    }
+  }
+}
+/** As mensagens de quem está logado. Apagar o comentário (ou o cartão) apaga a mensagem, como o "on delete cascade". */
+const minhasMensagens = () => bd.mensagens!.filter(m => m.perfil_id === eu && bd.comentarios!.some(c => c.id === m.comentario_id));
+function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
+  const c = bd.comentarios!.find(x => x.id === m.comentario_id)!, cartao = VEJO_O_CARTAO[c.modulo](c.cartao_id) ? CARTAO_DA_MENSAGEM[c.modulo](c.cartao_id) : undefined;
+  const { id, criado_em, lido_em } = m;
+  return { id, criado_em, lido_em, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome } : null };
+}
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
 // "A definir" não entra nas sugestões (como privado.guardar_objetos).
@@ -3098,13 +3137,13 @@ export const SD: Dados = {
   async comentarioCriar(modulo, cartaoId, texto) {
     if (!CARTAO_EXISTE[modulo](cartaoId)) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
     const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto, cartaoId), criado_em: agora(), editado_em: null };
-    bd.comentarios!.push(c); gravar();
+    bd.comentarios!.push(c); mensagensDoComentario(c); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioEditar(id, texto) {
     const c = bd.comentarios!.find(x => x.id === id);
     if (!c || c.autor_id !== eu || !CARTAO_EXISTE[c.modulo](c.cartao_id)) return erro('Só quem escreveu o comentário pode editá-lo.');
-    Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); gravar();
+    Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); mensagensDoComentario(c); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioExcluir(id) {
@@ -3112,6 +3151,18 @@ export const SD: Dados = {
     // Quem está logado no banco fictício é o master: apaga os de qualquer autor.
     if (!c) return erro('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
     bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
+  },
+
+  // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
+  mensagensListar: () => espera(minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)),
+  mensagensNaoLidas: () => espera(minhasMensagens().filter(m => !m.lido_em).length),
+  async mensagemMarcarLida(id) {
+    const m = minhasMensagens().find(x => x.id === id && !x.lido_em);
+    if (m) { m.lido_em = agora(); gravar(); }
+  },
+  async mensagensMarcarTodasLidas() {
+    for (const m of minhasMensagens()) m.lido_em ??= agora();
+    gravar();
   },
 
   equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, email: m.id === eu ? meuEmail() : m.email, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),

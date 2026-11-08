@@ -70,13 +70,15 @@ interface Props {
    * clicar nela).
    */
   foraDoExpandirTudo?: boolean;
+  /** Abre a seção ao aparecer, sem mudar a escolha guardada (ex.: a mensagem que leva a um comentário). */
+  abertaAoIniciar?: boolean;
   /** O atalho para criar um item já ligado (ex.: "Nova tarefa deste contrato"): um "+" no título, logo depois do número. */
   novo?: NovoLigado;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, novo, children }: Props) {
-  const [aberto, setAberto] = useState(() => preferencia ? lerPreferencia(preferencia, false) : false);
+export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, abertaAoIniciar = false, novo, children }: Props) {
+  const [aberto, setAberto] = useState(() => abertaAoIniciar || (preferencia ? lerPreferencia(preferencia, false) : false));
   const id = useId();
   const inscricao = useContext(InscricaoNoGrupo);
   const estado = useContext(EstadoDoGrupo);

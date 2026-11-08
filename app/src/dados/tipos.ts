@@ -1024,6 +1024,34 @@ export interface DadosComentarios {
   comentarioExcluir(id: string): Promise<void>;
 }
 
+/** O comentário de onde veio a menção, com o cartão em que ele está. */
+export interface ComentarioDaMensagem {
+  id: string;
+  autor_id: string | null;
+  texto: string;
+  modulo: ModuloComentado;
+  cartao_id: string;
+  cartao_codigo: string;
+  cartao_nome: string | null;
+}
+/** Mensagem da caixa de cada pessoa. Por enquanto, só a menção com @ (supabase/migrations/20261108165559_mensagens.sql). */
+export interface Mensagem {
+  id: string;
+  criado_em: string;
+  lido_em: string | null;
+  /** null: a pessoa não vê mais o cartão em que foi marcada. */
+  comentario: ComentarioDaMensagem | null;
+}
+
+/** A caixa de mensagens: cada pessoa só lê e marca as suas. */
+export interface DadosMensagens {
+  /** As mensagens de quem está logado, da mais nova para a mais antiga. */
+  mensagensListar(): Promise<Mensagem[]>;
+  mensagensNaoLidas(): Promise<number>;
+  mensagemMarcarLida(id: string): Promise<void>;
+  mensagensMarcarTodasLidas(): Promise<void>;
+}
+
 // ---------- compromissos (agenda) ----------
 export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'outro';
 export type ModalidadeCompromisso = 'presencial' | 'virtual';
@@ -1396,4 +1424,4 @@ export interface DadosParcelas {
   financeiroSocioRestaurar(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}
+export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}

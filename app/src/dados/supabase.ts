@@ -14,7 +14,7 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import { COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
+import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { papeisNoCompromisso } from '../regras/compromisso';
@@ -22,7 +22,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { Mensagem, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -144,6 +144,19 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
+const CAMPOS_MENSAGEM = 'id, criado_em, lido_em, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos(id, codigo, servico), '
+  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo))';
+/** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
+const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo' };
+type CartaoDaMensagem = Record<string, string>;
+type LinhaDaMensagem = Omit<Mensagem, 'comentario'> & { comentario: (Pick<Comentario, 'id' | 'autor_id' | 'texto'> & Partial<Record<ModuloComentado, CartaoDaMensagem | null>>) | null };
+/** Junta o comentário e o cartão dele. Sem o comentário, ou sem o cartão, a pessoa não vê mais de onde veio a menção. */
+function mensagemLida({ comentario: c, ...m }: LinhaDaMensagem): Mensagem {
+  const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
+  const cartao = modulo && c?.[modulo];
+  if (!c || !modulo || !cartao) return { ...m, comentario: null };
+  return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]] } };
+}
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id' };
 
@@ -1529,6 +1542,22 @@ export const SD: Dados = {
   async comentarioExcluir(id) {
     const { data } = await rodar(sb.from('comentarios').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
+  },
+
+  // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
+  async mensagensListar() {
+    const { data } = await rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA));
+    return (data as LinhaDaMensagem[]).map(mensagemLida);
+  },
+  async mensagensNaoLidas() {
+    const { count } = await rodar(sb.from('mensagens').select('id', { count: 'exact', head: true }).is('lido_em', null));
+    return count ?? 0;
+  },
+  async mensagemMarcarLida(id) {
+    await rodar(sb.from('mensagens').update({ lido_em: new Date().toISOString() }).eq('id', id).is('lido_em', null));
+  },
+  async mensagensMarcarTodasLidas() {
+    await rodar(sb.from('mensagens').update({ lido_em: new Date().toISOString() }).is('lido_em', null));
   },
 
   // ---------- ligação com a conta Google ----------

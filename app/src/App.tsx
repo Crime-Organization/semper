@@ -41,6 +41,7 @@ const Parcelas = lazy(() => import('./paginas/Parcelas'));
 const MeusValores = lazy(() => import('./paginas/MeusValores'));
 const Conferencia = lazy(() => import('./paginas/Conferencia'));
 const Lucros = lazy(() => import('./paginas/Lucros'));
+const Mensagens = lazy(() => import('./paginas/Mensagens'));
 
 // Os formulários recomeçam do zero a cada vez que são abertos (mesmo clicando no "+" de dentro deles).
 function FormularioPessoa() {
@@ -118,6 +119,7 @@ function Rotas() {
         <Route path="entrar" element={<Entrada />} />
         <Route element={<ExigirLogin janela={janela} />}>
           <Route path="inicio" element={<Inicio />} />
+          <Route path="mensagens" element={<Mensagens />} />
           <Route path="pessoas" element={<Pessoas />} />
           <Route path="contratos" element={<Contratos />} />
           <Route path="demandas" element={<Demandas />} />

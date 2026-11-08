@@ -72,6 +72,12 @@ export const CONTRATOS_PARA_LIGAR = 500;
 export const TAMANHO_COMENTARIO = 5000;
 /** Quantos comentários um cartão mostra (os mais novos primeiro). */
 export const COMENTARIOS_DO_CARTAO = 200;
+/** Quantas mensagens a caixa mostra (as mais novas primeiro). */
+export const MENSAGENS_DA_CAIXA = 100;
+/** Quantas letras do comentário a mensagem mostra. */
+export const TRECHO_DA_MENSAGEM = 200;
+/** A partir daqui, o contador do menu mostra "99+". */
+export const MAIOR_CONTADOR_DE_MENSAGENS = 99;
 /** Sugestões mostradas enquanto se digita (objetos do contrato, nome da coluna...). */
 export const ACHADAS_DA_SUGESTAO = 8;
 /** Colegas mostrados na lista do @ enquanto se digita um comentário. */

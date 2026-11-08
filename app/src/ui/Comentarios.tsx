@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { SD, type Comentario, type Membro, type ModuloComentado } from '../dados';
 import { ACHADOS_DA_MENCAO, TAMANHO_COMENTARIO } from '../dados/limites';
 import { inserirMencao, mencaoSendoDigitada, membrosParaMencionar, MOTIVO_SEM_MENCAO, trechosDoComentario } from '../regras/comentarios';
+import { PARAMETRO_DO_COMENTARIO } from '../regras/mensagens';
 import { Avatar } from './Avatar';
 import { falha } from './avisos';
 import { Botao, BotaoDuplo } from './Botoes';
@@ -28,6 +29,12 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
   const [lista, setLista] = useState<Comentario[] | null>(null);
   const [rascunho, setRascunho] = useState('');
   const enviando = useRef(false);
+  // O comentário que a mensagem abriu (?comentario=...): a seção já vem aberta, e ele aparece destacado e à vista.
+  const [citado] = useState(() => new URLSearchParams(window.location.search).get(PARAMETRO_DO_COMENTARIO));
+  const carregouCitado = lista !== null && !!citado;
+  useEffect(() => {
+    if (carregouCitado) document.getElementById(idDoComentario(citado))?.scrollIntoView({ block: 'center' });
+  }, [carregouCitado, citado]);
 
   const carregar = useCallback(async () => {
     try { setLista(await SD.comentariosListar(modulo, cartaoId)); }
@@ -63,17 +70,19 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
     {lista === null ? <Carregando />
       : !lista.length ? <Nota>Nenhum comentário ainda. Escreva acima e use @ para chamar alguém da equipe.</Nota>
       : <ol className="lista-comentarios" aria-label="Comentários do cartão">
-        {lista.map(c => <ItemComentario key={c.id} c={c} modulo={modulo} motivoSemMencao={motivoSemMencao} aoEditar={editar} aoExcluir={excluir} />)}
+        {lista.map(c => <ItemComentario key={c.id} c={c} citado={c.id === citado} modulo={modulo} motivoSemMencao={motivoSemMencao} aoEditar={editar} aoExcluir={excluir} />)}
       </ol>}
   </div>;
   // Na janela no centro, a coluna da direita; no painel ao lado, uma seção recolhível como as outras do cartão.
   return coluna
     ? createPortal(<section className="bloco comentarios-coluna" aria-labelledby={titulo}><h3 id={titulo}><Icone nome="comentario" tam={14} />Comentários</h3>{conteudo}</section>, coluna)
-    : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length}>{conteudo}</Recolhivel>;
+    : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length} abertaAoIniciar={!!citado}>{conteudo}</Recolhivel>;
 }
 
-function ItemComentario({ c, modulo, motivoSemMencao, aoEditar, aoExcluir }: {
-  c: Comentario; modulo: ModuloComentado; motivoSemMencao?: (m: Membro) => string | null; aoEditar: (id: string, texto: string) => Promise<boolean>; aoExcluir: (id: string) => Promise<void>;
+const idDoComentario = (id: string) => 'comentario-' + id;
+
+function ItemComentario({ c, citado, modulo, motivoSemMencao, aoEditar, aoExcluir }: {
+  c: Comentario; citado: boolean; modulo: ModuloComentado; motivoSemMencao?: (m: Membro) => string | null; aoEditar: (id: string, texto: string) => Promise<boolean>; aoExcluir: (id: string) => Promise<void>;
 }) {
   const ctx = useCtx();
   const [editando, setEditando] = useState<string | null>(null);
@@ -82,7 +91,7 @@ function ItemComentario({ c, modulo, motivoSemMencao, aoEditar, aoExcluir }: {
   async function salvar() {
     if (editando !== null && await aoEditar(c.id, editando)) setEditando(null);
   }
-  return <li className="comentario" aria-label={`Comentário de ${nome}`}>
+  return <li id={idDoComentario(c.id)} className={'comentario' + (citado ? ' comentario-citado' : '')} aria-current={citado || undefined} aria-label={`Comentário de ${nome}`}>
     <Avatar p={autor} tam={28} />
     <div className="comentario-miolo">
       <div className="comentario-cabeca">

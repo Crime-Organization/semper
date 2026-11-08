@@ -47,6 +47,21 @@ describe('Comentários do cartão', () => {
     expect(within(itens[0]).getByText('@mateus.goncalves')).toHaveAttribute('title', 'Mateus Freitas Gonçalves');
   });
 
+  it('dado o endereço de uma mensagem, quando o cartão abre, então a seção vem aberta e o comentário citado aparece destacado', async () => {
+    // Dado: a seção estava recolhida na preferência da pessoa
+    iniciarPreferencias({});
+    window.history.pushState({}, '', '/pessoas/?id=p1&comentario=c2');
+    const rolar = vi.fn();
+    Element.prototype.scrollIntoView = rolar;
+    // Quando
+    render(<SecaoComentarios modulo="pessoas" cartaoId="p1" />);
+    // Então
+    const citado = (await screen.findAllByRole('listitem', { name: /Comentário de/ }))[0];
+    expect(citado).toHaveAttribute('aria-current', 'true');
+    expect(rolar).toHaveBeenCalled();
+    window.history.pushState({}, '', '/');
+  });
+
   it('dado um aviso do cartão sobre a menção, quando a seção abre, então ele aparece junto da caixa', async () => {
     // Quando
     render(<SecaoComentarios modulo="contratos" cartaoId="k1" aviso="Quem você mencionar passa a ver este contrato." />);
