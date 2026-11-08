@@ -17,7 +17,7 @@ export const SEM_OBJETO_DEFINIDO = 'Os objetos deste contrato ainda estão "A de
 /** O aviso de quando a pessoa chega a "Contrato fechado": o contrato acabou de nascer, ou já existia. */
 export const avisoDoContratoFechado = (nome: string, k: ContratoDoClienteFechado) => k.novo
   ? `${nome} tem um contrato em "Aguardando assinatura". Complete os dados dele para a assinatura.`
-  : `${nome} já tem o contrato ${k.codigo}, que nasceu quando foi para "Contrato fechado".`;
+  : `${nome} já tem o contrato ${k.codigo}: nenhum outro foi criado.`;
 
 /**
  * Se a pessoa chegou a "Contrato fechado", cria (ou acha) o contrato dela e avisa. As telas abertas recarregam (o cartão

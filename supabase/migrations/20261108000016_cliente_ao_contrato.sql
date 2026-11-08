@@ -4,7 +4,8 @@
 --   1. Em Pessoas, as colunas "Em negociação" e "Contrato fechado" (marco contrato_fechado); em Contratos, o marco
 --      aguardando_assinatura na coluna "Aguardando assinatura".
 --   2. pessoa_fechar_contrato: a pessoa que chega a "Contrato fechado" ganha um contrato em "Aguardando assinatura",
---      com ela como cliente e o objeto "A definir" (todo contrato precisa de um objeto). Uma vez só por pessoa.
+--      com ela como cliente e o objeto "A definir" (todo contrato precisa de um objeto). Se ela já é cliente de um
+--      contrato não arquivado (inclusive um feito à mão), não nasce outro: vale o que ela já tem.
 --   3. No contrato, a conta de destino do dinheiro (PF ou PJ), sempre uma conta ativa do mesmo escritório; qualquer um
 --      da equipe lê o nome das contas para escolher.
 --   4. As demandas nascem dos objetos de verdade ("A definir" não vira demanda); no contrato assinado com "A definir",
@@ -79,9 +80,12 @@ begin
   perform 1 from public.pessoas where id = p_pessoa and escritorio_id = v_escritorio for update;
   if not found then raise exception 'Pessoa não encontrada neste escritório.'; end if;
   if not coalesce((select (modulos ->> 'contratos')::boolean from public.escritorios where id = v_escritorio), false) then return null; end if;
-  -- Uma vez só por pessoa: se o contrato que nasceu dela ainda existe (e não foi arquivado), é ele.
-  select k.id, k.codigo into v_id, v_codigo from privado.contratos_do_cliente_fechado c join public.contratos k on k.id = c.contrato_id
-  where c.pessoa_id = p_pessoa and k.arquivado_em is null;
+  -- Um contrato só: se a pessoa já é cliente de um contrato não arquivado (o que nasceu dela aqui ou um feito à mão), é
+  -- ele. Vale primeiro o que nasceu dela; depois, o mais recente.
+  select k.id, k.codigo into v_id, v_codigo from public.contratos k
+  left join privado.contratos_do_cliente_fechado c on c.pessoa_id = p_pessoa and c.contrato_id = k.id
+  where k.escritorio_id = v_escritorio and p_pessoa = any(k.clientes) and k.arquivado_em is null
+  order by (c.contrato_id is not null) desc, k.criado_em desc, k.id limit 1;
   if v_id is not null then return jsonb_build_object('id', v_id, 'codigo', v_codigo, 'novo', false); end if;
   -- O advogado responsável: quem moveu, se é advogado; se não, o primeiro advogado entre os responsáveis pela pessoa.
   select id into v_resp from public.perfis where id = auth.uid() and escritorio_id = v_escritorio and funcao = 'advogado' and ativo;

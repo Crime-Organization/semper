@@ -1872,11 +1872,14 @@ export const SD: Dados = {
     bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
-  // Como public.pessoa_fechar_contrato: uma vez só por pessoa; o responsável é quem moveu (se é advogado) ou o primeiro
-  // advogado responsável pela pessoa. No banco fictício, o módulo Contratos está sempre ligado.
+  // Como public.pessoa_fechar_contrato: um contrato só (se a pessoa já é cliente de um não arquivado, o que nasceu dela
+  // ou o mais recente, é ele); o responsável é quem moveu (se é advogado) ou o primeiro advogado responsável pela pessoa.
+  // No banco fictício, o módulo Contratos está sempre ligado.
   async pessoaFecharContrato(pessoaId) {
     const p = achar(pessoaId);
-    const anterior = bd.contratos!.find(k => k.id === bd.contratosDoClienteFechado![pessoaId] && !k.arquivado_em);
+    const ativos = bd.contratos!.filter(k => k.clientes.includes(pessoaId) && !k.arquivado_em);
+    const anterior = ativos.find(k => k.id === bd.contratosDoClienteFechado![pessoaId])
+      ?? ativos.toSorted((a, b) => b.criado_em.localeCompare(a.criado_em) || a.id.localeCompare(b.id))[0];
     if (anterior) return espera({ id: anterior.id, codigo: anterior.codigo, novo: false });
     const advogado = (id: string) => EQUIPE.find(m => m.id === id && m.funcao === 'advogado' && m.ativo)?.id;
     const responsavel = advogado(eu) ?? p.resp.map(r => advogado(r.perfil_id)).find(Boolean);

@@ -70,7 +70,7 @@ test.describe('Do cliente ao contrato', () => {
       // Dado
       await page.goto('/pessoas/');
       await page.getByRole('button', { name: 'Tabela' }).click();
-      await page.getByRole('row').filter({ hasText: 'TEREZA CRISTINA PILOTO' }).click();
+      await page.getByRole('row').filter({ hasText: 'MARLENE PEREIRA PILOTO' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Arquivar' }).click();
       await expect(page.getByText('Pessoa arquivada.', { exact: false })).toBeVisible();
       await page.goto('/pessoas/');
@@ -79,9 +79,9 @@ test.describe('Do cliente ao contrato', () => {
       const fechado = page.getByRole('list', { name: 'Contrato fechado', exact: true });
       await arquivados.scrollIntoViewIfNeeded();
       // Quando
-      await arquivados.getByRole('listitem').filter({ hasText: 'TEREZA CRISTINA PILOTO' }).dragTo(fechado);
+      await arquivados.getByRole('listitem').filter({ hasText: 'MARLENE PEREIRA PILOTO' }).dragTo(fechado);
       // Então
-      await expect(page.getByText('TEREZA CRISTINA PILOTO tem um contrato em "Aguardando assinatura".')).toBeVisible();
+      await expect(page.getByText('MARLENE PEREIRA PILOTO tem um contrato em "Aguardando assinatura".')).toBeVisible();
     });
   });
 
@@ -99,6 +99,21 @@ test.describe('Do cliente ao contrato', () => {
     // Então
     await abrirSecao(cartao, 'Contratos');
     await expect(cartao.getByRole('link', { name: /A definir/ })).toHaveCount(1);
-    await expect(page.getByText(/PAULO HENRIQUE SIMULADO já tem o contrato .*, que nasceu quando foi para "Contrato fechado"./)).toBeVisible();
+    await expect(page.getByText(/PAULO HENRIQUE SIMULADO já tem o contrato .*: nenhum outro foi criado./)).toBeVisible();
+  });
+
+  test('quando a pessoa que já tem um contrato feito à mão vai para "Contrato fechado", então fica com ele, sem um "A definir"', async ({ page }) => {
+    // Dado: a TEREZA CRISTINA PILOTO é cliente do contrato de exemplo do divórcio
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'TEREZA CRISTINA PILOTO' }).click();
+    const cartao = page.getByRole('dialog');
+    // Quando
+    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'Contrato fechado' });
+    // Então
+    await expect(page.getByText(/TEREZA CRISTINA PILOTO já tem o contrato .*: nenhum outro foi criado./)).toBeVisible();
+    await abrirSecao(cartao, 'Contratos');
+    await expect(cartao.getByRole('link', { name: /A definir/ })).toHaveCount(0);
+    await expect(cartao.getByRole('link', { name: /Divórcio consensual/ })).toHaveCount(1);
   });
 });

@@ -4,7 +4,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(35);
+select plan(37);
 
 -- Dado um escritório novo com uma advogada (com CPF), uma pessoa do administrativo, um advogado desativado e quatro
 -- clientes (o dois com a advogada entre os responsáveis; o quatro com o desativado antes dela); uma conta ativa e uma
@@ -166,6 +166,20 @@ select is((select array_agg(objeto) from public.demandas where contrato_id = (se
 -- Quando o "A definir" é trocado pelo objeto de verdade, então só ele vira demanda, sem repetir o outro.
 update public.contratos set objetos = array['Registro de marca', 'Oposição'] where id = (select id from misto);
 select is((select array_agg(objeto order by objeto) from public.demandas where contrato_id = (select id from misto)), array['Oposição', 'Registro de marca'], 'O objeto que entra no lugar do "A definir" vira demanda');
+
+-- Dado um contrato feito à mão em que a pessoa nove é a segunda cliente, quando ela vai para "Contrato fechado", então
+-- não nasce outro: vale o que ela já tem.
+insert into public.contratos (escritorio_id, cliente_id, clientes, responsavel_id, objetos, categoria, criado_por) values
+  ('e0000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
+   array['10000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000009']::uuid[],
+   'a0000000-0000-0000-0000-000000000001', array['Consultoria'], 'pro_labore', 'a0000000-0000-0000-0000-000000000001');
+create temp table a_mao as select id from public.contratos where objetos = array['Consultoria'] and escritorio_id = 'e0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar(1);
+set local role authenticated;
+create temp table fechado9 as select (r ->> 'id')::uuid as id, (r ->> 'novo')::boolean as novo from public.pessoa_fechar_contrato('10000000-0000-0000-0000-000000000009') r;
+reset role;
+select is((select id from fechado9), (select id from a_mao), 'A pessoa que já é cliente de um contrato feito à mão fica com ele');
+select is((select novo from fechado9), false, 'O contrato feito à mão não conta como novo');
 
 -- Dado o escritório com o módulo Contratos desligado, quando alguém fecha uma pessoa, então nada nasce.
 update public.escritorios set modulos = modulos || '{"contratos": false}' where id = 'e0000000-0000-0000-0000-000000000001';

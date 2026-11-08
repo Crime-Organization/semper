@@ -467,6 +467,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.objetosSugeridos()).not.toContain('A definir');
       });
 
+      it('dado a pessoa como segunda cliente de um contrato feito à mão, quando vai para "Contrato fechado", então fica com ele e não nasce outro', async () => {
+        // Dado
+        const { id: outra } = await criar('PRIMEIRA ' + marca());
+        const { id } = await criar('SEGUNDA ' + marca());
+        const aMao = await SD.contratoCriar({ clientes: [outra, id], responsavel_id: 'u-master', objetos: ['Consultoria'], categoria: 'pro_labore' });
+        // Quando
+        const fechado = (await SD.pessoaFecharContrato(id))!;
+        // Então
+        expect(fechado).toEqual({ id: aMao.id, codigo: aMao.codigo, novo: false });
+      });
+
       it('dado o contrato que nasceu da pessoa arquivado, quando ela volta a "Contrato fechado", então nasce outro', async () => {
         // Dado
         const { id } = await criar('VOLTOU ' + marca());
