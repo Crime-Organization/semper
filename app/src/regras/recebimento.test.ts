@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { codigoDeBancoValido, nomeDoBanco, receitasDoRecebimento, textosDoRecebimento, tipoDoRecebimento } from './recebimento';
+import { codigoDeBancoValido, contaDeDestino, nomeDoBanco, receitasDoRecebimento, textosDoRecebimento, tipoDoRecebimento } from './recebimento';
 
 const CONTEXTO = {
   codigo: 'MA24-AG39-108/26', clientes: ['Agencia Digital LEF Ltda'], objetos: ['Defesa processual/contestação'],
@@ -49,5 +49,24 @@ describe('Os bancos', () => {
     // Então
     expect(nomeDoBanco(codigo)).toContain(nome);
     expect(codigoDeBancoValido(codigo)).toBe(valido);
+  });
+});
+
+describe('Conta de destino do contrato (#269)', () => {
+  const ativas = [{ id: 'pj' }, { id: 'pf' }];
+  it.each([
+    ['uma conta ativa', 'pf', { contaId: 'pf', arquivada: false }],
+    ['uma conta que foi arquivada', 'antiga', { contaId: '', arquivada: true }],
+    ['nenhuma conta', null, { contaId: '', arquivada: false }]
+  ] as const)('dado o contrato com %s, quando abre a nova entrada, então a conta escolhida é a certa', (_caso, destino, esperado) => {
+    // Quando
+    const conta = contaDeDestino(destino, ativas);
+    // Então
+    expect(conta).toEqual(esperado);
+  });
+
+  it('dado as contas ainda carregando, quando confere o destino, então não acusa conta arquivada', () => {
+    // Então
+    expect(contaDeDestino('pf', [])).toEqual({ contaId: '', arquivada: false });
   });
 });

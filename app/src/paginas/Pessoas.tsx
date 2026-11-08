@@ -19,6 +19,7 @@ import { Paginacao } from '../ui/Paginacao';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
+import { contratoDaPessoaFechada } from './clienteAoContrato';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
@@ -215,12 +216,17 @@ export default function Pessoas() {
           aoAbrir={p => abrir(p.id)}
           aoMover={async (p, m) => {
             const noArquivo = { arquivar: (ids: string[], a: boolean) => SD.pessoasArquivar(ids, a), mover: (id: string, etapa: string | null, ordem: number | null) => SD.pessoaMover(id, etapa, ordem) };
-            if (await moverNoArquivo(p.nome, p.id, m, noArquivo, id => quadro.nomeDe(id) || 'Sem etapa')) { recarregar(); return; }
+            if (await moverNoArquivo(p.nome, p.id, m, noArquivo, id => quadro.nomeDe(id) || 'Sem etapa')) {
+              // Tirada de Arquivados direto para "Contrato fechado": o contrato dela nasce também.
+              recarregar(); void contratoDaPessoaFechada(p, m.para, quadro.colunas, navegar); return;
+            }
             const { de, para, ordem, ordemAnterior } = m;
             await SD.pessoaMover(p.id, para, ordem);
             const voltar = async () => { await SD.pessoaMover(p.id, de, ordemAnterior); };
-            if (de !== para) feito(`${p.nome} foi para "${quadro.nomeDe(para) || 'Sem etapa'}".`, 'movimentação do cartão', voltar);
-            else registrarDesfazer('mudança de posição do cartão', voltar);
+            if (de !== para) {
+              feito(`${p.nome} foi para "${quadro.nomeDe(para) || 'Sem etapa'}".`, 'movimentação do cartão', voltar);
+              void contratoDaPessoaFechada(p, para, quadro.colunas, navegar);
+            } else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/pessoas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

@@ -5,7 +5,15 @@ import type { GrupoDeColunas, MarcoColuna } from '../dados/tipos';
 export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }> = {
   assinado: {
     rotulo: 'Contrato assinado',
-    explicacao: 'Coluna do contrato assinado: quando o módulo Demandas existir, cada contrato que chegar aqui gera uma demanda para cada objeto. Pode ser renomeada, mas não excluída.'
+    explicacao: 'Coluna do contrato assinado: cada contrato que chegar aqui gera uma demanda para cada objeto ("A definir" não conta), e cada demanda ganha as tarefas do modelo de lista com o mesmo nome do objeto. Pode ser renomeada, mas não excluída.'
+  },
+  aguardando_assinatura: {
+    rotulo: 'Aguardando assinatura',
+    explicacao: 'Coluna do contrato que espera a assinatura: o contrato criado sozinho, quando a pessoa chega a "Contrato fechado", entra aqui. Pode ser renomeada, mas não excluída.'
+  },
+  contrato_fechado: {
+    rotulo: 'Contrato fechado',
+    explicacao: 'Coluna do cliente que fechou: a pessoa que chegar aqui ganha um contrato em "Aguardando assinatura", com ela como cliente. Pode ser renomeada, mas não excluída.'
   },
   inicio: {
     rotulo: 'Início do fluxo',
@@ -16,6 +24,10 @@ export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }>
     explicacao: 'Última coluna do fluxo: o item chega aqui quando é concluído. Pode ser renomeada, mas não excluída.'
   }
 };
+
+/** Se a coluna em que o cartão está agora é a coluna-marco pedida. */
+export const colunaComMarco = (colunas: { id: string; marco?: MarcoColuna | null }[], etapaId: string | null, marco: MarcoColuna) =>
+  !!etapaId && colunas.some(c => c.id === etapaId && c.marco === marco);
 
 /** Só administradores excluem colunas, e coluna-marco nunca. */
 export const podeExcluirColuna = (c: { marco?: MarcoColuna | null }, ehAdmin: boolean) => ehAdmin && !c.marco;

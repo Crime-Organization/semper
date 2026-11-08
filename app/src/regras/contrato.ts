@@ -122,13 +122,15 @@ export interface CamposContrato {
   indicadorId: string;
   indicadorPercentual: string;
   documentoUrl: string;
+  /** A conta de destino do dinheiro (o id; vazio: escolher ao lançar). */
+  contaDestinoId: string;
   observacoes: string;
   codigoAntigo: string;
 }
 export const CONTRATO_VAZIO: CamposContrato = {
   clientes: [''], responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
   primeiroPagamento: '', percentualEscritorio: '', participantes: [], indicadorId: '', indicadorPercentual: '',
-  documentoUrl: '', observacoes: '', codigoAntigo: ''
+  documentoUrl: '', contaDestinoId: '', observacoes: '', codigoAntigo: ''
 };
 
 /** Mensagem de cada campo obrigatório que falta. */
@@ -224,7 +226,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
     percentual_escritorio: c.percentualEscritorio ? Number(c.percentualEscritorio) : null,
     participantes: preenchidos(c).map(p => ({ pessoa_id: p.pessoaId, percentual: lerPercentual(p.percentual) })),
     indicador_id: c.indicadorId || null, indicador_percentual: c.indicadorId ? lerPercentual(c.indicadorPercentual) : null,
-    documento_url: texto(c.documentoUrl), observacoes: texto(c.observacoes), codigo_antigo: texto(c.codigoAntigo)?.toUpperCase() ?? null
+    documento_url: texto(c.documentoUrl), conta_destino_id: c.contaDestinoId || null, observacoes: texto(c.observacoes), codigo_antigo: texto(c.codigoAntigo)?.toUpperCase() ?? null
   };
 }
 
@@ -238,7 +240,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
     percentualEscritorio: k.percentual_escritorio === null ? '' : String(k.percentual_escritorio),
     participantes: k.participantes.map(p => ({ pessoaId: p.pessoa.id, percentual: pct(p.percentual) })),
     indicadorId: k.indicador_id || '', indicadorPercentual: pct(k.indicador_percentual),
-    documentoUrl: k.documento_url || '', observacoes: k.observacoes || '', codigoAntigo: k.codigo_antigo || ''
+    documentoUrl: k.documento_url || '', contaDestinoId: k.conta_destino_id || '', observacoes: k.observacoes || '', codigoAntigo: k.codigo_antigo || ''
   };
 }
 
@@ -247,7 +249,7 @@ export const CAMPOS_CONTRATO: Record<string, string> = {
   cliente_id: 'Cliente', clientes: 'Clientes', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
   percentual_escritorio: 'Enviado à conta da empresa', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
-  indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', observacoes: 'Observações',
+  indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', conta_destino_id: 'Conta de destino', observacoes: 'Observações',
   codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
 
@@ -335,6 +337,14 @@ export const clientesPorExtenso = (clienteNome: string) => nomesPorExtenso(clien
  * Cada objeto do contrato com a demanda que nasceu dele (a demanda guarda o objeto de que nasceu). O objeto que ainda
  * não virou demanda vem com null. Se houver duas demandas do mesmo objeto, vale a primeira da lista.
  */
+/**
+ * O objeto do contrato que nasce sozinho da pessoa em "Contrato fechado" (#269): existe só para o contrato ter um objeto,
+ * e não vira demanda. O banco reconhece o mesmo texto (supabase/migrations/20261108000016_cliente_ao_contrato.sql).
+ */
+export const OBJETO_A_DEFINIR = 'A definir';
+/** Os objetos de verdade do contrato: sem o "A definir". */
+export const objetosDefinidos = (objetos: string[]) => limparObjetos(objetos).filter(o => normal(o) !== normal(OBJETO_A_DEFINIR));
+
 export function objetosEDemandas<D extends { objeto: string | null }>(objetos: string[], demandas: D[]): { objeto: string; demanda: D | null }[] {
   return objetos.map(objeto => ({ objeto, demanda: demandas.find(d => d.objeto === objeto) ?? null }));
 }

@@ -65,6 +65,7 @@ export default function ModelosDeLista() {
       <p className="olho"><Link to="/demandas/">Demandas</Link></p>
       <h1 className="titulo">Modelos de lista<span className="ponto">.</span></h1>
       <p className="lead">Listas prontas para usar nas demandas e nas tarefas com um clique, em "Adicionar lista". Mudar um modelo não muda as listas já feitas com ele.</p>
+      <Nota>Modelo com o mesmo nome de um objeto de contrato (por exemplo, "Registro de marca") vira as tarefas da demanda desse objeto: quando o contrato é assinado, cada item do modelo nasce como uma tarefa dela.</Nota>
     </header>
     {!edicao && <div><button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setEdicao({ id: null, nome: '', texto: '' })}>
       <Icone nome="mais" tam={15} /> Novo modelo

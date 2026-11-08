@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
-  objetosEDemandas,
+  objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR,
   camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
@@ -410,5 +410,19 @@ describe('Os objetos do contrato e as demandas', () => {
     const lista = objetosEDemandas(['Contratos', 'Revisional'], [demanda, { id: 'd2', objeto: null }]);
     // Então
     expect(lista).toEqual([{ objeto: 'Contratos', demanda: null }, { objeto: 'Revisional', demanda }]);
+  });
+});
+
+describe('Objeto a definir', () => {
+  it('dado o contrato criado sozinho do cliente fechado, quando lê os objetos de verdade, então "A definir" não conta', () => {
+    // Quando
+    const objetos = objetosDefinidos([OBJETO_A_DEFINIR, '  a definir ', 'Registro de marca', ' ']);
+    // Então
+    expect(objetos).toEqual(['Registro de marca']);
+  });
+
+  it('dado só "A definir", quando lê os objetos de verdade, então não há nenhum', () => {
+    // Então
+    expect(objetosDefinidos([OBJETO_A_DEFINIR])).toEqual([]);
   });
 });

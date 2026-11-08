@@ -84,3 +84,12 @@ export function receitasDoRecebimento(r: Pick<RecebimentoGravado, 'valor' | 'res
 
 /** O tipo do recebimento: o escolhido nele ou, nos recebimentos de antes, o do contrato. */
 export const tipoDoRecebimento = (r: Pick<RecebimentoGravado, 'categoria'>, doContrato: CategoriaHonorario) => r.categoria ?? doContrato;
+
+/**
+ * A conta de destino do contrato (#269) para a nova entrada: vale se ainda é uma das contas ativas; a arquivada não vale
+ * (a entrada fica com a conta sugerida) e a tela avisa.
+ */
+export function contaDeDestino(destinoId: string | null | undefined, ativas: { id: string }[]): { contaId: string; arquivada: boolean } {
+  if (!destinoId || !ativas.length) return { contaId: '', arquivada: false };
+  return ativas.some(c => c.id === destinoId) ? { contaId: destinoId, arquivada: false } : { contaId: '', arquivada: true };
+}

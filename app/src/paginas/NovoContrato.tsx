@@ -4,7 +4,7 @@
 // banco ao salvar e, depois de dado, não muda.
 import { useEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type Contrato, type PessoaLista } from '../dados';
+import { SD, type ContaParaEscolher, type Contrato, type PessoaLista } from '../dados';
 import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
   calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
@@ -101,6 +101,10 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   }, []);
   // Os objetos já usados no escritório aparecem como sugestão enquanto se digita (sem elas, o cadastro segue igual).
   useEffect(() => { SD.objetosSugeridos().then(setSugeridos).catch(() => {}); }, []);
+  // As contas do escritório, para a conta de destino do dinheiro (só com o Financeiro ligado; sem elas, o cadastro segue igual).
+  const comFinanceiro = !!ctx.escritorio?.modulos?.financeiro;
+  const [contas, setContas] = useState<ContaParaEscolher[]>([]);
+  useEffect(() => { if (comFinanceiro) SD.contasParaEscolher().then(setContas).catch(() => {}); }, [comFinanceiro]);
   // A cada etapa, o foco vai para o primeiro campo dela.
   useEffect(() => {
     const t = setTimeout(() => document.querySelector<HTMLElement>(CAMPOS_DA_ETAPA)?.focus({ preventScroll: true }), 0);
@@ -353,6 +357,14 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
       <Escolhas rotulo="Enviado à conta da empresa" dica="Quanto do que o cliente pagar vai para a conta PJ." erro={erros.percentualEscritorio}>
         {radios('percentualEscritorio', [['', 'A definir'], ...PERCENTUAIS_ESCRITORIO.map(v => [String(v), `${v}% do que o cliente pagar`] as [string, string])])}
       </Escolhas>
+      {comFinanceiro && <Campo rotulo="Conta de destino" para="contaDestinoId" dica="Para qual conta do escritório vai o dinheiro deste contrato. Ela já vem escolhida ao lançar cada entrada.">
+        <select {...propsDoCampo('contaDestinoId', { dica: true })} value={c.contaDestinoId} onChange={e => mudar({ contaDestinoId: e.target.value })}>
+          <option value="">Escolher a cada entrada</option>
+          {contas.map(x => <option key={x.id} value={x.id}>{x.nome}</option>)}
+          {/* A conta que o contrato tem e que foi arquivada depois: aparece, para não parecer outra escolha. */}
+          {c.contaDestinoId && !contas.some(x => x.id === c.contaDestinoId) && <option value={c.contaDestinoId}>Conta arquivada</option>}
+        </select>
+      </Campo>}
       {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
       <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
         <span className="rot" id="participantes-rotulo">Participantes</span>

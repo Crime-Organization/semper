@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { blocosDoQuadro, cartoesEmPalavras, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemEntre, podeExcluirColuna } from './quadro';
+import { blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemEntre, podeExcluirColuna } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -12,6 +12,19 @@ describe('Colunas-marco', () => {
     const pode = podeExcluirColuna({ marco }, ehAdmin);
     // Então
     expect(pode).toBe(esperado);
+  });
+
+  it.each([
+    ['a coluna "Contrato fechado"', 'c2', true],
+    ['outra coluna', 'c1', false],
+    ['nenhuma coluna', null, false]
+  ] as const)('dado um cartão em %s, quando confere o marco "Contrato fechado", então é %s', (_onde, etapa, esperado) => {
+    // Dado
+    const colunas = [{ id: 'c1', marco: null }, { id: 'c2', marco: 'contrato_fechado' as const }];
+    // Quando
+    const chegou = colunaComMarco(colunas, etapa, 'contrato_fechado');
+    // Então
+    expect(chegou).toBe(esperado);
   });
 
   it('quando o quadro mostra uma coluna-marco, então há um nome e uma explicação para cada marco', () => {

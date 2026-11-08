@@ -4,7 +4,7 @@
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -25,6 +25,7 @@ import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
 import NovoContrato from './NovoContrato';
+import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
 import { dataCurta, dataHora, relativo } from '../ui/util';
 
 interface Props {
@@ -57,10 +58,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const veParcelas = !!modulos?.financeiro && (ctx.ehAdmin || k?.responsavel_id === eu);
   const parcelas = useQuantos(() => SD.parcelasDoContrato(id), chave, veParcelas);
   const historico = useQuantos(() => SD.contratoHistorico(id), chave);
+  const contas = useLista(() => SD.contasParaEscolher(), chave, !!modulos?.financeiro);
   // Os objetos que ainda não viraram demanda (ficam na lista das demandas, sem link).
   // Só antes de o contrato ser assinado: depois, a demanda de cada objeto já nasceu (e, se não existe mais, foi excluída).
   const objetosSemDemanda = k && !chegouAoAssinado(quadro.colunas, k.etapa_id, k.assinado_em)
-    ? objetosEDemandas(k.objetos, demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
+    ? objetosEDemandas(objetosDefinidos(k.objetos), demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
+  // O contrato criado sozinho do cliente fechado ainda com o objeto "A definir" (#269).
+  const semObjeto = !!k && !objetosDefinidos(k.objetos).length;
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (k === undefined) return <Carregando />;
@@ -111,6 +115,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       setK({ ...k!, etapa_id: etapa, etapa_ordem: ordem });
       feito(etapa ? `Movido para "${quadro.nomeDe(etapa)}".` : `Contrato ${SEM_SITUACAO.toLowerCase()}.`, 'mudança de situação',
         async () => { await SD.contratoMover(k!.id, de, ordemDe); });
+      if (etapa !== de && podeAlterar) avisarSeAssinadoSemObjeto(k!.objetos, etapa, quadro.colunas, { rotulo: 'Editar o contrato', fn: () => setEditando(true) });
       aoMudar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
@@ -156,6 +161,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
     {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined} novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
+      {semObjeto && <Aviso tipo="info">{SEM_OBJETO_DEFINIDO}</Aviso>}
       <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
         antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
     </Recolhivel>
@@ -182,6 +188,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <span className="rotulo-caps">Divisão</span>
       <dl className="dados">{([
       ['Enviado à conta da empresa', V('percentual_escritorio')],
+      ...(modulos?.financeiro ? [['Conta de destino', k.conta_destino_id ? (contas ? contas.find(c => c.id === k.conta_destino_id)?.nome ?? 'Conta arquivada' : '…') : 'Escolhida a cada entrada']] : []),
       [k.participantes.length > 1 ? 'Participantes' : 'Participante', percentuaisParticipantes],
       ['Indicador', V('indicador_percentual')],
       ['Responsável', doResponsavel === null ? '—' : <>{fmtPercentual(doResponsavel)} <small className="nota">o restante, se não for sócio</small></>]

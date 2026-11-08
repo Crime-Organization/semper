@@ -179,7 +179,7 @@ export interface Vinculo {
 export interface RepresentanteVinculado { pj_id: string; pessoa: Pessoa; funcao: string | null }
 
 /** Código fixo das colunas que marcam um ponto do fluxo (regras/quadro.ts). */
-export type MarcoColuna = 'assinado' | 'inicio' | 'concluido';
+export type MarcoColuna = 'assinado' | 'inicio' | 'concluido' | 'contrato_fechado' | 'aguardando_assinatura';
 export interface Coluna { id: string; nome: string; ordem: number; criado_por: string | null; oculta: boolean; marco?: MarcoColuna | null; grupo_id?: string | null }
 /** Grupo de colunas de um quadro, que abre e fecha. Do escritório: só os administradores mudam. comeca_fechado: aparece fechado até a pessoa abrir. */
 export interface GrupoDeColunas { id: string; nome: string; ordem: number; comeca_fechado: boolean }
@@ -219,6 +219,8 @@ export interface Contrato {
   indicador_id: string | null;
   indicador_percentual: number | null;
   documento_url: string | null;   // link do documento assinado (Google Drive)
+  /** A conta do escritório (PF ou PJ) para onde vai o dinheiro deste contrato: a sugerida ao lançar a entrada. */
+  conta_destino_id: string | null;
   observacoes: string | null;
   etapa_id: string | null;
   etapa_ordem: number | null;
@@ -250,8 +252,13 @@ export interface ParticipanteGravado { pessoa_id: string; percentual: number | n
 /** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
 export type DadosContrato = Partial<{ clientes: string[]; participantes: ParticipanteGravado[] } & Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
   | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio'
-  | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
+  | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'conta_destino_id' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
+
+/** O contrato da pessoa em "Contrato fechado": novo é false quando ele já tinha nascido antes. */
+export interface ContratoDoClienteFechado { id: string; codigo: string; novo: boolean }
+/** Uma conta do escritório, só com o nome (para escolher a do contrato). */
+export interface ContaParaEscolher { id: string; nome: string }
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
@@ -503,6 +510,14 @@ export interface DadosContratos {
   contratosDaEtapa(etapaId: string | null, f?: FiltroContratos, deslocamento?: number, limite?: number): Promise<Pagina<ContratoLista>>;
   contratoObter(id: string): Promise<Contrato | null>;
   contratoCriar(dados: DadosContrato): Promise<{ id: string; codigo: string }>;
+  /**
+   * A pessoa que chegou à coluna "Contrato fechado" ganha um contrato em "Aguardando assinatura", com ela como cliente e
+   * o objeto "A definir"; o responsável é quem moveu (se é advogado) ou o primeiro advogado responsável pela pessoa.
+   * Uma vez só por pessoa: de novo, devolve o mesmo. Com o módulo Contratos desligado, devolve null.
+   */
+  pessoaFecharContrato(pessoaId: string): Promise<ContratoDoClienteFechado | null>;
+  /** O nome das contas do escritório, para escolher a conta de destino do contrato (qualquer um da equipe). */
+  contasParaEscolher(): Promise<ContaParaEscolher[]>;
   contratoAtualizar(id: string, dados: DadosContrato): Promise<{ id: string; codigo: string }>;
   contratosArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só contratos arquivados são excluídos (por quem criou ou um administrador). */

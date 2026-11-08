@@ -11,7 +11,7 @@ import { CATEGORIAS } from '../../regras/contrato';
 import { carteiraDeContratos } from '../../regras/painelFinanceiro';
 import { dadosDoRecebimento, errosDoFormDeRecebimento, linhasDaDivisao, maiorParcelaPorContrato, numeroDaParcela, previaDoRecebimento, recebimentoNovo, situacaoDaParcela, type FormDoRecebimento } from '../../regras/parcelas';
 import { fmtData } from '../../regras/pessoa';
-import { BANCOS, codigoDeBancoValido, FORMAS_DE_PAGAMENTO } from '../../regras/recebimento';
+import { BANCOS, codigoDeBancoValido, contaDeDestino, FORMAS_DE_PAGAMENTO } from '../../regras/recebimento';
 import { falha, feito } from '../../ui/avisos';
 import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Segmentos, Vazio } from '../../ui/base';
 import { useCtx } from '../../ui/sessao';
@@ -103,7 +103,9 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
   };
   const percentualRuim = prepDoContrato?.terceiros.some(t => { const v = pctDe(t); return !Number.isFinite(v) || v < 0 || v > 100; }) ?? false;
   const sugerido = parcela && prep ? recebimentoNovo(parcela, f.data, prep.contas) : null;
-  const form: FormDoRecebimento = { ...f, valor: f.valor || (sugerido?.valor ?? ''), contaId: f.contaId || (sugerido?.contaId ?? '') };
+  // A conta de destino do contrato já vem escolhida (pode ser trocada), se ainda for uma conta ativa; se não, vale a sugerida.
+  const destino = contaDeDestino(k?.id === contratoId ? k?.conta_destino_id : null, prep?.contas ?? []);
+  const form: FormDoRecebimento = { ...f, valor: f.valor || (sugerido?.valor ?? ''), contaId: f.contaId || destino.contaId || (sugerido?.contaId ?? '') };
   const conta = prep?.contas.find(c => c.id === form.contaId);
   const erros = conferido ? errosDoFormDeRecebimento(form, !!conta?.tem_das) : {};
   const mudar = (m: Partial<FormDoRecebimento>) => { setF(x => ({ ...x, ...m })); setErro(''); };
@@ -208,6 +210,7 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
         </Campo>
         <CampoDoBanco rotulo="Banco de envio" valor={bancoEnvio} aoMudar={setBancoEnvio} />
       </div>
+      {destino.arquivada && !f.contaId && <Nota>A conta de destino deste contrato foi arquivada: confira a conta escolhida e, se quiser, troque a do contrato.</Nota>}
       {prep && <div className="entrada-percentuais">
         <Segmentos rotulo="Parte na conta da empresa" atual={String(prep.parte_na_conta)} aoEscolher={v => setParte(Number(v) as ParaReceber['parte_na_conta'])}
           opcoes={PARTES.map(p => ({ id: String(p), rotulo: `${p}% do que o cliente pagou` }))} />

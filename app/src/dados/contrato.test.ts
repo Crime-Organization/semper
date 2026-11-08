@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
-import { TAMANHO_COMPROMISSO, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { TAMANHO_COMPROMISSO, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -429,7 +429,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const excluir = SD.colunaExcluir(marco.id);
         // Então
         expect(marco.nome).toBe('Assinado / em andamento');
-        expect(colunas.filter(c => c.marco)).toHaveLength(1);
+        // A outra coluna-marco é a do contrato que espera a assinatura (#269).
+        expect(colunas.filter(c => c.marco).map(c => c.marco)).toEqual(['aguardando_assinatura', 'assinado']);
         await expect(excluir).rejects.toThrow('a coluna-marco não pode ser excluída');
         expect((await SD.colunasListar('contratos')).some(c => c.id === marco.id)).toBe(true);
       });
@@ -440,7 +441,101 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const pessoas = (await SD.colunasListar('pessoas')).map(c => c.nome);
         // Então
         expect(contratos).toEqual(['Em negociação', 'Aguardando assinatura', 'Assinado / em andamento', 'Encerrado', 'Rescindido']);
-        expect(pessoas).not.toContain('Em negociação');
+        expect(pessoas).not.toContain('Assinado / em andamento');
+        // Pessoas tem a sua "Em negociação" e a coluna-marco "Contrato fechado" (#269).
+        expect(pessoas).toEqual(expect.arrayContaining(['Em negociação', 'Contrato fechado']));
+      });
+    });
+
+    describe('Do cliente ao contrato (#269)', () => {
+      const etapaDe = async (modulo: 'contratos' | 'pessoas', marco: string) => (await SD.colunasListar(modulo)).find(c => c.marco === marco)!.id;
+
+      it('dado uma pessoa em "Contrato fechado", quando fecha o contrato dela, então nasce um contrato em "Aguardando assinatura", uma vez só', async () => {
+        // Dado
+        const { id } = await criar('FECHADA ' + marca());
+        // Quando
+        const primeiro = (await SD.pessoaFecharContrato(id))!;
+        const deNovo = (await SD.pessoaFecharContrato(id))!;
+        // Então
+        const k = (await SD.contratoObter(primeiro.id))!;
+        expect(primeiro.novo).toBe(true);
+        expect(deNovo).toEqual({ id: primeiro.id, codigo: k.codigo, novo: false });
+        expect(k.clientes.map(p => p.id)).toEqual([id]);
+        expect(k.objetos).toEqual(['A definir']);
+        expect(k.etapa_id).toBe(await etapaDe('contratos', 'aguardando_assinatura'));
+        expect(k.responsavel_id).toBe('u-master');
+        expect(await SD.objetosSugeridos()).not.toContain('A definir');
+      });
+
+      it('dado o contrato que nasceu da pessoa arquivado, quando ela volta a "Contrato fechado", então nasce outro', async () => {
+        // Dado
+        const { id } = await criar('VOLTOU ' + marca());
+        const primeiro = (await SD.pessoaFecharContrato(id))!;
+        await SD.contratosArquivar([primeiro.id]);
+        // Quando
+        const segundo = (await SD.pessoaFecharContrato(id))!;
+        // Então
+        expect(segundo.novo).toBe(true);
+        expect(segundo.id).not.toBe(primeiro.id);
+      });
+
+      it('dado o contrato com "A definir", quando é assinado e depois ganha os objetos, então as demandas nascem só dos objetos de verdade, com as tarefas do modelo', async () => {
+        // Dado
+        const { id } = await criar('ASSINA ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        const itemGrande = 'Depósito ' + 'x'.repeat(TAMANHO_TAREFA.titulo);
+        await SD.modeloCriar('Registro de marca ' + id, ['Busca prévia', itemGrande]);
+        // Quando
+        await SD.contratoMover(contratoId, await etapaDe('contratos', 'assinado'), 1);
+        const antes = await SD.demandasDoContrato(contratoId);
+        await SD.contratoAtualizar(contratoId, { objetos: ['Registro de marca ' + id] });
+        // Então: o título da tarefa fica no tamanho dela, como no banco
+        const depois = await SD.demandasDoContrato(contratoId);
+        const tarefas = await SD.tarefasDoContrato(contratoId);
+        expect(antes).toHaveLength(0);
+        expect(depois.map(d => d.objeto)).toEqual(['Registro de marca ' + id]);
+        expect(tarefas.map(t => t.titulo).toSorted((a, b) => a.localeCompare(b))).toEqual(['Busca prévia', itemGrande.slice(0, TAMANHO_TAREFA.titulo)]);
+      });
+
+      it('dado um contrato assinado com um objeto de verdade e um "A definir", quando o "A definir" é trocado, então só o novo vira demanda', async () => {
+        // Dado
+        const { id } = await criar('MISTO ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        await SD.contratoAtualizar(contratoId, { objetos: ['A definir', 'Oposição ' + id] });
+        await SD.contratoMover(contratoId, await etapaDe('contratos', 'assinado'), 1);
+        // Quando
+        await SD.contratoAtualizar(contratoId, { objetos: ['Registro ' + id, 'Oposição ' + id] });
+        // Então
+        expect((await SD.demandasDoContrato(contratoId)).map(d => d.objeto ?? '').toSorted((a, b) => a.localeCompare(b))).toEqual(['Oposição ' + id, 'Registro ' + id]);
+        // Quando: já sem "A definir", alguém corrige o nome de um objeto
+        await SD.contratoAtualizar(contratoId, { objetos: ['Registro de marca ' + id, 'Oposição ' + id] });
+        // Então: nenhuma demanda nova (como antes)
+        expect(await SD.demandasDoContrato(contratoId)).toHaveLength(2);
+      });
+
+      it('dado a conta de destino escolhida no contrato, quando o contrato é lido, então ela vem junto, e as contas aparecem para escolher', async () => {
+        // Dado
+        const { id } = await criar('CONTA ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        const conta = await SD.financeiroContaCriar({ nome: 'PJ ' + id, tem_das: true, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+        // Quando
+        await SD.contratoAtualizar(contratoId, { conta_destino_id: conta.id });
+        // Então
+        expect((await SD.contratoObter(contratoId))!.conta_destino_id).toBe(conta.id);
+        expect((await SD.contasParaEscolher()).map(c => c.nome)).toContain('PJ ' + id);
+      });
+
+      it('dado uma conta arquivada, quando alguém a escolhe como destino do contrato, então é recusado', async () => {
+        // Dado
+        const { id } = await criar('ARQUIVADA ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        const conta = await SD.financeiroContaCriar({ nome: 'PF ' + id, tem_das: false, saldo_inicial: 0, saldo_inicial_em: '2026-01-01' });
+        await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        const gravar = SD.contratoAtualizar(contratoId, { conta_destino_id: conta.id });
+        // Então
+        await expect(gravar).rejects.toThrow('Escolha uma conta ativa do escritório para o dinheiro deste contrato.');
+        expect((await SD.contasParaEscolher()).map(c => c.nome)).not.toContain('PF ' + id);
       });
     });
 

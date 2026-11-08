@@ -26,6 +26,7 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoContrato } from './CartaoContrato';
+import { avisarSeAssinadoSemObjeto } from './clienteAoContrato';
 import './Contratos.css';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
@@ -150,8 +151,10 @@ export default function Contratos() {
             const { de, para, ordem, ordemAnterior } = m;
             await SD.contratoMover(k.id, para, ordem);
             const voltar = async () => { await SD.contratoMover(k.id, de, ordemAnterior); };
-            if (de !== para) feito(`${k.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO}".`, 'movimentação do cartão', voltar);
-            else registrarDesfazer('mudança de posição do cartão', voltar);
+            if (de !== para) {
+              feito(`${k.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO}".`, 'movimentação do cartão', voltar);
+              avisarSeAssinadoSemObjeto(k.servico.split(';'), para, quadro.colunas, { rotulo: 'Abrir o contrato', fn: () => abrir(k.id) });
+            } else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/contratos/novo/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

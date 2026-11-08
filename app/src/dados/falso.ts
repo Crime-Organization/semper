@@ -22,7 +22,7 @@ import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato,
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
-import { limparObjetos, numeroContrato, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, veOContrato } from '../regras/contrato';
+import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
@@ -38,7 +38,7 @@ import { FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CA
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
-import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA } from './limites';
+import { DIAS_PARADO, PARCELAS_DA_PESSOA, TAMANHO_CONFERENCIA, TAMANHO_TAREFA } from './limites';
 import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLucro, ParaReceber, Parcela, ParcelaDoEscritorio, RecebimentoGravado, Repasse, Socio, ValorAPassar } from './tipos';
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
@@ -112,6 +112,10 @@ interface Banco {
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
   contratosComDemandas?: string[];
+  /** O contrato que nasceu de cada pessoa em "Contrato fechado" (privado.contratos_do_cliente_fechado no banco). */
+  contratosDoClienteFechado?: Record<string, string>;
+  /** Se as colunas do cliente ao contrato já foram preparadas (a migração roda uma vez só). */
+  colunasDoClienteAoContrato?: boolean;
   /** Cada lista é de uma demanda ou de uma tarefa (demanda_listas no banco). */
   listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
@@ -300,7 +304,7 @@ function contratoNovo(): ContratoGuardado {
   return {
     id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', clientes: [], responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
     valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
-    participantes: [], indicador_id: null, indicador_percentual: null, documento_url: null, observacoes: null,
+    participantes: [], indicador_id: null, indicador_percentual: null, documento_url: null, conta_destino_id: null, observacoes: null,
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
   };
 }
@@ -312,6 +316,30 @@ if (!bd.colunas.some(c => c.modulo === 'contratos')) {
 // A coluna "Assinado / em andamento" de Contratos é a coluna-marco do contrato assinado (como a migração 014).
 bd.colunas.forEach(c => { if (c.modulo === 'contratos' && c.id === 'k3') c.marco = 'assinado'; });
 bd.contratos ??= sementeContratos();
+bd.contratos.forEach(k => { k.conta_destino_id ??= null; });
+bd.contratosDoClienteFechado ??= {};
+// Do cliente ao contrato (como a migração cliente_ao_contrato): em Contratos, "Aguardando assinatura" é coluna-marco; em
+// Pessoas, entram "Em negociação" e "Contrato fechado" (coluna-marco), no fim do quadro, se ainda não existem.
+/** Meia posição: a coluna nova fica logo antes da do assinado (como a migração). */
+const MEIA_POSICAO = 0.5;
+if (!bd.colunasDoClienteAoContrato) {
+  bd.colunasDoClienteAoContrato = true;
+  const deContratos = bd.colunas.filter(c => c.modulo === 'contratos');
+  if (!deContratos.some(c => c.marco === 'aguardando_assinatura')) {
+    const mesmoNome = deContratos.find(c => normal(c.nome) === normal('Aguardando assinatura'));
+    const assinado = deContratos.find(c => c.marco === 'assinado');
+    if (mesmoNome) mesmoNome.marco = 'aguardando_assinatura';
+    else bd.colunas.push({ id: novoId(), nome: 'Aguardando assinatura', modulo: 'contratos', criado_por: null, marco: 'aguardando_assinatura',
+      ordem: assinado ? assinado.ordem - MEIA_POSICAO : Math.max(0, ...deContratos.map(c => c.ordem)) + 1 });
+  }
+  for (const [nome, marco] of [['Em negociação', null], ['Contrato fechado', 'contrato_fechado']] as const) {
+    const dePessoas = bd.colunas.filter(c => (c.modulo ?? 'pessoas') === 'pessoas');
+    if (marco && dePessoas.some(c => c.marco === marco)) continue;
+    const mesmoNome = dePessoas.find(c => normal(c.nome) === normal(nome));
+    if (mesmoNome) { if (marco) mesmoNome.marco = marco; continue; }
+    bd.colunas.push({ id: novoId(), nome, ordem: Math.max(0, ...dePessoas.map(c => c.ordem)) + 1, criado_por: null, marco });
+  }
+}
 bd.historicoContratos ??= [];
 // Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
@@ -729,6 +757,7 @@ const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
   participantes: ['participantes', lista => textoDosParticipantes((lista as ParticipanteGravado[] | null ?? [])
     .map(p => ({ nome: nomeDaPessoa(p.pessoa_id) ?? 'pessoa excluída', percentual: p.percentual })))],
   indicador_id: ['indicador_id', nomeDaPessoa],
+  conta_destino_id: ['conta_destino_id', id => bd.contasFinanceiras!.find(c => c.id === id)?.nome ?? null],
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
 };
@@ -859,13 +888,41 @@ function novaParcela(contratoId: string, dados: { vencimento: string; valor: num
 const historicoDaParcela = (contratoId: string, alteracoes: Historico['alteracoes']) => {
   bd.historicoParcelas!.unshift({ id: Date.now() + Math.random(), contrato_id: contratoId, alteracoes, feito_por: eu, em: agora() });
 };
-function demandasDoContratoAssinado(k: ContratoGuardado) {
+// "A definir" não vira demanda, e o contrato só fica marcado quando tem objeto de verdade; no contrato assinado que tinha
+// "A definir", os objetos que entram no lugar dele viram demandas (só esses). Cada demanda ganha as tarefas do modelo de
+// lista de mesmo nome (migração cliente_ao_contrato). antes: a coluna e os objetos de antes da mudança.
+function demandasDoContratoAssinado(k: ContratoGuardado, antes?: Pick<ContratoGuardado, 'etapa_id' | 'objetos'>) {
   const assinado = bd.colunas.find(c => c.id === k.etapa_id)?.marco === 'assinado';
-  if (!assinado || bd.contratosComDemandas!.includes(k.id)) return;
-  bd.contratosComDemandas!.push(k.id);
+  let objetos = objetosDefinidos(k.objetos);
+  if (!assinado || !objetos.length) return;
+  if (antes && (antes.etapa_id || null) === (k.etapa_id || null)) {
+    // Só os objetos mudaram, num contrato que já estava assinado: vale apenas para o que entra no lugar do "A definir".
+    if (objetosDefinidos(antes.objetos).length === limparObjetos(antes.objetos).length) return;
+    const jaTinha = new Set([...antes.objetos, ...bd.demandas!.filter(d => d.contrato_id === k.id).map(d => d.objeto ?? '')].map(normal));
+    objetos = objetos.filter(o => !jaTinha.has(normal(o)));
+    if (!objetos.length) return;
+    if (!bd.contratosComDemandas!.includes(k.id)) bd.contratosComDemandas!.push(k.id);
+  } else {
+    if (bd.contratosComDemandas!.includes(k.id)) return;
+    bd.contratosComDemandas!.push(k.id);
+  }
   const inicio = bd.colunas.find(c => c.modulo === 'demandas' && c.marco === 'inicio')?.id ?? null, base = Date.now() / 1000;
-  k.objetos.forEach((objeto, i) => bd.demandas!.push({ ...demandaNova(), id: novoId(), codigo: codigo(), titulo: objeto, objeto,
-    responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 }));
+  objetos.forEach((objeto, i) => {
+    const d: DemandaGuardada = { ...demandaNova(), id: novoId(), codigo: codigo(), titulo: objeto, objeto,
+      responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 };
+    bd.demandas!.push(d);
+    tarefasDoModelo(d);
+  });
+}
+/** Como privado.tarefas_do_modelo: a demanda ganha uma tarefa por item do modelo de lista com o mesmo nome do objeto. */
+function tarefasDoModelo(d: DemandaGuardada) {
+  const modelo = bd.modelos!.find(m => normal(m.nome) === normal(d.objeto));
+  const itens = (modelo?.itens ?? []).map(i => i.trim()).filter(Boolean);
+  if (!itens.length) return;
+  const inicio = bd.colunas.find(c => c.modulo === 'tarefas' && c.marco === 'inicio')?.id ?? null, base = Date.now() / 1000;
+  // O título da tarefa tem o tamanho dela (o item do modelo pode ser maior), como no banco.
+  itens.forEach((item, i) => bd.tarefas!.push({ ...tarefaNova(), id: novoId(), codigo: codigo(), titulo: item.slice(0, TAMANHO_TAREFA.titulo), responsavel_id: d.responsavel_id, pessoas: [...d.clientes],
+    demanda_id: d.id, demanda_codigo: d.codigo, contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 }));
 }
 const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: DemandaGuardada): DemandaLigada => ({
   id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
@@ -1503,6 +1560,10 @@ function ajustarParticipantes(dados: DadosContrato, atual?: ContratoGuardado): D
   });
   return dados.participantes === undefined ? dados : { ...dados, participantes: lista.map(p => ({ pessoa_id: p.pessoa_id, percentual: p.percentual })) };
 }
+/** Como o gatilho conta_destino: a conta de destino do contrato é uma conta ativa do escritório. */
+function conferirContaDeDestino(id: string | null | undefined) {
+  if (id && !bd.contasFinanceiras!.some(c => c.id === id && !c.arquivada_em)) throw new Error('Escolha uma conta ativa do escritório para o dinheiro deste contrato.');
+}
 /** Como o gatilho da migração 015: o responsável é sempre um advogado da equipe (conferido ao criar e ao trocar). */
 function conferirResponsavel(id: string | undefined) {
   if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
@@ -1539,7 +1600,8 @@ const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
 };
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
-const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetos]); };
+// "A definir" não entra nas sugestões (como privado.guardar_objetos).
+const guardarObjetos = (objetos: string[]) => { bd.objetosSugeridos = limparObjetos([...bd.objetosSugeridos!, ...objetosDefinidos(objetos)]); };
 /** Pessoas que aparecem em algum contrato (cliente, participante ou indicador) não podem ser excluídas. */
 const temContrato = (pessoaId: string) => bd.contratos!.some(k =>
   [...k.clientes, k.indicador_id].includes(pessoaId) || k.participantes.some(p => p.pessoa_id === pessoaId));
@@ -1804,11 +1866,28 @@ export const SD: Dados = {
     const sigla = resp ? siglaAdvogado(resp.nome, bd.pessoas.find(p => p.id === resp.pessoa_id)?.documento) : null;
     if (!resp || !sigla) return erro(`Cadastre o CPF de ${resp?.nome || 'quem é o responsável'} em Pessoas para gerar o número do contrato.`);
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados)));
+    conferirContaDeDestino(d.conta_destino_id);
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
     bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
+  // Como public.pessoa_fechar_contrato: uma vez só por pessoa; o responsável é quem moveu (se é advogado) ou o primeiro
+  // advogado responsável pela pessoa. No banco fictício, o módulo Contratos está sempre ligado.
+  async pessoaFecharContrato(pessoaId) {
+    const p = achar(pessoaId);
+    const anterior = bd.contratos!.find(k => k.id === bd.contratosDoClienteFechado![pessoaId] && !k.arquivado_em);
+    if (anterior) return espera({ id: anterior.id, codigo: anterior.codigo, novo: false });
+    const advogado = (id: string) => EQUIPE.find(m => m.id === id && m.funcao === 'advogado' && m.ativo)?.id;
+    const responsavel = advogado(eu) ?? p.resp.map(r => advogado(r.perfil_id)).find(Boolean);
+    if (!responsavel) return erro('O contrato não nasceu: inclua um advogado entre os responsáveis por esta pessoa (no cartão dela) e mova de novo.');
+    const etapa = bd.colunas.find(c => c.modulo === 'contratos' && c.marco === 'aguardando_assinatura')?.id ?? null;
+    const { id, codigo: numero } = await SD.contratoCriar({ clientes: [pessoaId], responsavel_id: responsavel, objetos: [OBJETO_A_DEFINIR], categoria: 'pro_labore',
+      etapa_id: etapa, etapa_ordem: Date.now() / 1000 });
+    bd.contratosDoClienteFechado![pessoaId] = id; gravar();
+    return espera({ id, codigo: numero, novo: true });
+  },
+  contasParaEscolher: () => espera(bd.contasFinanceiras!.filter(c => !c.arquivada_em).map(({ id, nome }) => ({ id, nome }))),
   async contratoAtualizar(id, dados) {
     const k = acharContrato(id);
     if (dados.responsavel_id !== undefined && dados.responsavel_id !== k.responsavel_id) conferirResponsavel(dados.responsavel_id);
@@ -1816,10 +1895,11 @@ export const SD: Dados = {
     const d = ajustarClientes(ajustarParticipantes(ajustarObjetos(dados, k), k), k);
     // Como no banco, a leitura confere também a linha nova: quem deixaria de ver o contrato não grava.
     if (!vejoContrato({ ...k, ...d })) return erro('Você não tem permissão para fazer isso.');
+    if (d.conta_destino_id !== undefined && d.conta_destino_id !== k.conta_destino_id) conferirContaDeDestino(d.conta_destino_id);
     historicoContrato(k, d);
-    const etapaAntes = k.etapa_id;
+    const etapaAntes = k.etapa_id, antes = { etapa_id: k.etapa_id, objetos: [...k.objetos] };
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
-    guardarObjetos(k.objetos); demandasDoContratoAssinado(k);
+    guardarObjetos(k.objetos); demandasDoContratoAssinado(k, antes);
     // Como o gatilho do banco: só quando a coluna muda.
     if (k.etapa_id !== etapaAntes) parcelasDoContratoAssinado(k);
     auditar('contratos', 'alteracao', k); gravar();
@@ -1857,7 +1937,8 @@ export const SD: Dados = {
     if ((k.etapa_id || null) !== (etapaId || null)) {
       bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
     }
-    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); gravar();
+    const antes = { etapa_id: k.etapa_id, objetos: [...k.objetos] };
+    Object.assign(k, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); demandasDoContratoAssinado(k, antes); parcelasDoContratoAssinado(k); gravar();
   },
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id && vejoContratoDoId(id))),
   objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),

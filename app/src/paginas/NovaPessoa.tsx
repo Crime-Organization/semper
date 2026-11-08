@@ -4,6 +4,7 @@ import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { contratoDaPessoaFechada } from './clienteAoContrato';
 import {
   cnpjValido, dig, ehIndividual, ENTIDADES, faltaNoveCelular, fmtCEP, fmtCNPJ,
   fmtCPF, fmtData, fmtTelefone, lerData, limparDocumento, MASCARAS, telefoneNormal, UFS, variantesTelefone
@@ -326,7 +327,11 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
         enviarParaPlanilhaAntiga(dados, resp, ctx); // PROVISORIO-219
+        // Cadastrada direto em "Contrato fechado", ela ganha um contrato: desfazer o cadastro apaga o contrato também
+        // (a pessoa com contrato não pode ser excluída).
+        let contratoNascido: string | null = null;
         feito('Pessoa cadastrada.', 'cadastro da pessoa', async () => {
+          if (contratoNascido) { await SD.contratosArquivar([contratoNascido], true); await SD.contratosExcluir([contratoNascido]); }
           await SD.pessoasArquivar([r.id], true);
           const x = await SD.pessoasExcluir([r.id]);
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
@@ -334,6 +339,9 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           return { tipo: 'pessoaCriada', id: r.id };
         });
         navegar('/pessoas/?id=' + r.id);
+        // Cadastrada direto em "Contrato fechado": o contrato dela nasce também.
+        if (etapaInicial) void SD.colunasListar('pessoas').then(colunas => contratoDaPessoaFechada({ id: r.id, nome: dados.nome ?? '' }, etapaInicial, colunas, navegar))
+          .then(k => { if (k?.novo) contratoNascido = k.id; });
       }
     } catch (e) {
       falha(e);

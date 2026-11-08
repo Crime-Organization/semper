@@ -5,6 +5,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { SD, type AcessoSigilo, type Coluna, type ContratoDaPessoa, type Historico, type Pessoa, type Sigilo, type Vinculo } from '../dados';
 import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
+import { useNavigate } from 'react-router';
+import { contratoDaPessoaFechada } from './clienteAoContrato';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
@@ -44,6 +46,7 @@ interface Props {
 
 export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: Props) {
   const ctx = useCtx();
+  const navegar = useNavigate();
   const eu = ctx.perfil.id;
   const [p, setP] = useState<Pessoa | null | undefined>(undefined);   // undefined: carregando; null: não existe
   const [erro, setErro] = useState('');
@@ -140,6 +143,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       await SD.pessoaMover(p!.id, etapa, ordem);
       setP({ ...p!, etapa_id: etapa, etapa_ordem: ordem });
       feito(etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : 'Pessoa sem etapa.', 'mudança de etapa', async () => { await SD.pessoaMover(p!.id, de, ordemDe); });
+      // Em "Contrato fechado", o contrato dela nasce (e o cartão recarrega sozinho para mostrá-lo).
+      if (etapa !== de) void contratoDaPessoaFechada(p!, etapa, quadro.colunas, navegar);
       aoMudar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }

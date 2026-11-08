@@ -497,6 +497,42 @@ test.describe('A entrada completa (#266)', () => {
   });
 });
 
+test.describe('A conta de destino do contrato (#269)', () => {
+  test.beforeEach(async ({ page }) => { await prepararCaixa(page); });
+
+  test('quando o contrato tem a conta de destino, então o cartão mostra o nome dela e a nova entrada já vem com ela escolhida', async ({ page }) => {
+    // Dado: além da PJ (com DAS, a que a nova entrada sugeriria sozinha), uma conta PF sem DAS
+    await page.goto('/financeiro/contas/');
+    await abrirSecao(page, 'Contas');
+    await page.getByRole('button', { name: 'Nova conta' }).click();
+    const nova = page.getByRole('form', { name: 'Nova conta' });
+    await nova.getByLabel('Nome da conta').fill('PF');
+    await nova.getByLabel('Saldo inicial').fill('0,00');
+    await nova.getByLabel('Em que dia').fill('2020-01-01');
+    await nova.getByRole('button', { name: 'Criar conta' }).click();
+    await expect(nova).toHaveCount(0);
+    const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByText('100% do que o cliente pagar').click();
+    // Quando
+    await cartao.getByLabel('Conta de destino').selectOption({ label: 'PF' });
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então: o cartão mostra o nome da conta
+    await abrirSecao(cartao, 'Honorários');
+    await expect(cartao.getByRole('definition').filter({ hasText: /^PF$/ })).toBeVisible();
+    await cartao.getByRole('button', { name: 'Gerar parcelas' }).click();
+    await expect(cartao.getByRole('button', { name: 'Receber a parcela 1' })).toBeVisible();
+    // Quando
+    await page.goto('/financeiro/');
+    await page.getByRole('button', { name: 'Nova entrada' }).click();
+    const janela = page.getByRole('form', { name: 'Nova entrada' });
+    const contrato = await page.locator('datalist option').evaluateAll(ops => (ops as HTMLOptionElement[]).map(o => o.value).find(v => v.includes('JOSÉ')) ?? '');
+    await janela.getByLabel('Buscar o contrato').fill(contrato);
+    // Então: vem a PF do contrato, e não a PJ que seria a sugerida
+    await expect(janela.getByLabel('Conta', { exact: true }).locator('option:checked')).toHaveText(/PF/);
+  });
+});
+
 test.describe('Corrigir uma parcela já recebida (#267)', () => {
   test.beforeEach(async ({ page }) => { await prepararCaixa(page); });
 
