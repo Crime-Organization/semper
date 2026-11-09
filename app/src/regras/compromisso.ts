@@ -213,7 +213,8 @@ export const participaDoCompromisso = (c: QuemEstaNoCompromisso, m: Membro, proc
   || (!!processo && (m.id === processo.criado_por || m.id === processo.responsavel_id || processo.colaboradores.includes(m.id)));
 /** Na tela: quem pode mudar. Quem o vê pelo processo ligado recebe o processo junto; os outros recebem null. */
 export const podeMudarCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'processo'>, eu: string, ehAdmin: boolean) =>
-  ehAdmin || eu === c.criado_por || eu === c.responsavel_id || c.participantes.includes(eu) || !!c.processo;
+  ehAdmin || eu === c.criado_por || eu === c.responsavel_id || c.participantes.includes(eu)
+  || (!!c.processo && (eu === c.processo.criado_por || eu === c.processo.responsavel_id || c.processo.colaboradores.includes(eu)));
 /**
  * Na lista: o compromisso está aí só porque é da Agenda geral? A lista não sabe se a pessoa vê o processo ligado, então quem o
  * vê por ele muda as etiquetas pelo cartão, e o banco tem a palavra final.

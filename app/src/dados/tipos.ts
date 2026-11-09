@@ -193,6 +193,8 @@ export type CategoriaHonorario = 'pro_labore' | 'quota_litis' | 'sucumbencia' | 
  * sequencial do escritório e ano de criação. Valores em reais; percentuais de 0 a 100.
  */
 export interface Contrato {
+  /** false: quem lê não é parte do contrato, e o que é financeiro vem vazio (contratos_da_equipe). Sem o campo: leu a tabela, e é parte. */
+  ve_financeiro?: boolean;
   id: string;
   codigo: string;
   numero: number;
@@ -262,9 +264,11 @@ export interface ContaParaEscolher { id: string; nome: string }
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
-  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome'> & ComEtiquetas;
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome' | 've_financeiro'> & ComEtiquetas;
 
 export interface FiltroContratos {
+  /** Só os contratos a que a pessoa pode ligar uma demanda ou tarefa: aqueles de que é parte. */
+  paraLigar?: boolean;
   termo?: string;
   etiqueta?: string;
   responsavel?: string;
@@ -319,6 +323,8 @@ export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titul
 export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
+  /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
+  paraLigar?: boolean;
   termo?: string;
   etiqueta?: string;
   /** Um usuário da equipe: as demandas em que ele é o responsável ou um colaborador. */
@@ -509,6 +515,8 @@ export interface DadosContratos {
   contratosListar(f?: FiltroContratos): Promise<Pagina<ContratoLista>>;
   contratosDaEtapa(etapaId: string | null, f?: FiltroContratos, deslocamento?: number, limite?: number): Promise<Pagina<ContratoLista>>;
   contratoObter(id: string): Promise<Contrato | null>;
+  /** O contrato como o cartão mostra: inteiro para quem é parte; para o resto da equipe, sem os valores, se a chave do escritório estiver ligada. */
+  contratoVer(id: string): Promise<Contrato | null>;
   contratoCriar(dados: DadosContrato): Promise<{ id: string; codigo: string }>;
   /**
    * A pessoa que chegou à coluna "Contrato fechado" ganha um contrato em "Aguardando assinatura", com ela como cliente e

@@ -27,7 +27,7 @@ type MenuAberto = { botao: HTMLElement; lista: ListaDoCartao; item?: ItemDaLista
 /** Menu de "Adicionar lista": em branco ou a partir de um modelo (carregados ao abrir). */
 type MenuNova = { botao: HTMLElement; modelos: ModeloDeLista[] | null };
 
-export function ListasDoCartao({ modulo, id }: { modulo: CartaoComListas; id: string }) {
+export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: CartaoComListas; id: string; somenteLer?: boolean }) {
   const [listas, setListas] = useState<ListaDoCartao[] | string | null>(null);
   const [menu, setMenu] = useState<MenuAberto | null>(null);
   const [menuNova, setMenuNova] = useState<MenuNova | null>(null);
@@ -91,9 +91,9 @@ export function ListasDoCartao({ modulo, id }: { modulo: CartaoComListas; id: st
       : typeof listas === 'string' ? <Aviso tipo="erro">{listas}</Aviso>
       : <>
         {!listas.length && <Nota>{DO_CARTAO[modulo].vazio}</Nota>}
-        {listas.map(l => <Lista key={l.id} lista={l} aoMarcar={marcar}
+        {listas.map(l => <Lista key={l.id} lista={l} somenteLer={somenteLer} aoMarcar={marcar}
           aoAcrescentar={texto => mexer(() => SD.itemCriar(l.id, texto))} aoAbrirMenu={(botao, item) => setMenu({ botao, lista: l, item })} />)}
-        <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> Adicionar lista</button></div>
+        {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> Adicionar lista</button></div>}
       </>}
     {menuNova && <MenuFlutuante botao={menuNova.botao} aoFechar={() => setMenuNova(null)} rotulo="Adicionar lista">
       <button type="button" role="menuitem" onClick={() => { setMenuNova(null); void novaLista(); }}><Icone nome="mais" tam={15} /> Lista em branco</button>
@@ -133,8 +133,8 @@ export function ListasDoCartao({ modulo, id }: { modulo: CartaoComListas; id: st
   </Recolhivel>;
 }
 
-function Lista({ lista, aoMarcar, aoAcrescentar, aoAbrirMenu }: {
-  lista: ListaDoCartao; aoMarcar: (item: ItemDaLista, feito: boolean) => void; aoAcrescentar: (texto: string) => Promise<void>;
+function Lista({ lista, somenteLer, aoMarcar, aoAcrescentar, aoAbrirMenu }: {
+  somenteLer: boolean; lista: ListaDoCartao; aoMarcar: (item: ItemDaLista, feito: boolean) => void; aoAcrescentar: (texto: string) => Promise<void>;
   aoAbrirMenu: (botao: HTMLElement, item?: ItemDaLista) => void;
 }) {
   const [novo, setNovo] = useState('');
@@ -150,7 +150,7 @@ function Lista({ lista, aoMarcar, aoAcrescentar, aoAbrirMenu }: {
     <header>
       <h4>{lista.nome}</h4>
       <span className="nota">{feitos} de {total}</span>
-      <button type="button" className="icone-btn" aria-label={`Ações da lista ${lista.nome}`} onClick={e => aoAbrirMenu(e.currentTarget)}><Icone nome="pontos" tam={16} /></button>
+      {!somenteLer && <button type="button" className="icone-btn" aria-label={`Ações da lista ${lista.nome}`} onClick={e => aoAbrirMenu(e.currentTarget)}><Icone nome="pontos" tam={16} /></button>}
     </header>
     <div className="lista-progresso" role="progressbar" aria-label={`Progresso da lista ${lista.nome}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percentual}>
       <i style={{ width: percentual + '%' }} />
@@ -158,15 +158,15 @@ function Lista({ lista, aoMarcar, aoAcrescentar, aoAbrirMenu }: {
     <ul>{lista.itens.map(item => {
       const prazo = prazoDoItem(item, hoje);
       return <li key={item.id} className={item.feito_em ? 'feito' : undefined}>
-        <label><input type="checkbox" checked={!!item.feito_em} onChange={e => aoMarcar(item, e.target.checked)} /><span>{item.texto}</span></label>
+        <label><input type="checkbox" checked={!!item.feito_em} disabled={somenteLer} onChange={e => aoMarcar(item, e.target.checked)} /><span>{item.texto}</span></label>
         {item.prazo && (prazo ? <Selo tipo={SELO_DO_PRAZO[prazo]}>{ROTULOS_PRAZO[prazo]}: {fmtData(item.prazo)}</Selo> : <span className="nota">{fmtData(item.prazo)}</span>)}
-        <button type="button" className="icone-btn" aria-label={`Ações do item ${item.texto}`} onClick={e => aoAbrirMenu(e.currentTarget, item)}><Icone nome="pontos" tam={15} /></button>
+        {!somenteLer && <button type="button" className="icone-btn" aria-label={`Ações do item ${item.texto}`} onClick={e => aoAbrirMenu(e.currentTarget, item)}><Icone nome="pontos" tam={15} /></button>}
       </li>;
     })}</ul>
-    <form className="lista-novo-item" onSubmit={acrescentar}>
+    {!somenteLer && <form className="lista-novo-item" onSubmit={acrescentar}>
       <input type="text" className="campo" aria-label={`Novo item da lista ${lista.nome}`} placeholder="Adicionar um item…" maxLength={TAMANHO_ITEM}
         value={novo} onChange={e => setNovo(e.target.value)} />
       <button type="submit" className={estiloBotao({ pequeno: true })} disabled={!novo.trim()}>Adicionar</button>
-    </form>
+    </form>}
   </section>;
 }

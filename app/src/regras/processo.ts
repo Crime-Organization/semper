@@ -257,5 +257,9 @@ const CONFERE_PAPEL: Record<PapelNoProcesso, (p: PessoasDoProcesso, pessoaId: st
   colaborador: (p, _id, perfil) => !!perfil && p.colaboradores.includes(perfil)
 };
 /** Os papéis da pessoa no processo (vazio: ela não está nele). */
+/** Quem altera o processo (como a regra do banco): os administradores, quem criou, o responsável e os colaboradores. */
+export const alteraOProcesso = (p: { criado_por: string | null; responsavel_id: string; colaboradores: string[] }, m: { id: string; papel: string }) =>
+  m.papel === 'master' || m.papel === 'admin' || m.id === p.criado_por || m.id === p.responsavel_id || p.colaboradores.includes(m.id);
+
 export const papeisNoProcesso = (p: PessoasDoProcesso, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNoProcesso[]).filter(papel => CONFERE_PAPEL[papel](p, pessoaId, perfilId));

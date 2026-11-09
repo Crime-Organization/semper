@@ -17,6 +17,7 @@ import { hojeISO } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 
 interface Props {
+  somenteLer?: boolean;
   demandaId: string;
   /** Muda quando o cartão muda: relê a lista. */
   versao: number;
@@ -24,7 +25,7 @@ interface Props {
   aoMudar: () => void;
 }
 
-export function TarefasDaDemanda({ demandaId, versao, aoMudar }: Props) {
+export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = false }: Props) {
   const [tarefas, setTarefas] = useState<TarefaLigada[] | string | null>(null);
   const [colunas, setColunas] = useState<Coluna[]>([]);
   const [recarga, setRecarga] = useState(0);
@@ -65,7 +66,7 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar }: Props) {
       <ul>{ativas.map(t => {
         const feita = t.etapa_id === concluida, prazo = situacaoDoPrazo(t.prazo, hojeISO());
         return <li key={t.id} className={feita ? 'feito' : undefined}>
-          <label><input type="checkbox" checked={feita} disabled={!concluida} aria-label={`Concluir ${t.titulo}`}
+          <label><input type="checkbox" checked={feita} disabled={!concluida || somenteLer} aria-label={`Concluir ${t.titulo}`}
             onChange={e => void marcar(t, e.target.checked)} /><span>{t.titulo}</span></label>
           <span className="nota tarefa-da-demanda-situacao">{situacao(t.etapa_id)}{prazo && !feita ? ` · ${ROTULOS_PRAZO[prazo]}: ${fmtData(t.prazo)}` : ''}</span>
           <Link className="icone-btn" to={'/tarefas/?id=' + t.id} aria-label={`Abrir a tarefa ${t.titulo}`} title="Abrir a tarefa"><Icone nome="seta" tam={15} /></Link>
@@ -73,6 +74,6 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar }: Props) {
       })}</ul>
     </>}
     {!ativas.length && <Nota>Nenhuma tarefa nesta demanda ainda.</Nota>}
-    <div><BotaoLink forma="mini" to={'/tarefas/nova/?demanda=' + demandaId}><Icone nome="mais" tam={13} /> Nova tarefa desta demanda</BotaoLink></div>
+    {!somenteLer && <div><BotaoLink forma="mini" to={'/tarefas/nova/?demanda=' + demandaId}><Icone nome="mais" tam={13} /> Nova tarefa desta demanda</BotaoLink></div>}
   </div>;
 }

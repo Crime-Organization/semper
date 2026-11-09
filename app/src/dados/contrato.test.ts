@@ -4637,6 +4637,139 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
     await expect(SD.comentarioEditar(comentario, 'Veja, @ana.lima')).rejects.toThrow('Só quem escreveu o comentário pode editá-lo.');
   });
 
+  describe('Toda a equipe vê os contratos, sem os valores (#271)', () => {
+    const chave = (ligada: boolean) => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(ligada);
+    afterEach(() => chave(false));
+
+    it('dada a chave desligada, quando quem não é parte abre o contrato, então não vê nada', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect(await SD.contratoVer(id)).toBeNull();
+    });
+
+    it('dada a chave ligada, quando quem não é parte abre o contrato, então vê o número e os clientes, sem o que é financeiro', async () => {
+      // Dado
+      const { id, codigo } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      const k = await SD.contratoVer(id);
+      // Então
+      expect(k).toMatchObject({ ve_financeiro: false, codigo, categoria: null, valor: null, entrada: null, parcelas: null, descontos: null, primeiro_pagamento: null,
+        percentual_escritorio: null, indicador: null, indicador_percentual: null, conta_destino_id: null, documento_url: null, observacoes: null });
+      expect(k?.clientes.length).toBeGreaterThan(0);
+      expect(k?.participantes.every(p => p.percentual === null)).toBe(true);
+    });
+
+    it('dada a chave ligada, quando quem não é parte lista os contratos, então a linha vem sem valor', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      const linha = (await SD.contratosListar({ porPagina: 500 })).linhas.find(k => k.id === id);
+      // Então
+      expect(linha).toMatchObject({ ve_financeiro: false, valor: null, categoria: null });
+    });
+
+    it('dada a chave ligada, quando quem não é parte pede o contrato para editar, então não recebe', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect(await SD.contratoObter(id)).toBeNull();
+    });
+
+    it('dada a chave ligada, quando quem não é parte pede o histórico, então não recebe nada', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect(await SD.contratoHistorico(id)).toEqual([]);
+    });
+
+    it('dada a chave ligada, quando quem é parte abre o contrato, então vê tudo', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      const k = await SD.contratoVer(id);
+      // Então
+      expect(k?.ve_financeiro).not.toBe(false);
+      expect(k?.categoria).not.toBeNull();
+    });
+
+    it('dada a chave ligada, quando quem não é parte comenta no contrato, então o comentário fica', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      await SD.comentarioCriar('contratos', id, 'Dúvida sobre este contrato');
+      // Então
+      expect((await SD.comentariosListar('contratos', id)).map(c => c.texto)).toContain('Dúvida sobre este contrato');
+    });
+
+    it('dada a chave ligada, quando quem só lê tenta mover ou arquivar a demanda, então nada muda', async () => {
+      // Dado
+      const demanda = await SD.demandaCriar({ titulo: 'Da Ana', responsavel_id: 'u-ana', clientes: ['p-ana'] });
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      await expect(SD.demandaMover(demanda.id, null, null)).rejects.toThrow('permissão');
+      expect(await SD.demandasArquivar([demanda.id], true)).toBe(0);
+    });
+
+    it('dada a chave ligada, quando quem só lê filtra por categoria, então os contratos alheios não aparecem', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      const categoria = 'pro_labore';
+      const linhas = (await SD.contratosListar({ categoria, porPagina: 500 })).linhas;
+      // Então
+      expect(linhas.map(k => k.id)).not.toContain(id);
+    });
+
+    it('dada a chave ligada, quando quem só lê procura o que ligar, então só vêm os cartões em que ele está', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      const demanda = await SD.demandaCriar({ titulo: 'Da Ana', responsavel_id: 'u-ana', clientes: ['p-ana'] });
+      chave(true);
+      // Quando
+      entrarComo('u-bruno');
+      const contratos = (await SD.contratosListar({ paraLigar: true, porPagina: 500 })).linhas.map(k => k.id);
+      const demandas = (await SD.demandasListar({ paraLigar: true, porPagina: 500 })).linhas.map(d => d.id);
+      // Então
+      expect(contratos).not.toContain(id);
+      expect(demandas).not.toContain(demanda.id);
+    });
+
+    it('dada a chave ligada, quando alguém menciona quem não está na demanda, então a menção é aceita', async () => {
+      // Dado
+      const demanda = await SD.demandaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana', clientes: ['p-ana'] });
+      chave(true);
+      // Quando / Então
+      await expect(SD.comentarioCriar('demandas', demanda.id, 'Veja, @bruno.souza')).resolves.toBeTruthy();
+    });
+
+    it('dada a chave desligada, quando alguém menciona quem não está na demanda, então a menção é recusada', async () => {
+      // Dado
+      const demanda = await SD.demandaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana', clientes: ['p-ana'] });
+      // Quando / Então
+      await expect(SD.comentarioCriar('demandas', demanda.id, 'Veja, @bruno.souza')).rejects.toThrow('Não é possível mencionar');
+    });
+  });
+
   it('dada uma demanda ligada a um contrato alheio, quando a conta comum a abre, então vê o número, mas não o contrato', async () => {
     // Dado
     const { id, codigo } = await novoContrato();

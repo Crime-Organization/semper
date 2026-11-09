@@ -145,7 +145,7 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
-const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos(id, codigo, servico), '
+const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
   + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo)), '
   + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
   + 'demanda:demandas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), tarefa:tarefas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), '
@@ -192,15 +192,22 @@ function mensagemLida(l: LinhaDaMensagem): Mensagem {
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id' };
 
+/** Quem vê o cartão sem estar nele não altera: nenhuma linha muda, e o quadro precisa voltar o cartão. */
+const conferirQueMudou = (linha: unknown) => { if (!linha) throw new Error('Você não tem permissão para fazer isso.'); };
+
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
-const CAMPOS_CONTRATO_LISTA = 'id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
+const CAMPOS_CONTRATO_LISTA = 've_financeiro, id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
   + 'criado_por, criado_em, atualizado_em, cliente_nome';
 const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
   + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
   + 'documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), clientela:contrato_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + `participacoes:contrato_participantes(percentual, ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
+/** Os mesmos campos, lidos da view: ela já traz os clientes e os participantes prontos. O indicador não vem: quem não é parte não o vê. */
+const CAMPOS_CONTRATO_DA_EQUIPE = 've_financeiro, id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
+  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, '
+  + 'arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, clientela, participacoes';
 /** Clientes e participantes do contrato na ordem do cadastro (o banco os copia das listas gravadas no contrato). */
 type ContratoLido = Omit<Contrato, 'clientes' | 'participantes'> & {
   clientela: { ordem: number; pessoa: PessoaResumida }[]; participacoes: (Participacao & { ordem: number })[];
@@ -220,6 +227,7 @@ const ORDENS_CONTRATO: Record<Ordem, (q: Livre) => Livre> = {
 const ordenarContratos = (q: Livre, ordem: Ordem) => ORDENS_CONTRATO[ordem](q).order('id');
 function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
   q = porEtiqueta(q, f);
+  if (f.paraLigar) q = q.eq('ve_financeiro', true);
   q = f.situacao === 'arquivados' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.responsavel) q = q.eq('responsavel_id', f.responsavel);
   if (f.categoria) q = q.eq('categoria', f.categoria);
@@ -249,6 +257,7 @@ const ORDENS_PELO_TITULO: Record<Ordem, (q: Livre) => Livre> = {
 const ordenarPeloTitulo = (q: Livre, ordem: Ordem) => ORDENS_PELO_TITULO[ordem](q).order('id');
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   q = porEtiqueta(q, f);
+  if (f.paraLigar && ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
   const t = termoBusca(f.termo);
@@ -676,12 +685,12 @@ export const SD: Dados = {
   // ---------- contratos ----------
   async contratosListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarContratos(sb.from('contratos').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
+    const q = filtrarContratos(sb.from('contratos_da_equipe').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
     const { data, count } = await rodar(ordenarContratos(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async contratosDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    let q = filtrarContratos(sb.from('contratos').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
+    let q = filtrarContratos(sb.from('contratos_da_equipe').select(comEtiquetas(CAMPOS_CONTRATO_LISTA, 'contratos', f), { count: 'exact' }), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarContratos(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
@@ -689,6 +698,13 @@ export const SD: Dados = {
   async contratoObter(id) {
     const { data } = await rodar(sb.from('contratos').select(CAMPOS_CONTRATO).eq('id', id).maybeSingle());
     return data ? comParticipantes(data) : null;
+  },
+  async contratoVer(id) {
+    const { data } = await rodar(sb.from('contratos').select(CAMPOS_CONTRATO).eq('id', id).maybeSingle());
+    if (data) return comParticipantes(data);
+    // Quem não é parte não lê a tabela: a view devolve a linha sem os valores, ou nada, com a chave do escritório desligada.
+    const { data: daEquipe } = await rodar(sb.from('contratos_da_equipe').select(CAMPOS_CONTRATO_DA_EQUIPE).eq('id', id).maybeSingle());
+    return daEquipe ? { ...comParticipantes(daEquipe), indicador: null } : null;
   },
   // O número (sigla, sequencial e ano) é dado pelo banco ao gravar.
   async contratoCriar(dados) {
@@ -727,21 +743,22 @@ export const SD: Dados = {
   // lidos à parte.
   async contratosDaPessoa(pessoaId, perfilId = null) {
     type Linha = { id: string; codigo: string; servico: string; etapa_id: string | null; arquivado_em: string | null; criado_em: string;
-      clientes: string[]; responsavel_id: string; indicador_id: string | null; participacoes: { pessoa_id: string }[] };
-    const campos = 'id, codigo, servico, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, indicador_id, participacoes:contrato_participantes(pessoa_id)';
+      clientes: string[]; responsavel_id: string; indicador_id: string | null; participantes: { pessoa_id: string }[] };
+    const campos = 'id, codigo, servico, etapa_id, arquivado_em, criado_em, clientes, responsavel_id, indicador_id, participantes';
     const filtros = [`indicador_id.eq.${pessoaId}`, ...(perfilId ? [`responsavel_id.eq.${perfilId}`] : [])];
     const ligados = (tabela: string) => rodar(sb.from(tabela).select('contrato_id').eq('pessoa_id', pessoaId).limit(CONTRATOS_DA_PESSOA));
-    const [diretos, cliente, participa] = await Promise.all([
-      rodar(sb.from('contratos').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(CONTRATOS_DA_PESSOA)),
-      ligados('contrato_clientes'), ligados('contrato_participantes')
+    const [diretos, cliente, participa] = await Promise.all([ // quem não é parte não lê contrato_participantes: a view traz a lista
+      rodar(sb.from('contratos_da_equipe').select(campos).or(filtros.join(',')).order('criado_em', { ascending: false }).limit(CONTRATOS_DA_PESSOA)),
+      ligados('contrato_clientes'),
+      rodar(sb.from('contratos_da_equipe').select('contrato_id:id').contains('participantes', JSON.stringify([{ pessoa_id: pessoaId }])).limit(CONTRATOS_DA_PESSOA))
     ]);
     const lidos: Linha[] = diretos.data;
     const faltam = [...new Set([...cliente.data, ...participa.data].map((x: { contrato_id: string }) => x.contrato_id))].filter(id => !lidos.some(k => k.id === id));
-    const outros: Linha[] = faltam.length ? (await rodar(sb.from('contratos').select(campos).in('id', faltam))).data : [];
+    const outros: Linha[] = faltam.length ? (await rodar(sb.from('contratos_da_equipe').select(campos).in('id', faltam))).data : [];
     return [...lidos, ...outros]
       .toSorted((a, b) => b.criado_em.localeCompare(a.criado_em))
-      .map(({ participacoes, clientes, responsavel_id, indicador_id, ...k }) => ({ ...k,
-        papeis: papeisNoContrato({ clientes, responsavel_id, indicador_id, participantes: participacoes.map(p => p.pessoa_id) }, pessoaId, perfilId) }));
+      .map(({ participantes, clientes, responsavel_id, indicador_id, ...k }) => ({ ...k,
+        papeis: papeisNoContrato({ clientes, responsavel_id, indicador_id, participantes: participantes.map(p => p.pessoa_id) }, pessoaId, perfilId) }));
   },
   // O banco guarda cada objeto salvo num contrato na lista do escritório (supabase/migrations/20261027000010_contrato_objetos.sql).
   async objetosSugeridos() {
@@ -787,7 +804,7 @@ export const SD: Dados = {
     return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só demandas arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
   },
   async demandaMover(id, etapaId, ordem) {
-    await rodar(sb.from('demandas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+    conferirQueMudou((await rodar(sb.from('demandas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
   },
   async demandaHistorico(id) {
     const { data } = await rodar(sb.from('demanda_historico').select('id, alteracoes, feito_por, em')
@@ -883,6 +900,8 @@ export const SD: Dados = {
   },
   async processosParaLigar(termo = '') {
     let q = sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome').is('arquivado_em', null);
+    // Com a chave da equipe ligada, todos veem todos os processos, mas o banco só deixa ligar a quem está no processo.
+    if (ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
     const t = termoBusca(termo);
     if (t) q = q.ilike('busca', `%${t}%`);
     const { data } = await rodar(q.order('criado_em', { ascending: false }).limit(PROCESSOS_PARA_LIGAR));
@@ -1207,7 +1226,7 @@ export const SD: Dados = {
     return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só processos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' };
   },
   async processoMover(id, etapaId, ordem) {
-    await rodar(sb.from('processos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+    conferirQueMudou((await rodar(sb.from('processos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
   },
   async processoHistorico(id) {
     const { data } = await rodar(sb.from('processo_historico').select('id, alteracoes, feito_por, em')
@@ -1290,7 +1309,7 @@ export const SD: Dados = {
     return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só tarefas arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
   },
   async tarefaMover(id, etapaId, ordem) {
-    await rodar(sb.from('tarefas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id));
+    conferirQueMudou((await rodar(sb.from('tarefas').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
   },
   async tarefaHistorico(id) {
     const { data } = await rodar(sb.from('tarefa_historico').select('id, alteracoes, feito_por, em')

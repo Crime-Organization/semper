@@ -24,6 +24,33 @@ function montar(podeGerirGrupos: boolean, grupos: GrupoDeColunas[], colunas = CO
     endereco={() => '/'} aoAbrir={() => undefined} aoMover={nada} />);
 }
 
+describe('Arrastar os cartões', () => {
+  function montarComCartoes(podeArrastar?: (item: { id: string }) => boolean) {
+    const quadro = {
+      colunas: COLUNAS, sugestoes: [], pronto: true, rotuloSemEtapa: 'Sem etapa', grupos: [INICIO], blocos: blocosDoQuadro(COLUNAS, [INICIO]), podeGerirGrupos: false,
+      grupoAberto: () => true, podeReordenar: false, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual', nomeDe: () => ''
+    } as unknown as Quadro;
+    const carregar = (coluna: string | null) => Promise.resolve(coluna === 'c-lead' ? { linhas: [{ id: 'meu' }, { id: 'alheio' }], total: 2 } : { linhas: [], total: 0 });
+    render(<Kanban quadro={quadro} recarga={0} carregar={carregar} ordemDe={() => null} cartao={item => item.id} endereco={() => '/'} aoAbrir={() => undefined}
+      aoMover={() => Promise.resolve()} podeArrastar={podeArrastar} />);
+  }
+
+  it('dado um cartão que a pessoa só lê, quando o quadro aparece, então só o dela pode ser arrastado', async () => {
+    // Quando
+    montarComCartoes(item => item.id === 'meu');
+    // Então
+    expect((await screen.findByText('meu')).closest('article')).toHaveAttribute('draggable', 'true');
+    expect((await screen.findByText('alheio')).closest('article')).toHaveAttribute('draggable', 'false');
+  });
+
+  it('dado um quadro sem a regra, quando aparece, então todos os cartões podem ser arrastados', async () => {
+    // Quando
+    montarComCartoes();
+    // Então
+    expect((await screen.findByText('alheio')).closest('article')).toHaveAttribute('draggable', 'true');
+  });
+});
+
 describe('Grupos no quadro', () => {
   it('quando quem abre não é administrador, então escolhe o grupo da coluna nova, mas não cria nem mexe nos grupos', async () => {
     // Quando

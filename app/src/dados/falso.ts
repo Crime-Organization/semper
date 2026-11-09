@@ -30,7 +30,7 @@ import { hojeNaAgenda } from '../regras/agenda';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
-import { numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
+import { alteraOProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -92,6 +92,8 @@ interface Banco {
   /** Importações de pessoas (tabela importacoes no banco). */
   importacoes?: Importacao[];
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
+  /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
+  equipeVeTudo?: boolean;
   logado: boolean;
   /** A sessão acabou em outro lugar (troca de e-mail pelo administrador, "Sair" em outro aparelho). Só os testes ligam: SEMPER_FALSO.encerrarSessao(). */
   sessaoEncerrada?: boolean;
@@ -108,7 +110,7 @@ interface Banco {
   historicoContratos?: (Historico & { contrato_id: string })[];
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
-  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
+  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string; autor_sem_vinculo?: boolean })[];
   mensagens?: { id: string; perfil_id: string; tipo: TipoMensagem; comentario_id: string | null; criado_em: string; lido_em: string | null;
     /** Só no aviso de prazo: o módulo e o item (o prazo do processo, ou o próprio cartão), a data e qual aviso é. */
     modulo?: ModuloDoPrazo; item_id?: string; prazo_data?: string; prazo_aviso?: 'proximo' | 'hoje' }[];
@@ -537,7 +539,8 @@ gravar();
   encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); },
   // Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas; nos outros módulos, toda conta vê tudo.
   entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
-  gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje)
+  gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje),
+  equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); }
 };
 
 const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
@@ -712,34 +715,44 @@ const contratoCompleto = (k: ContratoGuardado): Contrato =>
 const contratoLista = (k: ContratoGuardado): ContratoLista => ({
   id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
   responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
-  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k)
+  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k),
+  ...(vejoContrato(k) ? { ve_financeiro: true } : { ve_financeiro: false, categoria: null as unknown as ContratoLista['categoria'], valor: null })
 });
 /** Como cliente_nome no banco: os nomes de todos os clientes, juntos ("A; B"). */
 const nomeDoCliente = (k: ContratoGuardado) => k.clientes.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
 // Como a coluna "busca" do banco: o número entra também só com os dígitos, para a busca por "0163/2026" achar.
 const buscaContrato = (k: ContratoGuardado) => normal([k.codigo, k.codigo.replace(/\D/g, ''), k.codigo_antigo, k.servico, nomeDoCliente(k)].join(' '));
 const membroLogado = () => EQUIPE.find(m => m.id === eu)!;
+/** Com a chave ligada, quem não está no cartão só lê. Desligada, o banco fictício segue sem regra de alterar nesses módulos. */
+const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !estaNoCartao;
 /** Como privado.sou_admin. */
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
 const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
-/** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta. */
+/** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta, nem a menção de quem não era parte ao comentar. */
 const meMencionaramNoContrato = (id: string) =>
-  bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu));
+  bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu) && !c.autor_sem_vinculo);
 /** Como a regra de leitura dos contratos no banco. */
 const vejoContrato = (k: QuemEstaNoContrato) => veOContrato(pessoasDoContrato(k), membroLogado(), meMencionaramNoContrato(k.id));
 /** Como a regra de alterar dos contratos no banco: quem só foi mencionado lê, mas não altera. */
 const alteroContrato = (k: QuemEstaNoContrato) => alteraOContrato(pessoasDoContrato(k), membroLogado());
 const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && vejoContrato(k));
+/** Como contratos_da_equipe: quem é parte e, com a chave ligada, toda a equipe. */
+const alcancoContrato = (k: QuemEstaNoContrato) => !!bd.equipeVeTudo || vejoContrato(k);
+const alcancoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && alcancoContrato(k));
+/** Como as colunas de contratos_da_equipe para quem não é parte. */
+const contratoSemValores = (k: Contrato): Contrato => ({ ...k, ve_financeiro: false, categoria: null as unknown as Contrato['categoria'], valor: null, entrada: null, parcelas: null, descontos: null,
+  primeiro_pagamento: null, percentual_escritorio: null, indicador: null, indicador_id: null, indicador_percentual: null, conta_destino_id: null, documento_url: null, observacoes: null,
+  participantes: k.participantes.map(p => ({ ...p, percentual: null })) });
 /** Como privado.cuido_do_contrato: um administrador ou o responsável. */
 /** Algum valor do recebimento já foi pago (repasse não cancelado, ou participante/indicador marcado como pago)? */
 const recebimentoTemPagamento = (id: string) => bd.repasses!.some(x => x.recebimento_id === id && x.pago_em && !x.cancelado_em) || (bd.terceirosPagos ?? []).some(x => x.recebimento_id === id);
 const cuidoDoContrato = (id: string) => bd.contratos!.some(k => k.id === id && (souAdmin() || k.responsavel_id === eu));
 function filtrarContratos(f: FiltroContratos = {}) {
   const t = termo(f.termo);
-  return bd.contratos!.filter(k => vejoContrato(k) && (f.situacao === 'arquivados' ? k.arquivado_em : !k.arquivado_em)
+  return bd.contratos!.filter(k => alcancoContrato(k) && (!f.paraLigar || vejoContrato(k)) && (f.situacao === 'arquivados' ? k.arquivado_em : !k.arquivado_em)
     && (!f.responsavel || k.responsavel_id === f.responsavel)
-    && (!f.categoria || k.categoria === f.categoria)
+    && (!f.categoria || (vejoContrato(k) && k.categoria === f.categoria))
     && (!f.etiqueta || temEtiqueta('contratos', k.id, f.etiqueta))
     && (!t || buscaContrato(k).includes(t)));
 }
@@ -797,7 +810,7 @@ const demandaLista = (d: DemandaGuardada): DemandaLista => ({
 const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
 function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
-  return bd.demandas!.filter(d => (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
+  return bd.demandas!.filter(d => (!f.paraLigar || !soLeNoFalso(veADemanda(d, membroLogado()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
     && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta))
     && (!t || buscaDemanda(d).includes(t)));
@@ -1584,24 +1597,25 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
   if (negado) throw new Error(mencaoNegada(negado.nome));
   const demanda = modulo === 'demandas' ? bd.demandas!.find(d => d.id === cartaoId) : null;
-  const deFora = demanda ? primeiro(mencoes.filter(m => !veADemanda(demanda, m))) : null;
+  const deFora = demanda && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veADemanda(demanda, m))) : null;
   if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
   // Na tarefa: só quem a vê (quem está nela ou vê a demanda ligada a ela).
   const tarefa = modulo === 'tarefas' ? bd.tarefas!.find(t => t.id === cartaoId) : null;
   const daTarefa = tarefa ? bd.demandas!.find(d => d.id === tarefa.demanda_id) ?? null : null;
-  const foraDaTarefa = tarefa ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa))) : null;
+  const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa))) : null;
   if (foraDaTarefa) throw new Error(mencaoNegadaNaTarefa(foraDaTarefa.nome));
   // No compromisso: só quem o vê (quem está nele, quem vê o processo ligado ou todos, na Agenda geral).
   const compromisso = modulo === 'compromissos' ? bd.compromissos!.find(c => c.id === cartaoId) : null;
   const doCompromisso = compromisso ? processoDoCompromisso(compromisso) : null;
   const foraDoCompromisso = compromisso ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso))) : null;
   if (foraDoCompromisso) throw new Error(mencaoNegadaNoCompromisso(foraDoCompromisso.nome));
-  return { texto, mencoes: mencoes.map(m => m.id) };
+  // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
+  return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
 }
 /** O cartão de cada módulo existe? (No banco, a ligação do comentário com o cartão.) */
 const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
   pessoas: id => bd.pessoas.some(p => p.id === id),
-  contratos: vejoContratoDoId,
+  contratos: alcancoContratoDoId,
   demandas: id => bd.demandas!.some(d => d.id === id),
   tarefas: id => bd.tarefas!.some(t => t.id === id),
   compromissos: id => bd.compromissos!.some(c => c.id === id)
@@ -1617,11 +1631,11 @@ const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: stri
 /** Se quem está logado vê o cartão (como a regra de leitura dos comentários, que passa pela do cartão). */
 const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
   pessoas: id => bd.pessoas.some(p => p.id === id),
-  contratos: vejoContratoDoId,
-  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return !!d && veADemanda(d, membroLogado()); },
+  contratos: alcancoContratoDoId,
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return !!d && (!!bd.equipeVeTudo || veADemanda(d, membroLogado())); },
   tarefas: id => {
     const t = bd.tarefas!.find(x => x.id === id);
-    return !!t && veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null);
+    return !!t && (!!bd.equipeVeTudo || veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null));
   },
   compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); }
 };
@@ -1746,7 +1760,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: meuEmail() },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: (ehMaster && bd.perfil.nome) || m.nome, usuario: (ehMaster && bd.perfil.usuario) || m.usuario,
         papel: m.papel, funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
     };
     return espera(c);
@@ -1952,6 +1966,10 @@ export const SD: Dados = {
     const r = filtrarContratos(f).filter(k => (k.etapa_id || null) === (etapaId || null)).sort(ORDENS_CONTRATO[f.ordem || 'manual']);
     return espera({ linhas: r.slice(deslocamento, deslocamento + limite).map(comEtq('contratos', contratoLista)), total: r.length });
   },
+  contratoVer: id => {
+    const k = bd.contratos!.find(x => x.id === id && alcancoContrato(x));
+    return espera(k ? (vejoContrato(k) ? contratoCompleto(k) : contratoSemValores(contratoCompleto(k))) : null);
+  },
   contratoObter: id => { const k = bd.contratos!.find(x => x.id === id && vejoContrato(x)); return espera(k ? contratoCompleto(k) : null); },
   // Como o gatilho do banco: o número vem da sigla do responsável (CPF no cadastro dele), do sequencial do ano e do ano.
   // O sequencial é o maior número que existe no ano, mais um: o número do último contrato excluído volta a ser usado.
@@ -2041,8 +2059,8 @@ export const SD: Dados = {
   contratoHistorico: id => espera(bd.historicoContratos!.filter(h => h.contrato_id === id && vejoContratoDoId(id))),
   objetosSugeridos: () => espera([...bd.objetosSugeridos!].sort((a, b) => a.localeCompare(b, 'pt-BR'))),
   contratosDaPessoa: (pessoaId, perfilId = null) => espera(bd.contratos!
-    .filter(vejoContrato)
-    .map(k => ({ k, papeis: papeisNoContrato({ ...k, participantes: k.participantes.map(p => p.pessoa_id) }, pessoaId, perfilId) }))
+    .filter(alcancoContrato)
+    .map(k => ({ k, papeis: papeisNoContrato({ ...k, indicador_id: vejoContrato(k) ? k.indicador_id : null, participantes: k.participantes.map(p => p.pessoa_id) }, pessoaId, perfilId) }))
     .filter(x => x.papeis.length)
     .sort((a, b) => b.k.criado_em.localeCompare(a.k.criado_em))
     .map(({ k, papeis }) => ({ id: k.id, codigo: k.codigo, servico: k.servico, etapa_id: k.etapa_id, arquivado_em: k.arquivado_em, criado_em: k.criado_em, papeis }))),
@@ -2071,6 +2089,7 @@ export const SD: Dados = {
     return espera({ id, codigo: d.codigo });
   },
   async demandasArquivar(ids, arquivar = true) {
+    ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(veADemanda(d, membroLogado())); });
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
@@ -2099,6 +2118,7 @@ export const SD: Dados = {
   },
   async demandaMover(id, etapaId, ordem) {
     const d = acharDemanda(id);
+    if (soLeNoFalso(veADemanda(d, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
     historicoDemanda(d, { etapa_id: etapaId });
     Object.assign(d, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
@@ -2133,6 +2153,7 @@ export const SD: Dados = {
     return espera({ id, codigo: t.codigo });
   },
   async tarefasArquivar(ids, arquivar = true) {
+    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null)); });
     ids.forEach(id => {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
@@ -2162,6 +2183,7 @@ export const SD: Dados = {
   },
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
+    if (soLeNoFalso(veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null))) return erro('Você não tem permissão para fazer isso.');
     historicoTarefa(t, { etapa_id: etapaId });
     // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
     const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
@@ -2998,6 +3020,7 @@ export const SD: Dados = {
     return espera({ id, codigo: p.codigo });
   },
   async processosArquivar(ids, arquivar = true) {
+    ids = ids.filter(id => { const p = bd.processos!.find(x => x.id === id); return !p || !soLeNoFalso(alteraOProcesso(p, membroLogado())); });
     ids.forEach(id => {
       const p = bd.processos!.find(x => x.id === id); if (!p) return;
       historicoProcesso(p, { arquivado_em: arquivar ? agora() : null });
@@ -3025,6 +3048,7 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     const p = acharProcesso(id);
+    if (soLeNoFalso(alteraOProcesso(p, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
     conferirQuadroDoProcesso(p.tipo, etapaId);
     historicoProcesso(p, { etapa_id: etapaId });
     Object.assign(p, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
@@ -3089,7 +3113,7 @@ export const SD: Dados = {
     bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => a.etiqueta_id !== id);   // on delete cascade
     gravar();
   },
-  etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id && (modulo !== 'contratos' || vejoContratoDoId(id))).map(a => a.etiqueta_id)),
+  etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id && (modulo !== 'contratos' || alcancoContratoDoId(id))).map(a => a.etiqueta_id)),
   async etiquetaAplicar(modulo, id, etiquetaId) {
     if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
     if (modulo === 'contratos' && !vejoContratoDoId(id)) return erro('Você não tem permissão para fazer isso.');

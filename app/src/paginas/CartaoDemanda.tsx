@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
-import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda } from '../regras/demanda';
+import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda, veADemanda } from '../regras/demanda';
+import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -72,12 +73,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
+  const podeAlterar = !soLeOCartao(ctx, m => veADemanda(d, m)), veTudo = equipeVeTudo(ctx.escritorio);
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
   const contrato: ItemLigado | null = d.contrato
     ? { id: 'contrato', para: '/contratos/?id=' + d.contrato.id, codigo: d.contrato.codigo, titulo: d.contrato.servico, detalhe: 'Contrato' }
-    : d.contrato_codigo ? { id: 'contrato', codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: 'Você não tem acesso a este contrato' } : null;
+    : d.contrato_codigo ? { id: 'contrato', para: veTudo && d.contrato_id ? '/contratos/?id=' + d.contrato_id : undefined, codigo: d.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' } : null;
 
   async function arquivar() {
     const estava = !!d!.arquivado_em;
@@ -116,13 +118,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
         <SeloDoPrazo prazo={d.prazo} />
         {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{d.titulo}</h2>
       {d.descricao && <p className="demanda-descricao">{d.descricao}</p>}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação da demanda" disabled={!!d.arquivado_em} value={d.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+        <select aria-label="Situação da demanda" disabled={!!d.arquivado_em || !podeAlterar} value={d.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
           <option value="">{SEM_SITUACAO_DEMANDA}</option>
           {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
@@ -135,6 +137,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, d.responsavel_id, 'Responsável')}
         participantes={d.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
+    {!podeAlterar && <Nota>{SO_LEITURA_DO_CARTAO}</Nota>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {d.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Demanda arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
@@ -143,17 +146,17 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
 
-    <SecaoEtiquetas modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em} aoMudar={aoMudar} />
+    <SecaoEtiquetas modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
 
-    <ListasDoCartao modulo="demandas" id={d.id} />
+    <ListasDoCartao modulo="demandas" id={d.id} somenteLer={!podeAlterar} />
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}>
-      <TarefasDaDemanda demandaId={d.id} versao={versaoHist} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
+      <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}>
-      <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em} versao={versaoHist} />
+      <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} />
     </Recolhivel>}
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>
@@ -165,7 +168,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
     </Recolhivel>
 
-    <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={motivoSemMencaoNaDemanda(d)} />
+    <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaDemanda(d)} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.demandaHistorico(d.id)} campos={CAMPOS_DEMANDA} valor={valorLegivelDemanda} versao={versaoHist} />

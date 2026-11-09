@@ -5,7 +5,8 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
-import { CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
+import { SO_LEITURA_DO_PROCESSO, soLeOCartao } from '../regras/equipeVeTudo';
+import { alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
@@ -68,6 +69,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!p) return <Vazio>Este processo não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
+  const podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m));
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
     detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined });
 
@@ -106,13 +108,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo><span className="codigo">{p.codigo}</span>
         {p.orgao && <Selo tipo="arq">{p.orgao}</Selo>}
         {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{nomeDoProcesso(p)}</h2>
       <p className="demanda-descricao">{p.numero}</p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação do processo" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+        <select aria-label="Situação do processo" disabled={!!p.arquivado_em || !podeAlterar} value={p.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
           <option value="">{SEM_SITUACAO_PROCESSO}</option>
           {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
@@ -125,6 +127,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, p.responsavel_id, 'Responsável')}
         participantes={p.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
+    {!podeAlterar && <Nota>{SO_LEITURA_DO_PROCESSO}</Nota>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Processo arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
@@ -133,9 +136,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
 
-    <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
+    <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
 
-    <AndamentosEPrazos processo={p} aoMudar={() => setVersaoHist(v => v + 1)} />
+    <AndamentosEPrazos processo={p} soLeitura={!podeAlterar} aoMudar={() => setVersaoHist(v => v + 1)} />
 
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
@@ -153,7 +156,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' }}>
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeAlterar ? { para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
       <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo." />
     </Recolhivel>}
 

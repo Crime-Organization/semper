@@ -13,7 +13,7 @@ import './AndamentosEPrazos.css';
 
 interface Lido { andamentos: AndamentoDeProcesso[]; prazos: PrazoDeProcesso[]; orgaos: Orgao[] }
 
-export function AndamentosEPrazos({ processo: p, aoMudar }: { processo: Processo; aoMudar: () => void }) {
+export function AndamentosEPrazos({ processo: p, aoMudar, soLeitura = false }: { processo: Processo; aoMudar: () => void; soLeitura?: boolean }) {
   const [lido, setLido] = useState<Lido | string | null>(null);
   // Só vale a leitura mais recente: uma resposta atrasada não pode trocar o que já está na tela por algo mais velho.
   const ultimaLeitura = useRef(0);
@@ -39,7 +39,7 @@ export function AndamentosEPrazos({ processo: p, aoMudar }: { processo: Processo
   if (typeof lido === 'string') return <Aviso tipo="erro">{lido}</Aviso>;
   const { andamentos, prazos, orgaos } = lido;
   const mudou = async () => { aoMudar(); await carregar(); };
-  const somenteLer = !!p.arquivado_em;
+  const somenteLer = !!p.arquivado_em || soLeitura;
   const orgao = orgaos.find(o => o.sigla === p.orgao) ?? null;
   const alerta = alertaDosPrazos(prazos, hojeISO());
   const abertos = prazos.filter(z => !z.concluido_em).length, aTratarAgora = andamentos.filter(aTratar).length;

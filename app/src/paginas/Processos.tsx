@@ -7,7 +7,8 @@ import { SD, type FiltroProcessos, type Ordem, type Pagina, type ProcessoLista, 
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { SEM_FASE } from '../regras/painelProcessos';
-import { nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
+import { soLeOCartao } from '../regras/equipeVeTudo';
+import { alteraOProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -168,7 +169,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<ProcessoLista> quadro={quadro}
+        ? <Kanban<ProcessoLista> quadro={quadro} podeArrastar={p => !soLeOCartao(ctx, m => alteraOProcesso(p, m))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.processosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, POR_COLUNA)}
           ordemDe={p => p.etapa_ordem}
@@ -206,7 +207,7 @@ function CartaoKanban({ p, ordem }: { p: ProcessoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, p), local = localDoProcesso(p);
   return <>
-    <EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} />
+    <EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m))} />
     {p.orgao && <div><Selo tipo="arq">{p.orgao}</Selo></div>}
     <div className="kt">{nomeDoProcesso(p)}</div>
     <div className="km">
@@ -243,19 +244,20 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, cadastro,
     : <>Nenhum processo ainda. <BotaoLink forma="link" to={cadastro}>Cadastre o primeiro</BotaoLink>.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const todas = linhas.every(p => selecionadas.has(p.id));
+  const alteraveis = linhas.filter(p => !soLeOCartao(ctx, m => alteraOProcesso(p, m)));
+  const todas = alteraveis.length > 0 && alteraveis.every(p => selecionadas.has(p.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
   return <div>
     <div className="tabela tabela-processos"><table>
       <thead><tr>
-        <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(linhas.map(p => p.id), e.target.checked)} /></th>
+        <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(alteraveis.map(p => p.id), e.target.checked)} /></th>
         <th scope="col">Processo</th><th scope="col">Órgão</th><th scope="col">Situação</th><th scope="col">Pessoas</th>
         <th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
-        <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.codigo}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{nomeDoProcesso(p)}</NomeDaLinha>
+        <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.codigo}`} checked={selecionadas.has(p.id)} disabled={!alteraveis.includes(p)} onChange={e => marcar([p.id], e.target.checked)} /></td>
+        <td><EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m))} /><NomeDaLinha>{nomeDoProcesso(p)}</NomeDaLinha>
           <div className="sub"><span className="codigo">{p.numero}</span>{p.titulo && p.cliente_nome ? ' · ' + clientesPorExtenso(p.cliente_nome) : ''}{localDoProcesso(p) ? ' · ' + localDoProcesso(p) : ''}</div></td>
         <td>{p.orgao ? <Selo tipo="arq">{p.orgao}</Selo> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(p.etapa_id)}</span></td>

@@ -252,7 +252,9 @@ describe('Quem vê e quem muda o compromisso', () => {
     ['quem criou', 'u-criou', false, {}, true],
     ['responsável', 'u-resp', false, {}, true],
     ['participante', 'u-part', false, {}, true],
-    ['quem vê o processo', 'u-x', false, { processo: { id: 'p' } }, true],
+    ['quem está no processo ligado', 'u-x', false, { processo: { id: 'p', criado_por: 'u-y', responsavel_id: 'u-x', colaboradores: [] } }, true],
+    ['colaborador do processo ligado', 'u-x', false, { processo: { id: 'p', criado_por: 'u-y', responsavel_id: 'u-y', colaboradores: ['u-x'] } }, true],
+    ['quem vê o processo só porque toda a equipe vê', 'u-x', false, { processo: { id: 'p', criado_por: 'u-y', responsavel_id: 'u-y', colaboradores: [] } }, false],
     ['quem só vê a Agenda geral', 'u-x', false, { geral: true }, false]
   ])('quando na tela é %s, então poder mudar é %s', (_caso, eu, ehAdmin, campos, esperado) => {
     // Quando / Então

@@ -78,8 +78,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   }
 
   useEffect(() => {
-    SD.demandasListar({ situacao: 'ativas', ordem: 'novos', porPagina: DEMANDAS_PARA_LIGAR }).then(r => setDemandas(r.linhas)).catch(() => {});
-    SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR }).then(r => setContratos(r.linhas)).catch(() => {});
+    SD.demandasListar({ situacao: 'ativas', ordem: 'novos', porPagina: DEMANDAS_PARA_LIGAR, paraLigar: true }).then(r => setDemandas(r.linhas)).catch(() => {});
+    SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR, paraLigar: true }).then(r => setContratos(r.linhas)).catch(() => {});
     if (idAtualizar) {
       SD.tarefaObter(idAtualizar)
         .then(t => {

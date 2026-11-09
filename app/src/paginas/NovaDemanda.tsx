@@ -56,7 +56,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   useTitulo(edicao ? null : alvo ? 'Atualizar demanda' : 'Nova demanda');
 
   useEffect(() => {
-    SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR }).then(r => setContratos(r.linhas)).catch(() => {});
+    SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR, paraLigar: true }).then(r => setContratos(r.linhas)).catch(() => {});
     if (idAtualizar) {
       SD.demandaObter(idAtualizar)
         .then(d => {

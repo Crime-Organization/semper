@@ -6,7 +6,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { useNavigate } from 'react-router';
 import { TIPOS_PROCESSO } from '../regras/processo';
-import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa } from '../regras/tarefa';
+import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, veATarefa } from '../regras/tarefa';
+import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -61,6 +62,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!t) return <Vazio>Esta tarefa não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
+  const podeAlterar = !soLeOCartao(ctx, m => veATarefa(t, m, t.demanda)), veTudo = equipeVeTudo(ctx.escritorio);
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     selo: p.arquivado_em ? 'Arquivada' : undefined });
   // A demanda e o contrato abrem só para quem pode vê-los; os outros veem o código, sem o link.
@@ -69,7 +71,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     : t.demanda_codigo ? { id: 'demanda', codigo: t.demanda_codigo, titulo: 'Demanda ligada', detalhe: 'Você não tem acesso a esta demanda' } : null;
   const contrato: ItemLigado | null = t.contrato
     ? { id: 'contrato', para: '/contratos/?id=' + t.contrato.id, codigo: t.contrato.codigo, titulo: t.contrato.servico, detalhe: 'Contrato' }
-    : t.contrato_codigo ? { id: 'contrato', codigo: t.contrato_codigo, titulo: 'Contrato ligado', detalhe: 'Você não tem acesso a este contrato' } : null;
+    : t.contrato_codigo ? { id: 'contrato', para: veTudo && t.contrato_id ? '/contratos/?id=' + t.contrato_id : undefined, codigo: t.contrato_codigo, titulo: 'Contrato ligado', detalhe: veTudo ? 'Contrato, sem os valores' : 'Você não tem acesso a este contrato' } : null;
 
   async function arquivar() {
     const estava = !!t!.arquivado_em;
@@ -110,13 +112,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
         <SeloDoPrazo prazo={t.prazo} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
       </div>
       <h2>{t.titulo}</h2>
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+        <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em || !podeAlterar} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
           <option value="">{SEM_SITUACAO_TAREFA}</option>
           {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
@@ -129,6 +131,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, t.responsavel_id, 'Responsável')}
         participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
+    {!podeAlterar && <Nota>{SO_LEITURA_DO_CARTAO}</Nota>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {t.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Tarefa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
@@ -137,11 +140,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
 
-    <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em} aoMudar={aoMudar} />
+    <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
 
-    <TempoNaTarefa t={t} />
+    {podeAlterar && <TempoNaTarefa t={t} />}
 
-    <ListasDoCartao modulo="tarefas" id={t.id} />
+    <ListasDoCartao modulo="tarefas" id={t.id} somenteLer={!podeAlterar} />
 
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demanda ? 1 : 0}>
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
@@ -161,7 +164,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
     </Recolhivel>
 
-    <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={motivoSemMencaoNaTarefa(t, t.demanda)} />
+    <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, t.demanda)} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.tarefaHistorico(t.id)} campos={CAMPOS_TAREFA} valor={valorLegivelTarefa} versao={versaoHist} />

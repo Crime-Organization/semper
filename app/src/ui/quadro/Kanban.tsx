@@ -35,6 +35,8 @@ interface Props<T extends { id: string }> {
   endereco: (item: T) => string;
   aoAbrir: (item: T) => void;
   aoMover: (item: T, m: Movimento) => Promise<void>;
+  /** Se dá para arrastar este cartão (padrão: todos). Quem só lê o cartão não o move. */
+  podeArrastar?: (item: T) => boolean;
   /** Botão "Adicionar" no pé de cada coluna. */
   aoAdicionar?: (colunaId: string | null) => void;
   /**
@@ -271,7 +273,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
           : !l.itens.length && !marcador ? <p className="coluna-vazia">Nenhum item.</p> : null}
         {l?.itens.map(it => <Fragment key={it.id}>
           {marcador && alvo.antes === it.id && <div className="kmarcador" />}
-          <article className={'kcartao' + (arrastando === it.id ? ' arrastando' : '')} role="listitem" tabIndex={0} draggable data-item={it.id}
+          <article className={'kcartao' + (arrastando === it.id ? ' arrastando' : '')} role="listitem" tabIndex={0} draggable={props.podeArrastar?.(it) ?? true} data-item={it.id}
             {...cliquesQueAbrem(props.endereco(it), () => p.current.aoAbrir(it))}
             onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.current.aoAbrir(it); } }}
             onDragStart={e => {

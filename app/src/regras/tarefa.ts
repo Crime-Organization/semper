@@ -142,6 +142,8 @@ type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colabo
  * Quem vê a tarefa (como a regra do banco): os administradores, quem criou, o responsável, os participantes e quem vê a
  * demanda ligada a ela (a demanda vem quando está ligada e quem pergunta pode vê-la).
  */
+/** Na lista: a tarefa está aí só porque toda a equipe vê? A lista não sabe quem está na demanda ligada: quem a vê por ela altera pelo cartão, e o banco tem a palavra final. */
+export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { demanda_codigo: string | null }, m: Pick<Membro, 'id' | 'papel'>) => !t.demanda_codigo && !veATarefa(t, m as Membro);
 export const veATarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === t.criado_por || m.id === t.responsavel_id || t.participantes.includes(m.id)
   || (!!demanda && veADemanda(demanda, m));

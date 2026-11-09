@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
 import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -46,7 +47,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
-  const carregar = useCallback(() => SD.contratoObter(id).then(x => { setK(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
+  const carregar = useCallback(() => SD.contratoVer(id).then(x => { setK(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra o contrato como ficou.
   useMudancas(() => { void carregar(); setVersaoHist(v => v + 1); });
@@ -74,6 +75,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!k.arquivado_em && (k.criado_por === eu || ctx.ehAdmin);
   // Quem só foi mencionado num comentário lê e comenta, mas não altera.
   const podeAlterar = alteraOContrato({ ...k, participantes: k.participantes.map(p => p.pessoa.id) }, ctx.perfil);
+  // Quem não é parte vê o contrato sem o que é financeiro: as seções de valores nem aparecem, para "vazio" não parecer "zero".
+  const oculto = k.ve_financeiro === false;
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
@@ -128,7 +131,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   return <>
     <header className="cartao-cabeca">
       <div className="linha">
-        <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo><span className="codigo">{k.codigo}</span>
+        {!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}<span className="codigo">{k.codigo}</span>
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
@@ -148,7 +151,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     <div className="cartao-acoes">
       <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
     </div>
-    {!podeAlterar && <Nota>Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.</Nota>}
+    {!podeAlterar && <Nota>{oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {k.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'
@@ -156,11 +159,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
-    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} aoMudar={aoMudar} />
+    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || oculto} aoMudar={aoMudar} />
 
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
-    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined} novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
+    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined} novo={oculto ? undefined : { para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
       {semObjeto && <Aviso tipo="info">{SEM_OBJETO_DEFINIDO}</Aviso>}
       <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
         antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
@@ -174,7 +177,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     {/* Honorários, divisão e parcelas juntos: as parcelas são o detalhe do que foi combinado. O número é o de parcelas. */}
-    <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" contador={parcelas}>
+    {!oculto && <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" contador={parcelas}>
       <dl className="dados">{([
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],
@@ -197,25 +200,25 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         <span className="rotulo-caps">Parcelas</span>
         <ParcelasDoContrato k={k} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
       </>}
-    </Recolhivel>
+    </Recolhivel>}
 
-    <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento" contador={quantosPreenchidos([k.documento_url, k.observacoes])}>
+    {!oculto && <Recolhivel titulo="Documento e observações" icone="anexo" preferencia="contratos.cartao.documento" contador={quantosPreenchidos([k.documento_url, k.observacoes])}>
       {k.documento_url
         ? <a className="contrato-link" href={k.documento_url} target="_blank" rel="noopener noreferrer">Abrir o contrato no Drive</a>
         : <Nota>Nenhum link do Drive. O contrato assinado fica na pasta do Drive; cole o link em "Atualizar contrato".</Nota>}
       {k.observacoes ? <p className="contrato-obs">{k.observacoes}</p> : <Nota>Nenhuma observação.</Nota>}
-    </Recolhivel>
+    </Recolhivel>}
 
 
-    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
+    {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={oculto ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." />
     </Recolhivel>}
 
-    <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso="Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir." />
+    <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso={oculto ? undefined : 'Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir.'} />
 
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico" contador={historico}>
+    {!oculto && <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico" contador={historico}>
       <HistoricoContrato id={k.id} versao={versaoHist} />
-    </Recolhivel>
+    </Recolhivel>}
 
     <footer className="cartao-rodape">
       <span>Criado em {dataCurta(k.criado_em)}{k.criado_por ? ' por ' + nomeDe(k.criado_por) : ''}</span>

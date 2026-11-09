@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
+import { VALOR_OCULTO } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -141,6 +142,7 @@ export default function Contratos() {
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.contratosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, 30)}
           ordemDe={k => k.etapa_ordem}
+          podeArrastar={k => k.ve_financeiro !== false}
           arquivados={deslocamento => arquivados(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
           cartao={(k, ordemDaColuna) => <CartaoKanban k={k} ordem={ordemDaColuna} />}
           endereco={k => endereco(k.id)}
@@ -177,12 +179,12 @@ function CartaoKanban({ k, ordem }: { k: ContratoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, k);
   return <>
-    <EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} />
+    <EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || k.ve_financeiro === false} />
     <div className="kt">{clientesPorExtenso(k.cliente_nome)}</div>
     <div className="km">
       <span className="codigo">{k.codigo}</span>
       <span className="contrato-servico">{k.servico}</span>
-      <span>{CATEGORIAS[k.categoria]}{k.valor !== null ? ' · ' + fmtDinheiro(k.valor) : ''}</span>
+      {k.ve_financeiro !== false && <span>{CATEGORIAS[k.categoria]}{k.valor !== null ? ' · ' + fmtDinheiro(k.valor) : ''}</span>}
       {data && <span>{data}</span>}
     </div>
     <div className="kp"><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} tam={24} /></div>
@@ -212,22 +214,23 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
     : <>Nenhum contrato cadastrado ainda. <BotaoLink forma="link" to="/contratos/novo/">Cadastrar o primeiro</BotaoLink></>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const todas = linhas.every(k => selecionadas.has(k.id));
+  const alteraveis = linhas.filter(k => k.ve_financeiro !== false);
+  const todas = alteraveis.length > 0 && alteraveis.every(k => selecionadas.has(k.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
   return <div>
     <div className="tabela tabela-contratos"><table>
       <thead><tr>
-        <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(linhas.map(k => k.id), e.target.checked)} /></th>
+        <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(alteraveis.map(k => k.id), e.target.checked)} /></th>
         <th scope="col">Cliente</th><th scope="col">Contrato</th><th scope="col">Categoria</th><th scope="col">Valor</th>
         <th scope="col">Situação</th><th scope="col">Responsável</th><th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
       </tr></thead>
       <tbody>{linhas.map(k => <LinhaQueAbre key={k.id} para={endereco(k.id)} aoAbrir={() => aoAbrir(k.id)} marcada={selecionadas.has(k.id)}>
-        <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} onChange={e => marcar([k.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em} /><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
+        <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} disabled={!alteraveis.includes(k)} onChange={e => marcar([k.id], e.target.checked)} /></td>
+        <td><EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || k.ve_financeiro === false} /><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}><span className="codigo">{k.codigo}</span>{k.codigo_antigo && <div className="sub">antigo: {k.codigo_antigo}</div>}</td>
-        <td>{CATEGORIAS[k.categoria]}</td>
-        <td style={{ whiteSpace: 'nowrap' }}>{fmtDinheiro(k.valor)}</td>
+        <td>{k.ve_financeiro === false ? VALOR_OCULTO : CATEGORIAS[k.categoria]}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : fmtDinheiro(k.valor)}</td>
         <td><span className="etapa-txt">{situacao(k.etapa_id)}</span></td>
         <td><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(k.criado_em) : relativo(k.atualizado_em)}</td>
