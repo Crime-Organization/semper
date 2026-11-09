@@ -17,12 +17,13 @@ import { PARCELAS_DA_PESSOA } from './limites';
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
-import { papeisNoCompromisso } from '../regras/compromisso';
+import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
+import { colunaCancelada, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { Mensagem, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -144,14 +145,45 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
-const CAMPOS_MENSAGEM = 'id, criado_em, lido_em, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos(id, codigo, servico), '
-  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo))';
+const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos(id, codigo, servico), '
+  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo)), '
+  + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
+  + 'demanda:demandas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), tarefa:tarefas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), '
+  + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero, data, hora, arquivado_em, etapa:quadro_colunas(marco, nome))';
 /** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
 const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo' };
 type CartaoDaMensagem = Record<string, string>;
-type LinhaDaMensagem = Omit<Mensagem, 'comentario'> & { comentario: (Pick<Comentario, 'id' | 'autor_id' | 'texto'> & Partial<Record<ModuloComentado, CartaoDaMensagem | null>>) | null };
+type EtapaDaLinha = { etapa: { marco: string | null; nome: string } | null; arquivado_em: string | null };
+type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null } & EtapaDaLinha;
+const concluidoNaEtapa = (l: EtapaDaLinha) => l.etapa?.marco === 'concluido';
+const paradoNoCartao = (l: EtapaDaLinha): PrazoParado | null => l.arquivado_em ? 'arquivado' : null;
+type LinhaDaMensagem = Omit<Mensagem, 'comentario' | 'prazo'> & {
+  comentario: (Pick<Comentario, 'id' | 'autor_id' | 'texto'> & Partial<Record<ModuloComentado, CartaoDaMensagem | null>>) | null;
+  prazo_data: string | null;
+  processo_prazo: { descricao: string; final: string; concluido_em: string | null; excluido_em: string | null; processo: { id: string; codigo: string; tipo: Processo['tipo']; arquivado_em: string | null } | null } | null;
+  demanda: LinhaDoCartaoDoPrazo | null;
+  tarefa: LinhaDoCartaoDoPrazo | null;
+  compromisso: (Pick<Compromisso, 'id' | 'codigo' | 'titulo' | 'tipo' | 'pessoa_nome' | 'processo_numero' | 'data' | 'hora'> & EtapaDaLinha) | null;
+};
+/** De cada módulo, o prazo do aviso. A ligação vem vazia quando é de outro módulo ou quando a pessoa não vê mais o cartão. */
+const PRAZO_DA_LINHA: Record<ModuloDoPrazo, (l: LinhaDaMensagem) => (Omit<PrazoDaMensagem, 'data'> & { data: string | null }) | null> = {
+  processos: ({ processo_prazo: z }) => z?.processo
+    ? { modulo: 'processos', pagina: paginaDoPrazo('processos', z.processo.tipo), cartao_id: z.processo.id, cartao_codigo: z.processo.codigo, titulo: z.descricao, data: z.final, hora: null, concluido: !!z.concluido_em,
+      parado: z.excluido_em ? 'excluido' : z.processo.arquivado_em ? 'arquivado' : null } : null,
+  demandas: ({ demanda: d }) => d && { modulo: 'demandas', pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, data: d.prazo, hora: null, concluido: concluidoNaEtapa(d), parado: paradoNoCartao(d) },
+  tarefas: ({ tarefa: t }) => t && { modulo: 'tarefas', pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, data: t.prazo, hora: null, concluido: concluidoNaEtapa(t), parado: paradoNoCartao(t) },
+  compromissos: ({ compromisso: c }) => c && { modulo: 'compromissos', pagina: paginaDoPrazo('compromissos'), cartao_id: c.id, cartao_codigo: c.codigo, titulo: nomeDoCompromisso(c), data: c.data, hora: fmtHora(c.hora) || null, concluido: concluidoNaEtapa(c),
+    parado: colunaCancelada(c.etapa?.nome) ? 'cancelado' : paradoNoCartao(c) }
+};
+const prazoDaLinha = (l: LinhaDaMensagem): PrazoDaMensagem | null => {
+  const achado = (Object.keys(PRAZO_DA_LINHA) as ModuloDoPrazo[]).map(m => PRAZO_DA_LINHA[m](l)).find(Boolean);
+  const data = achado?.data ?? l.prazo_data;
+  return achado && data ? { ...achado, data } : null;
+};
 /** Junta o comentário e o cartão dele. Sem o comentário, ou sem o cartão, a pessoa não vê mais de onde veio a menção. */
-function mensagemLida({ comentario: c, ...m }: LinhaDaMensagem): Mensagem {
+function mensagemLida(l: LinhaDaMensagem): Mensagem {
+  const { comentario: c, id, tipo, criado_em, lido_em } = l;
+  const m = { id, tipo, criado_em, lido_em, prazo: prazoDaLinha(l) };
   const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
   const cartao = modulo && c?.[modulo];
   if (!c || !modulo || !cartao) return { ...m, comentario: null };
@@ -472,10 +504,9 @@ export const SD: Dados = {
     if (ctx?.perfil) Object.assign(ctx.perfil, campos);
   },
   async salvarPreferencia(chave, valor) {
-    if (!ctx?.perfil) return;
-    const preferencias = { ...ctx.perfil.preferencias, [chave]: valor };
-    ctx.perfil.preferencias = preferencias;
-    try { await sb.from('perfis').update({ preferencias }).eq('id', uid()); } catch { /* preferência não é crítica */ }
+    // Grava só esta chave: a cópia em memória pode estar velha, e o banco guarda escolhas que o servidor lê (os e-mails de prazo).
+    await rodar(sb.rpc('preferencia_gravar', { p_chave: chave, p_valor: valor ?? null }));
+    if (ctx?.perfil) ctx.perfil.preferencias = { ...ctx.perfil.preferencias, [chave]: valor };
   },
 
   // ---------- pessoas ----------
@@ -1546,7 +1577,7 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const { data } = await rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA));
+    const { data } = await rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA));
     return (data as LinhaDaMensagem[]).map(mensagemLida);
   },
   async mensagensNaoLidas() {

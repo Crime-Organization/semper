@@ -1034,13 +1034,33 @@ export interface ComentarioDaMensagem {
   cartao_codigo: string;
   cartao_nome: string | null;
 }
-/** Mensagem da caixa de cada pessoa. Por enquanto, só a menção com @ (supabase/migrations/20261108165559_mensagens.sql). */
+export type TipoMensagem = 'mencao' | 'prazo';
+export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
+export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
+/** O prazo de que o aviso fala. `pagina` é o caminho da lista onde o cartão abre. */
+export interface PrazoDaMensagem {
+  modulo: ModuloDoPrazo;
+  pagina: string;
+  cartao_id: string;
+  cartao_codigo: string;
+  titulo: string;
+  /** A data atual do cartão; sem ela, a data de que o aviso falou. */
+  data: string;
+  hora: string | null;
+  concluido: boolean;
+  /** O prazo deixou de valer: o aviso antigo não continua dizendo que ele vence. */
+  parado: PrazoParado | null;
+}
+/** Mensagem da caixa de cada pessoa: a menção com @ (20261108165559_mensagens.sql) e o aviso de prazo (20261109085738_avisos_de_prazo.sql). */
 export interface Mensagem {
   id: string;
+  tipo: TipoMensagem;
   criado_em: string;
   lido_em: string | null;
-  /** null: a pessoa não vê mais o cartão em que foi marcada. */
+  /** Na menção. null: a pessoa não vê mais o cartão em que foi marcada. */
   comentario: ComentarioDaMensagem | null;
+  /** No aviso de prazo. null: a pessoa não vê mais o cartão do prazo. */
+  prazo: PrazoDaMensagem | null;
 }
 
 /** A caixa de mensagens: cada pessoa só lê e marca as suas. */

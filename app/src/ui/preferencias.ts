@@ -14,6 +14,12 @@ export function lerPreferencia<T>(chave: string, padrao: T): T {
   return chave in atuais ? atuais[chave] as T : padrao;
 }
 
+/** Para escolhas que o servidor lê (os e-mails de prazo): espera gravar e, se o banco falhar, lança o erro e nada muda. */
+export async function gravarPreferencia(chave: string, valor: unknown) {
+  await SD.salvarPreferencia(chave, valor);
+  atuais = { ...atuais, [chave]: valor };
+}
+
 /** Vale na hora; gravar no perfil é em segundo plano: se o banco falhar, a escolha só não fica para a próxima visita. */
 export function salvarPreferencia(chave: string, valor: unknown) {
   atuais = { ...atuais, [chave]: valor };

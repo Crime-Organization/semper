@@ -118,7 +118,7 @@ export const SELO_DO_PRAZO: Record<SituacaoDoPrazoNoProcesso, 'ok' | 'erro' | 'p
 
 /** Um dia, em milissegundos (as datas são contadas em UTC: o dia tem sempre 24 horas). */
 const UM_DIA = 24 * 60 * 60 * 1000;
-const diasAte = (de: string, ate: string) => {
+export const diasAte = (de: string, ate: string) => {
   const dia = (iso: string) => { const [a, m, d] = iso.split('-').map(Number); return Date.UTC(a, m - 1, d); };
   return Math.round((dia(ate) - dia(de)) / UM_DIA);
 };

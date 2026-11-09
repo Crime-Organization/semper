@@ -74,3 +74,50 @@ test.describe('Caixa de mensagens', () => {
     await expect(page.getByText('Nenhuma mensagem.', { exact: false })).toBeVisible();
   });
 });
+
+test.describe('Avisos de prazo', () => {
+  /** A rotina diária, que no banco de verdade roda sozinha às 6h55. */
+  async function rodarARotina(page: Page) {
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { gerarAvisosDePrazo(): void } }).SEMPER_FALSO.gerarAvisosDePrazo());
+  }
+
+  test('quando um prazo está perto de vencer, então o responsável vê o aviso, abre o cartão e o aviso fica lido', async ({ page }) => {
+    // Dado: a tarefa "Emitir a GRU" é do Mateus e vence em 2 dias
+    await rodarARotina(page);
+    // Quando
+    await page.goto('/mensagens/');
+    const aviso = page.getByRole('listitem', { name: 'Aviso de prazo não lido: Emitir a GRU' });
+    // Então
+    await expect(aviso).toContainText('Faltam 2 dias');
+    await expect(aviso).toContainText('tarefa Emitir a GRU');
+    await aviso.getByRole('link').click();
+    await expect(page.getByRole('dialog')).toContainText('Emitir a GRU');
+    await page.goto('/mensagens/');
+    await expect(page.getByRole('listitem', { name: 'Aviso de prazo lido: Emitir a GRU' })).toBeVisible();
+  });
+
+  test('quando um compromisso é hoje, então o aviso não fala em vencimento e mostra a hora', async ({ page }) => {
+    // Dado: a reunião de equipe do Mateus é hoje, às 9h
+    await rodarARotina(page);
+    // Quando
+    await page.goto('/mensagens/');
+    const aviso = page.getByRole('listitem', { name: 'Aviso de prazo não lido: Reunião de equipe' });
+    // Então
+    await expect(aviso).toContainText('É hoje');
+    await expect(aviso).toContainText('às 09:00');
+  });
+
+  test('quando alguém desliga um e-mail de prazo, então a escolha continua desligada ao voltar', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    const diario = page.getByRole('checkbox', { name: /Aviso às 7h/ });
+    await expect(diario).toBeChecked();
+    // Quando
+    await diario.uncheck();
+    await page.reload();
+    // Então
+    await expect(page.getByRole('checkbox', { name: /Aviso às 7h/ })).not.toBeChecked();
+    await expect(page.getByRole('checkbox', { name: /Resumo da semana/ })).toBeChecked();
+  });
+});

@@ -10,6 +10,7 @@ import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo
 import { useSessao } from '../ui/sessao';
 import { definirTema, TEMAS, useTema, type Tema } from '../ui/tema';
 import { dataCurta, useTitulo } from '../ui/util';
+import { EmailsDePrazo } from './EmailsDePrazo';
 import { FotoDoPerfil } from './FotoDoPerfil';
 import { FormularioDoPerfil } from './PerfilProfissional';
 import './Configuracoes.css';
@@ -24,6 +25,7 @@ export default function PaginaMinhaConta() {
       <p className="lead">Seus dados de acesso e o seu perfil profissional, que é a base da sua página no site do escritório.</p>
     </header>
     <MinhaConta aoSalvar={() => recarregar(false)} />
+    <EmailsDePrazo />
     <section aria-labelledby="tPerfil" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tPerfil">Perfil profissional</TituloSecao>
       <section className="cartao config campos foto-cartao" aria-labelledby="tFoto">

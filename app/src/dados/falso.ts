@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -27,7 +27,8 @@ import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comen
 import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
-import { mencaoNegadaNoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
+import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
+import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
 import { numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
@@ -108,7 +109,9 @@ interface Banco {
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
   comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string })[];
-  mensagens?: { id: string; perfil_id: string; comentario_id: string; criado_em: string; lido_em: string | null }[];
+  mensagens?: { id: string; perfil_id: string; tipo: TipoMensagem; comentario_id: string | null; criado_em: string; lido_em: string | null;
+    /** Só no aviso de prazo: o módulo e o item (o prazo do processo, ou o próprio cartão), a data e qual aviso é. */
+    modulo?: ModuloDoPrazo; item_id?: string; prazo_data?: string; prazo_aviso?: 'proximo' | 'hoje' }[];
   demandas?: DemandaGuardada[];
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
@@ -524,7 +527,7 @@ bd.pessoas.forEach(p => { p.importacao_id ??= null; p.referencia ??= null; p.obs
 bd.importacoes ??= [];
 // As menções que já existiam entram como lidas, como na migração.
 bd.mensagens ??= bd.comentarios.flatMap(c => c.mencoes.filter(perfil => perfil !== c.autor_id)
-  .map(perfil => ({ id: novoId(), perfil_id: perfil, comentario_id: c.id, criado_em: c.criado_em, lido_em: agora() })));
+  .map(perfil => ({ id: novoId(), perfil_id: perfil, tipo: 'mencao' as const, comentario_id: c.id, criado_em: c.criado_em, lido_em: agora() })));
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
@@ -533,7 +536,8 @@ gravar();
   reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); },
   encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); },
   // Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas; nos outros módulos, toda conta vê tudo.
-  entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); }
+  entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
+  gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje)
 };
 
 const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
@@ -1626,16 +1630,68 @@ function mensagensDoComentario(c: NonNullable<Banco['comentarios']>[number]) {
   bd.mensagens = bd.mensagens!.filter(m => m.comentario_id !== c.id || c.mencoes.includes(m.perfil_id) || !EQUIPE.find(p => p.id === m.perfil_id)?.ativo);
   for (const perfil of c.mencoes) {
     if (perfil !== c.autor_id && !bd.mensagens.some(m => m.comentario_id === c.id && m.perfil_id === perfil)) {
-      bd.mensagens.push({ id: novoId(), perfil_id: perfil, comentario_id: c.id, criado_em: agora(), lido_em: null });
+      bd.mensagens.push({ id: novoId(), perfil_id: perfil, tipo: 'mencao', comentario_id: c.id, criado_em: agora(), lido_em: null });
     }
   }
 }
 /** As mensagens de quem está logado. Apagar o comentário (ou o cartão) apaga a mensagem, como o "on delete cascade". */
-const minhasMensagens = () => bd.mensagens!.filter(m => m.perfil_id === eu && bd.comentarios!.some(c => c.id === m.comentario_id));
+const minhasMensagens = () => bd.mensagens!.filter(m => m.perfil_id === eu && (m.tipo === 'prazo' ? !!prazoDoAviso(m) : bd.comentarios!.some(c => c.id === m.comentario_id)));
+/** Os prazos de cada módulo (como privado.prazos_da_equipe). `vale` é falso no que a rotina ignora (arquivado, excluído, cancelado, tarefa repetida); o cartão continua existindo para o aviso já criado. */
+interface PrazoDaEquipe { perfil_id: string; modulo: ModuloDoPrazo; item_id: string; vale: boolean; aberto: boolean; prazo: Omit<PrazoDaMensagem, 'data'>; data: string | null }
+const concluidoNaColuna = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
+const tarefaRepeteOPrazo = (t: { id: string; prazo: string | null; responsavel_id: string }) => bd.prazos!.some(z => {
+  const p = bd.processos!.find(x => x.id === z.processo_id);
+  return z.tarefa_id === t.id && !z.excluido_em && z.final === t.prazo && p?.responsavel_id === t.responsavel_id && !p.arquivado_em;
+});
+const paradoNoCartao = (x: { arquivado_em: string | null }): PrazoParado | null => x.arquivado_em ? 'arquivado' : null;
+const PRAZOS_DA_EQUIPE: Record<ModuloDoPrazo, () => PrazoDaEquipe[]> = {
+  processos: () => bd.prazos!.flatMap(z => {
+    const p = bd.processos!.find(x => x.id === z.processo_id);
+    return p ? [{ perfil_id: p.responsavel_id, modulo: 'processos' as const, item_id: z.id, vale: !z.excluido_em && !p.arquivado_em, aberto: !z.concluido_em, data: z.final,
+      prazo: { modulo: 'processos' as const, pagina: paginaDoPrazo('processos', p.tipo), cartao_id: p.id, cartao_codigo: p.codigo, titulo: z.descricao, hora: null, concluido: !!z.concluido_em,
+        parado: z.excluido_em ? 'excluido' as const : p.arquivado_em ? 'arquivado' as const : null } }] : [];
+  }),
+  demandas: () => bd.demandas!.map(d => ({ perfil_id: d.responsavel_id, modulo: 'demandas' as const, item_id: d.id, vale: !!d.prazo && !d.arquivado_em, aberto: !concluidoNaColuna(d.etapa_id), data: d.prazo,
+    prazo: { modulo: 'demandas' as const, pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, hora: null, concluido: concluidoNaColuna(d.etapa_id), parado: paradoNoCartao(d) } })),
+  tarefas: () => bd.tarefas!.map(t => ({ perfil_id: t.responsavel_id, modulo: 'tarefas' as const, item_id: t.id, vale: !!t.prazo && !t.arquivado_em && !tarefaRepeteOPrazo(t), aberto: !concluidoNaColuna(t.etapa_id), data: t.prazo,
+    prazo: { modulo: 'tarefas' as const, pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, hora: null, concluido: concluidoNaColuna(t.etapa_id), parado: paradoNoCartao(t) } })),
+  compromissos: () => bd.compromissos!.map(c => ({ perfil_id: c.responsavel_id, modulo: 'compromissos' as const, item_id: c.id,
+    vale: !c.arquivado_em && !colunaCancelada(bd.colunas.find(x => x.id === c.etapa_id)?.nome), aberto: !concluidoNaColuna(c.etapa_id), data: c.data,
+    prazo: { modulo: 'compromissos' as const, pagina: paginaDoPrazo('compromissos'), cartao_id: c.id, cartao_codigo: c.codigo, concluido: concluidoNaColuna(c.etapa_id),
+      parado: colunaCancelada(bd.colunas.find(x => x.id === c.etapa_id)?.nome) ? 'cancelado' as const : paradoNoCartao(c),
+      titulo: nomeDoCompromisso({ tipo: c.tipo, titulo: c.titulo, pessoa_nome: nomesDosClientes(c.pessoas), processo_numero: c.processo_numero }), hora: fmtHora(c.hora) || null } }))
+};
+const prazosDaEquipe = () => (Object.keys(PRAZOS_DA_EQUIPE) as ModuloDoPrazo[]).flatMap(m => PRAZOS_DA_EQUIPE[m]());
+const prazoDoAviso = (m: NonNullable<Banco['mensagens']>[number]) => prazosDaEquipe().find(p => p.item_id === m.item_id);
+/** Depois de quantos dias do prazo o aviso sai da caixa (como privado.gerar_avisos_de_prazo). */
+const DIAS_DO_AVISO_ANTIGO = 30;
+/** A rotina diária (como privado.gerar_avisos_de_prazo). No banco fictício não há relógio: só os testes chamam, por SEMPER_FALSO.gerarAvisosDePrazo(). */
+function gerarAvisosDePrazo(hoje = hojeNaAgenda()) {
+  bd.mensagens = bd.mensagens!.filter(m => m.tipo !== 'prazo' || m.prazo_data! >= somarDias(hoje, -DIAS_DO_AVISO_ANTIGO));
+  const abertos = prazosDaEquipe().filter(p => p.vale && p.aberto && EQUIPE.find(x => x.id === p.perfil_id)?.ativo);
+  const vale = (m: NonNullable<Banco['mensagens']>[number]) => abertos.some(p => p.item_id === m.item_id && p.perfil_id === m.perfil_id && p.data === m.prazo_data);
+  bd.mensagens = bd.mensagens!.filter(m => m.tipo !== 'prazo' || m.lido_em || vale(m));
+  const limite = somarDias(hoje, DIAS_DO_AVISO_DE_PRAZO);
+  for (const p of abertos.filter(x => x.data! >= hoje && x.data! <= limite)) {
+    const prazo_aviso = p.data === hoje ? 'hoje' as const : 'proximo' as const;
+    if (!bd.mensagens.some(m => m.tipo === 'prazo' && m.perfil_id === p.perfil_id && m.item_id === p.item_id && m.prazo_data === p.data && m.prazo_aviso === prazo_aviso)) {
+      bd.mensagens.push({ id: novoId(), perfil_id: p.perfil_id, tipo: 'prazo', comentario_id: null, criado_em: agora(), lido_em: null, modulo: p.modulo, item_id: p.item_id, prazo_data: p.data!, prazo_aviso });
+    }
+  }
+  const temOAvisoDoDia = (m: NonNullable<Banco['mensagens']>[number]) => bd.mensagens!.some(h => h.prazo_aviso === 'hoje' && h.perfil_id === m.perfil_id && h.item_id === m.item_id && h.prazo_data === m.prazo_data);
+  bd.mensagens = bd.mensagens.filter(m => m.lido_em || m.prazo_aviso !== 'proximo' || !temOAvisoDoDia(m));
+  gravar();
+}
+/** Se quem está logado vê o cartão do prazo (como a regra de leitura de cada módulo). */
+const vejoOCartaoDoPrazo = (p: PrazoDaEquipe) => p.modulo === 'processos' || VEJO_O_CARTAO[p.modulo](p.prazo.cartao_id);
 function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
+  const { id, tipo, criado_em, lido_em } = m;
+  if (tipo === 'prazo') {
+    const p = prazoDoAviso(m)!;
+    return { id, tipo, criado_em, lido_em, comentario: null, prazo: vejoOCartaoDoPrazo(p) ? { ...p.prazo, data: p.data ?? m.prazo_data! } : null };
+  }
   const c = bd.comentarios!.find(x => x.id === m.comentario_id)!, cartao = VEJO_O_CARTAO[c.modulo](c.cartao_id) ? CARTAO_DA_MENSAGEM[c.modulo](c.cartao_id) : undefined;
-  const { id, criado_em, lido_em } = m;
-  return { id, criado_em, lido_em, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome } : null };
+  return { id, tipo, criado_em, lido_em, prazo: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome } : null };
 }
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
@@ -3154,7 +3210,7 @@ export const SD: Dados = {
   },
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
-  mensagensListar: () => espera(minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)),
+  mensagensListar: () => espera(minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)),
   mensagensNaoLidas: () => espera(minhasMensagens().filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
     const m = minhasMensagens().find(x => x.id === id && !x.lido_em);

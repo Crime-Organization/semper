@@ -1,5 +1,6 @@
 // Partes puras do aviso de troca de e-mail pelo administrador (#224), usadas pela função do servidor equipe-trocar-email.
 // Sem Deno e sem rede: dá para testar no app (app/src/regras/avisoDaTroca.test.ts).
+import { molduraDoEmail, paragrafoDoEmail } from './modeloDeEmail.ts';
 
 /** A quem o aviso vai: o e-mail antigo de quem teve a conta trocada, ou a administração do escritório. */
 export type DestinoDoAviso = 'antigo' | 'gestao';
@@ -70,27 +71,7 @@ const MODELOS: Record<DestinoDoAviso, { assunto: string; titulo: string; paragra
   }
 };
 
-const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-/** Os nomes vêm de quem os digitou: no HTML, viram só texto. */
-const escapar = (v: string) => v.replace(/[&<>"']/g, c => ESCAPES[c]);
-
-// As cores são as dos modelos de banco/emails: e-mail não lê as variáveis de estilo.
-const emHtml = (titulo: string, paragrafos: string[]) => `<div style="margin:0;padding:16px 0;font-family:Lato,Arial,Helvetica,sans-serif;color:#1A1916">
-  <div style="max-width:520px;margin:0 auto;background:#FFFFFF;border:1px solid #EBEBE6;border-radius:14px;overflow:hidden">
-    <div style="background:#1A1916;padding:22px 28px">
-      <span style="font-size:20px;font-weight:900;color:#FFFFFF;letter-spacing:.01em">SEMPER<span style="color:#5FAE3E">.</span></span>
-    </div>
-    <div style="padding:32px 28px">
-      <p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.18em;color:#6B6A63;text-transform:uppercase">Aviso de segurança</p>
-      <h1 style="margin:0 0 18px;font-size:26px;line-height:1.2;font-weight:900">${titulo}</h1>
-      ${paragrafos.map(p => `<p style="margin:0 0 12px;font-size:16px;line-height:1.6;color:#3D3B36">${escapar(p)}</p>`).join('\n      ')}
-    </div>
-    <div style="padding:18px 28px;border-top:1px solid #EBEBE6;font-size:12px;color:#8A8981;line-height:1.6">
-      SEMPER · semper.app.br<br>
-      Este é um aviso automático. Não responda a este e-mail.
-    </div>
-  </div>
-</div>`;
+const emHtml = (titulo: string, paragrafos: string[]) => molduraDoEmail('Aviso de segurança', titulo, paragrafos.map(paragrafoDoEmail).join('\n      '));
 
 function mensagem(destino: DestinoDoAviso, para: string, dados: DadosDoAviso, situacao: SituacaoDaTroca): MensagemDoAviso {
   const { assunto, titulo, paragrafos } = MODELOS[destino];

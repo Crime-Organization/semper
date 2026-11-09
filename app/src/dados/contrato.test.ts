@@ -644,6 +644,159 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Avisos de prazo (#113)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      /** A rotina diária, que no banco de verdade roda sozinha. */
+      const rotina = (hoje?: string) => (window as unknown as { SEMPER_FALSO: { gerarAvisosDePrazo(hoje?: string): void } }).SEMPER_FALSO.gerarAvisosDePrazo(hoje);
+      afterEach(() => entrarComo('u-master'));
+      const HOJE = '2031-03-10', EM_3_DIAS = '2031-03-13', EM_4_DIAS = '2031-03-14';
+      const nome = () => 'AVISO ' + Math.random().toString(36).slice(2);
+      const avisosDe = async (titulo: string) => (await SD.mensagensListar()).filter(m => m.prazo?.titulo === titulo);
+
+      it('dado tarefas que vencem hoje, em 3 e em 4 dias, quando a rotina roda, então o responsável recebe os avisos dos dois primeiros', async () => {
+        // Dado
+        const [hoje, perto, longe] = [nome(), nome(), nome()];
+        await SD.tarefaCriar({ titulo: hoje, prazo: HOJE, responsavel_id: 'u-ana' });
+        await SD.tarefaCriar({ titulo: perto, prazo: EM_3_DIAS, responsavel_id: 'u-ana' });
+        await SD.tarefaCriar({ titulo: longe, prazo: EM_4_DIAS, responsavel_id: 'u-ana' });
+        // Quando
+        rotina(HOJE);
+        entrarComo('u-ana');
+        // Então
+        const [aviso] = await avisosDe(hoje);
+        expect(aviso.tipo).toBe('prazo');
+        expect(aviso.lido_em).toBeNull();
+        expect(aviso.comentario).toBeNull();
+        expect(aviso.prazo).toMatchObject({ modulo: 'tarefas', pagina: 'tarefas', data: HOJE });
+        expect(await avisosDe(perto)).toHaveLength(1);
+        expect(await avisosDe(longe)).toHaveLength(0);
+      });
+
+      it('dado um aviso criado, quando a rotina roda de novo, então ele não se repete', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-ana' });
+        rotina(HOJE);
+        // Quando
+        rotina(HOJE);
+        entrarComo('u-ana');
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(1);
+      });
+
+      it('dado um aviso, quando outra pessoa abre a caixa, então não o vê', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-ana' });
+        // Quando
+        rotina(HOJE);
+        entrarComo('u-bruno');
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um aviso de 3 dias não lido, quando chega o dia, então fica só o aviso do dia', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: EM_3_DIAS, responsavel_id: 'u-ana' });
+        rotina(HOJE);
+        // Quando
+        rotina(EM_3_DIAS);
+        entrarComo('u-ana');
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(1);
+      });
+
+      it('dado um aviso de 3 dias já lido, quando chega o dia, então vem o aviso do dia e o lido fica no histórico', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: EM_3_DIAS, responsavel_id: 'u-ana' });
+        rotina(HOJE);
+        entrarComo('u-ana');
+        await SD.mensagemMarcarLida((await avisosDe(titulo))[0].id);
+        // Quando
+        rotina(EM_3_DIAS);
+        // Então
+        const avisos = await avisosDe(titulo);
+        expect(avisos).toHaveLength(2);
+        expect(avisos.filter(m => !m.lido_em)).toHaveLength(1);
+      });
+
+      it('dado um aviso não lido de uma tarefa arquivada, quando a rotina roda, então ele sai da caixa', async () => {
+        // Dado
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-master' });
+        rotina(HOJE);
+        expect(await avisosDe(titulo)).toHaveLength(1);
+        // Quando
+        await SD.tarefasArquivar([id], true);
+        rotina(HOJE);
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado uma tarefa de quem está desativado, quando a rotina roda, então não cria aviso', async () => {
+        // Dado: a Carla está desativada
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-carla' });
+        // Quando
+        rotina(HOJE);
+        entrarComo('u-carla');
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um aviso de prazo que passou há mais de 30 dias, quando a rotina roda, então ele sai da caixa', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-master' });
+        rotina(HOJE);
+        // Quando
+        rotina('2031-05-01');
+        // Então
+        expect(await avisosDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um aviso lido de uma tarefa arquivada, quando abre a caixa, então ele fica no histórico e diz que foi arquivada', async () => {
+        // Dado
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-master' });
+        rotina(HOJE);
+        await SD.mensagemMarcarLida((await avisosDe(titulo))[0].id);
+        // Quando
+        await SD.tarefasArquivar([id], true);
+        rotina(HOJE);
+        // Então
+        const [aviso] = await avisosDe(titulo);
+        expect(aviso.prazo?.parado).toBe('arquivado');
+      });
+
+      it('dado um aviso de uma tarefa, quando o prazo muda, então o aviso mostra a data atual do cartão', async () => {
+        // Dado
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-master' });
+        rotina(HOJE);
+        await SD.mensagemMarcarLida((await avisosDe(titulo))[0].id);
+        // Quando
+        await SD.tarefaAtualizar(id, { titulo, prazo: EM_4_DIAS, responsavel_id: 'u-master' });
+        // Então
+        expect((await avisosDe(titulo))[0].prazo).toMatchObject({ data: EM_4_DIAS, concluido: false });
+      });
+
+      it('dado um aviso, quando é marcado como lido, então o contador de não lidas cai', async () => {
+        // Dado
+        await SD.mensagensMarcarTodasLidas();
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: HOJE, responsavel_id: 'u-master' });
+        rotina(HOJE);
+        const antes = await SD.mensagensNaoLidas();
+        // Quando
+        await SD.mensagemMarcarLida((await avisosDe(titulo))[0].id);
+        // Então
+        expect(await SD.mensagensNaoLidas()).toBe(antes - 1);
+      });
+    });
+
     describe('Comentários', () => {
       // Quem está logado é o Mateus (@mateus.goncalves, advogado); a Ana é advogada e o Bruno, estagiário.
       const contratoNovo = async () => {
