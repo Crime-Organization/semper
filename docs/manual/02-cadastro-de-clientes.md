@@ -62,7 +62,7 @@ Se o telefone já existir em outro cadastro, o sistema só avisa.
 - **Não cadastre também no formulário antigo.** Cada pessoa nova vai sozinha para a planilha antiga, cria o contato no Google e abre o cartão no Trello. Só seguem o primeiro telefone e o primeiro e-mail. Isso só vale para pessoas novas: editar um cadastro não envia nada.
 - **Desfazer não apaga lá fora.** A linha da planilha, o contato e o cartão do Trello precisam ser apagados à mão.
 - **Salve antes de sair.** O que não foi salvo se perde.
-- **Cadastrar direto na coluna "Contrato fechado"** também cria o contrato da pessoa.
+- **Cadastrar direto na coluna "Contrato fechado"** também cria o contrato da pessoa, se quem cadastrou for advogado ou houver um advogado entre os responsáveis.
 - **O cliente ainda não se cadastra sozinho:** a aba "Sou cliente" da tela de entrada está em preparação.
 
 ## Roteiro do vídeo
