@@ -18,3 +18,4 @@ O repositório está público até dezembro de 2026. Aqui entram só exemplos in
 |---|---|---|
 | 01 | [Como acessar o sistema pela primeira vez?](01-primeiro-acesso.md) | 1.18.0 |
 | 02 | [O cadastro de clientes já pode ser feito pelo sistema?](02-cadastro-de-clientes.md) | 1.18.0 |
+| 03 | [Como entrar, sair ou tirar alguém de um cartão?](03-entrar-sair-e-tirar-pessoas-de-um-cartao.md) | 1.18.0 |
