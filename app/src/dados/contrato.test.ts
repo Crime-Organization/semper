@@ -4754,6 +4754,56 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       expect(demandas).not.toContain(demanda.id);
     });
 
+    describe('Na fase de adaptação, o advogado entra no processo (#273)', () => {
+      const mudarFuncao = (id: string, funcao: string) => (window as unknown as { SEMPER_FALSO: { mudarFuncao(i: string, f: string): void } }).SEMPER_FALSO.mudarFuncao(id, funcao);
+      afterEach(() => mudarFuncao('u-bruno', 'estagiario'));
+      const processoDaAna = async () => (await SD.processoCriar({ tipo: 'judicial', numero: '123', responsavel_id: 'u-ana', clientes: ['p-ana'] })).id;
+
+      it('dada a chave desligada, quando o advogado tenta entrar, então não consegue', async () => {
+        // Dado
+        const id = await processoDaAna();
+        mudarFuncao('u-bruno', 'advogado');
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.processoMeIncluir(id, 'colaborador')).rejects.toThrow('Só advogados');
+      });
+
+      it('dada a chave ligada, quando quem não é advogado tenta entrar, então não consegue', async () => {
+        // Dado
+        const id = await processoDaAna();
+        chave(true);
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.processoMeIncluir(id, 'colaborador')).rejects.toThrow('Só advogados');
+      });
+
+      it('dada a chave ligada, quando o advogado entra como colaborador, então aparece no processo e o responsável não muda', async () => {
+        // Dado
+        const id = await processoDaAna();
+        chave(true);
+        mudarFuncao('u-bruno', 'advogado');
+        // Quando
+        entrarComo('u-bruno');
+        await SD.processoMeIncluir(id, 'colaborador');
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ responsavel_id: 'u-ana', colaboradores: ['u-bruno'] });
+      });
+
+      it('dada a chave ligada, quando o advogado assume, então vira responsável e quem era continua como colaborador', async () => {
+        // Dado
+        const id = await processoDaAna();
+        chave(true);
+        mudarFuncao('u-bruno', 'advogado');
+        // Quando
+        entrarComo('u-bruno');
+        await SD.processoMeIncluir(id, 'responsavel');
+        // Então
+        expect(await SD.processoObter(id)).toMatchObject({ responsavel_id: 'u-bruno', colaboradores: ['u-ana'] });
+      });
+    });
+
     it('dada a chave ligada, quando alguém menciona quem não está na demanda, então a menção é aceita', async () => {
       // Dado
       const demanda = await SD.demandaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana', clientes: ['p-ana'] });

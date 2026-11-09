@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -94,6 +94,8 @@ interface Banco {
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
   equipeVeTudo?: boolean;
+  /** A função de cada conta, quando um teste a muda: SEMPER_FALSO.mudarFuncao('u-bruno', 'advogado'). */
+  funcoesDeTeste?: Record<string, Funcao>;
   logado: boolean;
   /** A sessão acabou em outro lugar (troca de e-mail pelo administrador, "Sair" em outro aparelho). Só os testes ligam: SEMPER_FALSO.encerrarSessao(). */
   sessaoEncerrada?: boolean;
@@ -534,13 +536,15 @@ eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
 gravar();
+for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(m => m.id === id)!.funcao = funcao;
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = {
   reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); },
   encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); },
   // Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas; nos outros módulos, toda conta vê tudo.
   entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
   gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje),
-  equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); }
+  equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
+  mudarFuncao: (id: string, funcao: Funcao) => { bd.funcoesDeTeste = { ...bd.funcoesDeTeste, [id]: funcao }; EQUIPE.find(m => m.id === id)!.funcao = funcao; gravar(); }
 };
 
 const auditar = (tabela: string, acao: string, p?: { id: string; nome?: string; codigo?: string }, detalhes?: Pick<NonNullable<RegistroAuditoria['resumo']>, 'parcela' | 'recebimento' | 'pago_em' | 'valor'>) =>
@@ -729,6 +733,11 @@ const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !estaNoCarta
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
 const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
+/** Como public.processo_me_incluir: o que muda no processo em cada forma de entrar. */
+const ENTRAR_NO_PROCESSO: Record<ComoEntrarNoProcesso, (p: ProcessoGuardado) => Partial<ProcessoGuardado>> = {
+  colaborador: p => p.responsavel_id === eu || p.colaboradores.includes(eu) ? {} : { colaboradores: [...p.colaboradores, eu] },
+  responsavel: p => p.responsavel_id === eu ? {} : { responsavel_id: eu, colaboradores: [...p.colaboradores.filter(c => c !== eu), p.responsavel_id] }
+};
 /** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta, nem a menção de quem não era parte ao comentar. */
 const meMencionaramNoContrato = (id: string) =>
   bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu) && !c.autor_sem_vinculo);
@@ -3045,6 +3054,14 @@ export const SD: Dados = {
     });
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só processos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' });
+  },
+  async processoMeIncluir(id, como) {
+    if (!bd.equipeVeTudo || membroLogado().funcao !== 'advogado') return erro('Só advogados podem entrar no processo nesta fase.');
+    const p = acharProcesso(id);
+    if (p.arquivado_em) return erro('Processo não encontrado neste escritório.');
+    const novos = ENTRAR_NO_PROCESSO[como](p);
+    historicoProcesso(p, novos);
+    Object.assign(p, novos, { atualizado_em: agora() }); gravar();
   },
   async processoMover(id, etapaId, ordem) {
     const p = acharProcesso(id);

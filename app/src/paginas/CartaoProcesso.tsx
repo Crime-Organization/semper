@@ -2,15 +2,15 @@
 // e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
 // numa seção que recolhe (prazos, andamentos, dados, clientes, tarefas, histórico).
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { SD, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
+import { SD, type ComoEntrarNoProcesso, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
-import { SO_LEITURA_DO_PROCESSO, soLeOCartao } from '../regras/equipeVeTudo';
+import { advogadoNaAdaptacao, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import { alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
-import { BotaoDuplo } from '../ui/Botoes';
+import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
@@ -35,6 +35,12 @@ interface Props {
   aoMudar: () => void;
   aoFechar: () => void;
 }
+
+/** O que a tela confirma depois de a pessoa entrar no processo. */
+const ENTRADA_NO_PROCESSO: Record<ComoEntrarNoProcesso, string> = {
+  colaborador: 'Você entrou neste processo como colaborador.',
+  responsavel: 'Você agora é o responsável por este processo. Quem era responsável continua como colaborador.'
+};
 
 export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const ctx = useCtx();
@@ -70,6 +76,14 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   const podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m));
+  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !podeAlterar && !p.arquivado_em;
+  async function entrar(como: ComoEntrarNoProcesso) {
+    try {
+      await SD.processoMeIncluir(p!.id, como);
+      avisar(ENTRADA_NO_PROCESSO[como]);
+      aoMudar(); await carregar(); setVersaoHist(v => v + 1);
+    } catch (e) { falha(e); }
+  }
   const cliente = (c: PessoaResumida): ItemLigado => ({ id: 'cliente-' + c.id, para: '/pessoas/?id=' + c.id, codigo: c.codigo, titulo: c.nome,
     detalhe: 'Cliente', selo: c.arquivado_em ? 'Arquivada' : undefined });
 
@@ -127,7 +141,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, p.responsavel_id, 'Responsável')}
         participantes={p.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
-    {!podeAlterar && <Nota>{SO_LEITURA_DO_PROCESSO}</Nota>}
+    {!podeAlterar && <Nota>{podeEntrar ? SO_LEITURA_DO_PROCESSO_ADVOGADO : SO_LEITURA_DO_PROCESSO}</Nota>}
+    {podeEntrar && <div className="cartao-acoes">
+      <Botao pequeno onClick={() => entrar('colaborador')}>Entrar como colaborador</Botao>
+      <BotaoDuplo pequeno confirmar="Confirmar: assumir como responsável" aoConfirmar={() => entrar('responsavel')}>Assumir como responsável</BotaoDuplo>
+    </div>}
     {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Processo arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
@@ -156,8 +174,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeAlterar ? { para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
-      <CompromissosLigados carregar={() => SD.compromissosDoProcesso(p.id)} vazio="Nenhum compromisso ligado a este processo." />
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeAlterar || advogado ? { para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
+      <CompromissosLigados key={String(podeAlterar)} carregar={() => SD.compromissosDoProcesso(p.id)} vazio={podeAlterar ? 'Nenhum compromisso ligado a este processo.' : SEM_COMPROMISSO_VISIVEL} />
     </Recolhivel>}
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico" contador={quantos.historico}>

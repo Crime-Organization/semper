@@ -54,6 +54,39 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toHaveCount(0);
   });
 
+  test('dada a chave ligada, quando um advogado sem vínculo entra no processo, então passa a poder alterar', async ({ page }) => {
+    // Dado: Bruno, aqui como advogado, não está no processo
+    await ligarAChave(page);
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { mudarFuncao(i: string, f: string): void } }).SEMPER_FALSO.mudarFuncao('u-bruno', 'advogado'));
+    await entrarComo(page, 'u-bruno');
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: '0001234-97.2026.8.13.0024' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('Para alterar, entre nele.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('button', { name: 'Entrar como colaborador' }).click();
+    // Então
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    await expect(cartao.getByText('Para alterar, entre nele.')).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Assumir como responsável' })).toHaveCount(0);
+  });
+
+  test('dada a chave ligada, quando quem não é advogado abre o processo, então não vê as opções de entrar', async ({ page }) => {
+    // Dado
+    await ligarAChave(page);
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: '0001234-97.2026.8.13.0024' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('toda a equipe vê este processo', { exact: false })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Entrar como colaborador' })).toHaveCount(0);
+  });
+
   test('dada a chave ligada, quando quem participa abre a demanda dele, então continua podendo alterar', async ({ page }) => {
     // Dado
     await ligarAChave(page);

@@ -6,10 +6,18 @@ export const equipeVeTudo = (escritorio: { modulos?: Record<string, boolean> } |
 export const soLeOCartao = <P>(ctx: { escritorio?: { modulos?: Record<string, boolean> } | null; perfil: P }, estaNele: (pessoa: P) => boolean) =>
   equipeVeTudo(ctx.escritorio) && !estaNele(ctx.perfil);
 
+/** Na fase de adaptação, o advogado pode entrar nos processos e marcar audiência em qualquer um (#273). */
+export const advogadoNaAdaptacao = (ctx: { escritorio?: { modulos?: Record<string, boolean> } | null; perfil: { funcao: string } | null }) =>
+  equipeVeTudo(ctx.escritorio) && ctx.perfil?.funcao === 'advogado';
+
 /** O que a tela diz a quem vê o cartão sem estar nele. */
 export const SO_LEITURA_DO_CARTAO = 'Por enquanto, toda a equipe vê este cartão. Você pode ler e comentar, mas não alterar.';
 /** O processo ainda não tem comentários. */
 export const SO_LEITURA_DO_PROCESSO = 'Por enquanto, toda a equipe vê este processo. Você pode ler, mas não alterar.';
+/** Quem está fora do processo não vê os compromissos dos outros: "nenhum" faria alguém marcar a mesma audiência de novo. */
+export const SEM_COMPROMISSO_VISIVEL = 'Nenhum compromisso que você possa ver. Quem está no processo pode ter marcado audiências: entre nele para vê-las antes de marcar outra.';
+/** Ao advogado que ainda não está no processo. */
+export const SO_LEITURA_DO_PROCESSO_ADVOGADO = 'Por enquanto, toda a equipe vê este processo. Para alterar, entre nele.';
 /** O contrato de quem não é parte: os valores ficam ocultos. */
 export const SO_LEITURA_DO_CONTRATO = 'Por enquanto, toda a equipe vê este contrato, sem os valores. Você pode ler e comentar, mas não alterar.';
 /** No lugar do valor, para quem não é parte do contrato. */

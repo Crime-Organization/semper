@@ -18,6 +18,7 @@ import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITE
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
+import { advogadoNaAdaptacao } from '../regras/equipeVeTudo';
 import { colunaCancelada, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
@@ -900,8 +901,8 @@ export const SD: Dados = {
   },
   async processosParaLigar(termo = '') {
     let q = sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome').is('arquivado_em', null);
-    // Com a chave da equipe ligada, todos veem todos os processos, mas o banco só deixa ligar a quem está no processo.
-    if (ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
+    // Com a chave da equipe ligada, todos veem todos os processos, mas o banco só deixa ligar a quem está no processo ou é advogado.
+    if (ctx && !ctx.ehAdmin && !advogadoNaAdaptacao(ctx)) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
     const t = termoBusca(termo);
     if (t) q = q.ilike('busca', `%${t}%`);
     const { data } = await rodar(q.order('criado_em', { ascending: false }).limit(PROCESSOS_PARA_LIGAR));
@@ -1227,6 +1228,9 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     conferirQueMudou((await rodar(sb.from('processos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async processoMeIncluir(id, como) {
+    await rpc('processo_me_incluir', { p_processo: id, p_como: como });
   },
   async processoHistorico(id) {
     const { data } = await rodar(sb.from('processo_historico').select('id, alteracoes, feito_por, em')
