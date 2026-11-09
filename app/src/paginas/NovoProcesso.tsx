@@ -13,6 +13,7 @@ import {
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -53,6 +54,8 @@ function CampoDoEscritorio({ campo, valor, erro, aoMudar }: { campo: CampoDeProc
 export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), clienteInicial = params.get('cliente');
   const tipoInicial: TipoProcesso = params.get('tipo') === 'administrativo' ? 'administrativo' : 'judicial';
@@ -263,6 +266,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           if (naoVoltaram.length) avisar(`Não voltou ao valor anterior, porque ele saiu da lista ou o campo foi apagado: ${naoVoltaram.join(', ')}.`, 'erro');
           return { tipo: 'processoAtualizado', id: alvo.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar(caminho + '?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o processo novo entra na coluna-marco de início. A coluna vinda do quadro só vale para o tipo daquele quadro.
@@ -279,6 +283,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           try { await SD.processoDemandaLigar(r.id, demanda.id); }
           catch { avisar(`Não foi possível ligar o processo à demanda ${demanda.codigo}.`, 'erro'); }
         }
+        saidaLiberada.current = true;
         navegar(caminho + '?id=' + r.id);
       }
     } catch (err) {
@@ -424,6 +429,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const voltar = TIPOS_PROCESSO[c.tipo].caminho + (idAtualizar ? '?id=' + idAtualizar : '');
   const total = ETAPAS_PROCESSO.length;
   return <div className="passos">
+    <AvisoAoSair estado={{ c, clientes }} liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Processos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar processo' : 'Novo processo'}<span className="ponto">.</span></h1>

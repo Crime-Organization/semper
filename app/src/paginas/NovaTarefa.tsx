@@ -12,6 +12,7 @@ import {
   camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa, TAREFA_VAZIA, validarTarefa,
   type CamposTarefa, type EtapaTarefa
 } from '../regras/tarefa';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -37,6 +38,8 @@ const rotuloDaDemanda = (d: Pick<DemandaLista, 'codigo' | 'titulo' | 'cliente_no
 export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const pessoaInicial = params.get('pessoa'), demandaInicial = params.get('demanda'), contratoInicial = params.get('contrato');
@@ -201,6 +204,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           await SD.tarefaAtualizar(alvo.id, antes);
           return { tipo: 'tarefaAtualizada', id: alvo.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar('/tarefas/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, a tarefa nova entra na coluna-marco de início ("Para fazer").
@@ -212,6 +216,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'tarefaCriada', id: r.id };
         });
+        saidaLiberada.current = true;
         navegar('/tarefas/?id=' + r.id);
       }
     } catch (err) {
@@ -294,6 +299,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const voltar = idAtualizar ? '/tarefas/?id=' + idAtualizar : '/tarefas/';
   const total = ETAPAS_TAREFA.length;
   return <div className="passos">
+    <AvisoAoSair estado={{ c, pessoas }} liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Tarefas</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar tarefa' : 'Nova tarefa'}<span className="ponto">.</span></h1>

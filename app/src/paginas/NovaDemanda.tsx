@@ -11,6 +11,7 @@ import {
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
 import { MASCARAS } from '../regras/pessoa';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -33,6 +34,8 @@ const rotuloDoContrato = (k: Pick<ContratoLista, 'codigo' | 'cliente_nome' | 'se
 export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const clienteInicial = params.get('cliente'), contratoInicial = params.get('contrato');
@@ -175,6 +178,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
           await SD.demandaAtualizar(alvo.id, antes);
           return { tipo: 'demandaAtualizada', id: alvo.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar('/demandas/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, a demanda nova entra na coluna-marco de início ("Para fazer").
@@ -186,6 +190,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'demandaCriada', id: r.id };
         });
+        saidaLiberada.current = true;
         navegar('/demandas/?id=' + r.id);
       }
     } catch (err) {
@@ -268,6 +273,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const voltar = idAtualizar ? '/demandas/?id=' + idAtualizar : '/demandas/';
   const total = ETAPAS_DEMANDA.length;
   return <div className="passos">
+    <AvisoAoSair estado={{ c, clientes }} liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Demandas</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar demanda' : 'Nova demanda'}<span className="ponto">.</span></h1>

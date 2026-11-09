@@ -13,6 +13,7 @@ import {
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { MASCARAS } from '../regras/pessoa';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -37,6 +38,8 @@ const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'clie
 export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), pessoaInicial = params.get('pessoa'), processoInicial = params.get('processo');
   const tipoInicial: TipoCompromisso = processoInicial ? 'audiencia' : 'reuniao';
@@ -195,6 +198,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
           await SD.compromissoAtualizar(alvo.id, antes);
           return { tipo: 'compromissoAtualizado', id: alvo.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar(ENDERECO + '?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o compromisso novo entra na coluna-marco de início.
@@ -206,6 +210,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'compromissoCriado', id: r.id };
         });
+        saidaLiberada.current = true;
         navegar(ENDERECO + '?id=' + r.id);
       }
     } catch (err) {
@@ -308,6 +313,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
   const voltar = ENDERECO + (idAtualizar ? '?id=' + idAtualizar : '');
   const total = ETAPAS_COMPROMISSO.length;
   return <div className="passos">
+    <AvisoAoSair estado={{ c, pessoas }} liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Agenda</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar compromisso' : 'Novo compromisso'}<span className="ponto">.</span></h1>

@@ -13,6 +13,7 @@ import {
 } from '../regras/contrato';
 import { motivoParaNaoParticipar, opcoesDeResponsavel } from '../regras/equipe';
 import { MASCARAS } from '../regras/pessoa';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
@@ -39,6 +40,8 @@ const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="check
 export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id');
   const etapaInicial = params.get('etapa');
@@ -243,6 +246,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           await SD.contratoAtualizar(alvo.id, antes);
           return { tipo: 'contratoAtualizado', id: alvo.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar('/contratos/?id=' + alvo.id);
       } else {
         // Sem coluna escolhida, o contrato novo entra na primeira coluna do quadro.
@@ -254,6 +258,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'contratoCriado', id: r.id };
         });
+        saidaLiberada.current = true;
         navegar('/contratos/?id=' + r.id);
       }
     } catch (err) {
@@ -419,6 +424,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const voltar = idAtualizar ? '/contratos/?id=' + idAtualizar : '/contratos/';
   const total = ETAPAS_CONTRATO.length;
   return <div className="passos">
+    <AvisoAoSair estado={{ c, pessoas, clientes, participantes }} liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Contratos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar contrato' : 'Novo contrato'}<span className="ponto">.</span></h1>
