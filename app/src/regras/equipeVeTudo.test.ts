@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { advogadoNaAdaptacao, equipeVeTudo, soLeOCartao } from './equipeVeTudo';
+import { advogadoNaAdaptacao, equipeEditaTudo, equipeVeTudo, soLeOCartao } from './equipeVeTudo';
 import { alteraOProcesso } from './processo';
 import { soLeATarefaNaLista } from './tarefa';
 
@@ -33,6 +33,14 @@ describe('Toda a equipe vê os cartões (#271)', () => {
   ])('dada a chave %s e a função %s, quando se confere a fase de adaptação, então vale %s', (ligada, funcao, esperado) => {
     // Então
     expect(advogadoNaAdaptacao({ escritorio: { modulos: { equipe_ve_tudo: ligada } }, perfil: { funcao } })).toBe(esperado);
+  });
+
+  it('dada a fase de adaptação, quando alguém não está no cartão, então não fica só lendo', () => {
+    // Dado
+    const ctx = { escritorio: { modulos: { equipe_ve_tudo: true, equipe_edita_tudo: true } }, perfil: 'eu' };
+    // Então
+    expect(equipeEditaTudo(ctx.escritorio)).toBe(true);
+    expect(soLeOCartao(ctx, () => false)).toBe(false);
   });
 
   const processo = { criado_por: 'u-criou', responsavel_id: 'u-resp', colaboradores: ['u-colab'] };

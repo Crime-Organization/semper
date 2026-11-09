@@ -18,7 +18,7 @@ import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITE
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
-import { advogadoNaAdaptacao } from '../regras/equipeVeTudo';
+import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
 import { colunaCancelada, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
@@ -707,6 +707,9 @@ export const SD: Dados = {
     const { data: daEquipe } = await rodar(sb.from('contratos_da_equipe').select(CAMPOS_CONTRATO_DA_EQUIPE).eq('id', id).maybeSingle());
     return daEquipe ? { ...comParticipantes(daEquipe), indicador: null } : null;
   },
+  async contratoAlterarSemValores(id, dados) {
+    await rpc('contrato_alterar_sem_valores', { p_id: id, p_dados: dados });
+  },
   // O número (sigla, sequencial e ano) é dado pelo banco ao gravar.
   async contratoCriar(dados) {
     const { data } = await rodar(sb.from('contratos').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
@@ -731,8 +734,11 @@ export const SD: Dados = {
   },
   async contratoMover(id, etapaId, ordem) {
     const { data } = await rodar(sb.from('contratos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle());
+    if (data) return;
+    // Na fase de adaptação, quem não é parte muda a situação pela função que não mexe nos valores.
+    if (equipeEditaTudo(ctx?.escritorio)) { await rpc('contrato_alterar_sem_valores', { p_id: id, p_dados: { etapa_id: etapaId, etapa_ordem: ordem } }); return; }
     // Quem só foi mencionado vê o contrato, mas não altera: nenhuma linha muda, e o quadro precisa voltar o cartão.
-    if (!data) throw new Error('Você não tem permissão para fazer isso.');
+    throw new Error('Você não tem permissão para fazer isso.');
   },
   async contratoHistorico(id) {
     const { data } = await rodar(sb.from('contrato_historico').select('id, alteracoes, feito_por, em')
@@ -1228,6 +1234,10 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     conferirQueMudou((await rodar(sb.from('processos').update({ etapa_id: etapaId, etapa_ordem: ordem }).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async faseDeAdaptacaoDefinir(ligada) {
+    await rpc('fase_de_adaptacao_definir', { p_ligada: ligada });
+    ctx = null;   // os módulos do escritório mudaram: a próxima leitura busca de novo
   },
   async processoMeIncluir(id, como) {
     await rpc('processo_me_incluir', { p_processo: id, p_como: como });

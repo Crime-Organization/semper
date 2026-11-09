@@ -76,7 +76,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   const podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m));
-  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !podeAlterar && !p.arquivado_em;
+  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil) && !p.arquivado_em;
   async function entrar(como: ComoEntrarNoProcesso) {
     try {
       await SD.processoMeIncluir(p!.id, como);

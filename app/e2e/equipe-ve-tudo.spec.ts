@@ -87,6 +87,46 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: 'Entrar como colaborador' })).toHaveCount(0);
   });
 
+  test('dada a fase de adaptação, quando quem não é parte edita o contrato, então muda o objeto sem ver os valores', async ({ page }) => {
+    // Dado: o administrador liga em Configurações
+    await page.goto('/configuracoes/');
+    await page.getByRole('checkbox', { name: /Toda a equipe vê e edita tudo/ }).check();
+    await expect(page.getByText('Fase de adaptação ligada', { exact: false })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await abrir(page, 'Contratos');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).first().click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('button', { name: /Honorários/ })).toHaveCount(0);
+    await cartao.getByRole('button', { name: 'Editar sem os valores' }).click();
+    // Então
+    await expect(cartao.getByLabel('Valor do contrato')).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Clientes' })).toBeVisible();
+    await expect(cartao.getByLabel('Advogado responsável')).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Participantes' })).toHaveCount(0);
+    await cartao.getByRole('combobox', { name: 'Objeto 1' }).fill('Registro de marca atualizado');
+    await cartao.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByText('Contrato atualizado.')).toBeVisible();
+  });
+
+  test('dada a fase de adaptação, quando quem não participa abre a demanda, então pode alterar', async ({ page }) => {
+    // Dado
+    await page.goto('/configuracoes/');
+    await page.getByRole('checkbox', { name: /Toda a equipe vê e edita tudo/ }).check();
+    await expect(page.getByText('Fase de adaptação ligada', { exact: false })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await abrir(page, 'Demandas');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeEnabled();
+    await expect(cartao.getByText('toda a equipe vê este cartão', { exact: false })).toHaveCount(0);
+  });
+
   test('dada a chave ligada, quando quem participa abre a demanda dele, então continua podendo alterar', async ({ page }) => {
     // Dado
     await ligarAChave(page);

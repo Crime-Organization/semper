@@ -258,6 +258,9 @@ export type DadosContrato = Partial<{ clientes: string[]; participantes: Partici
   | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'conta_destino_id' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
 
+/** O que quem não é parte pode alterar no contrato, na fase de adaptação. Responsável e participantes ficam de fora: são eles que decidem quem vê os valores. */
+export interface DadosSemValores { clientes?: string[]; objetos?: string[]; servico?: string; codigo_antigo?: string | null; etapa_id?: string | null; etapa_ordem?: number | null }
+
 /** O contrato da pessoa em "Contrato fechado": novo é false quando ele já tinha nascido antes. */
 export interface ContratoDoClienteFechado { id: string; codigo: string; novo: boolean }
 /** Uma conta do escritório, só com o nome (para escolher a do contrato). */
@@ -518,6 +521,7 @@ export interface DadosContratos {
   contratoObter(id: string): Promise<Contrato | null>;
   /** O contrato como o cartão mostra: inteiro para quem é parte; para o resto da equipe, sem os valores, se a chave do escritório estiver ligada. */
   contratoVer(id: string): Promise<Contrato | null>;
+  contratoAlterarSemValores(id: string, dados: DadosSemValores): Promise<void>;
   contratoCriar(dados: DadosContrato): Promise<{ id: string; codigo: string }>;
   /**
    * A pessoa que chegou à coluna "Contrato fechado" ganha um contrato em "Aguardando assinatura", com ela como cliente e
@@ -761,6 +765,8 @@ export interface DadosProcessos {
   processoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
   /** Na fase de adaptação, o advogado entra no processo. Ao assumir, quem era responsável continua como colaborador. */
   processoMeIncluir(id: string, como: ComoEntrarNoProcesso): Promise<void>;
+  /** Só administradores. Ligada, toda a equipe vê e edita tudo, menos o financeiro. Desligada, volta a regra normal. */
+  faseDeAdaptacaoDefinir(ligada: boolean): Promise<void>;
   processoHistorico(id: string): Promise<Historico[]>;
   /** Processos em que a pessoa é cliente; com perfilId (a pessoa é da equipe), também os em que é responsável ou colaboradora. */
   processosDaPessoa(pessoaId: string, perfilId?: string | null): Promise<ProcessoLigado[]>;

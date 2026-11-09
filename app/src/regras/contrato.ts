@@ -1,7 +1,7 @@
 // Regras do contrato (módulo Contratos): categorias de honorário, número do contrato, valor da parcela,
 // percentuais da divisão, leitura de valores em reais e a validação do cadastro. Tudo puro, sem tela nem banco.
 // As contas seguem as planilhas de receitas do escritório (aba Contratos).
-import type { CategoriaHonorario, Contrato, DadosContrato, PapelNoContrato } from '../dados/tipos';
+import type { CategoriaHonorario, Contrato, DadosContrato, PapelNoContrato, DadosSemValores } from '../dados/tipos';
 import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
@@ -227,6 +227,14 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
     participantes: preenchidos(c).map(p => ({ pessoa_id: p.pessoaId, percentual: lerPercentual(p.percentual) })),
     indicador_id: c.indicadorId || null, indicador_percentual: c.indicadorId ? lerPercentual(c.indicadorPercentual) : null,
     documento_url: texto(c.documentoUrl), conta_destino_id: c.contaDestinoId || null, observacoes: texto(c.observacoes), codigo_antigo: texto(c.codigoAntigo)?.toUpperCase() ?? null
+  };
+}
+
+/** Só o que quem não é parte do contrato pode alterar (#275). */
+export function dadosSemValores(c: CamposContrato): DadosSemValores {
+  return {
+    clientes: [...new Set(c.clientes.filter(Boolean))], objetos: limparObjetos(c.objetos), servico: juntarObjetos(c.objetos),
+    codigo_antigo: c.codigoAntigo.trim().toUpperCase() || null
   };
 }
 

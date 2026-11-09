@@ -7,6 +7,7 @@ import { SD, type CompromissoLista, type FiltroCompromissos, type Ordem, type Or
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { nomeDoCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, soLeNaLista, TIPOS, TIPOS_COMPROMISSO } from '../regras/compromisso';
+import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -189,7 +190,7 @@ function CartaoKanban({ c, ordem }: { c: CompromissoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, c);
   return <>
-    <EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin)} />
+    <EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin) && !equipeEditaTudo(ctx.escritorio))} />
     <div><Selo tipo="arq">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo></div>
     <div className="kt">{nomeDoCompromisso(c)}</div>
     <div className="km">
@@ -233,7 +234,7 @@ function Tabela({ pagina, erro, f, filtrado, selecao, situacao, endereco, aoAbri
       </tr></thead>
       <tbody>{linhas.map(c => <LinhaQueAbre key={c.id} para={endereco(c.id)} aoAbrir={() => aoAbrir(c.id)} marcada={selecionadas.has(c.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${c.codigo}`} checked={selecionadas.has(c.id)} onChange={e => marcar([c.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin)} /><NomeDaLinha>{nomeDoCompromisso(c)}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin) && !equipeEditaTudo(ctx.escritorio))} /><NomeDaLinha>{nomeDoCompromisso(c)}</NomeDaLinha>
           <div className="sub"><span className="codigo">{c.codigo}</span>{c.local ? ' · ' + c.local : ''}{c.processo_numero ? ' · ' + c.processo_numero : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{quandoDoCompromisso(c)}</td>
         <td><Selo tipo="arq">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo></td>

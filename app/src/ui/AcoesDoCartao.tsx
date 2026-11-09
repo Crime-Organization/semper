@@ -15,6 +15,8 @@ const ICONE_DO_TOPO = 18;
 /** O que o cartão passa ao formulário para editar nele: qual registro e o que fazer ao terminar (salvou ou cancelou). */
 export interface EdicaoNoCartao {
   id: string;
+  /** Contrato editado por quem não é parte: só o que não é valor. */
+  semValores?: boolean;
   aoTerminar: (salvou: boolean) => void;
 }
 

@@ -4,6 +4,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
 import { CAMPOS_COMPROMISSO, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, TIPOS_COMPROMISSO, valorLegivelCompromisso } from '../regras/compromisso';
+import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { nomeDoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -54,7 +55,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (c === undefined) return <Carregando />;
   if (!c) return <Vazio>Este compromisso não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
-  const podeMudar = podeMudarCompromisso(c, eu, ctx.ehAdmin);
+  const podeMudar = equipeEditaTudo(ctx.escritorio) || podeMudarCompromisso(c, eu, ctx.ehAdmin);
   const podeExcluir = !!c.arquivado_em && (c.criado_por === eu || ctx.ehAdmin);
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
@@ -144,7 +145,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {c.pessoas.length ? <ItensLigados itens={c.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a este compromisso.</Nota>}
     </Recolhivel>
 
-    <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={motivoSemMencaoNoCompromisso(c, c.processo)} />
+    <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={equipeEditaTudo(ctx.escritorio) ? undefined : motivoSemMencaoNoCompromisso(c, c.processo)} />
 
     <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="compromissos.cartao.historico" contador={historico}>
       <HistoricoDoCartao carregar={() => SD.compromissoHistorico(c.id)} campos={CAMPOS_COMPROMISSO} valor={valorLegivelCompromisso} versao={versaoHist} />

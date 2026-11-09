@@ -4754,6 +4754,59 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       expect(demandas).not.toContain(demanda.id);
     });
 
+    describe('Fase de adaptação: toda a equipe edita tudo, menos o financeiro (#275)', () => {
+      const ligar = (l: boolean) => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(l);
+      afterEach(async () => { entrarComo('u-master'); await SD.faseDeAdaptacaoDefinir(false); ligar(false); });
+
+      it('dado quem não é administrador, quando tenta ligar, então não consegue', async () => {
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.faseDeAdaptacaoDefinir(true)).rejects.toThrow('Só um administrador');
+      });
+
+      it('dada a fase ligada, quando quem não está na demanda a move, então consegue', async () => {
+        // Dado
+        const demanda = await SD.demandaCriar({ titulo: 'Da Ana', responsavel_id: 'u-ana', clientes: ['p-ana'] });
+        await SD.faseDeAdaptacaoDefinir(true);
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.demandaMover(demanda.id, null, null)).resolves.toBeUndefined();
+      });
+
+      it('dada a fase ligada, quando quem não é parte altera o contrato, então muda o que não é valor, e o resto fica', async () => {
+        // Dado
+        const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-ana', percentual: 15 }] });
+        await SD.faseDeAdaptacaoDefinir(true);
+        // Quando
+        entrarComo('u-bruno');
+        await SD.contratoAlterarSemValores(id, { objetos: ['Novo objeto'] });
+        entrarComo('u-master');
+        const k = await SD.contratoVer(id);
+        // Então
+        expect(k?.objetos).toEqual(['Novo objeto']);
+        expect(k?.participantes[0].percentual).toBe(15);
+      });
+
+      it('dada a fase ligada, quando quem não é parte move o contrato, então a situação muda', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        await SD.faseDeAdaptacaoDefinir(true);
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.contratoMover(id, null, null)).resolves.toBeUndefined();
+      });
+
+      it('dada a fase desligada, quando alguém altera o contrato sem os valores, então não consegue', async () => {
+        // Dado
+        const { id } = await novoContrato();
+        // Quando / Então
+        await expect(SD.contratoAlterarSemValores(id, { objetos: ['x'] })).rejects.toThrow('permissão');
+      });
+    });
+
     describe('Na fase de adaptação, o advogado entra no processo (#273)', () => {
       const mudarFuncao = (id: string, funcao: string) => (window as unknown as { SEMPER_FALSO: { mudarFuncao(i: string, f: string): void } }).SEMPER_FALSO.mudarFuncao(id, funcao);
       afterEach(() => mudarFuncao('u-bruno', 'estagiario'));

@@ -7,7 +7,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContaParaEscolher, type Contrato, type PessoaLista } from '../dados';
 import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
-  calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
+  calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dadosSemValores, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
   fmtDinheiro, fmtPercentual, lerDinheiro, nomesPorExtenso, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
@@ -36,6 +36,9 @@ type Papel = keyof typeof PAPEIS;
 type CampoTexto = Exclude<keyof CamposContrato, 'clientes' | 'objetos' | 'participantes'>;
 /** Os campos da etapa que está na tela (o Enter passa de um para o outro). */
 const CAMPOS_DA_ETAPA = '.etapa.ativa input:not([type="radio"]):not([type="checkbox"]), .etapa.ativa select';
+
+/** As etapas que quem não é parte do contrato pode editar. */
+const ETAPAS_SEM_VALORES: EtapaContrato[] = ['partes', 'objetos'];
 
 export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
@@ -74,7 +77,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
 
   useEffect(() => {
     if (!idAtualizar) return;
-    SD.contratoObter(idAtualizar)
+    (edicao?.semValores ? SD.contratoVer(idAtualizar) : SD.contratoObter(idAtualizar))
       .then(k => {
         if (!k) throw new Error('Contrato não encontrado.');
         setAlvo(k);
@@ -226,7 +229,29 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const podeParticipar = (i: number) => (p: PessoaLista) => jaNoContrato(i)(p) ?? motivoParaNaoParticipar(ctx.equipe, p.id);
 
   // ---------- envio ----------
+  // Quem não é parte do contrato salva só o que não é valor, pela função própria do banco.
+  async function salvarSemValores() {
+    const { categoria: _categoria, ...erradosDosObjetos } = errosDaEtapa('objetos', c);
+    if (Object.keys({ ...errosDaEtapa('partes', c), ...erradosDosObjetos }).length) {
+      setConferidas(new Set(['partes', 'objetos']));
+      focarErro();
+      return;
+    }
+    const antes = dadosSemValores(camposDoContrato(alvo!));
+    setOcupado(true);
+    try {
+      await SD.contratoAlterarSemValores(alvo!.id, dadosSemValores(c));
+      feito('Contrato atualizado.', 'atualização do contrato', async () => {
+        await SD.contratoAlterarSemValores(alvo!.id, antes);
+        return { tipo: 'contratoAtualizado', id: alvo!.id };
+      });
+      edicao!.aoTerminar(true);
+    } catch (e) { falha(e); }
+    setOcupado(false);
+  }
+
   async function salvar() {
+    if (edicao?.semValores) { await salvarSemValores(); return; }
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
     const comErro = primeiraEtapaComErro(c);
     if (comErro >= 0) {
@@ -312,6 +337,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         </button></div>
         {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
       </div>
+      {!edicao?.semValores && <>
       <Campo rotulo="Advogado responsável" para="responsavelId" obrigatorio erro={erros.responsavelId}
         dica={(alvo ? 'Trocar o responsável não muda o número do contrato.' : 'A sigla do número vem do nome e do CPF dele, do cadastro em Pessoas.') + ' Só advogados da equipe.'}>
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId} onChange={e => mudar({ responsavelId: e.target.value })}>
@@ -319,6 +345,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
+      </>}
       <Campo rotulo="Código antigo" para="codigoAntigo" dica="Das planilhas, se houver (ex.: HE62-DE74-001/24)." erro={erros.codigoAntigo}>
         {texto('codigoAntigo', { maxLength: TAMANHO_CONTRATO.codigo_antigo, className: 'caixa-alta' }, true)}
       </Campo>
@@ -340,7 +367,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         </button></div>
         {erros.objetos && <span className="msg-erro" id="objetos-erro" role="alert">{erros.objetos}</span>}
       </div>
-      <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>
+      {!edicao?.semValores && <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>}
     </>,
     honorarios: () => <>
       <div className="grade-campos">
@@ -414,7 +441,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar contrato" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {ETAPAS_CONTRATO.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
+      {ETAPAS_CONTRATO.filter(e => !edicao.semValores || ETAPAS_SEM_VALORES.includes(e.id)).map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
         <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
         {CONTEUDO[e.id]()}
       </section>)}

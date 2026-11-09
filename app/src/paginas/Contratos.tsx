@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
-import { VALOR_OCULTO } from '../regras/equipeVeTudo';
+import { equipeEditaTudo, VALOR_OCULTO } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -142,7 +142,7 @@ export default function Contratos() {
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.contratosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, 30)}
           ordemDe={k => k.etapa_ordem}
-          podeArrastar={k => k.ve_financeiro !== false}
+          podeArrastar={k => k.ve_financeiro !== false || equipeEditaTudo(ctx.escritorio)}
           arquivados={deslocamento => arquivados(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
           cartao={(k, ordemDaColuna) => <CartaoKanban k={k} ordem={ordemDaColuna} />}
           endereco={k => endereco(k.id)}
@@ -179,7 +179,7 @@ function CartaoKanban({ k, ordem }: { k: ContratoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, k);
   return <>
-    <EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || k.ve_financeiro === false} />
+    <EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (k.ve_financeiro === false && !equipeEditaTudo(ctx.escritorio))} />
     <div className="kt">{clientesPorExtenso(k.cliente_nome)}</div>
     <div className="km">
       <span className="codigo">{k.codigo}</span>
@@ -227,7 +227,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
       </tr></thead>
       <tbody>{linhas.map(k => <LinhaQueAbre key={k.id} para={endereco(k.id)} aoAbrir={() => aoAbrir(k.id)} marcada={selecionadas.has(k.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} disabled={!alteraveis.includes(k)} onChange={e => marcar([k.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || k.ve_financeiro === false} /><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
+        <td><EtiquetasDoItem etq={k.etq} modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (k.ve_financeiro === false && !equipeEditaTudo(ctx.escritorio))} /><NomeDaLinha>{clientesPorExtenso(k.cliente_nome)}</NomeDaLinha><div className="sub contrato-servico">{k.servico}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}><span className="codigo">{k.codigo}</span>{k.codigo_antigo && <div className="sub">antigo: {k.codigo_antigo}</div>}</td>
         <td>{k.ve_financeiro === false ? VALOR_OCULTO : CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : fmtDinheiro(k.valor)}</td>

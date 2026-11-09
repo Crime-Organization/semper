@@ -94,6 +94,8 @@ interface Banco {
   perfil: { nome?: string; usuario?: string; preferencias: Record<string, unknown> };
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
   equipeVeTudo?: boolean;
+  /** A fase de adaptação: toda a equipe edita tudo, menos o financeiro. */
+  equipeEditaTudo?: boolean;
   /** A função de cada conta, quando um teste a muda: SEMPER_FALSO.mudarFuncao('u-bruno', 'advogado'). */
   funcoesDeTeste?: Record<string, Funcao>;
   logado: boolean;
@@ -728,7 +730,7 @@ const nomeDoCliente = (k: ContratoGuardado) => k.clientes.map(id => bd.pessoas.f
 const buscaContrato = (k: ContratoGuardado) => normal([k.codigo, k.codigo.replace(/\D/g, ''), k.codigo_antigo, k.servico, nomeDoCliente(k)].join(' '));
 const membroLogado = () => EQUIPE.find(m => m.id === eu)!;
 /** Com a chave ligada, quem não está no cartão só lê. Desligada, o banco fictício segue sem regra de alterar nesses módulos. */
-const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !estaNoCartao;
+const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !bd.equipeEditaTudo && !estaNoCartao;
 /** Como privado.sou_admin. */
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
@@ -1616,7 +1618,7 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   // No compromisso: só quem o vê (quem está nele, quem vê o processo ligado ou todos, na Agenda geral).
   const compromisso = modulo === 'compromissos' ? bd.compromissos!.find(c => c.id === cartaoId) : null;
   const doCompromisso = compromisso ? processoDoCompromisso(compromisso) : null;
-  const foraDoCompromisso = compromisso ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso))) : null;
+  const foraDoCompromisso = compromisso && !bd.equipeEditaTudo ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso))) : null;
   if (foraDoCompromisso) throw new Error(mencaoNegadaNoCompromisso(foraDoCompromisso.nome));
   // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
   return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
@@ -1769,7 +1771,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: meuEmail() },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: (ehMaster && bd.perfil.nome) || m.nome, usuario: (ehMaster && bd.perfil.usuario) || m.usuario,
         papel: m.papel, funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo, equipe_edita_tudo: !!bd.equipeEditaTudo }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
     };
     return espera(c);
@@ -2056,9 +2058,20 @@ export const SD: Dados = {
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos.' : '' });
   },
+  async contratoAlterarSemValores(id, dados) {
+    if (!bd.equipeEditaTudo) return erro('Você não tem permissão para fazer isso.');
+    const k = bd.contratos!.find(x => x.id === id);
+    if (!k || k.arquivado_em) return erro('Contrato não encontrado neste escritório.');
+    Object.assign(k, dados, { atualizado_em: agora() });
+    gravar();
+  },
+  async faseDeAdaptacaoDefinir(ligada) {
+    if (!souAdmin()) return erro('Só um administrador muda esta opção.');
+    bd.equipeVeTudo = ligada; bd.equipeEditaTudo = ligada; gravar();
+  },
   async contratoMover(id, etapaId, ordem) {
-    const k = acharContrato(id);
-    if (!alteroContrato(k)) return erro('Você não tem permissão para fazer isso.');
+    const k = bd.equipeEditaTudo ? bd.contratos!.find(x => x.id === id)! : acharContrato(id);
+    if (!alteroContrato(k) && !bd.equipeEditaTudo) return erro('Você não tem permissão para fazer isso.');
     if ((k.etapa_id || null) !== (etapaId || null)) {
       bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: id, alteracoes: { etapa: { de: nomeDaColuna(k.etapa_id), para: nomeDaColuna(etapaId) } }, feito_por: eu, em: agora() });
     }

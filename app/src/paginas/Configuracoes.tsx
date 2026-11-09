@@ -12,6 +12,7 @@ import { estiloBotao, naGrade, Nota, TituloSecao, type TamanhoNaGrade } from '..
 import { useSessao } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import { CamposDoProcesso } from './CamposDoProcesso';
+import { FaseDeAdaptacao } from './FaseDeAdaptacao';
 import { LigacaoGoogle } from './LigacaoGoogle';
 import './Configuracoes.css';
 
@@ -235,6 +236,7 @@ function Instituicao() {
       </div>
     </form>
 
+    <FaseDeAdaptacao />
     <LigacaoGoogle />
     {ctx.escritorio?.modulos?.processos && <CamposDoProcesso />}
   </div>;

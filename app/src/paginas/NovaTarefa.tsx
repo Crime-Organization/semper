@@ -97,7 +97,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     }
     if (pessoaInicial) SD.pessoaObter(pessoaInicial).then(p => { if (p) { setPessoas([p]); setC(x => ({ ...x, pessoas: [p.id] })); } }).catch(falha);
     if (demandaInicial) void ligarDemanda(demandaInicial);
-    if (contratoInicial) SD.contratoObter(contratoInicial).then(k => {
+    if (contratoInicial) SD.contratoVer(contratoInicial).then(k => {
       if (!k) return;
       porPessoas(k.clientes);
       setC(x => ({ ...x, contratoId: k.id, pessoas: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));

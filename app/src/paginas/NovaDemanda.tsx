@@ -76,7 +76,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     }
     if (clienteInicial) SD.pessoaObter(clienteInicial).then(p => { if (p) { setClientes([p]); setC(x => ({ ...x, clientes: [p.id] })); } }).catch(falha);
     // Do cartão de um contrato: ele, os clientes e o responsável dele já vêm escolhidos.
-    if (contratoInicial) SD.contratoObter(contratoInicial).then(k => {
+    if (contratoInicial) SD.contratoVer(contratoInicial).then(k => {
       if (!k) return;
       setClientes(k.clientes.length ? k.clientes : [null]);
       setChaves(k.clientes.length ? k.clientes.map((_, i) => i) : [0]);
