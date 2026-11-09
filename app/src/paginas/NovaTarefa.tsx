@@ -14,6 +14,9 @@ import {
 } from '../regras/tarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
+import { sairDoCartao } from '../ui/sairDoCartao';
+import { equipeVeTudo } from '../regras/equipeVeTudo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
@@ -183,6 +186,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
 
   // ---------- envio ----------
   async function salvar() {
+    if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
     const comErro = primeiraEtapaComErroTarefa(c);
     if (comErro >= 0) {
@@ -197,10 +201,17 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (alvo) {
         // Para desfazer: a tarefa como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDaTarefa(camposDaTarefa(alvo));
-        const eu = ctx.perfil.id, podeSair = ctx.ehAdmin || alvo.criado_por === eu || continuaPelaDemanda(alvo, dados.demanda_id);
-        const { dados: gravar, ficou } = semSairDaTarefa(dados, eu, podeSair);
+        const eu = ctx.perfil.id, peloLigado = continuaPelaDemanda(alvo, dados.demanda_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
+        const { dados: gravar, ficou } = semSairDaTarefa(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
         await SD.tarefaAtualizar(alvo.id, gravar);
-        feito(ficou ? 'Tarefa atualizada. Você continua entre os participantes; para sair, peça a outra pessoa da tarefa ou a um administrador.' : 'Tarefa atualizada.', 'atualização da tarefa', async () => {
+        if (ficou) {
+          // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
+          await sairDoCartao('tarefas', alvo.id, 'Tarefa atualizada. Você saiu dela, e a saída ficou no histórico.');
+          saidaLiberada.current = true;
+          if (edicao && equipeVeTudo(ctx.escritorio)) edicao.aoTerminar(true); else navegar('/tarefas/');
+          return;
+        }
+        feito('Tarefa atualizada.', 'atualização da tarefa', async () => {
           await SD.tarefaAtualizar(alvo.id, antes);
           return { tipo: 'tarefaAtualizada', id: alvo.id };
         });

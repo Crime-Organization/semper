@@ -1,6 +1,7 @@
 // Regras da demanda (módulo Demandas): o cadastro por etapas, os papéis de cada pessoa, o prazo e quem pode ser
 // mencionado nos comentários. Tudo puro, sem tela nem banco.
 import type { DadosDemanda, Demanda, Membro, PapelNaDemanda } from '../dados/tipos';
+import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_DEMANDA } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
 
@@ -67,12 +68,12 @@ export function dadosDaDemanda(c: CamposDemanda): DadosDemanda {
 
 /**
  * Quem não é administrador nem criou a demanda só a vê enquanto participa, e o banco recusa a gravação que o tiraria
- * dela. Por isso, ao passar a demanda adiante ou sair dos colaboradores, a pessoa continua como colaboradora.
+ * dela. Por isso, ao passar a demanda adiante ou sair dos colaboradores, esta gravação ainda a mantém como colaboradora. A saída vem depois, por SD.cartaoSair: assim o resto é gravado e ela sai de verdade (#276).
  */
-export function semSairDaDemanda(d: DadosDemanda, eu: string, podeSair: boolean): { dados: DadosDemanda; ficou: boolean } {
+export function semSairDaDemanda(d: DadosDemanda, eu: string, podeSair: boolean, antes: CartaoAntes): { dados: DadosDemanda; ficou: boolean } {
   const colaboradores = d.colaboradores ?? [];
-  if (podeSair || d.responsavel_id === eu || colaboradores.includes(eu)) return { dados: d, ficou: false };
-  return { dados: { ...d, colaboradores: [...colaboradores, eu] }, ficou: true };
+  const r = pessoasAoGravar(colaboradores, d.responsavel_id, eu, antes, podeSair);
+  return { dados: r.lista === colaboradores ? d : { ...d, colaboradores: r.lista }, ficou: r.ficou };
 }
 
 /** Campos do formulário a partir de uma demanda salva (para atualizar). */

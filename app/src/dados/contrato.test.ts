@@ -4807,6 +4807,41 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       });
     });
 
+    describe('Sair do cartão (#276)', () => {
+      it('dado um participante da tarefa, quando sai, então fica de fora e a saída vai para o histórico', async () => {
+        // Dado
+        const { id } = await SD.tarefaCriar({ titulo: 'Com o Bruno', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+        // Quando
+        entrarComo('u-bruno');
+        await SD.cartaoSair('tarefas', id);
+        entrarComo('u-master');
+        // Então
+        expect((await SD.tarefaObter(id))?.participantes).toEqual([]);
+        expect(JSON.stringify(await SD.tarefaHistorico(id))).toContain('participantes');
+        expect((await SD.tarefaObter(id))?.atualizado_por).toBe('u-bruno');
+      });
+
+      it('dado um colaborador da demanda, quando sai, então fica de fora', async () => {
+        // Dado
+        const { id } = await SD.demandaCriar({ titulo: 'Com o Bruno', responsavel_id: 'u-ana', colaboradores: ['u-bruno'], clientes: ['p-ana'] });
+        // Quando
+        entrarComo('u-bruno');
+        await SD.cartaoSair('demandas', id);
+        entrarComo('u-master');
+        // Então
+        expect((await SD.demandaObter(id))?.colaboradores).toEqual([]);
+      });
+
+      it('dado quem não está na tarefa, quando tenta sair, então a tela avisa e nada muda', async () => {
+        // Dado
+        const { id } = await SD.tarefaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana' });
+        // Quando
+        entrarComo('u-bruno');
+        // Então
+        await expect(SD.cartaoSair('tarefas', id)).rejects.toThrow('não está entre as pessoas');
+      });
+    });
+
     describe('Na fase de adaptação, o advogado entra no processo (#273)', () => {
       const mudarFuncao = (id: string, funcao: string) => (window as unknown as { SEMPER_FALSO: { mudarFuncao(i: string, f: string): void } }).SEMPER_FALSO.mudarFuncao(id, funcao);
       afterEach(() => mudarFuncao('u-bruno', 'estagiario'));

@@ -1,6 +1,7 @@
 // Regras do compromisso (módulo Compromissos, a agenda): os tipos, o cadastro por etapas, o que aparece no cartão, os papéis
 // de cada pessoa e quem vê. Tudo puro, sem tela nem banco. As contas de data da agenda ficam em regras/agenda.ts.
 import type { Compromisso, CompromissoLigado, DadosCompromisso, Membro, ModalidadeCompromisso, PapelNoCompromisso, ProcessoDoCompromisso, TipoCompromisso } from '../dados/tipos';
+import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { clientesPorExtenso } from './contrato';
 import { fmtData, lerData } from './pessoa';
@@ -127,12 +128,12 @@ export const continuaPeloProcesso = (alvo: Pick<Compromisso, 'processo_id' | 'pr
 
 /**
  * Quem não é administrador, não criou o compromisso e não o vê de outro jeito só o vê enquanto participa, e o banco recusa a
- * gravação que o tiraria dele. Por isso, ao passá-lo adiante ou sair dos participantes, a pessoa continua como participante.
+ * gravação que o tiraria dele. Por isso, ao passá-lo adiante ou sair dos participantes, esta gravação ainda a mantém como participante. A saída vem depois, por SD.cartaoSair: assim o resto é gravado e ela sai de verdade (#276).
  */
-export function semSairDoCompromisso<D extends DadosCompromisso>(d: D, eu: string, podeSair: boolean): { dados: D; ficou: boolean } {
+export function semSairDoCompromisso<D extends DadosCompromisso>(d: D, eu: string, podeSair: boolean, antes: CartaoAntes, continuaPeloLigado = false): { dados: D; ficou: boolean } {
   const participantes = d.participantes ?? [];
-  if (podeSair || d.responsavel_id === eu || participantes.includes(eu)) return { dados: d, ficou: false };
-  return { dados: { ...d, participantes: [...participantes, eu] }, ficou: true };
+  const r = pessoasAoGravar(participantes, d.responsavel_id, eu, antes, podeSair, continuaPeloLigado);
+  return { dados: r.lista === participantes ? d : { ...d, participantes: r.lista }, ficou: r.ficou };
 }
 
 // ---------- etapas do cadastro ----------

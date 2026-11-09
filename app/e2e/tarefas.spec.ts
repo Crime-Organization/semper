@@ -4,7 +4,7 @@
 // e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante e o prazo
 // vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, alturaParada } from './ajudantes';
+import { abrirSecao, alturaParada, entrarComo } from './ajudantes';
 
 /** Abre o cartão de uma tarefa pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
@@ -413,5 +413,28 @@ test.describe('Listas da tarefa', () => {
     const deNovo = reaberto.getByRole('region', { name: 'Lista Documentos de pessoa física' });
     await expect(deNovo).toContainText('1 de 2');
     await expect(deNovo.getByRole('checkbox').first()).toBeChecked();
+  });
+});
+
+test.describe('Sair da tarefa (#276)', () => {
+  test('dado um participante sem outro vínculo, quando se desmarca e salva, então sai de verdade e a saída fica no histórico', async ({ page }) => {
+    // Dado
+    const doMateus = await abrirTarefa(page, 'Renovar a procuração');
+    await doMateus.getByRole('button', { name: 'Editar' }).click();
+    await doMateus.getByRole('group', { name: 'Participantes' }).getByText('Bruno Exemplo Souza', { exact: true }).click();
+    await doMateus.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(doMateus.getByRole('form', { name: 'Editar tarefa' })).toHaveCount(0);
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    const doBruno = await abrirTarefa(page, 'Renovar a procuração');
+    await doBruno.getByRole('button', { name: 'Editar' }).click();
+    await doBruno.getByRole('group', { name: 'Participantes' }).getByText('Bruno Exemplo Souza', { exact: true }).click();
+    await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Você saiu dela, e a saída ficou no histórico.' })).toBeVisible();
+    await entrarComo(page, 'u-master');
+    const historico = await abrirTarefa(page, 'Renovar a procuração', 'Histórico de alterações');
+    await expect(historico.getByText(/Participantes/).last()).toBeVisible();
+    await expect(historico).toContainText('Bruno Exemplo Souza');
   });
 });

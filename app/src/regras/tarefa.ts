@@ -1,6 +1,7 @@
 // Regras da tarefa (módulo Tarefas): o cadastro por etapas, os papéis de cada pessoa, quem vê a tarefa, quem pode ser
 // mencionado nos comentários e quando oferecer concluir a demanda. Tudo puro, sem tela nem banco.
 import type { DadosTarefa, Demanda, Membro, PapelNaTarefa, Tarefa } from '../dados/tipos';
+import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_TAREFA } from '../dados/limites';
 import { valorLegivelDemanda, veADemanda } from './demanda';
 import { fmtData, lerData } from './pessoa';
@@ -78,13 +79,13 @@ export const continuaPelaDemanda = (alvo: Pick<Tarefa, 'demanda_id' | 'demanda'>
 
 /**
  * Quem não é administrador, não criou a tarefa e não vê a demanda ligada só a vê enquanto participa, e o banco recusa a
- * gravação que o tiraria dela. Por isso, ao passar a tarefa adiante ou sair dos participantes, a pessoa continua como
- * participante. Quem a vê pela demanda pode sair: o banco deixa (veja continuaPelaDemanda).
+ * gravação que o tiraria dela. Por isso, ao passar a tarefa adiante ou sair dos participantes, esta gravação ainda a mantém
+ * como participante. A saída vem depois, por SD.cartaoSair: assim o resto é gravado e ela sai de verdade (#276). Quem a vê pela demanda sai na própria gravação (veja continuaPelaDemanda).
  */
-export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean): { dados: DadosTarefa; ficou: boolean } {
+export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean, antes: CartaoAntes, continuaPeloLigado = false): { dados: DadosTarefa; ficou: boolean } {
   const participantes = d.participantes ?? [];
-  if (podeSair || d.responsavel_id === eu || participantes.includes(eu)) return { dados: d, ficou: false };
-  return { dados: { ...d, participantes: [...participantes, eu] }, ficou: true };
+  const r = pessoasAoGravar(participantes, d.responsavel_id, eu, antes, podeSair, continuaPeloLigado);
+  return { dados: r.lista === participantes ? d : { ...d, participantes: r.lista }, ficou: r.ficou };
 }
 
 /** Campos do formulário a partir de uma tarefa salva (para atualizar). */

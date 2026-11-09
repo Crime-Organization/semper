@@ -10,11 +10,11 @@ import { feito } from '../ui/avisos';
 import NovaTarefa from './NovaTarefa';
 
 vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('../ui/avisos')>(), feito: vi.fn() }));
-const sessao = vi.hoisted(() => ({ ehAdmin: false }));
+const sessao = vi.hoisted(() => ({ ehAdmin: false, escritorio: undefined as { modulos: Record<string, boolean> } | undefined }));
 vi.mock('../ui/sessao', () => ({
   useCtx: () => ({
-    perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin,
-    equipe: [{ id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }, { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }]
+    perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin, escritorio: sessao.escritorio,
+    equipe: [{ id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }, { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }, { id: 'u-caio', nome: 'Caio Teste', ativo: true }]
   })
 }));
 
@@ -38,17 +38,21 @@ async function passarParaAna(t: Tarefa) {
 describe('Passar a tarefa a outro responsável', () => {
   beforeEach(() => {
     sessao.ehAdmin = false;
+    sessao.escritorio = undefined;
     vi.mocked(feito).mockClear();
     vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
     vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
   });
 
-  it('quando quem passa não é administrador, não criou a tarefa e não vê a demanda, então continua entre os participantes e a tela avisa', async () => {
+  it('quando quem passa não é administrador, não criou a tarefa e não vê a demanda, então grava o resto e sai pelo caminho próprio', async () => {
+    // Dado
+    const sair = vi.spyOn(SD, 'cartaoSair').mockResolvedValue();
     // Quando
     const gravar = await passarParaAna(tarefa({ demanda_id: 'd1' }));
     // Então
     expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ responsavel_id: 'u-ana', participantes: ['u-bruno'] }));
-    await waitFor(() => expect(vi.mocked(feito).mock.calls[0][0]).toMatch(/Você continua entre os participantes/));
+    await waitFor(() => expect(sair).toHaveBeenCalledWith('tarefas', 't1'));
+    expect(feito).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -63,5 +67,59 @@ describe('Passar a tarefa a outro responsável', () => {
     // Então
     expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ responsavel_id: 'u-ana', participantes: [] }));
     await waitFor(() => expect(vi.mocked(feito).mock.calls[0][0]).toBe('Tarefa atualizada.'));
+  });
+});
+
+describe('Sair da tarefa', () => {
+  const FASE = { modulos: { equipe_ve_tudo: true, equipe_edita_tudo: true } };
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    sessao.escritorio = undefined;
+    vi.mocked(feito).mockClear();
+    vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+  });
+
+  async function editar(alvo: Tarefa, antesDeSalvar?: () => Promise<void>) {
+    vi.spyOn(SD, 'tarefaObter').mockResolvedValue(alvo);
+    const gravar = vi.spyOn(SD, 'tarefaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
+    const sair = vi.spyOn(SD, 'cartaoSair').mockResolvedValue();
+    sair.mockClear();
+    render(<MemoryRouter><NovaTarefa edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    await screen.findByRole('group', { name: 'Participantes' });
+    await antesDeSalvar?.();
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await waitFor(() => expect(gravar).toHaveBeenCalled());
+    return { gravar, sair };
+  }
+
+  it('dada a fase de adaptação, quando quem não está no cartão salva, então não entra nem sai dele', async () => {
+    // Dado
+    sessao.escritorio = FASE;
+    // Quando
+    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: [] }));
+    // Então
+    expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ participantes: [] }));
+    await waitFor(() => expect(feito).toHaveBeenCalled());
+    expect(sair).not.toHaveBeenCalled();
+  });
+
+  it('dada a fase de adaptação, quando quem está no cartão se desmarca, então sai na própria gravação e dá para desfazer', async () => {
+    // Dado
+    sessao.escritorio = FASE;
+    // Quando
+    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno'] }), () => userEvent.click(screen.getByRole('checkbox', { name: 'Bruno Exemplo Souza' })));
+    // Então
+    expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ participantes: [] }));
+    await waitFor(() => expect(feito).toHaveBeenCalled());
+    expect(sair).not.toHaveBeenCalled();
+  });
+
+  it('dada a fase desligada, quando quem só participa se desmarca, então a gravação não muda a ordem e a saída vem depois', async () => {
+    // Quando
+    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno', 'u-caio'] }), () => userEvent.click(screen.getByRole('checkbox', { name: 'Bruno Exemplo Souza' })));
+    // Então
+    expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ participantes: ['u-bruno', 'u-caio'] }));
+    await waitFor(() => expect(sair).toHaveBeenCalledWith('tarefas', 't1'));
   });
 });

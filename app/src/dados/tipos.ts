@@ -6,6 +6,7 @@ export type Papel = 'master' | 'admin' | 'usuario';
 /** O que a pessoa faz no escritório. Diferente do papel: administrador é quem gere o sistema; administrativo é uma função. */
 export type Funcao = 'advogado' | 'administrativo' | 'estagiario';
 export type ComoEntrarNoProcesso = 'colaborador' | 'responsavel';
+export type ModuloComSaida = 'tarefas' | 'demandas' | 'processos' | 'compromissos';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
 export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos';
 
@@ -763,6 +764,8 @@ export interface DadosProcessos {
   /** Só processos arquivados são excluídos (por quem criou ou um administrador). */
   processosExcluir(ids: string[]): Promise<Exclusao>;
   processoMover(id: string, etapaId: string | null, ordem: number | null): Promise<void>;
+  /** Quem está na tarefa, demanda, processo ou compromisso sai dele, mesmo que perca o acesso. A saída fica no histórico do cartão. */
+  cartaoSair(modulo: ModuloComSaida, id: string): Promise<void>;
   /** Na fase de adaptação, o advogado entra no processo. Ao assumir, quem era responsável continua como colaborador. */
   processoMeIncluir(id: string, como: ComoEntrarNoProcesso): Promise<void>;
   /** Só administradores. Ligada, toda a equipe vê e edita tudo, menos o financeiro. Desligada, volta a regra normal. */

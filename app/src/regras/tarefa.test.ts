@@ -92,18 +92,19 @@ describe('Quem está na tarefa e quem a vê', () => {
 
 describe('Sair da tarefa', () => {
   const dados = { responsavel_id: 'u2', participantes: ['u3'] };
+  const ANTES = { responsavel_id: 'u2', lista: ['u3', 'u1'] };
   const demanda = { id: 'd1', codigo: 'D1', titulo: 'Demanda', etapa_id: null, criado_por: 'u9', responsavel_id: 'u9', colaboradores: [] };
 
   it('quando não pode sair, então continua como participante', () => {
     // Então
-    expect(semSairDaTarefa(dados, 'u1', false)).toEqual({ dados: { responsavel_id: 'u2', participantes: ['u3', 'u1'] }, ficou: true });
+    expect(semSairDaTarefa(dados, 'u1', false, ANTES)).toEqual({ dados: { responsavel_id: 'u2', participantes: ['u3', 'u1'] }, ficou: true });
   });
 
   it('quando pode sair ou continua na tarefa, então nada muda', () => {
     // Então
-    expect(semSairDaTarefa(dados, 'u1', true)).toEqual({ dados, ficou: false });
-    expect(semSairDaTarefa(dados, 'u2', false)).toEqual({ dados, ficou: false });
-    expect(semSairDaTarefa(dados, 'u3', false)).toEqual({ dados, ficou: false });
+    expect(semSairDaTarefa(dados, 'u1', true, ANTES)).toEqual({ dados, ficou: false });
+    expect(semSairDaTarefa(dados, 'u2', false, ANTES)).toEqual({ dados, ficou: false });
+    expect(semSairDaTarefa(dados, 'u3', false, ANTES)).toEqual({ dados, ficou: false });
   });
 
   it.each([

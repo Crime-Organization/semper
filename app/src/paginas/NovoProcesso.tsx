@@ -16,6 +16,9 @@ import { camposDaDemanda } from '../regras/processoDaDemanda';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
+import { sairDoCartao } from '../ui/sairDoCartao';
+import { equipeVeTudo } from '../regras/equipeVeTudo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -258,9 +261,16 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoProcesso(camposDoProcesso(alvo));
-        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
+        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.processoAtualizar(alvo.id, gravar);
-        feito(ficou ? 'Processo atualizado. Você continua como colaborador; só um administrador pode tirar você dele.' : 'Processo atualizado.', 'atualização do processo', async () => {
+        if (ficou) {
+          // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
+          await sairDoCartao('processos', alvo.id, 'Processo atualizado. Você saiu dele, e a saída ficou no histórico.');
+          saidaLiberada.current = true;
+          if (edicao && equipeVeTudo(ctx.escritorio)) edicao.aoTerminar(true); else navegar(caminho);
+          return;
+        }
+        feito('Processo atualizado.', 'atualização do processo', async () => {
           const { valores, naoVoltaram } = camposParaDesfazer(await SD.processoCampos(), alvo.tipo, alvo.campos, gravar.campos ?? {});
           await SD.processoAtualizar(alvo.id, { ...antes, campos: valores });
           if (naoVoltaram.length) avisar(`Não voltou ao valor anterior, porque ele saiu da lista ou o campo foi apagado: ${naoVoltaram.join(', ')}.`, 'erro');

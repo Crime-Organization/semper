@@ -99,15 +99,16 @@ describe('Cadastro de compromisso', () => {
 
 describe('Quem não pode sair do compromisso', () => {
   const dados = { responsavel_id: 'u-outro', participantes: [] as string[] };
+  const ANTES = { responsavel_id: 'u-eu', lista: [] };
   it('quando a pessoa passaria a não ver, então continua como participante', () => {
     // Quando
-    const r = semSairDoCompromisso(dados, 'u-eu', false);
+    const r = semSairDoCompromisso(dados, 'u-eu', false, ANTES);
     // Então
     expect(r).toEqual({ dados: { ...dados, participantes: ['u-eu'] }, ficou: true });
   });
   it('quando passa adiante um compromisso da Agenda geral, então continua como participante, para não perder a edição', () => {
     // Quando
-    const r = semSairDoCompromisso({ ...dados, geral: true }, 'u-eu', false);
+    const r = semSairDoCompromisso({ ...dados, geral: true }, 'u-eu', false, ANTES);
     // Então
     expect(r).toEqual({ dados: { ...dados, geral: true, participantes: ['u-eu'] }, ficou: true });
   });
@@ -117,7 +118,7 @@ describe('Quem não pode sair do compromisso', () => {
     ['continua participante', { ...dados, participantes: ['u-eu'] }, false]
   ])('quando %s, então nada muda', (_caso, d, podeSair) => {
     // Quando
-    const r = semSairDoCompromisso(d, 'u-eu', podeSair);
+    const r = semSairDoCompromisso(d, 'u-eu', podeSair, ANTES);
     // Então
     expect(r).toEqual({ dados: d, ficou: false });
   });

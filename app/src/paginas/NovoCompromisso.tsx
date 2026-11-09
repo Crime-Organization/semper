@@ -16,6 +16,8 @@ import { MASCARAS } from '../regras/pessoa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
+import { sairDoCartao } from '../ui/sairDoCartao';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
@@ -191,10 +193,17 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
       if (alvo) {
         // Para desfazer: o compromisso como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoCompromisso(camposDoCompromisso(alvo));
-        const eu = ctx.perfil.id, podeSair = ctx.ehAdmin || alvo.criado_por === eu || continuaPeloProcesso(alvo, dados.processo_id);
-        const { dados: gravar, ficou } = semSairDoCompromisso(dados, eu, podeSair);
+        const eu = ctx.perfil.id, peloLigado = continuaPeloProcesso(alvo, dados.processo_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
+        const { dados: gravar, ficou } = semSairDoCompromisso(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
         await SD.compromissoAtualizar(alvo.id, gravar);
-        feito(ficou ? 'Compromisso atualizado. Você continua como participante; só um administrador pode tirar você dele.' : 'Compromisso atualizado.', 'atualização do compromisso', async () => {
+        if (ficou) {
+          // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
+          await sairDoCartao('compromissos', alvo.id, 'Compromisso atualizado. Você saiu dele, e a saída ficou no histórico.');
+          saidaLiberada.current = true;
+          navegar(ENDERECO);   // fora do compromisso, o cartão diria "não encontrado"
+          return;
+        }
+        feito('Compromisso atualizado.', 'atualização do compromisso', async () => {
           await SD.compromissoAtualizar(alvo.id, antes);
           return { tipo: 'compromissoAtualizado', id: alvo.id };
         });

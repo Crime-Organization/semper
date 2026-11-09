@@ -1,6 +1,7 @@
 // Regras do processo (módulo Processos): os dois tipos, as listas prontas, o cadastro por etapas e o que aparece no cartão.
 // Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
 import type { CampoDeOpcao, DadosProcesso, GratuidadeProcesso, MeioProcesso, Modulo, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista, TipoProcesso } from '../dados/tipos';
+import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_PROCESSO, VALOR_CAUSA_LIMITE } from '../dados/limites';
 import { clientesPorExtenso, dinheiroNoCampo, fmtDinheiro, lerDinheiro } from './contrato';
 import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroCNJ';
@@ -185,12 +186,12 @@ export function dadosDoProcesso(c: CamposProcesso): DadosProcesso {
 
 /**
  * Quem não é administrador nem criou o processo só o vê enquanto participa, e o banco recusa a gravação que o tiraria
- * dele. Por isso, ao passar o processo adiante ou sair dos colaboradores, a pessoa continua como colaboradora.
+ * dele. Por isso, ao passar o processo adiante ou sair dos colaboradores, esta gravação ainda a mantém como colaboradora. A saída vem depois, por SD.cartaoSair: assim o resto é gravado e ela sai de verdade (#276).
  */
-export function semSairDoProcesso(d: DadosProcesso, eu: string, podeSair: boolean): { dados: DadosProcesso; ficou: boolean } {
+export function semSairDoProcesso(d: DadosProcesso, eu: string, podeSair: boolean, antes: CartaoAntes): { dados: DadosProcesso; ficou: boolean } {
   const colaboradores = d.colaboradores ?? [];
-  if (podeSair || d.responsavel_id === eu || colaboradores.includes(eu)) return { dados: d, ficou: false };
-  return { dados: { ...d, colaboradores: [...colaboradores, eu] }, ficou: true };
+  const r = pessoasAoGravar(colaboradores, d.responsavel_id, eu, antes, podeSair);
+  return { dados: r.lista === colaboradores ? d : { ...d, colaboradores: r.lista }, ficou: r.ficou };
 }
 
 /** Campos do formulário a partir de um processo salvo (para atualizar). Número fora do padrão: marcado como antigo, para não bloquear a edição. */

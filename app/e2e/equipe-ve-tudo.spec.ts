@@ -127,6 +127,27 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByText('toda a equipe vê este cartão', { exact: false })).toHaveCount(0);
   });
 
+  test('dada a fase de adaptação, quando quem não participa muda a tarefa, então a mudança grava e ele não entra nela', async ({ page }) => {
+    // Dado
+    await page.goto('/configuracoes/');
+    await page.getByRole('checkbox', { name: /Toda a equipe vê e edita tudo/ }).check();
+    await expect(page.getByText('Fase de adaptação ligada', { exact: false })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    await abrir(page, 'Tarefas');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
+    const cartao = page.getByRole('dialog');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByLabel('Prazo').fill('15112030');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(cartao).toContainText('Prazo: 15/11/2030');
+    await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await expect(cartao.getByRole('group', { name: 'Participantes' }).getByRole('checkbox', { name: 'Bruno Exemplo Souza' })).not.toBeChecked();
+  });
+
   test('dada a chave ligada, quando quem participa abre a demanda dele, então continua podendo alterar', async ({ page }) => {
     // Dado
     await ligarAChave(page);

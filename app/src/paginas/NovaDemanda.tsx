@@ -13,6 +13,9 @@ import {
 import { MASCARAS } from '../regras/pessoa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
+import { sairDoCartao } from '../ui/sairDoCartao';
+import { equipeVeTudo } from '../regras/equipeVeTudo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
@@ -158,6 +161,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
 
   // ---------- envio ----------
   async function salvar() {
+    if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
     const comErro = primeiraEtapaComErroDemanda(c);
     if (comErro >= 0) {
@@ -172,9 +176,16 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       if (alvo) {
         // Para desfazer: a demanda como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDaDemanda(camposDaDemanda(alvo));
-        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDaDemanda(dados, eu, ctx.ehAdmin || alvo.criado_por === eu);
+        const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDaDemanda(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.demandaAtualizar(alvo.id, gravar);
-        feito(ficou ? 'Demanda atualizada. Você continua entre os colaboradores; para sair, peça a outra pessoa da demanda ou a um administrador.' : 'Demanda atualizada.', 'atualização da demanda', async () => {
+        if (ficou) {
+          // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
+          await sairDoCartao('demandas', alvo.id, 'Demanda atualizada. Você saiu dela, e a saída ficou no histórico.');
+          saidaLiberada.current = true;
+          if (edicao && equipeVeTudo(ctx.escritorio)) edicao.aoTerminar(true); else navegar('/demandas/');
+          return;
+        }
+        feito('Demanda atualizada.', 'atualização da demanda', async () => {
           await SD.demandaAtualizar(alvo.id, antes);
           return { tipo: 'demandaAtualizada', id: alvo.id };
         });

@@ -63,17 +63,18 @@ describe('Cadastro de demanda', () => {
 
 describe('Sair da demanda', () => {
   const dados = { responsavel_id: 'u2', colaboradores: ['u3'] };
+  const ANTES = { responsavel_id: 'u2', lista: ['u3', 'u1'] };
 
   it('quando não pode sair, então continua como colaborador', () => {
     // Então
-    expect(semSairDaDemanda(dados, 'u1', false)).toEqual({ dados: { responsavel_id: 'u2', colaboradores: ['u3', 'u1'] }, ficou: true });
+    expect(semSairDaDemanda(dados, 'u1', false, ANTES)).toEqual({ dados: { responsavel_id: 'u2', colaboradores: ['u3', 'u1'] }, ficou: true });
   });
 
   it('quando é administrador ou criou a demanda, ou continua nela, então nada muda', () => {
     // Então
-    expect(semSairDaDemanda(dados, 'u1', true)).toEqual({ dados, ficou: false });
-    expect(semSairDaDemanda(dados, 'u2', false)).toEqual({ dados, ficou: false });
-    expect(semSairDaDemanda(dados, 'u3', false)).toEqual({ dados, ficou: false });
+    expect(semSairDaDemanda(dados, 'u1', true, ANTES)).toEqual({ dados, ficou: false });
+    expect(semSairDaDemanda(dados, 'u2', false, ANTES)).toEqual({ dados, ficou: false });
+    expect(semSairDaDemanda(dados, 'u3', false, ANTES)).toEqual({ dados, ficou: false });
   });
 });
 

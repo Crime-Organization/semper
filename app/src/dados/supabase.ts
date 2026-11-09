@@ -1239,6 +1239,9 @@ export const SD: Dados = {
     await rpc('fase_de_adaptacao_definir', { p_ligada: ligada });
     ctx = null;   // os módulos do escritório mudaram: a próxima leitura busca de novo
   },
+  async cartaoSair(modulo, id) {
+    await rpc('cartao_sair', { p_modulo: modulo, p_id: id });
+  },
   async processoMeIncluir(id, como) {
     await rpc('processo_me_incluir', { p_processo: id, p_como: como });
   },

@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -735,6 +735,41 @@ const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !bd.equipeEd
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
 const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
+/** Como public.cartao_sair: tira quem está logado e deixa no histórico. Devolve se a pessoa estava no cartão. */
+const SAIR_DO_CARTAO: Record<ModuloComSaida, (id: string) => boolean> = {
+  tarefas: id => {
+    const t = bd.tarefas!.find(x => x.id === id);
+    if (!t?.participantes.includes(eu)) return false;
+    const novos = { participantes: t.participantes.filter(p => p !== eu) };
+    historicoTarefa(t, novos); Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('tarefas', 'alteracao', t);
+    return true;
+  },
+  demandas: id => {
+    const d = bd.demandas!.find(x => x.id === id);
+    if (!d?.colaboradores.includes(eu)) return false;
+    const novos = { colaboradores: d.colaboradores.filter(p => p !== eu) };
+    historicoDemanda(d, novos); Object.assign(d, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('demandas', 'alteracao', d);
+    return true;
+  },
+  processos: id => {
+    const p = bd.processos!.find(x => x.id === id);
+    if (!p?.colaboradores.includes(eu)) return false;
+    const novos = { colaboradores: p.colaboradores.filter(c => c !== eu) };
+    historicoProcesso(p, novos); Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('processos', 'alteracao', p);
+    return true;
+  },
+  compromissos: id => {
+    const c = bd.compromissos!.find(x => x.id === id);
+    if (!c?.participantes.includes(eu)) return false;
+    const novos = { participantes: c.participantes.filter(p => p !== eu) };
+    historicoCompromisso(c, novos); Object.assign(c, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('compromissos', 'alteracao', { id: c.id, codigo: c.codigo });
+    return true;
+  }
+};
 /** Como public.processo_me_incluir: o que muda no processo em cada forma de entrar. */
 const ENTRAR_NO_PROCESSO: Record<ComoEntrarNoProcesso, (p: ProcessoGuardado) => Partial<ProcessoGuardado>> = {
   colaborador: p => p.responsavel_id === eu || p.colaboradores.includes(eu) ? {} : { colaboradores: [...p.colaboradores, eu] },
@@ -860,7 +895,8 @@ function prepararDemanda(dados: DadosDemanda, atual?: DemandaGuardada): DadosDem
   if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
   if (d.colaboradores !== undefined || d.responsavel_id !== undefined) {
     const lista = [...new Set((d.colaboradores ?? atual?.colaboradores ?? []).filter(Boolean))].filter(id => id !== responsavel);
-    if (lista.some(id => !EQUIPE.some(m => m.id === id))) throw new Error('O colaborador precisa ser alguém da equipe do escritório.');
+    // Confere só quem está entrando: quem já estava e saiu da equipe não trava as outras alterações.
+    if (lista.some(id => !atual?.colaboradores.includes(id) && !EQUIPE.some(m => m.id === id))) throw new Error('O colaborador precisa ser alguém da equipe do escritório.');
     if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma demanda pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`);
     d.colaboradores = lista;
   }
@@ -1014,7 +1050,8 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
   if (!EQUIPE.some(m => m.id === responsavel)) throw new Error('O responsável precisa ser alguém da equipe do escritório.');
   if (t.participantes !== undefined || t.responsavel_id !== undefined) {
     const lista = [...new Set((t.participantes ?? atual?.participantes ?? []).filter(Boolean))].filter(id => id !== responsavel);
-    if (lista.some(id => !EQUIPE.some(m => m.id === id))) throw new Error('O participante precisa ser alguém da equipe do escritório.');
+    // Confere só quem está entrando: quem já estava e saiu da equipe não trava as outras alterações.
+    if (lista.some(id => !atual?.participantes.includes(id) && !EQUIPE.some(m => m.id === id))) throw new Error('O participante precisa ser alguém da equipe do escritório.');
     if (lista.length > COLABORADORES_MAXIMOS) throw new Error(`Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`);
     t.participantes = lista;
   }
@@ -3067,6 +3104,10 @@ export const SD: Dados = {
     });
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só processos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' });
+  },
+  async cartaoSair(modulo, id) {
+    if (!SAIR_DO_CARTAO[modulo](id)) return erro('Você não está entre as pessoas deste cartão.');
+    gravar();
   },
   async processoMeIncluir(id, como) {
     if (!bd.equipeVeTudo || membroLogado().funcao !== 'advogado') return erro('Só advogados podem entrar no processo nesta fase.');
