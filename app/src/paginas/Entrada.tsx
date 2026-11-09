@@ -40,7 +40,7 @@ export default function Entrada() {
   // Código do convite: vem depois do "#" no link do convite. Fica só na memória e sai do endereço,
   // para não ficar no histórico do navegador.
   const [codigoConvite] = useState(() => new URLSearchParams(location.hash.slice(1)).get('convite') || '');
-  useEffect(() => { if (codigoConvite) history.replaceState(null, '', location.pathname + location.search); }, [codigoConvite]);
+  useEffect(() => { if (codigoConvite) history.replaceState(history.state, '', location.pathname + location.search); }, [codigoConvite]);
   const inicial: Painel = porRecuperacao ? 'nova' : params.has('primeiro-acesso') ? 'primeiro' : params.has('recuperar') ? 'recuperar' : params.has('cliente') ? 'cliente' : 'entrar';
 
   const [painel, setPainel] = useState<Painel>(inicial);
@@ -70,7 +70,7 @@ export default function Entrada() {
     if (linkEmail) {
       if (linkAberto.current) return parar;
       linkAberto.current = true;
-      history.replaceState(null, '', location.pathname);
+      history.replaceState(history.state, '', location.pathname);
       // O que cada link faz depois de aceito.
       const depoisDoLink: Record<TipoLink, (comSessao: boolean) => void | Promise<void>> = {
         email: () => navegar('/inicio/', { replace: true }),

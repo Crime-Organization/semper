@@ -3,10 +3,11 @@
 // Os cadastros novos (pessoa, contrato, demanda, tarefa), abertos de dentro do sistema, aparecem numa janela no meio da
 // tela, sobre a página de onde se veio; abertos direto pelo endereço (ou numa aba nova), aparecem como página.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, type Location } from 'react-router';
+import { createBrowserRouter, Navigate, Route, RouterProvider, Routes, useLocation, useNavigate, type Location } from 'react-router';
 import { Avisos, sinalizarMudanca } from './ui/avisos';
 import { Carregando } from './ui/base';
 import { PainelCartao } from './ui/PainelCartao';
+import { ErroDaTela } from './ui/ErroDaTela';
 import { Janelas } from './ui/janela';
 import { ExigirLogin } from './ui/sessao';
 import { AvisoDeVersaoNova } from './ui/versaoNova';
@@ -156,10 +157,17 @@ function Rotas() {
   </>;
 }
 
-export function App() {
-  return <BrowserRouter>
+// As páginas continuam declaradas em <Rotas>. O roteador é deste tipo porque só ele sabe segurar uma saída (ui/AvisoAoSair.tsx).
+const roteador = createBrowserRouter([{
+  path: '*',
+  errorElement: <ErroDaTela />,
+  element: <>
     <Rotas />
     <Janelas />
     <Avisos><AvisoDeVersaoNova /></Avisos>
-  </BrowserRouter>;
+  </>
+}]);
+
+export function App() {
+  return <RouterProvider router={roteador} />;
 }

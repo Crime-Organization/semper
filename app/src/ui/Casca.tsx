@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { MARCA } from '../marca';
 import { rotuloDoMenu, textoDoContador } from '../regras/mensagens';
 import { SD } from '../dados';
+import { podeSairDoCadastro } from './AvisoAoSair';
 import { Avatar } from './Avatar';
 import { Icone } from './Icone';
 import { avisar } from './avisos';
@@ -47,6 +48,7 @@ export function Casca({ children }: { children: ReactNode }) {
   };
   // Sair não recarrega a página: o que fica guardado nela (a importação de pessoas) é esquecido, para quem entrar depois.
   const sair = async () => {
+    if (!await podeSairDoCadastro()) return;
     if (estaGravando() && !await confirmar('Sair com a importação gravando?',
       'Saindo agora, as linhas que faltam não são gravadas (as que já entraram continuam no SEMPER).', 'Sair', true)) return;
     abandonarGravacao();

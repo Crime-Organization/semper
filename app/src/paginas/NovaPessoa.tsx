@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { contratoDaPessoaFechada } from './clienteAoContrato';
 import {
@@ -30,6 +31,8 @@ const linha = (v = ''): Linha => ({ k: ++seq, v });
 export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
+  /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id');
   const etapaInicial = params.get('etapa');
@@ -134,7 +137,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         corpo: <p>Já existe outro cadastro com este {rotulo}: <b>{ex.nome}</b> ({ex.codigo}). Dois cadastros não podem ter o mesmo documento.</p>,
         acoes: [{ rotulo: 'Ver o outro cadastro', valor: 'ver' }, { rotulo: 'Corrigir', valor: null, tipo: 'pri' }]
       });
-      if (v === 'ver') navegar('/pessoas/?id=' + ex.id);
+      if (v === 'ver') { saidaLiberada.current = true; navegar('/pessoas/?id=' + ex.id); }
       return false;
     }
     const escolha = await janela({
@@ -145,7 +148,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       </>,
       acoes: [{ rotulo: 'Ver cadastro existente', valor: 'ver' }, { rotulo: 'Cancelar', valor: null }, { rotulo: 'Atualizar este cadastro', valor: 'atualizar', tipo: 'pri' }]
     });
-    if (escolha === 'ver') { navegar('/pessoas/?id=' + ex.id); return false; }
+    if (escolha === 'ver') { saidaLiberada.current = true; navegar('/pessoas/?id=' + ex.id); return false; }
     if (escolha !== 'atualizar') return false;
     try { await entrarAtualizacao(ex.id, true); }
     catch (e) { falha(e); return false; }
@@ -322,6 +325,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           await SD.pessoaAtualizar(atual.id, antes, respAntes);
           return { tipo: 'pessoaAtualizada', id: atual.id };
         });
+        saidaLiberada.current = true;
         if (edicao) edicao.aoTerminar(true); else navegar('/pessoas/?id=' + r.id);
       } else {
         if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
@@ -338,6 +342,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           lembrarDeApagarNaPlanilha(ctx); // PROVISORIO-219
           return { tipo: 'pessoaCriada', id: r.id };
         });
+        saidaLiberada.current = true;
         navegar('/pessoas/?id=' + r.id);
         // Cadastrada direto em "Contrato fechado": o contrato dela nasce também.
         if (etapaInicial) void SD.colunasListar('pessoas').then(colunas => contratoDaPessoaFechada({ id: r.id, nome: dados.nome ?? '' }, etapaInicial, colunas, navegar))
@@ -440,6 +445,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     </form>;
 
   return <div className="passos">
+    <AvisoAoSair estado={{ c }} liberada={saidaLiberada} ocupado={ocupado === 'salvando'} />
     <header>
       <p className="olho"><Link to={voltarLista}>Pessoas</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar cadastro' : 'Nova pessoa'}<span className="ponto">.</span></h1>
