@@ -97,6 +97,19 @@ test.describe('Avisos de prazo', () => {
     await expect(page.getByRole('listitem', { name: 'Aviso de prazo lido: Emitir a GRU' })).toBeVisible();
   });
 
+  // Das 21h à meia-noite em Brasília, o horário universal (UTC) já está no dia seguinte: o prazo não pode mudar por isso.
+  for (const [periodo, instante] of [['de manhã', '2026-11-10T09:00:00-03:00'], ['à noite', '2026-11-10T21:30:00-03:00']] as const) {
+    test(`quando a rotina roda ${periodo}, então o prazo de daqui a 2 dias continua sendo de 2 dias`, async ({ page }) => {
+      // Dado
+      await page.clock.setFixedTime(new Date(instante));
+      await rodarARotina(page);
+      // Quando
+      await page.goto('/mensagens/');
+      // Então
+      await expect(page.getByRole('listitem', { name: 'Aviso de prazo não lido: Emitir a GRU' })).toContainText('Faltam 2 dias');
+    });
+  }
+
   test('quando um compromisso é hoje, então o aviso não fala em vencimento e mostra a hora', async ({ page }) => {
     // Dado: a reunião de equipe do Mateus é hoje, às 9h
     await rodarARotina(page);

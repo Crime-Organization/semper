@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import react from '@vitejs/plugin-react';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /** O fuso dos testes, o de Brasília, para as datas darem o mesmo resultado em qualquer computador, inclusive no Windows e na rotina do GitHub. */
@@ -18,6 +19,8 @@ export default defineConfig(({ mode }) => {
   define: { __VERSAO__: JSON.stringify(mode === 'test' ? '' : process.env.VERSAO ?? '') },
   // O conversor AVIF da foto do perfil carrega o próprio .wasm ao lado do código: não pode ser reempacotado pelo Vite.
   optimizeDeps: { exclude: ['@jsquash/avif'] },
+  // Em cópias de trabalho, node_modules pode ser um link para outra pasta: sem isto, o servidor local bloqueia as fontes e o .wasm da foto.
+  server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), realpathSync(new URL('./node_modules', import.meta.url))] } },
   resolve: {
     alias: {
       '@dados-impl': fileURLToPath(new URL(mode === 'falso' || mode === 'test' ? './src/dados/falso.ts' : './src/dados/supabase.ts', import.meta.url))

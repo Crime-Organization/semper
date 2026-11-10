@@ -307,8 +307,8 @@ function tarefaNova(): TarefaGuardada {
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
   };
 }
-/** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd). */
-const dataDaqui = (dias: number) => new Date(Date.now() + dias * DIA).toISOString().slice(0, 10);
+/** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd), contada a partir do dia em Brasília. */
+const dataDaqui = (dias: number) => somarDias(hojeNaAgenda(), dias);
 /** Contrato com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function contratoNovo(): ContratoGuardado {
   return {
