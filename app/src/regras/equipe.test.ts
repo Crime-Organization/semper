@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
-import { erroDoNomeDaEquipe, FUNCOES, motivoParaNaoParticipar, opcoesDeResponsavel } from './equipe';
+import { candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoParticipar, opcoesDeResponsavel } from './equipe';
 
 const EQUIPE: Membro[] = [
   { id: 'u-adv', nome: 'Advogada', funcao: 'advogado', ativo: true, pessoa_id: 'p-adv' },
@@ -68,4 +68,25 @@ describe('O nome de alguém da equipe', () => {
       // Então
       expect(erroDoNomeDaEquipe(nome)).toBe(erro);
     });
+});
+
+describe('Quem da equipe pode entrar numa lista', () => {
+  it('quando nada foi digitado, então vêm todos os ativos que ainda não estão na lista, em ordem alfabética', () => {
+    // Quando
+    const achados = candidatosDaEquipe(EQUIPE, '', ['u-adm']);
+    // Então: quem saiu da equipe e quem já está fica de fora
+    expect(achados.map(m => m.nome)).toEqual(['Advogada', 'Antes da função', 'Estagiário']);
+  });
+
+  it('quando a pessoa digita palavras do nome, sem acento e em minúsculas, então vêm só os que têm todas elas', () => {
+    // Quando
+    const achados = candidatosDaEquipe(EQUIPE, ' antes  FUNCAO ', []);
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-antigo']);
+  });
+
+  it('quando ninguém combina com o que foi digitado, então a lista vem vazia', () => {
+    // Quando / Então
+    expect(candidatosDaEquipe(EQUIPE, 'saiu', [])).toEqual([]);
+  });
 });

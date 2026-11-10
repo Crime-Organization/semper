@@ -23,8 +23,8 @@ export interface Formulario {
   botaoCNPJ: RefObject<HTMLButtonElement | null>;
   botaoCEP: RefObject<HTMLButtonElement | null>;
   botaoAvancar: RefObject<HTMLButtonElement | null>;
-  /** Quem pode ser responsável: a equipe ativa e quem já é responsável (mesmo desativado). */
-  opcoesResp: Membro[];
+  /** A equipe toda: a escolha dos responsáveis mostra só quem pode entrar. */
+  equipe: Membro[];
   /** Classes da pergunta de um campo (marcada com erro, se houver). */
   pc: (campo: string, extra?: string) => string;
   erro: (campo: string) => ReactNode;

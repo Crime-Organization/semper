@@ -104,20 +104,20 @@ describe('Sair da tarefa', () => {
     expect(sair).not.toHaveBeenCalled();
   });
 
-  it('dada a fase de adaptação, quando quem está no cartão se desmarca, então sai na própria gravação e dá para desfazer', async () => {
+  it('dada a fase de adaptação, quando quem está no cartão se tira, então sai na própria gravação e dá para desfazer', async () => {
     // Dado
     sessao.escritorio = FASE;
     // Quando
-    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno'] }), () => userEvent.click(screen.getByRole('checkbox', { name: 'Bruno Exemplo Souza' })));
+    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno'] }), () => userEvent.click(screen.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })));
     // Então
     expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ participantes: [] }));
     await waitFor(() => expect(feito).toHaveBeenCalled());
     expect(sair).not.toHaveBeenCalled();
   });
 
-  it('dada a fase desligada, quando quem só participa se desmarca, então a gravação não muda a ordem e a saída vem depois', async () => {
+  it('dada a fase desligada, quando quem só participa se tira, então a gravação não muda a ordem e a saída vem depois', async () => {
     // Quando
-    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno', 'u-caio'] }), () => userEvent.click(screen.getByRole('checkbox', { name: 'Bruno Exemplo Souza' })));
+    const { gravar, sair } = await editar(tarefa({ responsavel_id: 'u-ana', participantes: ['u-bruno', 'u-caio'] }), () => userEvent.click(screen.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })));
     // Então
     expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ participantes: ['u-bruno', 'u-caio'] }));
     await waitFor(() => expect(sair).toHaveBeenCalledWith('tarefas', 't1'));

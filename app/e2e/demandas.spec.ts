@@ -24,7 +24,8 @@ test.describe('Cadastro de demandas', () => {
     await page.getByLabel('Título').fill('Contestação do processo');
     await page.getByLabel('Prazo de entrega').fill('10112030');
     await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('group', { name: 'Colaboradores' }).getByText('Ana Teste Lima', { exact: true }).click();
+    await page.getByRole('group', { name: 'Colaboradores' }).getByRole('button', { name: 'Adicionar colaborador' }).click();
+    await page.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
     await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();

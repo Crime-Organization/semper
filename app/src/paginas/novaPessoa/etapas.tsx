@@ -7,6 +7,7 @@ import { AO_ENTRAR, DOCUMENTO_INVALIDO, VALIDACAO, type AoEntrar, type CamposCad
 import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
 import { Campo, Dica, Escolhas, estiloBotao } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
+import { EscolhaDaEquipe } from '../../ui/EscolhaDaEquipe';
 import { useFormulario } from './formulario';
 
 function EtapaTipo() {
@@ -142,7 +143,7 @@ function EtapaEndereco() {
 }
 
 function EtapaContato() {
-  const { c, cRef, mudar, opcoesResp, pc, erro, erroDe, data, lista, acrescentar } = useFormulario();
+  const { c, mudar, equipe, pc, erro, erroDe, data, lista, acrescentar } = useFormulario();
   return <section className="etapa ativa">
     <header><h2>Contato</h2></header>
     {/* Telefones e e-mails são listas com um botão de acrescentar: ficam com a marcação própria. */}
@@ -159,13 +160,8 @@ function EtapaContato() {
       <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
       {erro('emails')}
     </div>
-    <Escolhas rotulo="Profissionais responsáveis" dica="Eles aparecem no cartão da pessoa." arranjo="multipla">
-      {opcoesResp.map(m => <label key={m.id}>
-        <input type="checkbox" name="resp" value={m.id} checked={c.resp.includes(m.id)}
-          onChange={e => mudar({ resp: e.target.checked ? [...cRef.current.resp, m.id] : cRef.current.resp.filter(x => x !== m.id) })} />
-        {m.nome}{m.ativo ? '' : ' (desativado)'}
-      </label>)}
-    </Escolhas>
+    <EscolhaDaEquipe rotulo="Profissionais responsáveis" dica="Eles aparecem no cartão da pessoa." adicionar="Adicionar responsável"
+      equipe={equipe} escolhidos={c.resp} aoMudar={resp => mudar({ resp })} />
     <Campo rotulo="Base legal para o tratamento dos dados (LGPD)" para="lgpdBase">
       <select id="lgpdBase" value={c.lgpdBase} onChange={e => mudar({ lgpdBase: e.target.value })}>
         {Object.entries(LGPD).map(([k, v]) => <option key={k} value={k}>{v}</option>)}

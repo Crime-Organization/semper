@@ -18,9 +18,10 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
+import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { Icone } from '../ui/Icone';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -165,9 +166,6 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
   // ---------- equipe ----------
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
-  const opcoesPart = ctx.equipe.filter(m => m.id !== c.responsavelId && (m.ativo !== false || c.participantes.includes(m.id)));
-  const marcarParticipante = (id: string, marcar: boolean) =>
-    mudar({ participantes: marcar ? [...c.participantes, id] : c.participantes.filter(x => x !== id) });
 
   // ---------- processo ----------
   function digitarProcesso(texto: string) {
@@ -289,11 +287,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
-      <Escolhas rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também vai (e passa a ver o compromisso).">
-        {opcoesPart.length ? opcoesPart.map(m => <label key={m.id}>
-          <input type="checkbox" checked={c.participantes.includes(m.id)} onChange={e => marcarParticipante(m.id, e.target.checked)} />{m.nome}
-        </label>) : <Nota>Não há mais ninguém na equipe.</Nota>}
-      </Escolhas>
+      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também vai (e passa a ver o compromisso)." adicionar="Adicionar participante"
+        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
       <Escolhas rotulo="Agenda geral" dica="Todos do escritório veem. Mudar, só quem participa.">
         <label><input type="checkbox" checked={c.geral} onChange={e => mudar({ geral: e.target.checked })} />Mostrar na Agenda geral</label>
       </Escolhas>

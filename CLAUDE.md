@@ -73,7 +73,7 @@ Componente, regra ou função nova **segue o padrão que já existe**. Antes de 
 | Janela, confirmação, pedir um texto | `janela`, `confirmar`, `pedirTexto` | `app/src/ui/janela.tsx` |
 | Aviso no pé da tela, erro, desfazer | `avisar`, `falha`, `registrarDesfazer` | `app/src/ui/avisos.tsx` |
 | Estado do sistema todo, fora dos componentes | `criarLoja` (padrão Observer; na tela, `loja.usar()`) | `app/src/ui/loja.ts` |
-| Busca de pessoa, avatar, ícone, menu, painel do cartão | `BuscaPessoa`, `Avatar`, `Icone`, `Menu`, `PainelCartao` | `app/src/ui/` |
+| Busca de pessoa, escolha da equipe, avatar, ícone, menu, painel do cartão | `BuscaPessoa`, `EscolhaDaEquipe`, `Avatar`, `Icone`, `Menu`, `PainelCartao` | `app/src/ui/` |
 | Validar, formatar, converter (CPF, CNPJ, datas, telefone, qualificação) | funções puras | `app/src/regras/` |
 | Cores, tamanhos, espaçamentos | variáveis CSS (`--accent`, `--ink`, `--line`…) | `app/src/estilo.css` e `DESIGN.md` |
 

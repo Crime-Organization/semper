@@ -45,7 +45,8 @@ test.describe('Cadastro de tarefas', () => {
     await page.getByLabel('Título').fill('Mandar a notificação');
     await page.getByLabel('Prazo').fill('10112030');
     await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('group', { name: 'Participantes' }).getByText('Ana Teste Lima', { exact: true }).click();
+    await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    await page.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
     await page.getByRole('textbox', { name: 'Pessoa ligada', exact: true }).fill('luciana');
     await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
@@ -417,18 +418,19 @@ test.describe('Listas da tarefa', () => {
 });
 
 test.describe('Sair da tarefa (#276)', () => {
-  test('dado um participante sem outro vínculo, quando se desmarca e salva, então sai de verdade e a saída fica no histórico', async ({ page }) => {
+  test('dado um participante sem outro vínculo, quando se tira e salva, então sai de verdade e a saída fica no histórico', async ({ page }) => {
     // Dado
     const doMateus = await abrirTarefa(page, 'Renovar a procuração');
     await doMateus.getByRole('button', { name: 'Editar' }).click();
-    await doMateus.getByRole('group', { name: 'Participantes' }).getByText('Bruno Exemplo Souza', { exact: true }).click();
+    await doMateus.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    await doMateus.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza' }).click();
     await doMateus.getByRole('button', { name: 'Salvar', exact: true }).click();
     await expect(doMateus.getByRole('form', { name: 'Editar tarefa' })).toHaveCount(0);
     await entrarComo(page, 'u-bruno');
     // Quando
     const doBruno = await abrirTarefa(page, 'Renovar a procuração');
     await doBruno.getByRole('button', { name: 'Editar' }).click();
-    await doBruno.getByRole('group', { name: 'Participantes' }).getByText('Bruno Exemplo Souza', { exact: true }).click();
+    await doBruno.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
     await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Você saiu dela, e a saída ficou no histórico.' })).toBeVisible();

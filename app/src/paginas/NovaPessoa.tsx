@@ -427,12 +427,10 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const retorno = (r: Retorno) => r && <Aviso tipo={r.tipo} className="retorno">{r.conteudo}</Aviso>;
 
   const pj = c.tipo === 'pj';
-  // Quem pode ser responsável: a equipe ativa e quem já é responsável (mesmo desativado, para não sair sem querer).
-  const opcoesResp = [...membros, ...ctx.equipe.filter(m => !m.ativo && c.resp.includes(m.id))];
   const voltarLista = idAtualizar ? '/pessoas/?id=' + idAtualizar : '/pessoas/';
   const formulario: Formulario = {
     c, cRef, pj, mudar, marcarErro, verificarDocumento, buscarCNPJ, buscarCEP, retornoCNPJ, retornoCEP, botaoCNPJ, botaoCEP, botaoAvancar,
-    opcoesResp, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
+    equipe: ctx.equipe, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
   };
   const Atual = ETAPAS[etapa].Componente;
 

@@ -18,9 +18,10 @@ import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
+import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
@@ -166,9 +167,6 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // ---------- equipe ----------
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
-  const opcoesPart = ctx.equipe.filter(m => m.id !== c.responsavelId && (m.ativo !== false || c.participantes.includes(m.id)));
-  const marcarParticipante = (id: string, marcar: boolean) =>
-    mudar({ participantes: marcar ? [...c.participantes, id] : c.participantes.filter(x => x !== id) });
 
   // ---------- demanda e contrato ----------
   const demandaEscolhida = demandas.find(d => d.id === c.demandaId);
@@ -259,11 +257,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
-      <Escolhas rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la).">
-        {opcoesPart.length ? opcoesPart.map(m => <label key={m.id}>
-          <input type="checkbox" checked={c.participantes.includes(m.id)} onChange={e => marcarParticipante(m.id, e.target.checked)} />{m.nome}
-        </label>) : <Nota>Não há mais ninguém na equipe.</Nota>}
-      </Escolhas>
+      <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la)." adicionar="Adicionar participante"
+        equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
       <div className={'pergunta' + (erros.pessoas ? ' erro' : '')} role="group" aria-label="Pessoas ligadas">
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">

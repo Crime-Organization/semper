@@ -2,6 +2,7 @@
 // A função é diferente do papel no sistema: administrador é quem gere a equipe e vê tudo; "administrativo" é uma função.
 import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
 import type { Funcao, Membro, RecusaDaReserva } from '../dados/tipos';
+import { normal } from './texto';
 
 /** O que há de errado com o nome de alguém da equipe (o mesmo que o banco confere), ou null se está bom. */
 export function erroDoNomeDaEquipe(nome: string): string | null {
@@ -28,6 +29,18 @@ export const opcoesDeResponsavel = (equipe: Membro[], atual = '') =>
 export function motivoParaNaoParticipar(equipe: Membro[], pessoaId: string): string | null {
   const m = equipe.find(x => x.pessoa_id === pessoaId);
   return !m ? 'não é da equipe' : !constaNosContratos(m) ? 'desativado na equipe' : null;
+}
+
+/**
+ * Quem da equipe pode ser adicionado a uma lista (participantes, colaboradores, responsáveis da pessoa): quem está ativo,
+ * ainda não está na lista nem foi deixado de fora (o responsável), e tem no nome todas as palavras digitadas, sem diferença
+ * de maiúsculas e acentos. Sem nada digitado, vêm todos os que podem entrar. Em ordem alfabética.
+ */
+export function candidatosDaEquipe(equipe: Membro[], termo: string, fora: string[]): Membro[] {
+  const palavras = normal(termo).split(/\s+/).filter(Boolean);
+  return equipe
+    .filter(m => ativo(m) && !fora.includes(m.id) && palavras.every(p => normal(m.nome).includes(p)))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 /** O que a tela diz quando a conta reservada não é criada (cada resposta da função equipe-reservar-conta). */

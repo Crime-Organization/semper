@@ -572,7 +572,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 
 /* Busca de pessoa (<BuscaPessoa>): lista de achados e pessoa escolhida */
 .busca-pessoa { position: relative }
-.busca-pessoa .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
+/* Equipe do item (EscolhaDaEquipe): os escolhidos, um por linha, com a bolinha, e a busca que abre por cima do que vem abaixo. */
+.busca-equipe { position: relative }
+.equipe-escolhida { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.equipe-escolhida .escolhida > span { display: flex; align-items: center; gap: 10px }
+.equipe-escolhida .nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.equipe-escolhida .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
+.achados .com-bolinha { display: flex; align-items: center; gap: 10px }
+.achados .sem-achados { padding: 10px 12px }
+.busca-pessoa .achados, .busca-equipe .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
 .achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie); display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
 .achados button { width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 2px; color: var(--ink) }
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }

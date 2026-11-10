@@ -19,9 +19,10 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
+import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { Icone } from '../ui/Icone';
 import { pedirTexto } from '../ui/janela';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
@@ -200,9 +201,6 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // ---------- equipe ----------
   // Responsável: qualquer um da equipe ativa, e quem já é o responsável (mesmo desativado, para não sair sem querer).
   const opcoesResp = ctx.equipe.filter(m => m.ativo !== false || m.id === c.responsavelId);
-  const opcoesColab = ctx.equipe.filter(m => m.id !== c.responsavelId && (m.ativo !== false || c.colaboradores.includes(m.id)));
-  const marcarColaborador = (id: string, marcar: boolean) =>
-    mudar({ colaboradores: marcar ? [...c.colaboradores, id] : c.colaboradores.filter(x => x !== id) });
 
   // ---------- listas que o administrador amplia ----------
   const doEscritorio = (campo: CampoDeOpcao) => opcoes.filter(o => o.campo === campo).map(o => o.valor);
@@ -357,11 +355,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           {opcoesResp.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
         </select>
       </Campo>
-      <Escolhas rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha no processo (e passa a vê-lo).">
-        {opcoesColab.length ? opcoesColab.map(m => <label key={m.id}>
-          <input type="checkbox" checked={c.colaboradores.includes(m.id)} onChange={e => marcarColaborador(m.id, e.target.checked)} />{m.nome}
-        </label>) : <Nota>Não há mais ninguém na equipe.</Nota>}
-      </Escolhas>
+      <EscolhaDaEquipe rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha no processo (e passa a vê-lo)." adicionar="Adicionar colaborador"
+        equipe={ctx.equipe} escolhidos={c.colaboradores} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={colaboradores => mudar({ colaboradores })} />
     </>,
     detalhes: () => <>
       {listaDe('sistema')}
