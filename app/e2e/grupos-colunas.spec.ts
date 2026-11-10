@@ -242,3 +242,74 @@ test.describe('Grupos de colunas', () => {
     await expect(page.getByRole('region', { name: 'Grupo Início' })).toBeVisible();
   });
 });
+
+test.describe('Ordem dos grupos, arrastando como as colunas', () => {
+  // Tela bem larga: os grupos, que ficam depois das colunas sem grupo, aparecem todos à vista para arrastar.
+  test.use({ viewport: { width: 2400, height: 1000 } });
+
+  /** Os nomes dos grupos, na ordem da tela. */
+  const ordemDosGrupos = (page: Page) => page.getByRole('region', { name: /^Grupo / }).evaluateAll(els => els.map(e => e.getAttribute('aria-label')));
+  /** Um ponto perto da borda esquerda do grupo: soltar ali põe o arrastado antes dele. */
+  const COMECO_DO_GRUPO = { x: 4, y: 20 };
+
+  test('quando o administrador arrasta um grupo para antes de outro, então ele muda de lugar e continua lá ao recarregar', async ({ page }) => {
+    // Dado
+    await abrirQuadro(page);
+    await criarGrupo(page, 'A');
+    await criarGrupo(page, 'B');
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo A', 'Grupo B']);
+    const grupoA = page.getByRole('region', { name: 'Grupo A', exact: true });
+    // Quando
+    await page.getByRole('button', { name: 'Fechar o grupo B' }).dragTo(grupoA, { targetPosition: COMECO_DO_GRUPO });
+    // Então
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo B', 'Grupo A']);
+    await expect(page.getByText('Grupo "B" mudou de lugar.')).toBeVisible();
+    // Quando
+    await page.reload();
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Então
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo B', 'Grupo A']);
+  });
+
+  test('quando o grupo está fechado, então a faixa também se arrasta', async ({ page }) => {
+    // Dado
+    await abrirQuadro(page);
+    await criarGrupo(page, 'A');
+    await criarGrupo(page, 'B');
+    await page.getByRole('button', { name: 'Fechar o grupo B' }).click();
+    const grupoA = page.getByRole('region', { name: 'Grupo A', exact: true });
+    // Quando
+    await page.getByRole('button', { name: /^Abrir o grupo B/ }).dragTo(grupoA, { targetPosition: COMECO_DO_GRUPO });
+    // Então
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo B', 'Grupo A']);
+    await expect(page.getByRole('button', { name: /^Abrir o grupo B/ })).toBeVisible();
+  });
+
+  test('quando a pessoa desfaz a mudança de lugar do grupo, então ele volta para onde estava', async ({ page }) => {
+    // Dado
+    await abrirQuadro(page);
+    await criarGrupo(page, 'A');
+    await criarGrupo(page, 'B');
+    const grupoA = page.getByRole('region', { name: 'Grupo A', exact: true });
+    await page.getByRole('button', { name: 'Fechar o grupo B' }).dragTo(grupoA, { targetPosition: COMECO_DO_GRUPO });
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo B', 'Grupo A']);
+    // Quando
+    await page.getByRole('button', { name: 'Desfazer' }).click();
+    // Então
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo A', 'Grupo B']);
+  });
+
+  test('quando a pessoa usa só o teclado, então move o grupo pelo menu dele', async ({ page }) => {
+    // Dado
+    await abrirQuadro(page);
+    await criarGrupo(page, 'A');
+    await criarGrupo(page, 'B');
+    // Quando: abre o menu do grupo A com Enter e escolhe o primeiro item, "Mover para a direita"
+    await page.getByRole('button', { name: 'Opções do grupo A' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Mover para a direita' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    // Então
+    await expect.poll(() => ordemDosGrupos(page)).toEqual(['Grupo B', 'Grupo A']);
+  });
+});

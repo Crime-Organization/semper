@@ -3,7 +3,7 @@
 // carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
 // no menu da coluna. Com "arquivados", a última coluna é a fixa "Arquivados" (ui/quadro/arquivo.ts). As colunas podem
 // ficar em grupos que abrem e fecham; fechado, o grupo vira uma faixa com o nome e a quantidade de cartões.
-import { Fragment, useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import type { Coluna, GrupoDeColunas, Ordem, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
 import { CampoComSugestoes } from '../CampoComSugestoes';
@@ -73,6 +73,12 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   const [antesDeCol, setAntesDeCol] = useState<string | null>(null);   // id da coluna ou "fim"
   const antesDeColRef = useRef(antesDeCol);
   antesDeColRef.current = antesDeCol;
+  // Grupo arrastado pelo topo (ou pela faixa, fechado): muda de lugar entre os grupos, como a coluna dentro do grupo.
+  const grupoArrasto = useRef<GrupoDeColunas | null>(null);
+  const [grupoArrastado, setGrupoArrastado] = useState<string | null>(null);
+  const [antesDeGrupo, setAntesDeGrupo] = useState<string | null>(null);   // id do grupo ou "fim"
+  const antesDeGrupoRef = useRef(antesDeGrupo);
+  antesDeGrupoRef.current = antesDeGrupo;
   const [menu, setMenu] = useState<{ c: Coluna | null; k: string; botao: HTMLElement } | null>(null);
   const [menuGrupo, setMenuGrupo] = useState<{ g: GrupoDeColunas; botao: HTMLElement } | null>(null);
   const [grupoDaNova, setGrupoDaNova] = useState('');
@@ -208,6 +214,38 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.coluna ?? 'fim';
   }
 
+  // ---------- arrastar grupos ----------
+  /** Primeiro grupo cujo meio está à direita do ponteiro ("fim": depois de todos). */
+  function grupoDepoisDe(x: number) {
+    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('.grupo-colunas:not(.arrastando-grupo)')];
+    return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.grupo ?? 'fim';
+  }
+
+  /** O que faz o topo do grupo (ou a faixa, fechado) se arrastar; só para quem cuida dos grupos. */
+  function arrastaGrupo(g: GrupoDeColunas) {
+    if (!quadro.podeGerirGrupos) return {};
+    return {
+      draggable: true,
+      title: 'Arraste para mudar a ordem dos grupos',
+      onDragStart: (e: DragEvent) => {
+        if (arrasto.current || colArrasto.current) return;
+        grupoArrasto.current = g;
+        setGrupoArrastado(g.id);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'grupo:' + g.id);
+      },
+      onDragEnd: () => { grupoArrasto.current = null; setGrupoArrastado(null); setAntesDeGrupo(null); }
+    };
+  }
+
+  function soltarGrupo() {
+    const g = grupoArrasto.current, antes = antesDeGrupoRef.current;
+    grupoArrasto.current = null;
+    setGrupoArrastado(null);
+    setAntesDeGrupo(null);
+    if (g) void quadro.posicionarGrupo(g, quadro.grupos.find(x => x.id === antes) ?? null);
+  }
+
   async function criarColuna() {
     const nome = nova.trim().replace(/\s+/g, ' ');
     if (!nome) { campoNova.current?.focus(); return; }
@@ -314,15 +352,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const total = carregando ? null : b.colunas.reduce((soma, c) => soma + (listas[chave(c.id)]?.total ?? 0), 0);
     const n = total === null ? '…' : numero(total);
     const alternar = () => { focoGrupo.current = g.id; quadro.alternarGrupo(g); };
-    if (!quadro.grupoAberto(g)) return <section key={g.id} className="grupo-colunas fechado" aria-label={`Grupo ${g.nome}`}>
+    const arrastado = grupoArrastado === g.id ? ' arrastando-grupo' : '';
+    if (!quadro.grupoAberto(g)) return <section key={g.id} className={'grupo-colunas fechado' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id} {...arrastaGrupo(g)}>
       <button type="button" className="grupo-faixa" data-grupo-botao={g.id} aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${cartoesEmPalavras(total, numero)}`} title={`Abrir o grupo ${g.nome}`} onClick={alternar}>
         <Icone nome="seta" tam={14} />
         <span className="coluna-n">{n}</span>
         <span className="grupo-faixa-nome">{g.nome}</span>
       </button>
     </section>;
-    return <section key={g.id} className="grupo-colunas" aria-label={`Grupo ${g.nome}`}>
-      <header className="grupo-topo">
+    return <section key={g.id} className={'grupo-colunas' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id}>
+      <header className="grupo-topo" {...arrastaGrupo(g)}>
         <button type="button" className="grupo-abrir" data-grupo-botao={g.id} aria-expanded aria-label={`Fechar o grupo ${g.nome}`} title={`Fechar o grupo ${g.nome}`} onClick={alternar}>
           <Icone nome="abaixo" tam={14} /><span>{g.nome}</span>
         </button>
@@ -344,6 +383,13 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   return <div className="area-quadro">
     <div className="quadro" role="region" aria-label="Quadro" ref={elQuadro}
       onDragOver={e => {
+        if (grupoArrasto.current) {
+          e.preventDefault();
+          const antes = grupoDepoisDe(e.clientX);
+          if (antes !== antesDeGrupoRef.current) setAntesDeGrupo(antes);
+          rolarBordas(e.clientX);
+          return;
+        }
         if (!colArrasto.current) return;
         e.preventDefault();
         const antes = colunaDepoisDe(e.clientX);
@@ -351,6 +397,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         rolarBordas(e.clientX);
       }}
       onDrop={e => {
+        if (grupoArrasto.current) { e.preventDefault(); soltarGrupo(); return; }
         const c = colArrasto.current;
         if (!c) return;
         e.preventDefault();
@@ -363,7 +410,11 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
       <Fragment key="sem">{coluna(null)}</Fragment>
       {quadro.blocos.map(b => !b.grupo ? <Fragment key={SEM_GRUPO}>{colunasDoBloco(b)}</Fragment>
         // Grupo sem coluna visível só aparece para quem cuida dos grupos.
-        : b.colunas.length || quadro.podeGerirGrupos ? grupoDeColunas(b.grupo, b) : null)}
+        : b.colunas.length || quadro.podeGerirGrupos ? <Fragment key={b.grupo.id}>
+          {antesDeGrupo === b.grupo.id && <div className="kmarcador-col" />}
+          {grupoDeColunas(b.grupo, b)}
+        </Fragment> : null)}
+      {antesDeGrupo === 'fim' && <div className="kmarcador-col" />}
       {props.arquivados && <Fragment key="arquivados">{coluna(null, true)}</Fragment>}
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>

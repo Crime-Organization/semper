@@ -56,6 +56,28 @@ export function ordemEntre(anterior: { ordem: number } | undefined, seguinte: { 
   return seguinte ? seguinte.ordem - 1 : atual;
 }
 
+/**
+ * A ordem nova de quem muda de lugar numa fila (colunas de um grupo, ou os grupos do quadro), já na ordem da tela:
+ * o item "id" passa para antes de "antesDe" (null: para o fim). Devolve null quando nada muda.
+ */
+export function ordemAoPosicionar<T extends { id: string; ordem: number }>(fila: T[], id: string, antesDe: string | null): number | null {
+  const i = fila.findIndex(x => x.id === id);
+  if (i < 0 || antesDe === id) return null;
+  const outros = fila.filter(x => x.id !== id);
+  const lugar = antesDe ? outros.findIndex(x => x.id === antesDe) : outros.length;
+  if (lugar < 0) return null;
+  const ant = outros[lugar - 1], prox = outros[lugar];
+  if (fila[i - 1]?.id === ant?.id && fila[i + 1]?.id === prox?.id) return null;   // já está aí
+  return ordemEntre(ant, prox, fila[i].ordem);
+}
+
+/** Antes de quem o item fica ao andar um passo na fila (null: no fim); undefined quando já está na ponta. */
+export function antesDeAoAndar<T extends { id: string }>(fila: T[], id: string, passo: -1 | 1): string | null | undefined {
+  const i = fila.findIndex(x => x.id === id);
+  if (i < 0 || i + passo < 0 || i + passo >= fila.length) return undefined;
+  return passo < 0 ? fila[i - 1].id : fila[i + 2]?.id ?? null;
+}
+
 /** A coluna do cartão novo quando ninguém escolheu: a coluna-marco de início, se o quadro tem; se não, a primeira da tela. */
 export function colunaDoCartaoNovo<C extends { ordem: number; grupo_id?: string | null; marco?: MarcoColuna | null }>(colunas: C[], grupos: GrupoDeColunas[]): C | null {
   return colunas.find(c => c.marco === 'inicio') ?? blocosDoQuadro(colunas, grupos).find(b => b.colunas.length)?.colunas[0] ?? null;

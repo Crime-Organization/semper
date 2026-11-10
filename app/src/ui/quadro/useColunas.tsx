@@ -7,7 +7,7 @@ import { SD, type Coluna, type ContextoAtivo, type GrupoDeColunas, type Modulo, 
 import { avisar, falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { blocosDoQuadro, grupoEstaAberto, ordemEntre, podeExcluirColuna, type BlocoDoQuadro } from '../../regras/quadro';
+import { antesDeAoAndar, blocosDoQuadro, grupoEstaAberto, ordemAoPosicionar, podeExcluirColuna, type BlocoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
 export interface Quadro {
@@ -39,7 +39,9 @@ export interface Quadro {
   criarGrupo: (nome: string) => Promise<boolean>;
   renomearGrupo: (g: GrupoDeColunas) => Promise<void>;
   alternarComecoFechado: (g: GrupoDeColunas) => Promise<void>;
-  moverGrupo: (g: GrupoDeColunas, passo: -1 | 1) => Promise<void>;
+  /** Coloca o grupo antes de "antesDe" (ou no fim, se null). A ordem vale para todo o escritório. */
+  posicionarGrupo: (g: GrupoDeColunas, antesDe: GrupoDeColunas | null) => Promise<void>;
+  moverGrupo: (g: GrupoDeColunas, passo: -1 | 1) => void;
   excluirGrupo: (g: GrupoDeColunas) => Promise<void>;
   /** Põe a coluna no grupo (null: sem grupo), no fim dele. */
   agrupar: (c: Coluna, grupoId: string | null) => Promise<void>;
@@ -137,15 +139,9 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   const irmas = (c: Coluna) => atuais.current.filter(x => !x.oculta && (x.grupo_id ?? null) === (c.grupo_id ?? null));
 
   async function posicionar(c: Coluna, antesDe: Coluna | null) {
-    if (antesDe?.id === c.id) return;
-    const agora = irmas(c), visiveis = agora.filter(x => x.id !== c.id);
-    const lugar = antesDe ? visiveis.findIndex(x => x.id === antesDe.id) : visiveis.length;
-    if (lugar < 0) return;
-    const ant = visiveis[lugar - 1], prox = visiveis[lugar];
-    const i = agora.findIndex(x => x.id === c.id);
-    if (agora[i - 1]?.id === ant?.id && agora[i + 1]?.id === prox?.id) return;   // não mudou
+    const ordem = ordemAoPosicionar(irmas(c), c.id, antesDe?.id ?? null);
+    if (ordem === null) return;
     const anterior = c.ordem;
-    const ordem = ordemEntre(ant, prox, c.ordem);
     mudar(c.id, { ordem });
     try {
       await SD.colunaOrdenar(c.id, ordem);
@@ -154,9 +150,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   }
 
   function mover(c: Coluna, passo: -1 | 1) {
-    const visiveis = irmas(c), i = visiveis.findIndex(x => x.id === c.id);
-    if (passo < 0 && i > 0) void posicionar(c, visiveis[i - 1]);
-    if (passo > 0 && i < visiveis.length - 1) void posicionar(c, visiveis[i + 2] || null);
+    const visiveis = irmas(c), antes = antesDeAoAndar(visiveis, c.id, passo);
+    if (antes !== undefined) void posicionar(c, visiveis.find(x => x.id === antes) ?? null);
   }
 
   function ordenarCartoes(colunaId: string | null, ordem: Ordem) {
@@ -203,15 +198,20 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     } catch (e) { falha(e); }
   }
 
-  async function moverGrupo(g: GrupoDeColunas, passo: -1 | 1) {
-    const outros = gruposAtuais.current.filter(x => x.id !== g.id);
-    const lugar = gruposAtuais.current.findIndex(x => x.id === g.id) + passo;
-    if (lugar < 0 || lugar > outros.length) return;
-    const ordem = ordemEntre(outros[lugar - 1], outros[lugar], g.ordem);
+  async function posicionarGrupo(g: GrupoDeColunas, antesDe: GrupoDeColunas | null) {
+    const ordem = ordemAoPosicionar(gruposAtuais.current, g.id, antesDe?.id ?? null);
+    if (ordem === null) return;
+    const anterior = g.ordem;
+    mudarGrupo(g.id, { ordem });
     try {
       await SD.grupoAtualizar(g.id, { ordem });
-      mudarGrupo(g.id, { ordem });
-    } catch (e) { falha(e); }
+      feito(`Grupo "${g.nome}" mudou de lugar.`, 'mudança de ordem do grupo', async () => { await SD.grupoAtualizar(g.id, { ordem: anterior }); mudarGrupo(g.id, { ordem: anterior }); });
+    } catch (e) { falha(e); mudarGrupo(g.id, { ordem: anterior }); }
+  }
+
+  function moverGrupo(g: GrupoDeColunas, passo: -1 | 1) {
+    const antes = antesDeAoAndar(gruposAtuais.current, g.id, passo);
+    if (antes !== undefined) void posicionarGrupo(g, gruposAtuais.current.find(x => x.id === antes) ?? null);
   }
 
   async function excluirGrupo(g: GrupoDeColunas) {
@@ -245,7 +245,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     grupos, blocos: blocosDoQuadro(colunas.filter(c => !c.oculta), grupos),
     podeGerirGrupos: ctx.ehAdmin,
     grupoAberto: g => grupoEstaAberto(g, abertos),
-    alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, moverGrupo, excluirGrupo, agrupar,
+    alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, posicionarGrupo, moverGrupo, excluirGrupo, agrupar,
     ordemDe: id => ordens[id || 'sem'] || 'manual',
     ordenar: ordenarCartoes,
     nomeDe: id => colunas.find(c => c.id === id)?.nome || '',

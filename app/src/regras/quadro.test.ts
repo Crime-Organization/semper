@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemEntre, podeExcluirColuna } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, podeExcluirColuna } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -120,5 +120,56 @@ describe('Grupos de colunas', () => {
   ])('quando os vizinhos são %j e %j, então a ordem é %d', (anterior, seguinte, ordem) => {
     // Então
     expect(ordemEntre(anterior, seguinte, 7)).toBe(ordem);
+  });
+});
+
+describe('Mudar de lugar (colunas de um grupo ou os grupos do quadro)', () => {
+  // Dado: três grupos na ordem da tela
+  const fila = [{ id: 'a', ordem: 1 }, { id: 'b', ordem: 2 }, { id: 'c', ordem: 3 }];
+
+  it.each([
+    ['"c" é solto antes de "a"', 'c', 'a', 0],
+    ['"a" é solto no fim', 'a', null, 4],
+    ['"a" é solto antes de "c"', 'a', 'c', 2.5],
+    ['"c" é solto antes de "b"', 'c', 'b', 1.5]
+  ] as const)('quando %s, então a ordem nova é %d', (_caso, id, antesDe, ordem) => {
+    // Quando
+    const nova = ordemAoPosicionar(fila, id, antesDe);
+    // Então
+    expect(nova).toBe(ordem);
+  });
+
+  it.each([
+    ['é solto antes dele mesmo', 'b', 'b'],
+    ['é solto antes do vizinho da direita (o lugar onde já está)', 'a', 'b'],
+    ['o último é solto no fim', 'c', null],
+    ['o grupo não está na fila', 'x', 'a'],
+    ['o vizinho não está na fila', 'a', 'x']
+  ] as const)('quando o item %s, então nada muda', (_caso, id, antesDe) => {
+    // Quando
+    const nova = ordemAoPosicionar(fila, id, antesDe);
+    // Então
+    expect(nova).toBeNull();
+  });
+
+  it('quando a ordem nova é aplicada, então a fila fica na ordem pedida', () => {
+    // Quando: "c" vai para antes de "a"
+    const ordem = ordemAoPosicionar(fila, 'c', 'a')!;
+    const depois = fila.map(x => x.id === 'c' ? { ...x, ordem } : x).sort((x, y) => x.ordem - y.ordem);
+    // Então
+    expect(depois.map(x => x.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it.each([
+    ['"b" anda para a esquerda', 'b', -1, 'a'],
+    ['"a" anda para a direita', 'a', 1, 'c'],
+    ['"b" anda para a direita (vira o último)', 'b', 1, null],
+    ['"a" anda para a esquerda (já é o primeiro)', 'a', -1, undefined],
+    ['"c" anda para a direita (já é o último)', 'c', 1, undefined]
+  ] as const)('quando %s, então fica antes de %s', (_caso, id, passo, antes) => {
+    // Quando
+    const resultado = antesDeAoAndar(fila, id, passo);
+    // Então
+    expect(resultado).toBe(antes);
   });
 });

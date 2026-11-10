@@ -368,9 +368,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Rodapé só com os responsáveis: ficam no canto direito. */
 .kcartao .kp > :only-child { margin-left: auto }
 .kmarcador { height: 4px; border-radius: 4px; background: var(--accent); margin: 2px 4px; flex-shrink: 0 }
-.coluna-topo[draggable="true"] { cursor: grab }
-.coluna-topo[draggable="true"]:active { cursor: grabbing }
-.coluna.arrastando-col { opacity: .45 }
+.coluna-topo[draggable="true"], .grupo-topo[draggable="true"] { cursor: grab }
+.coluna-topo[draggable="true"]:active, .grupo-topo[draggable="true"]:active { cursor: grabbing }
+.coluna.arrastando-col, .grupo-colunas.arrastando-grupo { opacity: .45 }
 /* Fora da ordem manual, a coluna de destino inteira fica marcada (o lugar do cartão vem da ordem escolhida). */
 .coluna.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px }
 .kmarcador-col { flex: 0 0 4px; align-self: stretch; border-radius: 4px; background: var(--accent) }

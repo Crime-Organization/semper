@@ -73,6 +73,17 @@ describe('Grupos no quadro', () => {
     expect(screen.getByRole('region', { name: 'Grupo Sem colunas' }).textContent).toContain('Nenhuma coluna');
   });
 
+  it.each([
+    ['é administrador', true, 1],
+    ['não é administrador', false, 0]
+  ] as const)('quando quem abre %s, então o topo do grupo se arrasta só para o administrador', async (_quem, admin, arrastaveis) => {
+    // Quando
+    montar(admin, [INICIO]);
+    // Então
+    await screen.findByRole('region', { name: 'Grupo Início' });
+    expect(screen.queryAllByTitle('Arraste para mudar a ordem dos grupos')).toHaveLength(arrastaveis);
+  });
+
   it('quando o quadro não tem grupos, então não aparece nenhum grupo nem a escolha de grupo', async () => {
     // Quando
     montar(false, []);
