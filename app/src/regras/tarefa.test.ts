@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Membro, Tarefa } from '../dados/tipos';
 import {
-  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, errosDaEtapaTarefa, motivoSemMencaoNaTarefa, papeisNaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa,
+  CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, errosDaEtapaTarefa, motivoSemMencaoNaTarefa, papeisNaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa,
   TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
 } from './tarefa';
 
@@ -32,8 +32,48 @@ describe('Cadastro de tarefa', () => {
     // Quando
     const dados = dadosDaTarefa({ ...completa, descricao: '  ', prazo: '10/11/2026', participantes: ['u-bruno', 'u-ana', 'u-bruno'], pessoas: ['p1', '', 'p1'] });
     // Então
-    expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', responsavel_id: 'u-ana',
+    expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
       participantes: ['u-bruno'], pessoas: ['p1'], demanda_id: null, contrato_id: null });
+  });
+
+  it('dado um prazo com hora e lembrete, quando a tarefa é salva, então os dois vão junto', () => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, prazo: '15/11/2030', hora: '09:30', lembrete: 30 });
+    // Então
+    expect(dados).toMatchObject({ prazo: '2030-11-15', prazo_hora: '09:30', lembrete: 30 });
+  });
+
+  it('dado um prazo sem hora e com lembrete, quando a tarefa é salva, então a hora vai vazia e o lembrete vai', () => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, prazo: '15/11/2030', lembrete: 1440 });
+    // Então
+    expect(dados).toMatchObject({ prazo_hora: null, lembrete: 1440 });
+  });
+
+  it.each([
+    ['a hora', { hora: '14:00' }, 'hora', 'Informe o prazo para pôr a hora'],
+    ['o lembrete', { lembrete: 60 as const }, 'lembrete', 'Informe o prazo para marcar o lembrete']
+  ])('dado %s sem prazo, quando confere a tarefa, então o campo tem erro na primeira etapa', (_caso, mudanca, campo, mensagem) => {
+    // Quando
+    const erros = validarTarefa({ ...completa, ...mudanca });
+    // Então
+    expect(erros).toEqual({ [campo]: mensagem });
+    expect(primeiraEtapaComErroTarefa({ ...completa, ...mudanca })).toBe(0);
+  });
+
+  it('dado hora e lembrete, quando o prazo é apagado e a tarefa é salva sem conferir, então os dois vão vazios', () => {
+    // Quando
+    const dados = dadosDaTarefa({ ...completa, prazo: '', hora: '14:00', lembrete: 0 });
+    // Então
+    expect(dados).toMatchObject({ prazo: null, prazo_hora: null, lembrete: null });
+  });
+
+  it('quando a hora e o lembrete aparecem no histórico, então vêm com o nome e o formato da tela', () => {
+    // Então
+    expect(CAMPOS_TAREFA.prazo_hora).toBe('Hora do prazo');
+    expect(CAMPOS_TAREFA.lembrete).toBe('Lembrete');
+    expect(valorLegivelTarefa('prazo_hora', '14:00:00')).toBe('14:00');
+    expect(valorLegivelTarefa('lembrete', 60)).toBe('1 hora antes');
   });
 
   it('quando a tarefa salva volta ao formulário, então os campos voltam como foram digitados', () => {
@@ -43,8 +83,19 @@ describe('Cadastro de tarefa', () => {
     // Quando
     const campos = camposDaTarefa(t);
     // Então
-    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
+    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, responsavelId: 'u-ana', participantes: ['u-bruno'],
       pessoas: ['p1'], demandaId: 'd1', contratoId: '' });
+  });
+
+  it('dado uma tarefa sem prazo que ficou com hora e lembrete no banco, quando volta ao formulário, então os dois vêm vazios e a edição não trava', () => {
+    // Dado: o site antigo tirou o prazo sem conhecer as colunas novas
+    const t = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 60, responsavel_id: 'u-ana', participantes: [],
+      pessoas: [], demanda_id: null, contrato_id: null } as unknown as Tarefa;
+    // Quando
+    const campos = camposDaTarefa(t);
+    // Então
+    expect(campos).toMatchObject({ prazo: '', hora: '', lembrete: null });
+    expect(primeiraEtapaComErroTarefa(campos)).toBe(-1);
   });
 
   it('quando o título falta, então a primeira etapa é a que tem erro, e a etapa das pessoas não acusa o título', () => {

@@ -15,12 +15,23 @@ const diario = () => screen.getByRole('checkbox', { name: /Aviso às 7h/ });
 describe('E-mails de prazo em Minha conta', () => {
   afterEach(() => { vi.restoreAllMocks(); vi.mocked(falha).mockClear(); iniciarPreferencias({}); });
 
-  it('dado quem nunca mexeu, quando abre a tela, então os dois e-mails estão ligados', () => {
+  it('dado quem nunca mexeu, quando abre a tela, então os três e-mails estão ligados', () => {
     // Quando
     render(<EmailsDePrazo />);
     // Então
     expect(diario()).toBeChecked();
     expect(screen.getByRole('checkbox', { name: /Resumo da semana/ })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /Lembretes que eu marcar/ })).toBeChecked();
+  });
+
+  it('quando a pessoa desliga o e-mail dos lembretes, então grava a chave que o banco lê', async () => {
+    // Dado
+    const salvar = vi.spyOn(SD, 'salvarPreferencia').mockResolvedValue();
+    render(<EmailsDePrazo />);
+    // Quando
+    await userEvent.click(screen.getByRole('checkbox', { name: /Lembretes que eu marcar/ }));
+    // Então
+    await waitFor(() => expect(salvar).toHaveBeenCalledWith('email_lembretes', false));
   });
 
   it('dado quem já desligou, quando abre a tela, então a caixinha vem desmarcada', () => {

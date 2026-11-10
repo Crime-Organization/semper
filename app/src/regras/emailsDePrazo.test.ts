@@ -1,12 +1,17 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Os e-mails de prazo (#113), em supabase/functions/_compartilhado/.
+// Os e-mails de prazo (#113) e dos lembretes (#286), em supabase/functions/_compartilhado/.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { emailDiario, emailDoResumo, enviarEmailsDePrazo, tipoDeEnvioValido, type EmailDiario, type ItemDePrazo, type ItemDoAviso, type PassosDosEmails, type ResumoSemanal, type SecaoDoResumo } from '../../../supabase/functions/_compartilhado/emailsDePrazo';
+import {
+  emailDiario, emailDoLembrete, emailDoResumo, enviarEmailsDePrazo, tipoDeEnvioValido,
+  type EmailDiario, type EmailDosLembretes, type ItemDePrazo, type ItemDoAviso, type ItemDoLembrete, type PassosDosEmails, type ResumoSemanal, type SecaoDoResumo
+} from '../../../supabase/functions/_compartilhado/emailsDePrazo';
 
 const item = (extras: Partial<ItemDePrazo> = {}): ItemDePrazo =>
   ({ modulo: 'tarefas', pagina: 'tarefas', cartao_id: 'c1', cartao_codigo: 'T1', titulo: 'Emitir a GRU', data: '2030-01-18', hora: null, ...extras });
 const aviso = (extras: Partial<ItemDoAviso> = {}): ItemDoAviso => ({ ...item(extras), id: 'm1', aviso: 'hoje', ...extras });
 const diario = (itens: ItemDoAviso[]): EmailDiario => ({ para: 'bia@exemplo.com', nome: 'Bia Souza', itens });
+const lembrete = (extras: Partial<ItemDoLembrete> = {}): ItemDoLembrete => ({ ...item(extras), id: 'm1', aviso: 'lembrete', antecedencia: 60, hora: '14:00', ...extras });
+const lembretes = (itens: ItemDoLembrete[]): EmailDosLembretes => ({ para: 'bia@exemplo.com', nome: 'Bia Souza', itens });
 const secao = (itens: ItemDePrazo[] = [], total = itens.length): SecaoDoResumo => ({ total, itens });
 const resumo = (extras: Partial<ResumoSemanal> = {}): ResumoSemanal => ({
   id: 'r1', para: 'bia@exemplo.com', nome: 'Bia Souza', semana: '2030-01-18', concluidos: 0, atrasados: secao(), esta_semana: secao(), proxima_semana: secao(), ...extras
@@ -87,12 +92,60 @@ describe('resumo de sexta-feira', () => {
   });
 });
 
+describe('e-mail dos lembretes', () => {
+  it('dado um lembrete só, quando o e-mail é montado, então o assunto traz o título e o texto diz quando é o prazo e a antecedência', () => {
+    // Quando
+    const m = emailDoLembrete(lembretes([lembrete({ cartao_id: 'x y' })]));
+    // Então
+    expect(m.para).toBe('bia@exemplo.com');
+    expect(m.assunto).toBe('Lembrete: Emitir a GRU');
+    expect(m.texto).toContain('o prazo é 18/01/2030 às 14:00');
+    expect(m.texto).toContain('Tarefa · prazo: 18/01/2030 às 14:00 · lembrete: 1 hora antes');
+    expect(m.texto).toContain('https://semper.app.br/tarefas/?id=x%20y');
+  });
+
+  it('dado vários lembretes na mesma hora, quando o e-mail é montado, então o assunto conta e o corpo lista cada um', () => {
+    // Quando
+    const m = emailDoLembrete(lembretes([lembrete({ id: 'a', titulo: 'Contestar' }), lembrete({ id: 'b', titulo: 'Recorrer', modulo: 'demandas', pagina: 'demandas', antecedencia: 1440 })]));
+    // Então
+    expect(m.assunto).toBe('Lembretes: 2 prazos');
+    expect(m.texto).toContain('Contestar');
+    expect(m.texto).toContain('Demanda · prazo: 18/01/2030 às 14:00 · lembrete: 1 dia antes');
+  });
+
+  it.each([[0, 'na hora do prazo'], [30, '30 minutos antes'], [60, '1 hora antes'], [1440, '1 dia antes']] as const)(
+    'dado o lembrete de %s minutos, quando o e-mail é montado, então diz "%s"', (antecedencia, texto) => {
+      // Quando
+      const m = emailDoLembrete(lembretes([lembrete({ antecedencia })]));
+      // Então
+      expect(m.texto).toContain(`lembrete: ${texto}`);
+    });
+
+  it('dado um prazo sem hora, quando o e-mail é montado, então diz que o lembrete conta o prazo às 9h', () => {
+    // Quando
+    const m = emailDoLembrete(lembretes([lembrete({ hora: null, antecedencia: 0 })]));
+    // Então
+    expect(m.texto).toContain('prazo: 18/01/2030 (sem hora; o lembrete conta o prazo às 09:00) · lembrete: na hora do prazo');
+    expect(m.texto).not.toContain(' às 14:00');
+  });
+
+  it('dado um título com marcação, quando o e-mail é montado, então no HTML ele vira só texto, e o e-mail diz como desligar', () => {
+    // Quando
+    const m = emailDoLembrete({ ...lembretes([lembrete({ titulo: '<img src=x onerror=alert(1)>' })]), nome: '<b>Bia</b>' });
+    // Então
+    expect(m.html).not.toContain('<img');
+    expect(m.html).not.toContain('<b>Bia');
+    expect(m.texto).toContain('https://semper.app.br/minha-conta/');
+  });
+});
+
 describe('envio dos e-mails de prazo', () => {
   beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}); });
   afterEach(() => { vi.restoreAllMocks(); });
   const passos = (extras: Partial<PassosDosEmails> = {}) => ({
     diarios: vi.fn<PassosDosEmails['diarios']>(async () => []),
     resumos: vi.fn<PassosDosEmails['resumos']>(async () => []),
+    lembretes: vi.fn<PassosDosEmails['lembretes']>(async () => []),
     enviar: vi.fn<PassosDosEmails['enviar']>(async () => {}),
     marcarDiario: vi.fn<PassosDosEmails['marcarDiario']>(async () => {}),
     marcarResumo: vi.fn<PassosDosEmails['marcarResumo']>(async () => {}),
@@ -122,6 +175,29 @@ describe('envio dos e-mails de prazo', () => {
     expect(p.diarios).not.toHaveBeenCalled();
   });
 
+  it('dado lembretes devidos, quando a rotina de cada minuto chama, então envia e marca como os avisos, e não mexe nos outros e-mails', async () => {
+    // Dado
+    const p = passos({ lembretes: vi.fn(async () => [lembretes([lembrete({ id: 'a' }), lembrete({ id: 'b' })])]), diarios: vi.fn(async () => [diario([aviso()])]) });
+    // Quando
+    const feito = await enviarEmailsDePrazo(p, 'lembrete');
+    // Então
+    expect(feito).toEqual({ enviados: 1, falhas: 0 });
+    expect(p.enviar).toHaveBeenCalledWith(expect.objectContaining({ assunto: 'Lembretes: 2 prazos' }));
+    expect(p.marcarDiario).toHaveBeenCalledWith(['a', 'b']);
+    expect(p.diarios).not.toHaveBeenCalled();
+    expect(p.resumos).not.toHaveBeenCalled();
+  });
+
+  it('dado um lembrete cujo envio falha, quando a rotina chama, então ele fica sem marca, para a próxima tentativa', async () => {
+    // Dado
+    const p = passos({ lembretes: vi.fn(async () => [lembretes([lembrete()])]), enviar: vi.fn(async () => { throw new Error('SMTP fora'); }) });
+    // Quando
+    const feito = await enviarEmailsDePrazo(p, 'lembrete');
+    // Então
+    expect(feito).toEqual({ enviados: 0, falhas: 1 });
+    expect(p.marcarDiario).not.toHaveBeenCalled();
+  });
+
   it('dado um e-mail que saiu e não foi marcado, quando a rotina chama, então conta como falha', async () => {
     // Dado
     const p = passos({ diarios: vi.fn(async () => [diario([aviso()])]), marcarDiario: vi.fn(async () => { throw new Error('banco fora'); }) });
@@ -131,7 +207,7 @@ describe('envio dos e-mails de prazo', () => {
     expect(feito).toEqual({ enviados: 0, falhas: 1 });
   });
 
-  it.each([['diario', true], ['resumo', true], ['outro', false], [undefined, false]])('dado o tipo %s, quando a chamada chega, então a validade é %s', (tipo, esperado) => {
+  it.each([['diario', true], ['resumo', true], ['lembrete', true], ['outro', false], [undefined, false]])('dado o tipo %s, quando a chamada chega, então a validade é %s', (tipo, esperado) => {
     // Então
     expect(tipoDeEnvioValido(tipo)).toBe(esperado);
   });

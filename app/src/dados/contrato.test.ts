@@ -797,6 +797,209 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Hora e lembrete dos prazos (#286)', () => {
+      type Falso = { entrarComo(id: string): void; gerarLembretes(quando?: string): void; gerarAvisosDePrazo(hoje?: string): void };
+      const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+      afterEach(() => falso().entrarComo('u-master'));
+      // Um prazo às 14h de 15/11/2030, no relógio de Brasília.
+      const PRAZO = '2030-11-15';
+      const em = (hora: string, dia = PRAZO) => `${dia}T${hora}:00-03:00`;
+      const nome = () => 'LEMBRETE ' + Math.random().toString(36).slice(2);
+      const lembretesDe = async (titulo: string) => (await SD.mensagensListar()).filter(m => m.prazo?.titulo === titulo && m.prazo.aviso === 'lembrete');
+      const hora = (h: string | null | undefined) => h ? h.slice(0, 5) : null;
+
+      it('quando uma tarefa é gravada com hora e lembrete, então volta com os dois, nas listas e no histórico', async () => {
+        // Dado
+        const titulo = nome();
+        // Quando
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        await SD.tarefaAtualizar(id, { prazo_hora: '16:30', lembrete: 1440 });
+        // Então
+        const t = (await SD.tarefaObter(id))!;
+        expect([hora(t.prazo_hora), t.lembrete]).toEqual(['16:30', 1440]);
+        const [linha] = (await SD.tarefasListar({ termo: titulo })).linhas;
+        expect(hora(linha.prazo_hora)).toBe('16:30');
+        const [ultima] = await SD.tarefaHistorico(id);
+        expect(hora(String(ultima.alteracoes.prazo_hora.para))).toBe('16:30');
+        expect(ultima.alteracoes.lembrete).toEqual({ de: 60, para: 1440 });
+      });
+
+      it('quando uma demanda é gravada com hora e lembrete, então volta com os dois, e a agenda mostra a hora', async () => {
+        // Dado
+        const titulo = nome();
+        // Quando
+        const { id } = await SD.demandaCriar({ titulo, prazo: PRAZO, prazo_hora: '09:15', lembrete: 0, responsavel_id: 'u-master' });
+        // Então
+        const d = (await SD.demandaObter(id))!;
+        expect([hora(d.prazo_hora), d.lembrete]).toEqual(['09:15', 0]);
+        const [naAgenda] = await SD.prazosDoPeriodo(PRAZO, PRAZO, { termo: titulo });
+        expect(hora(naAgenda.hora)).toBe('09:15');
+      });
+
+      it('dado um lembrete fora das opções, quando grava, então é recusado como no banco', async () => {
+        // Quando / Então
+        await expect(SD.tarefaCriar({ titulo: nome(), prazo: PRAZO, lembrete: 45 as unknown as 60, responsavel_id: 'u-master' }))
+          .rejects.toThrow('Algum campo está em formato inválido');
+      });
+
+      it('dado uma tarefa com lembrete de 1 hora, quando a rotina roda antes, na hora e depois da tolerância, então só a do meio cria o lembrete', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        // Quando / Então
+        falso().gerarLembretes(em('12:59'));
+        expect(await lembretesDe(titulo)).toHaveLength(0);
+        falso().gerarLembretes(em('13:00'));
+        const [m] = await lembretesDe(titulo);
+        expect(m.lido_em).toBeNull();
+        expect(m.prazo).toMatchObject({ modulo: 'tarefas', data: PRAZO, hora: '14:00', aviso: 'lembrete', antecedencia: 60 });
+      });
+
+      it('dado um prazo que já passou da tolerância, quando a rotina roda, então o lembrete não chega', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 0, responsavel_id: 'u-master' });
+        // Quando
+        falso().gerarLembretes(em('14:16'));
+        // Então
+        expect(await lembretesDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um prazo sem hora com lembrete de 1 dia, quando chega às 9h do dia anterior, então o lembrete chega', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.demandaCriar({ titulo, prazo: PRAZO, lembrete: 1440, responsavel_id: 'u-master' });
+        // Quando
+        falso().gerarLembretes(em('08:59', '2030-11-14'));
+        const antes = await lembretesDe(titulo);
+        falso().gerarLembretes(em('09:00', '2030-11-14'));
+        // Então
+        expect(antes).toHaveLength(0);
+        expect(await lembretesDe(titulo)).toHaveLength(1);
+      });
+
+      it('dado uma tarefa com participantes, quando o lembrete chega, então recebem o responsável e os participantes ativos', async () => {
+        // Dado: a Carla está desativada
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 30, responsavel_id: 'u-ana', participantes: ['u-bruno', 'u-carla'] });
+        // Quando
+        falso().gerarLembretes(em('13:45'));
+        // Então
+        for (const [quem, quantos] of [['u-ana', 1], ['u-bruno', 1], ['u-carla', 0], ['u-master', 0]] as const) {
+          falso().entrarComo(quem);
+          expect(await lembretesDe(titulo)).toHaveLength(quantos);
+        }
+      });
+
+      it('dado um lembrete lido, quando a hora do prazo muda e o novo instante chega, então ele chega de novo, não lido', async () => {
+        // Dado
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        await SD.mensagemMarcarLida((await lembretesDe(titulo))[0].id);
+        // Quando
+        await SD.tarefaAtualizar(id, { prazo_hora: '16:00' });
+        falso().gerarLembretes(em('15:00'));
+        // Então
+        const lembretes = await lembretesDe(titulo);
+        expect(lembretes).toHaveLength(1);
+        expect(lembretes[0].lido_em).toBeNull();
+        expect(lembretes[0].prazo?.hora).toBe('16:00');
+      });
+
+      it('dado um lembrete lido, quando a hora e o lembrete mudam juntos mantendo o mesmo instante, então ele chega de novo, no topo, com a antecedência nova', async () => {
+        // Dado: prazo às 14h com lembrete de 1 hora (chega às 13h)
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        const [antes] = await lembretesDe(titulo);
+        await SD.mensagemMarcarLida(antes.id);
+        // Quando: prazo às 13h30 com lembrete de 30 minutos (também chega às 13h)
+        await SD.tarefaAtualizar(id, { prazo_hora: '13:30', lembrete: 30 });
+        falso().gerarLembretes(em('13:01'));
+        // Então
+        const lembretes = await lembretesDe(titulo);
+        expect(lembretes).toHaveLength(1);
+        expect(lembretes[0]).toMatchObject({ id: antes.id, lido_em: null });
+        expect(lembretes[0].prazo).toMatchObject({ hora: '13:30', antecedencia: 30 });
+        expect(lembretes[0].criado_em > antes.criado_em).toBe(true);
+        expect((await SD.mensagensListar())[0].id).toBe(antes.id);
+      });
+
+      it('dado um lembrete que chegou, quando a rotina roda de novo com o mesmo cartão, então não duplica e o lido continua lido', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        const [antes] = await lembretesDe(titulo);
+        await SD.mensagemMarcarLida(antes.id);
+        // Quando
+        falso().gerarLembretes(em('13:01'));
+        falso().gerarLembretes(em('14:00'));
+        // Então
+        const lembretes = await lembretesDe(titulo);
+        expect(lembretes).toHaveLength(1);
+        expect(lembretes[0].id).toBe(antes.id);
+        expect(lembretes[0].lido_em).not.toBeNull();
+        expect(lembretes[0].criado_em).toBe(antes.criado_em);
+      });
+
+      it('dado um lembrete lido, quando o lembrete do cartão muda, então a caixa mostra a antecedência do que chegou até o novo chegar', async () => {
+        // Dado: lembrete de 1 hora, que chega às 13h
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        await SD.mensagemMarcarLida((await lembretesDe(titulo))[0].id);
+        // Quando: o cartão passa a lembrar na hora do prazo, às 14h
+        await SD.tarefaAtualizar(id, { lembrete: 0 });
+        falso().gerarLembretes(em('13:30'));
+        const [noMeio] = await lembretesDe(titulo);
+        falso().gerarLembretes(em('14:00'));
+        const [depois] = await lembretesDe(titulo);
+        // Então
+        expect(noMeio.prazo?.antecedencia).toBe(60);
+        expect(noMeio.lido_em).not.toBeNull();
+        expect(depois.prazo?.antecedencia).toBe(0);
+        expect(depois.lido_em).toBeNull();
+      });
+
+      it('dado um lembrete não lido, quando o lembrete do cartão muda, então ele sai da caixa até o novo chegar', async () => {
+        // Dado
+        const titulo = nome();
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        // Quando
+        await SD.tarefaAtualizar(id, { lembrete: 0 });
+        falso().gerarLembretes(em('13:30'));
+        // Então
+        expect(await lembretesDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um lembrete não lido, quando a tarefa é concluída, então ele sai da caixa na rotina seguinte', async () => {
+        // Dado
+        const titulo = nome(), concluida = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')!;
+        const { id } = await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 60, responsavel_id: 'u-master' });
+        falso().gerarLembretes(em('13:00'));
+        // Quando
+        await SD.tarefaMover(id, concluida.id, 1);
+        falso().gerarLembretes(em('13:01'));
+        // Então
+        expect(await lembretesDe(titulo)).toHaveLength(0);
+      });
+
+      it('dado um lembrete não lido de um participante, quando a rotina dos avisos de prazo roda, então ela não o apaga', async () => {
+        // Dado
+        const titulo = nome();
+        await SD.tarefaCriar({ titulo, prazo: PRAZO, prazo_hora: '14:00', lembrete: 1440, responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+        falso().gerarLembretes(em('14:00', '2030-11-14'));
+        // Quando
+        falso().gerarAvisosDePrazo('2030-11-14');
+        // Então
+        falso().entrarComo('u-bruno');
+        expect(await lembretesDe(titulo)).toHaveLength(1);
+      });
+    });
+
     describe('Comentários', () => {
       // Quem está logado é o Mateus (@mateus.goncalves, advogado); a Ana é advogada e o Bruno, estagiário.
       const contratoNovo = async () => {

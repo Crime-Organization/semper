@@ -3,8 +3,7 @@
 // cartão (sem nenhuma, o texto de vazio e o botão com o nome, na mesma linha).
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type DemandaLigada, type TarefaLigada } from '../dados';
-import { PAPEIS_NA_DEMANDA, ROTULOS_PRAZO, SEM_SITUACAO_DEMANDA, situacaoDoPrazo } from '../regras/demanda';
-import { fmtData } from '../regras/pessoa';
+import { PAPEIS_NA_DEMANDA, rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA } from '../regras/demanda';
 import { PAPEIS_NA_TAREFA, SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -45,8 +44,8 @@ export function CartoesLigados({ modulo, carregar, vazio, nova, versao = 0, ante
   const { endereco, papeis, semSituacao } = MODULOS[modulo];
   const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || semSituacao;
   const prazo = (x: Ligado) => {
-    const s = situacaoDoPrazo(x.prazo, hojeISO());
-    return s ? ` · ${ROTULOS_PRAZO[s]}: ${fmtData(x.prazo)}` : '';
+    const r = rotuloDoPrazoComHora(x.prazo, x.prazo_hora, hojeISO());
+    return r ? ` · ${r}` : '';
   };
   return <>
     <ItensLigados rotulo={rotulo} vazio={vazio} novo={nova} itens={[...antes, ...lista.map(x => ({

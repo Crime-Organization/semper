@@ -7,7 +7,7 @@ import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
-  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
+  ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
@@ -30,6 +30,7 @@ import { hojeNaAgenda } from '../regras/agenda';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
+import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
 import { alteraOProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
@@ -117,7 +118,9 @@ interface Banco {
   comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string; autor_sem_vinculo?: boolean })[];
   mensagens?: { id: string; perfil_id: string; tipo: TipoMensagem; comentario_id: string | null; criado_em: string; lido_em: string | null;
     /** Só no aviso de prazo: o módulo e o item (o prazo do processo, ou o próprio cartão), a data e qual aviso é. */
-    modulo?: ModuloDoPrazo; item_id?: string; prazo_data?: string; prazo_aviso?: 'proximo' | 'hoje' }[];
+    modulo?: ModuloDoPrazo; item_id?: string; prazo_data?: string; prazo_aviso?: AvisoDePrazo;
+    /** Só no lembrete: o instante em que ele chega e a antecedência que o cartão tinha (como mensagens.lembrete_em e lembrete_antes). */
+    lembrete_em?: string; lembrete_antes?: Lembrete }[];
   demandas?: DemandaGuardada[];
   historicoDemandas?: (Historico & { demanda_id: string })[];
   /** Contratos que já geraram as demandas automáticas (privado.contratos_com_demandas no banco). */
@@ -294,7 +297,7 @@ function sementeContratos(): ContratoGuardado[] {
 /** Demanda com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function demandaNova(): DemandaGuardada {
   return {
-    id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', colaboradores: [], clientes: [], contrato_id: null,
+    id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', colaboradores: [], clientes: [], contrato_id: null,
     contrato_codigo: null, objeto: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora()
   };
@@ -302,7 +305,7 @@ function demandaNova(): DemandaGuardada {
 /** Tarefa com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
 function tarefaNova(): TarefaGuardada {
   return {
-    id: '', codigo: '', titulo: '', descricao: null, prazo: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
+    id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
     contrato_id: null, contrato_codigo: null, processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
     criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
   };
@@ -545,6 +548,8 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
   // Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas; nos outros módulos, toda conta vê tudo.
   entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
   gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje),
+  /** A rotina dos lembretes num instante (ISO, ex.: '2030-11-15T13:05:00-03:00'); sem ele, agora. */
+  gerarLembretes: (quando?: string) => gerarLembretes(quando ? new Date(quando) : undefined),
   equipeVeTudo: (ligada: boolean) => { bd.equipeVeTudo = ligada; gravar(); },
   mudarFuncao: (id: string, funcao: Funcao) => { bd.funcoesDeTeste = { ...bd.funcoesDeTeste, [id]: funcao }; EQUIPE.find(m => m.id === id)!.funcao = funcao; gravar(); }
 };
@@ -841,6 +846,26 @@ function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) 
   });
   if (Object.keys(alt).length) bd.historicoContratos!.unshift({ id: Date.now() + Math.random(), contrato_id: k.id, alteracoes: alt, feito_por: eu, em: agora() });
 }
+// ---------- hora e lembrete do prazo (tarefas e demandas, #286) ----------
+/** A hora como o banco aceita (hh:mm ou hh:mm:ss). */
+const HORA_DO_BANCO = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+/**
+ * Como as colunas prazo_hora (time) e lembrete (com a regra dos valores aceitos) do banco: a hora volta com os segundos,
+ * e o lembrete fora da lista é recusado. Como no banco, nada amarra os dois ao prazo (a tela é que confere).
+ */
+function horaELembreteDoBanco(dados: Pick<DadosTarefa, 'prazo_hora' | 'lembrete'>): Pick<DadosTarefa, 'prazo_hora' | 'lembrete'> {
+  const r: Pick<DadosTarefa, 'prazo_hora' | 'lembrete'> = {};
+  if (dados.prazo_hora !== undefined) {
+    if (dados.prazo_hora && !HORA_DO_BANCO.test(dados.prazo_hora)) throw new Error(FORMATO_INVALIDO);
+    r.prazo_hora = dados.prazo_hora ? fmtHora(dados.prazo_hora) + ':00' : null;
+  }
+  if (dados.lembrete !== undefined) {
+    if (dados.lembrete !== null && !Object.hasOwn(LEMBRETES, String(dados.lembrete))) throw new Error(FORMATO_INVALIDO);
+    r.lembrete = dados.lembrete;
+  }
+  return r;
+}
+
 // ---------- demandas ----------
 const nomesDosClientes = (ids: string[]) => ids.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
 const demandaCompleta = (d: DemandaGuardada): Demanda => {
@@ -849,7 +874,7 @@ const demandaCompleta = (d: DemandaGuardada): Demanda => {
     contrato: k && vejoContrato(k) ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
 };
 const demandaLista = (d: DemandaGuardada): DemandaLista => ({
-  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
+  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
   cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
   arquivado_em: d.arquivado_em, criado_por: d.criado_por, criado_em: d.criado_em, atualizado_em: d.atualizado_em
 });
@@ -881,7 +906,7 @@ const acharDemanda = (id: string) => {
  * da equipe, sem repetir e sem o responsável entre os colaboradores; o número do contrato copiado.
  */
 function prepararDemanda(dados: DadosDemanda, atual?: DemandaGuardada): DadosDemanda & { contrato_codigo?: string | null } {
-  const d: DadosDemanda & { contrato_codigo?: string | null } = { ...dados };
+  const d: DadosDemanda & { contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
   if (d.titulo !== undefined) {
     d.titulo = d.titulo.trim();
     if (!d.titulo) throw new Error('Dê um título à demanda.');
@@ -993,7 +1018,7 @@ function tarefasDoModelo(d: DemandaGuardada) {
     demanda_id: d.id, demanda_codigo: d.codigo, contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 }));
 }
 const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: DemandaGuardada): DemandaLigada => ({
-  id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
+  id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em,
   papeis: papeisNaDemanda(d, pessoaId, perfilId)
 });
 // ---------- tarefas ----------
@@ -1011,7 +1036,7 @@ const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
     processo: processoDaTarefa(t.processo_id) };
 };
 const tarefaLista = (t: TarefaGuardada): TarefaLista => ({
-  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, responsavel_id: t.responsavel_id, participantes: t.participantes,
+  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, responsavel_id: t.responsavel_id, participantes: t.participantes,
   pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
   etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em
 });
@@ -1033,7 +1058,7 @@ const acharTarefa = (id: string) => {
  * da equipe, sem repetir e sem o responsável entre os participantes; os códigos da demanda e do contrato copiados.
  */
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
-  const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados };
+  const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
   // Como o banco: a ligação com o processo nasce com a tarefa, e só com um processo que existe.
   if (t.processo_id !== undefined && atual) throw new Error('Você não tem permissão para fazer isso.');
   if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
@@ -1089,7 +1114,7 @@ function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
   if (Object.keys(alt).length) bd.historicoTarefas!.unshift({ id: Date.now() + Math.random(), tarefa_id: t.id, alteracoes: alt, feito_por: eu, em: agora() });
 }
 const tarefaLigada = (pessoaId: string, perfilId: string | null) => (t: TarefaGuardada): TarefaLigada => ({
-  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, etapa_id: t.etapa_id, arquivado_em: t.arquivado_em, criado_em: t.criado_em,
+  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, etapa_id: t.etapa_id, arquivado_em: t.arquivado_em, criado_em: t.criado_em,
   papeis: pessoaId ? papeisNaTarefa(t, pessoaId, perfilId) : []
 });
 /** Na ordem do quadro (como as demandas do contrato). */
@@ -1698,8 +1723,11 @@ function mensagensDoComentario(c: NonNullable<Banco['comentarios']>[number]) {
 }
 /** As mensagens de quem está logado. Apagar o comentário (ou o cartão) apaga a mensagem, como o "on delete cascade". */
 const minhasMensagens = () => bd.mensagens!.filter(m => m.perfil_id === eu && (m.tipo === 'prazo' ? !!prazoDoAviso(m) : bd.comentarios!.some(c => c.id === m.comentario_id)));
-/** Os prazos de cada módulo (como privado.prazos_da_equipe). `vale` é falso no que a rotina ignora (arquivado, excluído, cancelado, tarefa repetida); o cartão continua existindo para o aviso já criado. */
-interface PrazoDaEquipe { perfil_id: string; modulo: ModuloDoPrazo; item_id: string; vale: boolean; aberto: boolean; prazo: Omit<PrazoDaMensagem, 'data'>; data: string | null }
+/**
+ * Os prazos de cada módulo (como privado.prazos_da_equipe). `vale` é falso no que a rotina ignora (arquivado, excluído, cancelado, tarefa repetida); o cartão continua existindo para o aviso já criado.
+ * A antecedência do lembrete não vem do cartão: vem da própria mensagem (lembrete_antes, em mensagemLida).
+ */
+interface PrazoDaEquipe { perfil_id: string; modulo: ModuloDoPrazo; item_id: string; vale: boolean; aberto: boolean; prazo: Omit<PrazoDaMensagem, 'data' | 'aviso' | 'antecedencia'>; data: string | null }
 const concluidoNaColuna = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
 const tarefaRepeteOPrazo = (t: { id: string; prazo: string | null; responsavel_id: string }) => bd.prazos!.some(z => {
   const p = bd.processos!.find(x => x.id === z.processo_id);
@@ -1714,9 +1742,9 @@ const PRAZOS_DA_EQUIPE: Record<ModuloDoPrazo, () => PrazoDaEquipe[]> = {
         parado: z.excluido_em ? 'excluido' as const : p.arquivado_em ? 'arquivado' as const : null } }] : [];
   }),
   demandas: () => bd.demandas!.map(d => ({ perfil_id: d.responsavel_id, modulo: 'demandas' as const, item_id: d.id, vale: !!d.prazo && !d.arquivado_em, aberto: !concluidoNaColuna(d.etapa_id), data: d.prazo,
-    prazo: { modulo: 'demandas' as const, pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, hora: null, concluido: concluidoNaColuna(d.etapa_id), parado: paradoNoCartao(d) } })),
+    prazo: { modulo: 'demandas' as const, pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, hora: fmtHora(d.prazo_hora) || null, concluido: concluidoNaColuna(d.etapa_id), parado: paradoNoCartao(d) } })),
   tarefas: () => bd.tarefas!.map(t => ({ perfil_id: t.responsavel_id, modulo: 'tarefas' as const, item_id: t.id, vale: !!t.prazo && !t.arquivado_em && !tarefaRepeteOPrazo(t), aberto: !concluidoNaColuna(t.etapa_id), data: t.prazo,
-    prazo: { modulo: 'tarefas' as const, pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, hora: null, concluido: concluidoNaColuna(t.etapa_id), parado: paradoNoCartao(t) } })),
+    prazo: { modulo: 'tarefas' as const, pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, hora: fmtHora(t.prazo_hora) || null, concluido: concluidoNaColuna(t.etapa_id), parado: paradoNoCartao(t) } })),
   compromissos: () => bd.compromissos!.map(c => ({ perfil_id: c.responsavel_id, modulo: 'compromissos' as const, item_id: c.id,
     vale: !c.arquivado_em && !colunaCancelada(bd.colunas.find(x => x.id === c.etapa_id)?.nome), aberto: !concluidoNaColuna(c.etapa_id), data: c.data,
     prazo: { modulo: 'compromissos' as const, pagina: paginaDoPrazo('compromissos'), cartao_id: c.id, cartao_codigo: c.codigo, concluido: concluidoNaColuna(c.etapa_id),
@@ -1732,7 +1760,8 @@ function gerarAvisosDePrazo(hoje = hojeNaAgenda()) {
   bd.mensagens = bd.mensagens!.filter(m => m.tipo !== 'prazo' || m.prazo_data! >= somarDias(hoje, -DIAS_DO_AVISO_ANTIGO));
   const abertos = prazosDaEquipe().filter(p => p.vale && p.aberto && EQUIPE.find(x => x.id === p.perfil_id)?.ativo);
   const vale = (m: NonNullable<Banco['mensagens']>[number]) => abertos.some(p => p.item_id === m.item_id && p.perfil_id === m.perfil_id && p.data === m.prazo_data);
-  bd.mensagens = bd.mensagens!.filter(m => m.tipo !== 'prazo' || m.lido_em || vale(m));
+  // A limpeza só olha os avisos de 3 dias e do dia: os lembretes têm a rotina deles (gerarLembretes).
+  bd.mensagens = bd.mensagens!.filter(m => m.tipo !== 'prazo' || m.lido_em || !AVISOS_DA_ROTINA_DIARIA.has(m.prazo_aviso!) || vale(m));
   const limite = somarDias(hoje, DIAS_DO_AVISO_DE_PRAZO);
   for (const p of abertos.filter(x => x.data! >= hoje && x.data! <= limite)) {
     const prazo_aviso = p.data === hoje ? 'hoje' as const : 'proximo' as const;
@@ -1744,13 +1773,54 @@ function gerarAvisosDePrazo(hoje = hojeNaAgenda()) {
   bd.mensagens = bd.mensagens.filter(m => m.lido_em || m.prazo_aviso !== 'proximo' || !temOAvisoDoDia(m));
   gravar();
 }
+/** Os avisos que a rotina diária cria e limpa (privado.gerar_avisos_de_prazo); o lembrete não é dela. */
+const AVISOS_DA_ROTINA_DIARIA: ReadonlySet<AvisoDePrazo> = new Set(['proximo', 'hoje']);
+/** Os cartões que podem ter lembrete, com quem está junto do responsável em cada um (como privado.lembretes_da_equipe). */
+type CartaoComLembrete = Pick<TarefaGuardada, 'id' | 'prazo' | 'prazo_hora' | 'lembrete' | 'etapa_id' | 'arquivado_em' | 'responsavel_id'>;
+const CARTOES_COM_LEMBRETE: Record<'demandas' | 'tarefas', () => { cartao: CartaoComLembrete; junto: string[] }[]> = {
+  demandas: () => bd.demandas!.map(d => ({ cartao: d, junto: d.colaboradores })),
+  tarefas: () => bd.tarefas!.map(t => ({ cartao: t, junto: t.participantes }))
+};
+interface LembreteDaEquipe { perfil_id: string; modulo: 'demandas' | 'tarefas'; item_id: string; data: string; hora: string | null; antecedencia: Lembrete; instante: string }
+/**
+ * Um lembrete por pessoa que recebe e por cartão aberto (como privado.lembretes_da_equipe): não concluído, não arquivado,
+ * com prazo e lembrete. Recebem o responsável e quem está junto (participantes ou colaboradores), se estão ativos.
+ */
+const lembretesDaEquipe = (): LembreteDaEquipe[] => (Object.keys(CARTOES_COM_LEMBRETE) as ('demandas' | 'tarefas')[]).flatMap(modulo => CARTOES_COM_LEMBRETE[modulo]()
+  .filter(({ cartao: x }) => !!x.prazo && x.lembrete !== null && x.lembrete !== undefined && !x.arquivado_em && !concluidoNaColuna(x.etapa_id))
+  .flatMap(({ cartao: x, junto }) => [...new Set([x.responsavel_id, ...junto])].filter(id => EQUIPE.find(m => m.id === id)?.ativo).map(perfil_id => ({
+    perfil_id, modulo, item_id: x.id, data: x.prazo!, hora: x.prazo_hora ?? null, antecedencia: x.lembrete!,
+    instante: instanteDoLembrete(x.prazo!, x.prazo_hora, x.lembrete!).toISOString()
+  }))));
+/**
+ * A rotina dos lembretes (como privado.gerar_lembretes, que no banco roda a cada minuto). No banco fictício não há relógio:
+ * só os testes chamam, por SEMPER_FALSO.gerarLembretes(quando). O lembrete não lido que não bate mais com o cartão (pessoa,
+ * cartão, data, instante e antecedência) sai; o que chegou (do instante dele até a tolerância depois do prazo) entra; se a
+ * data é a mesma e o instante ou a antecedência mudou, chega de novo: volta ao topo da caixa, não lido.
+ */
+function gerarLembretes(quando = new Date()) {
+  const valem = lembretesDaEquipe();
+  const bate = (m: NonNullable<Banco['mensagens']>[number]) => valem.some(l => l.perfil_id === m.perfil_id && l.item_id === m.item_id && l.data === m.prazo_data
+    && l.instante === m.lembrete_em && l.antecedencia === m.lembrete_antes);
+  bd.mensagens = bd.mensagens!.filter(m => m.prazo_aviso !== 'lembrete' || m.lido_em || bate(m));
+  for (const l of valem.filter(x => lembreteChegou(x.data, x.hora, x.antecedencia, quando))) {
+    // O mesmo índice único do banco: uma mensagem por pessoa, cartão, data e tipo de aviso.
+    const ja = bd.mensagens.find(m => m.prazo_aviso === 'lembrete' && m.perfil_id === l.perfil_id && m.item_id === l.item_id && m.prazo_data === l.data);
+    const lembrete = { lembrete_em: l.instante, lembrete_antes: l.antecedencia };
+    if (!ja) bd.mensagens.push({ id: novoId(), perfil_id: l.perfil_id, tipo: 'prazo', comentario_id: null, criado_em: agora(), lido_em: null, modulo: l.modulo, item_id: l.item_id,
+      prazo_data: l.data, prazo_aviso: 'lembrete', ...lembrete });
+    else if (ja.lembrete_em !== l.instante || ja.lembrete_antes !== l.antecedencia) Object.assign(ja, { ...lembrete, criado_em: agora(), lido_em: null });
+  }
+  gravar();
+}
 /** Se quem está logado vê o cartão do prazo (como a regra de leitura de cada módulo). */
 const vejoOCartaoDoPrazo = (p: PrazoDaEquipe) => p.modulo === 'processos' || VEJO_O_CARTAO[p.modulo](p.prazo.cartao_id);
 function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
   const { id, tipo, criado_em, lido_em } = m;
   if (tipo === 'prazo') {
-    const p = prazoDoAviso(m)!;
-    return { id, tipo, criado_em, lido_em, comentario: null, prazo: vejoOCartaoDoPrazo(p) ? { ...p.prazo, data: p.data ?? m.prazo_data! } : null };
+    const p = prazoDoAviso(m)!, aviso = m.prazo_aviso ?? 'proximo';
+    return { id, tipo, criado_em, lido_em, comentario: null, prazo: vejoOCartaoDoPrazo(p)
+      ? { ...p.prazo, data: p.data ?? m.prazo_data!, aviso, antecedencia: aviso === 'lembrete' ? m.lembrete_antes ?? null : null } : null };
   }
   const c = bd.comentarios!.find(x => x.id === m.comentario_id)!, cartao = VEJO_O_CARTAO[c.modulo](c.cartao_id) ? CARTAO_DA_MENSAGEM[c.modulo](c.cartao_id) : undefined;
   return { id, tipo, criado_em, lido_em, prazo: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome } : null };
@@ -2422,8 +2492,8 @@ export const SD: Dados = {
   prazosDoPeriodo(de, ate, f = {}) {
     const concluida = (etapa: string | null) => bd.colunas.find(c => c.id === etapa)?.marco === 'concluido';
     const noPeriodo = (x: { prazo: string | null; etapa_id: string | null }) => !!x.prazo && x.prazo >= de && x.prazo <= ate && !concluida(x.etapa_id);
-    const naAgenda = (origem: PrazoNaAgenda['origem']) => (x: { id: string; codigo: string; titulo: string; prazo: string | null; responsavel_id: string }): PrazoNaAgenda =>
-      ({ origem, id: x.id, codigo: x.codigo, titulo: x.titulo, prazo: x.prazo!, responsavel_id: x.responsavel_id });
+    const naAgenda = (origem: PrazoNaAgenda['origem']) => (x: { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora?: string | null; responsavel_id: string }): PrazoNaAgenda =>
+      ({ origem, id: x.id, codigo: x.codigo, titulo: x.titulo, prazo: x.prazo!, responsavel_id: x.responsavel_id, hora: fmtHora(x.prazo_hora) || null });
     return espera([...filtrarDemandas(f).filter(noPeriodo).map(naAgenda('demandas')), ...filtrarTarefas(f).filter(noPeriodo).map(naAgenda('tarefas'))]);
   },
   processosParaLigar: (texto = '') => espera(bd.processos!.filter(p => !p.arquivado_em && (!termo(texto) || buscaProcesso(p).includes(termo(texto)))).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, PROCESSOS_PARA_LIGAR)
@@ -2517,7 +2587,7 @@ export const SD: Dados = {
   },
   demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
     const d = bd.demandas!.find(x => x.id === l.demanda_id);
-    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
+    return d ? [{ id: d.id, codigo: d.codigo, titulo: d.titulo, objeto: d.objeto, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, etapa_id: d.etapa_id, arquivado_em: d.arquivado_em, criado_em: d.criado_em, contrato_id: d.contrato_id,
       criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, papeis: [] }] : [];
   })),
   processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {

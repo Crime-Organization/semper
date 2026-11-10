@@ -188,7 +188,7 @@ function CartaoKanban({ t, ordem }: { t: TarefaLista; ordem: Ordem }) {
     <div className="km">
       <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
       {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
-      <SeloDoPrazo prazo={t.prazo} />
+      <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} />
       {data && <span>{data}</span>}
     </div>
     <div className="kp"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} tam={24} /></div>
@@ -233,7 +233,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
-        <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} /> : <span className="nota">—</span>}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(t.criado_em) : relativo(t.atualizado_em)}</td>

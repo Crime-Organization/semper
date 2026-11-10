@@ -4,12 +4,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { oferecerProcesso } from './concluirDemanda';
-import { SD, type DemandaLista, type FiltroDemandas, type Ordem, type Pagina } from '../dados';
+import { SD, type DemandaLista, type FiltroDemandas, type Lembrete, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
-import { ROTULOS_PRAZO, SEM_SITUACAO_DEMANDA, situacaoDoPrazo, veADemanda } from '../regras/demanda';
+import { rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA, situacaoDoPrazo, veADemanda } from '../regras/demanda';
 import { soLeOCartao } from '../regras/equipeVeTudo';
-import { fmtData } from '../regras/pessoa';
+import { rotuloDoLembrete } from '../regras/lembrete';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -37,10 +37,14 @@ const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 
 /** Cor do selo do prazo: vencido em vermelho, vence hoje em laranja, em dia neutro. */
 const SELO_DO_PRAZO = { vencido: 'erro', hoje: 'pend', em_dia: 'arq' } as const;
 
-/** O prazo como selo (some quando não há prazo). */
-export function SeloDoPrazo({ prazo }: { prazo: string | null }) {
-  const s = situacaoDoPrazo(prazo, hojeISO());
-  return s ? <Selo tipo={SELO_DO_PRAZO[s]}>{ROTULOS_PRAZO[s]}: {fmtData(prazo)}</Selo> : null;
+/** O prazo como selo, com a hora quando há: "Prazo: 15/11/2030 às 14:00" (some quando não há prazo). */
+export function SeloDoPrazo({ prazo, hora }: { prazo: string | null; hora?: string | null }) {
+  const hoje = hojeISO(), s = situacaoDoPrazo(prazo, hoje);
+  return s ? <Selo tipo={SELO_DO_PRAZO[s]}>{rotuloDoPrazoComHora(prazo, hora, hoje)}</Selo> : null;
+}
+/** O lembrete marcado no cartão, ao lado do prazo: "Lembrete: 1 hora antes" (some sem prazo ou sem lembrete). Selo neutro: o tracejado é dos arquivados. */
+export function SeloDoLembrete({ prazo, lembrete }: { prazo: string | null; lembrete: Lembrete | null | undefined }) {
+  return prazo && lembrete !== null && lembrete !== undefined ? <Selo>{rotuloDoLembrete(lembrete)}</Selo> : null;
 }
 
 export default function Demandas() {
@@ -193,7 +197,7 @@ function CartaoKanban({ d, ordem }: { d: DemandaLista; ordem: Ordem }) {
     <div className="km">
       <span className="codigo">{d.codigo}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</span>
       {d.cliente_nome && <span>{clientesPorExtenso(d.cliente_nome)}</span>}
-      <SeloDoPrazo prazo={d.prazo} />
+      <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} />
       {data && <span>{data}</span>}
     </div>
     <div className="kp"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} tam={24} /></div>
@@ -238,7 +242,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeOCartao(ctx, m => veADemanda(d, m))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</div></td>
-        <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} /> : <span className="nota">—</span>}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>
         <td><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(d.criado_em) : relativo(d.atualizado_em)}</td>

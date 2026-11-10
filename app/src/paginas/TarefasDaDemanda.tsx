@@ -5,9 +5,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { SD, type Coluna, type TarefaLigada } from '../dados';
-import { ROTULOS_PRAZO, situacaoDoPrazo } from '../regras/demanda';
+import { rotuloDoPrazoComHora } from '../regras/demanda';
 import { progressoDaLista } from '../regras/listas';
-import { fmtData } from '../regras/pessoa';
 import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, Nota } from '../ui/base';
@@ -64,11 +63,11 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
         <i style={{ width: percentual + '%' }} />
       </div>
       <ul>{ativas.map(t => {
-        const feita = t.etapa_id === concluida, prazo = situacaoDoPrazo(t.prazo, hojeISO());
+        const feita = t.etapa_id === concluida, prazo = rotuloDoPrazoComHora(t.prazo, t.prazo_hora, hojeISO());
         return <li key={t.id} className={feita ? 'feito' : undefined}>
           <label><input type="checkbox" checked={feita} disabled={!concluida || somenteLer} aria-label={`Concluir ${t.titulo}`}
             onChange={e => void marcar(t, e.target.checked)} /><span>{t.titulo}</span></label>
-          <span className="nota tarefa-da-demanda-situacao">{situacao(t.etapa_id)}{prazo && !feita ? ` · ${ROTULOS_PRAZO[prazo]}: ${fmtData(t.prazo)}` : ''}</span>
+          <span className="nota tarefa-da-demanda-situacao">{situacao(t.etapa_id)}{prazo && !feita ? ` · ${prazo}` : ''}</span>
           <Link className="icone-btn" to={'/tarefas/?id=' + t.id} aria-label={`Abrir a tarefa ${t.titulo}`} title="Abrir a tarefa"><Icone nome="seta" tam={15} /></Link>
         </li>;
       })}</ul>

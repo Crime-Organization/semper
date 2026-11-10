@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício sempre entra como administrador; aqui a demanda é editada também por quem não é.
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -117,5 +117,59 @@ describe('Sair da demanda', () => {
     // Então
     expect(gravar).toHaveBeenCalledWith('d1', expect.objectContaining({ colaboradores: ['u-bruno', 'u-caio'] }));
     await waitFor(() => expect(sair).toHaveBeenCalledWith('demandas', 'd1'));
+  });
+});
+
+describe('Hora e lembrete do prazo (#286)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = true;
+    sessao.escritorio = undefined;
+    vi.mocked(feito).mockClear();
+    // O jsdom não rola a tela: o formulário rola até o erro.
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+  });
+
+  async function abrir(alvo: Demanda) {
+    vi.spyOn(SD, 'demandaObter').mockResolvedValue(alvo);
+    const gravar = vi.spyOn(SD, 'demandaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
+    gravar.mockClear();
+    render(<MemoryRouter><NovaDemanda edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    await screen.findByLabelText('Hora');
+    return gravar;
+  }
+
+  it('dado uma demanda com prazo, quando marca a hora e o lembrete e salva, então os dois são gravados', async () => {
+    // Dado
+    const gravar = await abrir(demanda({ prazo: '2030-11-15' }));
+    // Quando
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
+    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), '1 hora antes');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    // Então
+    await waitFor(() => expect(gravar).toHaveBeenCalledWith('d1', expect.objectContaining({ prazo: '2030-11-15', prazo_hora: '14:00', lembrete: 60 })));
+  });
+
+  it('dado uma demanda salva com hora e lembrete, quando abre para editar, então os campos vêm preenchidos, com as opções combinadas', async () => {
+    // Quando
+    await abrir(demanda({ prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 1440 }));
+    // Então
+    expect(screen.getByLabelText('Hora')).toHaveValue('14:00');
+    expect(screen.getByLabelText('Lembrete')).toHaveValue('1440');
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(expect.arrayContaining(['Sem lembrete', 'Na hora do prazo', '30 minutos antes', '1 hora antes', '1 dia antes']));
+    expect(screen.getByText(/Sem hora, o lembrete conta o prazo às 9h/)).toBeInTheDocument();
+  });
+
+  it('dado uma demanda sem prazo, quando marca hora e lembrete e salva, então pede o prazo e não grava', async () => {
+    // Dado
+    const gravar = await abrir(demanda({ prazo: null }));
+    // Quando
+    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
+    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), 'Na hora do prazo');
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    // Então
+    expect(await screen.findByText('Informe o prazo para pôr a hora')).toBeInTheDocument();
+    expect(screen.getByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
+    expect(gravar).not.toHaveBeenCalled();
   });
 });

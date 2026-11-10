@@ -1,8 +1,8 @@
 // Caixa de mensagens (#112): para onde cada mensagem leva e como ela aparece. A tela só chama estas funções.
 import { MAIOR_CONTADOR_DE_MENSAGENS, TRECHO_DA_MENSAGEM } from '../dados/limites';
-import type { ModuloComentado, ModuloDoPrazo, PrazoDaMensagem, PrazoParado } from '../dados/tipos';
+import type { AvisoDePrazo, ModuloComentado, ModuloDoPrazo, PrazoDaMensagem, PrazoParado } from '../dados/tipos';
 import { rotuloDoPrazo, situacaoDoPrazoNoProcesso, diasAte, type SituacaoDoPrazoNoProcesso } from './andamentos';
-import { fmtData } from './pessoa';
+import { prazoComHora, rotuloDoLembrete } from './lembrete';
 
 /** O parâmetro do endereço que diz qual comentário mostrar quando o cartão abre. */
 export const PARAMETRO_DO_COMENTARIO = 'comentario';
@@ -48,22 +48,39 @@ const ROTULO_DO_PARADO: Record<PrazoParado, string> = { cancelado: 'Cancelado', 
 /** "Cancelado" é uma coluna comum do quadro, sem marco: vai pelo nome, como em privado.prazos_da_equipe. */
 export const colunaCancelada = (nome: string | null | undefined) => !!nome?.toLowerCase().startsWith('cancelad');
 
-export function rotuloDoAviso(p: Pick<PrazoDaMensagem, 'modulo' | 'data' | 'concluido' | 'parado'>, hoje: string) {
-  if (p.parado) return ROTULO_DO_PARADO[p.parado];
+type PrazoDoAviso = Pick<PrazoDaMensagem, 'modulo' | 'data' | 'concluido' | 'parado'> & Partial<Pick<PrazoDaMensagem, 'aviso' | 'antecedencia'>>;
+/** A situação do prazo contada de hoje: "Vence hoje", "Vencido há 2 dias", "Em 3 dias" (no compromisso, sem vencimento). */
+function situacaoContadaDeHoje(p: PrazoDoAviso, hoje: string) {
   const prazo = { final: p.data, concluido_em: p.concluido ? p.data : null };
   if (p.modulo !== 'compromissos') return rotuloDoPrazo(prazo, hoje);
   return ROTULO_DO_COMPROMISSO[situacaoDoPrazoNoProcesso(prazo, hoje)](diasAte(hoje, p.data));
 }
-/** A data do aviso, com a hora quando há. */
-export const dataDoAviso = (p: Pick<PrazoDaMensagem, 'data' | 'hora'>) => fmtData(p.data) + (p.hora ? ` às ${p.hora}` : '');
+/**
+ * O título de cada aviso. Os de 3 dias e do dia contam a partir de hoje: um aviso antigo não continua dizendo "vence hoje".
+ * O lembrete diz que é lembrete e com que antecedência, até o prazo ser concluído. Aviso novo = uma entrada nova.
+ */
+const ROTULO_DO_AVISO: Record<AvisoDePrazo, (p: PrazoDoAviso, hoje: string) => string> = {
+  proximo: situacaoContadaDeHoje,
+  hoje: situacaoContadaDeHoje,
+  lembrete: (p, hoje) => p.concluido ? situacaoContadaDeHoje(p, hoje) : rotuloDoLembrete(p.antecedencia)
+};
+export function rotuloDoAviso(p: PrazoDoAviso, hoje: string) {
+  if (p.parado) return ROTULO_DO_PARADO[p.parado];
+  return ROTULO_DO_AVISO[p.aviso ?? 'proximo'](p, hoje);
+}
+/** O nome de cada aviso para quem usa leitor de tela ("Lembrete não lido: …"). */
+export const NOME_DO_AVISO: Record<AvisoDePrazo, string> = { proximo: 'Aviso de prazo', hoje: 'Aviso de prazo', lembrete: 'Lembrete' };
+/** A data do aviso, com a hora quando há: "15/11/2030 às 14:00". */
+export const dataDoAviso = (p: Pick<PrazoDaMensagem, 'data' | 'hora'>) => prazoComHora(p.data, p.hora);
 
 /** Quantos dias antes do vencimento vem o primeiro aviso. É o mesmo número da rotina do banco: 20261109085738_avisos_de_prazo.sql. */
 export const DIAS_DO_AVISO_DE_PRAZO = 3;
 
-/** Os e-mails de prazo que cada pessoa pode desligar (em Minha conta). As chaves são lidas também pelo banco: 20261109085738_avisos_de_prazo.sql. */
+/** Os e-mails de prazo que cada pessoa pode desligar (em Minha conta). As chaves são lidas também pelo banco: 20261109085738_avisos_de_prazo.sql e, a dos lembretes, lembretes_dos_prazos (#286). */
 export const EMAILS_DE_PRAZO = [
   { chave: 'email_prazos_diario', rotulo: `Aviso às 7h, quando um prazo seu estiver a ${DIAS_DO_AVISO_DE_PRAZO} dias de vencer e no dia do vencimento` },
-  { chave: 'email_prazos_semanal', rotulo: 'Resumo da semana, às sextas, às 16h' }
+  { chave: 'email_prazos_semanal', rotulo: 'Resumo da semana, às sextas, às 16h' },
+  { chave: 'email_lembretes', rotulo: 'Lembretes que eu marcar nas tarefas e demandas, na hora escolhida' }
 ] as const;
 
 /** O número do contador do menu. */

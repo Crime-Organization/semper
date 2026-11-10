@@ -1,4 +1,4 @@
-// Partes puras dos e-mails de prazo (#113), usadas pela função do servidor prazos-enviar-emails.
+// Partes puras dos e-mails de prazo (#113) e dos lembretes (#286), usadas pela função do servidor prazos-enviar-emails.
 // Sem Deno e sem rede: dá para testar no app (app/src/regras/emailsDePrazo.test.ts).
 import { escapar, molduraDoEmail, paragrafoDoEmail } from './modeloDeEmail.ts';
 
@@ -8,15 +8,21 @@ export interface ItemDePrazo { modulo: ModuloDoPrazo; pagina: string; cartao_id:
 export interface ItemDoAviso extends ItemDePrazo { id: string; aviso: 'proximo' | 'hoje' }
 /** O e-mail diário de uma pessoa (public.prazos_emails_a_enviar). */
 export interface EmailDiario { para: string; nome: string; itens: ItemDoAviso[] }
+/** Quantos minutos antes do prazo o lembrete chega (a regra da coluna lembrete em tarefas e demandas, #286). */
+export type AntecedenciaDoLembrete = 0 | 30 | 60 | 1440;
+export interface ItemDoLembrete extends ItemDePrazo { id: string; aviso: 'lembrete'; antecedencia: AntecedenciaDoLembrete }
+/** Os lembretes que chegaram agora para uma pessoa (public.prazos_lembretes_a_enviar). */
+export interface EmailDosLembretes { para: string; nome: string; itens: ItemDoLembrete[] }
 export interface SecaoDoResumo { total: number; itens: ItemDePrazo[] }
 /** O resumo de sexta-feira de uma pessoa (public.prazos_resumos_a_enviar). */
 export interface ResumoSemanal { id: string; para: string; nome: string; semana: string; concluidos: number; atrasados: SecaoDoResumo; esta_semana: SecaoDoResumo; proxima_semana: SecaoDoResumo }
 export interface MensagemDePrazo { para: string; assunto: string; texto: string; html: string }
 /** Cada rotina do banco chama pedindo o seu tipo de e-mail. */
-export type TipoDeEnvio = 'diario' | 'resumo';
+export type TipoDeEnvio = 'diario' | 'resumo' | 'lembrete';
 export interface PassosDosEmails {
   diarios(): Promise<EmailDiario[]>;
   resumos(): Promise<ResumoSemanal[]>;
+  lembretes(): Promise<EmailDosLembretes[]>;
   enviar(mensagem: MensagemDePrazo): Promise<void>;
   marcarDiario(ids: string[]): Promise<void>;
   marcarResumo(id: string): Promise<void>;
@@ -30,16 +36,21 @@ export const PESSOAS_POR_CHAMADA = 20;
 export const ITENS_POR_SECAO = 20;
 /** Quantos e-mails saem ao mesmo tempo: a caixa de envio é a mesma de todos os escritórios. */
 const ENVIOS_AO_MESMO_TEMPO = 5;
+/** A hora em que o lembrete conta o prazo sem hora: a mesma de privado.hora_padrao_do_lembrete (migração lembretes_dos_prazos). */
+const HORA_PADRAO_DO_LEMBRETE = '09:00';
 
 const NOME_DO_MODULO: Record<ModuloDoPrazo, string> = { processos: 'Prazo de processo', demandas: 'Demanda', tarefas: 'Tarefa', compromissos: 'Compromisso' };
 
 const dataEmTexto = (iso: string) => iso.split('-').reverse().join('/');
 const enderecoDoItem = (i: ItemDePrazo) => `${SITE}/${i.pagina}/?id=${encodeURIComponent(i.cartao_id)}`;
-const detalheDoItem = (i: ItemDePrazo) => `${NOME_DO_MODULO[i.modulo]} · ${dataEmTexto(i.data)}${i.hora ? ` às ${i.hora}` : ''}`;
+const quandoDoPrazo = (i: ItemDePrazo) => `${dataEmTexto(i.data)}${i.hora ? ` às ${i.hora}` : ''}`;
+/** Um item no e-mail: o lembrete troca a linha de baixo, para dizer também a antecedência. */
+type ItemNoEmail = ItemDePrazo & { detalhe?: string };
+const detalheDoItem = (i: ItemNoEmail) => i.detalhe ?? `${NOME_DO_MODULO[i.modulo]} · ${quandoDoPrazo(i)}`;
 const ENDERECO_DA_CONTA = `${SITE}/minha-conta/`;
 const COMO_DESLIGAR = 'Para deixar de receber este e-mail, desligue-o em Minha conta';
 
-interface Secao { titulo: string; total: number; itens: ItemDePrazo[] }
+interface Secao { titulo: string; total: number; itens: ItemNoEmail[] }
 
 const secaoEmHtml = ({ titulo, total, itens }: Secao) => `<h2 style="margin:20px 0 4px;font-size:16px;font-weight:900">${escapar(titulo)}</h2>
       <ul style="margin:0 0 8px;padding:0;list-style:none">${itens.map(i => `
@@ -101,6 +112,27 @@ export function emailDoResumo(r: ResumoSemanal): MensagemDePrazo {
   ]);
 }
 
+/** O texto de cada antecedência, o mesmo da escolha do lembrete no cadastro. */
+const ANTECEDENCIA_EM_TEXTO: Record<AntecedenciaDoLembrete, string> = {
+  0: 'na hora do prazo', 30: '30 minutos antes', 60: '1 hora antes', 1440: '1 dia antes'
+};
+
+const detalheDoLembrete = (i: ItemDoLembrete) =>
+  `${NOME_DO_MODULO[i.modulo]} · prazo: ${quandoDoPrazo(i)}${i.hora ? '' : ` (sem hora; o lembrete conta o prazo às ${HORA_PADRAO_DO_LEMBRETE})`} · lembrete: ${ANTECEDENCIA_EM_TEXTO[i.antecedencia]}`;
+
+/** Um lembrete só: o assunto e a abertura dizem qual é. Vários (marcados para a mesma hora): o assunto conta. */
+const UM_OU_VARIOS: Record<'um' | 'varios', (e: EmailDosLembretes) => { assunto: string; abertura: string }> = {
+  um: ({ itens: [i] }) => ({ assunto: `Lembrete: ${i.titulo}`, abertura: `Este é o lembrete que você marcou: o prazo é ${quandoDoPrazo(i)}.` }),
+  varios: e => ({ assunto: `Lembretes: ${e.itens.length} prazos`, abertura: 'Estes são os lembretes que você marcou.' })
+};
+
+export function emailDoLembrete(e: EmailDosLembretes): MensagemDePrazo {
+  const { assunto, abertura } = UM_OU_VARIOS[e.itens.length === 1 ? 'um' : 'varios'](e);
+  return montar(e.para, assunto, 'Lembrete de prazo', e.itens.length === 1 ? 'Seu lembrete' : 'Seus lembretes', [`Olá, ${e.nome}.`, abertura], [
+    { titulo: 'Lembretes', total: e.itens.length, itens: e.itens.map(i => ({ ...i, detalhe: detalheDoLembrete(i) })) }
+  ]);
+}
+
 /** Só o código do erro vai para os registros do servidor: a mensagem de um erro de envio pode trazer o endereço de alguém. */
 const registrarErro = (etapa: string, e: unknown) => console.error('e-mails de prazo', etapa, (e as { code?: string } | null)?.code ?? 'sem código');
 
@@ -130,7 +162,10 @@ const ENVIOS: Record<TipoDeEnvio, (p: PassosDosEmails) => Promise<{ enviados: nu
   diario: async p => emLevas(await p.diarios(), async e =>
     await tentar('envio', () => p.enviar(emailDiario(e))) && await tentar('marca', () => p.marcarDiario(e.itens.map(i => i.id)))),
   resumo: async p => emLevas(await p.resumos(), async r =>
-    await tentar('envio', () => p.enviar(emailDoResumo(r))) && await tentar('marca', () => p.marcarResumo(r.id)))
+    await tentar('envio', () => p.enviar(emailDoResumo(r))) && await tentar('marca', () => p.marcarResumo(r.id))),
+  // O lembrete é uma mensagem de prazo como o aviso diário: a marca de enviado é a mesma (public.prazos_emails_enviados).
+  lembrete: async p => emLevas(await p.lembretes(), async e =>
+    await tentar('envio', () => p.enviar(emailDoLembrete(e))) && await tentar('marca', () => p.marcarDiario(e.itens.map(i => i.id))))
 };
 
 export const tipoDeEnvioValido = (tipo: unknown): tipo is TipoDeEnvio => typeof tipo === 'string' && Object.keys(ENVIOS).includes(tipo);

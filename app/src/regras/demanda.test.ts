@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Demanda, Membro } from '../dados/tipos';
 import {
-  camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
-  primeiraEtapaComErroDemanda, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
+  CAMPOS_DEMANDA, camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
+  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
 } from './demanda';
 
 const completa = { ...DEMANDA_VAZIA, titulo: 'Pedido de registro de marca', responsavelId: 'u-ana' };
@@ -31,8 +31,74 @@ describe('Cadastro de demanda', () => {
     // Quando
     const dados = dadosDaDemanda({ ...completa, descricao: '  ', prazo: '10/11/2026', colaboradores: ['u-bruno', 'u-ana', 'u-bruno'], clientes: ['p1', '', 'p1'] });
     // Então
-    expect(dados).toEqual({ titulo: 'Pedido de registro de marca', descricao: null, prazo: '2026-11-10', responsavel_id: 'u-ana',
+    expect(dados).toEqual({ titulo: 'Pedido de registro de marca', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
       colaboradores: ['u-bruno'], clientes: ['p1'], contrato_id: null });
+  });
+
+  it('dado um prazo com hora e lembrete, quando a demanda é salva, então os dois vão junto', () => {
+    // Quando
+    const dados = dadosDaDemanda({ ...completa, prazo: '15/11/2030', hora: '14:00', lembrete: 60 });
+    // Então
+    expect(dados).toMatchObject({ prazo: '2030-11-15', prazo_hora: '14:00', lembrete: 60 });
+  });
+
+  it.each([
+    ['a hora', { hora: '14:00' }, 'hora', 'Informe o prazo para pôr a hora'],
+    ['o lembrete', { lembrete: 30 as const }, 'lembrete', 'Informe o prazo para marcar o lembrete'],
+    ['o lembrete na hora do prazo', { lembrete: 0 as const }, 'lembrete', 'Informe o prazo para marcar o lembrete']
+  ])('dado %s sem prazo, quando confere a demanda, então o campo tem erro', (_caso, mudanca, campo, mensagem) => {
+    // Quando
+    const erros = validarDemanda({ ...completa, ...mudanca });
+    // Então
+    expect(erros).toEqual({ [campo]: mensagem });
+    expect(Object.keys(errosDaEtapaDemanda('demanda', { ...completa, ...mudanca }))).toEqual([campo]);
+  });
+
+  it('dado hora e lembrete, quando o prazo é apagado e a demanda é salva sem conferir, então os dois vão vazios', () => {
+    // Quando
+    const dados = dadosDaDemanda({ ...completa, prazo: '', hora: '14:00', lembrete: 1440 });
+    // Então
+    expect(dados).toMatchObject({ prazo: null, prazo_hora: null, lembrete: null });
+  });
+
+  it('dado uma demanda com hora e lembrete, quando volta ao formulário, então a hora vem sem os segundos', () => {
+    // Dado
+    const d = { titulo: 'X', descricao: null, prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 1440, responsavel_id: 'u-ana', colaboradores: [],
+      clientes: [], contrato_id: null } as unknown as Demanda;
+    // Quando
+    const campos = camposDaDemanda(d);
+    // Então
+    expect(campos).toMatchObject({ prazo: '15/11/2030', hora: '14:00', lembrete: 1440 });
+  });
+
+  it('dado uma demanda sem prazo que ficou com hora e lembrete no banco, quando volta ao formulário, então os dois vêm vazios e a edição não trava', () => {
+    // Dado: o site antigo tirou o prazo sem conhecer as colunas novas
+    const d = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 1440, responsavel_id: 'u-ana', colaboradores: [],
+      clientes: [], contrato_id: null } as unknown as Demanda;
+    // Quando
+    const campos = camposDaDemanda(d);
+    // Então
+    expect(campos).toMatchObject({ prazo: '', hora: '', lembrete: null });
+    expect(primeiraEtapaComErroDemanda(campos)).toBe(-1);
+  });
+
+  it('quando a hora e o lembrete aparecem no histórico, então vêm com o nome e o formato da tela', () => {
+    // Então
+    expect(CAMPOS_DEMANDA.prazo_hora).toBe('Hora do prazo');
+    expect(CAMPOS_DEMANDA.lembrete).toBe('Lembrete');
+    expect(valorLegivelDemanda('prazo_hora', '14:00:00')).toBe('14:00');
+    expect(valorLegivelDemanda('lembrete', 60)).toBe('1 hora antes');
+    expect(valorLegivelDemanda('lembrete', 0)).toBe('Na hora do prazo');
+    expect(valorLegivelDemanda('lembrete', null)).toBe('—');
+  });
+
+  it.each([
+    ['com hora', '14:00:00', 'Prazo: 15/11/2030 às 14:00'],
+    ['sem hora', null, 'Prazo: 15/11/2030']
+  ])('dado um prazo %s, quando aparece no selo, então mostra a data e a hora', (_caso, hora, rotulo) => {
+    // Então
+    expect(rotuloDoPrazoComHora('2030-11-15', hora, '2030-11-01')).toBe(rotulo);
+    expect(rotuloDoPrazoComHora(null, hora, '2030-11-01')).toBeNull();
   });
 
   it('quando a demanda salva volta ao formulário, então os campos voltam como foram digitados', () => {
@@ -42,7 +108,7 @@ describe('Cadastro de demanda', () => {
     // Quando
     const campos = camposDaDemanda(d);
     // Então
-    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', responsavelId: 'u-ana', colaboradores: ['u-bruno'], clientes: ['p1'], contratoId: 'k1' });
+    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, responsavelId: 'u-ana', colaboradores: ['u-bruno'], clientes: ['p1'], contratoId: 'k1' });
   });
 
   it('quando o título falta, então a primeira etapa é a que tem erro, e a etapa das pessoas não acusa o título', () => {

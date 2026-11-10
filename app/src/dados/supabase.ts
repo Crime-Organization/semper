@@ -24,7 +24,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -146,40 +146,51 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
-const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
+const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, prazo_aviso, lembrete_antes, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
   + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo)), '
   + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
-  + 'demanda:demandas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), tarefa:tarefas(id, codigo, titulo, prazo, arquivado_em, etapa:quadro_colunas(marco, nome)), '
+  + 'demanda:demandas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
+  + 'tarefa:tarefas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero, data, hora, arquivado_em, etapa:quadro_colunas(marco, nome))';
 /** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
 const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo' };
 type CartaoDaMensagem = Record<string, string>;
 type EtapaDaLinha = { etapa: { marco: string | null; nome: string } | null; arquivado_em: string | null };
-type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null } & EtapaDaLinha;
+type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora: string | null } & EtapaDaLinha;
 const concluidoNaEtapa = (l: EtapaDaLinha) => l.etapa?.marco === 'concluido';
 const paradoNoCartao = (l: EtapaDaLinha): PrazoParado | null => l.arquivado_em ? 'arquivado' : null;
 type LinhaDaMensagem = Omit<Mensagem, 'comentario' | 'prazo'> & {
   comentario: (Pick<Comentario, 'id' | 'autor_id' | 'texto'> & Partial<Record<ModuloComentado, CartaoDaMensagem | null>>) | null;
   prazo_data: string | null;
+  prazo_aviso: AvisoDePrazo | null;
+  /** Só no lembrete: a antecedência que ele tinha quando chegou (o cartão pode ter mudado depois). */
+  lembrete_antes: Lembrete | null;
   processo_prazo: { descricao: string; final: string; concluido_em: string | null; excluido_em: string | null; processo: { id: string; codigo: string; tipo: Processo['tipo']; arquivado_em: string | null } | null } | null;
   demanda: LinhaDoCartaoDoPrazo | null;
   tarefa: LinhaDoCartaoDoPrazo | null;
   compromisso: (Pick<Compromisso, 'id' | 'codigo' | 'titulo' | 'tipo' | 'pessoa_nome' | 'processo_numero' | 'data' | 'hora'> & EtapaDaLinha) | null;
 };
-/** De cada módulo, o prazo do aviso. A ligação vem vazia quando é de outro módulo ou quando a pessoa não vê mais o cartão. */
-const PRAZO_DA_LINHA: Record<ModuloDoPrazo, (l: LinhaDaMensagem) => (Omit<PrazoDaMensagem, 'data'> & { data: string | null }) | null> = {
+/**
+ * De cada módulo, o prazo do aviso. A ligação vem vazia quando é de outro módulo ou quando a pessoa não vê mais o cartão.
+ * A antecedência do lembrete não vem do cartão: vem da própria mensagem (lembrete_antes, em prazoDaLinha).
+ */
+const PRAZO_DA_LINHA: Record<ModuloDoPrazo, (l: LinhaDaMensagem) => (Omit<PrazoDaMensagem, 'data' | 'aviso' | 'antecedencia'> & { data: string | null }) | null> = {
   processos: ({ processo_prazo: z }) => z?.processo
     ? { modulo: 'processos', pagina: paginaDoPrazo('processos', z.processo.tipo), cartao_id: z.processo.id, cartao_codigo: z.processo.codigo, titulo: z.descricao, data: z.final, hora: null, concluido: !!z.concluido_em,
       parado: z.excluido_em ? 'excluido' : z.processo.arquivado_em ? 'arquivado' : null } : null,
-  demandas: ({ demanda: d }) => d && { modulo: 'demandas', pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, data: d.prazo, hora: null, concluido: concluidoNaEtapa(d), parado: paradoNoCartao(d) },
-  tarefas: ({ tarefa: t }) => t && { modulo: 'tarefas', pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, data: t.prazo, hora: null, concluido: concluidoNaEtapa(t), parado: paradoNoCartao(t) },
+  demandas: ({ demanda: d }) => d && { modulo: 'demandas', pagina: paginaDoPrazo('demandas'), cartao_id: d.id, cartao_codigo: d.codigo, titulo: d.titulo, data: d.prazo, hora: fmtHora(d.prazo_hora) || null,
+    concluido: concluidoNaEtapa(d), parado: paradoNoCartao(d) },
+  tarefas: ({ tarefa: t }) => t && { modulo: 'tarefas', pagina: paginaDoPrazo('tarefas'), cartao_id: t.id, cartao_codigo: t.codigo, titulo: t.titulo, data: t.prazo, hora: fmtHora(t.prazo_hora) || null,
+    concluido: concluidoNaEtapa(t), parado: paradoNoCartao(t) },
   compromissos: ({ compromisso: c }) => c && { modulo: 'compromissos', pagina: paginaDoPrazo('compromissos'), cartao_id: c.id, cartao_codigo: c.codigo, titulo: nomeDoCompromisso(c), data: c.data, hora: fmtHora(c.hora) || null, concluido: concluidoNaEtapa(c),
     parado: colunaCancelada(c.etapa?.nome) ? 'cancelado' : paradoNoCartao(c) }
 };
 const prazoDaLinha = (l: LinhaDaMensagem): PrazoDaMensagem | null => {
   const achado = (Object.keys(PRAZO_DA_LINHA) as ModuloDoPrazo[]).map(m => PRAZO_DA_LINHA[m](l)).find(Boolean);
   const data = achado?.data ?? l.prazo_data;
-  return achado && data ? { ...achado, data } : null;
+  // O aviso antigo, de antes do lembrete, sempre tem prazo_aviso; o "proximo" só cobre uma linha sem ele.
+  const aviso = l.prazo_aviso ?? 'proximo';
+  return achado && data ? { ...achado, data, aviso, antecedencia: aviso === 'lembrete' ? l.lembrete_antes : null } : null;
 };
 /** Junta o comentário e o cartão dele. Sem o comentário, ou sem o cartão, a pessoa não vê mais de onde veio a menção. */
 function mensagemLida(l: LinhaDaMensagem): Mensagem {
@@ -238,10 +249,10 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
 }
 
 // ---------- demandas ----------
-const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
+const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 // O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
-const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
+const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(id, codigo, servico)`;
 type DemandaLida = Omit<Demanda, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
@@ -361,10 +372,10 @@ const CAMPOS_DO_CAMPO = 'id, nome, tipo, aparece_em, opcoes, apagado_em';
 const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [...new Set(linhas.map(l => l[campo]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
 // ---------- tarefas ----------
-const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
+const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero)';
@@ -378,9 +389,9 @@ function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
-type TarefaParaLigar = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'participantes'>
+type TarefaParaLigar = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'participantes'>
   & { pessoas: string[] };
-const CAMPOS_TAREFA_LIGADA = 'id, codigo, titulo, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, participantes, pessoas';
+const CAMPOS_TAREFA_LIGADA = 'id, codigo, titulo, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, responsavel_id, participantes, pessoas';
 const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, responsavel_id, participantes, ...t }: TarefaParaLigar): TarefaLigada =>
   ({ ...t, papeis: pessoaId ? papeisNaTarefa({ pessoas, responsavel_id, participantes }, pessoaId, perfilId) : [] });
 // Na ordem do quadro (como as demandas do contrato).
@@ -409,9 +420,9 @@ const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas,
   + 'publicacoes, lattes, email_publico, telefone_publico, linkedin, redes, no_site, ordem_no_site, atualizado_em';
 /** A coluna de demanda_listas que liga a lista ao cartão dela. */
 const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
-type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
+type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
-const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, objeto, prazo, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
+const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, objeto, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
 const ligada = (pessoaId: string, perfilId: string | null) => ({ clientes, responsavel_id, colaboradores, ...d }: DemandaParaLigar): DemandaLigada =>
   ({ ...d, papeis: papeisNaDemanda({ clientes, responsavel_id, colaboradores }, pessoaId, perfilId) });
 
@@ -897,12 +908,12 @@ export const SD: Dados = {
     // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem.
     const [{ data: concluidas }, { data: demandas }, { data: tarefas }] = await Promise.all([
       rodar(sb.from('quadro_colunas').select('id').eq('marco', 'concluido').in('modulo', ['demandas', 'tarefas'])),
-      rodar(filtrarDemandas(sb.from('demandas').select('id, codigo, titulo, prazo, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA)),
-      rodar(filtrarTarefas(sb.from('tarefas').select('id, codigo, titulo, prazo, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA))
+      rodar(filtrarDemandas(sb.from('demandas').select('id, codigo, titulo, prazo, hora:prazo_hora, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA)),
+      rodar(filtrarTarefas(sb.from('tarefas').select('id, codigo, titulo, prazo, hora:prazo_hora, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA))
     ]);
     const fim = new Set(concluidas.map((c: Livre) => c.id));
     const naAgenda = (origem: PrazoNaAgenda['origem'], linhas: Livre[]): PrazoNaAgenda[] => linhas.filter(l => !fim.has(l.etapa_id))
-      .map(({ etapa_id: _etapa, ...l }) => ({ origem, ...l }));
+      .map(({ etapa_id: _etapa, ...l }) => ({ origem, ...l, hora: fmtHora(l.hora) || null }));
     return [...naAgenda('demandas', demandas), ...naAgenda('tarefas', tarefas)];
   },
   async processosParaLigar(termo = '') {

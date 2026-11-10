@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { SD, type FiltroCompromissos } from '../../dados';
 import { diaDaSemana, fmtDiaMes } from '../../regras/calendario';
 import { DIAS_NA_SEMANA, diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, numeroDoDia, ORIGENS_DE_PRAZO, VISOES, VISOES_DE_DATA, type ItemDaAgenda, type VisaoDeData } from '../../regras/agenda';
-import { horarioDoCompromisso, TIPOS_COMPROMISSO } from '../../regras/compromisso';
+import { fmtHora, horarioDoCompromisso, TIPOS_COMPROMISSO } from '../../regras/compromisso';
 import { cliquesQueAbrem } from '../../ui/abrirItem';
 import { Aviso, Carregando, estiloBotao, Selo, Vazio } from '../../ui/base';
 import { lerPreferencia, salvarPreferencia } from '../../ui/preferencias';
@@ -125,7 +125,7 @@ function Item({ item, completo, situacao, endereco, aoAbrir }: { item: ItemDaAge
   if (p) {
     const origem = ORIGENS_DE_PRAZO[p.origem];
     return <Link className="agenda-item prazo" to={origem.endereco + p.id}>
-      <small>{origem.nome}</small>
+      <small>{p.hora ? `${origem.nome} · ${fmtHora(p.hora)}` : origem.nome}</small>
       <b>{item.titulo}</b>
     </Link>;
   }

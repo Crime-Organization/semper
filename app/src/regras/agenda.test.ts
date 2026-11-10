@@ -6,7 +6,7 @@ import { diasDoPeriodo, hojeNaAgenda, itensDaAgenda, itensDoDia, noMesmoMes, num
 
 const compromisso = (id: string, data: string, hora: string | null, titulo = id) =>
   ({ id, tipo: 'reuniao', titulo, data, hora, pessoa_nome: '', processo_numero: null } as CompromissoLista);
-const prazo = (id: string, data: string): PrazoNaAgenda => ({ origem: 'tarefas', id, codigo: id, titulo: id, prazo: data, responsavel_id: 'u' });
+const prazo = (id: string, data: string, hora: string | null = null): PrazoNaAgenda => ({ origem: 'tarefas', id, codigo: id, titulo: id, prazo: data, responsavel_id: 'u', hora });
 
 describe('A data da agenda', () => {
   it.each([
@@ -83,6 +83,14 @@ describe('Os itens da agenda', () => {
       [prazo('prazo', '2026-11-04')]);
     // Então
     expect(itens.map(i => i.titulo)).toEqual(['dia-inteiro', 'prazo', 'cedo', 'tarde', 'depois']);
+  });
+
+  it('dado um prazo com hora, quando junta com os compromissos do dia, então ele entra na hora dele', () => {
+    // Quando
+    const itens = itensDaAgenda([compromisso('tarde', '2026-11-04', '15:00:00'), compromisso('cedo', '2026-11-04', '08:00:00')], [prazo('prazo', '2026-11-04', '10:30')]);
+    // Então
+    expect(itens.map(i => i.titulo)).toEqual(['cedo', 'prazo', 'tarde']);
+    expect(itens[1].hora).toBe('10:30');
   });
 
   it('quando pede os itens de um dia, então vêm só os dele', () => {

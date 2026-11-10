@@ -76,10 +76,10 @@ export interface ItemDaAgenda {
   prazo?: PrazoNaAgenda;
 }
 const horaParaOrdem = (i: ItemDaAgenda) => i.hora ?? '';
-/** Compromissos e prazos numa lista só, por dia e hora. */
+/** Compromissos e prazos numa lista só, por dia e hora (o prazo com hora entra na hora dele; sem hora, no começo do dia). */
 export const itensDaAgenda = (compromissos: CompromissoLista[], prazos: PrazoNaAgenda[]): ItemDaAgenda[] => [
   ...compromissos.map(c => ({ chave: 'compromisso-' + c.id, dia: c.data, hora: c.hora, titulo: nomeDoCompromisso(c), compromisso: c })),
-  ...prazos.map(p => ({ chave: `${p.origem}-${p.id}`, dia: p.prazo, hora: null, titulo: p.titulo, prazo: p }))
+  ...prazos.map(p => ({ chave: `${p.origem}-${p.id}`, dia: p.prazo, hora: p.hora, titulo: p.titulo, prazo: p }))
 ].sort((a, b) => a.dia.localeCompare(b.dia) || horaParaOrdem(a).localeCompare(horaParaOrdem(b)) || a.titulo.localeCompare(b.titulo, 'pt-BR'));
 /** Os itens de um dia, na ordem da lista. */
 export const itensDoDia = (itens: ItemDaAgenda[], dia: string) => itens.filter(i => i.dia === dia);

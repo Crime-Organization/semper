@@ -285,6 +285,12 @@ export interface FiltroContratos {
 }
 
 /**
+ * Lembrete de um prazo de tarefa ou de demanda (#286): quantos minutos antes ele chega (0: na hora do prazo). Os mesmos
+ * valores da regra das colunas "lembrete" no banco (migração lembretes_dos_prazos); os nomes ficam em regras/lembrete.ts.
+ */
+export type Lembrete = 0 | 30 | 60 | 1440;
+
+/**
  * Demanda: uma etapa de um trabalho, na maioria das vezes um objeto do contrato. O código (curto e aleatório) é dado
  * pelo banco. Quem não é administrador vê só as demandas que criou, de que é responsável ou colaborador.
  */
@@ -294,6 +300,10 @@ export interface Demanda {
   titulo: string;
   descricao: string | null;
   prazo: string | null;            // aaaa-mm-dd
+  /** A hora do prazo, no relógio de Brasília (hh:mm:ss, como o banco guarda), ou null: o prazo vale o dia. */
+  prazo_hora: string | null;
+  /** Quantos minutos antes do prazo chega o lembrete (null: sem lembrete). */
+  lembrete: Lembrete | null;
   responsavel_id: string;          // perfil
   colaboradores: string[];         // perfis da equipe, sem o responsável
   /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
@@ -318,14 +328,14 @@ export interface Demanda {
 /** Papel de uma pessoa numa demanda (responsável e colaboradores são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaDemanda = 'cliente' | 'responsavel' | 'colaborador';
 /** Demanda como aparece em outro cartão (da pessoa ou do contrato), com o papel da pessoa nela. */
-export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   papeis: PapelNaDemanda[];
 }
 /** Campos que o cadastro de demanda grava. */
-export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'responsavel_id'
+export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'responsavel_id'
   | 'colaboradores' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
-export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
@@ -351,6 +361,10 @@ export interface Tarefa {
   titulo: string;
   descricao: string | null;
   prazo: string | null;            // aaaa-mm-dd
+  /** A hora do prazo, no relógio de Brasília (hh:mm:ss, como o banco guarda), ou null: o prazo vale o dia. */
+  prazo_hora: string | null;
+  /** Quantos minutos antes do prazo chega o lembrete (null: sem lembrete). */
+  lembrete: Lembrete | null;
   responsavel_id: string;          // perfil
   participantes: string[];         // perfis da equipe, sem o responsável
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
@@ -386,14 +400,14 @@ export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_
 /** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
 /** Tarefa como aparece em outro cartão (da pessoa, da demanda ou do contrato), com o papel da pessoa nela. */
-export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   papeis: PapelNaTarefa[];
 }
 /** Campos que o cadastro de tarefa grava. */
-export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'responsavel_id'
+export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'responsavel_id'
   | 'participantes' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
-export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroTarefas {
   termo?: string;
@@ -1057,6 +1071,8 @@ export interface ComentarioDaMensagem {
 export type TipoMensagem = 'mencao' | 'prazo';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
+/** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
+export type AvisoDePrazo = 'proximo' | 'hoje' | 'lembrete';
 /** O prazo de que o aviso fala. `pagina` é o caminho da lista onde o cartão abre. */
 export interface PrazoDaMensagem {
   modulo: ModuloDoPrazo;
@@ -1070,8 +1086,11 @@ export interface PrazoDaMensagem {
   concluido: boolean;
   /** O prazo deixou de valer: o aviso antigo não continua dizendo que ele vence. */
   parado: PrazoParado | null;
+  aviso: AvisoDePrazo;
+  /** No lembrete: a antecedência do lembrete que chegou (mensagens.lembrete_antes), não a marcada agora no cartão. null: não é lembrete. */
+  antecedencia: Lembrete | null;
 }
-/** Mensagem da caixa de cada pessoa: a menção com @ (20261108165559_mensagens.sql) e o aviso de prazo (20261109085738_avisos_de_prazo.sql). */
+/** Mensagem da caixa de cada pessoa: a menção com @ (20261108165559_mensagens.sql), o aviso de prazo (20261109085738_avisos_de_prazo.sql) e o lembrete (lembretes_dos_prazos, #286). */
 export interface Mensagem {
   id: string;
   tipo: TipoMensagem;
@@ -1159,7 +1178,11 @@ export type PapelNoCompromisso = 'pessoa' | 'responsavel' | 'participante';
 /** Compromisso como aparece em outro cartão (da pessoa ou do processo), com o papel da pessoa nele. */
 export interface CompromissoLigado extends Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'pessoa_nome' | 'processo_numero' | 'etapa_id' | 'arquivado_em'> { papeis: PapelNoCompromisso[] }
 /** O prazo de uma demanda ou de uma tarefa, como aparece na agenda (só para consultar; abre o cartão de origem). */
-export interface PrazoNaAgenda { origem: 'demandas' | 'tarefas'; id: string; codigo: string; titulo: string; prazo: string; responsavel_id: string }
+export interface PrazoNaAgenda {
+  origem: 'demandas' | 'tarefas'; id: string; codigo: string; titulo: string; prazo: string; responsavel_id: string;
+  /** A hora do prazo (hh:mm ou hh:mm:ss), ou null: vale o dia. */
+  hora: string | null;
+}
 /** Processo como o cadastro de compromisso oferece para ligar. */
 export type ProcessoParaLigar = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome'>;
 /** Compromissos (supabase/migrations/20261102141258_compromissos.sql). */

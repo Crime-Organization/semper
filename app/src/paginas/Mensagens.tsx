@@ -1,10 +1,11 @@
-// Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112) e os avisos dos prazos dela (#113). Clicar abre o cartão e marca como lida.
-// O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário e na rotina diária dos prazos.
+// Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113) e os lembretes marcados nas tarefas e
+// demandas em que ela está (#286). Clicar abre o cartão e marca como lida.
+// O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário, na rotina diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Mensagem, type TipoMensagem } from '../dados';
 import { hojeNaAgenda } from '../regras/agenda';
-import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
+import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
 import { falha } from '../ui/avisos';
 import { Botao } from '../ui/Botoes';
@@ -39,7 +40,7 @@ export default function Mensagens() {
     <header className="mensagens-cabeca">
       <div>
         <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">As vezes em que marcaram você com @ nos comentários e os avisos dos prazos sob a sua responsabilidade.</p>
+        <p className="lead">As vezes em que marcaram você com @ nos comentários, os avisos dos prazos sob a sua responsabilidade e os lembretes das tarefas e demandas em que você está.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
@@ -106,7 +107,7 @@ function ItemDoPrazo(props: PropsDoItem) {
       <CartaoQueNaoVe texto="Este aviso de prazo é de um cartão que você não vê mais." />
     </LinhaDaMensagem>;
   }
-  return <LinhaDaMensagem {...props} rotulo={`Aviso de prazo ${situacaoDoAviso(m)}: ${p.titulo}`} marcarLida={`Marcar como lida a mensagem de prazo de ${p.titulo}`}>
+  return <LinhaDaMensagem {...props} rotulo={`${NOME_DO_AVISO[p.aviso]} ${situacaoDoAviso(m)}: ${p.titulo}`} marcarLida={`Marcar como lida a mensagem de prazo de ${p.titulo}`}>
     <span className="mensagem-icone" aria-hidden="true"><Icone nome="sino" /></span>
     <LinkDaMensagem {...props} para={enderecoDoPrazo(p)}>
       <span className="mensagem-titulo"><b>{rotuloDoAviso(p, hojeNaAgenda())}</b>: {NOME_DO_PRAZO[p.modulo]} <b>{p.titulo || p.cartao_codigo}</b></span>

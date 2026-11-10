@@ -1,9 +1,11 @@
 // Regras da demanda (módulo Demandas): o cadastro por etapas, os papéis de cada pessoa, o prazo e quem pode ser
 // mencionado nos comentários. Tudo puro, sem tela nem banco.
-import type { DadosDemanda, Demanda, Membro, PapelNaDemanda } from '../dados/tipos';
+import type { DadosDemanda, Demanda, Lembrete, Membro, PapelNaDemanda } from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_DEMANDA } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
+import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao, lerLembrete, prazoComHora, textoDoLembrete } from './lembrete';
+import { fmtHora } from './compromisso';
 
 /** Rótulo das demandas fora das colunas do quadro. */
 export const SEM_SITUACAO_DEMANDA = 'Sem situação';
@@ -15,13 +17,17 @@ export interface CamposDemanda {
   descricao: string;
   /** dd/mm/aaaa, ou vazio. */
   prazo: string;
+  /** hh:mm, ou vazio (só vale com o prazo). */
+  hora: string;
+  /** Minutos antes do prazo, ou null sem lembrete (só vale com o prazo). */
+  lembrete: Lembrete | null;
   responsavelId: string;
   colaboradores: string[];
   /** Um por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
   clientes: string[];
   contratoId: string;
 }
-export const DEMANDA_VAZIA: CamposDemanda = { titulo: '', descricao: '', prazo: '', responsavelId: '', colaboradores: [], clientes: [''], contratoId: '' };
+export const DEMANDA_VAZIA: CamposDemanda = { titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, responsavelId: '', colaboradores: [], clientes: [''], contratoId: '' };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
 type Conferencia = (c: CamposDemanda) => string | null;
@@ -36,6 +42,7 @@ const CONFERENCIAS: Partial<Record<keyof CamposDemanda, Conferencia[]>> = {
   ],
   descricao: [c => c.descricao.length > TAMANHO_DEMANDA.descricao ? `A descrição pode ter até ${TAMANHO_DEMANDA.descricao} caracteres.` : null],
   prazo: [c => { try { lerData(c.prazo); return null; } catch (e) { return (e as Error).message; } }],
+  ...CONFERENCIAS_DO_LEMBRETE,
   responsavelId: [c => c.responsavelId ? null : 'Escolha o responsável.'],
   colaboradores: [
     c => repetido(c.colaboradores) ? 'A mesma pessoa aparece duas vezes nos colaboradores.' : null,
@@ -59,8 +66,9 @@ export function validarDemanda(c: CamposDemanda): Partial<Record<keyof CamposDem
 
 /** O que vai para o banco (só depois de validarDemanda sem erros). O responsável não entra nos colaboradores. */
 export function dadosDaDemanda(c: CamposDemanda): DadosDemanda {
+  const prazo = lerData(c.prazo);
   return {
-    titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo: lerData(c.prazo), responsavel_id: c.responsavelId,
+    titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), responsavel_id: c.responsavelId,
     colaboradores: [...new Set(escolhidos(c.colaboradores))].filter(id => id !== c.responsavelId),
     clientes: [...new Set(escolhidos(c.clientes))], contrato_id: c.contratoId || null
   };
@@ -78,7 +86,7 @@ export function semSairDaDemanda(d: DadosDemanda, eu: string, podeSair: boolean,
 
 /** Campos do formulário a partir de uma demanda salva (para atualizar). */
 export const camposDaDemanda = (d: Demanda): CamposDemanda => ({
-  titulo: d.titulo, descricao: d.descricao || '', prazo: fmtData(d.prazo), responsavelId: d.responsavel_id,
+  titulo: d.titulo, descricao: d.descricao || '', prazo: fmtData(d.prazo), ...horaELembreteDoCartao(d), responsavelId: d.responsavel_id,
   colaboradores: [...d.colaboradores], clientes: d.clientes.length ? d.clientes.map(p => p.id) : [''], contratoId: d.contrato_id || ''
 });
 
@@ -87,7 +95,7 @@ export type EtapaDemanda = 'demanda' | 'pessoas' | 'contrato';
 export interface DefinicaoEtapaDemanda { id: EtapaDemanda; titulo: string; texto: string; campos: (keyof CamposDemanda)[] }
 /** As etapas do cadastro de demanda, na ordem, como nos cadastros de pessoa e de contrato. */
 export const ETAPAS_DEMANDA: DefinicaoEtapaDemanda[] = [
-  { id: 'demanda', titulo: 'A demanda', texto: 'O que precisa ser feito e, se houver, o prazo de entrega.', campos: ['titulo', 'descricao', 'prazo'] },
+  { id: 'demanda', titulo: 'A demanda', texto: 'O que precisa ser feito e, se houver, o prazo de entrega, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem responde pela demanda, quem da equipe ajuda e para quais clientes.',
     campos: ['responsavelId', 'colaboradores', 'clientes'] },
   { id: 'contrato', titulo: 'Contrato', texto: 'Se a demanda vem de um contrato, ligue-o aqui. Não é obrigatório.', campos: ['contratoId'] }
@@ -104,10 +112,15 @@ export const primeiraEtapaComErroDemanda = (c: CamposDemanda) =>
 // ---------- cartão e histórico ----------
 /** Nome de cada campo no histórico de alterações da demanda. */
 export const CAMPOS_DEMANDA: Record<string, string> = {
-  titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', responsavel_id: 'Responsável', colaboradores: 'Colaboradores',
+  titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', responsavel_id: 'Responsável', colaboradores: 'Colaboradores',
   clientes: 'Clientes', contrato: 'Contrato', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
-const FORMATOS: Record<string, (v: unknown) => string> = { prazo: v => fmtData(String(v)) };
+/** O histórico guarda a hora como o banco (hh:mm:ss) e o lembrete em minutos: aqui eles ganham o formato da tela. */
+const FORMATOS: Record<string, (v: unknown) => string> = {
+  prazo: v => fmtData(String(v)),
+  prazo_hora: v => fmtHora(String(v)),
+  lembrete: v => textoDoLembrete(lerLembrete(String(v)))
+};
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */
 export const valorLegivelDemanda = (campo: string, v: unknown) =>
   v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
@@ -119,6 +132,11 @@ export function situacaoDoPrazo(prazo: string | null, hoje: string): SituacaoPra
   return prazo < hoje ? 'vencido' : prazo === hoje ? 'hoje' : 'em_dia';
 }
 export const ROTULOS_PRAZO: Record<SituacaoPrazo, string> = { vencido: 'Prazo vencido', hoje: 'Vence hoje', em_dia: 'Prazo' };
+/** O prazo como aparece no selo e nas listas: "Prazo: 15/11/2030 às 14:00" (null sem prazo). */
+export const rotuloDoPrazoComHora = (prazo: string | null, hora: string | null | undefined, hoje: string) => {
+  const s = situacaoDoPrazo(prazo, hoje);
+  return s ? `${ROTULOS_PRAZO[s]}: ${prazoComHora(prazo, hora)}` : null;
+};
 
 // ---------- pessoas da demanda ----------
 export const PAPEIS_NA_DEMANDA: Record<PapelNaDemanda, string> = { cliente: 'Cliente', responsavel: 'Responsável', colaborador: 'Colaborador' };

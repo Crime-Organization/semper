@@ -1,14 +1,19 @@
-// E-mails de prazo (#113): o aviso diário e o resumo de sexta-feira. Quem chama é a rotina do banco, de 5 em 5 minutos nos horários
-// combinados (privado.chamar_emails_de_prazo), com a senha da rotina: o segredo SENHA_DA_ROTINA aqui, e o mesmo valor no Vault.
+// E-mails de prazo (#113): o aviso diário e o resumo de sexta-feira; e os lembretes marcados nas tarefas e demandas (#286). Quem chama
+// é a rotina do banco (privado.chamar_emails_de_prazo): de 5 em 5 minutos nos horários combinados, e a cada minuto em que há lembrete por
+// enviar. Vem com a senha da rotina: o segredo SENHA_DA_ROTINA aqui, e o mesmo valor no Vault.
 // Não há login de pessoa (verify_jwt = false no config.toml), então, sem a senha certa, nada acontece.
 import { senhaDaRotinaConfere } from '../_compartilhado/avisoDaTroca.ts';
 import { enviarEmail } from '../_compartilhado/envioDeEmail.ts';
-import { enviarEmailsDePrazo, ITENS_POR_SECAO, PESSOAS_POR_CHAMADA, tipoDeEnvioValido, type EmailDiario, type PassosDosEmails, type ResumoSemanal } from '../_compartilhado/emailsDePrazo.ts';
+import {
+  enviarEmailsDePrazo, ITENS_POR_SECAO, PESSOAS_POR_CHAMADA, tipoDeEnvioValido,
+  type EmailDiario, type EmailDosLembretes, type PassosDosEmails, type ResumoSemanal
+} from '../_compartilhado/emailsDePrazo.ts';
 import { json, rpc } from '../_compartilhado/servidor.ts';
 
 const PASSOS: PassosDosEmails = {
   diarios: () => rpc<EmailDiario[]>('prazos_emails_a_enviar', { p_limite: PESSOAS_POR_CHAMADA }),
   resumos: () => rpc<ResumoSemanal[]>('prazos_resumos_a_enviar', { p_limite: PESSOAS_POR_CHAMADA, p_itens: ITENS_POR_SECAO }),
+  lembretes: () => rpc<EmailDosLembretes[]>('prazos_lembretes_a_enviar', { p_limite: PESSOAS_POR_CHAMADA }),
   enviar: enviarEmail,
   marcarDiario: ids => rpc<void>('prazos_emails_enviados', { p_ids: ids }),
   marcarResumo: id => rpc<void>('prazos_resumo_enviado', { p_id: id })

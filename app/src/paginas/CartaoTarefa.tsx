@@ -24,7 +24,7 @@ import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { dataCurta, relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
-import { SeloDoPrazo } from './Demandas';
+import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
@@ -109,7 +109,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
-        <SeloDoPrazo prazo={t.prazo} />
+        <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} />
+        <SeloDoLembrete prazo={t.prazo} lembrete={t.lembrete} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
       </div>

@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { MAIOR_CONTADOR_DE_MENSAGENS, TRECHO_DA_MENSAGEM } from '../dados/limites';
-import { colunaCancelada, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, paginaDoPrazo, rotuloDoAviso, rotuloDoMenu, textoDoContador, trechoDaMensagem } from './mensagens';
+import { colunaCancelada, dataDoAviso, EMAILS_DE_PRAZO, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, paginaDoPrazo, rotuloDoAviso, rotuloDoMenu, textoDoContador, trechoDaMensagem } from './mensagens';
 
 describe('Caixa de mensagens', () => {
   it.each([
@@ -102,5 +102,45 @@ describe('Avisos de prazo', () => {
     // Então
     expect(dataDoAviso({ data: '2030-01-18', hora: '14:30' })).toBe('18/01/2030 às 14:30');
     expect(dataDoAviso({ data: '2030-01-18', hora: null })).toBe('18/01/2030');
+  });
+});
+
+describe('Lembretes na caixa de Mensagens (#286)', () => {
+  const HOJE = '2030-01-15';
+  const lembrete = (extras: Partial<Parameters<typeof rotuloDoAviso>[0]> = {}) =>
+    ({ modulo: 'tarefas' as const, data: '2030-01-18', concluido: false, parado: null, aviso: 'lembrete' as const, antecedencia: 60 as const, ...extras });
+
+  it.each([
+    [60, 'Lembrete: 1 hora antes'],
+    [0, 'Lembrete: na hora do prazo'],
+    [1440, 'Lembrete: 1 dia antes'],
+    [null, 'Lembrete']
+  ] as const)('dado um lembrete de %s minutos, quando é lido, então diz "%s", e não quantos dias faltam', (antecedencia, esperado) => {
+    // Então
+    expect(rotuloDoAviso(lembrete({ antecedencia }), HOJE)).toBe(esperado);
+  });
+
+  it('dado um lembrete de um prazo já concluído ou arquivado, quando é lido, então diz o que aconteceu com o prazo', () => {
+    // Então
+    expect(rotuloDoAviso(lembrete({ concluido: true }), HOJE)).toBe('Cumprido');
+    expect(rotuloDoAviso(lembrete({ parado: 'arquivado' }), HOJE)).toBe('Arquivado');
+  });
+
+  it('dado os avisos de 3 dias e do dia, quando são lidos, então continuam contando de hoje', () => {
+    // Então
+    expect(rotuloDoAviso(lembrete({ aviso: 'proximo', antecedencia: null }), HOJE)).toBe('Faltam 3 dias');
+    expect(rotuloDoAviso(lembrete({ aviso: 'hoje', data: HOJE, antecedencia: null }), HOJE)).toBe('Vence hoje');
+  });
+
+  it('quando o leitor de tela anuncia, então o lembrete tem nome próprio', () => {
+    // Então
+    expect(NOME_DO_AVISO.lembrete).toBe('Lembrete');
+    expect(NOME_DO_AVISO.hoje).toBe('Aviso de prazo');
+  });
+
+  it('quando Minha conta lista os e-mails, então o dos lembretes vem com a chave que o banco lê', () => {
+    // Então
+    expect(EMAILS_DE_PRAZO.map(e => e.chave)).toContain('email_lembretes');
+    expect(EMAILS_DE_PRAZO.find(e => e.chave === 'email_lembretes')?.rotulo).toBe('Lembretes que eu marcar nas tarefas e demandas, na hora escolhida');
   });
 });

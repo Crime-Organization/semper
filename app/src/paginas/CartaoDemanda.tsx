@@ -23,7 +23,7 @@ import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { dataCurta, relativo } from '../ui/util';
-import { SeloDoPrazo } from './Demandas';
+import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { oferecerProcesso } from './concluirDemanda';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ProcessosDaDemanda } from './ProcessosDaDemanda';
@@ -115,7 +115,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
-        <SeloDoPrazo prazo={d.prazo} />
+        <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} />
+        <SeloDoLembrete prazo={d.prazo} lembrete={d.lembrete} />
         {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a demanda', aoConfirmar: excluir } : undefined} />}
       </div>

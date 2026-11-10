@@ -1,4 +1,4 @@
-// Cadastro de tarefa (novo ou atualizar), por etapas como o de demanda: a tarefa (título, descrição e prazo), as pessoas
+// Cadastro de tarefa (novo ou atualizar), por etapas como o de demanda: a tarefa (título, descrição, prazo, hora e lembrete), as pessoas
 // (responsável, participantes da equipe e pessoas do cadastro) e as ligações (demanda e contrato), que são opcionais.
 // Vindo do cartão de uma pessoa (?pessoa=), de uma demanda (?demanda=) ou de um contrato (?contrato=), ele já vem
 // escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios.
@@ -8,6 +8,7 @@ import { SD, type ContratoLista, type DemandaLista, type PessoaLista, type Pesso
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TAREFA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { MASCARAS } from '../regras/pessoa';
+import { CampoDoLembrete, CampoDaHora } from './CamposDoLembrete';
 import {
   camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa, TAREFA_VAZIA, validarTarefa,
   type CamposTarefa, type EtapaTarefa
@@ -248,6 +249,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
           onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />
       </Campo>
+      <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
+      <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
     </>,
     pessoas: () => <>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem faz a tarefa: qualquer um da equipe.">

@@ -1,5 +1,5 @@
-// Cadastro de demanda (novo ou atualizar), por etapas como os de pessoa e de contrato: a demanda (título, descrição e
-// prazo), as pessoas (responsável, colaboradores da equipe e clientes) e o contrato, que é opcional.
+// Cadastro de demanda (novo ou atualizar), por etapas como os de pessoa e de contrato: a demanda (título, descrição,
+// prazo, hora e lembrete), as pessoas (responsável, colaboradores da equipe e clientes) e o contrato, que é opcional.
 // Vindo do cartão de uma pessoa (?cliente=) ou de um contrato (?contrato=), ela já vem escolhida.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
@@ -11,6 +11,7 @@ import {
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
 import { MASCARAS } from '../regras/pessoa';
+import { CampoDoLembrete, CampoDaHora } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -222,6 +223,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
           onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />
       </Campo>
+      <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
+      <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
     </>,
     pessoas: () => <>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pela demanda: qualquer um da equipe.">
