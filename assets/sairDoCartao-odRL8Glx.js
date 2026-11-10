@@ -1,1 +1,0 @@
-import{C as e}from"./util-0XbEBCca.js";import{I as t,M as n}from"./sessao-B9Ny-VbD.js";var r=`As alterações foram salvas, mas você continua neste cartão. Salve de novo para sair.`;async function i(i,a,o){try{await e.cartaoSair(i,a)}catch{throw t(),Error(r)}n(o),t()}export{i as t};
