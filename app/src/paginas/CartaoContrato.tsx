@@ -8,7 +8,7 @@ import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDin
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Botao, BotaoDuplo } from '../ui/Botoes';
+import { Botao } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
@@ -134,7 +134,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         {!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}<span className="codigo">{k.codigo}</span>
         {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
         {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o contrato', aoConfirmar: excluir } : undefined} />}
         {semValores && !k.arquivado_em && !editando && <Botao pequeno onClick={() => setEditando(true)}>Editar sem os valores</Botao>}
       </div>
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
@@ -153,11 +153,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
     </div>
     {!podeAlterar && <Nota>{semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
-    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {k.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'
         : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
-      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
     <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (oculto && !semValores)} aoMudar={aoMudar} />

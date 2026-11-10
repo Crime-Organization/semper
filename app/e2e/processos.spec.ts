@@ -271,7 +271,7 @@ test.describe('Cartão do processo', () => {
     // Quando
     await cartao.getByRole('button', { name: 'Arquivar' }).click();
     await cartao.getByRole('button', { name: 'Excluir' }).click();
-    await cartao.getByRole('button', { name: 'Confirmar exclusão definitiva' }).click();
+    await page.getByRole('dialog', { name: 'Excluir o processo?' }).getByRole('button', { name: 'Excluir definitivamente' }).click();
     // Então
     await expect(page.getByText('Processo excluído definitivamente.')).toBeVisible();
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toHaveCount(0);

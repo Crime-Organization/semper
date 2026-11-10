@@ -10,7 +10,6 @@ import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegiv
 import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
@@ -112,7 +111,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
         <SeloDoPrazo prazo={t.prazo} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
       </div>
       <h2>{t.titulo}</h2>
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
@@ -132,11 +131,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
     {!podeAlterar && <Nota>{SO_LEITURA_DO_CARTAO}</Nota>}
-    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {t.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Tarefa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
         : 'Tarefa arquivada. Só quem cadastrou esta tarefa ou um administrador pode excluí-la.'}</span>
-      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
 

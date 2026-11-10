@@ -354,7 +354,7 @@ test.describe('Quadro e cartão', () => {
     await expect(cartao.getByText('Compromisso arquivado.')).toBeVisible();
     await expect(agenda(page).getByRole('link', { name: /Reunião cancelada/ })).toHaveCount(0);
     await cartao.getByRole('button', { name: 'Excluir' }).click();
-    await cartao.getByRole('button', { name: 'Confirmar exclusão definitiva' }).click();
+    await page.getByRole('dialog', { name: 'Excluir o compromisso?' }).getByRole('button', { name: 'Excluir definitivamente' }).click();
     // Então
     await expect(page.getByText('Compromisso excluído definitivamente.')).toBeVisible();
     await visao(page, 'Tabela');

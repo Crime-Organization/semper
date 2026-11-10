@@ -502,6 +502,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 }
 .cartao-botao.cartao-editar { background: var(--accent); border-color: var(--accent); color: #fff }
 .cartao-botao.cartao-editar:hover { background: var(--accent-hover) }
+/* A lixeira do cartão arquivado, no lugar do lápis: com a cor de perigo dos botões de excluir, sem fundo cheio. */
+.cartao-botao.cartao-excluir { border-color: var(--erro-borda); color: var(--erro) }
+.cartao-botao.cartao-excluir:hover { background: var(--erro-bg) }
 /* Em edição, no lugar dos dois botões: só o texto "Modo de edição", na altura deles. */
 .cartao-modo-edicao { height: 40px; display: inline-flex; align-items: center; color: var(--accent-ink); font-size: 14px; font-weight: 700; white-space: nowrap }
 /* Edição no cartão: todas as etapas do cadastro de uma vez, com títulos menores, e o rodapé preso ao pé do cartão. */
@@ -524,9 +527,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-ficha b { font-size: 15px; color: var(--ink); overflow-wrap: anywhere }
 .equipe-ficha small { font-size: 13px; color: var(--muted) }
 .equipe-ficha-link { font-size: 14px; font-weight: 700; color: var(--accent-ink) }
-/* Pessoa arquivada: aviso com a exclusão logo abaixo do texto. O botão cresce para a direita ao pedir
-   confirmação, então o segundo clique cai no mesmo lugar do primeiro. */
-.cartao-arquivada { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
+/* Item arquivado: aviso em texto, logo abaixo das ações. A exclusão fica na lixeira, no topo do cartão. */
+.cartao-arquivada { padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
 .bloco { display: flex; flex-direction: column; gap: 10px }
 .bloco > h3 { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--text2); display: flex; align-items: center; gap: 8px }
 /* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */

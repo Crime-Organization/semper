@@ -174,7 +174,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
         {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />
+        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a pessoa', aoConfirmar: excluir } : undefined} />
       </div>
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
@@ -189,11 +189,10 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 
-    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Pessoa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
         : 'Pessoa arquivada. Só quem cadastrou esta pessoa ou um administrador pode excluí-la.'}</span>
-      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
 

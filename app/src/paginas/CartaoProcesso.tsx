@@ -122,7 +122,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo><span className="codigo">{p.codigo}</span>
         {p.orgao && <Selo tipo="arq">{p.orgao}</Selo>}
         {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o processo', aoConfirmar: excluir } : undefined} />}
       </div>
       <h2>{nomeDoProcesso(p)}</h2>
       <p className="demanda-descricao">{p.numero}</p>
@@ -146,11 +146,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <Botao pequeno onClick={() => entrar('colaborador')}>Entrar como colaborador</Botao>
       <BotaoDuplo pequeno confirmar="Confirmar: assumir como responsável" aoConfirmar={() => entrar('responsavel')}>Assumir como responsável</BotaoDuplo>
     </div>}
-    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {p.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Processo arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
         : 'Processo arquivado. Só quem cadastrou este processo ou um administrador pode excluí-lo.'}</span>
-      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
 

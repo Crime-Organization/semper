@@ -56,3 +56,47 @@ test.describe('Arquivados na tabela', () => {
     await expect(secao).not.toContainText('1');
   });
 });
+
+test.describe('Botões do cartão arquivado', () => {
+  // Em cada módulo, um item ativo da semente do banco fictício. Quem está logado é administrador, então pode excluir.
+  const CARTOES = [
+    { modulo: 'pessoas', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir a pessoa?' },
+    { modulo: 'contratos', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir o contrato?' },
+    { modulo: 'demandas', item: 'Notificar o devedor', titulo: 'Excluir a demanda?' },
+    { modulo: 'tarefas', item: 'Renovar a procuração', titulo: 'Excluir a tarefa?' },
+    { modulo: 'processos/judicial', item: 'JOSÉ DA SILVA TESTE', titulo: 'Excluir o processo?' },
+    { modulo: 'agenda', item: 'Reunião de equipe', titulo: 'Excluir o compromisso?' }
+  ];
+
+  for (const { modulo, item, titulo } of CARTOES) {
+    test(`quando a pessoa arquiva e desarquiva em ${modulo}, então os botões do cartão acompanham, e a lixeira pede confirmação`, async ({ page }) => {
+      // Dado
+      await page.goto(`/${modulo}/`);
+      await page.getByRole('button', { name: 'Tabela' }).click();
+      await page.getByRole('row').filter({ hasText: item }).first().getByText(item).first().click();
+      const cartao = page.getByRole('dialog');
+      const botao = (name: string) => cartao.getByRole('button', { name, exact: true });
+      // Quando
+      await botao('Arquivar').click();
+      // Então
+      await expect(botao('Desarquivar')).toBeVisible();
+      await expect(botao('Excluir')).toBeVisible();
+      await expect(botao('Editar')).toHaveCount(0);
+      await expect(botao('Arquivar')).toHaveCount(0);
+      // Quando: a lixeira, cancelando na janela
+      await botao('Excluir').click();
+      const janela = page.getByRole('dialog', { name: titulo });
+      await expect(janela).toContainText('não pode ser desfeita');
+      await janela.getByRole('button', { name: 'Cancelar' }).click();
+      // Então: nada foi excluído
+      await expect(janela).toHaveCount(0);
+      await expect(botao('Desarquivar')).toBeVisible();
+      // Quando
+      await botao('Desarquivar').click();
+      // Então
+      await expect(botao('Arquivar')).toBeVisible();
+      await expect(botao('Editar')).toBeVisible();
+      await expect(botao('Excluir')).toHaveCount(0);
+    });
+  }
+});

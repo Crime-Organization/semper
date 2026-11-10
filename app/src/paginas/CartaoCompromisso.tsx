@@ -9,7 +9,6 @@ import { nomeDoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
-import { BotaoDuplo } from '../ui/Botoes';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
@@ -99,7 +98,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         <Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo><span className="codigo">{c.codigo}</span>
         {c.geral && <Selo>Agenda geral</Selo>}
         {c.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeMudar && <AcoesDoCartao editando={editando} arquivado={!!c.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} />}
+        {podeMudar && <AcoesDoCartao editando={editando} arquivado={!!c.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o compromisso', aoConfirmar: excluir } : undefined} />}
       </div>
       <h2>{nomeDoCompromisso(c)}</h2>
       <p className="cartao-quando">{quandoDoCompromisso(c)}</p>
@@ -119,11 +118,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         participantes={c.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
     {!podeMudar && <Nota>Você vê este compromisso porque ele está na Agenda geral. Só quem participa dele pode mudá-lo.</Nota>}
-    {/* A exclusão fica numa linha própria: ao pedir confirmação o botão cresce, e nada sai do lugar. */}
+    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {c.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Compromisso arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
         : 'Compromisso arquivado. Só quem cadastrou este compromisso ou um administrador pode excluí-lo.'}</span>
-      {podeExcluir && <BotaoDuplo variante="perigo" pequeno confirmar="Confirmar exclusão definitiva" aoConfirmar={excluir}><Icone nome="lixeira" tam={15} /> Excluir</BotaoDuplo>}
     </div>}
 
 
