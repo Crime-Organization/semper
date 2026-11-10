@@ -34,6 +34,8 @@ export interface Membro {
   ativo?: boolean;
   /** Conta reservada: consta na equipe e nos contratos, sem acesso ao sistema. */
   reservada?: boolean;
+  /** Excluído da equipe: sem acesso nem dados pessoais. O nome, com "(excluído)", fica para os registros antigos. */
+  excluido?: boolean;
   cor?: string | null;
   pessoa_id?: string | null;
   /** Link da foto pequena (150×150, redonda), para as bolinhas; sem foto, as bolinhas mostram as iniciais. */
@@ -1024,6 +1026,12 @@ export interface DadosEquipe {
   equipeTrocarEmail(perfilId: string, email: string): Promise<void>;
   /** Cadastra na equipe alguém que não entra no sistema, para constar como responsável ou participante de contratos. Só administradores; fica no registro de ações. */
   equipeReservarConta(pessoaId: string): Promise<void>;
+  /**
+   * Exclui da equipe quem já está desativado (ou tem conta reservada): apaga o acesso, a foto, o perfil profissional, a ligação
+   * com o Google e os avisos. O nome fica nos registros antigos, e o que estava sob a responsabilidade da pessoa continua no
+   * nome dela. Mesma regra de quem desativa; não tem desfazer. Fica no registro de ações. Some de equipeListar.
+   */
+  equipeExcluir(perfilId: string): Promise<void>;
   /** As últimas trocas de e-mail pelo administrador, separadas do resto do registro de ações (só administradores). */
   trocasDeEmailListar(limite?: number): Promise<RegistroAuditoria[]>;
   convitesListar(): Promise<Convite[]>;

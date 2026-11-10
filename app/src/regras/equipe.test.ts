@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
-import { candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoParticipar, opcoesDeResponsavel } from './equipe';
+import { candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoDarAcesso, motivoParaNaoParticipar, nomeNaEquipe, opcoesDeResponsavel, podeExcluir } from './equipe';
 
 const EQUIPE: Membro[] = [
   { id: 'u-adv', nome: 'Advogada', funcao: 'advogado', ativo: true, pessoa_id: 'p-adv' },
@@ -88,5 +88,52 @@ describe('Quem da equipe pode entrar numa lista', () => {
   it('quando ninguém combina com o que foi digitado, então a lista vem vazia', () => {
     // Quando / Então
     expect(candidatosDaEquipe(EQUIPE, 'saiu', [])).toEqual([]);
+  });
+});
+
+describe('Excluir alguém da equipe', () => {
+  const usuario = (extra: Partial<{ id: string; papel: 'master' | 'admin' | 'usuario'; ativo: boolean }> = {}) =>
+    ({ id: 'u-x', papel: 'usuario' as const, ativo: false, ...extra });
+
+  it('dado um usuário desativado, quando um administrador vê se pode excluir, então pode', () => {
+    expect(podeExcluir(usuario(), 'u-adm', false)).toBe(true);
+  });
+
+  it.each([
+    ['ainda está ativo', usuario({ ativo: true }), false],
+    ['é você mesmo', usuario({ id: 'u-adm' }), false],
+    ['é o master', usuario({ papel: 'master' }), true],
+    ['é administrador e quem pergunta não é o master', usuario({ papel: 'admin' }), false]
+  ])('dado alguém que %s, quando vejo se posso excluir, então não posso', (_caso, u, souMaster) => {
+    expect(podeExcluir(u, 'u-adm', souMaster)).toBe(false);
+  });
+
+  it('dado um administrador desativado, quando o master vê se pode excluir, então pode', () => {
+    expect(podeExcluir(usuario({ papel: 'admin' }), 'u-master', true)).toBe(true);
+  });
+
+  it('dado alguém excluído, quando o nome aparece nos registros, então vem marcado; o de quem não foi excluído, não', () => {
+    expect(nomeNaEquipe('Ana Lima', true)).toBe('Ana Lima (excluído)');
+    expect(nomeNaEquipe('Ana Lima')).toBe('Ana Lima');
+  });
+
+  it('dado uma conta reservada que foi excluída, quando escolho o responsável ou um participante, então ela não aparece', () => {
+    const excluida: Membro = { id: 'x', nome: 'Excluída', funcao: 'advogado', ativo: false, reservada: true, excluido: true, pessoa_id: 'p-x' };
+    expect(opcoesDeResponsavel([excluida])).toEqual([]);
+    expect(motivoParaNaoParticipar([excluida], 'p-x')).toBe('desativado na equipe');
+  });
+
+  it.each([
+    ['foi excluída da equipe', 'p-x', 'foi excluída da equipe e não volta'],
+    ['já tem acesso ou convite', 'p-com-acesso', 'já tem acesso ou convite'],
+    ['ainda não é da equipe', 'p-nova', null]
+  ])('dado uma pessoa que %s, quando vejo se ela pode receber acesso, então a resposta diz o motivo', (_caso, pessoa, motivo) => {
+    const equipe: Membro[] = [{ id: 'x', nome: 'Excluída', ativo: false, excluido: true, pessoa_id: 'p-x' }];
+    expect(motivoParaNaoDarAcesso(pessoa, equipe, ['p-com-acesso', null])).toBe(motivo);
+  });
+
+  it('dado um contrato que tem como responsável alguém excluído, quando a lista é montada, então ele continua nela', () => {
+    const excluido: Membro = { id: 'x', nome: 'Excluído', funcao: 'advogado', ativo: false, excluido: true, pessoa_id: 'p-x' };
+    expect(opcoesDeResponsavel([excluido], 'x').map(m => m.id)).toEqual(['x']);
   });
 });

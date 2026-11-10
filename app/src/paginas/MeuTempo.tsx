@@ -49,7 +49,7 @@ export default function MeuTempo() {
         {ctx.ehAdmin && <div className="campo-form" style={naGrade({ m: 6, g: 4 })}>
           <label htmlFor="mt-pessoa">De quem</label>
           <select id="mt-pessoa" value={pessoa} onChange={e => setPessoa(e.target.value)}>
-            {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.id === eu ? `${m.nome} (você)` : m.nome}{m.ativo === false ? ' (desativado)' : ''}</option>)}
+            {ctx.equipe.map(m => <option key={m.id} value={m.id}>{m.id === eu ? `${m.nome} (você)` : m.nome}{m.ativo === false && !m.excluido ? ' (desativado)' : ''}</option>)}
           </select>
         </div>}
         <div className="campo-form" style={naGrade({ m: 6, g: 4 })}>

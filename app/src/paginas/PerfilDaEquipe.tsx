@@ -12,7 +12,8 @@ import './Configuracoes.css';
 export default function PerfilDaEquipe() {
   const { ctx } = useSessao();
   const [busca] = useSearchParams();
-  const membro = ctx.equipe.find(m => m.id === busca.get('id'));
+  // Quem foi excluído não tem mais perfil profissional: a página diz que a pessoa não está na equipe.
+  const membro = ctx.equipe.find(m => m.id === busca.get('id') && !m.excluido);
   useTitulo(membro ? 'Perfil de ' + membro.nome : 'Perfil profissional');
   if (!ctx.ehAdmin) return <Navigate to="/minha-conta/" replace />;
   return <div className="miolo">

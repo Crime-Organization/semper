@@ -13,7 +13,7 @@ import type {
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
-import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe } from '../regras/equipe';
+import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
 import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
@@ -59,7 +59,7 @@ const agora = () => new Date().toISOString();
 let eu = 'u-master';
 
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
-type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto' | 'reservada'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string; reservada?: boolean };
+type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto' | 'reservada' | 'excluido'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string; reservada?: boolean; excluido?: boolean };
 const EQUIPE: MembroFalso[] = [
   { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
@@ -1879,7 +1879,7 @@ export const SD: Dados = {
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: (ehMaster && bd.perfil.nome) || m.nome, usuario: (ehMaster && bd.perfil.usuario) || m.usuario,
         papel: m.papel, funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo, equipe_edita_tudo: !!bd.equipeEditaTudo }, ...bd.escritorio! },
-      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
+      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, nome: nomeNaEquipe(r.nome, r.excluido), foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
     };
     return espera(c);
   },
@@ -1949,7 +1949,8 @@ export const SD: Dados = {
     ids.forEach(id => {
       const p = bd.pessoas.find(x => x.id === id);
       if (!p || !p.arquivado_em) return;
-      if (EQUIPE.some(m => m.pessoa_id === id)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
+      // Como perfis_pessoa_fkey: quem foi excluído da equipe solta o cadastro (privado.soltar_perfil_excluido).
+      if (EQUIPE.some(m => m.pessoa_id === id && !m.excluido)) { motivo = 'Esta pessoa é usuária do sistema e não pode ser excluída.'; return; }
       if (temContrato(id)) { motivo = 'Esta pessoa está em contratos e não pode ser excluída.'; return; }
       if (bd.demandas!.some(d => d.clientes.includes(id))) { motivo = 'Esta pessoa está em demandas e não pode ser excluída.'; return; }
       if (bd.tarefas!.some(t => t.pessoas.includes(id))) { motivo = 'Esta pessoa está em tarefas e não pode ser excluída.'; return; }
@@ -3386,17 +3387,45 @@ export const SD: Dados = {
     gravar();
   },
 
-  equipeListar: () => espera(EQUIPE.map(({ cpf: _cpf, ...m }) => ({ ...m, email: m.id === eu ? meuEmail() : m.email, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
+  equipeListar: () => espera(EQUIPE.filter(m => !m.excluido).map(({ cpf: _cpf, excluido: _excluido, ...m }) => ({ ...m, email: m.id === eu ? meuEmail() : m.email, criado_em: agora(), ultimo_acesso: m.ativo ? agora() : null, confirmado: m.id !== 'u-bruno' }))),
   async conviteCriar(pid, email, papel: Papel) {
     const p = achar(pid);
+    // Como public.convite_criar: quem já tem perfil (inclusive quem foi excluído da equipe) não recebe outro.
+    if (EQUIPE.some(m => m.pessoa_id === pid)) return erro('Esta pessoa já é usuária do sistema');
     // Como o índice convites_email_pendente do banco: um só convite pendente por e-mail.
     if (bd.convites.some(c => c.email.toLowerCase() === email.toLowerCase())) return erro('Este e-mail já tem um convite pendente.');
     const c: Convite = { id: novoId(), email, nome: p.nome, papel, pessoa_id: pid, criado_em: agora() }; bd.convites.unshift(c); gravar();
     return espera({ ...c, codigo: codigoConvite() });
   },
   conviteNovoLink: () => espera(codigoConvite()),
-  async equipeDefinirPapel(id, papel) { const m = EQUIPE.find(x => x.id === id); if (m) m.papel = papel; },
-  async equipeDefinirAtivo(id, ativo) { const m = EQUIPE.find(x => x.id === id); if (m) m.ativo = ativo; },
+  async equipeDefinirPapel(id, papel) {
+    const m = EQUIPE.find(x => x.id === id);
+    if (m?.excluido) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
+    if (m) m.papel = papel;
+  },
+  async equipeDefinirAtivo(id, ativo) {
+    const m = EQUIPE.find(x => x.id === id);
+    if (m?.excluido && ativo) return erro('Este usuário foi excluído e não volta à equipe.');   // o gatilho excluido_nao_volta
+    if (m) m.ativo = ativo;
+  },
+  // Na mesma ordem da função do banco (public.equipe_excluir). A foto sai junto; o nome fica, marcado, para os registros antigos.
+  async equipeExcluir(id) {
+    const quem = membroLogado(), m = EQUIPE.find(x => x.id === id && !x.excluido);
+    if (!souAdmin()) return erro('Apenas administradores');
+    if (id === quem.id) return erro('Você não pode excluir a própria conta');
+    if (!m) return erro('Usuário não encontrado');
+    if (m.papel === 'master') return erro('O usuário master não pode ser excluído');
+    if (m.papel === 'admin' && quem.papel !== 'master') return erro('Só o master gerencia administradores');
+    if (m.ativo) return erro('Desative o usuário antes de excluir');
+    Object.assign(m, { excluido: true, email: `excluida-${id}@excluida.invalid` });
+    if (bd.fotos) delete bd.fotos[id];
+    bd.perfisProfissionais = (bd.perfisProfissionais ?? []).filter(p => p.perfil_id !== id);
+    bd.convites = bd.convites.filter(c => c.pessoa_id !== m.pessoa_id);
+    bd.acessos = bd.acessos.filter(a => a.perfil_id !== id);
+    bd.mensagens = bd.mensagens?.filter(x => x.perfil_id !== id);
+    auditar('perfis', 'exclusao', { id, nome: m.nome });
+    gravar();
+  },
   async equipeDefinirNome(id, nome) {
     // Na mesma ordem da função do banco (public.equipe_definir_nome): administrador, tamanho, usuário, quem pode.
     if (!souAdmin()) return erro('Apenas administradores mudam o nome de alguém da equipe');
@@ -3415,7 +3444,7 @@ export const SD: Dados = {
   // Como public.equipe_email_preparar. Quem está logado no banco fictício é o master: pode trocar o de administradores.
   async equipeTrocarEmail(id, novo) {
     const m = EQUIPE.find(x => x.id === id), email = normalizarEmail(novo);
-    if (!m || m.id === eu || m.papel === 'master') return erro(RECUSA_DA_TROCA['sem-permissao']);
+    if (!m || m.id === eu || m.papel === 'master' || m.excluido) return erro(RECUSA_DA_TROCA['sem-permissao']);
     if (erroDoNovoEmail(email, '')) return erro(RECUSA_DA_TROCA['email-invalido']);
     if (meuEmail() === email || EQUIPE.some(x => x.email === email)) return erro(RECUSA_DA_TROCA['email-em-uso']);
     if (bd.convites.some(c => c.email.toLowerCase() === email)) return erro(RECUSA_DA_TROCA['convite-pendente']);

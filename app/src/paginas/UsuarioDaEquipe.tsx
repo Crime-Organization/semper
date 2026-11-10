@@ -4,7 +4,7 @@
 import { useId, useState, type FormEvent } from 'react';
 import { SD, type Funcao, type Papel, type Socio, type Usuario } from '../dados';
 import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
-import { erroDoNomeDaEquipe, FUNCOES } from '../regras/equipe';
+import { erroDoNomeDaEquipe, FUNCOES, podeExcluir } from '../regras/equipe';
 import { avisar, falha } from '../ui/avisos';
 import { Avatar } from '../ui/Avatar';
 import { BotaoLink, Campo, estiloBotao, Nota, propsDoCampo, Selo } from '../ui/base';
@@ -27,11 +27,14 @@ interface Props {
   aoTrocarPapel: (p: Papel) => void;
   aoTrocarEmail: () => void;
   aoDefinirAtivo: (ativo: boolean) => Promise<void>;
+  /** Exclui quem já está desativado (ou tem conta reservada), depois de confirmar numa janela. */
+  aoExcluir: () => Promise<void>;
   aoMudar: () => void;
 }
 
-export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPapel, aoTrocarEmail, aoDefinirAtivo, aoMudar }: Props) {
+export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPapel, aoTrocarEmail, aoDefinirAtivo, aoExcluir, aoMudar }: Props) {
   const ctx = useCtx();
+  const excluivel = podeExcluir(u, ctx.perfil.id, ctx.ehMaster);
   const id = useId();
   const eu = ctx.perfil.id;
   const podeRenomear = u.id === eu || (u.papel === 'usuario') || (u.papel === 'admin' && ctx.ehMaster);
@@ -97,6 +100,15 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
         {u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => aoDefinirAtivo(false)}>Desativar</BotaoDuplo>
           : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => aoDefinirAtivo(true)}>Reativar</BotaoDuplo>}
       </div>}
+    </section>}
+
+    {excluivel && <section className="bloco separada" aria-labelledby={id + 'excluir'}>
+      <h3 id={id + 'excluir'}>Excluir da equipe</h3>
+      <Nota>Apaga o acesso, a foto e o perfil profissional. O nome continua nos registros antigos, marcado como excluído, e o que estava sob a responsabilidade da pessoa continua no nome dela. Não tem desfazer.</Nota>
+      <div className="financeiro-acoes">
+        {/* A janela de confirmação já segura o segundo clique; a janela do usuário fecha quando a exclusão termina. */}
+        <button type="button" className={estiloBotao({ forma: 'mini', variante: 'perigo' })} onClick={() => void aoExcluir()}>Excluir</button>
+      </div>
     </section>}
 
     <div className="financeiro-acoes">

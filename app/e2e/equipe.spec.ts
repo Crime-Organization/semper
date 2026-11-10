@@ -102,6 +102,56 @@ test.describe('Equipe e acessos', () => {
     });
   });
 
+  test.describe('Excluir', () => {
+    // Na semente, a Carla está desativada e a Ana, ativa.
+    const usuarios = (page: Page) => page.getByRole('region', { name: 'Usuários' });
+
+    test('quando o administrador exclui uma colega desativada e confirma, então ela sai da lista e a exclusão fica no registro de ações', async ({ page }) => {
+      // Dado
+      const janela = await abrirUsuario(page, 'Carla Fictícia Rocha');
+      // Quando
+      await janela.getByRole('button', { name: 'Excluir', exact: true }).click();
+      const confirmacao = page.getByRole('dialog', { name: 'Excluir Carla Fictícia Rocha?' });
+      await expect(confirmacao).toContainText('Não tem desfazer.');
+      await confirmacao.getByRole('button', { name: 'Excluir usuário' }).click();
+      // Então
+      await expect(page.getByText('Carla Fictícia Rocha foi excluído(a) da equipe.')).toBeVisible();
+      await expect(usuarios(page).getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' })).toHaveCount(0);
+      await expect(page.getByRole('region', { name: 'Registro de ações' })).toContainText('excluiu usuário Carla Fictícia Rocha');
+    });
+
+    test('dado uma colega excluída, quando o administrador a procura para reservar conta, então ela aparece com o motivo e não pode ser escolhida', async ({ page }) => {
+      // Dado
+      const janela = await abrirUsuario(page, 'Carla Fictícia Rocha');
+      await janela.getByRole('button', { name: 'Excluir', exact: true }).click();
+      await page.getByRole('dialog', { name: 'Excluir Carla Fictícia Rocha?' }).getByRole('button', { name: 'Excluir usuário' }).click();
+      await expect(page.getByText('Carla Fictícia Rocha foi excluído(a) da equipe.')).toBeVisible();
+      // Quando
+      await page.getByRole('textbox', { name: 'Integrante sem acesso' }).fill('carla fict');
+      // Então
+      await expect(page.getByRole('button', { name: /CARLA FICTÍCIA ROCHA/ })).toContainText('foi excluída da equipe e não volta');
+      await expect(page.getByRole('button', { name: /CARLA FICTÍCIA ROCHA/ })).toBeDisabled();
+    });
+
+    test('quando o administrador desiste na confirmação, então a colega continua na lista', async ({ page }) => {
+      // Dado
+      const janela = await abrirUsuario(page, 'Carla Fictícia Rocha');
+      await janela.getByRole('button', { name: 'Excluir', exact: true }).click();
+      // Quando
+      await page.getByRole('dialog', { name: 'Excluir Carla Fictícia Rocha?' }).getByRole('button', { name: 'Cancelar' }).click();
+      // Então
+      await expect(usuarios(page).getByRole('row').filter({ hasText: 'Carla Fictícia Rocha' })).toContainText('Desativado');
+    });
+
+    test('quando o administrador abre alguém ativo, então não há como excluir antes de desativar', async ({ page }) => {
+      // Quando
+      const janela = await abrirUsuario(page, 'Ana Teste Lima');
+      // Então
+      await expect(janela.getByRole('button', { name: 'Desativar' })).toBeVisible();
+      await expect(janela.getByRole('button', { name: 'Excluir', exact: true })).toHaveCount(0);
+    });
+  });
+
   test('quando o administrador muda a função de alguém, então a função nova aparece e fica no registro de ações', async ({ page }) => {
     // Dado
     const funcao = (await abrirUsuario(page, 'Ana Teste Lima')).getByRole('combobox', { name: 'Função' });

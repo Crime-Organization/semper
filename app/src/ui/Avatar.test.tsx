@@ -12,6 +12,13 @@ describe('Bolinha da equipe', () => {
     expect(screen.getByLabelText('Ana Teste Lima').textContent).toBe('AL');
   });
 
+  it('quando a pessoa foi excluída da equipe, então as iniciais ignoram o "(excluído)" do fim do nome', () => {
+    // Quando
+    render(<Avatar p={{ id: 'u-carla', nome: 'Carla Fictícia Rocha (excluído)' }} />);
+    // Então
+    expect(screen.getByLabelText('Carla Fictícia Rocha (excluído)').textContent).toBe('CR');
+  });
+
   it('quando a pessoa tem foto, então a bolinha mostra a foto, com o nome dela', () => {
     // Quando
     render(<Avatar p={{ id: 'u-ana', nome: 'Ana Teste Lima', foto: 'https://exemplo.com/150.avif' }} tam={32} />);

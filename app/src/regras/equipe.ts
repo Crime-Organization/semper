@@ -1,7 +1,7 @@
 // Função de cada membro da equipe e o que ela permite no contrato (supabase/migrations/20261027000015_funcao_na_equipe.sql).
 // A função é diferente do papel no sistema: administrador é quem gere a equipe e vê tudo; "administrativo" é uma função.
 import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
-import type { Funcao, Membro, RecusaDaReserva } from '../dados/tipos';
+import type { Funcao, Membro, RecusaDaReserva, Usuario } from '../dados/tipos';
 import { normal } from './texto';
 
 /** O que há de errado com o nome de alguém da equipe (o mesmo que o banco confere), ou null se está bom. */
@@ -18,8 +18,27 @@ export const FUNCAO_INICIAL: Funcao = 'advogado';
 const funcaoDe = (m: Membro) => m.funcao ?? FUNCAO_INICIAL;
 const ativo = (m: Membro) => m.ativo !== false;
 
-/** Quem consta nos contratos: quem está ativo e quem tem conta reservada, que não entra no sistema mas faz parte da equipe. */
-const constaNosContratos = (m: Membro) => ativo(m) || !!m.reservada;
+/** Quem consta nos contratos: quem está ativo e quem tem conta reservada, que não entra no sistema mas faz parte da equipe. Quem foi excluído, não. */
+const constaNosContratos = (m: Membro) => !m.excluido && (ativo(m) || !!m.reservada);
+
+/**
+ * Por que a pessoa não pode receber acesso nem conta reservada (null se pode): quem foi excluído da equipe não volta (o banco
+ * recusa), e quem já tem acesso ou convite já tem.
+ */
+export function motivoParaNaoDarAcesso(pessoaId: string, equipe: Membro[], comAcessoOuConvite: (string | null)[]): string | null {
+  if (equipe.some(m => m.excluido && m.pessoa_id === pessoaId)) return 'foi excluída da equipe e não volta';
+  return comAcessoOuConvite.includes(pessoaId) ? 'já tem acesso ou convite' : null;
+}
+
+/** O nome de alguém da equipe nos registros: quem foi excluído continua com o nome, marcado. */
+export const nomeNaEquipe = (nome: string, excluido = false) => excluido ? `${nome} (excluído)` : nome;
+
+/**
+ * Se quem está logado pode excluir este usuário: a regra de desativar (nunca a si mesmo nem um master; um administrador, só o
+ * master), e só depois de desativado, ou se a conta é reservada (que já não tem acesso). O banco confere de novo (public.equipe_excluir).
+ */
+export const podeExcluir = (u: Pick<Usuario, 'id' | 'papel' | 'ativo'>, eu: string, souMaster: boolean) =>
+  !u.ativo && u.id !== eu && u.papel !== 'master' && (u.papel !== 'admin' || souMaster);
 
 /** Quem pode ser o responsável: os advogados que constam nos contratos e quem já é o responsável (mesmo que não seja mais, para não sair sem querer). */
 export const opcoesDeResponsavel = (equipe: Membro[], atual = '') =>

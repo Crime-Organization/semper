@@ -23,7 +23,7 @@ import { colunaCancelada, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
-import { FUNCAO_INICIAL, RECUSA_DA_RESERVA } from '../regras/equipe';
+import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
 import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
@@ -505,10 +505,12 @@ export const SD: Dados = {
     const [{ data: escritorio }, { data: equipe }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, reservada, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, reservada, excluido_em, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
     ]);
     // A foto pequena de quem tem foto, para as bolinhas (um pedido só para a equipe toda).
-    const membros = (equipe || []) as (Membro & { perfil_profissional: { foto_em: string | null } | { foto_em: string | null }[] | null })[];
+    // Quem foi excluído fica na equipe só para os registros antigos, com o nome marcado (public.equipe_excluir).
+    type Linha = Membro & { excluido_em: string | null; perfil_profissional: { foto_em: string | null } | { foto_em: string | null }[] | null };
+    const membros = ((equipe || []) as Linha[]).map(({ excluido_em, ...m }) => ({ ...m, excluido: !!excluido_em, nome: nomeNaEquipe(m.nome, !!excluido_em) }));
     const fotoEm = (m: typeof membros[number]) => [m.perfil_profissional].flat()[0]?.foto_em ?? null;
     const comFoto = membros.filter(fotoEm);
     const links = await linksDasFotos(comFoto.map(m => caminhoDaFoto(perfil.escritorio_id, m.id, FOTO_PEQUENA))).catch(() => []);
@@ -1661,9 +1663,25 @@ export const SD: Dados = {
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.
   async equipeListar() {
-    const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao, reservada'))]);
-    const dosPerfis = new Map<string, { funcao: Funcao; reservada: boolean }>(funcoes.map((f: { id: string; funcao: Funcao; reservada: boolean }) => [f.id, f]));
-    return usuarios.map((u: Usuario) => ({ ...u, funcao: dosPerfis.get(u.id)?.funcao ?? FUNCAO_INICIAL, reservada: !!dosPerfis.get(u.id)?.reservada }));
+    // Quem foi excluído não aparece mais na lista (a função do banco é de antes da exclusão e ainda o devolve).
+    type DoPerfil = { id: string; funcao: Funcao; reservada: boolean; excluido_em: string | null };
+    const [usuarios, { data: funcoes }] = await Promise.all([rpc('equipe_listar'), rodar(sb.from('perfis').select('id, funcao, reservada, excluido_em'))]);
+    const dosPerfis = new Map<string, DoPerfil>(funcoes.map((f: DoPerfil) => [f.id, f]));
+    return (usuarios as Usuario[]).filter(u => !dosPerfis.get(u.id)?.excluido_em)
+      .map(u => ({ ...u, funcao: dosPerfis.get(u.id)?.funcao ?? FUNCAO_INICIAL, reservada: !!dosPerfis.get(u.id)?.reservada }));
+  },
+  // O banco apaga o acesso e os dados da pessoa; os dois arquivos da foto só saem pelo Storage, logo depois (o administrador pode
+  // apagá-los: "fotos da equipe: apagar"). Sem foto, a remoção não acha nada e não dá erro. O escritório vem do contexto, lido
+  // de novo se o guardado foi descartado (ex.: depois de mexer nas duas etapas).
+  async equipeExcluir(perfilId) {
+    const escritorio = (await SD.contexto())?.perfil?.escritorio_id;
+    await rpc('equipe_excluir', { p_perfil: perfilId });
+    ctx = null;   // a equipe das outras telas passa a mostrar o nome marcado
+    const pasta = `fotos-da-equipe/${escritorio ?? '<escritório>'}/${perfilId}`;
+    try {
+      if (!escritorio) throw new Error('sem escritório');
+      await rodar(fotos.remove([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(escritorio, perfilId, lado))));
+    } catch { throw new Error(`O usuário foi excluído, mas a foto não saiu do armazenamento. Peça a quem cuida do sistema para apagar a pasta ${pasta}.`); }
   },
   conviteCriar: (pessoaId, email, papel) => rpc('convite_criar', { p_pessoa: pessoaId, p_email: email, p_papel: papel }),
   conviteNovoLink: id => rpc('convite_novo_link', { p_id: id }),

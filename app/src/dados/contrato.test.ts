@@ -4471,6 +4471,66 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Excluir alguém da equipe', () => {
+      // Na semente, a Carla está desativada e a Ana, ativa; quem está logado é o master.
+      it('quando o master exclui uma colega desativada, então ela sai da lista, o nome fica marcado nos registros e a exclusão fica no registro de ações', async () => {
+        // Quando
+        await SD.equipeExcluir('u-carla');
+        // Então
+        expect((await SD.equipeListar()).map(u => u.id)).not.toContain('u-carla');
+        expect((await SD.contexto(true))!.equipe.find(m => m.id === 'u-carla')).toMatchObject({ nome: 'Carla Fictícia Rocha (excluído)', excluido: true, ativo: false });
+        const [registro] = await SD.auditoriaListar(1);
+        expect(registro).toMatchObject({ tabela: 'perfis', registro_id: 'u-carla', acao: 'exclusao', resumo: { nome: 'Carla Fictícia Rocha' } });
+      });
+
+      it('dado uma colega excluída, quando o master tenta reativar ou excluir de novo, então é recusado', async () => {
+        // Dado
+        await SD.equipeExcluir('u-carla');
+        // Quando / Então
+        await expect(SD.equipeDefinirAtivo('u-carla', true)).rejects.toThrow('Este usuário foi excluído e não volta à equipe.');
+        await expect(SD.equipeExcluir('u-carla')).rejects.toThrow('Usuário não encontrado');
+      });
+
+      it('dado uma colega excluída, quando o master tenta mudar o papel, trocar o e-mail ou dar acesso de novo ao cadastro dela, então é recusado', async () => {
+        // Dado
+        await SD.equipeExcluir('u-carla');
+        // Quando / Então
+        await expect(SD.equipeDefinirPapel('u-carla', 'admin')).rejects.toThrow('Este usuário foi excluído e não volta à equipe.');
+        await expect(SD.equipeTrocarEmail('u-carla', 'carla.nova@exemplo.com')).rejects.toThrow(RECUSA_DA_TROCA['sem-permissao']);
+        await expect(SD.conviteCriar('p-carla', 'carla.nova@exemplo.com', 'usuario')).rejects.toThrow('Esta pessoa já é usuária do sistema');
+      });
+
+      it('dado uma colega com acesso às informações sigilosas de alguém, quando é excluída, então o acesso sai', async () => {
+        // Dado
+        const { id } = await criar(marca());
+        await SD.sigiloConceder(id, 'u-carla');
+        // Quando
+        await SD.equipeExcluir('u-carla');
+        // Então
+        expect((await SD.sigiloAcessos(id)).map(a => a.perfil_id)).not.toContain('u-carla');
+      });
+
+      it('dado uma colega excluída, quando o cadastro dela em Pessoas é arquivado e apagado, então o cadastro sai, e o nome continua na equipe', async () => {
+        // Dado
+        await SD.equipeExcluir('u-carla');
+        await SD.pessoasArquivar(['p-carla']);
+        // Quando
+        const r = await SD.pessoasExcluir(['p-carla']);
+        // Então
+        expect(r).toMatchObject({ excluidas: 1, naoExcluidas: 0 });
+        expect((await SD.contexto(true))!.equipe.find(m => m.id === 'u-carla')?.nome).toBe('Carla Fictícia Rocha (excluído)');
+      });
+
+      it.each([
+        ['alguém ativo', 'u-ana', 'Desative o usuário antes de excluir'],
+        ['a própria conta', 'u-master', 'Você não pode excluir a própria conta']
+      ])('quando o master tenta excluir %s, então é recusado', async (_caso, id, mensagem) => {
+        // Quando / Então
+        await expect(SD.equipeExcluir(id)).rejects.toThrow(mensagem);
+        expect((await SD.equipeListar()).map(u => u.id)).toContain(id);
+      });
+    });
+
     describe('Conta reservada', () => {
       const semConta = async () => (await SD.pessoasListar({ termo: 'JOÃO PEDRO' })).linhas[0]!;
 

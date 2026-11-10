@@ -9,8 +9,9 @@ export function corDe(p?: Partial<Membro> | null) {
   for (const ch of String(p?.id || p?.nome || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return PALETA[h % PALETA.length];
 }
+// Só as palavras que começam com letra: o "(excluído)" no fim do nome de quem saiu da equipe não vira inicial.
 export function iniciais(nome?: string | null) {
-  const w = String(nome || '?').trim().split(/\s+/).filter(Boolean);
+  const w = String(nome || '?').trim().split(/\s+/).filter(p => /^\p{L}/u.test(p));
   return ((w[0]?.[0] || '?') + (w.length > 1 ? w[w.length - 1][0] : '')).toUpperCase();
 }
 const tamanho = (tam: number) => ({ '--av': tam + 'px' }) as CSSProperties;

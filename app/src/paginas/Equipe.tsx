@@ -1,5 +1,5 @@
 // Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, funções, papéis,
-// desativar e reativar, convites pendentes e o registro de ações exigido pela LGPD.
+// desativar, reativar e excluir, convites pendentes e o registro de ações exigido pela LGPD.
 // A tabela mostra o essencial; clicar no usuário abre a janela dele (UsuarioDaEquipe.tsx), onde se muda o nome, a
 // função, o papel, a sociedade, o e-mail e a situação.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -9,14 +9,14 @@ import { MARCA } from '../marca';
 import { SD, type Convite, type ConviteCriado, type Funcao, type Papel, type PessoaLista, type RegistroAuditoria, type Socio, type Usuario } from '../dados';
 import { REGISTRO_DE_ACOES, TAMANHO_EMAIL_DE_ACESSO, TROCAS_DE_EMAIL_MOSTRADAS } from '../dados/limites';
 import { erroDoEmailDoColega, normalizarEmail, seloDoAvisoDaTroca, situacaoDoAvisoDaTroca } from '../regras/conta';
-import { FUNCOES } from '../regras/equipe';
+import { FUNCOES, motivoParaNaoDarAcesso } from '../regras/equipe';
 import { detalheDaMarcacao } from '../regras/meusValores';
 import { emailValido } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Aviso, Campo, Carregando, Cartao, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
-import { janela } from '../ui/janela';
+import { confirmar, janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, hojeISO, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
 import { PainelCartao } from '../ui/PainelCartao';
@@ -146,6 +146,19 @@ function PainelEquipe() {
       mudouEquipe();
     } catch (e) { falha(e); }
   }
+  // Como a lixeira do cartão arquivado: uma janela de confirmação, porque não tem desfazer.
+  async function excluir(u: Usuario) {
+    const sim = await confirmar(`Excluir ${u.nome}?`,
+      <>O acesso, a foto e o perfil profissional de {u.nome} serão apagados. O nome continua nos registros antigos, marcado como excluído, e o que estava sob a responsabilidade da pessoa continua no nome dela. O cadastro em Pessoas não muda. <b>Não tem desfazer.</b></>,
+      'Excluir usuário', true);
+    if (!sim) return;
+    try {
+      await SD.equipeExcluir(u.id);
+      setAberto(null);
+      avisar(`${u.nome} foi excluído(a) da equipe.`);
+    } catch (e) { falha(e); }
+    mudouEquipe();
+  }
   async function trocarEmail(u: Usuario) {
     const email = await pedirEmailNovo(u);
     if (!email) return;
@@ -209,7 +222,7 @@ function PainelEquipe() {
       {doAberto && <PainelCartao aoFechar={() => setAberto(null)} soNoCentro ajustado rotulo={doAberto.nome}>
         <UsuarioDaEquipe key={doAberto.id} u={doAberto} gerir={podeGerir(doAberto)} socios={socios}
           aoTrocarFuncao={f => trocarFuncao(doAberto, f)} aoTrocarPapel={p => trocarPapel(doAberto, p)} aoTrocarEmail={() => { setAberto(null); void trocarEmail(doAberto); }}
-          aoDefinirAtivo={a => definirAtivo(doAberto, a)} aoMudar={mudouEquipe} />
+          aoDefinirAtivo={a => definirAtivo(doAberto, a)} aoExcluir={() => excluir(doAberto)} aoMudar={mudouEquipe} />
       </PainelCartao>}
     </section>
 
@@ -270,7 +283,8 @@ function PainelEquipe() {
 function ReservarConta({ usuarios, convites, aoReservar }: { usuarios: Usuario[]; convites: Convite[]; aoReservar: () => void }) {
   const [escolhida, setEscolhida] = useState<PessoaLista | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const ja = new Set([...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)].filter(Boolean));
+  const { ctx } = useSessao();
+  const ja = [...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)];
 
   async function reservar(e: FormEvent) {
     e.preventDefault();
@@ -291,7 +305,7 @@ function ReservarConta({ usuarios, convites, aoReservar }: { usuarios: Usuario[]
       <Nota>Para quem precisa constar como responsável ou participante de contratos, mas não entra no sistema, como quem já saiu do escritório. A pessoa não recebe e-mail e não consegue entrar nem criar senha. Quem vai ser responsável precisa ter o CPF no cadastro. Começa com a função de advogado; ajuste na lista de usuários.</Nota>
       <form className="form-reserva" noValidate onSubmit={reservar}>
         <div><BuscaPessoa rotulo="Integrante sem acesso" escolhida={escolhida} aoEscolher={setEscolhida} placeholder="Busque pelo nome ou CPF"
-          desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
+          desativar={p => motivoParaNaoDarAcesso(p.id, ctx.equipe, ja)} /></div>
         <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Reservar conta</button>
       </form>
     </Cartao>
@@ -309,7 +323,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
   const [criado, setCriado] = useState<ConviteCriado | null>(null);
   const campoEmail = useRef<HTMLInputElement>(null);
 
-  const ja = new Set([...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)].filter(Boolean));
+  const ja = [...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)];
   const escolher = (p: PessoaLista | null) => {
     setEscolhida(p);
     if (!p) return;
@@ -339,7 +353,7 @@ function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[];
       <Nota>Quem faz parte da equipe é cadastrado primeiro em Pessoas. Aqui você escolhe essa pessoa e libera o acesso ao sistema: ela recebe o papel escolhido e um link pessoal, válido por 7 dias, para criar a própria senha. Quem entra começa com a função de advogado; ajuste na lista de usuários.</Nota>
       <form className="form-convite" noValidate onSubmit={liberar}>
         <div><BuscaPessoa rotulo="Pessoa" escolhida={escolhida} aoEscolher={escolher} placeholder="Busque pelo nome ou CPF"
-          desativar={p => ja.has(p.id) ? 'já tem acesso ou convite' : null} /></div>
+          desativar={p => motivoParaNaoDarAcesso(p.id, ctx.equipe, ja)} /></div>
         <label>E-mail de acesso<input ref={campoEmail} type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} /></label>
         <label>Papel<select value={papel} onChange={e => setPapel(e.target.value as Papel)}>{papeis.map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}</select></label>
         <button className={estiloBotao({ variante: 'principal' })} type="submit" disabled={ocupado}>Liberar acesso</button>
