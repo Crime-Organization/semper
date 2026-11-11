@@ -17,6 +17,7 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
+import { colunaComMarco } from '../regras/quadro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
@@ -115,7 +116,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
-        <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} />
+        <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={quadro.pronto ? colunaComMarco(quadro.colunas, d.etapa_id, 'concluido') && 'demandas' : null} />
         <SeloDoLembrete prazo={d.prazo} lembrete={d.lembrete} />
         {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a demanda', aoConfirmar: excluir } : undefined} />}

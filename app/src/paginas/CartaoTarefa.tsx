@@ -2,10 +2,11 @@
 // destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
 // recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da situação, o cronômetro (TempoNaTarefa).
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { useNavigate } from 'react-router';
 import { TIPOS_PROCESSO } from '../regras/processo';
+import { colunaComMarco } from '../regras/quadro';
 import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, veATarefa } from '../regras/tarefa';
 import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -20,6 +21,7 @@ import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { Botao } from '../ui/Botoes';
 import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { dataCurta, relativo } from '../ui/util';
@@ -46,6 +48,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const [versaoHist, setVersaoHist] = useState(0);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
+  // Concluir e Reabrir trocam de lugar: o foco do teclado passa para o botão novo, em vez de cair no começo da página.
+  const acaoDaSituacao = useRef<HTMLDivElement>(null);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.tarefaObter(id).then(x => { setT(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
@@ -62,6 +66,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
   const podeAlterar = !soLeOCartao(ctx, m => veATarefa(t, m, t.demanda)), veTudo = equipeVeTudo(ctx.escritorio);
+  // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
+  const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
+  const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     selo: p.arquivado_em ? 'Arquivada' : undefined });
   // A demanda e o contrato abrem só para quem pode vê-los; os outros veem o código, sem o link.
@@ -86,12 +93,14 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     if (r.excluidas) { avisar('Tarefa excluída definitivamente.'); aoFechar(); aoMudar(); }
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
-  async function mudarSituacao(valor: string) {
+  /** Leva a tarefa para outra coluna; `aviso` troca o texto do aviso no pé da tela (ex.: "Tarefa concluída."). */
+  async function mudarSituacao(valor: string, aviso?: string, focarAcao = false) {
     const etapa = valor || null, de = t!.etapa_id || null, ordemDe = t!.etapa_ordem ?? null, ordem = ordemNoFim();
     try {
       await SD.tarefaMover(t!.id, etapa, ordem);
       setT({ ...t!, etapa_id: etapa, etapa_ordem: ordem });
-      feito(etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`, 'mudança de situação',
+      if (focarAcao) setTimeout(() => acaoDaSituacao.current?.querySelector('button')?.focus(), 0);
+      feito(aviso ?? (etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`), 'mudança de situação',
         async () => { await SD.tarefaMover(t!.id, de, ordemDe); });
       aoMudar(); setVersaoHist(v => v + 1);
       // Relê a tarefa: chegar ou sair da coluna das concluídas muda a data de conclusão (e o resumo do tempo).
@@ -109,7 +118,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
-        <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} />
+        <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
         <SeloDoLembrete prazo={t.prazo} lembrete={t.lembrete} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
@@ -118,10 +127,16 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em || !podeAlterar} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-          <option value="">{SEM_SITUACAO_TAREFA}</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
+        <div className="situacao-com-acao" ref={acaoDaSituacao}>
+          <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em || !podeAlterar} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
+            <option value="">{SEM_SITUACAO_TAREFA}</option>
+            {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+          </select>
+          {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
+          {podeAlterar && !t.arquivado_em && (concluida
+            ? inicio && <Botao key="reabrir" forma="botao" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={16} />Reabrir</Botao>
+            : fim && <Botao key="concluir" forma="botao" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={16} />Concluir</Botao>)}
+        </div>
       </section>}
     </header>
 

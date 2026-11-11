@@ -219,3 +219,23 @@ test.describe('Quantos itens cada seção do cartão tem', () => {
     await expect(cartao.getByRole('button', { name: /^Clientes \d+$/ })).toBeVisible();
   });
 });
+
+test.describe('Prazo da demanda concluída', () => {
+  test('dada uma demanda com o prazo vencido, quando vai para "Concluído", então o selo fica verde e a tabela não diz "Prazo vencido"', async ({ page }) => {
+    // Dado: "Notificar o devedor" venceu há dois dias
+    const cartao = await abrirDemanda(page, 'Notificar o devedor');
+    await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
+    // Quando
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await page.getByRole('dialog', { name: 'Criar o processo?' }).getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(cartao.getByText(/^Concluído · Prazo: /)).toBeVisible();
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    const linha = page.getByRole('row').filter({ hasText: 'Notificar o devedor' });
+    await expect(linha).toContainText('Concluído · Prazo:');
+    await expect(linha).not.toContainText('Prazo vencido');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await expect(page.getByRole('list', { name: 'Concluído', exact: true }).getByRole('listitem').filter({ hasText: 'Notificar o devedor' }))
+      .toContainText('Concluído · Prazo:');
+  });
+});

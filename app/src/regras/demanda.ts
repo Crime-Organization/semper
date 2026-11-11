@@ -125,18 +125,33 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
 export const valorLegivelDemanda = (campo: string, v: unknown) =>
   v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
 
-/** Situação do prazo em relação a hoje (aaaa-mm-dd): vencido, vence hoje, em dia, ou null sem prazo. */
-export type SituacaoPrazo = 'vencido' | 'hoje' | 'em_dia';
-export function situacaoDoPrazo(prazo: string | null, hoje: string): SituacaoPrazo | null {
+/** Situação do prazo em relação a hoje (aaaa-mm-dd): vencido, vence hoje, em dia, ou null sem prazo. O cartão concluído
+ *  (na coluna-marco "concluido") não vence mais: fica "concluido", qualquer que seja a data. */
+export type SituacaoPrazo = 'vencido' | 'hoje' | 'em_dia' | 'concluido';
+export function situacaoDoPrazo(prazo: string | null, hoje: string, concluido = false): SituacaoPrazo | null {
   if (!prazo) return null;
+  if (concluido) return 'concluido';
   return prazo < hoje ? 'vencido' : prazo === hoje ? 'hoje' : 'em_dia';
 }
-export const ROTULOS_PRAZO: Record<SituacaoPrazo, string> = { vencido: 'Prazo vencido', hoje: 'Vence hoje', em_dia: 'Prazo' };
-/** O prazo como aparece no selo e nas listas: "Prazo: 15/11/2030 às 14:00" (null sem prazo). */
-export const rotuloDoPrazoComHora = (prazo: string | null, hora: string | null | undefined, hoje: string) => {
-  const s = situacaoDoPrazo(prazo, hoje);
+/** O nome de cada situação ao lado da data. O concluído mostra só "Prazo": quem diz que terminou é o selo ou a coluna. */
+export const ROTULOS_PRAZO: Record<SituacaoPrazo, string> = { vencido: 'Prazo vencido', hoje: 'Vence hoje', em_dia: 'Prazo', concluido: 'Prazo' };
+/** Cor do selo do prazo: vencido em vermelho, vence hoje em laranja, em dia neutro, concluído em verde. */
+export const SELO_DO_PRAZO: Record<SituacaoPrazo, 'ok' | 'erro' | 'pend' | 'arq'> = { vencido: 'erro', hoje: 'pend', em_dia: 'arq', concluido: 'ok' };
+/** Como o selo diz que o cartão terminou, em cada módulo. */
+export const CONCLUIDO_NO_SELO = { tarefas: 'Concluída', demandas: 'Concluído' } as const;
+export type ModuloComPrazo = keyof typeof CONCLUIDO_NO_SELO;
+
+/** O prazo como aparece nas listas: "Prazo: 15/11/2030 às 14:00" (null sem prazo). Concluído, nunca diz "vencido". */
+export const rotuloDoPrazoComHora = (prazo: string | null, hora: string | null | undefined, hoje: string, concluido = false) => {
+  const s = situacaoDoPrazo(prazo, hoje, concluido);
   return s ? `${ROTULOS_PRAZO[s]}: ${prazoComHora(prazo, hora)}` : null;
 };
+/** O selo do prazo, cor e texto: concluído, "Concluída · Prazo: 05/11/2026" em verde (null sem prazo). */
+export function seloDoPrazo(prazo: string | null, hora: string | null | undefined, hoje: string, concluido: false | ModuloComPrazo = false) {
+  const s = situacaoDoPrazo(prazo, hoje, !!concluido), texto = rotuloDoPrazoComHora(prazo, hora, hoje, !!concluido);
+  if (!s || !texto) return null;
+  return { tipo: SELO_DO_PRAZO[s], texto: concluido ? `${CONCLUIDO_NO_SELO[concluido]} · ${texto}` : texto };
+}
 
 // ---------- pessoas da demanda ----------
 export const PAPEIS_NA_DEMANDA: Record<PapelNaDemanda, string> = { cliente: 'Cliente', responsavel: 'Responsável', colaborador: 'Colaborador' };

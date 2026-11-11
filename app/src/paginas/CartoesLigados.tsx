@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type DemandaLigada, type TarefaLigada } from '../dados';
 import { PAPEIS_NA_DEMANDA, rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA } from '../regras/demanda';
+import { colunaComMarco } from '../regras/quadro';
 import { PAPEIS_NA_TAREFA, SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -35,16 +36,19 @@ export function CartoesLigados({ modulo, carregar, vazio, nova, versao = 0, ante
   // A situação de cada um é o nome da coluna dele no quadro do módulo.
   const [colunas, setColunas] = useState<Coluna[]>([]);
   useEffect(() => {
-    carregar().then(setLista).catch(e => setLista((e as Error).message));
-    SD.colunasListar(modulo).then(setColunas).catch(() => {});
+    // A lista só aparece com as colunas na mão: sem elas, o concluído pareceria vencido por um instante.
+    Promise.all([carregar(), SD.colunasListar(modulo).catch(() => [] as Coluna[])])
+      .then(([itens, cols]) => { setColunas(cols); setLista(itens); })
+      .catch(e => setLista((e as Error).message));
   // oxlint-disable-next-line react/exhaustive-deps -- carrega quando a seção abre e quando o cartão muda (versao)
   }, [versao]);
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
   const { endereco, papeis, semSituacao } = MODULOS[modulo];
   const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || semSituacao;
+  // Concluído (na coluna-marco das concluídas), o prazo não aparece como vencido: a situação já diz que terminou.
   const prazo = (x: Ligado) => {
-    const r = rotuloDoPrazoComHora(x.prazo, x.prazo_hora, hojeISO());
+    const r = rotuloDoPrazoComHora(x.prazo, x.prazo_hora, hojeISO(), colunaComMarco(colunas, x.etapa_id, 'concluido'));
     return r ? ` · ${r}` : '';
   };
   return <>

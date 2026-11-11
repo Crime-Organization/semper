@@ -536,6 +536,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .recolhivel, .bloco.separada { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
 /* A situação fica no cabeçalho, logo abaixo do nome do cartão. */
 .cartao-situacao { margin-top: 16px }
+/* A situação com o botão Concluir ou Reabrir ao lado; em tela estreita, o botão desce para a linha de baixo. */
+.situacao-com-acao { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.situacao-com-acao select { flex: 1 1 12rem; min-width: 0 }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,

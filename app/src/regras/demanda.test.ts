@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Demanda, Membro } from '../dados/tipos';
 import {
   CAMPOS_DEMANDA, camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
-  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
+  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, seloDoPrazo, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
 } from './demanda';
 
 const completa = { ...DEMANDA_VAZIA, titulo: 'Pedido de registro de marca', responsavelId: 'u-ana' };
@@ -155,6 +155,47 @@ describe('Prazo da demanda', () => {
     const s = situacaoDoPrazo(prazo, '2026-10-29');
     // Então
     expect(s).toBe(esperada);
+  });
+
+  it.each([
+    ['vencido', '2026-10-28'],
+    ['de hoje', '2026-10-29'],
+    ['futuro', '2026-11-05']
+  ])('dado um cartão concluído com prazo %s, quando se vê a situação, então ela é "concluido"', (_caso, prazo) => {
+    // Quando
+    const s = situacaoDoPrazo(prazo, '2026-10-29', true);
+    // Então
+    expect(s).toBe('concluido');
+    expect(situacaoDoPrazo(null, '2026-10-29', true)).toBeNull();
+  });
+
+  it('dada uma tarefa concluída depois do prazo, quando aparece nas listas, então o texto não diz "vencido"', () => {
+    // Quando
+    const texto = rotuloDoPrazoComHora('2026-10-20', '14:00:00', '2026-10-29', true);
+    // Então
+    expect(texto).toBe('Prazo: 20/10/2026 às 14:00');
+  });
+
+  it.each([
+    ['tarefas', 'Concluída · Prazo: 20/10/2026'],
+    ['demandas', 'Concluído · Prazo: 20/10/2026']
+  ] as const)('dado um cartão de %s concluído com prazo vencido, quando aparece o selo, então ele é verde e diz que terminou', (modulo, texto) => {
+    // Quando
+    const selo = seloDoPrazo('2026-10-20', null, '2026-10-29', modulo);
+    // Então
+    expect(selo).toEqual({ tipo: 'ok', texto });
+  });
+
+  it.each([
+    ['vencido', '2026-10-20', { tipo: 'erro', texto: 'Prazo vencido: 20/10/2026' }],
+    ['de hoje', '2026-10-29', { tipo: 'pend', texto: 'Vence hoje: 29/10/2026' }],
+    ['futuro', '2026-11-05', { tipo: 'arq', texto: 'Prazo: 05/11/2026' }],
+    ['vazio', null, null]
+  ])('dado um cartão aberto com prazo %s, quando aparece o selo, então a cor e o texto seguem a data', (_caso, prazo, esperado) => {
+    // Quando
+    const selo = seloDoPrazo(prazo, null, '2026-10-29');
+    // Então
+    expect(selo).toEqual(esperado);
   });
 });
 

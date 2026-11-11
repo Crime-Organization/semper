@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type CartaoComListas, type ItemDaLista, type ListaDoCartao, type ModeloDeLista } from '../dados';
 import { TAMANHO_ITEM, TAMANHO_LISTA } from '../dados/limites';
-import { ROTULOS_PRAZO } from '../regras/demanda';
+import { ROTULOS_PRAZO, SELO_DO_PRAZO } from '../regras/demanda';
 import { moverNaLista, prazoDoItem, progressoDaLista } from '../regras/listas';
 import { fmtData, lerData } from '../regras/pessoa';
 import { avisar, falha } from '../ui/avisos';
@@ -15,8 +15,6 @@ import { MenuFlutuante } from '../ui/Menu';
 import { Recolhivel } from '../ui/Recolhivel';
 import { hojeISO } from '../ui/util';
 
-/** Cor do selo da data de entrega de um item: vencida em vermelho, para hoje em laranja, em dia neutra. */
-const SELO_DO_PRAZO = { vencido: 'erro', hoje: 'pend', em_dia: 'arq' } as const;
 /** O que muda de um cartão para o outro: o convite da lista vazia. */
 const DO_CARTAO: Record<CartaoComListas, { vazio: string }> = {
   demandas: { vazio: 'Nenhuma lista ainda. Use listas para os documentos e os passos da demanda.' },

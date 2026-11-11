@@ -22,6 +22,7 @@ import { SecaoArquivados } from '../ui/SecaoArquivados';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
+import { colunaComMarco } from '../regras/quadro';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
 import { dataDaOrdem, useOrdem } from '../ui/ordem';
@@ -30,7 +31,7 @@ import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
 import { CartaoTarefa } from './CartaoTarefa';
 import { oferecerConcluirDemanda } from './concluirDemanda';
-import { SeloDoPrazo } from './Demandas';
+import { SeloDoPrazo, type SeloConcluido } from './Demandas';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -45,6 +46,8 @@ export default function Tarefas() {
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
   const quadro = useColunas('tarefas', ctx, SEM_SITUACAO_TAREFA);
+  // O módulo, se o cartão está na coluna das concluídas; null enquanto as colunas não chegaram (sem selo, para não piscar "vencido").
+  const concluido = (etapa: string | null) => !quadro.pronto ? null : colunaComMarco(quadro.colunas, etapa, 'concluido') && ('tarefas' as const);
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
@@ -149,7 +152,7 @@ export default function Tarefas() {
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={t => t.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
-          cartao={(t, ordemDaColuna) => <CartaoKanban t={t} ordem={ordemDaColuna} />}
+          cartao={(t, ordemDaColuna, coluna) => <CartaoKanban t={t} ordem={ordemDaColuna} concluido={concluido(coluna)} />}
           endereco={t => endereco(t.id)}
           aoAbrir={t => abrir(t.id)}
           aoMover={async (t, m) => {
@@ -164,13 +167,13 @@ export default function Tarefas() {
           }}
           aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>
-          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
+          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe} concluido={concluido}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<TarefaLista> modulo="tarefas" nome={{ um: 'tarefa', varios: 'tarefas', feminino: true }} total={totalArquivadas}
             versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.tarefasArquivar(ids, a)} excluir={ids => SD.tarefasExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
-              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
+              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} concluido={concluido} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
         </>}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
@@ -179,7 +182,7 @@ export default function Tarefas() {
   </>;
 }
 
-function CartaoKanban({ t, ordem }: { t: TarefaLista; ordem: Ordem }) {
+function CartaoKanban({ t, ordem, concluido }: { t: TarefaLista; ordem: Ordem; concluido: SeloConcluido }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, t);
   return <>
@@ -188,7 +191,7 @@ function CartaoKanban({ t, ordem }: { t: TarefaLista; ordem: Ordem }) {
     <div className="km">
       <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
       {t.pessoa_nome && <span>{clientesPorExtenso(t.pessoa_nome)}</span>}
-      <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} />
+      <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
     </div>
     <div className="kp"><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} tam={24} /></div>
@@ -203,12 +206,14 @@ interface PropsTabela {
   filtrado: boolean;
   selecao: Selecao;
   situacao: (id: string | null) => string;
+  /** Se o cartão está na coluna das concluídas (o prazo dele não vence mais). */
+  concluido: (id: string | null) => SeloConcluido;
   endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido, endereco, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -233,7 +238,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
-        <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} /> : <span className="nota">—</span>}</td>
+        <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} /></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(t.criado_em) : relativo(t.atualizado_em)}</td>

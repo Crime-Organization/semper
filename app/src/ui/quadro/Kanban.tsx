@@ -29,8 +29,9 @@ interface Props<T extends { id: string }> {
   /** Mude este valor para recarregar todas as colunas (filtros novos, dados que mudaram). */
   recarga: string | number;
   ordemDe: (item: T) => number | null;
-  /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data). */
-  cartao: (item: T, ordem: Ordem) => ReactNode;
+  /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data) e "coluna" é a coluna em que
+   *  ele está desenhado agora (logo depois de arrastar, o item ainda traz a coluna antiga; null: sem etapa ou arquivados). */
+  cartao: (item: T, ordem: Ordem, coluna: string | null) => ReactNode;
   /** Endereço que abre o cartão do item: Ctrl+clique e a rodinha do mouse o abrem numa aba nova. */
   endereco: (item: T) => string;
   aoAbrir: (item: T) => void;
@@ -321,7 +322,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
               e.dataTransfer.setData('text/plain', it.id);
             }}
             onDragEnd={() => { arrasto.current = null; setArrastando(null); setAlvo(null); }}>
-            {props.cartao(it, ordem)}
+            {props.cartao(it, ordem, arquivo ? null : id)}
           </article>
         </Fragment>)}
         {marcador && alvo.antes === null && <div className="kmarcador" />}

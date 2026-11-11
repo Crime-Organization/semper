@@ -134,6 +134,25 @@ test.describe('Quadro de tarefas', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await expect(page.getByRole('row').filter({ hasText: 'Registro de marca' })).toContainText('Concluído');
   });
+
+  test('dada uma tarefa vencida, quando é arrastada para "Concluída", então o selo fica verde na hora, sem recarregar; e volta a vermelho ao sair', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    const paraFazer = page.getByRole('list', { name: 'Para fazer', exact: true });
+    const concluida = page.getByRole('list', { name: 'Concluída', exact: true });
+    await expect(paraFazer.getByRole('listitem').filter({ hasText: 'Renovar a procuração' })).toContainText('Prazo vencido');
+    // Quando
+    await paraFazer.getByRole('listitem').filter({ hasText: 'Renovar a procuração' }).dragTo(concluida);
+    // Então
+    const naConcluida = concluida.getByRole('listitem').filter({ hasText: 'Renovar a procuração' });
+    await expect(naConcluida).toContainText('Concluída · Prazo:');
+    await expect(naConcluida).not.toContainText('Prazo vencido');
+    // Quando: volta para "Para fazer"
+    await naConcluida.dragTo(paraFazer);
+    // Então
+    await expect(paraFazer.getByRole('listitem').filter({ hasText: 'Renovar a procuração' })).toContainText('Prazo vencido');
+  });
 });
 
 test.describe('Cadastro numa janela', () => {
@@ -438,5 +457,133 @@ test.describe('Sair da tarefa (#276)', () => {
     const historico = await abrirTarefa(page, 'Renovar a procuração', 'Histórico de alterações');
     await expect(historico.getByText(/Participantes/).last()).toBeVisible();
     await expect(historico).toContainText('Bruno Exemplo Souza');
+  });
+});
+
+test.describe('Concluir a tarefa', () => {
+  test('dada uma tarefa com o prazo vencido, quando a pessoa clica em "Concluir", então o selo fica verde, sem "vencido", e "Reabrir" a devolve', async ({ page }) => {
+    // Dado: "Renovar a procuração" venceu ontem e está em "Para fazer"
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
+    // Quando
+    await cartao.getByRole('button', { name: 'Concluir', exact: true }).click();
+    // Então
+    await expect(page.getByText('Tarefa concluída.')).toBeVisible();
+    await expect(cartao.getByText(/^Concluída · Prazo: /)).toBeVisible();
+    await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);
+    await expect(cartao.getByLabel('Situação da tarefa')).toHaveValue('t4');
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    const linha = page.getByRole('row').filter({ hasText: 'Renovar a procuração' });
+    await expect(linha).toContainText('Concluída · Prazo:');
+    await expect(linha).not.toContainText('Prazo vencido');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    const noQuadro = page.getByRole('list', { name: 'Concluída', exact: true }).getByRole('listitem').filter({ hasText: 'Renovar a procuração' });
+    await expect(noQuadro).toContainText('Concluída · Prazo:');
+
+    // Quando: reabre
+    const deNovo = await abrirTarefa(page, 'Renovar a procuração');
+    await deNovo.getByRole('button', { name: 'Reabrir' }).click();
+    // Então
+    await expect(page.getByText('Tarefa reaberta em "Para fazer".')).toBeVisible();
+    await expect(deNovo.getByText(/^Prazo vencido: /)).toBeVisible();
+    await expect(deNovo.getByRole('button', { name: 'Concluir', exact: true })).toBeVisible();
+  });
+
+  test('dado um escritório que renomeou a coluna das concluídas, quando a tarefa vai para ela, então o selo também diz "Concluída"', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    await page.getByRole('button', { name: 'Opções da coluna Concluída' }).click();
+    await page.getByRole('menuitem', { name: 'Renomear' }).click();
+    const janela = page.getByRole('dialog', { name: 'Renomear coluna' });
+    await janela.getByLabel('Renomear coluna').fill('Feitas');
+    await janela.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByRole('list', { name: 'Feitas', exact: true })).toBeVisible();
+    // Quando
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'Feitas' });
+    // Então
+    await expect(cartao.getByText(/^Concluída · Prazo: /)).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeVisible();
+  });
+
+  test('dada a equipe vendo tudo, quando quem não está na tarefa a abre, então não aparece "Concluir"', async ({ page }) => {
+    // Dado: o Bruno não está em "Renovar a procuração"
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Então
+    await expect(cartao.getByLabel('Situação da tarefa')).toBeDisabled();
+    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);
+  });
+
+  test('dada uma tarefa concluída pelo botão, quando a pessoa clica em "Desfazer", então ela volta para onde estava', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Concluir', exact: true }).click();
+    await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeFocused();
+    // Quando
+    await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
+    // Então
+    await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
+    await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('Para fazer');
+  });
+
+  test('dada a última tarefa aberta de uma demanda, quando a pessoa clica em "Concluir", então o sistema oferece concluir a demanda', async ({ page }) => {
+    // Dado: "Organizar a pasta" já está concluída; conclui "Pedir documentos ao cliente" pelo botão
+    const pedir = await abrirTarefa(page, 'Pedir documentos ao cliente');
+    await pedir.getByRole('button', { name: 'Concluir', exact: true }).click();
+    await expect(page.getByRole('dialog', { name: 'Concluir a demanda?' })).toHaveCount(0);
+    // Quando
+    const gru = await abrirTarefa(page, 'Emitir a GRU');
+    await gru.getByRole('button', { name: 'Concluir', exact: true }).click();
+    // Então
+    await expect(page.getByRole('dialog', { name: 'Concluir a demanda?' })).toContainText('Registro de marca');
+  });
+
+  test('dada uma tarefa arquivada, quando a pessoa abre o cartão, então não aparecem "Concluir" nem "Reabrir"', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
+    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    // Então
+    await expect(cartao.getByText('Arquivada', { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Reabrir' })).toHaveCount(0);
+  });
+});
+
+test.describe('Prazo de cartão concluído nas listas', () => {
+  test('dada uma tarefa já concluída, quando ganha um prazo que já passou, então o cartão não mostra "Prazo vencido"', async ({ page }) => {
+    // Dado: "Organizar a pasta" está concluída; dá a ela um prazo vencido
+    const cartao = await abrirTarefa(page, 'Organizar a pasta');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
+    await edicao.getByLabel('Prazo').fill('01012020');
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(edicao).toHaveCount(0);
+    // Então
+    await expect(cartao.getByText(/^Concluída · Prazo: 01\/01\/2020/)).toBeVisible();
+    await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);
+  });
+
+  test('dada uma tarefa vencida e concluída, quando aparece no cartão da pessoa, então a linha não diz "Prazo vencido"', async ({ page }) => {
+    // Dado: a Ana é responsável por "Renovar a procuração", que venceu ontem
+    const tarefa = await abrirTarefa(page, 'Renovar a procuração');
+    await tarefa.getByRole('button', { name: 'Concluir', exact: true }).click();
+    await expect(page.getByText('Tarefa concluída.')).toBeVisible();
+    // Quando
+    await page.goto('/pessoas/');
+    await page.getByRole('searchbox').fill('ana teste');
+    await page.getByRole('row').filter({ hasText: /ANA TESTE LIMA/i }).click();
+    const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Tarefas');
+    // Então
+    const linha = cartao.getByRole('link', { name: /Renovar a procuração/ });
+    await expect(linha).toContainText('Concluída · Prazo: ');
+    await expect(linha).not.toContainText('vencido');
   });
 });
