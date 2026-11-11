@@ -1,0 +1,1 @@
+import{C as e}from"./util-iJn3fr2d.js";import{s as t}from"./posicao-BMnhImeq.js";async function n(n){let[r,i]=await Promise.all([e.colunasListar(n),e.gruposListar(n)]);return t(r,i)?.id??null}export{n as t};
