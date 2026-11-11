@@ -197,7 +197,7 @@ test.describe('Editar no cartão', () => {
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
     await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toBeVisible();
-    await expect(edicao.getByRole('heading', { name: 'Demanda e contrato' })).toBeVisible();
+    await expect(edicao.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeVisible();
     await edicao.getByLabel('Prazo').fill('15112030');
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então

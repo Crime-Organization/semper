@@ -18,7 +18,8 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { Recolhivel } from '../ui/Recolhivel';
-import { useQuantos } from '../ui/useQuantos';
+import { useLista, useQuantos } from '../ui/useQuantos';
+import { ContratosDoProcesso } from './ContratosDoProcesso';
 import { quantosPreenchidos } from '../regras/secoes';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
@@ -67,6 +68,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     demandas: useQuantos(() => SD.demandasDoProcesso(id), chave, !!modulos?.demandas),
     tarefas: useQuantos(() => SD.tarefasDoProcesso(id), chave, !!modulos?.tarefas),
     compromissos: useQuantos(() => SD.compromissosDoProcesso(id), chave, !!modulos?.compromissos),
+    contratos: useLista(() => SD.contratosDoProcesso(id).then(x => [x]), chave, !!modulos?.contratos)?.[0],
     historico: useQuantos(() => SD.processoHistorico(id), chave)
   };
 
@@ -167,6 +169,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}>
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoProcesso(p.id)} vazio="Nenhuma demanda ligada a este processo que você possa abrir." versao={versaoHist} />
+    </Recolhivel>}
+
+    {modulos?.contratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="processos.cartao.contratos"
+      contador={quantos.contratos ? quantos.contratos.visiveis.length + quantos.contratos.ocultos : undefined}>
+      <ContratosDoProcesso processoId={p.id} versao={versaoHist} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas" contador={quantos.tarefas}>

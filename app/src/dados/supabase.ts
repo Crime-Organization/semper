@@ -12,9 +12,9 @@ import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { traduzir } from './erros';
-import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
+import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
+import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
@@ -378,7 +378,7 @@ const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero)';
+  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)';
 type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
@@ -976,8 +976,34 @@ export const SD: Dados = {
   },
 
   // ---------- processo e demanda ----------
-  async processoDemandaLigar(processoId, demandaId) {
-    await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }));
+  async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
+    await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, papel, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }));
+  },
+  async processoDemandaDesligar(processoId, demandaId) {
+    // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
+    conferirQueMudou((await rodar(sb.from('processo_demandas').delete().eq('processo_id', processoId).eq('demanda_id', demandaId).select('processo_id').maybeSingle())).data);
+  },
+  async contratoProcessoLigar(contratoId, processoId) {
+    await rodar(sb.from('contrato_processos').upsert({ contrato_id: contratoId, processo_id: processoId, criado_por: uid() }, { onConflict: 'contrato_id,processo_id', ignoreDuplicates: true }));
+  },
+  async contratoProcessoDesligar(contratoId, processoId) {
+    conferirQueMudou((await rodar(sb.from('contrato_processos').delete().eq('contrato_id', contratoId).eq('processo_id', processoId).select('processo_id').maybeSingle())).data);
+  },
+  async processosDoContrato(contratoId) {
+    const { data } = await rodar(sb.from('contrato_processos').select('processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, etapa_id, arquivado_em, criado_em)').eq('contrato_id', contratoId).order('criado_em').limit(PROCESSOS_LIGADOS));
+    // Como nas demandas: quem não pode ver o processo recebe a ligação sem ele.
+    const linhas = data as { processo: Livre }[];
+    const visiveis = linhas.flatMap(({ processo }) => processo ? [{ ...processo, papeis: [] }] : []);
+    return { visiveis, ocultos: linhas.length - visiveis.length };
+  },
+  async contratosDoProcesso(processoId) {
+    // Quem não é parte lê o contrato pela view, sem os valores; a view não se liga à tabela pela chave, por isso são duas leituras.
+    const { data } = await rodar(sb.from('contrato_processos').select('contrato_id').eq('processo_id', processoId).order('criado_em').limit(CONTRATOS_LIGADOS));
+    const ids = (data as { contrato_id: string }[]).map(l => l.contrato_id);
+    if (!ids.length) return { visiveis: [], ocultos: 0 };
+    const { data: contratos } = await rodar(sb.from('contratos_da_equipe').select('id, codigo, servico, cliente_nome, etapa_id, arquivado_em').in('id', ids));
+    const visiveis = ids.flatMap(id => (contratos as ContratoDoProcesso[]).filter(k => k.id === id));
+    return { visiveis, ocultos: ids.length - visiveis.length };
   },
   async demandasDoProcesso(processoId) {
     const { data } = await rodar(sb.from('processo_demandas').select(`demanda:demandas(${CAMPOS_DEMANDA_LIGADA}, contrato_id, criado_por)`).eq('processo_id', processoId).order('criado_em').limit(DEMANDAS_LIGADAS));

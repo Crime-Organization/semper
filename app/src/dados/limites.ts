@@ -171,8 +171,10 @@ export const TAMANHO_CAMPO = { nome: 80, opcao: 120, texto: 1000 };
 export const DIGITOS_DO_NUMERO = { inteiros: 20, decimais: 10 };
 /** Quantas opções um campo de lista pode ter (exigido pela mesma migração). */
 export const OPCOES_POR_CAMPO = 50;
-/** Quantos processos entram na lista de um cartão (o da pessoa). */
+/** Quantos processos entram na lista de um cartão (o da pessoa, o da demanda, o do contrato). */
 export const PROCESSOS_LIGADOS = 200;
+/** Quantos contratos entram na lista do cartão do processo. */
+export const CONTRATOS_LIGADOS = 200;
 /** De quantos processos vêm as sugestões de comarca, vara e órgão. */
 export const PROCESSOS_PARA_SUGERIR = 1000;
 
@@ -185,5 +187,5 @@ export const HISTORICO_DO_COMPROMISSO = 100;
 export const COMPROMISSOS_LIGADOS = 200;
 /** Quantos compromissos, e quantos prazos de cada módulo, a agenda lê de um período (um mês tem bem menos que isso). */
 export const ITENS_DA_AGENDA = 500;
-/** Quantos processos (os ativos mais recentes que combinam com a busca) o cadastro de compromisso oferece para ligar. */
+/** Quantos processos (os ativos mais recentes que combinam com a busca) a busca de processo oferece para ligar. */
 export const PROCESSOS_PARA_LIGAR = 50;

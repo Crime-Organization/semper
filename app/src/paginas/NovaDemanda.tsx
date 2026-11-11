@@ -22,6 +22,9 @@ import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base'
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
+import { mudancasNosProcessos } from '../regras/processo';
+import { gravarProcessos } from './ProcessosDoCartao';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
@@ -61,14 +64,22 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   // Os contratos que se pode ligar (os ativos mais recentes) e o texto digitado na busca.
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
   const [buscaContrato, setBuscaContrato] = useState('');
+  // Os processos ligados (os que a pessoa pode abrir; os outros só contados) e os que já estavam, para gravar só o que mudou.
+  const comProcessos = !!ctx.escritorio?.modulos?.processos;
+  const [processos, setProcessos] = useState<ProcessoEscolhido[]>([]);
+  const [processosOcultos, setProcessosOcultos] = useState(0);
+  const processosAntes = useRef<string[]>([]);
   useTitulo(edicao ? null : alvo ? 'Atualizar demanda' : 'Nova demanda');
 
   useEffect(() => {
     SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR, paraLigar: true }).then(r => setContratos(r.linhas)).catch(() => {});
     if (idAtualizar) {
-      SD.demandaObter(idAtualizar)
-        .then(d => {
+      Promise.all([SD.demandaObter(idAtualizar), comProcessos ? SD.processosDaDemanda(idAtualizar) : { visiveis: [], ocultos: 0 }])
+        .then(([d, ligados]) => {
           if (!d) throw new Error('Demanda não encontrada.');
+          setProcessos(ligados.visiveis);
+          setProcessosOcultos(ligados.ocultos);
+          processosAntes.current = ligados.visiveis.map(p => p.id);
           setAlvo(d);
           setC(camposDaDemanda(d));
           setClientes(d.clientes.length ? d.clientes : [null]);
@@ -177,6 +188,10 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         const antes = dadosDaDemanda(camposDaDemanda(alvo));
         const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDaDemanda(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.demandaAtualizar(alvo.id, gravar);
+        // Os processos antes de uma eventual saída: depois dela, a pessoa pode não poder mais ligar nem desligar.
+        const mudou = mudancasNosProcessos(processosAntes.current, processos.map(p => p.id));
+        const ligar = (id: string) => SD.processoDemandaLigar(id, alvo.id, 'atua'), desligar = (id: string) => SD.processoDemandaDesligar(id, alvo.id);
+        await gravarProcessos(mudou, ligar, desligar);
         if (ficou) {
           // A pessoa se tirou do cartão: o resto já foi gravado com ela nele, e a saída vem por último, para valer mesmo que ela perca o acesso.
           await sairDoCartao('demandas', alvo.id, 'Demanda atualizada. Você saiu dela, e a saída ficou no histórico.');
@@ -186,6 +201,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         }
         feito('Demanda atualizada.', 'atualização da demanda', async () => {
           await SD.demandaAtualizar(alvo.id, antes);
+          await gravarProcessos({ ligar: mudou.desligar, desligar: mudou.ligar }, ligar, desligar);
           return { tipo: 'demandaAtualizada', id: alvo.id };
         });
         saidaLiberada.current = true;
@@ -194,6 +210,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         // Sem coluna escolhida, a demanda nova entra na coluna-marco de início ("Para fazer").
         const coluna = etapaInicial || await colunaInicial('demandas');
         const r = await SD.demandaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        await Promise.all(processos.map(p => SD.processoDemandaLigar(p.id, r.id, 'atua')));
         feito(`Demanda ${r.codigo} cadastrada.`, 'cadastro da demanda', async () => {
           await SD.demandasArquivar([r.id], true);
           const x = await SD.demandasExcluir([r.id]);
@@ -265,6 +282,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
           <CampoComSugestoes id="contrato" aria-describedby="contrato-dica" placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}
             sugestoes={contratos.map(k => ({ valor: rotuloDoContrato(k) }))} />
         </Campo>}
+      {comProcessos && <EscolhaDeProcessos rotulo="Processos" dica="Os processos em que a demanda trabalha. Busque pelo número, pelo nome ou pelo cliente."
+        escolhidos={processos} ocultos={processosOcultos} aoMudar={setProcessos} />}
     </>
   };
 
@@ -282,7 +301,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const voltar = idAtualizar ? '/demandas/?id=' + idAtualizar : '/demandas/';
   const total = ETAPAS_DEMANDA.length;
   return <div className="passos">
-    <AvisoAoSair estado={{ c, clientes }} liberada={saidaLiberada} ocupado={ocupado} />
+    <AvisoAoSair estado={{ c, clientes, processos }}liberada={saidaLiberada} ocupado={ocupado} />
     <header>
       <p className="olho"><Link to={voltar}>Demandas</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar demanda' : 'Nova demanda'}<span className="ponto">.</span></h1>

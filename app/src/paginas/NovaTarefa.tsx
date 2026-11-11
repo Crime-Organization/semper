@@ -1,5 +1,5 @@
 // Cadastro de tarefa (novo ou atualizar), por etapas como o de demanda: a tarefa (título, descrição, prazo, hora e lembrete), as pessoas
-// (responsável, participantes da equipe e pessoas do cadastro) e as ligações (demanda e contrato), que são opcionais.
+// (responsável, participantes da equipe e pessoas do cadastro) e as ligações (demanda, contrato e processo), que são opcionais.
 // Vindo do cartão de uma pessoa (?pessoa=), de uma demanda (?demanda=) ou de um contrato (?contrato=), ele já vem
 // escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -23,6 +23,7 @@ import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base'
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
@@ -67,6 +68,9 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
   const [buscaDemanda, setBuscaDemanda] = useState('');
   const [buscaContrato, setBuscaContrato] = useState('');
+  // O processo escolhido, para mostrar o nome (o campo guarda só o id).
+  const comProcessos = !!ctx.escritorio?.modulos?.processos;
+  const [processo, setProcesso] = useState<ProcessoEscolhido | null>(null);
   useTitulo(edicao ? null : alvo ? 'Atualizar tarefa' : 'Nova tarefa');
 
   // As pessoas de uma vez (ao abrir uma tarefa salva, ou ao escolher uma demanda com clientes).
@@ -94,6 +98,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           if (!t) throw new Error('Tarefa não encontrada.');
           setAlvo(t);
           setC(camposDaTarefa(t));
+          setProcesso(t.processo);
           porPessoas(t.pessoas);
         })
         .catch(falha)
@@ -291,6 +296,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           <CampoComSugestoes id="contrato" aria-describedby="contrato-dica" placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}
             sugestoes={contratos.map(k => ({ valor: rotuloDoContrato(k) }))} />
         </Campo>}
+      {/* O processo que a pessoa não pode abrir fica como está: só contado, sem o "X". */}
+      {comProcessos && <EscolhaDeProcessos rotulo="Processo" dica="O processo de que a tarefa cuida. Busque pelo número, pelo nome ou pelo cliente." maximo={1}
+        escolhidos={processo ? [processo] : []} ocultos={c.processoId && !processo ? 1 : 0}
+        aoMudar={lista => { setProcesso(lista[0] ?? null); mudar({ processoId: lista[0]?.id ?? '' }); }} />}
     </>
   };
 

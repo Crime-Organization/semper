@@ -246,6 +246,8 @@ export interface Contrato {
 /** Papel de uma pessoa num contrato (o responsável é um usuário da equipe, pela pessoa ligada a ele). */
 export type PapelNoContrato = 'cliente' | 'responsavel' | 'participante' | 'indicador';
 /** Contrato como aparece no cartão de uma pessoa: o que ele é e o que a pessoa é nele. */
+/** O contrato como aparece no cartão do processo ligado a ele. */
+export type ContratoDoProcesso = Pick<Contrato, 'id' | 'codigo' | 'servico' | 'cliente_nome' | 'etapa_id' | 'arquivado_em'>;
 export interface ContratoDaPessoa extends Pick<Contrato, 'id' | 'codigo' | 'servico' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
   papeis: PapelNoContrato[];
 }
@@ -392,10 +394,10 @@ export interface Tarefa {
   demanda: DemandaDaTarefa | null;
   /** O contrato, se quem vê a tarefa também pode abri-lo; senão null (e fica só o número). */
   contrato: { id: string; codigo: string; servico: string } | null;
-  /** A ligação nasce com a tarefa (de uma intimação ou de um prazo) e não muda depois. */
+  /** O processo da tarefa: nasce com ela (de uma intimação ou de um prazo) ou é ligado depois, no cadastro ou no cartão. */
   processo_id: string | null;
   /** O processo, se quem vê a tarefa também pode abri-lo; senão null. */
-  processo: { id: string; codigo: string; tipo: TipoProcesso; numero: string } | null;
+  processo: Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome'> | null;
 }
 /** O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). */
 export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
@@ -585,8 +587,8 @@ export interface DadosTarefas {
   tarefasDaEtapa(etapaId: string | null, f?: FiltroTarefas, deslocamento?: number, limite?: number): Promise<Pagina<TarefaLista>>;
   tarefaObter(id: string): Promise<Tarefa | null>;
   tarefaCriar(dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
-  /** A ligação com o processo nasce com a tarefa e não muda. */
-  tarefaAtualizar(id: string, dados: Omit<DadosTarefa, 'processo_id'>): Promise<{ id: string; codigo: string }>;
+  /** Trocar o processo só aceita um processo ativo em que a pessoa está; null tira o processo. */
+  tarefaAtualizar(id: string, dados: DadosTarefa): Promise<{ id: string; codigo: string }>;
   tarefasArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só tarefas arquivadas são excluídas (por quem criou ou um administrador). */
   tarefasExcluir(ids: string[]): Promise<Exclusao>;
@@ -1215,6 +1217,8 @@ export interface DadosCompromissos {
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */
   processosParaLigar(termo?: string): Promise<ProcessoParaLigar[]>;
 }
+/** Como a demanda se liga ao processo: deu origem a ele, ou trabalha nele (ligada depois). */
+export type PapelDaDemandaNoProcesso = 'originou' | 'atua';
 /** A demanda no cartão do processo, com quem a vê: para saber se a tarefa pode herdá-la. */
 export type DemandaDoProcesso = DemandaLigada & Pick<Demanda, 'contrato_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
 /** O processo como aparece no painel. Os clientes vêm só pelo id. */
@@ -1253,8 +1257,20 @@ export interface DadosAcompanhamento {
   processoPrazoRestaurar(id: string): Promise<void>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
-  /** Liga o processo à demanda de que ele nasceu. Ligar de novo não muda nada. */
-  processoDemandaLigar(processoId: string, demandaId: string): Promise<void>;
+  /** Liga o processo à demanda: "originou" quando ele nasceu dela; "atua" quando foi ligado depois, à mão. Ligar de novo não muda
+   *  nada. Só um processo ativo em que a pessoa está, numa demanda em que ela está. */
+  processoDemandaLigar(processoId: string, demandaId: string, papel?: PapelDaDemandaNoProcesso): Promise<void>;
+  /** Quem está na demanda e vê o processo desliga os dois (mesmo com o processo arquivado). */
+  processoDemandaDesligar(processoId: string, demandaId: string): Promise<void>;
+  /** Liga o processo ao contrato (supabase/migrations/20261111095627_ligar_processo_existente.sql): quem altera o contrato, com um
+   *  processo ativo em que está. Ligar de novo não muda nada. */
+  contratoProcessoLigar(contratoId: string, processoId: string): Promise<void>;
+  /** Quem altera o contrato e vê o processo desliga os dois. */
+  contratoProcessoDesligar(contratoId: string, processoId: string): Promise<void>;
+  /** Os processos ligados ao contrato que quem está logado pode ver, e quantos há que ele não pode abrir. */
+  processosDoContrato(contratoId: string): Promise<{ visiveis: ProcessoLigado[]; ocultos: number }>;
+  /** Os contratos ligados ao processo que quem está logado pode ver (sem os valores), e quantos há que ele não pode abrir. */
+  contratosDoProcesso(processoId: string): Promise<{ visiveis: ContratoDoProcesso[]; ocultos: number }>;
   /** As demandas ligadas ao processo que quem está logado pode ver. */
   demandasDoProcesso(processoId: string): Promise<DemandaDoProcesso[]>;
   /** Os processos ligados à demanda que quem está logado pode ver, e quantos há que ele não pode abrir. */

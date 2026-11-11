@@ -33,7 +33,16 @@ describe('Cadastro de tarefa', () => {
     const dados = dadosDaTarefa({ ...completa, descricao: '  ', prazo: '10/11/2026', participantes: ['u-bruno', 'u-ana', 'u-bruno'], pessoas: ['p1', '', 'p1'] });
     // Então
     expect(dados).toEqual({ titulo: 'Emitir a GRU', descricao: null, prazo: '2026-11-10', prazo_hora: null, lembrete: null, responsavel_id: 'u-ana',
-      participantes: ['u-bruno'], pessoas: ['p1'], demanda_id: null, contrato_id: null });
+      participantes: ['u-bruno'], pessoas: ['p1'], demanda_id: null, contrato_id: null, processo_id: null });
+  });
+
+  it('dado um processo escolhido, quando a tarefa é salva, então ele vai junto; tirado, vai como nada (#294)', () => {
+    // Quando
+    const comProcesso = dadosDaTarefa({ ...completa, processoId: 'pr1' });
+    const semProcesso = dadosDaTarefa({ ...completa, processoId: '' });
+    // Então
+    expect(comProcesso.processo_id).toBe('pr1');
+    expect(semProcesso.processo_id).toBeNull();
   });
 
   it('dado um prazo com hora e lembrete, quando a tarefa é salva, então os dois vão junto', () => {
@@ -79,12 +88,12 @@ describe('Cadastro de tarefa', () => {
   it('quando a tarefa salva volta ao formulário, então os campos voltam como foram digitados', () => {
     // Dado
     const t = { titulo: 'X', descricao: null, prazo: '2026-11-10', responsavel_id: 'u-ana', participantes: ['u-bruno'],
-      pessoas: [{ id: 'p1' }], demanda_id: 'd1', contrato_id: null } as unknown as Tarefa;
+      pessoas: [{ id: 'p1' }], demanda_id: 'd1', contrato_id: null, processo_id: 'pr1' } as unknown as Tarefa;
     // Quando
     const campos = camposDaTarefa(t);
     // Então
     expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, responsavelId: 'u-ana', participantes: ['u-bruno'],
-      pessoas: ['p1'], demandaId: 'd1', contratoId: '' });
+      pessoas: ['p1'], demandaId: 'd1', contratoId: '', processoId: 'pr1' });
   });
 
   it('dado uma tarefa sem prazo que ficou com hora e lembrete no banco, quando volta ao formulário, então os dois vêm vazios e a edição não trava', () => {

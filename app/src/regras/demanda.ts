@@ -98,7 +98,7 @@ export const ETAPAS_DEMANDA: DefinicaoEtapaDemanda[] = [
   { id: 'demanda', titulo: 'A demanda', texto: 'O que precisa ser feito e, se houver, o prazo de entrega, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem responde pela demanda, quem da equipe ajuda e para quais clientes.',
     campos: ['responsavelId', 'colaboradores', 'clientes'] },
-  { id: 'contrato', titulo: 'Contrato', texto: 'Se a demanda vem de um contrato, ligue-o aqui. Não é obrigatório.', campos: ['contratoId'] }
+  { id: 'contrato', titulo: 'Contrato e processos', texto: 'Se a demanda vem de um contrato ou trabalha num processo que já existe, ligue aqui. Não é obrigatório.', campos: ['contratoId'] }
 ];
 /** Erros só dos campos de uma etapa (o que impede de seguir para a próxima). */
 export function errosDaEtapaDemanda(etapa: EtapaDemanda, c: CamposDemanda): Partial<Record<keyof CamposDemanda, string>> {

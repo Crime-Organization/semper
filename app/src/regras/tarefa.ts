@@ -27,9 +27,11 @@ export interface CamposTarefa {
   pessoas: string[];
   demandaId: string;
   contratoId: string;
+  /** Um processo só, ou vazio. */
+  processoId: string;
 }
 export const TAREFA_VAZIA: CamposTarefa = {
-  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, responsavelId: '', participantes: [], pessoas: [''], demandaId: '', contratoId: ''
+  titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, responsavelId: '', participantes: [], pessoas: [''], demandaId: '', contratoId: '', processoId: ''
 };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
@@ -73,7 +75,8 @@ export function dadosDaTarefa(c: CamposTarefa): DadosTarefa {
   return {
     titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), responsavel_id: c.responsavelId,
     participantes: [...new Set(escolhidos(c.participantes))].filter(id => id !== c.responsavelId),
-    pessoas: [...new Set(escolhidos(c.pessoas))], demanda_id: c.demandaId || null, contrato_id: c.contratoId || null
+    pessoas: [...new Set(escolhidos(c.pessoas))], demanda_id: c.demandaId || null, contrato_id: c.contratoId || null,
+    processo_id: c.processoId || null
   };
 }
 
@@ -99,7 +102,7 @@ export function semSairDaTarefa(d: DadosTarefa, eu: string, podeSair: boolean, a
 export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
   titulo: t.titulo, descricao: t.descricao || '', prazo: fmtData(t.prazo), ...horaELembreteDoCartao(t), responsavelId: t.responsavel_id,
   participantes: [...t.participantes], pessoas: t.pessoas.length ? t.pessoas.map(p => p.id) : [''],
-  demandaId: t.demanda_id || '', contratoId: t.contrato_id || ''
+  demandaId: t.demanda_id || '', contratoId: t.contrato_id || '', processoId: t.processo_id || ''
 });
 
 // ---------- etapas do cadastro ----------
@@ -110,8 +113,8 @@ export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
   { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito e, se houver, o prazo, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem da equipe ajuda e, se houver, as pessoas do cadastro ligadas a ela.',
     campos: ['responsavelId', 'participantes', 'pessoas'] },
-  { id: 'ligacoes', titulo: 'Demanda e contrato', texto: 'Se a tarefa é parte de uma demanda ou vem de um contrato, ligue aqui. Não é obrigatório.',
-    campos: ['demandaId', 'contratoId'] }
+  { id: 'ligacoes', titulo: 'Demanda, contrato e processo', texto: 'Se a tarefa é parte de uma demanda, vem de um contrato ou cuida de um processo, ligue aqui. Não é obrigatório.',
+    campos: ['demandaId', 'contratoId', 'processoId'] }
 ];
 /** Erros só dos campos de uma etapa (o que impede de seguir para a próxima). */
 export function errosDaEtapaTarefa(etapa: EtapaTarefa, c: CamposTarefa): Partial<Record<keyof CamposTarefa, string>> {
@@ -126,7 +129,7 @@ export const primeiraEtapaComErroTarefa = (c: CamposTarefa) =>
 /** Nome de cada campo no histórico de alterações da tarefa. */
 export const CAMPOS_TAREFA: Record<string, string> = {
   titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', responsavel_id: 'Responsável', participantes: 'Participantes',
-  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', etapa: 'Situação', arquivado_em: 'Arquivamento'
+  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
 /** Como cada campo aparece no cartão e no histórico (o prazo como dia/mês/ano, a hora como hh:mm, o lembrete por extenso, vazio como traço), igual às demandas. */
 export const valorLegivelTarefa = valorLegivelDemanda;

@@ -156,7 +156,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}>
-      <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} />
+      <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>

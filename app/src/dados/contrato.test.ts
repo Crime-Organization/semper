@@ -1926,16 +1926,37 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(noPrazo).rejects.toThrow('Já existe uma tarefa ligada a este item.');
       });
 
-      it('quando a tarefa aponta um processo que não existe, ou tenta trocar a ligação, então é recusado', async () => {
+      // Antes do #294 a ligação nascia com a tarefa e não mudava; agora se troca e se tira, só por um processo ativo.
+      it('quando a tarefa aponta um processo que não existe, ou troca por um arquivado, então é recusado', async () => {
         // Dado
-        const p = await novoProcesso();
+        const [p, arquivado] = [await novoProcesso(), await novoProcesso()];
+        await SD.processosArquivar([arquivado.id], true);
         const t = await SD.tarefaCriar({ titulo: 'Ligada', responsavel_id: 'u-ana', processo_id: p.id });
         // Quando
         const inexistente = SD.tarefaCriar({ titulo: 'Fora', responsavel_id: 'u-ana', processo_id: 'nao-existe' });
-        const trocar = SD.tarefaAtualizar(t.id, { processo_id: null } as Parameters<Dados['tarefaAtualizar']>[1]);
+        const trocarPorArquivado = SD.tarefaAtualizar(t.id, { processo_id: arquivado.id });
         // Então
         await expect(inexistente).rejects.toThrow('Processo não encontrado neste escritório.');
-        await expect(trocar).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(trocarPorArquivado).rejects.toThrow('Processo não encontrado neste escritório.');
+        expect((await SD.tarefaObter(t.id))?.processo_id).toBe(p.id);
+      });
+
+      it('quando a tarefa troca de processo e depois o tira, então o cartão mostra o novo, a tarefa sai do antigo e o histórico guarda as duas mudanças', async () => {
+        // Dado
+        const [p, q] = [await novoProcesso(), await novoProcesso()];
+        const t = await SD.tarefaCriar({ titulo: 'Trocar', responsavel_id: 'u-ana', processo_id: p.id });
+        // Quando
+        await SD.tarefaAtualizar(t.id, { processo_id: q.id });
+        // Então
+        expect(await SD.tarefaObter(t.id)).toMatchObject({ processo_id: q.id, processo: { id: q.id, codigo: q.codigo } });
+        expect((await SD.tarefasDoProcesso(p.id)).map(x => x.id)).not.toContain(t.id);
+        expect((await SD.tarefasDoProcesso(q.id)).map(x => x.id)).toContain(t.id);
+        // Quando
+        await SD.tarefaAtualizar(t.id, { processo_id: null });
+        // Então
+        expect(await SD.tarefaObter(t.id)).toMatchObject({ processo_id: null, processo: null });
+        const historico = await SD.tarefaHistorico(t.id);
+        expect(historico.map(h => h.alteracoes.processo)).toEqual(expect.arrayContaining([{ de: expect.any(String), para: null }, { de: expect.any(String), para: expect.any(String) }]));
       });
 
       it('quando o processo está arquivado, então lê, mas não lança, não muda e não exclui', async () => {
@@ -2037,6 +2058,126 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.processosExcluir([p.id]);
         // Então
         expect(await SD.processosDaDemanda(d.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('quando a demanda tem vários processos e um é desligado, então só ele sai, dos dois lados', async () => {
+        // Dado
+        const [p, q, d] = [await novoProcesso(), await novoProcesso(), await novaDemanda()];
+        await SD.processoDemandaLigar(p.id, d.id, 'atua');
+        await SD.processoDemandaLigar(q.id, d.id, 'atua');
+        // Quando
+        await SD.processoDemandaDesligar(p.id, d.id);
+        // Então
+        expect((await SD.processosDaDemanda(d.id)).visiveis.map(x => x.id)).toEqual([q.id]);
+        expect(await SD.demandasDoProcesso(p.id)).toEqual([]);
+      });
+
+      it('quando desliga o que não está ligado, então é recusado', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        // Quando
+        const desligar = SD.processoDemandaDesligar(p.id, d.id);
+        // Então
+        await expect(desligar).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando o processo foi arquivado depois de ligado, então ainda se desliga', async () => {
+        // Dado
+        const [p, d] = [await novoProcesso(), await novaDemanda()];
+        await SD.processoDemandaLigar(p.id, d.id, 'atua');
+        await SD.processosArquivar([p.id], true);
+        // Quando
+        await SD.processoDemandaDesligar(p.id, d.id);
+        // Então
+        expect(await SD.processosDaDemanda(d.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('quando a busca de processo lista o que se pode ligar, então os arquivados ficam de fora', async () => {
+        // Dado
+        const [p, arquivado] = [await novoProcesso(), await novoProcesso()];
+        await SD.processosArquivar([arquivado.id], true);
+        // Quando
+        const achados = (await SD.processosParaLigar()).map(x => x.id);
+        // Então
+        expect(achados).toContain(p.id);
+        expect(achados).not.toContain(arquivado.id);
+      });
+    });
+
+    describe('Processo e contrato (#294)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      const novoProcesso = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const novoContrato = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+      };
+
+      it('quando liga dois processos ao contrato, então eles aparecem no contrato e o contrato aparece em cada processo; ligar de novo não repete', async () => {
+        // Dado
+        const [k, p, q] = [await novoContrato(), await novoProcesso(), await novoProcesso()];
+        // Quando
+        await SD.contratoProcessoLigar(k.id, p.id);
+        await SD.contratoProcessoLigar(k.id, q.id);
+        await SD.contratoProcessoLigar(k.id, p.id);
+        // Então
+        expect((await SD.processosDoContrato(k.id)).visiveis.map(x => x.id)).toEqual([p.id, q.id]);
+        expect(await SD.contratosDoProcesso(p.id)).toMatchObject({ visiveis: [{ id: k.id, codigo: k.codigo }], ocultos: 0 });
+      });
+
+      it('quando desliga, então o processo sai do contrato e o contrato sai do processo', async () => {
+        // Dado
+        const [k, p] = [await novoContrato(), await novoProcesso()];
+        await SD.contratoProcessoLigar(k.id, p.id);
+        // Quando
+        await SD.contratoProcessoDesligar(k.id, p.id);
+        // Então
+        expect(await SD.processosDoContrato(k.id)).toEqual({ visiveis: [], ocultos: 0 });
+        expect(await SD.contratosDoProcesso(p.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('quando o processo está arquivado, ou quem tenta não é parte do contrato, então ligar é recusado', async () => {
+        // Dado
+        const [k, p, arquivado] = [await novoContrato(), await novoProcesso(), await novoProcesso()];
+        await SD.processosArquivar([arquivado.id], true);
+        // Quando
+        const comArquivado = SD.contratoProcessoLigar(k.id, arquivado.id);
+        entrarComo('u-bruno');
+        const deFora = SD.contratoProcessoLigar(k.id, p.id);
+        // Então
+        await expect(comArquivado).rejects.toThrow('Você não tem permissão para fazer isso.');
+        await expect(deFora).rejects.toThrow('Você não tem permissão para fazer isso.');
+      });
+
+      it('quando quem não é parte abre o processo, então o contrato ligado só conta, sem abrir', async () => {
+        // Dado
+        const [k, p] = [await novoContrato(), await novoProcesso()];
+        await SD.contratoProcessoLigar(k.id, p.id);
+        // Quando
+        entrarComo('u-bruno');
+        const lidos = await SD.contratosDoProcesso(p.id);
+        // Então
+        expect(lidos).toEqual({ visiveis: [], ocultos: 1 });
+      });
+
+      it('quando excluem o contrato ou o processo, então a ligação sai', async () => {
+        // Dado
+        const [k, p, q] = [await novoContrato(), await novoProcesso(), await novoProcesso()];
+        await SD.contratoProcessoLigar(k.id, p.id);
+        await SD.contratoProcessoLigar(k.id, q.id);
+        // Quando
+        await SD.processosArquivar([q.id], true);
+        await SD.processosExcluir([q.id]);
+        // Então
+        expect((await SD.processosDoContrato(k.id)).visiveis.map(x => x.id)).toEqual([p.id]);
+        // Quando
+        await SD.contratosArquivar([k.id], true);
+        await SD.contratosExcluir([k.id]);
+        // Então
+        expect(await SD.contratosDoProcesso(p.id)).toEqual({ visiveis: [], ocultos: 0 });
       });
     });
 

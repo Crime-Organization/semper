@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { useNavigate } from 'react-router';
-import { TIPOS_PROCESSO } from '../regras/processo';
 import { colunaComMarco } from '../regras/quadro';
 import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, veATarefa } from '../regras/tarefa';
 import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
@@ -29,6 +28,7 @@ import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
+import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 
 interface Props {
@@ -59,6 +59,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
   // Quantas alterações o histórico tem, para o número ao lado do título.
   const historico = useQuantos(() => SD.tarefaHistorico(id), `${id}:${versaoHist}`);
+  // O processo vem com a tarefa: o ligado que a pessoa não pode abrir só conta.
+  const processoDaTarefa = useCallback(async (): Promise<ProcessosLidos> =>
+    t?.processo ? { visiveis: [t.processo], ocultos: 0 } : { visiveis: [], ocultos: t?.processo_id ? 1 : 0 }, [t]);
+  const comProcessos = !!ctx.escritorio?.modulos?.processos;
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (t === undefined) return <Carregando />;
@@ -164,10 +168,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
     </Recolhivel>
 
-    {t.processo_id && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={1}>
-      <ItensLigados itens={[t.processo
-        ? { id: 'processo', para: `${TIPOS_PROCESSO[t.processo.tipo].caminho}?id=${t.processo.id}`, codigo: t.processo.codigo, titulo: t.processo.numero, detalhe: 'Processo' }
-        : { id: 'processo', titulo: 'Processo ligado', detalhe: 'Você não tem acesso a este processo' }]} />
+    {(comProcessos || t.processo_id) && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={t.processo_id ? 1 : 0}>
+      <ProcessosDoCartao carregar={processoDaTarefa} versao={versaoHist} somenteLer={!!t.arquivado_em || !podeAlterar || !comProcessos} maximo={1}
+        vazio="Esta tarefa não está ligada a um processo."
+        ligar={processoId => SD.tarefaAtualizar(t.id, { processo_id: processoId })} desligar={() => SD.tarefaAtualizar(t.id, { processo_id: null })}
+        aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>

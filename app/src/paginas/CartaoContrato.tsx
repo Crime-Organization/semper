@@ -12,6 +12,7 @@ import { Botao } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { CartoesLigados } from './CartoesLigados';
+import { ProcessosDoCartao } from './ProcessosDoCartao';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
 import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
@@ -60,6 +61,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const parcelas = useQuantos(() => SD.parcelasDoContrato(id), chave, veParcelas);
   const historico = useQuantos(() => SD.contratoHistorico(id), chave);
   const contas = useLista(() => SD.contasParaEscolher(), chave, !!modulos?.financeiro);
+  // Os processos ligados (os que a pessoa não pode abrir também contam).
+  const processosLidos = useLista(() => SD.processosDoContrato(id).then(x => [x]), chave, !!modulos?.processos)?.[0];
+  const processosDoContrato = useCallback(() => SD.processosDoContrato(id), [id]);
   // Os objetos que ainda não viraram demanda (ficam na lista das demandas, sem link).
   // Só antes de o contrato ser assinado: depois, a demanda de cada objeto já nasceu (e, se não existe mais, foi excluída).
   const objetosSemDemanda = k && !chegouAoAssinado(quadro.colunas, k.etapa_id, k.assinado_em)
@@ -170,6 +174,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
     : <Recolhivel titulo={k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'} icone="demandas" preferencia="contratos.cartao.objetos" contador={k.objetos.length}>
       <ItensLigados rotulo="Objetos do contrato" vazio="Nenhum objeto cadastrado." itens={k.objetos.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto }))} />
+    </Recolhivel>}
+
+    {modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="contratos.cartao.processos"
+      contador={processosLidos ? processosLidos.visiveis.length + processosLidos.ocultos : undefined}>
+      {/* Ligar um processo não mexe em valores: na fase de adaptação, quem não é parte também liga. */}
+      <ProcessosDoCartao carregar={processosDoContrato} versao={versaoHist} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)}
+        vazio="Nenhum processo ligado a este contrato." ligar={processoId => SD.contratoProcessoLigar(k.id, processoId)}
+        desligar={processoId => SD.contratoProcessoDesligar(k.id, processoId)} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
     <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" contador={partes.length}>

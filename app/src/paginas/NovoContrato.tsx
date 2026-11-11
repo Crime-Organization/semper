@@ -25,6 +25,9 @@ import { normal } from '../regras/texto';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
+import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
+import { mudancasNosProcessos } from '../regras/processo';
+import { gravarProcessos } from './ProcessosDoCartao';
 import './Contratos.css';
 
 type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
@@ -73,13 +76,22 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [participantes, setParticipantes] = useState<Escolhida[]>([]);
   const [focarParticipante, setFocarParticipante] = useState<number | null>(null);
   const [sugeridos, setSugeridos] = useState<string[]>([]);
+  // Na edição: os processos ligados (os que a pessoa pode abrir; os outros só contados) e os que já estavam, para gravar só o que mudou.
+  const comProcessos = !!ctx.escritorio?.modulos?.processos && !!edicao;
+  const [processos, setProcessos] = useState<ProcessoEscolhido[]>([]);
+  const [processosOcultos, setProcessosOcultos] = useState(0);
+  const processosAntes = useRef<string[]>([]);
   useTitulo(edicao ? null : alvo ? 'Atualizar contrato' : 'Novo contrato');
 
   useEffect(() => {
     if (!idAtualizar) return;
-    (edicao?.semValores ? SD.contratoVer(idAtualizar) : SD.contratoObter(idAtualizar))
-      .then(k => {
+    Promise.all([edicao?.semValores ? SD.contratoVer(idAtualizar) : SD.contratoObter(idAtualizar),
+      comProcessos ? SD.processosDoContrato(idAtualizar) : { visiveis: [], ocultos: 0 }])
+      .then(([k, ligados]) => {
         if (!k) throw new Error('Contrato não encontrado.');
+        setProcessos(ligados.visiveis);
+        setProcessosOcultos(ligados.ocultos);
+        processosAntes.current = ligados.visiveis.map(p => p.id);
         setAlvo(k);
         const campos = camposDoContrato(k);
         setC(campos);
@@ -229,6 +241,12 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const podeParticipar = (i: number) => (p: PessoaLista) => jaNoContrato(i)(p) ?? motivoParaNaoParticipar(ctx.equipe, p.id);
 
   // ---------- envio ----------
+  // Os processos que entraram e saíram na edição, e o contrário, para desfazer.
+  async function gravarProcessosDoContrato(id: string, desfazendo = false) {
+    const m = mudancasNosProcessos(processosAntes.current, processos.map(p => p.id));
+    await gravarProcessos(desfazendo ? { ligar: m.desligar, desligar: m.ligar } : m,
+      processoId => SD.contratoProcessoLigar(id, processoId), processoId => SD.contratoProcessoDesligar(id, processoId));
+  }
   // Quem não é parte do contrato salva só o que não é valor, pela função própria do banco.
   async function salvarSemValores() {
     const { categoria: _categoria, ...erradosDosObjetos } = errosDaEtapa('objetos', c);
@@ -241,8 +259,10 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     setOcupado(true);
     try {
       await SD.contratoAlterarSemValores(alvo!.id, dadosSemValores(c));
+      await gravarProcessosDoContrato(alvo!.id);
       feito('Contrato atualizado.', 'atualização do contrato', async () => {
         await SD.contratoAlterarSemValores(alvo!.id, antes);
+        await gravarProcessosDoContrato(alvo!.id, true);
         return { tipo: 'contratoAtualizado', id: alvo!.id };
       });
       edicao!.aoTerminar(true);
@@ -267,8 +287,10 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         // Para desfazer: o contrato como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoContrato(camposDoContrato(alvo));
         await SD.contratoAtualizar(alvo.id, dados);
+        await gravarProcessosDoContrato(alvo.id);
         feito('Contrato atualizado.', 'atualização do contrato', async () => {
           await SD.contratoAtualizar(alvo.id, antes);
+          await gravarProcessosDoContrato(alvo.id, true);
           return { tipo: 'contratoAtualizado', id: alvo.id };
         });
         saidaLiberada.current = true;
@@ -445,6 +467,11 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
         {CONTEUDO[e.id]()}
       </section>)}
+      {comProcessos && <section className="etapa ativa" aria-labelledby="etapa-processos">
+        <header><h2 id="etapa-processos">Processos</h2></header>
+        <EscolhaDeProcessos rotulo="Processos do contrato" dica="Os processos que este contrato cobre. Busque pelo número, pelo nome ou pelo cliente."
+          escolhidos={processos} ocultos={processosOcultos} aoMudar={setProcessos} />
+      </section>}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 

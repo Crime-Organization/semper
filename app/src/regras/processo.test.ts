@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
-  aoMudarNumero, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
+  aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
   semSairDoProcesso, validarProcesso, valorLegivelProcesso, type CamposProcesso
 } from './processo';
 
@@ -210,5 +210,37 @@ describe('Listas e cartão', () => {
     expect(papeisNoProcesso(p, 'px', 'u1')).toEqual(['responsavel']);
     expect(papeisNoProcesso(p, 'px', 'u2')).toEqual(['colaborador']);
     expect(papeisNoProcesso(p, 'px', 'u9')).toEqual([]);
+  });
+});
+
+describe('Ligar um processo que já existe a outro cartão (#294)', () => {
+  it('quando a busca mostra um processo, então embaixo do nome vêm o tipo, o número e o código; sem número, só o tipo e o código', () => {
+    // Então
+    expect(detalheDoProcesso({ tipo: 'judicial', numero: NUMERO_VALIDO, codigo: 'AB12CD34' })).toBe('Judicial · ' + NUMERO_VALIDO + ' · AB12CD34');
+    expect(detalheDoProcesso({ tipo: 'administrativo', numero: '', codigo: 'AB12CD34' })).toBe('Administrativo · AB12CD34');
+  });
+
+  it('dado processos já ligados ao cartão, quando a busca oferece os achados, então eles ficam de fora e a ordem se mantém', () => {
+    // Dado
+    const achados = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    // Quando
+    const oferecidos = processosParaOferecer(achados, ['b']);
+    // Então
+    expect(oferecidos.map(p => p.id)).toEqual(['a', 'c']);
+  });
+
+  it('dado os processos de antes e os de depois, quando o cadastro é salvo, então só liga os que entraram e desliga os que saíram', () => {
+    // Quando
+    const m = mudancasNosProcessos(['a', 'b'], ['b', 'c']);
+    // Então
+    expect(m).toEqual({ ligar: ['c'], desligar: ['a'] });
+    expect(mudancasNosProcessos(['a'], ['a'])).toEqual({ ligar: [], desligar: [] });
+  });
+
+  it('quando o cartão tem um processo só (tarefa, compromisso), então não cabe outro; sem máximo (demanda, contrato), sempre cabe', () => {
+    // Então
+    expect(cabeOutroProcesso(0, 1)).toBe(true);
+    expect(cabeOutroProcesso(1, 1)).toBe(false);
+    expect(cabeOutroProcesso(5)).toBe(true);
   });
 });

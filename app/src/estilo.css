@@ -583,7 +583,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-escolhida .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
 .achados .com-bolinha { display: flex; align-items: center; gap: 10px }
 .achados .sem-achados { padding: 10px 12px }
-.busca-pessoa .achados, .busca-equipe .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
+/* Ligar um processo que já existe (LigarProcesso): a mesma busca, por cima do que vem abaixo. No cadastro (EscolhaDeProcessos),
+   cada escolhido numa linha, com o nome e, embaixo, o tipo, o número e o código. */
+.busca-processo { position: relative }
+.processos-escolhidos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
+.processos-escolhidos .escolhida { height: auto; min-height: 44px; padding: 6px 5px 6px 14px }
+.processos-escolhidos .escolhida > span { display: flex; flex-direction: column; gap: 2px; white-space: normal; overflow-wrap: anywhere }
+.processos-escolhidos small { font-size: 12px; font-weight: 400; color: var(--muted) }
+.processos-escolhidos .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
+.busca-pessoa .achados, .busca-equipe .achados, .busca-processo .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
 .achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie); display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
 .achados button { width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 2px; color: var(--ink) }
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }
@@ -605,6 +613,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .ligados-com-novo { display: flex; align-items: flex-start; gap: 12px }
 .ligados-com-novo > .itens-ligados { flex: 1; min-width: 0 }
 .mini.ligados-novo { width: 40px; height: 40px; padding: 0; flex-shrink: 0; justify-content: center; border-radius: 999px }
+/* Os botões abaixo da lista ("+ Ligar processo", "+ Criar processo"), lado a lado; a busca aberta ocupa a linha toda. */
+.ligados-acoes { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 10px }
+.ligados-acoes > .busca-processo { flex: 1 1 100% }
 .ligados-vazio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px }
 .itens-ligados > li { display: flex; align-items: center; gap: 8px }
 .item-ligado { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink); font: inherit; text-align: left }

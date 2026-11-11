@@ -8,7 +8,7 @@ import type {
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
-  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso,
+  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
@@ -165,7 +165,9 @@ interface Banco {
   contratosComParcelas?: string[];
   historicoParcelas?: (Historico & { contrato_id: string })[];
   /** As demandas ligadas aos processos (processo_demandas no banco). */
-  processoDemandas?: { processo_id: string; demanda_id: string }[];
+  processoDemandas?: { processo_id: string; demanda_id: string; papel?: PapelDaDemandaNoProcesso }[];
+  /** Os processos ligados aos contratos (contrato_processos no banco). */
+  contratoProcessos?: { contrato_id: string; processo_id: string }[];
   /** Dias sem andamento para o processo estar parado (escritorios.dias_processo_parado no banco). */
   diasParado?: number;
   andamentos?: AndamentoGuardado[];
@@ -463,6 +465,7 @@ bd.retiradas ??= [];
 bd.contratosComParcelas ??= (bd.contratos ?? []).filter(k => k.assinado_em).map(k => k.id);
 bd.historicoParcelas ??= [];
 bd.processoDemandas ??= [];
+bd.contratoProcessos ??= [];
 bd.diasParado ??= DIAS_PARADO.padrao;
 bd.andamentos ??= [];
 bd.prazos ??= [];
@@ -791,6 +794,8 @@ const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && 
 /** Como contratos_da_equipe: quem é parte e, com a chave ligada, toda a equipe. */
 const alcancoContrato = (k: QuemEstaNoContrato) => !!bd.equipeVeTudo || vejoContrato(k);
 const alcancoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && alcancoContrato(k));
+/** Como privado.altero_o_contrato: quem é parte e, na fase de adaptação, toda a equipe. */
+const alteroContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && (alteroContrato(k) || !!bd.equipeEditaTudo));
 /** Como as colunas de contratos_da_equipe para quem não é parte. */
 const contratoSemValores = (k: Contrato): Contrato => ({ ...k, ve_financeiro: false, categoria: null as unknown as Contrato['categoria'], valor: null, entrada: null, parcelas: null, descontos: null,
   primeiro_pagamento: null, percentual_escritorio: null, indicador: null, indicador_id: null, indicador_percentual: null, conta_destino_id: null, documento_url: null, observacoes: null,
@@ -1024,7 +1029,7 @@ const demandaLigada = (pessoaId: string, perfilId: string | null) => (d: Demanda
 // ---------- tarefas ----------
 const processoDaTarefa = (id: string | null | undefined) => {
   const p = id ? bd.processos!.find(x => x.id === id) : null;
-  return p ? { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero } : null;
+  return p ? { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes) } : null;
 };
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
@@ -1059,9 +1064,9 @@ const acharTarefa = (id: string) => {
  */
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
-  // Como o banco: a ligação com o processo nasce com a tarefa, e só com um processo que existe.
-  if (t.processo_id !== undefined && atual) throw new Error('Você não tem permissão para fazer isso.');
+  // Como o banco: a tarefa nasce com um processo que existe; trocar depois só aceita um processo ativo.
   if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
+  if (t.processo_id && atual && t.processo_id !== atual.processo_id && !processoAtivo(t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
   if (t.titulo !== undefined) {
     t.titulo = t.titulo.trim();
     if (!t.titulo) throw new Error('Dê um título à tarefa.');
@@ -1099,6 +1104,8 @@ const NOME_NO_HISTORICO_TAREFA: Record<string, [string, (v: unknown) => unknown]
   pessoas: ['pessoas', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
   demanda_id: ['demanda', id => bd.demandas!.find(d => d.id === id)?.codigo ?? null],
   contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
+  // Como privado.nome_do_processo_no_historico: o número ou, sem número, o código.
+  processo_id: ['processo', id => { const p = bd.processos!.find(x => x.id === id); return p ? p.numero || p.codigo : null; }],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
 };
 const FORA_DO_HISTORICO_TAREFA = new Set(['etapa_ordem', 'arquivado_por', 'demanda_codigo', 'contrato_codigo']);
@@ -1350,6 +1357,9 @@ function novoLancamento(dados: DadosLancamento & { par_id?: string | null; orige
 }
 const TAREFA_JA_LIGADA = 'Já existe uma tarefa ligada a este item.';
 const processoAtivo = (id: string) => bd.processos!.some(p => p.id === id && !p.arquivado_em);
+/** O processo como aparece no cartão da demanda e no do contrato. */
+const processoNoCartao = (p: ProcessoGuardado): ProcessoLigado => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo,
+  cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] });
 /** Como o gatilho do banco: cada mudança entra no histórico do processo, com a linha como estava e como ficou. */
 function historicoDoAcompanhamento(processoId: string, campo: 'andamento' | 'prazo', de: string | null, para: string | null) {
   if (de === para || !bd.processos!.some(p => p.id === processoId)) return;
@@ -2158,6 +2168,7 @@ export const SD: Dados = {
       bd.parcelas = bd.parcelas!.filter(p => p.contrato_id !== id);
       bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
+      bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       bd.tarefas!.forEach(t => { if (t.contrato_id === id) Object.assign(t, { contrato_id: null, contrato_codigo: null }); });
@@ -2580,11 +2591,45 @@ export const SD: Dados = {
   tarefasDoProcesso: processoId => espera(tarefasNaOrdemDoQuadro(bd.tarefas!.filter(t => t.processo_id === processoId))),
 
   // ---------- processo e demanda (como supabase/migrations/20261102144922_processo_demandas.sql) ----------
-  async processoDemandaLigar(processoId, demandaId) {
-    if (!processoAtivo(processoId) || !bd.demandas!.some(d => d.id === demandaId)) return erro(SEM_PERMISSAO);
-    if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId });
+  async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
+    const d = bd.demandas!.find(x => x.id === demandaId);
+    if (!processoAtivo(processoId) || !d || soLeNoFalso(veADemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId, papel });
     gravar();
     return espera(undefined);
+  },
+  // (como supabase/migrations/20261111095627_ligar_processo_existente.sql): desligar é de quem está na demanda.
+  async processoDemandaDesligar(processoId, demandaId) {
+    const d = bd.demandas!.find(x => x.id === demandaId);
+    const ligada = bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId);
+    if (!ligada || !d || soLeNoFalso(veADemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    bd.processoDemandas = bd.processoDemandas!.filter(l => !(l.processo_id === processoId && l.demanda_id === demandaId));
+    gravar();
+    return espera(undefined);
+  },
+  // ---------- processo e contrato (como supabase/migrations/20261111095627_ligar_processo_existente.sql) ----------
+  async contratoProcessoLigar(contratoId, processoId) {
+    if (!processoAtivo(processoId) || !alteroContratoDoId(contratoId)) return erro(SEM_PERMISSAO);
+    if (!bd.contratoProcessos!.some(l => l.contrato_id === contratoId && l.processo_id === processoId)) bd.contratoProcessos!.push({ contrato_id: contratoId, processo_id: processoId });
+    gravar();
+    return espera(undefined);
+  },
+  async contratoProcessoDesligar(contratoId, processoId) {
+    const ligado = bd.contratoProcessos!.some(l => l.contrato_id === contratoId && l.processo_id === processoId);
+    if (!ligado || !alteroContratoDoId(contratoId)) return erro(SEM_PERMISSAO);
+    bd.contratoProcessos = bd.contratoProcessos!.filter(l => !(l.contrato_id === contratoId && l.processo_id === processoId));
+    gravar();
+    return espera(undefined);
+  },
+  processosDoContrato: contratoId => espera({ ocultos: 0, visiveis: bd.contratoProcessos!.filter(l => l.contrato_id === contratoId).flatMap(l => {
+    const p = bd.processos!.find(x => x.id === l.processo_id);
+    return p ? [processoNoCartao(p)] : [];
+  }) }),
+  contratosDoProcesso(processoId) {
+    const ligados = bd.contratoProcessos!.filter(l => l.processo_id === processoId).flatMap(l => bd.contratos!.filter(k => k.id === l.contrato_id));
+    const visiveis = ligados.filter(alcancoContrato)
+      .map(k => ({ id: k.id, codigo: k.codigo, servico: k.servico, cliente_nome: nomeDoCliente(k), etapa_id: k.etapa_id, arquivado_em: k.arquivado_em }));
+    return espera({ visiveis, ocultos: ligados.length - visiveis.length });
   },
   demandasDoProcesso: processoId => espera(bd.processoDemandas!.filter(l => l.processo_id === processoId).flatMap(l => {
     const d = bd.demandas!.find(x => x.id === l.demanda_id);
@@ -2593,7 +2638,7 @@ export const SD: Dados = {
   })),
   processosDaDemanda: demandaId => espera({ ocultos: 0, visiveis: bd.processoDemandas!.filter(l => l.demanda_id === demandaId).flatMap(l => {
     const p = bd.processos!.find(x => x.id === l.processo_id);
-    return p ? [{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), etapa_id: p.etapa_id, arquivado_em: p.arquivado_em, criado_em: p.criado_em, papeis: [] }] : [];
+    return p ? [processoNoCartao(p)] : [];
   }) }),
 
   // ---------- caixa (como supabase/migrations/20261102175057_financeiro_caixa.sql) ----------
@@ -3167,6 +3212,7 @@ export const SD: Dados = {
       bd.processos = bd.processos!.filter(x => x.id !== id);
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.processo_id !== id);
+      bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.processo_id !== id);
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });

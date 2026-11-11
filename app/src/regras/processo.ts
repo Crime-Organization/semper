@@ -226,6 +226,21 @@ type ParaNomear = Pick<ProcessoLista, 'titulo' | 'cliente_nome' | 'numero'>;
 /** O nome do cartão: o que a pessoa deu; sem isso, os clientes. */
 export const nomeDoProcesso = (p: ParaNomear) => p.titulo || clientesPorExtenso(p.cliente_nome) || p.numero;
 
+// ---------- ligar um processo que já existe a outro cartão (#294) ----------
+type ParaDetalhar = Pick<ProcessoLista, 'tipo' | 'numero' | 'codigo'>;
+/** Embaixo do nome, na busca de processo: o tipo, o número e o código, para distinguir processos do mesmo cliente. */
+export const detalheDoProcesso = (p: ParaDetalhar) => [TIPOS_PROCESSO[p.tipo].nome, p.numero, p.codigo].filter(Boolean).join(' · ');
+/** O que a busca oferece: os achados que ainda não estão ligados ao cartão, na ordem em que vieram. */
+export const processosParaOferecer = <T extends { id: string }>(achados: readonly T[], ligados: readonly string[]) =>
+  achados.filter(p => !ligados.includes(p.id));
+/** O que gravar ao salvar um cadastro: os processos que entraram e os que saíram (os que ficaram não mudam). */
+export const mudancasNosProcessos = (antes: readonly string[], depois: readonly string[]) => ({
+  ligar: depois.filter(id => !antes.includes(id)),
+  desligar: antes.filter(id => !depois.includes(id))
+});
+/** Se ainda cabe outro processo: a tarefa e o compromisso têm um só; a demanda e o contrato, vários (sem máximo). */
+export const cabeOutroProcesso = (ligados: number, maximo?: number) => maximo === undefined || ligados < maximo;
+
 /** Nome de cada campo no histórico de alterações. */
 export const CAMPOS_PROCESSO: Record<string, string> = {
   numero: 'Número', titulo: 'Nome do cartão', responsavel_id: 'Responsável', colaboradores: 'Colaboradores', clientes: 'Clientes', orgao: 'Órgão', sistema: 'Sistema',

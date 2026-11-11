@@ -5,7 +5,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
 import { CAMPOS_COMPROMISSO, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, TIPOS_COMPROMISSO, valorLegivelCompromisso } from '../regras/compromisso';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
-import { nomeDoProcesso, TIPOS_PROCESSO } from '../regras/processo';
+import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
@@ -49,6 +49,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
   // Quantas alterações o histórico tem, para o número ao lado do título.
   const historico = useQuantos(() => SD.compromissoHistorico(id), `${id}:${versaoHist}`);
+  // O processo vem com o compromisso: o ligado que a pessoa não pode abrir só conta.
+  const processoDoCompromisso = useCallback(async (): Promise<ProcessosLidos> =>
+    c?.processo ? { visiveis: [c.processo], ocultos: 0 } : { visiveis: [], ocultos: c?.processo_id ? 1 : 0 }, [c]);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (c === undefined) return <Carregando />;
@@ -59,9 +62,6 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome, detalhe: 'Ligada', selo: p.arquivado_em ? 'Arquivada' : undefined });
-  const processo: ItemLigado | null = c.processo
-    ? { id: 'processo', para: TIPOS_PROCESSO[c.processo.tipo].caminho + '?id=' + c.processo.id, codigo: c.processo.codigo, titulo: nomeDoProcesso(c.processo), detalhe: `${TIPOS_PROCESSO[c.processo.tipo].nome} · ${c.processo.numero}` }
-    : c.processo_codigo ? { id: 'processo', codigo: c.processo_codigo, titulo: c.processo_numero || 'Processo ligado', detalhe: 'Você não tem acesso a este processo' } : null;
 
   async function arquivar() {
     const estava = !!c!.arquivado_em;
@@ -135,8 +135,12 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {c.resultado ? <p className="demanda-descricao">{c.resultado}</p> : <Nota>Ainda sem resultado. Depois do compromisso, registre aqui pelo lápis do cartão.</Nota>}
     </Recolhivel>}
 
-    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={processo ? 1 : 0}>
-      {processo ? <ItensLigados itens={[processo]} /> : <Nota>Este compromisso não está ligado a um processo.</Nota>}
+    <Recolhivel titulo="Processo" icone="processos" preferencia="compromissos.cartao.processo" contador={c.processo_id ? 1 : 0}>
+      <ProcessosDoCartao carregar={processoDoCompromisso} versao={versaoHist} somenteLer={somenteLer || !ctx.escritorio?.modulos?.processos} maximo={1}
+        vazio="Este compromisso não está ligado a um processo."
+        semDesligar={doProcesso ? `${TIPOS_COMPROMISSO[c.tipo].nome} precisa de um processo. Para trocar, use o lápis do cartão.` : undefined}
+        ligar={processoId => SD.compromissoAtualizar(c.id, { processo_id: processoId })} desligar={() => SD.compromissoAtualizar(c.id, { processo_id: null })}
+        aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
     </Recolhivel>
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length}>
