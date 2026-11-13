@@ -27,6 +27,8 @@ update public.perfis set ativo = false where id = 'a0000000-0000-0000-0000-00000
 
 -- 15/01/2030. Os cartões entram sem passar pelos gatilhos, com os dados exatos. Bia é a responsável; Ana e Caio participam de T1.
 set local session_replication_role = replica;
+-- O escritório de teste nasce com o quadro de tarefas pronto (#295); aqui ele tem só a coluna do fim.
+delete from public.quadro_colunas where escritorio_id = 'e0000000-0000-0000-0000-000000000001' and modulo = 'tarefas';
 insert into public.quadro_colunas (id, escritorio_id, modulo, nome, ordem, marco) values
   ('b0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'tarefas', 'Fim', 1, 'concluido');
 insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, participantes, prazo, prazo_hora, lembrete, etapa_id, arquivado_em, criado_por) values

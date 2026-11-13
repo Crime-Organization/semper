@@ -35,6 +35,8 @@ A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, 
 
 Projeto Supabase `semper` (região São Paulo). Cada escritório é isolado: toda linha tem `escritorio_id` e as regras de acesso (RLS) só mostram o que pertence ao escritório de quem está logado. O cadastro de usuários é só por convite.
 
+**Escritório novo:** cria-se no SQL Editor, com `privado.criar_escritorio`, que já monta os quadros e devolve o link de primeiro acesso do administrador. Passo a passo em [docs/plataforma/criar-escritorio-novo.md](docs/plataforma/criar-escritorio-novo.md).
+
 ### Mudar a estrutura do banco
 
 Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no painel do Supabase. O banco guarda quais migrações já rodaram (tabela `supabase_migrations.schema_migrations`), então cada uma roda uma vez só, na ordem.

@@ -31,7 +31,10 @@ insert into public.pessoas (id, escritorio_id, codigo, tipo, nome, documento, cr
   ('10000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 'P3', 'contato', 'CLIENTE TRES', null, 'a0000000-0000-0000-0000-000000000001'),
   ('10000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000001', 'P4', 'contato', 'CLIENTE QUATRO', null, 'a0000000-0000-0000-0000-000000000001'),
   ('20000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000002', 'P1', 'contato', 'PESSOA DO OUTRO', null, null);
--- As colunas-marco que o escritório cria para os outros quadros.
+-- As colunas-marco que o escritório cria para os outros quadros. Ele nasce com esses quadros prontos (#295): aqui eles
+-- têm só estas colunas, mais a "Aguardando assinatura" que o gatilho do cliente ao contrato cria.
+delete from public.quadro_colunas where escritorio_id = 'e0000000-0000-0000-0000-000000000001'
+  and (modulo in ('demandas', 'tarefas') or (modulo = 'contratos' and marco is distinct from 'aguardando_assinatura'));
 insert into public.quadro_colunas (escritorio_id, modulo, nome, ordem, marco) values
   ('e0000000-0000-0000-0000-000000000001', 'contratos', 'Assinado', 3, 'assinado'),
   ('e0000000-0000-0000-0000-000000000001', 'demandas', 'Para fazer', 1, 'inicio'),
