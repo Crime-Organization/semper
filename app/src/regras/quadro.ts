@@ -36,15 +36,39 @@ export const podeExcluirColuna = (c: { marco?: MarcoColuna | null }, ehAdmin: bo
 /** Um trecho do quadro: as colunas de um grupo, na ordem delas (grupo null: as colunas sem grupo). */
 export interface BlocoDoQuadro<C> { grupo: GrupoDeColunas | null; colunas: C[] }
 
-/** O quadro em trechos: primeiro as colunas sem grupo, depois cada grupo, na ordem dele (mesmo sem nenhuma coluna). */
-export function blocosDoQuadro<C extends { ordem: number; grupo_id?: string | null }>(colunas: C[], grupos: GrupoDeColunas[]): BlocoDoQuadro<C>[] {
-  const naOrdem = [...colunas].sort((a, b) => a.ordem - b.ordem);
+/**
+ * Um item do topo do quadro: uma coluna sem grupo ou um grupo inteiro. As ordens dos dois valem juntas, e por isso um grupo
+ * pode ficar entre colunas sem grupo (#296). A ordem das colunas de dentro de um grupo só vale dentro dele.
+ */
+export interface ItemDoTopo { id: string; ordem: number; grupo: boolean }
+
+type ColunaNoQuadro = { id: string; ordem: number; grupo_id?: string | null };
+
+/** As colunas sem grupo (ou de um grupo que não existe mais) e os grupos, na ordem da tela. No empate, a coluna vem antes. */
+export function filaDoTopo(colunas: ColunaNoQuadro[], grupos: Pick<GrupoDeColunas, 'id' | 'ordem'>[]): ItemDoTopo[] {
   const existe = new Set(grupos.map(g => g.id));
   return [
-    { grupo: null, colunas: naOrdem.filter(c => !c.grupo_id || !existe.has(c.grupo_id)) },
-    ...[...grupos].sort((a, b) => a.ordem - b.ordem).map(grupo => ({ grupo, colunas: naOrdem.filter(c => c.grupo_id === grupo.id) }))
-  ];
+    ...colunas.filter(c => !c.grupo_id || !existe.has(c.grupo_id)).map(c => ({ id: c.id, ordem: c.ordem, grupo: false })),
+    ...grupos.map(g => ({ id: g.id, ordem: g.ordem, grupo: true }))
+  ].sort((a, b) => a.ordem - b.ordem || Number(a.grupo) - Number(b.grupo));
 }
+
+/** O quadro em trechos, na ordem do topo: as colunas sem grupo que ficam juntas e cada grupo (mesmo sem nenhuma coluna). */
+export function blocosDoQuadro<C extends ColunaNoQuadro>(colunas: C[], grupos: GrupoDeColunas[]): BlocoDoQuadro<C>[] {
+  const naOrdem = [...colunas].sort((a, b) => a.ordem - b.ordem);
+  const blocos: BlocoDoQuadro<C>[] = [];
+  for (const item of filaDoTopo(colunas, grupos)) {
+    const ultimo = blocos[blocos.length - 1];
+    if (item.grupo) blocos.push({ grupo: grupos.find(g => g.id === item.id)!, colunas: naOrdem.filter(c => c.grupo_id === item.id) });
+    else if (ultimo && !ultimo.grupo) ultimo.colunas.push(colunas.find(c => c.id === item.id)!);
+    else blocos.push({ grupo: null, colunas: [colunas.find(c => c.id === item.id)!] });
+  }
+  return blocos;
+}
+
+/** A ordem de quem entra no fim do quadro (coluna sem grupo nova, grupo novo, coluna que sai do grupo): depois de tudo. */
+export const ordemNoFimDoQuadro = (colunas: { ordem: number }[], grupos: { ordem: number }[]) =>
+  Math.max(0, ...colunas.map(c => c.ordem), ...grupos.map(g => g.ordem)) + 1;
 
 /** Se o grupo aparece aberto: vale o que a pessoa escolheu; sem escolha, o grupo diz como começa. */
 export const grupoEstaAberto = (g: GrupoDeColunas, escolhas: Record<string, boolean>) => escolhas[g.id] ?? !g.comeca_fechado;
@@ -57,7 +81,7 @@ export function ordemEntre(anterior: { ordem: number } | undefined, seguinte: { 
 }
 
 /**
- * A ordem nova de quem muda de lugar numa fila (colunas de um grupo, ou os grupos do quadro), já na ordem da tela:
+ * A ordem nova de quem muda de lugar numa fila (colunas de um grupo, ou o topo do quadro), já na ordem da tela:
  * o item "id" passa para antes de "antesDe" (null: para o fim). Devolve null quando nada muda.
  */
 export function ordemAoPosicionar<T extends { id: string; ordem: number }>(fila: T[], id: string, antesDe: string | null): number | null {
@@ -79,7 +103,7 @@ export function antesDeAoAndar<T extends { id: string }>(fila: T[], id: string, 
 }
 
 /** A coluna do cartão novo quando ninguém escolheu: a coluna-marco de início, se o quadro tem; se não, a primeira da tela. */
-export function colunaDoCartaoNovo<C extends { ordem: number; grupo_id?: string | null; marco?: MarcoColuna | null }>(colunas: C[], grupos: GrupoDeColunas[]): C | null {
+export function colunaDoCartaoNovo<C extends ColunaNoQuadro & { marco?: MarcoColuna | null }>(colunas: C[], grupos: GrupoDeColunas[]): C | null {
   return colunas.find(c => c.marco === 'inicio') ?? blocosDoQuadro(colunas, grupos).find(b => b.colunas.length)?.colunas[0] ?? null;
 }
 

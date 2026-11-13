@@ -432,12 +432,15 @@ const QUADROS_DE_PROCESSOS: Record<'processos_judiciais' | 'processos_administra
     { nome: 'Encerrado', fechado: true, colunas: ['Arquivado/baixado'] }
   ]
 };
-for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as [keyof typeof QUADROS_DE_PROCESSOS, (typeof QUADROS_DE_PROCESSOS)[keyof typeof QUADROS_DE_PROCESSOS]][]) {
+/** Folga entre a última coluna e o primeiro grupo de um quadro, a mesma de privado.folga_dos_grupos() no banco (#296). */
+const FOLGA_DOS_GRUPOS = 1_000_000;
+for (const [modulo, grupos] of Object.entries(QUADROS_DE_PROCESSOS) as[keyof typeof QUADROS_DE_PROCESSOS, (typeof QUADROS_DE_PROCESSOS)[keyof typeof QUADROS_DE_PROCESSOS]][]) {
   if (bd.colunas.some(c => c.modulo === modulo)) continue;
   const total = grupos.flatMap(g => g.colunas).length;
   let ordem = 0;
   grupos.forEach((g, i) => {
-    const grupo = { id: novoId(), nome: g.nome, ordem: i + 1, comeca_fechado: !!g.fechado, modulo };
+    // Como o gatilho zz_grupos_depois_das_colunas (#296): os grupos ficam depois de todas as colunas, com a folga.
+    const grupo = { id: novoId(), nome: g.nome, ordem: total + FOLGA_DOS_GRUPOS + i + 1, comeca_fechado: !!g.fechado, modulo };
     bd.gruposDeColunas!.push(grupo);
     g.colunas.forEach(nome => {
       ordem++;

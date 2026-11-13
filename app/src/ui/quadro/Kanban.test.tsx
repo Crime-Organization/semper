@@ -4,7 +4,7 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Coluna, GrupoDeColunas } from '../../dados';
-import { blocosDoQuadro } from '../../regras/quadro';
+import { blocosDoQuadro, filaDoTopo } from '../../regras/quadro';
 import { Kanban } from './Kanban';
 import type { Quadro } from './useColunas';
 
@@ -13,15 +13,19 @@ const VAZIO: GrupoDeColunas = { id: 'g-vazio', nome: 'Sem colunas', ordem: 2, co
 const coluna = (id: string, nome: string, ordem: number, grupo_id: string | null = null): Coluna => ({ id, nome, ordem, grupo_id, criado_por: null, oculta: false });
 const COLUNAS = [coluna('c-lead', 'Lead', 1), coluna('c-dist', 'Distribuído', 2, INICIO.id)];
 
-function montar(podeGerirGrupos: boolean, grupos: GrupoDeColunas[], colunas = COLUNAS) {
+function quadroDeTeste(podeGerirGrupos: boolean, grupos: GrupoDeColunas[], colunas = COLUNAS) {
   const nada = () => Promise.resolve();
-  const quadro = {
+  return {
     colunas, sugestoes: [], pronto: true, rotuloSemEtapa: 'Sem etapa', grupos, blocos: blocosDoQuadro(colunas, grupos), podeGerirGrupos,
-    grupoAberto: () => true, podeReordenar: false, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual',
+    topo: filaDoTopo(colunas, grupos), filaDaColuna: () => filaDoTopo(colunas, grupos),
+    grupoAberto: () => true, podeReordenar: podeGerirGrupos, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual',
     nomeDe: () => '', criar: () => Promise.resolve(true), criarGrupo: () => Promise.resolve(true), alternarGrupo: nada, ordenar: nada
   } as unknown as Quadro;
-  render(<Kanban quadro={quadro} recarga={0} carregar={() => Promise.resolve({ linhas: [], total: 0 })} ordemDe={() => null} cartao={() => null}
-    endereco={() => '/'} aoAbrir={() => undefined} aoMover={nada} />);
+}
+const quadroNaTela = (quadro: Quadro) => <Kanban quadro={quadro} recarga={0} carregar={() => Promise.resolve({ linhas: [], total: 0 })} ordemDe={() => null}
+  cartao={() => null} endereco={() => '/'} aoAbrir={() => undefined} aoMover={() => Promise.resolve()} />;
+function montar(podeGerirGrupos: boolean, grupos: GrupoDeColunas[], colunas = COLUNAS) {
+  return render(quadroNaTela(quadroDeTeste(podeGerirGrupos, grupos, colunas)));
 }
 
 describe('Arrastar os cartões', () => {
@@ -82,6 +86,41 @@ describe('Grupos no quadro', () => {
     // Então
     await screen.findByRole('region', { name: 'Grupo Início' });
     expect(screen.queryAllByTitle('Arraste para mudar a ordem dos grupos')).toHaveLength(arrastaveis);
+  });
+
+  it('quando o grupo tem ordem entre duas colunas sem grupo, então ele aparece entre elas (#296)', async () => {
+    // Dado: Lead (1), o grupo Início (2) e Novo (3).
+    const colunas = [...COLUNAS, coluna('c-novo', 'Novo', 3)];
+    // Quando
+    montar(true, [{ ...INICIO, ordem: 2 }], colunas);
+    // Então
+    const quadro = await screen.findByRole('region', { name: 'Quadro' });
+    const topo = [...quadro.querySelectorAll('[data-topo]')].map(el => el.getAttribute('aria-label') ?? el.querySelector('h3')?.textContent);
+    expect(topo).toEqual(['Lead', 'Grupo Início', 'Novo']);
+  });
+
+  it.each([
+    ['é administrador', true, 2],
+    ['não é administrador', false, 0]
+  ] as const)('quando quem abre %s, então as colunas sem grupo se arrastam só para o administrador', async (_quem, admin, arrastaveis) => {
+    // Dado: duas colunas sem grupo, uma de cada lado do grupo.
+    const colunas = [coluna('c-lead', 'Lead', 1), coluna('c-novo', 'Novo', 3)];
+    // Quando
+    montar(admin, [{ ...INICIO, ordem: 2 }], colunas);
+    // Então
+    await screen.findByRole('list', { name: 'Novo' });
+    expect(screen.queryAllByTitle('Arraste para mudar a ordem das colunas')).toHaveLength(arrastaveis);
+  });
+
+  it('quando uma coluna sem grupo muda de lugar, então as vizinhas continuam as mesmas na tela (guardam a rolagem)', async () => {
+    // Dado: A, B e C sem grupo.
+    const a = coluna('c-a', 'A', 1), b = coluna('c-b', 'B', 2), c = coluna('c-c', 'C', 3);
+    const { rerender } = montar(true, [], [a, b, c]);
+    const listaC = await screen.findByRole('list', { name: 'C' });
+    // Quando: A passa para depois de B
+    rerender(quadroNaTela(quadroDeTeste(true, [], [{ ...a, ordem: 2.5 }, b, c])));
+    // Então
+    expect(screen.getByRole('list', { name: 'C' })).toBe(listaC);
   });
 
   it('quando o quadro não tem grupos, então não aparece nenhum grupo nem a escolha de grupo', async () => {

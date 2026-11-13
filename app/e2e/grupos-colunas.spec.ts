@@ -304,9 +304,12 @@ test.describe('Ordem dos grupos, arrastando como as colunas', () => {
     await abrirQuadro(page);
     await criarGrupo(page, 'A');
     await criarGrupo(page, 'B');
-    // Quando: abre o menu do grupo A com Enter e escolhe o primeiro item, "Mover para a direita"
+    // Quando: abre o menu do grupo A com Enter e vai, com Tab, até "Mover para a direita". Desde a #296, o primeiro item é
+    // "Mover para a esquerda": o grupo também passa pelas colunas sem grupo que ficam antes dele.
     await page.getByRole('button', { name: 'Opções do grupo A' }).focus();
     await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Mover para a esquerda' })).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(page.getByRole('menuitem', { name: 'Mover para a direita' })).toBeFocused();
     await page.keyboard.press('Enter');
     // Então

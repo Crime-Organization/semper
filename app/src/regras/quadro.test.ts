@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, podeExcluirColuna } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -44,15 +44,68 @@ describe('Grupos de colunas', () => {
     expect(blocos).toEqual([{ grupo: null, colunas: [coluna('a', 1), coluna('b', 2)] }]);
   });
 
-  it('quando há grupos, então vêm primeiro as colunas sem grupo e depois cada grupo, na ordem dele', () => {
+  // Até a #296, as colunas sem grupo vinham sempre antes dos grupos. Agora a ordem dos grupos vale junto com a delas.
+  it('quando há grupos, então colunas sem grupo e grupos seguem uma ordem só, e as colunas de cada grupo, a delas', () => {
     // Dado
-    const inicio = grupo('inicio', 1), fim = grupo('fim', 2), vazio = grupo('vazio', 3);
+    const inicio = grupo('inicio', 10), fim = grupo('fim', 20), vazio = grupo('vazio', 30);
     // Quando
     const blocos = blocosDoQuadro([coluna('c3', 5, 'fim'), coluna('c2', 9, 'inicio'), coluna('c1', 1, 'inicio'), coluna('solta', 7)], [vazio, fim, inicio]);
     // Então
     expect(blocos.map(b => [b.grupo?.id ?? null, b.colunas.map(c => c.id)])).toEqual([
       [null, ['solta']], ['inicio', ['c1', 'c2']], ['fim', ['c3']], ['vazio', []]
     ]);
+  });
+
+  it('quando um grupo fica entre colunas sem grupo, então elas aparecem em dois trechos, um de cada lado dele', () => {
+    // Dado: "Aguardado" entre "Fazendo" (2) e "Concluída" (4).
+    const aguardado = grupo('aguardado', 3);
+    // Quando
+    const blocos = blocosDoQuadro([coluna('concluida', 4), coluna('analise', 1, 'aguardado'), coluna('fazendo', 2), coluna('para-fazer', 1)], [aguardado]);
+    // Então
+    expect(blocos.map(b => [b.grupo?.id ?? null, b.colunas.map(c => c.id)])).toEqual([
+      [null, ['para-fazer', 'fazendo']], ['aguardado', ['analise']], [null, ['concluida']]
+    ]);
+  });
+
+  it('quando o quadro não tem coluna nem grupo, então não há trecho nenhum', () => {
+    // Quando
+    const blocos = blocosDoQuadro([], []);
+    // Então
+    expect(blocos).toEqual([]);
+  });
+
+  it('quando a coluna sem grupo e o grupo têm a mesma ordem, então a coluna vem antes (o quadro de antes não muda)', () => {
+    // Quando
+    const fila = filaDoTopo([coluna('c', 2)], [grupo('g', 2)]);
+    // Então
+    expect(fila).toEqual([{ id: 'c', ordem: 2, grupo: false }, { id: 'g', ordem: 2, grupo: true }]);
+  });
+
+  it('quando monta o topo do quadro, então as colunas de um grupo ficam de fora e a de um grupo que sumiu entra', () => {
+    // Quando
+    const fila = filaDoTopo([coluna('dentro', 1, 'g'), coluna('orfa', 3, 'sumiu'), coluna('solta', 5)], [grupo('g', 4)]);
+    // Então
+    expect(fila.map(x => x.id)).toEqual(['orfa', 'g', 'solta']);
+  });
+
+  it('quando o grupo vai para antes de uma coluna sem grupo, então a ordem nova fica entre as duas vizinhas', () => {
+    // Dado: Para fazer (1), Fazendo (2), Concluída (4) e o grupo no fim (5).
+    const fila = filaDoTopo([coluna('para-fazer', 1), coluna('fazendo', 2), coluna('concluida', 4)], [grupo('aguardado', 5)]);
+    // Quando
+    const ordem = ordemAoPosicionar(fila, 'aguardado', 'concluida');
+    // Então
+    expect(ordem).toBe(3);
+  });
+
+  it.each([
+    ['um quadro vazio', [], [], 1],
+    ['colunas e grupos', [{ ordem: 2 }, { ordem: 7 }], [{ ordem: 9 }], 10],
+    ['só colunas', [{ ordem: 3 }], [], 4]
+  ])('dado %s, quando algo entra no fim do quadro, então fica depois de todos', (_caso, colunas, grupos, esperado) => {
+    // Quando
+    const ordem = ordemNoFimDoQuadro(colunas, grupos);
+    // Então
+    expect(ordem).toBe(esperado);
   });
 
   it('quando a coluna aponta para um grupo que não existe mais, então ela fica entre as sem grupo', () => {
@@ -78,11 +131,15 @@ describe('Grupos de colunas', () => {
       expect(colunaDoCartaoNovo([coluna('b', 2), coluna('a', 1)], [])?.id).toBe('a');
     });
 
-    it('quando há grupos, então é a primeira da tela: as sem grupo vêm antes, mesmo com ordem maior', () => {
+    // Até a #296, as colunas sem grupo vinham sempre antes. Agora vale a ordem da tela, com os grupos no meio.
+    it.each([
+      ['o grupo vem antes da coluna sem grupo', 1, 'no-grupo'],
+      ['a coluna sem grupo vem antes do grupo', 10, 'solta']
+    ])('quando %s, então é a primeira da tela', (_caso, ordemDoGrupo, esperado) => {
       // Dado
       const colunas = [coluna('no-grupo', 1, 'g'), coluna('solta', 9)];
       // Então
-      expect(colunaDoCartaoNovo(colunas, [grupo('g', 1)])?.id).toBe('solta');
+      expect(colunaDoCartaoNovo(colunas, [grupo('g', ordemDoGrupo)])?.id).toBe(esperado);
     });
 
     it('quando os grupos mudam de lugar, então vale a ordem dos grupos, não a das colunas', () => {

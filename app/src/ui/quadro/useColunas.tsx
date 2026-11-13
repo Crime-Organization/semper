@@ -7,7 +7,7 @@ import { SD, type Coluna, type ContextoAtivo, type GrupoDeColunas, type Modulo, 
 import { avisar, falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { antesDeAoAndar, blocosDoQuadro, grupoEstaAberto, ordemAoPosicionar, podeExcluirColuna, type BlocoDoQuadro } from '../../regras/quadro';
+import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemNoFimDoQuadro, podeExcluirColuna, type BlocoDoQuadro, type ItemDoTopo } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
 export interface Quadro {
@@ -24,26 +24,33 @@ export interface Quadro {
   ocultar: (c: Coluna, ocultar: boolean) => Promise<void>;
   renomear: (c: Coluna) => Promise<void>;
   excluir: (c: Coluna) => Promise<void>;
-  /** Coloca a coluna antes de "antesDe" (ou no fim, se null), entre as visíveis do mesmo grupo. A ordem vale para todo o escritório. */
-  posicionar: (c: Coluna, antesDe: Coluna | null) => Promise<void>;
+  /**
+   * Coloca a coluna antes do item "antesDe" (ou no fim, se null), na fila dela (filaDaColuna): dentro do grupo, entre as colunas
+   * visíveis dele; sem grupo, no topo do quadro, entre as colunas sem grupo e os grupos. A ordem vale para todo o escritório.
+   */
+  posicionar: (c: Coluna, antesDe: string | null) => Promise<void>;
   mover: (c: Coluna, passo: -1 | 1) => void;
   /** Ordem dos cartões de uma coluna (null = "Sem etapa"). Cada coluna tem a sua; o padrão é a manual. */
   ordemDe: (colunaId: string | null) => Ordem;
   ordenar: (colunaId: string | null, ordem: Ordem) => void;
   grupos: GrupoDeColunas[];
-  /** As colunas visíveis, em trechos: as sem grupo e depois cada grupo. */
+  /** As colunas visíveis, em trechos, na ordem da tela: as sem grupo que ficam juntas e cada grupo. */
   blocos: BlocoDoQuadro<Coluna>[];
+  /** O topo do quadro: as colunas visíveis sem grupo e os grupos, na ordem da tela. */
+  topo: ItemDoTopo[];
+  /** A fila em que a coluna anda: as colunas visíveis do grupo dela ou, sem grupo, o topo do quadro. */
+  filaDaColuna: (c: Coluna) => { id: string }[];
   podeGerirGrupos: boolean;
   grupoAberto: (g: GrupoDeColunas) => boolean;
   alternarGrupo: (g: GrupoDeColunas) => void;
   criarGrupo: (nome: string) => Promise<boolean>;
   renomearGrupo: (g: GrupoDeColunas) => Promise<void>;
   alternarComecoFechado: (g: GrupoDeColunas) => Promise<void>;
-  /** Coloca o grupo antes de "antesDe" (ou no fim, se null). A ordem vale para todo o escritório. */
-  posicionarGrupo: (g: GrupoDeColunas, antesDe: GrupoDeColunas | null) => Promise<void>;
+  /** Coloca o grupo antes do item do topo "antesDe" (coluna sem grupo ou grupo; null: no fim). A ordem vale para todo o escritório. */
+  posicionarGrupo: (g: GrupoDeColunas, antesDe: string | null) => Promise<void>;
   moverGrupo: (g: GrupoDeColunas, passo: -1 | 1) => void;
   excluirGrupo: (g: GrupoDeColunas) => Promise<void>;
-  /** Põe a coluna no grupo (null: sem grupo), no fim dele. */
+  /** Põe a coluna no grupo, no fim dele (null: sem grupo, no fim do quadro). */
   agrupar: (c: Coluna, grupoId: string | null) => Promise<void>;
 }
 
@@ -102,7 +109,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     }
     if (igual) { falha(new Error(`A coluna "${igual.nome}" já existe neste quadro. Não é possível criar outra com o mesmo nome.`)); return false; }
     try {
-      const ordem = (atuais.current.length ? Math.max(...atuais.current.map(c => c.ordem)) : 0) + 1;
+      const ordem = ordemNoFimDoQuadro(atuais.current, gruposAtuais.current);
       const c = await SD.colunaCriar(modulo, nome, ordem, grupoId);
       setColunas(cs => ordenar([...cs, c]));
       feito(`Coluna "${c.nome}" criada.`, 'criação da coluna', async () => {
@@ -136,10 +143,16 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   }
 
   // As visíveis do mesmo grupo: uma coluna muda de lugar só dentro do grupo dela (para outro grupo, use agrupar).
-  const irmas = (c: Coluna) => atuais.current.filter(x => !x.oculta && (x.grupo_id ?? null) === (c.grupo_id ?? null));
+  // O topo: colunas visíveis sem grupo e grupos, com a ordem dos dois junta. A coluna de um grupo anda só entre as do grupo.
+  const topoAtual = () => filaDoTopo(atuais.current.filter(x => !x.oculta), gruposAtuais.current);
+  function filaDaColuna(c: Coluna): { id: string; ordem: number }[] {
+    const topo = topoAtual();
+    if (topo.some(x => x.id === c.id)) return topo;
+    return atuais.current.filter(x => !x.oculta && x.grupo_id === c.grupo_id);
+  }
 
-  async function posicionar(c: Coluna, antesDe: Coluna | null) {
-    const ordem = ordemAoPosicionar(irmas(c), c.id, antesDe?.id ?? null);
+  async function posicionar(c: Coluna, antesDe: string | null) {
+    const ordem = ordemAoPosicionar(filaDaColuna(c), c.id, antesDe);
     if (ordem === null) return;
     const anterior = c.ordem;
     mudar(c.id, { ordem });
@@ -150,8 +163,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   }
 
   function mover(c: Coluna, passo: -1 | 1) {
-    const visiveis = irmas(c), antes = antesDeAoAndar(visiveis, c.id, passo);
-    if (antes !== undefined) void posicionar(c, visiveis.find(x => x.id === antes) ?? null);
+    const antes = antesDeAoAndar(filaDaColuna(c), c.id, passo);
+    if (antes !== undefined) void posicionar(c, antes);
   }
 
   function ordenarCartoes(colunaId: string | null, ordem: Ordem) {
@@ -173,7 +186,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   async function criarGrupo(nome: string) {
     if (gruposAtuais.current.some(g => normal(g.nome) === normal(nome))) { falha(new Error('Já existe um grupo com esse nome neste quadro.')); return false; }
     try {
-      const ordem = (gruposAtuais.current.length ? Math.max(...gruposAtuais.current.map(g => g.ordem)) : 0) + 1;
+      const ordem = ordemNoFimDoQuadro(atuais.current, gruposAtuais.current);
       const g = await SD.grupoCriar(modulo, nome, ordem);
       setGrupos(gs => ordenarGrupos([...gs, g]));
       avisar(`Grupo "${g.nome}" criado. No menu de cada coluna, use "Mover para o grupo".`);
@@ -198,8 +211,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     } catch (e) { falha(e); }
   }
 
-  async function posicionarGrupo(g: GrupoDeColunas, antesDe: GrupoDeColunas | null) {
-    const ordem = ordemAoPosicionar(gruposAtuais.current, g.id, antesDe?.id ?? null);
+  async function posicionarGrupo(g: GrupoDeColunas, antesDe: string | null) {
+    const ordem = ordemAoPosicionar(topoAtual(), g.id, antesDe);
     if (ordem === null) return;
     const anterior = g.ordem;
     mudarGrupo(g.id, { ordem });
@@ -210,8 +223,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   }
 
   function moverGrupo(g: GrupoDeColunas, passo: -1 | 1) {
-    const antes = antesDeAoAndar(gruposAtuais.current, g.id, passo);
-    if (antes !== undefined) void posicionarGrupo(g, gruposAtuais.current.find(x => x.id === antes) ?? null);
+    const antes = antesDeAoAndar(topoAtual(), g.id, passo);
+    if (antes !== undefined) void posicionarGrupo(g, antes);
   }
 
   async function excluirGrupo(g: GrupoDeColunas) {
@@ -230,8 +243,8 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
 
   async function agrupar(c: Coluna, grupoId: string | null) {
     if ((c.grupo_id ?? null) === grupoId) return;
-    // Maior que a de todas as colunas (como ao criar): fica no fim do grupo, sem repetir a ordem de outro grupo.
-    const ordem = Math.max(...atuais.current.map(x => x.ordem)) + 1;
+    // Maior que todas (como ao criar): fica no fim do grupo, ou no fim do quadro quando sai do grupo.
+    const ordem = ordemNoFimDoQuadro(atuais.current, gruposAtuais.current);
     const antes = { grupo_id: c.grupo_id ?? null, ordem: c.ordem };
     try {
       await SD.colunaAgrupar(c.id, grupoId, ordem);
@@ -242,7 +255,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
 
   return {
     colunas, sugestoes, pronto, rotuloSemEtapa,
-    grupos, blocos: blocosDoQuadro(colunas.filter(c => !c.oculta), grupos),
+    grupos, blocos: blocosDoQuadro(colunas.filter(c => !c.oculta), grupos), topo: filaDoTopo(colunas.filter(c => !c.oculta), grupos), filaDaColuna,
     podeGerirGrupos: ctx.ehAdmin,
     grupoAberto: g => grupoEstaAberto(g, abertos),
     alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, posicionarGrupo, moverGrupo, excluirGrupo, agrupar,

@@ -2,7 +2,9 @@
 // e cada lista rola dentro da própria coluna. As colunas vêm de useColunas(); o módulo só diz como
 // carregar, desenhar e mover os cartões. Cada coluna tem a sua ordem (manual, data ou nome), escolhida
 // no menu da coluna. Com "arquivados", a última coluna é a fixa "Arquivados" (ui/quadro/arquivo.ts). As colunas podem
-// ficar em grupos que abrem e fecham; fechado, o grupo vira uma faixa com o nome e a quantidade de cartões.
+// ficar em grupos que abrem e fecham; fechado, o grupo vira uma faixa com o nome e a quantidade de cartões. No topo do
+// quadro, colunas sem grupo e grupos ficam numa fila só: o grupo pode ir para entre colunas sem grupo, e a coluna sem grupo
+// para qualquer lado de um grupo. A coluna de um grupo anda só dentro dele.
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import type { Coluna, GrupoDeColunas, Ordem, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
@@ -71,15 +73,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   alvoRef.current = alvo;
   const colArrasto = useRef<Coluna | null>(null);
   const [colArrastada, setColArrastada] = useState<string | null>(null);
-  const [antesDeCol, setAntesDeCol] = useState<string | null>(null);   // id da coluna ou "fim"
+  const [antesDeCol, setAntesDeCol] = useState<string | null>(null);   // dentro de um grupo: id da coluna ou "fim"
   const antesDeColRef = useRef(antesDeCol);
   antesDeColRef.current = antesDeCol;
-  // Grupo arrastado pelo topo (ou pela faixa, fechado): muda de lugar entre os grupos, como a coluna dentro do grupo.
+  // Grupo arrastado pelo topo (ou pela faixa, fechado): muda de lugar no topo do quadro, entre colunas sem grupo e grupos.
   const grupoArrasto = useRef<GrupoDeColunas | null>(null);
   const [grupoArrastado, setGrupoArrastado] = useState<string | null>(null);
-  const [antesDeGrupo, setAntesDeGrupo] = useState<string | null>(null);   // id do grupo ou "fim"
-  const antesDeGrupoRef = useRef(antesDeGrupo);
-  antesDeGrupoRef.current = antesDeGrupo;
+  // Onde entra o grupo ou a coluna sem grupo arrastada: antes deste item do topo (coluna sem grupo ou grupo) ou "fim".
+  const [antesNoTopo, setAntesNoTopo] = useState<string | null>(null);
+  const antesNoTopoRef = useRef(antesNoTopo);
+  antesNoTopoRef.current = antesNoTopo;
   const [menu, setMenu] = useState<{ c: Coluna | null; k: string; botao: HTMLElement } | null>(null);
   const [menuGrupo, setMenuGrupo] = useState<{ g: GrupoDeColunas; botao: HTMLElement } | null>(null);
   const [grupoDaNova, setGrupoDaNova] = useState('');
@@ -208,6 +211,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   }
 
   // ---------- arrastar colunas ----------
+  /** Se a coluna está no topo do quadro (sem grupo): anda entre colunas sem grupo e grupos. */
+  const noTopo = (c: Coluna) => quadro.topo.some(x => x.id === c.id);
   // Primeira coluna do mesmo grupo cujo meio está à direita do ponteiro: para outro grupo, usa-se o menu da coluna.
   function colunaDepoisDe(x: number) {
     const bloco = colArrasto.current?.grupo_id ?? SEM_GRUPO;
@@ -215,11 +220,11 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.coluna ?? 'fim';
   }
 
-  // ---------- arrastar grupos ----------
-  /** Primeiro grupo cujo meio está à direita do ponteiro ("fim": depois de todos). */
-  function grupoDepoisDe(x: number) {
-    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('.grupo-colunas:not(.arrastando-grupo)')];
-    return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.grupo ?? 'fim';
+  // ---------- arrastar no topo (grupos e colunas sem grupo) ----------
+  /** Primeiro item do topo cujo meio está à direita do ponteiro ("fim": depois de todos), sem contar o arrastado. */
+  function topoDepoisDe(x: number) {
+    const els = [...elQuadro.current!.querySelectorAll<HTMLElement>('[data-topo]:not(.arrastando-grupo):not(.arrastando-col)')];
+    return els.find(el => { const r = el.getBoundingClientRect(); return x < r.left + r.width / 2; })?.dataset.topo ?? 'fim';
   }
 
   /** O que faz o topo do grupo (ou a faixa, fechado) se arrastar; só para quem cuida dos grupos. */
@@ -235,16 +240,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', 'grupo:' + g.id);
       },
-      onDragEnd: () => { grupoArrasto.current = null; setGrupoArrastado(null); setAntesDeGrupo(null); }
+      onDragEnd: () => { grupoArrasto.current = null; setGrupoArrastado(null); setAntesNoTopo(null); }
     };
   }
 
   function soltarGrupo() {
-    const g = grupoArrasto.current, antes = antesDeGrupoRef.current;
+    const g = grupoArrasto.current, antes = antesNoTopoRef.current;
     grupoArrasto.current = null;
     setGrupoArrastado(null);
-    setAntesDeGrupo(null);
-    if (g) void quadro.posicionarGrupo(g, quadro.grupos.find(x => x.id === antes) ?? null);
+    setAntesNoTopo(null);
+    if (g && antes) void quadro.posicionarGrupo(g, antes === 'fim' ? null : antes);
   }
 
   async function criarColuna() {
@@ -268,7 +273,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   }
 
   // A coluna Arquivados é fixa: não se move, não tem menu nem "Adicionar", e mostra os mais recentes primeiro.
-  function coluna(c: Coluna | null, arquivo = false) {
+  function coluna(c: Coluna | null, arquivo = false, topo = false) {
     const id = arquivo ? ARQUIVADOS : c ? c.id : null, k = chave(id), nome = arquivo ? ROTULO_ARQUIVADOS : c ? c.nome : quadro.rotuloSemEtapa;
     const l = listas[k];
     const aqui = alvo?.k === k;
@@ -276,7 +281,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const ordem: Ordem = arquivo ? 'recentes' : quadro.ordemDe(id), manual = ordem === 'manual';
     const marcador = aqui && manual;
     const marco = c?.marco ? MARCOS[c.marco] : null;
-    return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k} data-bloco={c ? c.grupo_id ?? SEM_GRUPO : undefined}>
+    return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k} data-bloco={c ? c.grupo_id ?? SEM_GRUPO : undefined} data-topo={topo && c ? c.id : undefined}>
       <header className="coluna-topo" draggable={reordena || undefined} title={reordena ? 'Arraste para mudar a ordem das colunas' : undefined}
         onDragStart={reordena ? e => {
           if (arrasto.current) return;
@@ -285,7 +290,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', 'coluna:' + c!.id);
         } : undefined}
-        onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); } : undefined}>
+        onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); setAntesNoTopo(null); } : undefined}>
         <h3 title={marco ? `${nome}: ${marco.explicacao}` : nome}>{nome}</h3>
         {marco && <span className="coluna-marco-selo" title={marco.explicacao} aria-label={`Coluna-marco: ${marco.rotulo}`}><Icone nome="check" tam={13} /></span>}
         {arquivo && <span className="coluna-marco-selo" title="Arraste um cartão para cá para arquivar; arraste daqui para outra coluna para desarquivar." aria-hidden="true"><Icone nome="arquivo" tam={13} /></span>}
@@ -336,9 +341,9 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     </section>;
   }
 
-  /** As colunas de um trecho do quadro, com o marcador de onde a coluna arrastada vai entrar. */
-  function colunasDoBloco(b: BlocoDoQuadro<Coluna>) {
-    const noFim = antesDeCol === 'fim' && (colArrasto.current?.grupo_id ?? null) === (b.grupo?.id ?? null);
+  /** As colunas de um grupo, com o marcador de onde a coluna arrastada dentro dele vai entrar. */
+  function colunasDoGrupo(b: BlocoDoQuadro<Coluna>) {
+    const noFim = antesDeCol === 'fim' && colArrasto.current?.grupo_id === b.grupo?.id;
     return <>
       {b.colunas.map(c => <Fragment key={c.id}>
         {antesDeCol === c.id && <div className="kmarcador-col" />}
@@ -348,20 +353,37 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     </>;
   }
 
+  /**
+   * O topo do quadro: cada coluna sem grupo e cada grupo, com o marcador de onde o arrastado vai entrar. Cada um tem a própria
+   * chave (não a do trecho): mudar uma coluna de lugar não redesenha as vizinhas, que guardam a rolagem da lista.
+   */
+  function topoDoQuadro() {
+    return quadro.blocos.flatMap(b => !b.grupo
+      ? b.colunas.map(c => <Fragment key={c.id}>
+        {antesNoTopo === c.id && <div className="kmarcador-col" />}
+        {coluna(c, false, true)}
+      </Fragment>)
+      // Grupo sem coluna visível só aparece para quem cuida dos grupos.
+      : b.colunas.length || quadro.podeGerirGrupos ? [<Fragment key={b.grupo.id}>
+        {antesNoTopo === b.grupo.id && <div className="kmarcador-col" />}
+        {grupoDeColunas(b.grupo, b)}
+      </Fragment>] : []);
+  }
+
   function grupoDeColunas(g: GrupoDeColunas, b: BlocoDoQuadro<Coluna>) {
     const carregando = b.colunas.some(c => !listas[chave(c.id)]);
     const total = carregando ? null : b.colunas.reduce((soma, c) => soma + (listas[chave(c.id)]?.total ?? 0), 0);
     const n = total === null ? '…' : numero(total);
     const alternar = () => { focoGrupo.current = g.id; quadro.alternarGrupo(g); };
     const arrastado = grupoArrastado === g.id ? ' arrastando-grupo' : '';
-    if (!quadro.grupoAberto(g)) return <section key={g.id} className={'grupo-colunas fechado' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id} {...arrastaGrupo(g)}>
+    if (!quadro.grupoAberto(g)) return <section key={g.id} className={'grupo-colunas fechado' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id} data-topo={g.id} {...arrastaGrupo(g)}>
       <button type="button" className="grupo-faixa" data-grupo-botao={g.id} aria-expanded={false} aria-label={`Abrir o grupo ${g.nome}, ${cartoesEmPalavras(total, numero)}`} title={`Abrir o grupo ${g.nome}`} onClick={alternar}>
         <Icone nome="seta" tam={14} />
         <span className="coluna-n">{n}</span>
         <span className="grupo-faixa-nome">{g.nome}</span>
       </button>
     </section>;
-    return <section key={g.id} className={'grupo-colunas' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id}>
+    return <section key={g.id} className={'grupo-colunas' + arrastado} aria-label={`Grupo ${g.nome}`} data-grupo={g.id} data-topo={g.id}>
       <header className="grupo-topo" {...arrastaGrupo(g)}>
         <button type="button" className="grupo-abrir" data-grupo-botao={g.id} aria-expanded aria-label={`Fechar o grupo ${g.nome}`} title={`Fechar o grupo ${g.nome}`} onClick={alternar}>
           <Icone nome="abaixo" tam={14} /><span>{g.nome}</span>
@@ -373,7 +395,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         </button>}
       </header>
       <div className="grupo-lista">
-        {b.colunas.length ? colunasDoBloco(b) : <p className="coluna-vazia grupo-vazio">Nenhuma coluna. No menu de uma coluna, use "Mover para o grupo".</p>}
+        {b.colunas.length ? colunasDoGrupo(b) : <p className="coluna-vazia grupo-vazio">Nenhuma coluna. No menu de uma coluna, use "Mover para o grupo".</p>}
       </div>
     </section>;
   }
@@ -384,10 +406,10 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   return <div className="area-quadro">
     <div className="quadro" role="region" aria-label="Quadro" ref={elQuadro}
       onDragOver={e => {
-        if (grupoArrasto.current) {
+        if (grupoArrasto.current || (colArrasto.current && noTopo(colArrasto.current))) {
           e.preventDefault();
-          const antes = grupoDepoisDe(e.clientX);
-          if (antes !== antesDeGrupoRef.current) setAntesDeGrupo(antes);
+          const antes = topoDepoisDe(e.clientX);
+          if (antes !== antesNoTopoRef.current) setAntesNoTopo(antes);
           rolarBordas(e.clientX);
           return;
         }
@@ -402,20 +424,16 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
         const c = colArrasto.current;
         if (!c) return;
         e.preventDefault();
-        const antes = antesDeColRef.current;
+        const antes = noTopo(c) ? antesNoTopoRef.current : antesDeColRef.current;
         colArrasto.current = null;
         setColArrastada(null);
         setAntesDeCol(null);
-        void quadro.posicionar(c, antes && antes !== 'fim' ? quadro.colunas.find(x => x.id === antes) || null : null);
+        setAntesNoTopo(null);
+        if (antes) void quadro.posicionar(c, antes === 'fim' ? null : antes);
       }}>
       <Fragment key="sem">{coluna(null)}</Fragment>
-      {quadro.blocos.map(b => !b.grupo ? <Fragment key={SEM_GRUPO}>{colunasDoBloco(b)}</Fragment>
-        // Grupo sem coluna visível só aparece para quem cuida dos grupos.
-        : b.colunas.length || quadro.podeGerirGrupos ? <Fragment key={b.grupo.id}>
-          {antesDeGrupo === b.grupo.id && <div className="kmarcador-col" />}
-          {grupoDeColunas(b.grupo, b)}
-        </Fragment> : null)}
-      {antesDeGrupo === 'fim' && <div className="kmarcador-col" />}
+      {topoDoQuadro()}
+      {antesNoTopo === 'fim' && <div className="kmarcador-col" />}
       {props.arquivados && <Fragment key="arquivados">{coluna(null, true)}</Fragment>}
       <section className="coluna nova-coluna">
         <form className="nova-form" autoComplete="off" onSubmit={e => { e.preventDefault(); void criarColuna(); }}>
@@ -451,8 +469,8 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
 
 // ---------- menu da coluna ----------
 function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
-  // Mover para os lados vale dentro do grupo da coluna.
-  const visiveis = quadro.blocos.find(b => b.colunas.some(x => x.id === c?.id))?.colunas ?? [], i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
+  // Mover para os lados vale dentro do grupo da coluna; sem grupo, no topo do quadro (passando por grupos).
+  const visiveis = c ? quadro.filaDaColuna(c) : [], i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
   const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   const atual = quadro.ordemDe(c ? c.id : null);
   return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
@@ -485,11 +503,12 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
 
 // ---------- menu do grupo (só para quem cuida dos grupos) ----------
 function MenuGrupo({ g, botao, quadro, aoFechar, aoMudarComeco }: { g: GrupoDeColunas; botao: HTMLElement; quadro: Quadro; aoFechar: () => void; aoMudarComeco: () => void }) {
-  const i = quadro.grupos.findIndex(x => x.id === g.id);
+  // Mover para os lados anda no topo do quadro, passando por colunas sem grupo e grupos.
+  const i = quadro.topo.findIndex(x => x.id === g.id);
   const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
     {i > 0 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, -1))}><Icone nome="voltar" tam={15} /> Mover para a esquerda</button>}
-    {i < quadro.grupos.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
+    {i < quadro.topo.length - 1 && <button type="button" role="menuitem" onClick={agir(() => quadro.moverGrupo(g, 1))}><Icone nome="seta" tam={15} /> Mover para a direita</button>}
     <button type="button" role="menuitem" onClick={agir(() => quadro.renomearGrupo(g))}><Icone nome="editar" tam={15} /> Renomear</button>
     <button type="button" role="menuitemcheckbox" aria-checked={g.comeca_fechado} onClick={agir(() => { aoMudarComeco(); return quadro.alternarComecoFechado(g); })}>
       <span className="kmenu-marca">{g.comeca_fechado && <Icone nome="check" tam={15} />}</span>Começa fechado para todos
