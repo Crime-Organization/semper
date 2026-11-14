@@ -1,7 +1,7 @@
 // No cartão da demanda, as tarefas dela como um checklist (pedido do Mateus, 30/10): marcar a caixa leva a tarefa para
 // a coluna "Concluída" do quadro de tarefas (e encerra o cronômetro dela); desmarcar a devolve para "Para fazer". Com a
-// última marcada, o sistema oferece concluir a demanda. Cada tarefa abre o cartão dela; embaixo, o atalho para uma
-// tarefa nova da demanda. As arquivadas ficam de fora.
+// última marcada, o sistema oferece concluir a demanda. Cada tarefa abre o cartão dela. A tarefa nova da demanda nasce
+// pelo "+" no título da seção, no cartão da demanda (#279), como nas seções de tarefas do contrato e da pessoa. As arquivadas ficam de fora.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { SD, type Coluna, type TarefaLigada } from '../dados';
@@ -9,7 +9,7 @@ import { rotuloDoPrazoComHora } from '../regras/demanda';
 import { progressoDaLista } from '../regras/listas';
 import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, Nota } from '../ui/base';
+import { Aviso, Carregando, Nota } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { hojeISO } from '../ui/util';
@@ -73,6 +73,5 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
       })}</ul>
     </>}
     {!ativas.length && <Nota>Nenhuma tarefa nesta demanda ainda.</Nota>}
-    {!somenteLer && <div><BotaoLink forma="mini" to={'/tarefas/nova/?demanda=' + demandaId}><Icone nome="mais" tam={13} /> Nova tarefa desta demanda</BotaoLink></div>}
   </div>;
 }

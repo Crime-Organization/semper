@@ -96,6 +96,57 @@ test.describe('Cadastro de tarefas', () => {
   });
 });
 
+test.describe('Tarefa nascida no cartão da demanda (#279)', () => {
+  /** Abre o cartão da demanda pela tabela de Demandas, sem abrir nenhuma seção. */
+  async function abrirDemanda(page: Page, titulo: string) {
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: titulo }).first().click();
+    return page.getByRole('dialog');
+  }
+
+  test('quando a seção Tarefas está recolhida, então o "+" do título já abre o cadastro ligado à demanda', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    await expect(cartao.getByRole('button', { name: /^Tarefas/ })).toHaveAttribute('aria-expanded', 'false');
+    // Quando
+    await cartao.getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Título').fill('Conferir a procuração');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(cadastro.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
+  });
+
+  test('dada a fase de adaptação, quando quem não participa cria a tarefa pela demanda, então ela fica ligada, com o nome da demanda e o código do contrato', async ({ page }) => {
+    // Dado: Bruno não está na demanda "Busca de anterioridade" nem no contrato dela
+    await page.goto('/configuracoes/');
+    await page.getByRole('checkbox', { name: /Toda a equipe vê e edita tudo/ }).check();
+    await expect(page.getByText('Fase de adaptação ligada', { exact: false })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    let cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    const antes = Number((await cartao.getByRole('button', { name: /^Tarefas/ }).innerText()).replace(/\D/g, '') || 0);
+    // Quando
+    await cartao.getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Título').fill('Pesquisar marcas parecidas');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    // Então: a demanda aparece pelo nome, e o contrato pelo código (e não só "Contrato ligado")
+    await expect(cadastro.getByText(/· Busca de anterioridade/)).toBeVisible();
+    await expect(cadastro.getByText('Contrato ligado')).toHaveCount(0);
+    // Quando
+    await cadastro.getByRole('button', { name: 'Salvar tarefa' }).click();
+    await expect(page.getByText(/Tarefa \w+ cadastrada\./)).toBeVisible();
+    cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    // Então: a tarefa está na lista da demanda e no contador da seção
+    await expect(cartao.getByRole('button', { name: /^Tarefas/ })).toContainText(String(antes + 1));
+    await abrirSecao(cartao, 'Tarefas');
+    await expect(cartao.getByText('Pesquisar marcas parecidas')).toBeVisible();
+  });
+});
+
 test.describe('Quadro de tarefas', () => {
   // Tela larga: as colunas "Fazendo" e "Concluída" ficam as duas à vista, para arrastar de uma para a outra.
   test.use({ viewport: { width: 1920, height: 1000 } });

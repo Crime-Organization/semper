@@ -150,7 +150,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDoCartao modulo="demandas" id={d.id} somenteLer={!podeAlterar} />
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}>
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}
+      novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}

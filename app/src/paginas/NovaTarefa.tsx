@@ -71,6 +71,9 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // O processo escolhido, para mostrar o nome (o campo guarda só o id).
   const comProcessos = !!ctx.escritorio?.modulos?.processos;
   const [processo, setProcesso] = useState<ProcessoEscolhido | null>(null);
+  // O nome da demanda e do contrato que vieram pelo cartão, para quando eles não estão nas listas de busca (ex.: quem não é
+  // parte do contrato da demanda vê a ligação pelo código, e não só "Contrato ligado").
+  const [conhecidos, setConhecidos] = useState<Record<string, string>>({});
   useTitulo(edicao ? null : alvo ? 'Atualizar tarefa' : 'Nova tarefa');
 
   // As pessoas de uma vez (ao abrir uma tarefa salva, ou ao escolher uma demanda com clientes).
@@ -85,6 +88,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     mudar({ demandaId: id });
     const d = await SD.demandaObter(id).catch(() => null);
     if (!d) return;
+    setConhecidos(x => ({ ...x, [d.id]: [d.codigo, d.titulo].filter(Boolean).join(' · '), ...(d.contrato_id && d.contrato_codigo ? { [d.contrato_id]: d.contrato_codigo } : {}) }));
     if (semPessoas(c) && d.clientes.length) { porPessoas(d.clientes); mudar({ pessoas: d.clientes.map(p => p.id) }); }
     if (!c.contratoId && d.contrato_id) mudar({ contratoId: d.contrato_id });
   }
@@ -109,6 +113,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     if (demandaInicial) void ligarDemanda(demandaInicial);
     if (contratoInicial) SD.contratoVer(contratoInicial).then(k => {
       if (!k) return;
+      setConhecidos(x => ({ ...x, [k.id]: k.codigo }));
       porPessoas(k.clientes);
       setC(x => ({ ...x, contratoId: k.id, pessoas: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));
     }).catch(falha);
@@ -176,13 +181,13 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
 
   // ---------- demanda e contrato ----------
   const demandaEscolhida = demandas.find(d => d.id === c.demandaId);
-  const rotuloDemanda = demandaEscolhida ? rotuloDaDemanda(demandaEscolhida) : alvo?.demanda_id === c.demandaId ? alvo?.demanda_codigo ?? '' : '';
+  const rotuloDemanda = demandaEscolhida ? rotuloDaDemanda(demandaEscolhida) : conhecidos[c.demandaId] ?? (alvo?.demanda_id === c.demandaId ? alvo?.demanda_codigo ?? '' : '');
   function digitarDemanda(texto: string) {
     const d = demandas.find(x => rotuloDaDemanda(x) === texto);
     if (d) { void ligarDemanda(d.id); setBuscaDemanda(''); } else setBuscaDemanda(texto);
   }
   const contratoEscolhido = contratos.find(k => k.id === c.contratoId);
-  const rotuloContrato = contratoEscolhido ? rotuloDoContrato(contratoEscolhido) : alvo?.contrato_id === c.contratoId ? alvo?.contrato_codigo ?? '' : '';
+  const rotuloContrato = contratoEscolhido ? rotuloDoContrato(contratoEscolhido) : conhecidos[c.contratoId] ?? (alvo?.contrato_id === c.contratoId ? alvo?.contrato_codigo ?? '' : '');
   function digitarContrato(texto: string) {
     const k = contratos.find(x => rotuloDoContrato(x) === texto);
     if (k) { mudar({ contratoId: k.id }); setBuscaContrato(''); } else setBuscaContrato(texto);
