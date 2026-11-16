@@ -30,6 +30,7 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
+import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 
 interface Props {
   id: string;
@@ -132,10 +133,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>
-          <select aria-label="Situação da tarefa" disabled={!!t.arquivado_em || !podeAlterar} value={t.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-            <option value="">{SEM_SITUACAO_TAREFA}</option>
-            {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-          </select>
+          <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
           {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
           {podeAlterar && !t.arquivado_em && (concluida
             ? inicio && <Botao key="reabrir" forma="botao" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={16} />Reabrir</Botao>

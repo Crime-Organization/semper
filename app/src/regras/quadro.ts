@@ -66,6 +66,21 @@ export function blocosDoQuadro<C extends ColunaNoQuadro>(colunas: C[], grupos: G
   return blocos;
 }
 
+/** O que separa o nome do grupo do nome da coluna, quando a situação é dita fora do quadro (ex.: "AGUARDANDO: ANÁLISE"). */
+export const SEPARADOR_DO_GRUPO = ': ';
+
+/** Uma situação possível do cartão: a coluna e o nome dela com o grupo na frente, se ela está num grupo (#302). */
+export interface SituacaoDoQuadro<C> { coluna: C; rotulo: string }
+
+/**
+ * As situações do quadro na ordem da tela, para o menu "Situação" do cartão (#302): a coluna de um grupo vem com o nome do
+ * grupo na frente, para quem escolhe pelo menu saber em que grupo ela fica.
+ */
+export function situacoesDoQuadro<C extends ColunaNoQuadro & { nome: string }>(colunas: C[], grupos: GrupoDeColunas[]): SituacaoDoQuadro<C>[] {
+  return blocosDoQuadro(colunas, grupos).flatMap(b =>
+    b.colunas.map(c => ({ coluna: c, rotulo: b.grupo ? b.grupo.nome + SEPARADOR_DO_GRUPO + c.nome : c.nome })));
+}
+
 /** A ordem de quem entra no fim do quadro (coluna sem grupo nova, grupo novo, coluna que sai do grupo): depois de tudo. */
 export const ordemNoFimDoQuadro = (colunas: { ordem: number }[], grupos: { ordem: number }[]) =>
   Math.max(0, ...colunas.map(c => c.ordem), ...grupos.map(g => g.ordem)) + 1;

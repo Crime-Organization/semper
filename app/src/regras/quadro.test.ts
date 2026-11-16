@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -228,5 +228,47 @@ describe('Mudar de lugar (colunas de um grupo ou os grupos do quadro)', () => {
     const resultado = antesDeAoAndar(fila, id, passo);
     // Então
     expect(resultado).toBe(antes);
+  });
+});
+
+describe('Situação do cartão com o grupo na frente (#302)', () => {
+  const grupo = (id: string, nome: string, ordem: number) => ({ id, nome, ordem, comeca_fechado: false });
+  const coluna = (id: string, nome: string, ordem: number, grupo_id: string | null = null) => ({ id, nome, ordem, grupo_id });
+
+  it('dado uma coluna dentro de um grupo, quando o menu é montado, então ela vem com o nome do grupo na frente', () => {
+    // Dado
+    const aguardando = grupo('g', 'AGUARDANDO', 3);
+    // Quando
+    const situacoes = situacoesDoQuadro([coluna('analise', 'ANÁLISE DO SOLICITANTE', 1, 'g')], [aguardando]);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['AGUARDANDO: ANÁLISE DO SOLICITANTE']);
+  });
+
+  it('dado colunas sem grupo e um grupo entre elas, quando o menu é montado, então segue a ordem do quadro e só as do grupo levam o nome dele', () => {
+    // Dado: "AGUARDANDO" entre "Fazendo" (2) e "Concluída" (4), como na tela.
+    const aguardando = grupo('g', 'AGUARDANDO', 3);
+    const colunas = [
+      coluna('fim', 'Concluída', 4), coluna('protocolo', 'PROTOCOLO', 2, 'g'), coluna('fazer', 'Para fazer', 1),
+      coluna('analise', 'ANÁLISE', 1, 'g'), coluna('fazendo', 'Fazendo', 2)
+    ];
+    // Quando
+    const situacoes = situacoesDoQuadro(colunas, [aguardando]);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['Para fazer', 'Fazendo', 'AGUARDANDO: ANÁLISE', 'AGUARDANDO: PROTOCOLO', 'Concluída']);
+    expect(situacoes.map(x => x.coluna.id)).toEqual(['fazer', 'fazendo', 'analise', 'protocolo', 'fim']);
+  });
+
+  it('dado uma coluna de um grupo que não existe mais, quando o menu é montado, então ela aparece só com o próprio nome', () => {
+    // Quando
+    const situacoes = situacoesDoQuadro([coluna('solta', 'Solta', 1, 'grupo-apagado')], []);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['Solta']);
+  });
+
+  it('dado um grupo sem colunas, quando o menu é montado, então ele não vira opção', () => {
+    // Quando
+    const situacoes = situacoesDoQuadro([coluna('a', 'A', 1)], [grupo('vazio', 'Vazio', 2)]);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['A']);
   });
 });

@@ -29,6 +29,7 @@ import { useCtx } from '../ui/sessao';
 import NovoContrato from './NovoContrato';
 import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
 import { dataCurta, dataHora, relativo } from '../ui/util';
+import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 
 interface Props {
   id: string;
@@ -144,10 +145,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação do contrato" disabled={!!k.arquivado_em || (!podeAlterar && !semValores)} value={k.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-          <option value="">{SEM_SITUACAO}</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
+        <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
       </section>}
     </header>
 

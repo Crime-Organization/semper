@@ -105,3 +105,23 @@ test.describe('Grupo entre colunas sem grupo', () => {
     await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Concluída', 'Grupo Aguardado', 'Revisão']);
   });
 });
+
+test.describe('Menu "Situação" do cartão com o grupo na frente (#302)', () => {
+  test('dado uma coluna dentro de um grupo, quando a pessoa muda a situação pelo menu do cartão, então vê o grupo na frente da coluna, na ordem do quadro', async ({ page }) => {
+    // Dado: o grupo "Aguardado" entre "Fazendo" e "Concluída", com "Aguardando retorno" dentro dele
+    await abrirComGrupo(page);
+    await page.getByRole('button', { name: 'Opções do grupo Aguardado' }).click();
+    await page.getByRole('menuitem', { name: 'Mover para a esquerda' }).click();
+    await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Grupo Aguardado', 'Concluída']);
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
+    const menu = page.getByRole('dialog').getByRole('combobox', { name: 'Situação da tarefa' });
+    // Então
+    await expect(menu.getByRole('option')).toHaveText(['Sem situação', 'Para fazer', 'Fazendo', 'Aguardado: Aguardando retorno', 'Concluída']);
+    // Quando
+    await menu.selectOption({ label: 'Aguardado: Aguardando retorno' });
+    // Então
+    await expect(menu.getByRole('option', { selected: true })).toHaveText('Aguardado: Aguardando retorno');
+    await expect(page.getByText('Movida para "Aguardado: Aguardando retorno".')).toBeVisible();
+  });
+});

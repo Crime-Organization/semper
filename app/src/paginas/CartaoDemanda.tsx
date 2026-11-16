@@ -31,6 +31,7 @@ import { ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
+import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 
 interface Props {
   id: string;
@@ -125,10 +126,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {d.descricao && <p className="demanda-descricao">{d.descricao}</p>}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação da demanda" disabled={!!d.arquivado_em || !podeAlterar} value={d.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-          <option value="">{SEM_SITUACAO_DEMANDA}</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
+        <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
       </section>}
     </header>
 

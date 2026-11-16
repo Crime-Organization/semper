@@ -23,6 +23,7 @@ import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
+import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 
 interface Props {
   id: string;
@@ -104,10 +105,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       <p className="cartao-quando">{quandoDoCompromisso(c)}</p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação do compromisso" disabled={somenteLer} value={c.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-          <option value="">{SEM_SITUACAO_COMPROMISSO}</option>
-          {quadro.colunas.map(x => <option key={x.id} value={x.id}>{x.nome}{x.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
+        <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
       </section>}
     </header>
 

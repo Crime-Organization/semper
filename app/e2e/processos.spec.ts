@@ -101,7 +101,8 @@ test.describe('Cadastro de processo', () => {
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA', level: 2 })).toBeVisible();
     await expect(cartao).toContainText(NUMERO_NOVO);
-    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Distribuído');
+    // No quadro de processos toda coluna fica num grupo, e o menu mostra o grupo na frente (#302).
+    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Início: Distribuído');
     await abrirSecao(cartao, 'Dados do processo');
     await expect(cartao.getByRole('definition').filter({ hasText: 'Montes Claros' })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'R$' })).toContainText('1.500,50');
@@ -160,7 +161,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então
     await expect(page).toHaveURL(/\/processos\/administrativo\/\?id=/);
-    await expect(page.getByRole('dialog').getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolado');
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolo: Protocolado');
   });
 
   test('quando falta o cliente, então a etapa avisa e não segue', async ({ page }) => {
@@ -194,7 +195,7 @@ test.describe('Cadastro de processo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'Oposição à marca', level: 2 })).toBeVisible();
-    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolado');
+    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolo: Protocolado');
     await expect(page).toHaveURL(/\/processos\/administrativo\//);
   });
 
@@ -260,7 +261,7 @@ test.describe('Cartão do processo', () => {
     // Dado
     const cartao = await abrirProcesso(page);
     // Quando
-    await cartao.getByLabel('Situação do processo').selectOption({ label: 'Contestação/defesa' });
+    await cartao.getByLabel('Situação do processo').selectOption({ label: 'Conhecimento: Contestação/defesa' });
     // Então
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toContainText('Contestação/defesa');
   });

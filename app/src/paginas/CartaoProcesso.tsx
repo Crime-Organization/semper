@@ -28,6 +28,7 @@ import { CompromissosLigados } from './CompromissosLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
 import { AndamentosEPrazos } from './processo/AndamentosEPrazos';
+import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 
 interface Props {
   id: string;
@@ -130,10 +131,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <p className="demanda-descricao">{p.numero}</p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
-        <select aria-label="Situação do processo" disabled={!!p.arquivado_em || !podeAlterar} value={p.etapa_id || ''} onChange={e => mudarSituacao(e.target.value)}>
-          <option value="">{SEM_SITUACAO_PROCESSO}</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
-        </select>
+        <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
       </section>}
     </header>
 

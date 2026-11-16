@@ -7,7 +7,7 @@ import { SD, type Coluna, type ContextoAtivo, type GrupoDeColunas, type Modulo, 
 import { avisar, falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemNoFimDoQuadro, podeExcluirColuna, type BlocoDoQuadro, type ItemDoTopo } from '../../regras/quadro';
+import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro, type BlocoDoQuadro, type ItemDoTopo, type SituacaoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
 export interface Quadro {
@@ -15,7 +15,10 @@ export interface Quadro {
   sugestoes: string[];
   pronto: boolean;
   rotuloSemEtapa: string;
+  /** O nome da situação, com o grupo na frente se a coluna está num grupo ("AGUARDANDO: ANÁLISE"); '' se não há coluna. */
   nomeDe: (id: string | null) => string;
+  /** Todas as colunas (as ocultas também) na ordem da tela, com o nome do grupo na frente: o menu "Situação" do cartão (#302). */
+  situacoes: SituacaoDoQuadro<Coluna>[];
   podeReordenar: boolean;
   podeRenomear: (c: Coluna) => boolean;
   podeExcluir: (c: Coluna) => boolean;
@@ -253,15 +256,16 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     } catch (e) { falha(e); }
   }
 
+  const situacoes = situacoesDoQuadro(colunas, grupos);
   return {
-    colunas, sugestoes, pronto, rotuloSemEtapa,
+    colunas, sugestoes, pronto, rotuloSemEtapa, situacoes,
     grupos, blocos: blocosDoQuadro(colunas.filter(c => !c.oculta), grupos), topo: filaDoTopo(colunas.filter(c => !c.oculta), grupos), filaDaColuna,
     podeGerirGrupos: ctx.ehAdmin,
     grupoAberto: g => grupoEstaAberto(g, abertos),
     alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, posicionarGrupo, moverGrupo, excluirGrupo, agrupar,
     ordemDe: id => ordens[id || 'sem'] || 'manual',
     ordenar: ordenarCartoes,
-    nomeDe: id => colunas.find(c => c.id === id)?.nome || '',
+    nomeDe: id => situacoes.find(x => x.coluna.id === id)?.rotulo || '',
     podeReordenar: ctx.ehAdmin,
     podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,
     podeExcluir: c => podeExcluirColuna(c, ctx.ehAdmin),
