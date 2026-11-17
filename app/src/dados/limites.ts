@@ -189,3 +189,15 @@ export const COMPROMISSOS_LIGADOS = 200;
 export const ITENS_DA_AGENDA = 500;
 /** Quantos processos (os ativos mais recentes que combinam com a busca) a busca de processo oferece para ligar. */
 export const PROCESSOS_PARA_LIGAR = 50;
+
+// ---------- Anotações (módulo Documentos, #303) ----------
+/** Tamanhos do título e do texto da anotação (exigidos pelo banco: supabase/migrations/…_anotacoes.sql). */
+export const TAMANHO_ANOTACAO = { titulo: 300, texto: 20000 };
+/** A quantos itens uma anotação pode ser ligada (exigido pelo banco, mesma migração: ele recusa o 51º). */
+export const ITENS_DA_ANOTACAO = 50;
+/** Quantas anotações entram na seção "Anotações" do cartão de um item (as atualizadas mais recentemente). */
+export const ANOTACOES_LIGADAS = 200;
+/** Quantas alterações do histórico aparecem no cartão da anotação. */
+export const HISTORICO_DA_ANOTACAO = 100;
+/** Quantos itens a busca para ligar oferece enquanto se digita, no cartão da anotação. */
+export const ITENS_PARA_LIGAR = 8;

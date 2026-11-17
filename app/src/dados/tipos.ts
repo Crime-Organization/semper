@@ -6,7 +6,7 @@ export type Papel = 'master' | 'admin' | 'usuario';
 /** O que a pessoa faz no escritório. Diferente do papel: administrador é quem gere o sistema; administrativo é uma função. */
 export type Funcao = 'advogado' | 'administrativo' | 'estagiario';
 export type ComoEntrarNoProcesso = 'colaborador' | 'responsavel';
-export type ModuloComSaida = 'tarefas' | 'demandas' | 'processos' | 'compromissos';
+export type ModuloComSaida = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'anotacoes';
 export type TipoPessoa = 'pf' | 'pj' | 'contato';
 export type Modulo = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes' | 'financeiro' | 'processos_judiciais' | 'processos_administrativos';
 
@@ -1219,6 +1219,77 @@ export interface DadosCompromissos {
   /** Os ativos mais recentes que combinam com o texto (número, nome, cliente, código): a busca é no banco, para achar também os antigos. */
   processosParaLigar(termo?: string): Promise<ProcessoParaLigar[]>;
 }
+
+// ---------- anotações (módulo Documentos, #303) ----------
+/** Os módulos a que uma anotação se liga (#303). */
+export type ModuloDaAnotacao = Extract<Modulo, 'pessoas' | 'processos' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos'>;
+/**
+ * Anotação em Markdown, ligada a quantos itens se queira (até ITENS_DA_ANOTACAO). Quem não é administrador vê a que criou,
+ * de que é responsável ou participante e a ligada a um processo, contrato, demanda, tarefa ou compromisso que vê (a ligação
+ * a uma pessoa não abre). O código (curto e aleatório) é dado pelo banco.
+ */
+export interface Anotacao {
+  id: string;
+  codigo: string;
+  titulo: string;
+  texto: string;
+  responsavel_id: string;
+  participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os módulos dos itens ligados (o banco mantém). */
+  ligada_a: ModuloDaAnotacao[];
+  arquivado_em: string | null;
+  arquivado_por: string | null;
+  criado_por: string | null;
+  criado_em: string;
+  atualizado_por: string | null;
+  atualizado_em: string;
+}
+/** Campos que o cadastro de anotação grava. */
+export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>>;
+/** Linha da tabela de anotações. */
+export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'ligada_a' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
+/** Anotação como aparece no cartão de um item ligado a ela. */
+export type AnotacaoLigada = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
+/** Um item ligado a uma anotação, como aparece no cartão dela. */
+export interface ItemDaAnotacao {
+  modulo: ModuloDaAnotacao; id: string; codigo: string; nome: string; arquivado_em: string | null;
+  /** Só nos processos: o tipo, que decide a página do cartão (enderecoDoItem, em regras/anotacao.ts). */
+  tipo?: TipoProcesso;
+}
+export interface FiltroAnotacoes {
+  termo?: string;
+  /** Só as ligadas a algum item deste módulo; 'nenhum': as que não estão ligadas a nada. */
+  ligadaA?: ModuloDaAnotacao | 'nenhum';
+  /** Quem criou. */
+  autor?: string;
+  /** Criadas a partir deste dia (AAAA-MM-DD). */
+  desde?: string;
+  situacao?: 'ativas' | 'arquivadas';
+  ordem?: Ordem;
+  pagina?: number;
+  porPagina?: number;
+}
+/** Anotações (supabase/migrations/…_anotacoes.sql). */
+export interface DadosAnotacoes {
+  anotacoesListar(f?: FiltroAnotacoes): Promise<Pagina<AnotacaoLista>>;
+  anotacaoObter(id: string): Promise<Anotacao | null>;
+  /** "ligarA": o item em cujo cartão a anotação nasceu; se a ligação falhar, nada fica gravado. */
+  anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: { modulo: ModuloDaAnotacao; id: string }): Promise<{ id: string; codigo: string }>;
+  anotacaoAtualizar(id: string, dados: DadosAnotacao): Promise<{ id: string; codigo: string }>;
+  anotacoesArquivar(ids: string[], arquivar?: boolean): Promise<number>;
+  /** Só anotações arquivadas são excluídas (por quem criou ou um administrador). */
+  anotacoesExcluir(ids: string[]): Promise<Exclusao>;
+  anotacaoHistorico(id: string): Promise<Historico[]>;
+  /** Ligar de novo o mesmo item não faz nada. */
+  anotacaoLigar(id: string, modulo: ModuloDaAnotacao, itemId: string): Promise<void>;
+  anotacaoDesligar(id: string, modulo: ModuloDaAnotacao, itemId: string): Promise<void>;
+  /** Os itens ligados que quem lê pode abrir, e quantos há que ele não pode. */
+  anotacaoItens(id: string): Promise<{ visiveis: ItemDaAnotacao[]; ocultos: number }>;
+  /** As anotações ligadas ao item que quem lê pode ver, as atualizadas mais recentemente primeiro. */
+  anotacoesDoItem(modulo: ModuloDaAnotacao, itemId: string): Promise<AnotacaoLigada[]>;
+  /** Itens do módulo para ligar, pela busca, entre os que quem lê pode ver (ativos). */
+  itensParaLigar(modulo: ModuloDaAnotacao, termo: string): Promise<ItemDaAnotacao[]>;
+}
 /** Como a demanda se liga ao processo: deu origem a ele, ou trabalha nele (ligada depois). */
 export type PapelDaDemandaNoProcesso = 'originou' | 'atua';
 /** A demanda no cartão do processo, com quem a vê: para saber se a tarefa pode herdá-la. */
@@ -1513,4 +1584,4 @@ export interface DadosParcelas {
   financeiroSocioRestaurar(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos {}
+export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes {}

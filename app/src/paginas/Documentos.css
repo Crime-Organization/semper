@@ -1,0 +1,22 @@
+/* Documentos (#303): a tabela das anotações, o texto no cartão em medida de leitura e a busca para ligar um item.
+   O resto vem de estilo.css. */
+.tabela-anotacoes td:nth-child(2) { min-width: 240px; max-width: 460px }
+.tabela-anotacoes .anotacao-sem-ligacao { color: var(--faint) }
+.tabela-anotacoes .anotacao-data { white-space: nowrap; color: var(--muted) }
+/* A barra de lote tem fundo escuro e texto claro nos dois temas: o "limpar" usa a cor do texto dela. */
+.lote-limpar { margin-left: 8px; color: inherit }
+
+/* O texto da anotação no cartão: o corpo de leitura do DESIGN.md (16/1.65), na largura de leitura. */
+.texto-formatado.anotacao-texto { max-width: 68ch; margin: 4px 0 8px; font-size: 16px; line-height: 1.65 }
+.texto-formatado.anotacao-texto > :is(h3, h4, h5) { margin-top: 20px }
+.texto-formatado.anotacao-texto > :is(h3, h4, h5):first-child { margin-top: 0 }
+.texto-formatado.anotacao-texto > ul { margin: 6px 0 }
+
+/* A caixa do texto no cadastro: espaço para escrever um documento, não uma linha. */
+textarea.anotacao-caixa { min-height: 240px; line-height: 1.6 }
+
+/* Ligar a outro item: o tipo de item e a busca lado a lado (um embaixo do outro no cartão estreito). */
+.ligar-item { flex: 1 1 100% }
+.ligar-item-campos { display: flex; flex-wrap: wrap; gap: 8px }
+.ligar-item-campos > select { flex: 0 0 auto; width: auto }
+.ligar-item-campos > input { flex: 1 1 200px; min-width: 0 }

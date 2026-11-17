@@ -134,7 +134,7 @@ test.describe('Lucro dos sócios', () => {
     await form.getByRole('button', { name: 'Confirmar pagamento' }).click();
     await expect(form).toHaveCount(0);
     // Então
-    await expect(page.getByLabel('Ano')).toHaveValue(String(ano - 1));
+    await expect(page.getByRole('combobox', { name: /^Ano/ })).toHaveValue(String(ano - 1));
     await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('columnheader', { name: `Em aberto no fim de ${ano - 1}` })).toBeVisible();
     await expect(page.getByRole('list', { name: `Pagamentos de lucro de ${ano - 1}` })).toContainText('MATEUS FREITAS');
   });

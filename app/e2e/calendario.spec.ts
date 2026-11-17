@@ -41,7 +41,7 @@ test.describe('Feriados e prazos', () => {
   test('quando o administrador lança um feriado municipal para o TJMG, então o prazo do TJMG pula esse dia, e o do TRF6 não', async ({ page }) => {
     // Dado
     await page.goto('/calendario/');
-    await page.getByLabel('Ano').selectOption('2026');
+    await page.getByLabel('Ano', { exact: true }).selectOption('2026');
     // Quando
     await page.getByRole('button', { name: 'Lançar dias' }).click();
     const form = page.getByRole('form', { name: 'Lançar dias sem expediente' });
@@ -104,7 +104,7 @@ test.describe('Feriados e prazos', () => {
   test('quando o administrador exclui um dia lançado, então ele sai do calendário', async ({ page }) => {
     // Dado
     await page.goto('/calendario/');
-    await page.getByLabel('Ano').selectOption('2026');
+    await page.getByLabel('Ano', { exact: true }).selectOption('2026');
     await page.getByRole('button', { name: 'Lançar dias' }).click();
     const form = page.getByRole('form', { name: 'Lançar dias sem expediente' });
     await form.getByLabel('Motivo').fill('Portaria 12/2026');

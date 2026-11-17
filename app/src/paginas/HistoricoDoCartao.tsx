@@ -12,11 +12,13 @@ interface Props {
   campos: Record<string, string>;
   /** Como o valor de cada campo aparece (ex.: a data como dia/mês/ano, vazio como traço). */
   valor: (campo: string, v: unknown) => string;
+  /** Os campos que o histórico guarda sem os valores (o texto de uma anotação, por exemplo): aparecem só como "Texto alterado". */
+  soQueMudou?: readonly string[];
   /** Muda quando o cartão muda: recarrega o histórico. */
   versao: number;
 }
 
-export function HistoricoDoCartao({ carregar, campos, valor, versao }: Props) {
+export function HistoricoDoCartao({ carregar, campos, valor, soQueMudou = [], versao }: Props) {
   const ctx = useCtx();
   const [hist, setHist] = useState<Historico[] | string | null>(null);
   const nomeDe = (pid: string) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
@@ -34,6 +36,7 @@ export function HistoricoDoCartao({ carregar, campos, valor, versao }: Props) {
     <span className="quando">{dataHora(h.em)} · {h.feito_por ? nomeDe(h.feito_por) : 'Sistema'}</span>
     {Object.entries(h.alteracoes).map(([campo, v]) => {
       if (campo === 'arquivado_em') return <div key={campo}>{v.para ? 'Arquivada' : 'Desarquivada'}</div>;
+      if (soQueMudou.includes(campo)) return <div key={campo}><b>{campos[campo] || campo}</b> alterado</div>;
       const de = valor(campo, v.de), para = valor(campo, v.para);
       return <div key={campo}><b>{campos[campo] || campo}:</b> {de !== '—' && <><span className="de">{de}</span> → </>}{para}</div>;
     })}

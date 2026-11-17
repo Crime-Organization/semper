@@ -26,6 +26,7 @@ import NovaDemanda from './NovaDemanda';
 import { dataCurta, relativo } from '../ui/util';
 import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { oferecerProcesso } from './concluirDemanda';
+import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
@@ -166,6 +167,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
     </Recolhivel>
+
+    <AnotacoesDoCartao modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} />
 
     <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaDemanda(d)} />
 

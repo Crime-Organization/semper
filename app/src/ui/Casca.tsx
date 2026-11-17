@@ -19,6 +19,9 @@ import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
 import { PAPEIS } from './util';
 
+/** Tamanho do "+" ao lado de cada módulo, que leva ao cadastro. */
+const ICONE_DO_MAIS = 15;
+
 export function Casca({ children }: { children: ReactNode }) {
   const { ctx } = useSessao();
   const p = ctx.perfil;
@@ -55,7 +58,7 @@ export function Casca({ children }: { children: ReactNode }) {
     await SD.sair();
     navegar('/entrar/');
   };
-  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'equipe' | 'configuracoes', rotulo: string) =>
+  const item = (para: string, icone: 'inicio' | 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'documentos' | 'equipe' | 'configuracoes', rotulo: string) =>
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
@@ -79,20 +82,24 @@ export function Casca({ children }: { children: ReactNode }) {
           </NavLink>
           <div className="nav-linha">
             {item('/pessoas/', 'pessoas', 'Pessoas')}
-            <Link className="nav-mais" to="/pessoas/nova/" aria-label="Cadastrar pessoa" title="Cadastrar pessoa"><Icone nome="mais" tam={15} /></Link>
+            <Link className="nav-mais" to="/pessoas/nova/" aria-label="Cadastrar pessoa" title="Cadastrar pessoa"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
           </div>
           {/* Cada módulo aparece só no escritório que o tem ligado (o dono da plataforma liga e desliga). */}
           {ctx.escritorio?.modulos?.contratos && <div className="nav-linha">
             {item('/contratos/', 'contratos', 'Contratos')}
-            <Link className="nav-mais" to="/contratos/novo/" aria-label="Cadastrar contrato" title="Cadastrar contrato"><Icone nome="mais" tam={15} /></Link>
+            <Link className="nav-mais" to="/contratos/novo/" aria-label="Cadastrar contrato" title="Cadastrar contrato"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
           </div>}
           {ctx.escritorio?.modulos?.demandas && <div className="nav-linha">
             {item('/demandas/', 'demandas', 'Demandas')}
-            <Link className="nav-mais" to="/demandas/nova/" aria-label="Cadastrar demanda" title="Cadastrar demanda"><Icone nome="mais" tam={15} /></Link>
+            <Link className="nav-mais" to="/demandas/nova/" aria-label="Cadastrar demanda" title="Cadastrar demanda"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
           </div>}
           {ctx.escritorio?.modulos?.tarefas && <div className="nav-linha">
             {item('/tarefas/', 'tarefas', 'Tarefas')}
-            <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={15} /></Link>
+            <Link className="nav-mais" to="/tarefas/nova/" aria-label="Cadastrar tarefa" title="Cadastrar tarefa"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+          </div>}
+          {ctx.escritorio?.modulos?.anotacoes && <div className="nav-linha">
+            {item('/documentos/', 'documentos', 'Documentos')}
+            <Link className="nav-mais" to="/documentos/nova/" aria-label="Cadastrar anotação" title="Cadastrar anotação"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
           </div>}
           {ctx.escritorio?.modulos?.processos && <SubmenuLateral id="processos" icone="processos" rotulo="Processos" caminhos={['/processos']} para="/processos/">
             <NavLink to="/processos/administrativo/"><span>Administrativo</span></NavLink>

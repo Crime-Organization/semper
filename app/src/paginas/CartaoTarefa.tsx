@@ -26,6 +26,7 @@ import NovaTarefa from './NovaTarefa';
 import { dataCurta, relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
+import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
@@ -180,6 +181,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contrato ? 1 : 0}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
     </Recolhivel>
+
+    <AnotacoesDoCartao modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} />
 
     <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, t.demanda)} />
 

@@ -41,6 +41,10 @@
   --erro: #B42318;
   --erro-bg: #FDECEA;
   --font: 'Lato', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Títulos "#", "##" e "###" dentro do texto formatado ({typography.text-heading} no DESIGN.md) */
+  --texto-titulo-1: 19px;
+  --texto-titulo-2: 17px;
+  --texto-titulo-3: 15px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -115,6 +119,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-formatado > ul { margin: 4px 0; padding-left: 22px }
 .texto-formatado > ul > li { white-space: pre-wrap }
 .texto-formatado strong { font-weight: 800; color: var(--ink) }
+.texto-formatado > :is(h3, h4, h5) { margin: 14px 0 4px; font-weight: 900; line-height: 1.3; letter-spacing: -.01em; color: var(--ink); white-space: pre-wrap; text-wrap: balance }
+.texto-formatado > :is(h3, h4, h5):first-child { margin-top: 0 }
+.texto-formatado > h3 { font-size: var(--texto-titulo-1) }
+.texto-formatado > h4 { font-size: var(--texto-titulo-2) }
+.texto-formatado > h5 { font-size: var(--texto-titulo-3) }
+.texto-formatado a { color: var(--accent-ink); font-weight: 700; text-decoration: none; border-bottom: 1px solid currentColor }
+.texto-formatado a:hover { color: var(--accent-deep) }
 .descricao-formatada { margin-top: 8px }
 .caixa-formatada { display: flex; flex-direction: column; gap: 6px }
 .caixa-formatada-barra { display: flex; gap: 6px }

@@ -11,6 +11,7 @@ import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Botao } from '../ui/Botoes';
 import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
+import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
 import { ProcessosDoCartao } from './ProcessosDoCartao';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
@@ -223,6 +224,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." />
     </Recolhivel>}
+
+    <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (oculto && !semValores)} />
 
     <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso={oculto ? undefined : 'Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir.'} />
 

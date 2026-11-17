@@ -30,6 +30,7 @@ import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
 import { ParcelasDaPessoa } from './financeiro/Parcelas';
 import './Financeiro.css';
+import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
 import { ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
@@ -249,6 +250,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." />
     </Recolhivel>}
+
+    <AnotacoesDoCartao modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} />
 
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
       {vinculos === null ? <Carregando />

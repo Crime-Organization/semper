@@ -21,6 +21,7 @@ import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
+import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
@@ -144,6 +145,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length}>
       {c.pessoas.length ? <ItensLigados itens={c.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a este compromisso.</Nota>}
     </Recolhivel>
+
+    <AnotacoesDoCartao modulo="compromissos" id={c.id} somenteLer={somenteLer} />
 
     <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={equipeEditaTudo(ctx.escritorio) ? undefined : motivoSemMencaoNoCompromisso(c, c.processo)} />
 

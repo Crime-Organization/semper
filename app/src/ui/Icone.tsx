@@ -5,6 +5,8 @@ const ICONES = {
   demandas: '<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9.5l2 2 4-4M8 15.5h8"/>',
   tarefas: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.5l2.5 2.5 4.5-5"/>',
   contratos: '<path d="M14 3H6a1 1 0 00-1 1v16a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 3v5h5M8.5 12.5h7M8.5 16h4"/>',
+  // Documentos (anotações): a folha com o canto dobrado na frente de outra, e as linhas do texto.
+  documentos: '<path d="M15 3H9a1 1 0 00-1 1v13a1 1 0 001 1h10a1 1 0 001-1V8z"/><path d="M15 3v5h5M11 11.5h6M11 14.5h4"/><path d="M5 7v13a1 1 0 001 1h10"/>',
   processos: '<path d="M12 3v18M7.5 21h9M5 6.5h14M5 6.5l-3 7a3.2 3.2 0 006 0zM19 6.5l-3 7a3.2 3.2 0 006 0z"/>',
   mais: '<path d="M12 5v14M5 12h14"/>',
   equipe: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 16.5a4 4 0 017 0"/>',

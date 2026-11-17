@@ -14,6 +14,9 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
+import type { AnotacaoLigada, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao } from './tipos';
+import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
+import { itemDaAnotacao } from '../regras/anotacao';
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
@@ -95,13 +98,15 @@ function ordenar(q: Livre, ordem: Ordem) {
   return q.order('id');
 }
 
+/** Um termo feito só de números e da pontuação deles (CPF, telefone, número de processo): a busca o reduz aos dígitos. */
+const NUMERO_ESCRITO = /^[\d\s.\-/()+]+$/;
 // Texto de busca: só dígitos quando a pessoa digita CPF/telefone; sem acentos no resto.
 function termoBusca(texto?: string) {
   const t = String(texto || '').trim();
   if (!t) return '';
   const cnpj = cnpjComLetrasNaBusca(t);
   if (cnpj) return cnpj;
-  if (/\d/.test(t) && /^[\d\s.\-/()+]+$/.test(t)) return t.replace(/\D/g, '');
+  if (/\d/.test(t) && NUMERO_ESCRITO.test(t)) return t.replace(/\D/g, '');
   return normal(t).replace(/[%_\\]/g, m => '\\' + m);
 }
 /** A tabela que liga os cartões de cada módulo às etiquetas, e a coluna do cartão nela. */
@@ -312,6 +317,64 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
+
+// ---------- anotações (supabase/migrations/20261117143714_anotacoes.sql) ----------
+const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes, ligada_a, criado_por, criado_em, atualizado_em, arquivado_em';
+const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
+const CAMPOS_ANOTACAO_LIGADA = 'id, codigo, titulo, criado_por, criado_em, atualizado_em, arquivado_em';
+/**
+ * Para cada módulo: a coluna do item em anotacao_ligacoes, e de onde ler o item com os campos do nome (regras/anotacao.ts). As
+ * leituras passam pelas regras de cada tabela: o que quem lê não pode abrir não vem. O contrato vem pela view, que diz quem o alcança.
+ */
+const LIGACAO_DA_ANOTACAO: Record<ModuloDaAnotacao, { coluna: string; tabela: string; campos: string }> = {
+  pessoas: { coluna: 'pessoa_id', tabela: 'pessoas', campos: 'id, codigo, nome, arquivado_em' },
+  processos: { coluna: 'processo_id', tabela: 'processos', campos: 'id, codigo, tipo, numero, titulo, cliente_nome, arquivado_em' },
+  contratos: { coluna: 'contrato_id', tabela: 'contratos_da_equipe', campos: 'id, codigo, servico, arquivado_em' },
+  demandas: { coluna: 'demanda_id', tabela: 'demandas', campos: 'id, codigo, titulo, arquivado_em' },
+  tarefas: { coluna: 'tarefa_id', tabela: 'tarefas', campos: 'id, codigo, titulo, arquivado_em' },
+  compromissos: { coluna: 'compromisso_id', tabela: 'compromissos', campos: 'id, codigo, tipo, titulo, data, arquivado_em' }
+};
+const MODULOS_LIGADOS = Object.keys(LIGACAO_DA_ANOTACAO) as ModuloDaAnotacao[];
+// Ordem das anotações ("nome" é o título). Não há quadro: a ordem manual é a das atualizadas por último. O id no fim desempata a paginação.
+const ORDENS_ANOTACAO: Record<Ordem, (q: Livre) => Livre> = {
+  manual: q => q.order('atualizado_em', { ascending: false }),
+  nome: q => q.order('titulo'),
+  nome_desc: q => q.order('titulo', { ascending: false }),
+  novos: q => q.order('criado_em', { ascending: false }),
+  antigos: q => q.order('criado_em', { ascending: true }),
+  recentes: q => q.order('atualizado_em', { ascending: false })
+};
+const ordenarAnotacoes = (q: Livre, ordem: Ordem) => ORDENS_ANOTACAO[ordem](q).order('id');
+function filtrarAnotacoes(q: Livre, f: FiltroAnotacoes) {
+  q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
+  // "Ligada a" usa a lista dos módulos ligados, que o banco mantém na anotação; 'nenhum' é a lista vazia.
+  if (f.ligadaA) q = f.ligadaA === 'nenhum' ? q.eq('ligada_a', '{}') : q.contains('ligada_a', [f.ligadaA]);
+  if (f.autor) q = q.eq('criado_por', f.autor);
+  if (f.desde) q = q.gte('criado_em', f.desde);
+  // Um número com pontuação (CNJ, CPF) vira só os dígitos, mas o texto da anotação o guarda como foi escrito: busca as duas formas.
+  // A forma escrita só tem dígitos, espaços e a pontuação dos números, e vai entre aspas para os pontos e parênteses não confundirem o filtro.
+  const t = termoBusca(f.termo), escrito = String(f.termo || '').trim();
+  if (t && escrito !== t && NUMERO_ESCRITO.test(escrito)) q = q.or(`busca.ilike."%${t}%",busca.ilike."%${escrito}%"`);
+  else if (t) q = q.ilike('busca', `%${t}%`);
+  return q;
+}
+/** Os itens que cada módulo oferece para ligar: a listagem do módulo (só os ativos que quem lê vê), pela busca. */
+const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnotacao[]>> = {
+  pessoas: async termo => (await SD.pessoasListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('pessoas', x)),
+  // Não usa processosParaLigar: ela só oferece os processos em que a pessoa está, porque o compromisso exige isso. A anotação só
+  // exige ver o processo, e a regra de leitura do banco já diz quais (com a chave da equipe, todos).
+  processos: async termo => {
+    let q = sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome').is('arquivado_em', null);
+    const t = termoBusca(termo);
+    if (t) q = q.ilike('busca', `%${t}%`);
+    const { data } = await rodar(q.order('criado_em', { ascending: false }).limit(ITENS_PARA_LIGAR));
+    return (data as Livre[]).map(x => itemDaAnotacao('processos', { ...x, arquivado_em: null }));
+  },
+  contratos: async termo => (await SD.contratosListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('contratos', x)),
+  demandas: async termo => (await SD.demandasListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('demandas', x)),
+  tarefas: async termo => (await SD.tarefasListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('tarefas', x)),
+  compromissos: async termo => (await SD.compromissosListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('compromissos', x))
+};
 
 // ---------- andamentos e prazos do processo ----------
 const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
@@ -1025,6 +1088,89 @@ export const SD: Dados = {
     return { visiveis, ocultos: linhas.length - visiveis.length };
   },
 
+
+  // ---------- anotações (supabase/migrations/20261117143714_anotacoes.sql) ----------
+  async anotacoesListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const q = filtrarAnotacoes(sb.from('anotacoes').select(CAMPOS_ANOTACAO_LISTA, { count: 'exact' }), f);
+    const { data, count } = await rodar(ordenarAnotacoes(q, f.ordem ?? 'recentes').range(de, de + por - 1));
+    return { linhas: data, total: count || 0 };
+  },
+  async anotacaoObter(id) {
+    const { data } = await rodar(sb.from('anotacoes').select(CAMPOS_ANOTACAO).eq('id', id).maybeSingle());
+    return data;
+  },
+  async anotacaoCriar(dados, ligarA) {
+    const { data } = await rodar(sb.from('anotacoes').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    if (!ligarA) return data;
+    try {
+      await SD.anotacaoLigar(data.id, ligarA.modulo, ligarA.id);
+    } catch (e) {
+      // As duas gravações não vão numa transação só: a anotação que ficou sem a ligação sai (quem a criou arquiva e exclui).
+      await SD.anotacoesArquivar([data.id]).then(() => SD.anotacoesExcluir([data.id])).catch(() => undefined);
+      throw e;
+    }
+    return data;
+  },
+  async anotacaoAtualizar(id, dados) {
+    // Quem só vê a anotação pelo item ligado não altera: nenhuma linha muda, sem erro do banco.
+    const { data } = await rodar(sb.from('anotacoes').update(dados).eq('id', id).select('id, codigo').maybeSingle());
+    conferirQueMudou(data);
+    return data;
+  },
+  async anotacoesArquivar(ids, arquivar = true) {
+    const { data } = await rodar(sb.from('anotacoes')
+      .update(arquivar ? { arquivado_em: new Date().toISOString(), arquivado_por: uid() } : { arquivado_em: null, arquivado_por: null })
+      .in('id', ids).select('id'));
+    if (ids.length && !data.length) throw new Error(NAO_MUDOU);
+    return data.length;
+  },
+  async anotacoesExcluir(ids) {
+    const { data } = await rodar(sb.from('anotacoes').delete().in('id', ids).select('id'));
+    const excluidas = data.length;
+    return { excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só anotações arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' };
+  },
+  async anotacaoHistorico(id) {
+    const { data } = await rodar(sb.from('anotacao_historico').select('id, alteracoes, feito_por, em')
+      .eq('anotacao_id', id).order('em', { ascending: false }).limit(HISTORICO_DA_ANOTACAO));
+    return data;
+  },
+  async anotacaoLigar(id, modulo, itemId) {
+    // O mesmo item de novo não faz nada: o banco descarta a linha repetida.
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    await rodar(sb.from('anotacao_ligacoes').upsert({ anotacao_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `anotacao_id,${coluna}`, ignoreDuplicates: true }));
+  },
+  async anotacaoDesligar(id, modulo, itemId) {
+    // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    conferirQueMudou((await rodar(sb.from('anotacao_ligacoes').delete().eq('anotacao_id', id).eq(coluna, itemId).select('id').maybeSingle())).data);
+  },
+  async anotacaoItens(id) {
+    // Uma anotação tem no máximo ITENS_DA_ANOTACAO ligações: cabem numa leitura. Cada item é lido pela tabela do módulo dele.
+    const colunas = MODULOS_LIGADOS.map(m => LIGACAO_DA_ANOTACAO[m].coluna);
+    const { data } = await rodar(sb.from('anotacao_ligacoes').select(colunas.join(', ')).eq('anotacao_id', id).order('criado_em').order('id'));
+    const ligacoes = (data as Record<string, string | null>[]).flatMap(l => MODULOS_LIGADOS.filter(m => l[LIGACAO_DA_ANOTACAO[m].coluna])
+      .map(modulo => ({ modulo, id: l[LIGACAO_DA_ANOTACAO[modulo].coluna]! })));
+    const lidos = await Promise.all(MODULOS_LIGADOS.map(async modulo => {
+      const ids = ligacoes.filter(l => l.modulo === modulo).map(l => l.id);
+      if (!ids.length) return [];
+      const { tabela, campos } = LIGACAO_DA_ANOTACAO[modulo];
+      const { data: itens } = await rodar(sb.from(tabela).select(campos).in('id', ids));
+      return (itens as Livre[]).map(x => itemDaAnotacao(modulo, x));
+    }));
+    // Na ordem em que foram ligados. O item que quem lê não pode abrir não vem: conta, mas não abre.
+    const achados = lidos.flat();
+    const visiveis = ligacoes.flatMap(l => achados.filter(x => x.modulo === l.modulo && x.id === l.id));
+    return { visiveis, ocultos: ligacoes.length - visiveis.length };
+  },
+  async anotacoesDoItem(modulo, itemId) {
+    // As anotações que quem lê vê (a regra de leitura delas), filtradas pela ligação ao item (com outro nome, como nas etiquetas).
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    const { data } = await rodar(sb.from('anotacoes').select(`${CAMPOS_ANOTACAO_LIGADA}, filtro:anotacao_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
+      .order('atualizado_em', { ascending: false }).order('id').limit(ANOTACOES_LIGADAS));
+    return (data as (AnotacaoLigada & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a);
+  },
+  itensParaLigar: (modulo, termo) => PARA_LIGAR[modulo](termo),
   // ---------- caixa ----------
   async financeiroContas() {
     const { data } = await rodar(sb.from('financeiro_contas').select(CAMPOS_DA_CONTA).order('criado_em'));

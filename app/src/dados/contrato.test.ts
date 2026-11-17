@@ -5,10 +5,10 @@
 // Para rodar também no Supabase (com um Supabase local), basta chamar contrato() com a outra implementação.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Dados, DadosPessoa, ItemImportacao } from './tipos';
+import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
-import { TAMANHO_COMPROMISSO, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -4898,6 +4898,328 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Anotações', () => {
+      const FORMATO = 'Algum campo está em formato inválido. Confira os dados e tente de novo.';
+      const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+      const anotacao = (extra: Partial<Parameters<Dados['anotacaoCriar']>[0]> = {}, ligarA?: Parameters<Dados['anotacaoCriar']>[1]) =>
+        SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra }, ligarA);
+      const demandaNova = (extra: Partial<Parameters<Dados['demandaCriar']>[0]> = {}) => SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra });
+      const processoNovo = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'administrativo', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
+      };
+      const contratoNovo = async () => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+      };
+      /** Um dia, contado de hoje (AAAA-MM-DD), para o filtro "desde". */
+      const diaDaqui = (dias: number) => new Date(Date.now() + dias * DIA).toISOString().slice(0, 10);
+      const ligadaA = async (id: string) => (await SD.anotacaoObter(id))!.ligada_a;
+
+      it('dada uma anotação com um número de processo no texto, quando a pessoa busca o número como ele está escrito, com a pontuação, então acha', async () => {
+        // Dado: um número CNJ que só esta anotação tem
+        const numero = `${Math.floor(Math.random() * 9_000_000) + 1_000_000}-11.2024.8.21.0001`;
+        const { id } = await anotacao({ texto: 'Processo ' + numero + ' na vara cível.' });
+        // Quando
+        const r = await SD.anotacoesListar({ termo: numero });
+        // Então
+        expect(r.linhas.map(x => x.id)).toEqual([id]);
+      });
+
+      it('quando uma anotação é criada, então ela pode ser lida de volta com um código, o título sem espaços nas pontas e a equipe sem repetir', async () => {
+        // Dado
+        const titulo = marca();
+        // Quando
+        const { id, codigo } = await SD.anotacaoCriar({ titulo: `  ${titulo}  `, texto: '# Estratégia\n\n**Prazo** curto.', responsavel_id: 'u-ana',
+          participantes: ['u-bruno', 'u-bruno', 'u-ana'] });
+        // Então
+        expect(codigo).toBeTruthy();
+        expect(await SD.anotacaoObter(id)).toMatchObject({ id, codigo, titulo, texto: '# Estratégia\n\n**Prazo** curto.', responsavel_id: 'u-ana', participantes: ['u-bruno'],
+          ligada_a: [], arquivado_em: null, criado_por: 'u-master' });
+      });
+
+      it('quando a anotação é criada sem texto, então o texto fica vazio', async () => {
+        // Quando
+        const { id } = await anotacao();
+        // Então
+        expect((await SD.anotacaoObter(id))!.texto).toBe('');
+      });
+
+      it.each<[string, Partial<Parameters<Dados['anotacaoCriar']>[0]>, string]>([
+        ['título vazio', { titulo: '   ' }, FORMATO],
+        ['título longo demais', { titulo: 'x'.repeat(TAMANHO_ANOTACAO.titulo + 1) }, FORMATO],
+        ['texto longo demais', { texto: 'x'.repeat(TAMANHO_ANOTACAO.texto + 1) }, FORMATO],
+        ['responsável fora da equipe ativa', { responsavel_id: 'u-carla' }, 'O responsável precisa ser alguém da equipe do escritório.'],
+        ['participante fora da equipe ativa', { participantes: ['u-carla'] }, 'O participante precisa ser alguém da equipe do escritório.']
+      ])('quando o cadastro traz %s, então é recusado', async (_caso, extra, mensagem) => {
+        // Quando / Então
+        await expect(anotacao(extra)).rejects.toThrow(mensagem);
+      });
+
+      it('dados os tamanhos máximos, quando a anotação é criada, então ela é aceita', async () => {
+        // Quando
+        const { id } = await anotacao({ titulo: 'x'.repeat(TAMANHO_ANOTACAO.titulo), texto: 'y'.repeat(TAMANHO_ANOTACAO.texto) });
+        // Então
+        expect((await SD.anotacaoObter(id))!.texto).toHaveLength(TAMANHO_ANOTACAO.texto);
+      });
+
+      it('quando liga uma demanda e um processo, então os dois aparecem no cartão da anotação e em ligada_a; ligar de novo não repete', async () => {
+        // Dado
+        const { id } = await anotacao(), d = await demandaNova(), p = await processoNovo();
+        // Quando
+        await SD.anotacaoLigar(id, 'processos', p.id);
+        await SD.anotacaoLigar(id, 'demandas', d.id);
+        await SD.anotacaoLigar(id, 'demandas', d.id);
+        // Então
+        const itens = await SD.anotacaoItens(id);
+        expect(itens.ocultos).toBe(0);
+        expect(itens.visiveis.map(i => [i.modulo, i.id])).toEqual([['processos', p.id], ['demandas', d.id]]);
+        expect(itens.visiveis[0]).toMatchObject({ codigo: p.codigo, tipo: 'administrativo', arquivado_em: null });
+        expect(await ligadaA(id)).toEqual(['demandas', 'processos']);
+      });
+
+      it('dada uma anotação ligada a dois itens, quando desliga um, então ele sai e ligada_a acompanha; desligar de novo é recusado', async () => {
+        // Dado
+        const { id } = await anotacao(), d = await demandaNova(), p = await processoNovo();
+        await SD.anotacaoLigar(id, 'demandas', d.id);
+        await SD.anotacaoLigar(id, 'processos', p.id);
+        // Quando
+        await SD.anotacaoDesligar(id, 'demandas', d.id);
+        // Então
+        expect((await SD.anotacaoItens(id)).visiveis.map(i => i.id)).toEqual([p.id]);
+        expect(await ligadaA(id)).toEqual(['processos']);
+        await expect(SD.anotacaoDesligar(id, 'demandas', d.id)).rejects.toThrow(SEM_PERMISSAO);
+      });
+
+      it('quando liga a um item que não existe, então é recusado e nada é ligado', async () => {
+        // Dado
+        const { id } = await anotacao();
+        // Quando / Então
+        await expect(SD.anotacaoLigar(id, 'demandas', crypto.randomUUID())).rejects.toThrow('Item não encontrado neste escritório.');
+        expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('dada uma anotação com o máximo de itens, quando liga mais um, então é recusado', async () => {
+        // Dado
+        const { id } = await anotacao();
+        const pessoas = await Promise.all(Array.from({ length: ITENS_DA_ANOTACAO + 1 }, () => criar(marca())));
+        await Promise.all(pessoas.slice(0, ITENS_DA_ANOTACAO).map(p => SD.anotacaoLigar(id, 'pessoas', p.id)));
+        // Quando / Então
+        await expect(SD.anotacaoLigar(id, 'pessoas', pessoas[ITENS_DA_ANOTACAO].id)).rejects.toThrow(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
+        expect((await SD.anotacaoItens(id)).visiveis).toHaveLength(ITENS_DA_ANOTACAO);
+        // Ligar de novo um que já está não conta como mais um.
+        await expect(SD.anotacaoLigar(id, 'pessoas', pessoas[0].id)).resolves.toBeUndefined();
+      });
+
+      it('dada uma anotação arquivada, quando liga um item, então é recusado', async () => {
+        // Dado
+        const { id } = await anotacao(), d = await demandaNova();
+        await SD.anotacoesArquivar([id]);
+        // Quando / Então
+        await expect(SD.anotacaoLigar(id, 'demandas', d.id)).rejects.toThrow(SEM_PERMISSAO);
+      });
+
+      it('quando cria a anotação no cartão de um item, então ela já nasce ligada a ele', async () => {
+        // Dado
+        const d = await demandaNova();
+        // Quando
+        const { id } = await anotacao({}, { modulo: 'demandas', id: d.id });
+        // Então
+        expect(await ligadaA(id)).toEqual(['demandas']);
+        expect((await SD.anotacoesDoItem('demandas', d.id)).map(a => a.id)).toEqual([id]);
+      });
+
+      it('quando cria a anotação ligada a um item que não existe, então é recusado e nada fica gravado', async () => {
+        // Dado
+        const titulo = marca();
+        // Quando / Então
+        await expect(anotacao({ titulo }, { modulo: 'tarefas', id: crypto.randomUUID() })).rejects.toThrow('Item não encontrado neste escritório.');
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+        expect((await SD.anotacoesListar({ termo: titulo, situacao: 'arquivadas' })).total).toBe(0);
+      });
+
+      it('dadas anotações de uma marca, quando busca pelo título, pelo texto sem acento e pelo código, então acha só a certa', async () => {
+        // Dado
+        const m = marca();
+        const a = await anotacao({ titulo: m + ' Petição', texto: 'Audiência de conciliação marcada' });
+        await anotacao({ titulo: m + ' Outra' });
+        // Quando / Então
+        expect((await SD.anotacoesListar({ termo: m })).total).toBe(2);
+        expect((await SD.anotacoesListar({ termo: m + ' peticao' })).linhas.map(x => x.id)).toEqual([a.id]);
+        expect((await SD.anotacoesListar({ termo: 'conciliacao marcada' })).linhas.map(x => x.id)).toContain(a.id);
+        expect((await SD.anotacoesListar({ termo: a.codigo })).linhas.map(x => x.id)).toEqual([a.id]);
+      });
+
+      it('dadas anotações ligadas e soltas, quando filtra por "Ligada a", então vêm as do módulo, ou as sem nenhum item', async () => {
+        // Dado
+        const m = marca(), d = await demandaNova();
+        const ligada = await anotacao({ titulo: m + ' A' }, { modulo: 'demandas', id: d.id });
+        const solta = await anotacao({ titulo: m + ' B' });
+        // Quando
+        const daDemanda = await SD.anotacoesListar({ termo: m, ligadaA: 'demandas' });
+        const doProcesso = await SD.anotacoesListar({ termo: m, ligadaA: 'processos' });
+        const nenhum = await SD.anotacoesListar({ termo: m, ligadaA: 'nenhum' });
+        // Então
+        expect(daDemanda.linhas.map(x => x.id)).toEqual([ligada.id]);
+        expect(daDemanda.linhas[0]).toMatchObject({ ligada_a: ['demandas'], criado_por: 'u-master', responsavel_id: 'u-master', participantes: [] });
+        expect(doProcesso.total).toBe(0);
+        expect(nenhum.linhas.map(x => x.id)).toEqual([solta.id]);
+      });
+
+      it('dadas anotações de quem está logado, quando filtra pelo autor e pela data, então vêm só as que combinam', async () => {
+        // Dado
+        const m = marca();
+        await anotacao({ titulo: m });
+        // Quando / Então
+        expect((await SD.anotacoesListar({ termo: m, autor: 'u-master' })).total).toBe(1);
+        expect((await SD.anotacoesListar({ termo: m, autor: 'u-ana' })).total).toBe(0);
+        expect((await SD.anotacoesListar({ termo: m, desde: diaDaqui(-2) })).total).toBe(1);
+        expect((await SD.anotacoesListar({ termo: m, desde: diaDaqui(2) })).total).toBe(0);
+      });
+
+      it('dadas três anotações, quando lê pelo título e pela data de criação, então a ordem é a pedida; sem ordem, as atualizadas por último primeiro', async () => {
+        // Dado
+        const m = marca();
+        const b = await anotacao({ titulo: m + ' B' }), a = await anotacao({ titulo: m + ' A' }), c = await anotacao({ titulo: m + ' C' });
+        await SD.anotacaoAtualizar(b.id, { texto: 'mais recente' });
+        const ids = async (ordem?: FiltroAnotacoes['ordem']) =>
+          (await SD.anotacoesListar({ termo: m, ordem })).linhas.map(x => x.id);
+        // Quando / Então
+        expect(await ids('nome')).toEqual([a.id, b.id, c.id]);
+        expect(await ids('nome_desc')).toEqual([c.id, b.id, a.id]);
+        expect(await ids('novos')).toEqual([c.id, a.id, b.id]);
+        expect(await ids('antigos')).toEqual([b.id, a.id, c.id]);
+        expect((await ids())[0]).toBe(b.id);
+      });
+
+      it('dadas três anotações, quando lê de duas em duas, então as páginas não se repetem e o total é o mesmo', async () => {
+        // Dado
+        const m = marca();
+        for (let i = 0; i < 3; i++) await anotacao({ titulo: `${m} ${i}` });
+        // Quando
+        const [p1, p2] = [await SD.anotacoesListar({ termo: m, porPagina: 2 }), await SD.anotacoesListar({ termo: m, porPagina: 2, pagina: 1 })];
+        // Então
+        expect([p1.total, p2.total]).toEqual([3, 3]);
+        expect(p1.linhas).toHaveLength(2);
+        expect(new Set([...p1.linhas, ...p2.linhas].map(x => x.id)).size).toBe(3);
+      });
+
+      it('dada uma anotação ativa, quando tenta excluir, então é recusado; arquivada, ela vai para as arquivadas e pode ser excluída', async () => {
+        // Dado
+        const m = marca(), { id } = await anotacao({ titulo: m });
+        // Quando / Então
+        expect(await SD.anotacoesExcluir([id])).toMatchObject({ excluidas: 0, naoExcluidas: 1, motivo: expect.stringContaining('arquivadas') });
+        expect(await SD.anotacoesArquivar([id])).toBe(1);
+        expect((await SD.anotacoesListar({ termo: m })).total).toBe(0);
+        expect((await SD.anotacoesListar({ termo: m, situacao: 'arquivadas' })).linhas.map(x => x.id)).toEqual([id]);
+        expect(await SD.anotacoesExcluir([id])).toMatchObject({ excluidas: 1, naoExcluidas: 0 });
+        expect(await SD.anotacaoObter(id)).toBeNull();
+      });
+
+      it('dada uma anotação arquivada, quando desarquiva, então ela volta para as ativas', async () => {
+        // Dado
+        const m = marca(), { id } = await anotacao({ titulo: m });
+        await SD.anotacoesArquivar([id]);
+        // Quando
+        await SD.anotacoesArquivar([id], false);
+        // Então
+        expect((await SD.anotacoesListar({ termo: m })).linhas.map(x => x.id)).toEqual([id]);
+      });
+
+      it('quando a anotação é alterada, então o histórico guarda o título e o responsável, e só marca que o texto mudou', async () => {
+        // Dado
+        const { id } = await anotacao({ titulo: 'Antes', texto: 'texto velho' });
+        // Quando
+        await SD.anotacaoAtualizar(id, { titulo: 'Depois', texto: 'texto novo', responsavel_id: 'u-ana' });
+        // Então
+        const [h] = await SD.anotacaoHistorico(id);
+        expect(h.alteracoes).toEqual({
+          titulo: { de: 'Antes', para: 'Depois' }, texto: { de: null, para: null },
+          responsavel_id: { de: 'Mateus Freitas Gonçalves', para: 'Ana Teste Lima' }
+        });
+        expect(h.feito_por).toBe('u-master');
+      });
+
+      it('quando liga e desliga um item, então isso não muda a data de alteração nem o histórico', async () => {
+        // Dado
+        const { id } = await anotacao(), d = await demandaNova();
+        const antes = (await SD.anotacaoObter(id))!.atualizado_em;
+        // Quando
+        await SD.anotacaoLigar(id, 'demandas', d.id);
+        await SD.anotacaoDesligar(id, 'demandas', d.id);
+        // Então
+        expect((await SD.anotacaoObter(id))!.atualizado_em).toBe(antes);
+        expect(await SD.anotacaoHistorico(id)).toEqual([]);
+      });
+
+      it('dadas duas anotações numa demanda, quando lê as do item, então vêm as duas, a alterada por último primeiro, também a arquivada', async () => {
+        // Dado
+        const d = await demandaNova(), outra = await demandaNova();
+        const a = await anotacao({}, { modulo: 'demandas', id: d.id }), b = await anotacao({}, { modulo: 'demandas', id: d.id });
+        await anotacao({}, { modulo: 'demandas', id: outra.id });
+        await SD.anotacaoAtualizar(a.id, { texto: 'mexida' });
+        await SD.anotacoesArquivar([b.id]);
+        // Quando
+        const ligadas = await SD.anotacoesDoItem('demandas', d.id);
+        // Então
+        expect(ligadas.map(x => x.id)).toEqual([b.id, a.id]);
+        expect(ligadas[0]).toMatchObject({ codigo: b.codigo, arquivado_em: expect.any(String), criado_por: 'u-master' });
+      });
+
+      it('dados itens de vários módulos, quando lê os itens da anotação, então cada um vem com o nome certo', async () => {
+        // Dado
+        const nome = marca(), { id: pessoa } = await criar(nome);
+        const p = await processoNovo(), k = await contratoNovo(), d = await demandaNova({ titulo: 'Contestação ' + nome });
+        const t = await SD.tarefaCriar({ titulo: 'Emitir GRU ' + nome, responsavel_id: 'u-master' });
+        const c = await SD.compromissoCriar({ tipo: 'reuniao', titulo: 'Reunião ' + nome, data: diaDaqui(1), hora: '10:00', responsavel_id: 'u-master' });
+        const { id } = await anotacao();
+        const ligacoes = [['pessoas', pessoa], ['processos', p.id], ['contratos', k.id], ['demandas', d.id], ['tarefas', t.id], ['compromissos', c.id]] as const;
+        for (const [modulo, item] of ligacoes) await SD.anotacaoLigar(id, modulo, item);
+        // Quando
+        const { visiveis } = await SD.anotacaoItens(id);
+        // Então
+        expect(visiveis.map(i => i.nome)).toEqual([nome, (await SD.processoObter(p.id))!.numero, (await SD.contratoObter(k.id))!.servico, 'Contestação ' + nome,
+          'Emitir GRU ' + nome, 'Reunião ' + nome]);
+        expect(await ligadaA(id)).toEqual(['compromissos', 'contratos', 'demandas', 'pessoas', 'processos', 'tarefas']);
+      });
+
+      it('quando busca itens para ligar, então acha os ativos do módulo pela busca, com o nome e no máximo o limite', async () => {
+        // Dado
+        const m = marca(), ativa = await demandaNova({ titulo: m + ' ativa' }), arquivada = await demandaNova({ titulo: m + ' arquivada' });
+        await SD.demandasArquivar([arquivada.id]);
+        const p = await processoNovo();
+        // Quando
+        const demandas = await SD.itensParaLigar('demandas', m);
+        const processos = await SD.itensParaLigar('processos', (await SD.processoObter(p.id))!.numero);
+        // Então
+        expect(demandas).toEqual([{ modulo: 'demandas', id: ativa.id, codigo: ativa.codigo, nome: m + ' ativa', arquivado_em: null }]);
+        expect(processos.map(i => [i.id, i.tipo])).toEqual([[p.id, 'administrativo']]);
+        expect((await SD.itensParaLigar('pessoas', '')).length).toBeLessThanOrEqual(ITENS_PARA_LIGAR);
+      });
+
+      it('dada uma demanda ligada, quando ela é excluída, então a ligação sai da anotação', async () => {
+        // Dado
+        const d = await demandaNova(), { id } = await anotacao({}, { modulo: 'demandas', id: d.id });
+        await SD.demandasArquivar([d.id]);
+        // Quando
+        await SD.demandasExcluir([d.id]);
+        // Então
+        expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 0 });
+        expect(await ligadaA(id)).toEqual([]);
+      });
+
+      it('dada uma pessoa ligada a uma anotação, quando ela é excluída, então é recusado', async () => {
+        // Dado
+        const { id: pessoa } = await criar(marca());
+        await anotacao({}, { modulo: 'pessoas', id: pessoa });
+        await SD.pessoasArquivar([pessoa]);
+        // Quando
+        const r = await SD.pessoasExcluir([pessoa]);
+        // Então
+        expect(r).toEqual({ excluidas: 0, naoExcluidas: 1, motivo: 'Esta pessoa está ligada a anotações e não pode ser excluída.' });
+      });
+    });
+
     describe('Sessão', () => {
       it('dada uma sessão ativa, quando confere com o login, então ela não está encerrada', async () => {
         // Quando / Então
@@ -4922,6 +5244,201 @@ contrato('banco fictício', async () => {
   return (await import('./falso')).SD;
 });
 
+
+// A troca de conta só existe no banco fictício; no banco de verdade, a regra é provada em supabase/tests/anotacoes.test.sql.
+describe('Visibilidade das anotações (banco fictício)', () => {
+  let SD: Dados;
+  const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+  const falso = () => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void; equipeVeTudo(l: boolean): void } }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  const marca = () => 'ANOTACAO ' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  /** Criada pelo master, de que ele é o responsável. */
+  const doMaster = (extra: Partial<Parameters<Dados['anotacaoCriar']>[0]> = {}, ligarA?: Parameters<Dados['anotacaoCriar']>[1]) =>
+    SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra }, ligarA);
+  const vejo = async (id: string) => (await SD.anotacaoObter(id)) !== null;
+  const naLista = async (id: string) => (await SD.anotacoesListar({ porPagina: 100 })).linhas.some(a => a.id === id);
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+  afterEach(async () => { entrarComo('u-master'); await SD.faseDeAdaptacaoDefinir(false); falso().equipeVeTudo(false); });
+
+  it('dada uma anotação do master, quando uma conta comum de fora a procura, então ela não aparece em lugar nenhum', async () => {
+    // Dado
+    const { id: demanda } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+    const { id } = await doMaster({}, { modulo: 'demandas', id: demanda });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await vejo(id)).toBe(false);
+    expect(await naLista(id)).toBe(false);
+    expect(await SD.anotacoesDoItem('demandas', demanda)).toEqual([]);
+    expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 0 });
+    expect(await SD.anotacaoHistorico(id)).toEqual([]);
+    await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada uma anotação compartilhada com a conta comum, quando ela entra, então vê e altera, mas não exclui a arquivada', async () => {
+    // Dado
+    const { id } = await doMaster({ participantes: ['u-bruno'] });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await vejo(id)).toBe(true);
+    await SD.anotacaoAtualizar(id, { texto: 'mexi' });
+    expect((await SD.anotacaoObter(id))!.texto).toBe('mexi');
+    await SD.anotacoesArquivar([id]);
+    expect(await SD.anotacoesExcluir([id])).toMatchObject({ excluidas: 0, naoExcluidas: 1 });
+  });
+
+  it('dada uma anotação ligada a uma pessoa, quando a conta comum entra, então a ligação à pessoa não a abre', async () => {
+    // Dado
+    const { id: pessoa } = await SD.pessoaCriar({ tipo: 'pf', nome: marca() });
+    const { id } = await doMaster({}, { modulo: 'pessoas', id: pessoa });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await vejo(id)).toBe(false);
+    expect(await SD.anotacoesDoItem('pessoas', pessoa)).toEqual([]);
+  });
+
+  it('dada uma anotação ligada a uma demanda em que a conta comum colabora, quando ela entra, então vê a anotação, mas só lê', async () => {
+    // Dado
+    const { id: demanda } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id: outra } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id } = await doMaster({}, { modulo: 'demandas', id: demanda });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await vejo(id)).toBe(true);
+    expect(await naLista(id)).toBe(true);
+    expect((await SD.anotacoesDoItem('demandas', demanda)).map(a => a.id)).toEqual([id]);
+    expect((await SD.anotacaoItens(id)).visiveis.map(i => i.id)).toEqual([demanda]);
+    await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
+    await expect(SD.anotacaoLigar(id, 'demandas', outra)).rejects.toThrow(SEM_PERMISSAO);
+    await expect(SD.anotacaoDesligar(id, 'demandas', demanda)).rejects.toThrow(SEM_PERMISSAO);
+    await expect(SD.anotacoesArquivar([id])).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada a anotação de quem é participante, quando liga uma demanda que ele não vê, então é recusado; e o item que não vê conta como oculto', async () => {
+    // Dado
+    const { id: alheia } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master' });
+    const { id: outra } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana' });
+    const { id } = await doMaster({ participantes: ['u-bruno'] }, { modulo: 'demandas', id: alheia });
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.anotacaoLigar(id, 'demandas', alheia)).resolves.toBeUndefined();   // já ligada: não faz nada
+    expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 1 });
+    await expect(SD.anotacaoLigar(id, 'demandas', outra)).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada uma demanda que a conta comum não vê, quando ela busca itens para ligar, então a demanda não é oferecida', async () => {
+    // Dado
+    const m = marca();
+    const { id: minha } = await SD.demandaCriar({ titulo: m + ' minha', responsavel_id: 'u-bruno' });
+    await SD.demandaCriar({ titulo: m + ' alheia', responsavel_id: 'u-ana' });
+    // Quando
+    entrarComo('u-bruno');
+    const achados = await SD.itensParaLigar('demandas', m);
+    // Então
+    expect(achados.map(i => i.id)).toEqual([minha]);
+  });
+
+  it('dada a chave "equipe_ve_tudo", quando a conta comum entra, então vê a anotação alheia, mas só lê', async () => {
+    // Dado
+    const { id } = await doMaster();
+    falso().equipeVeTudo(true);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await vejo(id)).toBe(true);
+    await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada a fase de adaptação (toda a equipe edita tudo), quando a conta comum entra, então altera a anotação alheia', async () => {
+    // Dado
+    const { id } = await doMaster();
+    await SD.faseDeAdaptacaoDefinir(true);
+    // Quando
+    entrarComo('u-bruno');
+    await SD.anotacaoAtualizar(id, { texto: 'mexi' });
+    // Então
+    expect((await SD.anotacaoObter(id))!.texto).toBe('mexi');
+  });
+
+  it('dada a chave "equipe_ve_tudo" sem a de editar, quando a conta comum liga um compromisso privado em que não está, então ele não é oferecido, é recusado e conta como oculto (o banco não abre compromissos com essa chave)', async () => {
+    // Dado
+    const m = marca();
+    const { id: compromisso } = await SD.compromissoCriar({ tipo: 'reuniao', titulo: m, data: '2030-01-15', hora: '14:30', responsavel_id: 'u-master' });
+    const { id } = await doMaster({ participantes: ['u-bruno'] });
+    falso().equipeVeTudo(true);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect((await SD.itensParaLigar('compromissos', m)).map(i => i.id)).toEqual([]);
+    await expect(SD.anotacaoLigar(id, 'compromissos', compromisso)).rejects.toThrow(SEM_PERMISSAO);
+    // E, ligado pelo master, ele aparece para a conta comum como oculto
+    entrarComo('u-master');
+    await SD.anotacaoLigar(id, 'compromissos', compromisso);
+    entrarComo('u-bruno');
+    expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 1 });
+  });
+
+  it('dada uma demanda da conta comum e muitas mais novas de outra pessoa, quando ela busca demandas para ligar sem texto, então a dela aparece', async () => {
+    // Dado
+    const { id: minha } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-bruno' });
+    for (let i = 0; i < ITENS_PARA_LIGAR + 2; i++) await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana' });
+    // Quando
+    entrarComo('u-bruno');
+    const achados = await SD.itensParaLigar('demandas', '');
+    // Então
+    expect(achados.map(i => i.id)).toContain(minha);
+    expect(achados.length).toBeLessThanOrEqual(ITENS_PARA_LIGAR);
+  });
+
+  it('dado um participante de uma anotação sem item ligado, quando ele se tira de "Compartilhar com" gravando a anotação, então é recusado, como no banco; pelo caminho de sair, ele sai e a saída fica no histórico', async () => {
+    // Dado
+    const { id } = await doMaster({ participantes: ['u-bruno'] });
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.anotacaoAtualizar(id, { participantes: [] })).rejects.toThrow(SEM_PERMISSAO);
+    // Quando
+    await SD.cartaoSair('anotacoes', id);
+    // Então
+    expect(await vejo(id)).toBe(false);
+    entrarComo('u-master');
+    expect((await SD.anotacaoObter(id))!.participantes).toEqual([]);
+    expect((await SD.anotacaoHistorico(id))[0]).toMatchObject({ feito_por: 'u-bruno', alteracoes: { participantes: { para: null } } });
+  });
+
+  it('dado o responsável de uma anotação sem item ligado, quando a passa a outra pessoa sem ficar nela, então é recusado; ficando como participante, grava, e depois sai', async () => {
+    // Dado
+    const { id } = await doMaster({ responsavel_id: 'u-bruno' });
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.anotacaoAtualizar(id, { responsavel_id: 'u-ana', participantes: [] })).rejects.toThrow(SEM_PERMISSAO);
+    // Quando
+    await SD.anotacaoAtualizar(id, { responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+    await SD.cartaoSair('anotacoes', id);
+    // Então
+    expect(await vejo(id)).toBe(false);
+  });
+
+  it('dada uma anotação arquivada de outra conta, quando um administrador a exclui, então ela sai', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const { id } = await SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-bruno' });
+    await SD.anotacoesArquivar([id]);
+    // Quando
+    entrarComo('u-ana');
+    const r = await SD.anotacoesExcluir([id]);
+    // Então
+    expect(r).toMatchObject({ excluidas: 1, naoExcluidas: 0 });
+  });
+});
 // A troca de conta só existe no banco fictício; no banco de verdade, a regra é provada em supabase/tests/visibilidade_contratos.test.sql.
 describe('Visibilidade dos contratos (banco fictício)', () => {
   let SD: Dados;

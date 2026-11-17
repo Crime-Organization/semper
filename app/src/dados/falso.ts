@@ -46,6 +46,9 @@ import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLu
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
+import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao } from './tipos';
+import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
+import { ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, modulosLigados, veAAnotacao, type ChavesDaEquipe } from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA } from '../ui/tempos';
@@ -185,6 +188,11 @@ interface Banco {
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
   tempos?: (RegistroDeTempo & { tarefa_id: string })[];
   historicoTarefas?: (Historico & { tarefa_id: string })[];
+  /** Anotações do módulo Documentos (anotacoes, anotacao_ligacoes e anotacao_historico no banco). */
+  anotacoes?: Anotacao[];
+  /** Cada ligação, a um item só (no banco, uma coluna por módulo). */
+  anotacaoLigacoes?: { anotacao_id: string; modulo: ModuloDaAnotacao; item_id: string; criado_por: string; criado_em: string }[];
+  historicoAnotacoes?: (Historico & { anotacao_id: string })[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
 type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
@@ -544,6 +552,10 @@ bd.importacoes ??= [];
 // As menções que já existiam entram como lidas, como na migração.
 bd.mensagens ??= bd.comentarios.flatMap(c => c.mencoes.filter(perfil => perfil !== c.autor_id)
   .map(perfil => ({ id: novoId(), perfil_id: perfil, tipo: 'mencao' as const, comentario_id: c.id, criado_em: c.criado_em, lido_em: agora() })));
+// Anotações (#303): a coleção começa vazia, para não mudar a contagem das seções dos outros módulos.
+bd.anotacoes ??= [];
+bd.anotacaoLigacoes ??= [];
+bd.historicoAnotacoes ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
@@ -552,7 +564,7 @@ for (const [id, funcao] of Object.entries(bd.funcoesDeTeste ?? {})) EQUIPE.find(
 (window as unknown as { SEMPER_FALSO: unknown }).SEMPER_FALSO = {
   reiniciar: () => { sessionStorage.removeItem(CHAVE); location.reload(); },
   encerrarSessao: () => { bd.sessaoEncerrada = true; gravar(); },
-  // Por enquanto, as regras de quem vê o quê só valem para os contratos e as parcelas; nos outros módulos, toda conta vê tudo.
+  // Por enquanto, as regras de quem vê o quê só valem para os contratos, as parcelas e as anotações; nos outros módulos, toda conta vê tudo.
   entrarComo: (id: string) => { bd.logadoComo = id; eu = id; gravar(); },
   gerarAvisosDePrazo: (hoje?: string) => gerarAvisosDePrazo(hoje),
   /** A rotina dos lembretes num instante (ISO, ex.: '2030-11-15T13:05:00-03:00'); sem ele, agora. */
@@ -779,6 +791,14 @@ const SAIR_DO_CARTAO: Record<ModuloComSaida, (id: string) => boolean> = {
     const novos = { participantes: c.participantes.filter(p => p !== eu) };
     historicoCompromisso(c, novos); Object.assign(c, novos, { atualizado_em: agora(), atualizado_por: eu });
     auditar('compromissos', 'alteracao', { id: c.id, codigo: c.codigo });
+    return true;
+  },
+  anotacoes: id => {
+    const a = bd.anotacoes!.find(x => x.id === id);
+    if (!a?.participantes.includes(eu)) return false;
+    const novos = { participantes: a.participantes.filter(p => p !== eu) };
+    historicoAnotacao(a, novos); Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo });
     return true;
   }
 };
@@ -1262,6 +1282,7 @@ function apagarCompromisso(c: CompromissoGuardado) {
   bd.historicoCompromissos = bd.historicoCompromissos!.filter(h => h.compromisso_id !== c.id);
   bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'compromissos' && a.cartao_id === c.id));
   bd.comentarios = bd.comentarios!.filter(x => !(x.modulo === 'compromissos' && x.cartao_id === c.id));
+  soltarDasAnotacoes('compromissos', c.id);
   auditar('compromissos', 'exclusao', { id: c.id, codigo: c.codigo });
 }
 /** Como o gatilho audiencias_saem_junto e o on delete set null: as audiências e perícias saem; os outros ficam sem a ligação. */
@@ -1272,6 +1293,159 @@ function compromissosDoProcessoExcluido(processoId: string) {
     Object.assign(c, { processo_id: null, processo_codigo: null, processo_numero: null });
   }
 }
+// ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
+// Aqui a regra de quem vê e quem altera vale de verdade (regras/anotacao.ts), e a visibilidade de cada item ligado segue as
+// regras puras de cada módulo, como as do banco (mesmo onde a listagem do módulo, no banco fictício, ainda mostra tudo).
+const chavesDaEquipe = (): ChavesDaEquipe => ({ equipeVeTudo: !!bd.equipeVeTudo, equipeEditaTudo: !!bd.equipeEditaTudo });
+/** Cada módulo a que a anotação se liga: o item, como aparece no cartão dela, e se quem está logado o vê pelas regras do módulo. */
+const ITEM_NO_FALSO: Record<ModuloDaAnotacao, (id: string) => { item: ItemDaAnotacao; vejo: boolean } | null> = {
+  pessoas: id => { const p = bd.pessoas.find(x => x.id === id); return p ? { item: itemDaAnotacao('pessoas', p), vejo: true } : null; },
+  processos: id => {
+    const p = bd.processos!.find(x => x.id === id);
+    return p ? { item: itemDaAnotacao('processos', { ...p, cliente_nome: nomesDosClientes(p.clientes) }), vejo: alteraOProcesso(p, membroLogado()) } : null;
+  },
+  contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k ? { item: itemDaAnotacao('contratos', k), vejo: alcancoContrato(k) } : null; },
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d ? { item: itemDaAnotacao('demandas', d), vejo: veADemanda(d, membroLogado()) } : null; },
+  tarefas: id => {
+    const t = bd.tarefas!.find(x => x.id === id);
+    return t ? { item: itemDaAnotacao('tarefas', t), vejo: veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null) } : null;
+  },
+  compromissos: id => {
+    const c = bd.compromissos!.find(x => x.id === id);
+    return c ? { item: itemDaAnotacao('compromissos', c), vejo: veOCompromisso(c, membroLogado(), processoDoCompromisso(c)) } : null;
+  }
+};
+/**
+ * Os módulos que cada chave da equipe abre no banco: a de ver tudo abre demandas, tarefas, processos (20261109102349_equipe_ve_tudo.sql)
+ * e contratos (a view contratos_da_equipe), mas não compromissos; a de editar tudo abre os quatro módulos da fase de adaptação
+ * (20261109140344_fase_de_adaptacao.sql), mas não contratos. As pessoas, todo o escritório vê.
+ */
+const ABRE_COM_A_CHAVE: Record<ModuloDaAnotacao, Record<keyof ChavesDaEquipe, boolean>> = {
+  pessoas: { equipeVeTudo: true, equipeEditaTudo: true },
+  processos: { equipeVeTudo: true, equipeEditaTudo: true },
+  contratos: { equipeVeTudo: true, equipeEditaTudo: false },
+  demandas: { equipeVeTudo: true, equipeEditaTudo: true },
+  tarefas: { equipeVeTudo: true, equipeEditaTudo: true },
+  compromissos: { equipeVeTudo: false, equipeEditaTudo: true }
+};
+/** Quem está logado vê o item, pelas regras do módulo ou pela chave da equipe que abre esse módulo? */
+const vejoOItem = (modulo: ModuloDaAnotacao, id: string) => {
+  const x = ITEM_NO_FALSO[modulo](id), chaves = chavesDaEquipe(), abre = ABRE_COM_A_CHAVE[modulo];
+  return !!x && (x.vejo || (chaves.equipeVeTudo && abre.equipeVeTudo) || (chaves.equipeEditaTudo && abre.equipeEditaTudo));
+};
+const ligacoesDaAnotacao = (id: string) => bd.anotacaoLigacoes!.filter(l => l.anotacao_id === id);
+/** Como a regra de leitura do banco (com privado.anotacoes_pelos_itens). */
+const vejoAnotacao = (a: Anotacao) => veAAnotacao(a, membroLogado(), chavesDaEquipe(),
+  ligacoesDaAnotacao(a.id).some(l => ABRE_A_ANOTACAO[l.modulo] && vejoOItem(l.modulo, l.item_id)));
+const alteroAnotacao = (a: Anotacao) => alteraAAnotacao(a, membroLogado(), chavesDaEquipe());
+/** Como o gatilho preparar e as regras check da migração: confere só quem está entrando na equipe da anotação. */
+function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao {
+  const d: DadosAnotacao = { ...dados };
+  if (d.titulo !== undefined) d.titulo = (d.titulo ?? '').trim();
+  if (d.texto !== undefined) d.texto = d.texto ?? '';
+  const ativo = (id: string | undefined) => EQUIPE.some(m => m.id === id && m.ativo && !m.excluido);
+  const responsavel = d.responsavel_id ?? atual?.responsavel_id;
+  if ((!atual || (d.responsavel_id !== undefined && d.responsavel_id !== atual.responsavel_id)) && !ativo(responsavel)) {
+    throw new Error('O responsável precisa ser alguém da equipe do escritório.');
+  }
+  if (d.participantes !== undefined || d.responsavel_id !== undefined) {
+    const lista = [...new Set((d.participantes ?? atual?.participantes ?? []).filter(Boolean))].filter(id => id !== responsavel);
+    if (lista.some(id => !atual?.participantes.includes(id) && !ativo(id))) throw new Error('O participante precisa ser alguém da equipe do escritório.');
+    if (lista.length > COLABORADORES_MAXIMOS) throw new Error(FORMATO_INVALIDO);
+    d.participantes = lista;
+  }
+  const fica = { ...atual, ...d };
+  if (!fica.titulo || fica.titulo.length > TAMANHO_ANOTACAO.titulo || (fica.texto ?? '').length > TAMANHO_ANOTACAO.texto) throw new Error(FORMATO_INVALIDO);
+  return d;
+}
+/** Como o gatilho do histórico: o que mudou, com os nomes da equipe; o texto entra sem o conteúdo (a tela mostra "Texto alterado"). */
+const HISTORICO_DO_CAMPO_DA_ANOTACAO: Record<string, (de: unknown, para: unknown) => Historico['alteracoes'][string]> = {
+  texto: () => ({ de: null, para: null }),
+  responsavel_id: (de, para) => ({ de: EQUIPE.find(m => m.id === de)?.nome ?? null, para: EQUIPE.find(m => m.id === para)?.nome ?? null }),
+  participantes: (de, para) => ({ de: nomesDosMembros(de as string[]), para: nomesDosMembros(para as string[]) })
+};
+/** Como privado.nomes_da_equipe: os nomes juntos, na ordem; sem ninguém, null. */
+const nomesDosMembros = (ids: string[]) => ids.length ? ids.map(id => EQUIPE.find(m => m.id === id)?.nome ?? 'usuário removido').join(', ') : null;
+function historicoAnotacao(a: Anotacao, dados: Record<string, unknown>) {
+  const atual = a as unknown as Record<string, unknown>, alt: Historico['alteracoes'] = {};
+  Object.entries(dados).forEach(([campo, v]) => {
+    if (campo === 'arquivado_por' || JSON.stringify(atual[campo] ?? null) === JSON.stringify(v ?? null)) return;
+    alt[campo] = (HISTORICO_DO_CAMPO_DA_ANOTACAO[campo] ?? ((de, para) => ({ de, para })))(atual[campo] ?? null, v ?? null);
+  });
+  if (Object.keys(alt).length) bd.historicoAnotacoes!.unshift({ id: Date.now() + Math.random(), anotacao_id: a.id, alteracoes: alt, feito_por: eu, em: agora() });
+}
+/** Como o gatilho ligada_a: a lista dos módulos ligados, em ordem e sem repetir (não conta como alteração da anotação). */
+const refazerLigadaA = (id: string) => {
+  const a = bd.anotacoes!.find(x => x.id === id);
+  if (a) a.ligada_a = modulosLigados(ligacoesDaAnotacao(id).map(l => l.modulo));
+};
+/** Como o gatilho e as regras de ligar do banco, na mesma ordem: o item existe; repetido não faz nada; até ITENS_DA_ANOTACAO; e quem liga altera a anotação e vê o item. */
+function ligarNaAnotacaoFalsa(a: Anotacao, modulo: ModuloDaAnotacao, itemId: string) {
+  if (!ITEM_NO_FALSO[modulo](itemId)) throw new Error('Item não encontrado neste escritório.');
+  const pode = ligaNaAnotacao(a, membroLogado(), chavesDaEquipe());
+  const ligacoes = ligacoesDaAnotacao(a.id);
+  if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return;
+  if (ligacoes.length >= ITENS_DA_ANOTACAO) throw new Error(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
+  if (!pode || !vejoOItem(modulo, itemId)) throw new Error(SEM_PERMISSAO);
+  bd.anotacaoLigacoes!.push({ anotacao_id: a.id, modulo, item_id: itemId, criado_por: eu, criado_em: agora() });
+  refazerLigadaA(a.id);
+}
+/** Como o on delete cascade das ligações: o item excluído sai das anotações, e a lista dos módulos ligados é refeita. */
+function soltarDasAnotacoes(modulo: ModuloDaAnotacao, itemId: string) {
+  const saem = (bd.anotacaoLigacoes ?? []).filter(l => l.modulo === modulo && l.item_id === itemId);
+  if (!saem.length) return;
+  bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => !saem.includes(l));
+  saem.forEach(l => refazerLigadaA(l.anotacao_id));
+}
+const anotacaoLista = (a: Anotacao): AnotacaoLista => ({
+  id: a.id, codigo: a.codigo, titulo: a.titulo, responsavel_id: a.responsavel_id, participantes: a.participantes, ligada_a: a.ligada_a,
+  criado_por: a.criado_por, criado_em: a.criado_em, atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em
+});
+const anotacaoLigada = (a: Anotacao): AnotacaoLigada => ({
+  id: a.id, codigo: a.codigo, titulo: a.titulo, criado_por: a.criado_por, criado_em: a.criado_em, atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em
+});
+// Como a coluna "busca" do banco: o código, o título e o texto, sem acento.
+const buscaAnotacao = (a: Anotacao) => normal([a.codigo, a.titulo, a.texto].join(' '));
+function filtrarAnotacoes(f: FiltroAnotacoes = {}) {
+  // Um número com pontuação (CNJ, CPF) vira só os dígitos, mas o texto da anotação o guarda como foi escrito: busca as duas formas.
+  const t = termo(f.termo), escrito = normal(f.termo), achou = (a: Anotacao) => buscaAnotacao(a).includes(t) || buscaAnotacao(a).includes(escrito);
+  return bd.anotacoes!.filter(a => vejoAnotacao(a) && (f.situacao === 'arquivadas' ? a.arquivado_em : !a.arquivado_em)
+    && (!f.ligadaA || (f.ligadaA === 'nenhum' ? !a.ligada_a.length : a.ligada_a.includes(f.ligadaA)))
+    && (!f.autor || a.criado_por === f.autor)
+    && (!f.desde || a.criado_em >= f.desde)
+    && (!t || achou(a)));
+}
+// Não há quadro: a ordem manual é a das atualizadas por último (como em supabase.ts).
+const ORDENS_ANOTACAO: Record<Ordem, (a: Anotacao, b: Anotacao) => number> = {
+  manual: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em),
+  nome: (a, b) => a.titulo.localeCompare(b.titulo),
+  nome_desc: (a, b) => b.titulo.localeCompare(a.titulo),
+  novos: (a, b) => b.criado_em.localeCompare(a.criado_em),
+  antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
+  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
+};
+/** A anotação sai com as ligações e o histórico dela (on delete cascade). */
+function apagarAnotacao(a: Anotacao) {
+  bd.anotacoes = bd.anotacoes!.filter(x => x.id !== a.id);
+  bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
+  bd.historicoAnotacoes = bd.historicoAnotacoes!.filter(h => h.anotacao_id !== a.id);
+  auditar('anotacoes', 'exclusao', { id: a.id, codigo: a.codigo });
+}
+/**
+ * Os itens que cada módulo oferece para ligar: a listagem do módulo, pela busca (como em supabase.ts). Aqui vem a listagem inteira:
+ * no banco fictício ela ainda mostra tudo, e o corte em ITENS_PARA_LIGAR só vem depois de tirar o que a pessoa não vê (no banco,
+ * a regra de leitura filtra antes do limite).
+ */
+const TODOS = { porPagina: Number.MAX_SAFE_INTEGER };
+const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnotacao[]>> = {
+  pessoas: async termo => (await SD.pessoasListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('pessoas', x)),
+  processos: async termo => (await SD.processosParaLigar(termo)).map(x => itemDaAnotacao('processos', { ...x, arquivado_em: null })),
+  contratos: async termo => (await SD.contratosListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('contratos', x)),
+  demandas: async termo => (await SD.demandasListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('demandas', x)),
+  tarefas: async termo => (await SD.tarefasListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('tarefas', x)),
+  compromissos: async termo => (await SD.compromissosListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('compromissos', x))
+};
+
 // ---------- andamentos e prazos do processo ----------
 const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
   const t = id ? bd.tarefas!.find(x => x.id === id) : null;
@@ -1894,7 +2068,7 @@ export const SD: Dados = {
       usuario: { id: eu, email: meuEmail() },
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: (ehMaster && bd.perfil.nome) || m.nome, usuario: (ehMaster && bd.perfil.usuario) || m.usuario,
         papel: m.papel, funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo, equipe_edita_tudo: !!bd.equipeEditaTudo }, ...bd.escritorio! },
+      escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, anotacoes: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo, equipe_edita_tudo: !!bd.equipeEditaTudo }, ...bd.escritorio! },
       equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, nome: nomeNaEquipe(r.nome, r.excluido), foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
     };
     return espera(c);
@@ -1972,6 +2146,7 @@ export const SD: Dados = {
       if (bd.tarefas!.some(t => t.pessoas.includes(id))) { motivo = 'Esta pessoa está em tarefas e não pode ser excluída.'; return; }
       if (bd.processos!.some(x => x.clientes.includes(id))) { motivo = 'Esta pessoa está em processos e não pode ser excluída.'; return; }
       if (bd.compromissos!.some(c => c.pessoas.includes(id))) { motivo = 'Esta pessoa está em compromissos e não pode ser excluída.'; return; }
+      if (bd.anotacaoLigacoes!.some(l => l.modulo === 'pessoas' && l.item_id === id)) { motivo = 'Esta pessoa está ligada a anotações e não pode ser excluída.'; return; }
       if (bd.socios!.some(s => s.pessoa_id === id) || bd.repasses!.some(r => r.pessoa_id === id)) { motivo = 'Esta pessoa está no financeiro e não pode ser excluída.'; return; }
       bd.pessoas = bd.pessoas.filter(x => x.id !== id); auditar('pessoas', 'exclusao', p); excluidas++;
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'pessoas' && c.cartao_id === id));
@@ -2175,6 +2350,7 @@ export const SD: Dados = {
       bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
+      soltarDasAnotacoes('contratos', id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
       bd.tarefas!.forEach(t => { if (t.contrato_id === id) Object.assign(t, { contrato_id: null, contrato_codigo: null }); });
@@ -2251,6 +2427,7 @@ export const SD: Dados = {
       if (!d || !d.arquivado_em) return;
       bd.demandas = bd.demandas!.filter(x => x.id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.demanda_id !== id);
+      soltarDasAnotacoes('demandas', id);
       bd.historicoDemandas = bd.historicoDemandas!.filter(h => h.demanda_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
@@ -2320,6 +2497,7 @@ export const SD: Dados = {
       bd.historicoTarefas = bd.historicoTarefas!.filter(h => h.tarefa_id !== id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
+      soltarDasAnotacoes('tarefas', id);
       const listas = new Set(bd.listas!.filter(l => l.tarefa_id === id).map(l => l.id));
       bd.listas = bd.listas!.filter(l => !listas.has(l.id));
       bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
@@ -2516,6 +2694,89 @@ export const SD: Dados = {
   },
   processosParaLigar: (texto = '') => espera(bd.processos!.filter(p => !p.arquivado_em && (!termo(texto) || buscaProcesso(p).includes(termo(texto)))).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, PROCESSOS_PARA_LIGAR)
     .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes) }))),
+
+  // ---------- anotações (como supabase/migrations/20261117143714_anotacoes.sql) ----------
+  anotacoesListar(f = {}) {
+    const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
+    const r = filtrarAnotacoes(f).sort(ORDENS_ANOTACAO[f.ordem ?? 'recentes']);
+    return espera({ linhas: r.slice(de, de + por).map(anotacaoLista), total: r.length });
+  },
+  anotacaoObter: id => { const a = bd.anotacoes!.find(x => x.id === id && vejoAnotacao(x)); return espera(a ?? null); },
+  async anotacaoCriar(dados, ligarA) {
+    const pronto = prepararAnotacao({ texto: '', participantes: [], ...dados });
+    const a = { texto: '', participantes: [], ...pronto, id: novoId(), codigo: codigo(), ligada_a: [], arquivado_em: null, arquivado_por: null,
+      criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as Anotacao;
+    bd.anotacoes!.push(a);
+    try {
+      if (ligarA) ligarNaAnotacaoFalsa(a, ligarA.modulo, ligarA.id);
+    } catch (e) {
+      // Se a ligação falha, nada fica gravado (como em supabase.ts).
+      bd.anotacoes = bd.anotacoes!.filter(x => x.id !== a.id);
+      bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
+      throw e;
+    }
+    auditar('anotacoes', 'inclusao', { id: a.id, codigo: a.codigo }); gravar();
+    return espera({ id: a.id, codigo: a.codigo });
+  },
+  async anotacaoAtualizar(id, dados) {
+    // Como a regra de alterar do banco: quem não altera (ou nem vê) não muda nada.
+    const a = bd.anotacoes!.find(x => x.id === id);
+    if (!a || !alteroAnotacao(a)) throw new Error(SEM_PERMISSAO);
+    const novos = prepararAnotacao(dados, a);
+    // Como no banco, a leitura confere também a linha nova: quem deixaria de ver a anotação não grava (sai por SD.cartaoSair).
+    if (!vejoAnotacao({ ...a, ...novos })) throw new Error(SEM_PERMISSAO);
+    historicoAnotacao(a, novos);
+    Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); gravar();
+    return espera({ id, codigo: a.codigo });
+  },
+  async anotacoesArquivar(ids, arquivar = true) {
+    let mudaram = 0;
+    ids.forEach(id => {
+      const a = bd.anotacoes!.find(x => x.id === id && vejoAnotacao(x));
+      if (!a || !alteroAnotacao(a)) return;
+      historicoAnotacao(a, { arquivado_em: arquivar ? agora() : null });
+      Object.assign(a, { arquivado_em: arquivar ? agora() : null, arquivado_por: arquivar ? eu : null, atualizado_em: agora(), atualizado_por: eu });
+      auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); mudaram++;
+    });
+    if (ids.length && !mudaram) return erro(SEM_PERMISSAO);
+    gravar(); return espera(mudaram);
+  },
+  async anotacoesExcluir(ids) {
+    let excluidas = 0;
+    ids.forEach(id => {
+      const a = bd.anotacoes!.find(x => x.id === id && vejoAnotacao(x));
+      if (!a || !excluiAAnotacao(a, membroLogado())) return;
+      apagarAnotacao(a); excluidas++;
+    });
+    gravar();
+    return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só anotações arquivadas podem ser excluídas, por quem as criou ou por um administrador.' : '' });
+  },
+  anotacaoHistorico: id => espera(bd.anotacoes!.some(a => a.id === id && vejoAnotacao(a))
+    ? bd.historicoAnotacoes!.filter(h => h.anotacao_id === id).slice(0, HISTORICO_DA_ANOTACAO).map(({ anotacao_id: _a, ...h }) => h) : []),
+  async anotacaoLigar(id, modulo, itemId) {
+    const a = bd.anotacoes!.find(x => x.id === id);
+    if (!a) return erro(SEM_PERMISSAO);
+    ligarNaAnotacaoFalsa(a, modulo, itemId); gravar();
+  },
+  async anotacaoDesligar(id, modulo, itemId) {
+    const a = bd.anotacoes!.find(x => x.id === id);
+    const ligacao = a && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe()) ? ligacoesDaAnotacao(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
+    if (!ligacao) return erro(SEM_PERMISSAO);
+    bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l !== ligacao);
+    refazerLigadaA(id); gravar();
+  },
+  anotacaoItens(id) {
+    const a = bd.anotacoes!.find(x => x.id === id && vejoAnotacao(x));
+    const ligacoes = a ? ligacoesDaAnotacao(id) : [];
+    const visiveis = ligacoes.flatMap(l => vejoOItem(l.modulo, l.item_id) ? [ITEM_NO_FALSO[l.modulo](l.item_id)!.item] : []);
+    return espera({ visiveis, ocultos: ligacoes.length - visiveis.length });
+  },
+  anotacoesDoItem: (modulo, itemId) => espera(bd.anotacoes!
+    .filter(a => vejoAnotacao(a) && ligacoesDaAnotacao(a.id).some(l => l.modulo === modulo && l.item_id === itemId))
+    .sort(ORDENS_ANOTACAO.recentes).slice(0, ANOTACOES_LIGADAS).map(anotacaoLigada)),
+  // A listagem de cada módulo, no banco fictício, ainda mostra tudo: aqui ficam só os itens que as regras do módulo deixam ver.
+  itensParaLigar: async (modulo, termo) => (await PARA_LIGAR[modulo](termo)).filter(i => vejoOItem(i.modulo, i.id)).slice(0, ITENS_PARA_LIGAR),
 
   // ---------- andamentos e prazos do processo (como supabase/migrations/20261102125539_andamentos_e_prazos.sql) ----------
   processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId && !a.excluido_em).toSorted(porDataDoAndamento)
@@ -3219,6 +3480,7 @@ export const SD: Dados = {
       bd.historicoProcessos = bd.historicoProcessos!.filter(h => h.processo_id !== id);
       bd.processoDemandas = bd.processoDemandas!.filter(l => l.processo_id !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.processo_id !== id);
+      soltarDasAnotacoes('processos', id);
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
