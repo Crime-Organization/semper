@@ -20,8 +20,8 @@ const processo = (tipo: TipoProcesso, numero: string) => ({
 }) as unknown as Processo;
 
 /** Abre o processo para editar: todas as etapas na tela. */
-async function abrir(tipo: TipoProcesso, numero: string) {
-  vi.spyOn(SD, 'processoObter').mockResolvedValue(processo(tipo, numero));
+async function abrir(tipo: TipoProcesso, numero: string, extra: Partial<Processo> = {}) {
+  vi.spyOn(SD, 'processoObter').mockResolvedValue({ ...processo(tipo, numero), ...extra });
   render(<MemoryRouter><NovoProcesso edicao={{ id: 'p1', aoTerminar: () => undefined }} /></MemoryRouter>);
   await screen.findByLabelText(/Número do processo/);
 }
@@ -75,5 +75,17 @@ describe('Formulário de processo', () => {
     await abrir('judicial', '0001234-97.2026.8.13.0024');
     // Então
     expect((screen.getByLabelText('Área do direito') as HTMLSelectElement).value).toBe('Marítimo');
+  });
+
+  it.each(['SEEU', 'Seeu'])('dado um escritório que gravou "%s" antes de ela ser pronta, quando o administrador abre um processo com esse sistema, então o nome aparece uma vez e não há "Retirar da lista" (#288)', async valor => {
+    // Dado
+    sessao.ehAdmin = true;
+    vi.spyOn(SD, 'processoOpcoes').mockResolvedValue([{ id: 'o2', campo: 'sistema', valor }]);
+    // Quando
+    await abrir('judicial', '0001234-97.2026.8.13.0024', { sistema: valor });
+    // Então
+    expect((screen.getByLabelText('Sistema de tramitação') as HTMLSelectElement).value).toBe(valor);
+    expect(screen.getAllByRole('option', { name: /^seeu$/i })).toHaveLength(1);
+    expect(screen.queryAllByRole('button', { name: 'Retirar da lista' })).toHaveLength(0);
   });
 });
