@@ -1,6 +1,7 @@
 // Regras da demanda (módulo Demandas): o cadastro por etapas, os papéis de cada pessoa, o prazo e quem pode ser
 // mencionado nos comentários. Tudo puro, sem tela nem banco.
-import type { DadosDemanda, Demanda, Lembrete, Membro, PapelNaDemanda } from '../dados/tipos';
+import type { DadosDemanda, Demanda, EquipeDoContrato, Lembrete, Membro, PapelNaDemanda } from '../dados/tipos';
+import { contratosEmQueEsta } from './contrato';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_DEMANDA } from '../dados/limites';
 import { fmtData, lerData } from './pessoa';
@@ -166,11 +167,28 @@ const CONFERE_PAPEL: Record<PapelNaDemanda, (d: PessoasDaDemanda, pessoaId: stri
 export const papeisNaDemanda = (d: PessoasDaDemanda, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNaDemanda[]).filter(papel => CONFERE_PAPEL[papel](d, pessoaId, perfilId));
 
-/** Quem vê a demanda: os administradores, quem criou, o responsável e os colaboradores (como a regra do banco). */
-export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>, m: Membro) =>
+/**
+ * Quem está na demanda (como privado.vejo_demanda, sem a fase de adaptação): os administradores, quem criou, o responsável e os
+ * colaboradores. É quem altera a demanda.
+ */
+export const estaNaDemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>, m: Membro) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === d.criado_por || m.id === d.responsavel_id || d.colaboradores.includes(m.id);
-/** Por que o membro não pode ser mencionado na demanda (null se pode): só quem vê a demanda. */
-export const motivoSemMencaoNaDemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>) =>
-  (m: Membro) => veADemanda(d, m) ? null : 'não participa; inclua como colaborador';
+/** O contrato do cartão é um daqueles em que a pessoa está (privado.contratos_em_que_estou, #326)? */
+export const doContratoEmQueEsta = (contratoId: string | null | undefined, contratosEmQueEsta: readonly string[]) =>
+  !!contratoId && contratosEmQueEsta.includes(contratoId);
+/**
+ * Quem vê a demanda (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato ligado a ela
+ * (`contratosEmQueEsta`: os contratos que a pessoa criou, de que é responsável ou participante; a menção não conta).
+ */
+export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'> & { contrato_id?: string | null }, m: Membro,
+  contratosEmQueEsta: readonly string[] = []) => estaNaDemanda(d, m) || doContratoEmQueEsta(d.contrato_id, contratosEmQueEsta);
+/**
+ * Por que o membro não pode ser mencionado na demanda (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está
+ * no contrato dela). O contrato vem com quem está nele (`contrato`) quando quem comenta pode abri-lo; sem ele, conta só quem está
+ * na demanda (o banco ainda aceita quem está no contrato, se a menção for escrita à mão).
+ */
+export const motivoSemMencaoNaDemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>
+  & { contrato_id?: string | null; contrato?: EquipeDoContrato | null }) =>
+  (m: Membro) => veADemanda(d, m, contratosEmQueEsta([d.contrato], m)) ? null : 'não participa; inclua como colaborador';
 /** A mensagem de quando alguém que não vê a demanda aparece num comentário dela (a mesma do banco). */
 export const mencaoNegadaNaDemanda = (nome: string) => `Não é possível mencionar ${nome} nesta demanda: inclua essa pessoa como colaboradora antes.`;

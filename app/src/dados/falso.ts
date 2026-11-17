@@ -23,10 +23,10 @@ import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato,
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
-import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, veOContrato } from '../regras/contrato';
+import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
-import { mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
-import { mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
+import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
+import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
 import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
@@ -47,6 +47,7 @@ import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao } from './tipos';
+import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import { ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, modulosLigados, veAAnotacao, type ChavesDaEquipe } from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -759,6 +760,18 @@ const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !bd.equipeEd
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
 const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
+/** Quem está no contrato, como o cartão da demanda e o da tarefa o recebem (só os campos que o banco manda, #326). */
+const equipeDoContrato = (k: QuemEstaNoContrato): EquipeDoContrato =>
+  ({ id: k.id, criado_por: k.criado_por, responsavel_id: k.responsavel_id, participantes: k.participantes.map(p => p.pessoa_id) });
+/** O contrato no cartão da demanda ou da tarefa: como o banco, só para quem pode abri-lo, e com quem está nele. */
+const contratoQueVejo = (id: string | null | undefined) => {
+  const k = id ? bd.contratos!.find(x => x.id === id) : null;
+  return k && vejoContrato(k) ? k : null;
+};
+const contratoDoCartao = (id: string | null | undefined): ContratoDoCartao | null => {
+  const k = contratoQueVejo(id);
+  return k && { ...equipeDoContrato(k), codigo: k.codigo, servico: k.servico };
+};
 /** Como public.cartao_sair: tira quem está logado e deixa no histórico. Devolve se a pessoa estava no cartão. */
 const SAIR_DO_CARTAO: Record<ModuloComSaida, (id: string) => boolean> = {
   tarefas: id => {
@@ -818,6 +831,14 @@ const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && 
 /** Como contratos_da_equipe: quem é parte e, com a chave ligada, toda a equipe. */
 const alcancoContrato = (k: QuemEstaNoContrato) => !!bd.equipeVeTudo || vejoContrato(k);
 const alcancoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && alcancoContrato(k));
+/** Como privado.contratos_em_que_estou (#326): os contratos que quem está logado criou, de que é responsável ou participante. */
+const contratosDoMembro = (m: Membro) => contratosEmQueEsta(bd.contratos!.map(pessoasDoContrato), m);
+const contratosEmQueEstou = () => contratosDoMembro(membroLogado());
+const demandaDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id'>) => bd.demandas!.find(d => d.id === t.demanda_id) ?? null;
+/** Como a regra de leitura das demandas: quem está nela e, só para ler, quem está no contrato ligado a ela (#326). */
+const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou());
+/** Como a regra de leitura das tarefas: quem está nela e, só para ler, quem está no contrato dela ou no da demanda ligada (#326). */
+const vejoTarefa = (t: TarefaGuardada) => veATarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), contratosEmQueEstou());
 /** Como privado.altero_o_contrato: quem é parte e, na fase de adaptação, toda a equipe. */
 const alteroContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && (alteroContrato(k) || !!bd.equipeEditaTudo));
 /** Como as colunas de contratos_da_equipe para quem não é parte. */
@@ -897,11 +918,8 @@ function horaELembreteDoBanco(dados: Pick<DadosTarefa, 'prazo_hora' | 'lembrete'
 
 // ---------- demandas ----------
 const nomesDosClientes = (ids: string[]) => ids.map(id => bd.pessoas.find(p => p.id === id)?.nome ?? 'pessoa excluída').join('; ');
-const demandaCompleta = (d: DemandaGuardada): Demanda => {
-  const k = d.contrato_id ? bd.contratos!.find(x => x.id === d.contrato_id) : null;
-  return { ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes),
-    contrato: k && vejoContrato(k) ? { id: k.id, codigo: k.codigo, servico: k.servico } : null };
-};
+const demandaCompleta = (d: DemandaGuardada): Demanda =>
+  ({ ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes), contrato: contratoDoCartao(d.contrato_id) });
 const demandaLista = (d: DemandaGuardada): DemandaLista => ({
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
   cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
@@ -910,7 +928,7 @@ const demandaLista = (d: DemandaGuardada): DemandaLista => ({
 const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
 function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
-  return bd.demandas!.filter(d => (!f.paraLigar || !soLeNoFalso(veADemanda(d, membroLogado()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
+  return bd.demandas!.filter(d => (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
     && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta))
     && (!t || buscaDemanda(d).includes(t)));
@@ -1059,18 +1077,23 @@ const processoDaTarefa = (id: string | null | undefined) => {
 };
 const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const d = t.demanda_id ? bd.demandas!.find(x => x.id === t.demanda_id) : null;
-  const k = t.contrato_id ? bd.contratos!.find(x => x.id === t.contrato_id) : null;
+  const contratoDaDemanda = contratoQueVejo(d?.contrato_id);
   return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
     demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
-      colaboradores: d.colaboradores } : null,
-    contrato: k && vejoContrato(k) ? { id: k.id, codigo: k.codigo, servico: k.servico } : null,
+      colaboradores: d.colaboradores, contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) } : null,
+    contrato: contratoDoCartao(t.contrato_id),
     processo: processoDaTarefa(t.processo_id) };
 };
-const tarefaLista = (t: TarefaGuardada): TarefaLista => ({
-  id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, responsavel_id: t.responsavel_id, participantes: t.participantes,
-  pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
-  etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em
-});
+const tarefaLista = (t: TarefaGuardada): TarefaLista => {
+  // Como o banco, quem está na demanda ligada (as listagens do banco fictício não filtram quem vê, e quem não vê a demanda não está nela).
+  const d = demandaDaTarefaNoFalso(t);
+  return {
+    id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, responsavel_id: t.responsavel_id, participantes: t.participantes,
+    pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
+    etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em,
+    equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores } : null
+  };
+};
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
 function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
@@ -1305,10 +1328,10 @@ const ITEM_NO_FALSO: Record<ModuloDaAnotacao, (id: string) => { item: ItemDaAnot
     return p ? { item: itemDaAnotacao('processos', { ...p, cliente_nome: nomesDosClientes(p.clientes) }), vejo: alteraOProcesso(p, membroLogado()) } : null;
   },
   contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k ? { item: itemDaAnotacao('contratos', k), vejo: alcancoContrato(k) } : null; },
-  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d ? { item: itemDaAnotacao('demandas', d), vejo: veADemanda(d, membroLogado()) } : null; },
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d ? { item: itemDaAnotacao('demandas', d), vejo: vejoDemanda(d) } : null; },
   tarefas: id => {
     const t = bd.tarefas!.find(x => x.id === id);
-    return t ? { item: itemDaAnotacao('tarefas', t), vejo: veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null) } : null;
+    return t ? { item: itemDaAnotacao('tarefas', t), vejo: vejoTarefa(t) } : null;
   },
   compromissos: id => {
     const c = bd.compromissos!.find(x => x.id === id);
@@ -1860,12 +1883,12 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
   if (negado) throw new Error(mencaoNegada(negado.nome));
   const demanda = modulo === 'demandas' ? bd.demandas!.find(d => d.id === cartaoId) : null;
-  const deFora = demanda && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veADemanda(demanda, m))) : null;
+  const deFora = demanda && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veADemanda(demanda, m, contratosDoMembro(m)))) : null;
   if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
-  // Na tarefa: só quem a vê (quem está nela ou vê a demanda ligada a ela).
+  // Na tarefa: só quem a vê (quem está nela, na demanda ligada a ela ou no contrato de uma das duas, #326).
   const tarefa = modulo === 'tarefas' ? bd.tarefas!.find(t => t.id === cartaoId) : null;
   const daTarefa = tarefa ? bd.demandas!.find(d => d.id === tarefa.demanda_id) ?? null : null;
-  const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa))) : null;
+  const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa, contratosDoMembro(m)))) : null;
   if (foraDaTarefa) throw new Error(mencaoNegadaNaTarefa(foraDaTarefa.nome));
   // No compromisso: só quem o vê (quem está nele, quem vê o processo ligado ou todos, na Agenda geral).
   const compromisso = modulo === 'compromissos' ? bd.compromissos!.find(c => c.id === cartaoId) : null;
@@ -1895,10 +1918,10 @@ const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: stri
 const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
   pessoas: id => bd.pessoas.some(p => p.id === id),
   contratos: alcancoContratoDoId,
-  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return !!d && (!!bd.equipeVeTudo || veADemanda(d, membroLogado())); },
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return !!d && (!!bd.equipeVeTudo || vejoDemanda(d)); },
   tarefas: id => {
     const t = bd.tarefas!.find(x => x.id === id);
-    return !!t && (!!bd.equipeVeTudo || veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null));
+    return !!t && (!!bd.equipeVeTudo || vejoTarefa(t));
   },
   compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); }
 };
@@ -2412,7 +2435,7 @@ export const SD: Dados = {
     return espera({ id, codigo: d.codigo });
   },
   async demandasArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(veADemanda(d, membroLogado())); });
+    ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(estaNaDemanda(d, membroLogado())); });
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
@@ -2442,7 +2465,7 @@ export const SD: Dados = {
   },
   async demandaMover(id, etapaId, ordem) {
     const d = acharDemanda(id);
-    if (soLeNoFalso(veADemanda(d, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
     historicoDemanda(d, { etapa_id: etapaId });
     Object.assign(d, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
@@ -2477,7 +2500,7 @@ export const SD: Dados = {
     return espera({ id, codigo: t.codigo });
   },
   async tarefasArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null)); });
+    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t))); });
     ids.forEach(id => {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
@@ -2508,7 +2531,7 @@ export const SD: Dados = {
   },
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
-    if (soLeNoFalso(veATarefa(t, membroLogado(), bd.demandas!.find(d => d.id === t.demanda_id) ?? null))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t)))) return erro('Você não tem permissão para fazer isso.');
     historicoTarefa(t, { etapa_id: etapaId });
     // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
     const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
@@ -2860,7 +2883,7 @@ export const SD: Dados = {
   // ---------- processo e demanda (como supabase/migrations/20261102144922_processo_demandas.sql) ----------
   async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
     const d = bd.demandas!.find(x => x.id === demandaId);
-    if (!processoAtivo(processoId) || !d || soLeNoFalso(veADemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    if (!processoAtivo(processoId) || !d || soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
     if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId, papel });
     gravar();
     return espera(undefined);
@@ -2869,7 +2892,7 @@ export const SD: Dados = {
   async processoDemandaDesligar(processoId, demandaId) {
     const d = bd.demandas!.find(x => x.id === demandaId);
     const ligada = bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId);
-    if (!ligada || !d || soLeNoFalso(veADemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    if (!ligada || !d || soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
     bd.processoDemandas = bd.processoDemandas!.filter(l => !(l.processo_id === processoId && l.demanda_id === demandaId));
     gravar();
     return espera(undefined);

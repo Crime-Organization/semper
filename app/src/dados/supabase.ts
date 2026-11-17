@@ -27,7 +27,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -256,12 +256,18 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
 // ---------- demandas ----------
 const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
+/** Quem está no contrato (#326), para saber no cartão quem pode ser mencionado. A lista gravada traz as pessoas com o %. */
+const EQUIPE_DO_CONTRATO = 'id, criado_por, responsavel_id, participantes';
+type EquipeLida<K extends EquipeDoContrato> = Omit<K, 'participantes'> & { participantes: Pick<ParticipanteGravado, 'pessoa_id'>[] };
+const comAEquipe = <K extends EquipeDoContrato>(k: EquipeLida<K> | null): K | null =>
+  k && { ...k, participantes: k.participantes.map(p => p.pessoa_id) } as K;
 // O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
 const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
-  + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(id, codigo, servico)`;
-type DemandaLida = Omit<Demanda, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
-const comClientes = ({ clientela, ...d }: DemandaLida): Demanda => ({ ...d, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
+  + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO})`;
+type DemandaLida = Omit<Demanda, 'clientes' | 'contrato'> & { clientela: { ordem: number; pessoa: PessoaResumida }[]; contrato: EquipeLida<ContratoDoCartao> | null };
+const comClientes = ({ clientela, contrato, ...d }: DemandaLida): Demanda =>
+  ({ ...d, contrato: comAEquipe(contrato), clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
 // Ordem das demandas e das tarefas ("nome" é o título). O id no fim desempata a paginação. Pelo prazo (#291): os sem prazo
 // ficam no fim nos dois sentidos; no mesmo dia, o sem hora vem antes (regras/ordemPorPrazo.ts, que o banco fictício usa).
 const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (q: Livre) => Livre> = {
@@ -438,15 +444,22 @@ const CAMPOS_DO_CAMPO = 'id, nome, tipo, aparece_em, opcoes, apagado_em';
 const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [...new Set(linhas.map(l => l[campo]).filter((v): v is string => !!v))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
 // ---------- tarefas ----------
+// Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
 const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
-  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
+  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores)';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
 const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + 'demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores), contrato:contratos(id, codigo, servico), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)';
-type TarefaLida = Omit<Tarefa, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
-const comPessoas = ({ ligadas, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
+  + `demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})), `
+  + `contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO}), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)`;
+type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato'> & {
+  ligadas: { ordem: number; pessoa: PessoaResumida }[];
+  demanda: (Omit<DemandaDaTarefa, 'contrato'> & { contrato: EquipeLida<EquipeDoContrato> | null }) | null;
+  contrato: EquipeLida<ContratoDoCartao> | null;
+};
+const comPessoas = ({ ligadas, demanda, contrato, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa),
+  demanda: demanda && { ...demanda, contrato: comAEquipe(demanda.contrato) }, contrato: comAEquipe(contrato) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   q = porEtiqueta(q, f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);

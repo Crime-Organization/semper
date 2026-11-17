@@ -7,8 +7,8 @@ import { oferecerProcesso } from './concluirDemanda';
 import { SD, type DemandaLista, type FiltroDemandas, type Lembrete, type OrdemComPrazo, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
-import { seloDoPrazo, SEM_SITUACAO_DEMANDA, veADemanda, type ModuloComPrazo } from '../regras/demanda';
-import { soLeOCartao } from '../regras/equipeVeTudo';
+import { seloDoPrazo, SEM_SITUACAO_DEMANDA, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
+import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { rotuloDoLembrete } from '../regras/lembrete';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -157,7 +157,7 @@ export default function Demandas() {
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLeOCartao(ctx, m => veADemanda(d, m))}
+        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.demandasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={d => d.etapa_ordem}
@@ -197,7 +197,7 @@ function CartaoKanban({ d, ordem, concluido }: { d: DemandaLista; ordem: OrdemCo
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, d);
   return <>
-    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeOCartao(ctx, m => veADemanda(d, m))} />
+    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))} />
     <div className="kt">{d.titulo}</div>
     <div className="km">
       <span className="codigo">{d.codigo}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</span>
@@ -234,7 +234,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
     : <>Nenhuma demanda ainda. Elas nascem dos contratos assinados, ou <BotaoLink forma="link" to="/demandas/nova/">cadastre a primeira</BotaoLink>.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const alteraveis = linhas.filter(d => !soLeOCartao(ctx, m => veADemanda(d, m)));
+  const alteraveis = linhas.filter(d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m)));
   const todas = alteraveis.length > 0 && alteraveis.every(d => selecionadas.has(d.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
@@ -247,7 +247,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       </tr></thead>
       <tbody>{linhas.map(d => <LinhaQueAbre key={d.id} para={endereco(d.id)} aoAbrir={() => aoAbrir(d.id)} marcada={selecionadas.has(d.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeOCartao(ctx, m => veADemanda(d, m))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>

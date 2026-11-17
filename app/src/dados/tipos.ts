@@ -329,8 +329,15 @@ export interface Demanda {
   atualizado_em: string;
   clientes: PessoaResumida[];
   /** O contrato, se quem vê a demanda também pode abri-lo; senão null (e fica só o número). */
-  contrato: { id: string; codigo: string; servico: string } | null;
+  contrato: ContratoDoCartao | null;
 }
+/**
+ * Quem está no contrato (#326): quem o criou, o responsável (usuários) e os participantes (as pessoas do cadastro, como o banco grava
+ * em contratos.participantes). Quem está no contrato vê, só para ler, as demandas e as tarefas dele, e pode ser mencionado nelas.
+ */
+export interface EquipeDoContrato { id: string; criado_por: string | null; responsavel_id: string; participantes: string[] }
+/** O contrato como o cartão da demanda ou da tarefa o mostra, com quem está nele (para saber quem pode ser mencionado). */
+export type ContratoDoCartao = EquipeDoContrato & { codigo: string; servico: string };
 /** Papel de uma pessoa numa demanda (responsável e colaboradores são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaDemanda = 'cliente' | 'responsavel' | 'colaborador';
 /** Demanda como aparece em outro cartão (da pessoa ou do contrato), com o papel da pessoa nela. */
@@ -395,14 +402,18 @@ export interface Tarefa {
   /** A demanda, se quem vê a tarefa também pode abri-la; senão null (e fica só o código). */
   demanda: DemandaDaTarefa | null;
   /** O contrato, se quem vê a tarefa também pode abri-lo; senão null (e fica só o número). */
-  contrato: { id: string; codigo: string; servico: string } | null;
+  contrato: ContratoDoCartao | null;
   /** O processo da tarefa: nasce com ela (de uma intimação ou de um prazo) ou é ligado depois, no cadastro ou no cartão. */
   processo_id: string | null;
   /** O processo, se quem vê a tarefa também pode abri-lo; senão null. */
   processo: Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome'> | null;
 }
-/** O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). */
-export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+/**
+ * O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). O contrato da demanda vem
+ * com quem está nele, se quem vê a tarefa também pode abri-lo (quem está nele pode ser mencionado na tarefa, #326).
+ */
+export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'contrato_id'>
+  & { contrato: EquipeDoContrato | null };
 /** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
 /** Tarefa como aparece em outro cartão (da pessoa, da demanda ou do contrato), com o papel da pessoa nela. */
@@ -414,7 +425,13 @@ export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' 
   | 'participantes' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
 export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
-  | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
+  | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
+  /**
+   * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a
+   * demanda só pelo contrato dela lê as tarefas dela, mas não as altera (#326).
+   */
+  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'> | null;
+};
 export interface FiltroTarefas {
   termo?: string;
   etiqueta?: string;

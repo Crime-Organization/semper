@@ -6,8 +6,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
-import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda, veADemanda } from '../regras/demanda';
-import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
+import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda, estaNaDemanda } from '../regras/demanda';
+import { contratosEmQueEsta } from '../regras/contrato';
+import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
@@ -75,7 +76,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
-  const podeAlterar = !soLeOCartao(ctx, m => veADemanda(d, m)), veTudo = equipeVeTudo(ctx.escritorio);
+  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m), m => contratosEmQueEsta([d.contrato], m).length > 0);
+  const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
@@ -137,7 +139,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, d.responsavel_id, 'Responsável')}
         participantes={d.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
     </div>
-    {!podeAlterar && <Nota>{SO_LEITURA_DO_CARTAO}</Nota>}
+    {soLeitura && <Nota>{soLeitura}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {d.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Demanda arquivada. Se não for mais necessária, pode ser excluída definitivamente.'

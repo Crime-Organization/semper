@@ -6,8 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { useNavigate } from 'react-router';
 import { colunaComMarco } from '../regras/quadro';
-import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, veATarefa } from '../regras/tarefa';
-import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
+import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, estaNaTarefa } from '../regras/tarefa';
+import { contratosEmQueEsta } from '../regras/contrato';
+import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
@@ -71,7 +72,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!t) return <Vazio>Esta tarefa não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
-  const podeAlterar = !soLeOCartao(ctx, m => veATarefa(t, m, t.demanda)), veTudo = equipeVeTudo(ctx.escritorio);
+  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, t.demanda), m => contratosEmQueEsta([t.contrato, t.demanda?.contrato], m).length > 0);
+  const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
@@ -149,7 +151,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, t.responsavel_id, 'Responsável')}
         participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
     </div>
-    {!podeAlterar && <Nota>{SO_LEITURA_DO_CARTAO}</Nota>}
+    {soLeitura && <Nota>{soLeitura}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {t.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Tarefa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'

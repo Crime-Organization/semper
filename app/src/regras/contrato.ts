@@ -328,10 +328,21 @@ export const papeisNoContrato = (k: PartesDoContrato, pessoaId: string, perfilId
  * Quem altera o contrato, como a regra de alterar do banco: administradores, quem o criou, o responsável e os participantes.
  * O indicador não entra: ele vê o que recebe em Meus valores. `participantes` são as pessoas, do cadastro.
  */
-export const alteraOContrato = (k: { criado_por: string | null; responsavel_id: string; participantes: string[] },
-  m: { id: string; pessoa_id?: string | null; papel: string }) =>
-  ['master', 'admin'].includes(m.papel) || k.criado_por === m.id || k.responsavel_id === m.id
-    || (!!m.pessoa_id && k.participantes.includes(m.pessoa_id));
+export const alteraOContrato = (k: QuemEstaNoContrato, m: { id: string; pessoa_id?: string | null; papel: string }) =>
+  ['master', 'admin'].includes(m.papel) || estaNoContrato(k, m);
+type QuemEstaNoContrato = { criado_por: string | null; responsavel_id: string; participantes: string[] };
+/**
+ * Quem está no contrato (como privado.contratos_em_que_estou, #326): quem o criou, o responsável e os participantes (a pessoa do
+ * usuário). Quem só foi mencionado não está, e o papel de administrador não conta aqui.
+ */
+export const estaNoContrato = (k: QuemEstaNoContrato, m: { id: string; pessoa_id?: string | null }) =>
+  k.criado_por === m.id || k.responsavel_id === m.id || (!!m.pessoa_id && k.participantes.includes(m.pessoa_id));
+/**
+ * Os contratos em que a pessoa está: quem está num contrato vê, só para ler, as demandas e as tarefas dele (#326). Um contrato que
+ * veio null (no cartão: quem lê não pode abri-lo, então não se sabe quem está nele) não conta.
+ */
+export const contratosEmQueEsta = (contratos: readonly (QuemEstaNoContrato & { id: string } | null | undefined)[], m: { id: string; pessoa_id?: string | null }) =>
+  contratos.flatMap(k => k && estaNoContrato(k, m) ? [k.id] : []);
 /** Quem vê o contrato, como a regra de leitura do banco: quem o altera e quem outra pessoa mencionou num comentário dele. */
 export const veOContrato = (k: Parameters<typeof alteraOContrato>[0], m: Parameters<typeof alteraOContrato>[1], mencionado = false) =>
   mencionado || alteraOContrato(k, m);

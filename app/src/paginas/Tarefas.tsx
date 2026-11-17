@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router';
 import { SD, type FiltroTarefas, type OrdemComPrazo, type Pagina, type TarefaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
-import { soLeOCartao } from '../regras/equipeVeTudo';
+import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { SEM_SITUACAO_TAREFA, soLeATarefaNaLista } from '../regras/tarefa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -147,7 +147,7 @@ export default function Tarefas() {
       mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<TarefaLista, OrdemComPrazo> quadro={quadro} podeArrastar={t => !soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))}
+        ? <Kanban<TarefaLista, OrdemComPrazo> quadro={quadro} podeArrastar={t => !soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={t => t.etapa_ordem}
@@ -186,7 +186,7 @@ function CartaoKanban({ t, ordem, concluido }: { t: TarefaLista; ordem: OrdemCom
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, t);
   return <>
-    <EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))} />
+    <EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m))} />
     <div className="kt">{t.titulo}</div>
     <div className="km">
       <span className="codigo">{[t.codigo, ligacoes(t)].filter(Boolean).join(' · ')}</span>
@@ -223,7 +223,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
     : <>Nenhuma tarefa ainda. <BotaoLink forma="link" to="/tarefas/nova/">Cadastre a primeira</BotaoLink>, ou crie pelo cartão de uma demanda.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const alteraveis = linhas.filter(t => !soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m)));
+  const alteraveis = linhas.filter(t => !soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m)));
   const todas = alteraveis.length > 0 && alteraveis.every(t => selecionadas.has(t.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
@@ -236,7 +236,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       </tr></thead>
       <tbody>{linhas.map(t => <LinhaQueAbre key={t.id} para={endereco(t.id)} aoAbrir={() => aoAbrir(t.id)} marcada={selecionadas.has(t.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={t.etq} modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m))} /><NomeDaLinha>{t.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{t.codigo}</span>{t.pessoa_nome ? ' · ' + clientesPorExtenso(t.pessoa_nome) : ''}{ligacoes(t) ? ' · ' + ligacoes(t) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>

@@ -56,7 +56,7 @@ describe('Toda a equipe vê os cartões (#271)', () => {
     expect(alteraOProcesso(processo, { id, papel })).toBe(esperado);
   });
 
-  const tarefa = { criado_por: 'u-criou', responsavel_id: 'u-resp', participantes: [], demanda_codigo: null };
+  const tarefa = { criado_por: 'u-criou', responsavel_id: 'u-resp', participantes: [], equipe_da_demanda: null };
   it('dada uma tarefa sem demanda e alguém de fora dela, quando a lista confere, então essa pessoa só lê', () => {
     // Então
     expect(soLeATarefaNaLista(tarefa, { id: 'u-fora', papel: 'usuario' })).toBe(true);
@@ -64,8 +64,13 @@ describe('Toda a equipe vê os cartões (#271)', () => {
     expect(soLeATarefaNaLista(tarefa, { id: 'u-fora', papel: 'admin' })).toBe(false);
   });
 
-  it('dada uma tarefa ligada a uma demanda, quando a lista confere, então deixa a palavra final para o banco', () => {
+  // #326: a lista agora traz quem está na demanda ligada; antes, sem saber, deixava toda tarefa com demanda alterável.
+  it('dada uma tarefa ligada a uma demanda, quando a lista confere, então altera quem está na demanda, e quem está fora só lê', () => {
+    // Dado
+    const daDemanda = { ...tarefa, equipe_da_demanda: { criado_por: 'u-criou', responsavel_id: 'u-resp-d', colaboradores: ['u-colab'] } };
     // Então
-    expect(soLeATarefaNaLista({ ...tarefa, demanda_codigo: 'D1' }, { id: 'u-fora', papel: 'usuario' })).toBe(false);
+    expect(soLeATarefaNaLista(daDemanda, { id: 'u-colab', papel: 'usuario' })).toBe(false);
+    expect(soLeATarefaNaLista(daDemanda, { id: 'u-resp-d', papel: 'usuario' })).toBe(false);
+    expect(soLeATarefaNaLista(daDemanda, { id: 'u-fora', papel: 'usuario' })).toBe(true);
   });
 });

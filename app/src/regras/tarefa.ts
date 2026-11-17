@@ -1,9 +1,10 @@
 // Regras da tarefa (módulo Tarefas): o cadastro por etapas, os papéis de cada pessoa, quem vê a tarefa, quem pode ser
 // mencionado nos comentários e quando oferecer concluir a demanda. Tudo puro, sem tela nem banco.
-import type { DadosTarefa, Demanda, Lembrete, Membro, PapelNaTarefa, Tarefa } from '../dados/tipos';
+import type { DadosTarefa, Demanda, EquipeDoContrato, Lembrete, Membro, PapelNaTarefa, Tarefa } from '../dados/tipos';
+import { contratosEmQueEsta } from './contrato';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_TAREFA } from '../dados/limites';
-import { valorLegivelDemanda, veADemanda } from './demanda';
+import { doContratoEmQueEsta, estaNaDemanda, valorLegivelDemanda } from './demanda';
 import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao } from './lembrete';
 
@@ -150,17 +151,35 @@ export const papeisNaTarefa = (t: PessoasDaTarefa, pessoaId: string, perfilId: s
 type QuemEstaNaTarefa = Pick<Tarefa, 'criado_por' | 'responsavel_id' | 'participantes'>;
 type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>;
 /**
- * Quem vê a tarefa (como a regra do banco): os administradores, quem criou, o responsável, os participantes e quem vê a
- * demanda ligada a ela (a demanda vem quando está ligada e quem pergunta pode vê-la).
+ * Na lista: a tarefa está aí só para ler? Altera quem está nela ou na demanda ligada (`equipe_da_demanda`, que vem quando quem lê
+ * pode ver a demanda). Quem a vê só pelo contrato, o dela ou o da demanda, só lê (#326), como no cartão.
  */
-/** Na lista: a tarefa está aí só porque toda a equipe vê? A lista não sabe quem está na demanda ligada: quem a vê por ela altera pelo cartão, e o banco tem a palavra final. */
-export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { demanda_codigo: string | null }, m: Pick<Membro, 'id' | 'papel'>) => !t.demanda_codigo && !veATarefa(t, m as Membro);
-export const veATarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null) =>
+export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: QuemEstaNaDemanda | null }, m: Pick<Membro, 'id' | 'papel'>) =>
+  !estaNaTarefa(t, m as Membro, t.equipe_da_demanda);
+/**
+ * Quem está na tarefa (como privado.vejo_tarefa, sem a fase de adaptação): os administradores, quem criou, o responsável, os
+ * participantes e quem está na demanda ligada a ela (a demanda vem quando está ligada e quem pergunta pode vê-la). É quem altera
+ * a tarefa.
+ */
+export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === t.criado_por || m.id === t.responsavel_id || t.participantes.includes(m.id)
-  || (!!demanda && veADemanda(demanda, m));
-/** Por que o membro não pode ser mencionado na tarefa (null se pode): só quem vê a tarefa. */
-export const motivoSemMencaoNaTarefa = (t: QuemEstaNaTarefa, demanda: QuemEstaNaDemanda | null = null) =>
-  (m: Membro) => veATarefa(t, m, demanda) ? null : 'não participa; inclua como participante';
+  || (!!demanda && estaNaDemanda(demanda, m));
+/**
+ * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato da tarefa ou no
+ * contrato da demanda ligada a ela (`contratosEmQueEsta`, como em veADemanda).
+ */
+export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null }, m: Membro,
+  demanda: (QuemEstaNaDemanda & { contrato_id?: string | null }) | null = null, contratosDaPessoa: readonly string[] = []) =>
+  estaNaTarefa(t, m, demanda) || doContratoEmQueEsta(t.contrato_id, contratosDaPessoa) || doContratoEmQueEsta(demanda?.contrato_id, contratosDaPessoa);
+/** O cartão com o contrato que veio com quem está nele (null: quem lê não pode abrir o contrato, e não se sabe quem está nele). */
+type ComAEquipeDoContrato = { contrato_id?: string | null; contrato?: EquipeDoContrato | null };
+/**
+ * Por que o membro não pode ser mencionado na tarefa (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está no
+ * contrato dela ou no da demanda ligada). Os contratos contam quando vêm com quem está neles, isto é, quando quem comenta pode
+ * abri-los; senão, conta só quem está na tarefa e na demanda (o banco ainda aceita quem está no contrato, se a menção for escrita à mão).
+ */
+export const motivoSemMencaoNaTarefa = (t: QuemEstaNaTarefa & ComAEquipeDoContrato, demanda: (QuemEstaNaDemanda & ComAEquipeDoContrato) | null = null) =>
+  (m: Membro) => veATarefa(t, m, demanda, contratosEmQueEsta([t.contrato, demanda?.contrato], m)) ? null : 'não participa; inclua como participante';
 /** A mensagem de quando alguém que não vê a tarefa aparece num comentário dela (a mesma do banco). */
 export const mencaoNegadaNaTarefa = (nome: string) => `Não é possível mencionar ${nome} nesta tarefa: inclua essa pessoa como participante antes.`;
 

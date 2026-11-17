@@ -153,7 +153,7 @@ describe('Quem está na tarefa e quem a vê', () => {
 describe('Sair da tarefa', () => {
   const dados = { responsavel_id: 'u2', participantes: ['u3'] };
   const ANTES = { responsavel_id: 'u2', lista: ['u3', 'u1'] };
-  const demanda = { id: 'd1', codigo: 'D1', titulo: 'Demanda', etapa_id: null, criado_por: 'u9', responsavel_id: 'u9', colaboradores: [] };
+  const demanda = { id: 'd1', codigo: 'D1', titulo: 'Demanda', etapa_id: null, criado_por: 'u9', responsavel_id: 'u9', colaboradores: [], contrato_id: null, contrato: null };
 
   it('quando não pode sair, então continua como participante', () => {
     // Então

@@ -5590,6 +5590,112 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
     await expect(SD.comentarioEditar(comentario, 'Veja, @ana.lima')).rejects.toThrow('Só quem escreveu o comentário pode editá-lo.');
   });
 
+  // No banco fictício, as listagens de demandas e tarefas ainda mostram tudo; a regra vale onde ele já confere quem vê (anotações,
+  // mensagens e prazos). No banco de verdade, a regra é provada em supabase/tests/contrato_abre_demandas.test.sql.
+  describe('Quem está no contrato vê as demandas e as tarefas dele (#326)', () => {
+    /** Uma demanda e uma tarefa (ligada à demanda) do contrato, do master, cada uma com uma anotação do master ligada a ela. */
+    const doContrato = async (contrato: string) => {
+      const { id: demanda } = await SD.demandaCriar({ titulo: 'Demanda do contrato', responsavel_id: 'u-master', contrato_id: contrato });
+      const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Tarefa da demanda', responsavel_id: 'u-master', demanda_id: demanda });
+      const { id: daDemanda } = await SD.anotacaoCriar({ titulo: 'Sobre a demanda', responsavel_id: 'u-master' }, { modulo: 'demandas', id: demanda });
+      const { id: daTarefa } = await SD.anotacaoCriar({ titulo: 'Sobre a tarefa', responsavel_id: 'u-master' }, { modulo: 'tarefas', id: tarefa });
+      return { demanda, tarefa, daDemanda, daTarefa };
+    };
+
+    it('dado um participante do contrato, quando ele entra, então vê o que está nos cartões da demanda e da tarefa, mas não altera', async () => {
+      // Dado
+      const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+      const { demanda, tarefa, daDemanda, daTarefa } = await doContrato(id);
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect((await SD.anotacoesDoItem('demandas', demanda)).map(a => a.id)).toEqual([daDemanda]);
+      expect((await SD.anotacoesDoItem('tarefas', tarefa)).map(a => a.id)).toEqual([daTarefa]);
+      expect((await SD.anotacaoItens(daDemanda)).visiveis.map(i => i.id)).toEqual([demanda]);
+      await expect(SD.anotacaoAtualizar(daDemanda, { texto: 'mexi' })).rejects.toThrow('Você não tem permissão para fazer isso.');
+    });
+
+    it('dado um participante que saiu do contrato, quando ele entra, então deixa de ver na hora', async () => {
+      // Dado
+      const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+      const { daDemanda, daTarefa } = await doContrato(id);
+      await SD.contratoAtualizar(id, { participantes: [] });
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect(await SD.anotacaoObter(daDemanda)).toBeNull();
+      expect(await SD.anotacaoObter(daTarefa)).toBeNull();
+    });
+
+    it('dada uma conta só mencionada no contrato, quando ela entra, então não vê o que está nas demandas e nas tarefas dele', async () => {
+      // Dado
+      const { id } = await novoContrato();
+      const { daDemanda, daTarefa } = await doContrato(id);
+      mencionar(id, 'u-bruno', 'u-ana');
+      SD = await reabrir();
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect(await SD.anotacaoObter(daDemanda)).toBeNull();
+      expect(await SD.anotacaoObter(daTarefa)).toBeNull();
+    });
+
+    it('dado um participante do contrato, quando o master o menciona na demanda e na tarefa dele, então é aceito e a mensagem abre o cartão; quem está fora é recusado', async () => {
+      // Dado
+      const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+      const { demanda, tarefa } = await doContrato(id);
+      const { id: alheio } = await novoContrato();
+      const { demanda: deOutro } = await doContrato(alheio);
+      // Quando
+      await SD.comentarioCriar('demandas', demanda, 'Veja, @bruno.souza');
+      await SD.comentarioCriar('tarefas', tarefa, 'E esta, @bruno.souza');
+      // Então
+      await expect(SD.comentarioCriar('demandas', deOutro, 'Veja, @bruno.souza')).rejects.toThrow('Não é possível mencionar Bruno Exemplo Souza nesta demanda');
+      entrarComo('u-bruno');
+      const cartoes = (await SD.mensagensListar()).map(m => m.comentario?.cartao_id).filter(Boolean);
+      expect(cartoes).toEqual(expect.arrayContaining([demanda, tarefa]));
+    });
+
+    it('dado quem criou o contrato, quando liga a demanda dele numa anotação sua, então pode (ele vê a demanda)', async () => {
+      // Dado: Bruno cria o contrato, de que o master é o responsável; o master cria a demanda
+      entrarComo('u-bruno');
+      const { id } = await novoContrato();
+      entrarComo('u-master');
+      const { demanda } = await doContrato(id);
+      entrarComo('u-bruno');
+      const { id: minha } = await SD.anotacaoCriar({ titulo: 'Minha', responsavel_id: 'u-bruno' });
+      // Quando
+      await SD.anotacaoLigar(minha, 'demandas', demanda);
+      // Então
+      expect((await SD.anotacaoItens(minha)).visiveis.map(i => i.id)).toEqual([demanda]);
+    });
+
+    it('dado um participante do contrato, quando ele abre a demanda e a tarefa, então o contrato vem com quem está nele, e a lista de tarefas traz quem está na demanda', async () => {
+      // Dado
+      const { id } = await novoContrato({ participantes: [{ pessoa_id: 'p-bruno', percentual: null }] });
+      const { demanda, tarefa } = await doContrato(id);
+      // Quando
+      entrarComo('u-bruno');
+      const lida = await SD.demandaObter(demanda), daTarefa = await SD.tarefaObter(tarefa);
+      const naLista = (await SD.tarefasListar({ porPagina: 100 })).linhas.find(t => t.id === tarefa);
+      // Então: só as pessoas (sem o %), para saber quem pode ser mencionado
+      expect(lida?.contrato).toMatchObject({ id, participantes: ['p-bruno'] });
+      expect(daTarefa?.demanda).toMatchObject({ contrato_id: id, contrato: { id, participantes: ['p-bruno'] } });
+      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [] });
+    });
+
+    it('dada a demanda de um contrato que quem lê não pode abrir, quando ele abre a tarefa dela, então o contrato da demanda vem vazio', async () => {
+      // Dado: o master põe o Bruno na tarefa de uma demanda de um contrato de que o Bruno não é parte
+      const { id } = await novoContrato();
+      const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Com o Bruno', responsavel_id: 'u-bruno',
+        demanda_id: (await doContrato(id)).demanda });
+      // Quando
+      entrarComo('u-bruno');
+      // Então
+      expect((await SD.tarefaObter(tarefa))?.demanda).toMatchObject({ contrato_id: id, contrato: null });
+    });
+  });
+
   describe('Toda a equipe vê os contratos, sem os valores (#271)', () => {
     const chave = (ligada: boolean) => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(ligada);
     afterEach(() => chave(false));
