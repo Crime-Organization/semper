@@ -839,7 +839,7 @@ test.describe('Painel de Processos', () => {
     await abrirSecao(cartao, 'Prazos');
     await lancarPrazoDigitado(cartao, 'Prazo velho', dias(-3));
     await lancarPrazoDigitado(cartao, 'Prazo de hoje', dias(0));
-    await lancarPrazoDigitado(cartao, 'Prazo perto', dias(5));
+    await lancarPrazoDigitado(cartao, 'Prazo perto', dias(12));
     await lancarPrazoDigitado(cartao, 'Prazo longe', dias(30));
     await lancarAndamento(cartao, 'Audiência', 'Conciliação marcada', dias(10));
     // Quando
@@ -847,7 +847,7 @@ test.describe('Painel de Processos', () => {
     // Então
     await expect(page.getByRole('region', { name: 'Vencidos' })).toContainText('Prazo velho');
     await expect(page.getByRole('region', { name: 'Vencem hoje' })).toContainText('Prazo de hoje');
-    await expect(page.getByRole('region', { name: 'Próximos 7 dias' })).toContainText('Prazo perto');
+    await expect(page.getByRole('region', { name: 'Próximos 15 dias' })).toContainText('Prazo perto');
     await expect(page.getByText('Prazo longe')).toHaveCount(0);
     await expect(page.getByText('Conciliação marcada')).toBeVisible();
     // Quando

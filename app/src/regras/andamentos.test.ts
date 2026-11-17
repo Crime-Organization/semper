@@ -143,7 +143,7 @@ describe('Formulário do prazo', () => {
 describe('Situação do prazo', () => {
   it.each([
     ['2026-11-09', null, 'vencido', 'Vencido há 1 dia'], ['2026-11-01', null, 'vencido', 'Vencido há 9 dias'], ['2026-11-10', null, 'hoje', 'Vence hoje'],
-    ['2026-11-11', null, 'proximo', 'Falta 1 dia'], ['2026-11-17', null, 'proximo', 'Faltam 7 dias'], ['2026-11-18', null, 'em_dia', 'Faltam 8 dias'],
+    ['2026-11-11', null, 'proximo', 'Falta 1 dia'], ['2026-11-17', null, 'proximo', 'Faltam 7 dias'], ['2026-11-20', null, 'proximo', 'Faltam 10 dias'], ['2026-11-25', null, 'proximo', 'Faltam 15 dias'], ['2026-11-26', null, 'em_dia', 'Faltam 16 dias'],
     ['2026-11-01', 'x', 'cumprido', 'Cumprido']
   ])('quando o último dia é %s (cumprido: %s), então a situação é %s', (final, concluido_em, situacao, rotulo) => {
     // Então

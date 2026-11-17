@@ -1,4 +1,4 @@
-// Painel de Processos, ao clicar em "Processos" no menu: prazos vencidos, de hoje e dos próximos 7 dias; audiências e
+// Painel de Processos, ao clicar em "Processos" no menu: prazos vencidos, de hoje e dos próximos 15 dias; audiências e
 // perícias dos próximos 15; intimações a tratar, com "Criar tarefa"; últimos andamentos; processos parados; e quantos
 // processos há em cada fase. Cada pessoa vê só os processos a que tem acesso; no alto, a escolha entre Meus e Todos.
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';

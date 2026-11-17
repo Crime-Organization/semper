@@ -3323,19 +3323,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       const andamento = (tipo: 'andamento' | 'intimacao' | 'audiencia' | 'pericia', data: string) => ({ tipo, data, hora: null, local: null, texto: marca() });
       const painel = (meus = false) => SD.processosPainel({ hoje: HOJE, meus });
 
-      it('quando há prazos, então vêm os abertos até 7 dias, do que vence antes ao que vence depois', async () => {
+      it('quando há prazos, então vêm os abertos até 15 dias, do que vence antes ao que vence depois (#292)', async () => {
         // Dado
         const { id } = await novoProcesso();
-        const [vencido, hoje, seteDias, oitoDias, cumprido] = [
-          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(0) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(7) }),
-          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(8) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-1) })
+        const [vencido, hoje, quinzeDias, dezesseisDias, cumprido] = [
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-3) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(0) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(15) }),
+          await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(16) }), await SD.processoPrazoCriar(id, { ...PRAZO, final: dias(-1) })
         ];
         await SD.processoPrazoAtualizar(cumprido.id, { concluido_em: new Date().toISOString() });
         // Quando
         const ids = (await painel()).prazos.map(z => z.id);
         // Então
-        expect(ids.filter(i => [vencido.id, hoje.id, seteDias.id].includes(i))).toEqual([vencido.id, hoje.id, seteDias.id]);
-        expect(ids).not.toContain(oitoDias.id);
+        expect(ids.filter(i => [vencido.id, hoje.id, quinzeDias.id].includes(i))).toEqual([vencido.id, hoje.id, quinzeDias.id]);
+        expect(ids).not.toContain(dezesseisDias.id);
         expect(ids).not.toContain(cumprido.id);
       });
 

@@ -110,8 +110,8 @@ export function dadosDoPrazo(f: FormDoPrazo, finalCalculado: string | null): Dad
     : { ...comum, final: finalCalculado!, intimacao: f.intimacao, dias: Number(f.dias), contagem: f.contagem, disponibilizacao: f.disponibilizacao, sem_recesso: f.semRecesso };
 }
 
-/** Quantos dias antes do fim o prazo aparece como próximo (os "próximos 7 dias" do painel de Processos). */
-export const DIAS_DE_PRAZO_PROXIMO = 7;
+/** Quantos dias antes do fim o prazo aparece como próximo (os "próximos 15 dias" do painel de Processos, #292). */
+export const DIAS_DE_PRAZO_PROXIMO = 15;
 export type SituacaoDoPrazoNoProcesso = 'cumprido' | 'vencido' | 'hoje' | 'proximo' | 'em_dia';
 /** A cor do selo de cada situação (os tipos de Selo em ui/base). */
 export const SELO_DO_PRAZO: Record<SituacaoDoPrazoNoProcesso, 'ok' | 'erro' | 'pend' | 'arq'> = { cumprido: 'ok', vencido: 'erro', hoje: 'erro', proximo: 'pend', em_dia: 'arq' };

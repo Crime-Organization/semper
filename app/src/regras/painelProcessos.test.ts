@@ -7,14 +7,14 @@ const PROCESSO = { id: 'p1', codigo: 'ABC', tipo: 'judicial' as const, numero: '
 const prazo = (id: string, final: string) => ({ id, descricao: id, final, tarefa_id: null, processo: PROCESSO });
 
 describe('Datas do painel', () => {
-  it('quando calcula a partir de hoje, então os prazos vão até 7 dias, e audiências e perícias até 15', () => {
+  it('quando calcula a partir de hoje, então os prazos, as audiências e as perícias vão até 15 dias (#292)', () => {
     // Então
-    expect(datasDoPainel(HOJE)).toEqual({ ate_prazos: '2026-11-17', ate_marcados: '2026-11-25' });
+    expect(datasDoPainel(HOJE)).toEqual({ ate_prazos: '2026-11-25', ate_marcados: '2026-11-25' });
   });
 
   it('quando atravessa o fim do ano, então a data continua certa', () => {
     // Então
-    expect(datasDoPainel('2026-12-28')).toEqual({ ate_prazos: '2027-01-04', ate_marcados: '2027-01-12' });
+    expect(datasDoPainel('2026-12-28')).toEqual({ ate_prazos: '2027-01-12', ate_marcados: '2027-01-12' });
   });
 });
 
@@ -23,12 +23,12 @@ describe('Grupos de prazos', () => {
     // Quando
     const g = gruposDePrazos([prazo('p', '2026-11-12'), prazo('v', '2026-11-01'), prazo('h', HOJE)], HOJE);
     // Então
-    expect(g.map(x => [x.titulo, x.destaque, x.prazos.map(z => z.id)])).toEqual([['Vencidos', true, ['v']], ['Vencem hoje', true, ['h']], ['Próximos 7 dias', false, ['p']]]);
+    expect(g.map(x => [x.titulo, x.destaque, x.prazos.map(z => z.id)])).toEqual([['Vencidos', true, ['v']], ['Vencem hoje', true, ['h']], ['Próximos 15 dias', false, ['p']]]);
   });
 
   it('quando não há prazo de um grupo, então ele não aparece', () => {
     // Então
-    expect(gruposDePrazos([prazo('p', '2026-11-12')], HOJE).map(x => x.titulo)).toEqual(['Próximos 7 dias']);
+    expect(gruposDePrazos([prazo('p', '2026-11-12')], HOJE).map(x => x.titulo)).toEqual(['Próximos 15 dias']);
     expect(gruposDePrazos([], HOJE)).toEqual([]);
   });
 
