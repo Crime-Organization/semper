@@ -1,6 +1,7 @@
 // No cartão da demanda, as tarefas dela como um checklist (pedido do Mateus, 30/10): marcar a caixa leva a tarefa para
 // a coluna "Concluída" do quadro de tarefas (e encerra o cronômetro dela); desmarcar a devolve para "Para fazer". Com a
-// última marcada, o sistema oferece concluir a demanda. Cada tarefa abre o cartão dela. A tarefa nova da demanda nasce
+// última marcada, o sistema oferece concluir a demanda. Só a caixa conclui; o nome da tarefa é o link que abre o cartão
+// dela (#298), para ninguém concluir sem querer ao clicar no nome. A tarefa nova da demanda nasce
 // pelo "+" no título da seção, no cartão da demanda (#279), como nas seções de tarefas do contrato e da pessoa. As arquivadas ficam de fora.
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -10,7 +11,6 @@ import { progressoDaLista } from '../regras/listas';
 import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
-import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { hojeISO } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
@@ -65,10 +65,10 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
       <ul>{ativas.map(t => {
         const feita = t.etapa_id === concluida, prazo = rotuloDoPrazoComHora(t.prazo, t.prazo_hora, hojeISO());
         return <li key={t.id} className={feita ? 'feito' : undefined}>
-          <label><input type="checkbox" checked={feita} disabled={!concluida || somenteLer} aria-label={`Concluir ${t.titulo}`}
-            onChange={e => void marcar(t, e.target.checked)} /><span>{t.titulo}</span></label>
+          <input type="checkbox" checked={feita} disabled={!concluida || somenteLer} aria-label={`Concluir ${t.titulo}`}
+            onChange={e => void marcar(t, e.target.checked)} />
+          <Link className="tarefa-da-demanda-nome" to={'/tarefas/?id=' + t.id} title="Abrir a tarefa">{t.titulo}</Link>
           <span className="nota tarefa-da-demanda-situacao">{situacao(t.etapa_id)}{prazo && !feita ? ` · ${prazo}` : ''}</span>
-          <Link className="icone-btn" to={'/tarefas/?id=' + t.id} aria-label={`Abrir a tarefa ${t.titulo}`} title="Abrir a tarefa"><Icone nome="seta" tam={15} /></Link>
         </li>;
       })}</ul>
     </>}

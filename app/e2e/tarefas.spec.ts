@@ -398,7 +398,28 @@ test.describe('Tarefas ligadas', () => {
     await expect(tarefas).toContainText('1 de 3 concluídas');
     await expect(tarefas.getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toContainText('Fazendo');
     await expect(tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' })).toBeChecked();
-    await expect(tarefas.getByRole('link', { name: 'Abrir a tarefa Emitir a GRU' })).toHaveAttribute('href', /\/tarefas\/\?id=/);
+    // O nome é o link que abre a tarefa (#298)
+    await expect(tarefas.getByRole('link', { name: 'Emitir a GRU', exact: true })).toHaveAttribute('href', /\/tarefas\/\?id=/);
+  });
+
+  test('quando a pessoa clica no nome de uma tarefa no checklist da demanda, então o cartão da tarefa abre, e ela não é concluída (#298)', async ({ page }) => {
+    // Dado
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).click();
+    await abrirSecao(page.getByRole('dialog'), 'Tarefas');
+    const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
+    // Então: a caixa e o nome são dois controles, e não há mais o botão de seta
+    await expect(tarefas.getByRole('checkbox', { name: 'Concluir Pedir documentos ao cliente' })).not.toBeChecked();
+    await expect(tarefas.getByRole('link', { name: /^Abrir a tarefa/ })).toHaveCount(0);
+    // Quando
+    await tarefas.getByRole('link', { name: 'Pedir documentos ao cliente', exact: true }).click();
+    // Então
+    await expect(page).toHaveURL(/\/tarefas\/\?id=/);
+    const situacao = page.getByRole('dialog').getByRole('combobox', { name: 'Situação da tarefa' });
+    await expect(situacao).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Pedir documentos ao cliente' })).toBeVisible();
+    await expect(situacao.getByRole('option', { selected: true })).not.toHaveText('Concluída');
   });
 
   test('quando a pessoa marca as tarefas no checklist da demanda, então elas vão para "Concluída" no quadro, e a última oferece concluir a demanda', async ({ page }) => {
