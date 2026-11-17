@@ -10,7 +10,7 @@ import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLe
 import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -123,7 +123,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a demanda', aoConfirmar: excluir } : undefined} />}
       </div>
       <h2>{d.titulo}</h2>
-      {d.descricao && <p className="demanda-descricao">{d.descricao}</p>}
+      {d.descricao && <TextoFormatado className="descricao-formatada" texto={d.descricao} />}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />

@@ -7,6 +7,7 @@ import { avisoDoBanco } from '../../regras/qualBanco';
 import { estiloBotao, type EstiloBotao } from './botao';
 
 export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } from './botao';
+export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 
 /** Link com cara de botão (ex.: "Nova pessoa" no cabeçalho do módulo). */
 export function BotaoLink({ forma, variante, pequeno, className, ...resto }: ComponentProps<typeof Link> & EstiloBotao) {

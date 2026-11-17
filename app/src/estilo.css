@@ -109,6 +109,16 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .mini.perigo { border-color: var(--erro-borda); color: var(--erro) }
 .mini.perigo.confirmar, .btn.perigo.confirmar, .btn.perigo.confirmar:hover:not(:disabled) { background: var(--erro-forte); border-color: var(--erro-forte); color: #fff }
 .mini:disabled { opacity: .45; cursor: not-allowed }
+/* Texto com negrito, itálico e listas (ui/base/TextoFormatado, #293): o texto formatado e a caixa com a barra B, I e lista. */
+.texto-formatado { font-size: 15px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere }
+.texto-formatado > p { margin: 0; white-space: pre-wrap }
+.texto-formatado > ul { margin: 4px 0; padding-left: 22px }
+.texto-formatado > ul > li { white-space: pre-wrap }
+.texto-formatado strong { font-weight: 800; color: var(--ink) }
+.descricao-formatada { margin-top: 8px }
+.caixa-formatada { display: flex; flex-direction: column; gap: 6px }
+.caixa-formatada-barra { display: flex; gap: 6px }
+.caixa-formatada-botao { width: 34px; padding: 0; justify-content: center; font-size: 15px }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
 

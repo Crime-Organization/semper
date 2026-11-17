@@ -48,6 +48,7 @@ const ICONES = {
   dinheiro: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 9.5v5M17.5 9.5v5"/>',
   divisao: '<path d="M12 4a8 8 0 108 8h-8z"/><path d="M15 3.5a8 8 0 015.5 5.5H15z"/>',
   texto: '<path d="M5 6h14M5 10h14M5 14h14M5 18h9"/>',
+  lista: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
   anexo: '<path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.1-8.1a3.3 3.3 0 014.7 4.7l-8.1 8.1a1.7 1.7 0 01-2.4-2.4l7.4-7.4"/>'
 };
 export type NomeIcone = keyof typeof ICONES;

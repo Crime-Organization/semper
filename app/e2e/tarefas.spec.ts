@@ -708,3 +708,40 @@ test.describe('Ordem pelo prazo (#291)', () => {
     await expect(page.getByRole('list', { name: 'Para fazer', exact: true }).getByRole('listitem')).toHaveText([/Renovar a procuração/, /Pedir documentos ao cliente/]);
   });
 });
+
+test.describe('Descrição com negrito, itálico e listas (#293)', () => {
+  test('quando a pessoa marca trechos da descrição com B e Ctrl+I e faz uma lista, então o cartão mostra tudo formatado, e a busca acha a palavra em negrito', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/nova/');
+    await page.getByLabel('Título').fill('Juntar os documentos');
+    const descricao = page.getByRole('textbox', { name: 'Descrição' });
+    await descricao.fill('Juntar procuração e comprovante\nRG\nCPF');
+    const escolher = (de: number, ate: number) => descricao.evaluate((el: HTMLTextAreaElement, [a, b]) => el.setSelectionRange(a, b), [de, ate]);
+    // Quando
+    await escolher(7, 17);
+    await page.getByRole('button', { name: 'Negrito (Ctrl+B)' }).click();
+    await escolher(24, 35);
+    await descricao.press('Control+i');
+    await escolher(38, 44);
+    await page.getByRole('button', { name: 'Lista' }).click();
+    // Então
+    await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\n- RG\n- CPF');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar tarefa' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Juntar os documentos' })).toBeVisible();
+    await expect(cartao.locator('strong', { hasText: 'procuração' })).toBeVisible();
+    await expect(cartao.locator('em', { hasText: 'comprovante' })).toBeVisible();
+    await expect(cartao.getByRole('listitem').filter({ hasText: /^(RG|CPF)$/ })).toHaveText(['RG', 'CPF']);
+    await expect(cartao.getByText('**procuração**')).toHaveCount(0);
+    // Quando
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('searchbox').fill('procuração');
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'Juntar os documentos' })).toBeVisible();
+  });
+});

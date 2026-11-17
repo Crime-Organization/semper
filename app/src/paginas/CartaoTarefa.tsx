@@ -10,7 +10,7 @@ import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegiv
 import { equipeVeTudo, SO_LEITURA_DO_CARTAO, soLeOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -129,7 +129,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
       </div>
       <h2>{t.titulo}</h2>
-      {t.descricao && <p className="demanda-descricao">{t.descricao}</p>}
+      {t.descricao && <TextoFormatado className="descricao-formatada" texto={t.descricao} />}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>

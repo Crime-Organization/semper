@@ -19,7 +19,7 @@ import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -252,8 +252,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           onChange={e => mudar({ titulo: e.target.value })} />
       </Campo>
       <Campo rotulo="Descrição" para="descricao" erro={erros.descricao}>
-        <textarea {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_TAREFA.descricao} value={c.descricao}
-          onChange={e => mudar({ descricao: e.target.value })} />
+        <CaixaFormatada {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_TAREFA.descricao} valor={c.descricao}
+          aoMudar={descricao => mudar({ descricao })} />
       </Campo>
       <Campo rotulo="Prazo" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
