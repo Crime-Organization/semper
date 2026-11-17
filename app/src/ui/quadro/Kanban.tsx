@@ -6,13 +6,13 @@
 // quadro, colunas sem grupo e grupos ficam numa fila só: o grupo pode ir para entre colunas sem grupo, e a coluna sem grupo
 // para qualquer lado de um grupo. A coluna de um grupo anda só dentro dele.
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
-import type { Coluna, GrupoDeColunas, Ordem, Pagina } from '../../dados';
+import type { Coluna, GrupoDeColunas, Ordem, OrdemComPrazo, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
 import { CampoComSugestoes } from '../CampoComSugestoes';
 import { Icone } from '../Icone';
 import { MenuFlutuante } from '../Menu';
 import { falha } from '../avisos';
-import { ORDENS, ORDENS_DO_QUADRO } from '../ordem';
+import { ORDENS } from '../ordem';
 import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
 import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
@@ -24,16 +24,16 @@ import type { Quadro } from './useColunas';
 
 export interface Movimento { de: string | null; para: string | null; ordem: number; ordemAnterior: number | null }
 
-interface Props<T extends { id: string }> {
-  quadro: Quadro;
+interface Props<T extends { id: string }, O extends OrdemComPrazo = Ordem> {
+  quadro: Quadro<O>;
   /** Cartões de uma coluna (null = "Sem etapa"), a partir de "deslocamento", na ordem escolhida para ela. */
-  carregar: (colunaId: string | null, deslocamento: number, ordem: Ordem) => Promise<Pagina<T>>;
+  carregar: (colunaId: string | null, deslocamento: number, ordem: O) => Promise<Pagina<T>>;
   /** Mude este valor para recarregar todas as colunas (filtros novos, dados que mudaram). */
   recarga: string | number;
   ordemDe: (item: T) => number | null;
   /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data) e "coluna" é a coluna em que
    *  ele está desenhado agora (logo depois de arrastar, o item ainda traz a coluna antiga; null: sem etapa ou arquivados). */
-  cartao: (item: T, ordem: Ordem, coluna: string | null) => ReactNode;
+  cartao: (item: T, ordem: O, coluna: string | null) => ReactNode;
   /** Endereço que abre o cartão do item: Ctrl+clique e a rodinha do mouse o abrem numa aba nova. */
   endereco: (item: T) => string;
   aoAbrir: (item: T) => void;
@@ -54,7 +54,7 @@ const chave = (id: string | null) => id || 'sem';
 /** Marca as colunas sem grupo (e as distingue do id de um grupo). */
 const SEM_GRUPO = 'sem-grupo';
 
-export function Kanban<T extends { id: string }>(props: Props<T>) {
+export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem>(props: Props<T, O>) {
   const { quadro } = props;
   const p = useRef(props);
   p.current = props;
@@ -142,7 +142,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
   }, [estadoDosGrupos]);
 
   // Coluna que mudou de ordem é relida sozinha.
-  const ordensVistas = useRef<Record<string, Ordem>>({});
+  const ordensVistas = useRef<Record<string, O>>({});
   useEffect(() => {
     if (!quadro.pronto) return;
     for (const id of [null, ...visiveis.map(c => c.id)]) {
@@ -278,7 +278,7 @@ export function Kanban<T extends { id: string }>(props: Props<T>) {
     const l = listas[k];
     const aqui = alvo?.k === k;
     const reordena = !!c && quadro.podeReordenar;
-    const ordem: Ordem = arquivo ? 'recentes' : quadro.ordemDe(id), manual = ordem === 'manual';
+    const ordem: O = arquivo ? 'recentes' as O : quadro.ordemDe(id), manual = ordem === 'manual';
     const marcador = aqui && manual;
     const marco = c?.marco ? MARCOS[c.marco] : null;
     return <section className={'coluna' + (arquivo ? ' coluna-arquivados' : c ? '' : ' sem-etapa') + (marco ? ' coluna-marco' : '') + (c && colArrastada === c.id ? ' arrastando-col' : '') + (aqui && !manual ? ' recebendo' : '')} data-coluna={k} data-bloco={c ? c.grupo_id ?? SEM_GRUPO : undefined} data-topo={topo && c ? c.id : undefined}>
@@ -475,7 +475,7 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
   const atual = quadro.ordemDe(c ? c.id : null);
   return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
     <p className="rotulo-caps kmenu-titulo">Ordenar esta lista</p>
-    {ORDENS_DO_QUADRO.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === atual}
+    {quadro.ordens.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === atual}
       onClick={agir(() => quadro.ordenar(c ? c.id : null, o))}>
       <span className="kmenu-marca">{o === atual && <Icone nome="check" tam={15} />}</span>{ORDENS[o]}
     </button>)}

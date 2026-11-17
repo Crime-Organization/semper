@@ -67,6 +67,13 @@ export function blocosDoQuadro<C extends ColunaNoQuadro>(colunas: C[], grupos: G
 }
 
 /** O que separa o nome do grupo do nome da coluna, quando a situação é dita fora do quadro (ex.: "AGUARDANDO: ANÁLISE"). */
+/**
+ * A ordem guardada de uma coluna, se o módulo a tem; senão, a manual. Uma ordem que esta versão do site não conhece (escolhida
+ * noutra versão ou noutro módulo) não pode quebrar a coluna (#291).
+ */
+export const ordemDaColuna = <O extends string>(guardada: string | undefined, opcoes: readonly O[], manual: O): O =>
+  opcoes.find(o => o === guardada) ?? manual;
+
 export const SEPARADOR_DO_GRUPO = ': ';
 
 /** Uma situação possível do cartão: a coluna e o nome dela com o grupo na frente, se ela está num grupo (#302). */

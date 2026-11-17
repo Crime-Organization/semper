@@ -239,3 +239,22 @@ test.describe('Prazo da demanda concluída', () => {
       .toContainText('Concluído · Prazo:');
   });
 });
+
+test.describe('Ordem pelo prazo (#291)', () => {
+  test('dado o Ordenar de Demandas, quando a pessoa o abre, então há as ordens pelo prazo; em Pessoas, não', async ({ page }) => {
+    // Quando
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    // Então
+    const ordenar = page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar');
+    await expect(ordenar.getByRole('option', { name: 'Prazo (o mais próximo primeiro)' })).toBeAttached();
+    await expect(ordenar.getByRole('option', { name: 'Prazo (o mais distante primeiro)' })).toBeAttached();
+    // Quando
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    // Então
+    await expect(page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar').getByRole('option', { name: /^Prazo/ })).toHaveCount(0);
+  });
+});

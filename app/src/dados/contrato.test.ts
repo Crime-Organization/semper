@@ -1089,6 +1089,22 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const novaDemanda = (extra: Parameters<Dados['demandaCriar']>[0] = {}) =>
         SD.demandaCriar({ titulo: 'Pedido de registro de marca', responsavel_id: 'u-ana', ...extra });
+
+      it.each([
+        ['prazo', ['dia', 'dia-8h', 'depois', 'sem']],
+        ['prazo_desc', ['depois', 'dia-8h', 'dia', 'sem']]
+      ] as const)('dadas demandas com e sem prazo, quando a ordem é %s, então vêm pelo prazo, com o sem hora antes no mesmo dia e as sem prazo no fim (#291)', async (ordem, esperado) => {
+        // Dado
+        const parte = marca();
+        await novaDemanda({ titulo: parte + ' sem' });
+        await novaDemanda({ titulo: parte + ' depois', prazo: '2031-03-15' });
+        await novaDemanda({ titulo: parte + ' dia-8h', prazo: '2031-03-12', prazo_hora: '08:00' });
+        await novaDemanda({ titulo: parte + ' dia', prazo: '2031-03-12' });
+        // Quando
+        const r = await SD.demandasListar({ termo: parte, ordem });
+        // Então
+        expect(r.linhas.map(x => x.titulo)).toEqual(esperado.map(x => parte + ' ' + x));
+      });
       const colunaAssinado = async () => (await SD.colunasListar('contratos')).find(c => c.marco === 'assinado')!;
 
       it('quando uma demanda é criada, então ganha um código curto, e o responsável não fica entre os colaboradores', async () => {
@@ -3607,6 +3623,22 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
         SD.tarefaCriar({ titulo: 'Emitir a GRU', responsavel_id: 'u-ana', ...extra });
+
+      it.each([
+        ['prazo', ['dia', 'dia-8h', 'depois', 'sem']],
+        ['prazo_desc', ['depois', 'dia-8h', 'dia', 'sem']]
+      ] as const)('dadas tarefas com e sem prazo, quando a ordem é %s, então vêm pelo prazo, com o sem hora antes no mesmo dia e as sem prazo no fim (#291)', async (ordem, esperado) => {
+        // Dado
+        const parte = marca();
+        await novaTarefa({ titulo: parte + ' sem' });
+        await novaTarefa({ titulo: parte + ' depois', prazo: '2031-03-15' });
+        await novaTarefa({ titulo: parte + ' dia-8h', prazo: '2031-03-12', prazo_hora: '08:00' });
+        await novaTarefa({ titulo: parte + ' dia', prazo: '2031-03-12' });
+        // Quando
+        const r = await SD.tarefasListar({ termo: parte, ordem });
+        // Então
+        expect(r.linhas.map(x => x.titulo)).toEqual(esperado.map(x => parte + ' ' + x));
+      });
 
       it('quando uma tarefa é criada, então ganha um código curto, e o responsável não fica entre os participantes', async () => {
         // Dado

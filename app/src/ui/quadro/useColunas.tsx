@@ -3,14 +3,19 @@
 // Os grupos de colunas são do escritório (só administradores mudam); abrir e fechar um grupo é escolha de cada usuário.
 // Todo módulo com quadro usa este gancho com o <Kanban>; nada disso se reescreve por página.
 import { useEffect, useRef, useState } from 'react';
-import { SD, type Coluna, type ContextoAtivo, type GrupoDeColunas, type Modulo, type Ordem } from '../../dados';
+import { SD, type Coluna, type ContextoAtivo, type GrupoDeColunas, type Modulo, type Ordem, type OrdemComPrazo } from '../../dados';
+import { ORDENS_DO_QUADRO } from '../ordem';
 import { avisar, falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro, type BlocoDoQuadro, type ItemDoTopo, type SituacaoDoQuadro } from '../../regras/quadro';
+import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemDaColuna, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro, type BlocoDoQuadro, type ItemDoTopo, type SituacaoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
-export interface Quadro {
+/**
+ * O quadro de um módulo. "O" são as ordens que as colunas dele aceitam (tarefas e demandas têm as do prazo, #291). Sem "O",
+ * vale o quadro de qualquer módulo (os cartões só leem as colunas e as situações).
+ */
+export interface Quadro<O extends OrdemComPrazo = OrdemComPrazo> {
   colunas: Coluna[];
   sugestoes: string[];
   pronto: boolean;
@@ -34,8 +39,11 @@ export interface Quadro {
   posicionar: (c: Coluna, antesDe: string | null) => Promise<void>;
   mover: (c: Coluna, passo: -1 | 1) => void;
   /** Ordem dos cartões de uma coluna (null = "Sem etapa"). Cada coluna tem a sua; o padrão é a manual. */
-  ordemDe: (colunaId: string | null) => Ordem;
-  ordenar: (colunaId: string | null, ordem: Ordem) => void;
+  ordemDe: (colunaId: string | null) => O;
+  /** Método (e não propriedade) para o quadro de um módulo com mais ordens servir onde se espera um com menos. */
+  ordenar(colunaId: string | null, ordem: O): void;
+  /** As ordens que cada coluna deste quadro aceita, no menu da coluna. */
+  ordens: O[];
   grupos: GrupoDeColunas[];
   /** As colunas visíveis, em trechos, na ordem da tela: as sem grupo que ficam juntas e cada grupo. */
   blocos: BlocoDoQuadro<Coluna>[];
@@ -60,7 +68,9 @@ export interface Quadro {
 const ordenar = (cs: Coluna[]) => cs.slice().sort((a, b) => a.ordem - b.ordem);
 const ordenarGrupos = (gs: GrupoDeColunas[]) => gs.slice().sort((a, b) => a.ordem - b.ordem);
 
-export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 'Sem etapa'): Quadro {
+/** "opcoes": as ordens das colunas do módulo (as de sempre, ou com as do prazo). Uma ordem guardada fora delas vale como a manual. */
+export function useColunas<O extends OrdemComPrazo = Ordem>(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 'Sem etapa',
+  opcoes: O[] = ORDENS_DO_QUADRO as O[]): Quadro<O> {
   const [colunas, setColunas] = useState<Coluna[]>([]);
   const [sugestoes, setSugestoes] = useState<string[]>([]);
   const [pronto, setPronto] = useState(false);
@@ -68,7 +78,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
   atuais.current = colunas;
   // Ordem escolhida em cada coluna, guardada no perfil: { "sem" | id da coluna: ordem }.
   const chaveOrdens = `${modulo}.ordem.colunas`;
-  const [ordens, setOrdens] = useState<Record<string, Ordem>>(() => lerPreferencia(chaveOrdens, {}));
+  const [ordens, setOrdens] = useState<Record<string, string>>(() => lerPreferencia(chaveOrdens, {}));
   const [grupos, setGrupos] = useState<GrupoDeColunas[]>([]);
   const gruposAtuais = useRef(grupos);
   gruposAtuais.current = grupos;
@@ -170,7 +180,7 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     if (antes !== undefined) void posicionar(c, antes);
   }
 
-  function ordenarCartoes(colunaId: string | null, ordem: Ordem) {
+  function ordenarCartoes(colunaId: string | null, ordem: O) {
     const k = colunaId || 'sem', novas = { ...ordens, [k]: ordem };
     if (ordem === 'manual') delete novas[k];
     setOrdens(novas);
@@ -263,8 +273,10 @@ export function useColunas(modulo: Modulo, ctx: ContextoAtivo, rotuloSemEtapa = 
     podeGerirGrupos: ctx.ehAdmin,
     grupoAberto: g => grupoEstaAberto(g, abertos),
     alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, posicionarGrupo, moverGrupo, excluirGrupo, agrupar,
-    ordemDe: id => ordens[id || 'sem'] || 'manual',
+    // Uma ordem que o site não conhece (guardada por outra versão) vale como a manual, em vez de quebrar a coluna.
+    ordemDe: id => ordemDaColuna(ordens[id || 'sem'], opcoes, 'manual' as O),
     ordenar: ordenarCartoes,
+    ordens: opcoes,
     nomeDe: id => situacoes.find(x => x.coluna.id === id)?.rotulo || '',
     podeReordenar: ctx.ehAdmin,
     podeRenomear: c => ctx.ehAdmin || c.criado_por === eu,

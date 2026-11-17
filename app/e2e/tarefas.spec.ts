@@ -659,3 +659,52 @@ test.describe('Prazo de cartão concluído nas listas', () => {
     await expect(linha).not.toContainText('vencido');
   });
 });
+
+test.describe('Ordem pelo prazo (#291)', () => {
+  // Na semente: "Renovar a procuração" vence ontem e "Emitir a GRU" depois de amanhã; as outras duas não têm prazo.
+  const titulos = (page: Page) => page.getByRole('table').getByRole('row').evaluateAll(linhas =>
+    linhas.map(l => l.querySelector('td')?.parentElement?.textContent ?? '').filter(Boolean));
+
+  test('dada a tabela de tarefas, quando a pessoa ordena pelo prazo, então as com prazo vêm na ordem dele e as sem prazo no fim, nos dois sentidos, sem contar como filtro', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    // Quando
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar').selectOption({ label: 'Prazo (o mais próximo primeiro)' });
+    // Então
+    await expect.poll(async () => (await titulos(page)).slice(0, 2).map(t => t.includes('Renovar') ? 'Renovar' : t.includes('Emitir') ? 'Emitir' : 'outra'))
+      .toEqual(['Renovar', 'Emitir']);
+    await expect(page.getByRole('button', { name: 'Filtros', exact: true })).toBeVisible();
+    // Quando
+    await page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar').selectOption({ label: 'Prazo (o mais distante primeiro)' });
+    // Então
+    await expect.poll(async () => (await titulos(page)).map(t => t.includes('Renovar') ? 'Renovar' : t.includes('Emitir') ? 'Emitir' : 'sem prazo'))
+      .toEqual(['Emitir', 'Renovar', 'sem prazo', 'sem prazo']);
+    // Quando: volta à página
+    await page.reload();
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    // Então: a escolha ficou guardada
+    await expect(page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar')).toHaveValue('prazo_desc');
+  });
+
+  test('dada uma coluna do quadro de tarefas, quando a pessoa a ordena pelo prazo no menu dela, então só ela muda, e o topo mostra a ordem', async ({ page }) => {
+    // Dado: "Para fazer" tem, na ordem manual, "Pedir documentos ao cliente" (sem prazo) e depois "Renovar a procuração"
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    const coluna = page.getByRole('list', { name: 'Para fazer', exact: true });
+    await expect(coluna.getByRole('listitem')).toHaveText([/Pedir documentos ao cliente/, /Renovar a procuração/]);
+    // Quando
+    await page.getByRole('button', { name: 'Opções da coluna Para fazer' }).click();
+    await page.getByRole('menuitemradio', { name: 'Prazo (o mais próximo primeiro)' }).click();
+    // Então
+    await expect(coluna.getByRole('listitem')).toHaveText([/Renovar a procuração/, /Pedir documentos ao cliente/]);
+    await expect(page.getByTitle('Ordem desta lista (muda no menu da coluna)')).toHaveText(['Prazo (o mais próximo primeiro)']);
+    // Quando: volta à página
+    await page.reload();
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Então
+    await expect(page.getByRole('list', { name: 'Para fazer', exact: true }).getByRole('listitem')).toHaveText([/Renovar a procuração/, /Pedir documentos ao cliente/]);
+  });
+});

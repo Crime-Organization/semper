@@ -8,10 +8,11 @@ import type {
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
-  CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
+  OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
   AliquotaDoDas, ContaFinanceira, Lancamento, DadosLancamento, AndamentoDeProcesso, PrazoDeProcesso, TarefaDoAcompanhamento, FaseNoPainel, ProcessoNoPainel
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
+import { compararPeloPrazo } from '../regras/ordemPorPrazo';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
@@ -894,15 +895,17 @@ function filtrarDemandas(f: FiltroDemandas = {}) {
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta))
     && (!t || buscaDemanda(d).includes(t)));
 }
-/** Ordem das demandas e das tarefas ("nome" é o título). */
-type PeloTitulo = Pick<DemandaGuardada, 'titulo' | 'etapa_ordem' | 'criado_em' | 'atualizado_em'>;
-const ORDENS_PELO_TITULO: Record<Ordem, (a: PeloTitulo, b: PeloTitulo) => number> = {
+/** Ordem das demandas e das tarefas ("nome" é o título). Pelo prazo, a mesma regra do banco, com o id desempatando (#291). */
+type PeloTitulo = Pick<DemandaGuardada, 'id' | 'titulo' | 'etapa_ordem' | 'criado_em' | 'atualizado_em' | 'prazo' | 'prazo_hora'>;
+const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (a: PeloTitulo, b: PeloTitulo) => number> = {
   manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.criado_em.localeCompare(a.criado_em),
   nome: (a, b) => a.titulo.localeCompare(b.titulo),
   nome_desc: (a, b) => b.titulo.localeCompare(a.titulo),
   novos: (a, b) => b.criado_em.localeCompare(a.criado_em),
   antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
-  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em)
+  recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em),
+  prazo: (a, b) => compararPeloPrazo(a, b) || a.id.localeCompare(b.id),
+  prazo_desc: (a, b) => compararPeloPrazo(a, b, -1) || a.id.localeCompare(b.id)
 };
 const acharDemanda = (id: string) => {
   const d = bd.demandas!.find(x => x.id === id);

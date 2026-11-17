@@ -4,7 +4,7 @@
 // <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { SD, type FiltroTarefas, type Ordem, type Pagina, type TarefaLista } from '../dados';
+import { SD, type FiltroTarefas, type OrdemComPrazo, type Pagina, type TarefaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { soLeOCartao } from '../regras/equipeVeTudo';
@@ -25,7 +25,7 @@ import { Kanban } from '../ui/quadro/Kanban';
 import { colunaComMarco } from '../regras/quadro';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
-import { dataDaOrdem, useOrdem } from '../ui/ordem';
+import { dataDaOrdem, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
@@ -45,7 +45,7 @@ export default function Tarefas() {
   const ctx = useCtx();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
-  const quadro = useColunas('tarefas', ctx, SEM_SITUACAO_TAREFA);
+  const quadro = useColunas<OrdemComPrazo>('tarefas', ctx, SEM_SITUACAO_TAREFA, [...ORDENS_DO_QUADRO, ...ORDENS_COM_PRAZO]);   // e o prazo, em cada coluna (#291)
   // O módulo, se o cartão está na coluna das concluídas; null enquanto as colunas não chegaram (sem selo, para não piscar "vencido").
   const concluido = (etapa: string | null) => !quadro.pronto ? null : colunaComMarco(quadro.colunas, etapa, 'concluido') && ('tarefas' as const);
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
@@ -58,8 +58,8 @@ export default function Tarefas() {
   });
   const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('tarefas.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
-  const ordem = useOrdem('tarefas', 'tabela');
-  const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
+  const ordem = useOrdem('tarefas', 'tabela', ORDENS_COM_PRAZO);   // e o prazo (#291)
+  const ordenacao = { ...ordem, aoMudar: (o: OrdemComPrazo) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
   const [tabela, setTabela] = useState<Pagina<TarefaLista> | null>(null);
@@ -147,7 +147,7 @@ export default function Tarefas() {
       mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<TarefaLista> quadro={quadro} podeArrastar={t => !soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))}
+        ? <Kanban<TarefaLista, OrdemComPrazo> quadro={quadro} podeArrastar={t => !soLeOCartao(ctx, m => !soLeATarefaNaLista(t, m))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={t => t.etapa_ordem}
@@ -182,7 +182,7 @@ export default function Tarefas() {
   </>;
 }
 
-function CartaoKanban({ t, ordem, concluido }: { t: TarefaLista; ordem: Ordem; concluido: SeloConcluido }) {
+function CartaoKanban({ t, ordem, concluido }: { t: TarefaLista; ordem: OrdemComPrazo; concluido: SeloConcluido }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, t);
   return <>
@@ -202,7 +202,7 @@ interface PropsTabela {
   pagina: Pagina<TarefaLista> | null;
   erro: string;
   f: FiltroTarefas;
-  ordem: Ordem;
+  ordem: OrdemComPrazo;
   filtrado: boolean;
   selecao: Selecao;
   situacao: (id: string | null) => string;

@@ -3,7 +3,7 @@
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
 import { useEffect, useState, type ReactNode } from 'react';
-import type { Ordem } from '../dados';
+import type { OrdemComPrazo } from '../dados';
 import { Icone, type NomeIcone } from './Icone';
 import { BotaoLink } from './base';
 import { MenuFlutuante } from './Menu';
@@ -39,7 +39,7 @@ interface Props {
   /** Filtros e ordem ficam juntos no painel do botão "Filtros". */
   filtros?: Filtro[];
   /** Ordem da tabela (vem de useOrdem, em ui/ordem.ts); no quadro, cada coluna tem a sua. */
-  ordem?: Ordenacao;
+  ordem?: Ordenacao<OrdemComPrazo>;
   /** Ações sobre a lista inteira, no menu "⋯" (ex.: exportar). */
   mais?: AcaoMenu[];
   visoes?: Visao[];
@@ -86,7 +86,7 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
               </select>
             </label>)}
             {ordem && <label>Ordenar
-              <select className="filtro" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as Ordem)}>
+              <select className="filtro" value={ordem.valor} onChange={e => ordem.aoMudar(e.target.value as OrdemComPrazo)}>
                 {ordem.opcoes.map(o => <option key={o} value={o}>{ORDENS[o]}</option>)}
               </select>
             </label>}

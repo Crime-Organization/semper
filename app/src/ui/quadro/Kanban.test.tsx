@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício sempre entra como administrador; aqui o quadro é aberto também como quem não é.
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { Coluna, GrupoDeColunas } from '../../dados';
 import { blocosDoQuadro, filaDoTopo } from '../../regras/quadro';
+import { ORDENS_COM_PRAZO, ORDENS_DO_QUADRO } from '../ordem';
 import { Kanban } from './Kanban';
 import type { Quadro } from './useColunas';
 
@@ -19,7 +20,7 @@ function quadroDeTeste(podeGerirGrupos: boolean, grupos: GrupoDeColunas[], colun
     colunas, sugestoes: [], pronto: true, rotuloSemEtapa: 'Sem etapa', grupos, blocos: blocosDoQuadro(colunas, grupos), podeGerirGrupos,
     topo: filaDoTopo(colunas, grupos), filaDaColuna: () => filaDoTopo(colunas, grupos),
     grupoAberto: () => true, podeReordenar: podeGerirGrupos, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual',
-    nomeDe: () => '', criar: () => Promise.resolve(true), criarGrupo: () => Promise.resolve(true), alternarGrupo: nada, ordenar: nada
+    nomeDe: () => '', criar: () => Promise.resolve(true), criarGrupo: () => Promise.resolve(true), alternarGrupo: nada, ordenar: nada, ordens: ORDENS_DO_QUADRO
   } as unknown as Quadro;
 }
 const quadroNaTela = (quadro: Quadro) => <Kanban quadro={quadro} recarga={0} carregar={() => Promise.resolve({ linhas: [], total: 0 })} ordemDe={() => null}
@@ -130,5 +131,30 @@ describe('Grupos no quadro', () => {
     expect(await screen.findByRole('list', { name: 'Lead' })).toBeTruthy();
     expect(screen.queryByRole('region', { name: /^Grupo / })).toBeNull();
     expect(screen.queryByLabelText('Grupo da coluna')).toBeNull();
+  });
+});
+
+describe('Ordem pelo prazo na coluna (#291)', () => {
+  it('dado um quadro com as ordens do prazo e uma coluna ordenada pelo prazo, quando a pessoa abre o menu dela, então vê as ordens do prazo, e o topo mostra a escolhida', async () => {
+    // Dado
+    const quadro = { ...quadroDeTeste(false, []), ordens: [...ORDENS_DO_QUADRO, ...ORDENS_COM_PRAZO], ordemDe: (id: string | null) => id === 'c-lead' ? 'prazo' : 'manual' } as unknown as Quadro;
+    render(quadroNaTela(quadro));
+    // Então
+    expect(await screen.findByText('Prazo (o mais próximo primeiro)')).toBeTruthy();
+    // Quando
+    fireEvent.click(screen.getByRole('button', { name: 'Opções da coluna Lead' }));
+    // Então
+    const ordens = screen.getAllByRole('menuitemradio');
+    expect(ordens.map(o => o.textContent)).toContain('Prazo (o mais distante primeiro)');
+    expect(ordens.find(o => o.getAttribute('aria-checked') === 'true')?.textContent).toBe('Prazo (o mais próximo primeiro)');
+  });
+
+  it('dado um quadro sem as ordens do prazo, quando a pessoa abre o menu de uma coluna, então não aparece ordem pelo prazo', async () => {
+    // Dado
+    montar(false, []);
+    // Quando
+    fireEvent.click(await screen.findByRole('button', { name: 'Opções da coluna Lead' }));
+    // Então
+    expect(screen.getAllByRole('menuitemradio').map(o => o.textContent)).not.toContain('Prazo (o mais próximo primeiro)');
   });
 });

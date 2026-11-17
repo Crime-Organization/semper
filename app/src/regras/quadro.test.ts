@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -270,5 +270,20 @@ describe('Situação do cartão com o grupo na frente (#302)', () => {
     const situacoes = situacoesDoQuadro([coluna('a', 'A', 1)], [grupo('vazio', 'Vazio', 2)]);
     // Então
     expect(situacoes.map(x => x.rotulo)).toEqual(['A']);
+  });
+});
+
+describe('Ordem guardada de uma coluna (#291)', () => {
+  const DO_MODULO = ['manual', 'nome', 'prazo', 'prazo_desc'] as const;
+  it('dada uma ordem que o módulo tem, quando o quadro abre, então a coluna usa essa ordem', () => {
+    // Então
+    expect(ordemDaColuna('prazo', DO_MODULO, 'manual')).toBe('prazo');
+  });
+
+  it('dada uma ordem que esta versão do site não conhece, ou nenhuma, quando o quadro abre, então a coluna usa a manual', () => {
+    // Então
+    expect(ordemDaColuna('data_de_entrega', DO_MODULO, 'manual')).toBe('manual');
+    expect(ordemDaColuna('prazo', ['manual', 'nome'] as const, 'manual')).toBe('manual');
+    expect(ordemDaColuna(undefined, DO_MODULO, 'manual')).toBe('manual');
   });
 });

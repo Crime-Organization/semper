@@ -24,7 +24,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, Dados, Demanda, DemandaLigada, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -257,16 +257,19 @@ const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembre
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(id, codigo, servico)`;
 type DemandaLida = Omit<Demanda, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
 const comClientes = ({ clientela, ...d }: DemandaLida): Demanda => ({ ...d, clientes: clientela.toSorted((a, b) => a.ordem - b.ordem).map(c => c.pessoa) });
-// Ordem das demandas e das tarefas ("nome" é o título). O id no fim desempata a paginação.
-const ORDENS_PELO_TITULO: Record<Ordem, (q: Livre) => Livre> = {
+// Ordem das demandas e das tarefas ("nome" é o título). O id no fim desempata a paginação. Pelo prazo (#291): os sem prazo
+// ficam no fim nos dois sentidos; no mesmo dia, o sem hora vem antes (regras/ordemPorPrazo.ts, que o banco fictício usa).
+const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (q: Livre) => Livre> = {
   manual: q => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: false }),
   nome: q => q.order('titulo'),
   nome_desc: q => q.order('titulo', { ascending: false }),
   novos: q => q.order('criado_em', { ascending: false }),
   antigos: q => q.order('criado_em', { ascending: true }),
-  recentes: q => q.order('atualizado_em', { ascending: false })
+  recentes: q => q.order('atualizado_em', { ascending: false }),
+  prazo: q => q.order('prazo', { ascending: true, nullsFirst: false }).order('prazo_hora', { ascending: true, nullsFirst: true }),
+  prazo_desc: q => q.order('prazo', { ascending: false, nullsFirst: false }).order('prazo_hora', { ascending: false, nullsFirst: false })
 };
-const ordenarPeloTitulo = (q: Livre, ordem: Ordem) => ORDENS_PELO_TITULO[ordem](q).order('id');
+const ordenarPeloTitulo = (q: Livre, ordem: OrdemComPrazo) => ORDENS_PELO_TITULO[ordem](q).order('id');
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   q = porEtiqueta(q, f);
   if (f.paraLigar && ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);

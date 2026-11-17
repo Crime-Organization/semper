@@ -143,6 +143,8 @@ export type PessoaLista = Pick<Pessoa, 'id' | 'codigo' | 'tipo' | 'nome' | 'nome
 
 /** Ordem das listas de qualquer módulo: "manual" é a do quadro (arrastando os cartões); as outras valem para quadro e tabela. */
 export type Ordem = 'manual' | 'nome' | 'nome_desc' | 'novos' | 'antigos' | 'recentes';
+/** A ordem de tarefas e demandas: as de sempre e o prazo, a data de entrega, o mais próximo ou o mais distante primeiro (#291). */
+export type OrdemComPrazo = Ordem | 'prazo' | 'prazo_desc';
 
 export interface PessoaResumida { id: string; codigo: string; nome: string; tipo: TipoPessoa; arquivado_em?: string | null }
 
@@ -349,7 +351,7 @@ export interface FiltroDemandas {
   /** Um usuário da equipe: as demandas em que ele é o responsável ou um colaborador. */
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
-  ordem?: Ordem;
+  ordem?: OrdemComPrazo;
   pagina?: number;
   porPagina?: number;
 }
@@ -419,7 +421,7 @@ export interface FiltroTarefas {
   /** Um usuário da equipe: as tarefas em que ele é o responsável ou um participante. */
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
-  ordem?: Ordem;
+  ordem?: OrdemComPrazo;
   pagina?: number;
   porPagina?: number;
 }
