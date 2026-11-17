@@ -41,10 +41,14 @@
   --erro: #B42318;
   --erro-bg: #FDECEA;
   --font: 'Lato', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Código escrito no texto formatado (`assim` e os blocos com ```): a fonte de largura fixa do aparelho */
+  --font-codigo: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
   /* Títulos "#", "##" e "###" dentro do texto formatado ({typography.text-heading} no DESIGN.md) */
   --texto-titulo-1: 19px;
   --texto-titulo-2: 17px;
   --texto-titulo-3: 15px;
+  /* As tabelas dentro do texto formatado: um ponto abaixo do texto (15px), para caber mais colunas sem rolar */
+  --texto-tabela: 14px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -126,9 +130,30 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-formatado > h5 { font-size: var(--texto-titulo-3) }
 .texto-formatado a { color: var(--accent-ink); font-weight: 700; text-decoration: none; border-bottom: 1px solid currentColor }
 .texto-formatado a:hover { color: var(--accent-deep) }
+/* #344: lista numerada, de tarefas (caixinhas), citação, código, divisória e tabela */
+.texto-formatado > ol { margin: 4px 0; padding-left: 26px }
+.texto-formatado > ol > li { white-space: pre-wrap }
+.texto-formatado > ul.texto-formatado-tarefas { padding-left: 0; list-style: none }
+.texto-formatado-tarefas > li { display: flex; align-items: flex-start; gap: 8px; white-space: pre-wrap }
+.texto-formatado-tarefas input { flex: none; width: 16px; height: 16px; margin: .25em 0 0; accent-color: var(--accent); cursor: pointer }
+.texto-formatado-tarefas input:disabled { cursor: default }
+.texto-formatado-tarefas input:checked + span { color: var(--muted) }
+.texto-formatado > blockquote { margin: 6px 0; padding: 2px 0 2px 14px; border-left: 2px solid var(--line2); color: var(--text2); white-space: pre-wrap }
+.texto-formatado del { color: var(--muted) }
+.texto-formatado code { font-family: var(--font-codigo); font-size: .88em; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink) }
+.texto-formatado > pre { margin: 8px 0; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); overflow-x: auto; line-height: 1.5 }
+.texto-formatado > pre > code { padding: 0; border: 0; background: none; white-space: pre; overflow-wrap: normal }
+.texto-formatado > hr { margin: 14px 0; border: 0; border-top: 1px solid var(--line2) }
+.texto-formatado-tabela { margin: 8px 0; max-width: 100%; overflow-x: auto }
+.texto-formatado-tabela table { border-collapse: collapse; font-size: var(--texto-tabela); font-variant-numeric: tabular-nums }
+.texto-formatado-tabela :is(th, td) { padding: 6px 12px; border: 1px solid var(--line2); text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: normal }
+.texto-formatado-tabela th { background: var(--soft); color: var(--ink); font-weight: 800 }
+.texto-formatado-tabela [data-alinhamento="centro"] { text-align: center }
+.texto-formatado-tabela [data-alinhamento="direita"] { text-align: right }
+.texto-formatado > :is(ol, ul, blockquote, pre, hr, .texto-formatado-tabela):first-child { margin-top: 0 }
 .descricao-formatada { margin-top: 8px }
 .caixa-formatada { display: flex; flex-direction: column; gap: 6px }
-.caixa-formatada-barra { display: flex; gap: 6px }
+.caixa-formatada-barra { display: flex; flex-wrap: wrap; gap: 6px }
 .caixa-formatada-botao { width: 34px; padding: 0; justify-content: center; font-size: 15px }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }

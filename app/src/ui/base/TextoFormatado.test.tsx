@@ -87,8 +87,10 @@ describe('Caixa com a barra B, I e lista (#293)', () => {
     render(<Caixa />);
     // Então
     expect(screen.getByRole('toolbar', { name: 'Formatação do texto' })).toBeTruthy();
-    // A #303 acrescentou Cabeçalho e Link à barra
-    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Negrito (Ctrl+B)', 'Itálico (Ctrl+I)', 'Cabeçalho', 'Lista', 'Link']);
+    // A #303 acrescentou Cabeçalho e Link à barra; a #344, Lista numerada, Lista de tarefas, Citação e Código
+    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual([
+      'Negrito (Ctrl+B)', 'Itálico (Ctrl+I)', 'Cabeçalho', 'Lista', 'Lista numerada', 'Lista de tarefas', 'Citação', 'Código', 'Link'
+    ]);
   });
 });
 
@@ -263,5 +265,108 @@ describe('Botão Link quando o link não pode entrar (#303)', () => {
     // Então
     expect(caixa.value).toBe('Ver o site');
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
+});
+
+describe('Caixinhas da lista de tarefas (#344)', () => {
+  it('dado um texto com caixinhas e sem quem as marque, quando aparece, então elas mostram se estão marcadas, mas desabilitadas', () => {
+    // Quando
+    render(<TextoFormatado texto={'- [ ] Juntar RG\n- [x] Pagar custas'} />);
+    // Então
+    const rg = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Juntar RG' });
+    const custas = screen.getByRole<HTMLInputElement>('checkbox', { name: 'Pagar custas' });
+    expect([rg.checked, custas.checked]).toEqual([false, true]);
+    expect([rg.disabled, custas.disabled]).toEqual([true, true]);
+  });
+
+  it('dado quem pode marcar, quando clica numa caixinha, então recebe o texto com só ela trocada, e o clique não chega ao que está em volta', () => {
+    // Dado
+    const aoMarcar = vi.fn(), aoAbrir = vi.fn();
+    render(<div onClick={aoAbrir}><TextoFormatado texto={'Levar:\n- [ ] RG\n- [x] CPF'} aoMarcar={aoMarcar} /></div>);
+    // Quando
+    fireEvent.click(screen.getByRole('checkbox', { name: 'RG' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'CPF' }));
+    // Então
+    expect(aoMarcar.mock.calls).toEqual([['Levar:\n- [x] RG\n- [x] CPF'], ['Levar:\n- [ ] RG\n- [ ] CPF']]);
+    expect(aoAbrir).not.toHaveBeenCalled();
+  });
+
+  it('dado quem pode marcar e o texto que muda junto, quando clica na caixinha, então ela fica marcada', () => {
+    // Dado
+    function Texto() {
+      const [texto, setTexto] = useState('- [ ] Protocolar');
+      return <TextoFormatado texto={texto} aoMarcar={setTexto} />;
+    }
+    render(<Texto />);
+    // Quando
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Protocolar' }));
+    // Então
+    expect(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Protocolar' }).checked).toBe(true);
+  });
+});
+
+describe('O resto do Markdown no texto (#344)', () => {
+  it('dada uma lista numerada, uma citação, um tachado e uma divisória, quando aparecem, então cada um tem o seu elemento', () => {
+    // Quando
+    const { container } = render(<TextoFormatado texto={'3. Petição\n4. Procuração\n\n---\n> Não ~~assino~~ nada'} />);
+    // Então
+    const lista = screen.getByRole('list');
+    expect(lista.tagName).toBe('OL');
+    expect(lista.getAttribute('start')).toBe('3');
+    expect(screen.getAllByRole('listitem').map(li => li.textContent)).toEqual(['Petição', 'Procuração']);
+    expect(container.querySelector('blockquote')?.textContent).toBe('Não assino nada');
+    expect(screen.getByText('assino').tagName).toBe('DEL');
+    expect(screen.getByRole('separator')).toBeTruthy();
+    expect(container.textContent).not.toMatch(/[~>]/);
+  });
+
+  it('dado código em linha e em bloco, quando aparece, então o texto dele fica literal, sem negrito, sem link e sem virar elemento', () => {
+    // Quando
+    const { container } = render(<TextoFormatado texto={'Use `**a** [b](https://exemplo.com)`\n```\n<script>alert(1)</script>\n- [ ] x\n```'} />);
+    // Então
+    const codigos = [...container.querySelectorAll('code')].map(c => c.textContent);
+    expect(codigos).toEqual(['**a** [b](https://exemplo.com)', '<script>alert(1)</script>\n- [ ] x']);
+    expect(container.querySelector('pre')).toBeTruthy();
+    expect(container.querySelector('script, strong, a, input')).toBeNull();
+  });
+
+  it('dada uma tabela, quando aparece, então tem o cabeçalho e as linhas, com as células formatadas', () => {
+    // Quando
+    render(<TextoFormatado texto={'| Item | Valor |\n|---|--:|\n| Guia | **R$ 10** |'} />);
+    // Então
+    const tabela = screen.getByRole('table');
+    expect(screen.getAllByRole('columnheader').map(c => c.textContent)).toEqual(['Item', 'Valor']);
+    expect(screen.getAllByRole('cell').map(c => c.textContent)).toEqual(['Guia', 'R$ 10']);
+    expect(screen.getByText('R$ 10').tagName).toBe('STRONG');
+    expect(tabela.textContent).not.toContain('|');
+  });
+});
+
+describe('Botões de listas, citação e código da caixa (#344)', () => {
+  it.each([
+    ['Lista numerada', 'RG\nCPF', '1. RG\n2. CPF'],
+    ['Lista de tarefas', 'RG\nCPF', '- [ ] RG\n- [ ] CPF'],
+    ['Citação', 'RG\nCPF', '> RG\n> CPF'],
+    ['Código', 'RG\nCPF', '```\nRG\nCPF\n```']
+  ])('dadas duas linhas escolhidas, quando clica em %s, então elas mudam', (botao, antes, depois) => {
+    // Dado
+    render(<Caixa inicial={antes} />);
+    const caixa = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Descrição' });
+    escolher(caixa, 0, antes.length);
+    // Quando
+    fireEvent.click(screen.getByRole('button', { name: botao }));
+    // Então
+    expect(caixa.value).toBe(depois);
+  });
+
+  it('dado um trecho numa linha, quando clica em Código, então ele fica entre crases', () => {
+    // Dado
+    render(<Caixa inicial="Rodar npm run teste" />);
+    const caixa = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Descrição' });
+    escolher(caixa, 6, 19);
+    // Quando
+    fireEvent.click(screen.getByRole('button', { name: 'Código' }));
+    // Então
+    expect(caixa.value).toBe('Rodar `npm run teste`');
   });
 });

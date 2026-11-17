@@ -3,16 +3,51 @@
 // começo da linha) e links ([texto](https://…)), só para endereços http, https e mailto. O texto continua guardado como texto,
 // com as marcas; esta regra só diz como mostrá-lo e como pôr ou tirar uma marca no trecho escolhido. A tela desenha os pedaços
 // como elementos do React (nunca como HTML solto), então ninguém consegue esconder código numa descrição.
+// Desde a #344, o Markdown comum: listas de tarefas ("- [ ] " e "- [x] ", que se marcam clicando), listas numeradas ("1. "),
+// citações ("> "), tachado (~~assim~~), código (`assim`, e blocos entre linhas com ```), linha divisória ("---" ou "***") e
+// tabelas simples (cabeçalho com "|", a linha "|---|" e as linhas de dados). O código fica literal: nada nele vira marca.
 
-/** Os destaques de um trecho. */
-export type Marca = 'negrito' | 'italico';
+/** Os destaques de um trecho. O código em linha (`assim`) também é um destaque: o texto dele vem literal. */
+export type Marca = 'negrito' | 'italico' | 'tachado' | 'codigo';
+/** Os destaques que os botões e os atalhos põem e tiram (o tachado a pessoa escreve). */
+export type MarcaDoBotao = Exclude<Marca, 'tachado'>;
 
 /** A marca que os botões e os atalhos põem no texto. */
-export const MARCA_NO_TEXTO: Record<Marca, string> = { negrito: '**', italico: '*' };
+export const MARCA_NO_TEXTO: Record<MarcaDoBotao, string> = { negrito: '**', italico: '*', codigo: '`' };
+/**
+ * Quantos caracteres seguidos já são a marca, para o botão tirá-la em vez de pôr outra: o itálico conta os asteriscos seguidos
+ * (um número ímpar, "*" ou "***", tem itálico); o negrito, dois ou mais; o código, uma crase só.
+ */
+const TEM_A_MARCA: Record<MarcaDoBotao, (seguidos: number) => boolean> = {
+  negrito: n => n >= 2, italico: n => n % 2 === 1, codigo: n => n === 1
+};
 /** O começo de uma linha de lista. */
 export const ITEM_DE_LISTA = '- ';
-/** O começo de linha que cada botão põe: a lista e o título do meio ("#" e "###" a pessoa escreve). */
-export const INICIO_NO_TEXTO = { lista: ITEM_DE_LISTA, titulo: '## ' } as const;
+/** O começo de uma linha da lista de tarefas: a caixinha vazia ("- [ ]") ou marcada ("- [x]" ou "- [X]"), e um espaço ou o fim. */
+const ITEM_DE_TAREFA = /^- \[([ xX])\](?: |$)/;
+/** Onde fica, na linha da tarefa, o caractere entre os colchetes (" " ou "x"). */
+const POSICAO_DA_CAIXINHA = 3;
+/** O que fica entre os colchetes da caixinha marcada e da vazia. */
+const CAIXINHA: Record<'marcada' | 'vazia', string> = { marcada: 'x', vazia: ' ' };
+/** A linha que abre e fecha o bloco de código que o botão Código põe. */
+const CERCA_DE_CODIGO = '```';
+/** A linha que abre um bloco de código: três crases ou mais e, se quiser, o nome da linguagem (sem crases). */
+const ABRE_CODIGO = /^(`{3,})[^`]*$/;
+/** A linha que fecha: só crases (pelo menos tantas quanto as que abriram) e espaços. */
+const FECHA_CODIGO = /^(`{3,})\s*$/;
+/**
+ * O começo de linha que cada botão põe e como reconhecê-lo: a lista, a de tarefas (com a caixinha vazia), a numerada (numera as
+ * linhas escolhidas: 1., 2., 3.), a citação e o título do meio ("#" e "###" a pessoa escreve). Com "mantem", a linha que já tem
+ * esse começo fica como está quando o botão o põe nas outras (a tarefa já marcada continua marcada); a numerada não mantém:
+ * ela renumera todas as linhas escolhidas.
+ */
+export const INICIO_NO_TEXTO = {
+  lista: { tem: /^- (?!\[[ xX]\](?: |$))/, poe: () => ITEM_DE_LISTA, mantem: true },
+  tarefa: { tem: ITEM_DE_TAREFA, poe: () => '- [ ] ', mantem: true },
+  numerada: { tem: /^\d{1,9}[.)] /, poe: (i: number) => `${i + 1}. `, mantem: false },
+  citacao: { tem: /^> |^>$/, poe: () => '> ', mantem: true },
+  titulo: { tem: /^## /, poe: () => '## ', mantem: true }
+} satisfies Record<string, { tem: RegExp; poe: (i: number) => string; mantem: boolean }>;
 export type InicioDeLinha = keyof typeof INICIO_NO_TEXTO;
 /** O maior endereço aceito num link (o que os navegadores abrem sem problema). */
 export const TAMANHO_DO_ENDERECO = 2048;
@@ -21,12 +56,30 @@ export const TAMANHO_DO_ENDERECO = 2048;
 export interface Pedaco { texto: string; marcas: Marca[]; link?: string }
 /** O nível de um título: "#" é 1, "##" é 2, "###" é 3. */
 export type NivelTitulo = 1 | 2 | 3;
-/** Um trecho do texto: linhas comuns (mostradas como foram escritas, com as quebras), os itens de uma lista ou um título. */
+/** A caixinha de um item da lista de tarefas: se está marcada e em que linha do texto ela fica (a primeira é a 0), para marcá-la. */
+export interface Caixinha { marcada: boolean; linha: number }
+/** Como o texto de uma coluna da tabela se alinha (":---" à esquerda, ":---:" no centro, "---:" à direita; "---" fica o padrão). */
+export type Alinhamento = 'esquerda' | 'centro' | 'direita' | null;
+/**
+ * Um trecho do texto. Todos têm as linhas, cada uma com os seus pedaços: no texto comum, mostradas como foram escritas, com as
+ * quebras; na lista, na de tarefas (uma caixinha por linha) e na numerada (que começa no número "inicio"), os itens; na citação,
+ * as linhas dela; no título, a linha dele; no código, as linhas literais (um pedaço sem destaque, ou nenhum na linha vazia); na
+ * divisória, nenhuma. Na tabela, as linhas são as células, da esquerda para a direita e de cima para baixo (as primeiras são o
+ * cabeçalho): cada linha da tabela tem uma célula por coluna.
+ */
 export type Bloco =
   | { tipo: 'texto'; linhas: Pedaco[][] }
   | { tipo: 'lista'; linhas: Pedaco[][] }
-  | { tipo: 'titulo'; nivel: NivelTitulo; linhas: Pedaco[][] };
+  | { tipo: 'tarefas'; caixinhas: Caixinha[]; linhas: Pedaco[][] }
+  | { tipo: 'numerada'; inicio: number; linhas: Pedaco[][] }
+  | { tipo: 'citacao'; linhas: Pedaco[][] }
+  | { tipo: 'titulo'; nivel: NivelTitulo; linhas: Pedaco[][] }
+  | { tipo: 'codigo'; linhas: Pedaco[][] }
+  | { tipo: 'divisoria'; linhas: Pedaco[][] }
+  | { tipo: 'tabela'; colunas: Alinhamento[]; linhas: Pedaco[][] };
 export type TipoBloco = Bloco['tipo'];
+/** O bloco de um tipo. */
+export type BlocoDo<T extends TipoBloco> = Extract<Bloco, { tipo: T }>;
 
 /** Os únicos endereços que viram link; o resto fica como texto. */
 const PROTOCOLO_PERMITIDO = new Set(['http:', 'https:', 'mailto:']);
@@ -50,32 +103,84 @@ export function linkPermitido(endereco: string): string | null {
   } catch { return null; }
 }
 
-/** Quantos caracteres de uma sequência cada destaque usa: dois fecham um negrito, um fecha um itálico ("***" pode ser os dois). */
-const MARCA_DO_PAR: Record<1 | 2, Marca> = { 1: 'italico', 2: 'negrito' };
+/**
+ * Quantos caracteres de uma sequência cada destaque usa: com "*" e "_", dois fecham um negrito e um fecha um itálico ("***"
+ * pode ser os dois); com "~", só dois, que fecham um tachado.
+ */
+const MARCA_DO_PAR: Record<string, Partial<Record<1 | 2, Marca>>> = {
+  '*': { 1: 'italico', 2: 'negrito' }, _: { 1: 'italico', 2: 'negrito' }, '~': { 2: 'tachado' }
+};
+/** As sequências que podem abrir ou fechar um destaque: de "*" e "_", qualquer uma; de "~", só a de dois ("~~"). */
+const SEQUENCIA_VALE: Record<string, (tamanho: number) => boolean> = { '*': () => true, _: () => true, '~': n => n === 2 };
 /** Letra, número ou barra invertida: a marca colada a eles faz parte da palavra ("contrato_final_v2.pdf", "a*b*c"). */
 const DA_PALAVRA = /[\p{L}\p{N}\\]/u;
 const ESPACO = /\s/;
 /**
- * Cada sinal da linha: uma sequência de "*" ou de "_" seguidos, um "[" ou um "](endereço)". O "](endereço)" é lido inteiro,
- * então um "*" ou um "_" no endereço nunca vira marca; o endereço para no espaço e nos parênteses.
+ * Cada sinal da linha: uma sequência de "*", de "_", de "~" ou de crases seguidos, um "[" ou um "](endereço)". O "](endereço)"
+ * é lido inteiro, então um "*" ou um "_" no endereço nunca vira marca; o endereço para no espaço e nos parênteses.
  */
-const SINAL = /\*+|_+|\[|\]\(([^()\s]*)\)/g;
+const SINAL = /\*+|_+|~+|`+|\[|\]\(([^()\s]*)\)/g;
 
 /** Uma sequência de marcas na linha e o que ela fez: quantos caracteres sobraram como texto, que destaques fechou e abriu. */
 interface Sequencia { tipo: 'marca'; inicio: number; fim: number; ch: string; sobra: number; abre: boolean; fecha: boolean; fechaAqui: Marca[]; abreAqui: Marca[] }
 /** Um "[" (sem endereço) ou um "](endereço)". Os dois de um par que vira link guardam o endereço já conferido. */
 interface Colchete { tipo: 'colchete'; inicio: number; fim: number; endereco?: string; link?: string }
-type Sinal = Sequencia | Colchete;
+/** Uma sequência de crases, que abre ou fecha um código com outra do mesmo tamanho. */
+interface Crase { tipo: 'crase'; inicio: number; fim: number }
+/** Um código em linha, das crases que abrem às que fecham, com o texto de dentro, literal. */
+interface Codigo { tipo: 'codigo'; inicio: number; fim: number; texto: string }
+type Sinal = Sequencia | Colchete | Codigo;
 
-function lerSinal(linha: string, m: RegExpMatchArray): Sinal {
-  const inicio = m.index ?? 0, fim = inicio + m[0].length, ch = m[0].charAt(0);
-  if (ch === '[' || ch === ']') return { tipo: 'colchete', inicio, fim, endereco: m[1] };
-  const antes = linha.charAt(inicio - 1), depois = linha.charAt(fim);
+/** Como ler cada sinal pelo primeiro caractere; o que não está aqui é uma sequência de marcas. */
+const LER_SINAL: Record<string, (inicio: number, fim: number, m: RegExpMatchArray) => Colchete | Crase> = {
+  '[': (inicio, fim) => ({ tipo: 'colchete', inicio, fim }),
+  ']': (inicio, fim, m) => ({ tipo: 'colchete', inicio, fim, endereco: m[1] }),
+  '`': (inicio, fim) => ({ tipo: 'crase', inicio, fim })
+};
+
+function lerSinal(linha: string, m: RegExpMatchArray): Sequencia | Colchete | Crase {
+  const inicio = m.index ?? 0, fim = inicio + m[0].length, ch = m[0].charAt(0), ler = LER_SINAL[ch];
+  if (ler) return ler(inicio, fim, m);
+  const antes = linha.charAt(inicio - 1), depois = linha.charAt(fim), vale = SEQUENCIA_VALE[ch](m[0].length);
   return {
     tipo: 'marca', inicio, fim, ch, sobra: m[0].length, fechaAqui: [], abreAqui: [],
-    abre: depois !== '' && !ESPACO.test(depois) && !DA_PALAVRA.test(antes),
-    fecha: antes !== '' && !ESPACO.test(antes) && !DA_PALAVRA.test(depois)
+    abre: vale && depois !== '' && !ESPACO.test(depois) && !DA_PALAVRA.test(antes),
+    fecha: vale && antes !== '' && !ESPACO.test(antes) && !DA_PALAVRA.test(depois)
   };
+}
+
+/** O texto de um código em linha: sai um espaço de cada ponta se há nas duas (para escrever "`` `a` ``"), menos se é só espaço. */
+function textoDoCodigo(dentro: string) {
+  const tira = dentro.length >= 2 && dentro.startsWith(' ') && dentro.endsWith(' ') && dentro.trim() !== '';
+  return tira ? dentro.slice(1, -1) : dentro;
+}
+
+/**
+ * Junta cada sequência de crases à próxima do mesmo tamanho: o que fica entre elas vira um código, e os sinais lá dentro deixam
+ * de valer (nada no código vira marca nem link). Crase sem par fica como texto. Lê a linha uma vez só: para cada tamanho, guarda
+ * onde estão as sequências e só anda para a frente nelas.
+ */
+function juntarCrases(linha: string, lidos: (Sequencia | Colchete | Crase)[]): Sinal[] {
+  const porTamanho = new Map<number, { onde: number[]; proxima: number }>();
+  lidos.forEach((s, i) => {
+    if (s.tipo !== 'crase') return;
+    const n = s.fim - s.inicio, lista = porTamanho.get(n) ?? { onde: [], proxima: 0 };
+    lista.onde.push(i);
+    porTamanho.set(n, lista);
+  });
+  const sinais: Sinal[] = [];
+  for (let i = 0; i < lidos.length; i++) {
+    const s = lidos[i];
+    if (s.tipo !== 'crase') { sinais.push(s); continue; }
+    const lista = porTamanho.get(s.fim - s.inicio);
+    if (!lista) continue;
+    while (lista.proxima < lista.onde.length && lista.onde[lista.proxima] <= i) lista.proxima++;
+    const j = lista.onde.at(lista.proxima);
+    if (j === undefined) continue;   // sem par: as crases ficam como texto
+    sinais.push({ tipo: 'codigo', inicio: s.inicio, fim: lidos[j].fim, texto: textoDoCodigo(linha.slice(s.fim, lidos[j].inicio)) });
+    i = j;
+  }
+  return sinais;
 }
 
 /** Um link de verdade da linha: o "[" e o "](endereço)" que se juntaram. */
@@ -98,7 +203,7 @@ function acharLinks(linha: string, sinais: Sinal[]): ParDeLink[] {
   return pares;
 }
 
-const sinaisDaLinha = (linha: string) => [...linha.matchAll(SINAL)].map(m => lerSinal(linha, m));
+const sinaisDaLinha = (linha: string) => juntarCrases(linha, [...linha.matchAll(SINAL)].map(m => lerSinal(linha, m)));
 
 /** Onde fica, na linha, um link de verdade: do "[" até depois do ")" e, dentro, o texto dele. */
 interface LinkNaLinha { inicio: number; fim: number; textoInicio: number; textoFim: number }
@@ -124,6 +229,7 @@ export function pedacosDaLinha(linha: string): Pedaco[] {
   const abertas: Sequencia[] = [];
   let barreira = 0;   // dentro de um link, só as marcas abertas a partir daqui podem fechar
   for (const s of sinais) {
+    if (s.tipo === 'codigo') continue;   // o código fica entre as marcas, sem mudá-las: "**`a`**" é um código em negrito
     if (s.tipo === 'colchete') {
       if (s.link && s.endereco === undefined) barreira = abertas.length;
       else if (s.link) { abertas.splice(barreira); barreira = 0; }   // as abertas no link e não fechadas lá ficam como texto
@@ -133,7 +239,8 @@ export function pedacosDaLinha(linha: string): Pedaco[] {
       const a = abertas[i];
       if (a.ch !== s.ch) continue;
       while (a.sobra && s.sobra) {
-        const usa = a.sobra >= 2 && s.sobra >= 2 ? 2 : 1, marca = MARCA_DO_PAR[usa];
+        const usa = a.sobra >= 2 && s.sobra >= 2 ? 2 : 1, marca = MARCA_DO_PAR[s.ch][usa];
+        if (!marca) break;
         a.sobra -= usa;
         s.sobra -= usa;
         a.abreAqui.unshift(marca);   // o par achado depois fica por fora
@@ -151,6 +258,11 @@ export function pedacosDaLinha(linha: string): Pedaco[] {
   for (const s of sinais) {
     texto += linha.slice(desde, s.inicio);
     desde = s.fim;
+    if (s.tipo === 'codigo') {
+      soltar();
+      pedacos.push(link ? { texto: s.texto, marcas: [...ativas, 'codigo'], link } : { texto: s.texto, marcas: [...ativas, 'codigo'] });
+      continue;
+    }
     if (s.tipo === 'colchete') {
       if (!s.link) { texto += linha.slice(s.inicio, s.fim); continue; }
       soltar();
@@ -170,43 +282,160 @@ export function pedacosDaLinha(linha: string): Pedaco[] {
   return pedacos;
 }
 
-/** O começo de linha de cada bloco; vale o primeiro que servir, e sem nenhum a linha é texto. "#### x" e "#tag" ficam como texto. */
-const INICIO_DO_BLOCO: { inicio: RegExp; bloco: (m: RegExpExecArray) => Bloco }[] = [
-  { inicio: /^(#{1,3}) /, bloco: m => ({ tipo: 'titulo', nivel: m[1].length as NivelTitulo, linhas: [] }) },
-  { inicio: /^- /, bloco: () => ({ tipo: 'lista', linhas: [] }) }   // ITEM_DE_LISTA
+/**
+ * O começo de linha de cada bloco de uma linha só (a linha vira um título, um item ou uma linha da citação), com o bloco que ela
+ * forma, já com os pedaços do resto da linha. Vale o primeiro que servir. "#### x", "#tag" e ">50%" ficam como texto.
+ */
+const INICIO_DO_BLOCO: { inicio: RegExp; bloco: (m: RegExpExecArray, linhas: Pedaco[][], linha: number) => Bloco }[] = [
+  { inicio: /^(#{1,3}) /, bloco: (m, linhas) => ({ tipo: 'titulo', nivel: m[1].length as NivelTitulo, linhas }) },
+  { inicio: ITEM_DE_TAREFA, bloco: (m, linhas, linha) => ({ tipo: 'tarefas', caixinhas: [{ marcada: m[1] !== CAIXINHA.vazia, linha }], linhas }) },
+  { inicio: /^- /, bloco: (_m, linhas) => ({ tipo: 'lista', linhas }) },   // ITEM_DE_LISTA
+  { inicio: /^(\d{1,9})[.)] /, bloco: (m, linhas) => ({ tipo: 'numerada', inicio: Number(m[1]), linhas }) },
+  { inicio: /^> |^>$/, bloco: (_m, linhas) => ({ tipo: 'citacao', linhas }) }
 ];
-/** Linhas seguidas do mesmo tipo viram um bloco só? O título não: cada linha é um título. */
-const JUNTA_LINHAS: Record<TipoBloco, boolean> = { texto: true, lista: true, titulo: false };
 
-/** O bloco a que a linha pertence (ainda sem as linhas) e o começo de linha que a pôs nele ("" no texto comum). */
-function inicioDaLinha(linha: string): { bloco: Bloco; inicio: string } {
-  for (const { inicio, bloco } of INICIO_DO_BLOCO) {
+/** O começo de linha que põe a linha num bloco ("" no texto comum, e nas linhas de código, divisória e tabela). */
+function comecoDaLinha(linha: string): string {
+  for (const { inicio } of INICIO_DO_BLOCO) {
     const m = inicio.exec(linha);
-    if (m) return { bloco: bloco(m), inicio: m[0] };
+    if (m) return m[0];
   }
-  return { bloco: { tipo: 'texto', linhas: [] }, inicio: '' };
+  return '';
 }
 
+/** Um bloco lido e a linha logo depois dele. */
+interface Lido { bloco: Bloco; proxima: number }
+/** Quem lê um bloco a partir da linha i, ou null se o bloco não começa ali. */
+type Leitor = (linhas: string[], i: number) => Lido | null;
+
+/** A linha divisória: três ou mais "-", "*" ou "_", sozinhos na linha. */
+const DIVISORIA = /^(?:-{3,}|\*{3,}|_{3,})\s*$/;
+/** Uma célula da linha que separa o cabeçalho da tabela: traços, com ":" na ponta do lado para onde o texto se alinha. */
+const CELULA_SEPARADORA = /^(:?)-+(:?)$/;
+/** O alinhamento de cada célula separadora, pelos ":" das pontas. */
+const ALINHAMENTO: Record<string, Alinhamento> = { '-': null, ':-': 'esquerda', '-:': 'direita', ':-:': 'centro' };
+/** O "|" que separa as células ("\|" é uma barra dentro da célula). */
+const SEPARA_CELULAS = /(?<!\\)\|/;
+
+/** As células de uma linha da tabela: o "|" separa, os das pontas são opcionais, e "\|" é uma barra dentro da célula. */
+function celulas(linha: string): string[] {
+  const miolo = linha.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '');
+  return miolo.split(SEPARA_CELULAS).map(c => c.trim().replace(/\\\|/g, '|'));
+}
+
+/** O bloco de código: da linha com ``` até a que fecha (sem ela, até o fim do texto). O que fica dentro é literal. */
+const lerCodigo: Leitor = (linhas, i) => {
+  const abre = ABRE_CODIGO.exec(linhas[i]);
+  if (!abre) return null;
+  const dentro: Pedaco[][] = [];
+  let j = i + 1;
+  for (; j < linhas.length; j++) {
+    const fecha = FECHA_CODIGO.exec(linhas[j]);
+    if (fecha && fecha[1].length >= abre[1].length) break;
+    dentro.push(linhas[j] ? [{ texto: linhas[j], marcas: [] }] : []);
+  }
+  return { bloco: { tipo: 'codigo', linhas: dentro }, proxima: j + 1 };
+};
+
+const lerDivisoria: Leitor = (linhas, i) => DIVISORIA.test(linhas[i]) ? { bloco: { tipo: 'divisoria', linhas: [] }, proxima: i + 1 } : null;
+
+/** Uma linha que começa um título, um item ou uma linha da citação. */
+const lerInicioDeLinha: Leitor = (linhas, i) => {
+  for (const { inicio, bloco } of INICIO_DO_BLOCO) {
+    const m = inicio.exec(linhas[i]);
+    if (m) return { bloco: bloco(m, [pedacosDaLinha(linhas[i].slice(m[0].length))], i), proxima: i + 1 };
+  }
+  return null;
+};
+
 /**
- * O texto em blocos: as linhas que começam com "- " seguidas viram uma lista, as que começam com "# ", "## " ou "### " viram
- * títulos (um por linha), e as outras ficam como foram escritas.
+ * A tabela: a linha do cabeçalho, com "|", a linha que separa (|---|:---:|), com uma célula para cada uma do cabeçalho, e as
+ * linhas de dados que vêm logo depois, com "|". Uma linha de dados com células a menos fica com elas vazias; a mais, sem elas.
+ */
+const lerTabela: Leitor = (linhas, i) => {
+  const separadora = linhas[i + 1];
+  if (!linhas[i].includes('|') || separadora === undefined || !separadora.includes('|')) return null;
+  const cabecalho = celulas(linhas[i]), colunas: Alinhamento[] = [];
+  for (const c of celulas(separadora)) {
+    const m = CELULA_SEPARADORA.exec(c);
+    if (!m) return null;
+    colunas.push(ALINHAMENTO[m[1] + '-' + m[2]]);
+  }
+  if (colunas.length !== cabecalho.length) return null;
+  const todas = cabecalho.map(pedacosDaLinha);
+  let j = i + 2;
+  for (; j < linhas.length && linhas[j].trim() && linhas[j].includes('|'); j++) {
+    const lidas = celulas(linhas[j]);
+    colunas.forEach((_c, k) => todas.push(pedacosDaLinha(lidas[k] ?? '')));
+  }
+  return { bloco: { tipo: 'tabela', colunas, linhas: todas }, proxima: j };
+};
+
+/** Quem lê cada bloco, na ordem em que se tenta; a linha que nenhum lê é texto comum. */
+const LEITORES: Leitor[] = [lerCodigo, lerDivisoria, lerInicioDeLinha, lerTabela];
+
+function lerBloco(linhas: string[], i: number): Lido {
+  for (const ler of LEITORES) {
+    const lido = ler(linhas, i);
+    if (lido) return lido;
+  }
+  return { bloco: { tipo: 'texto', linhas: [pedacosDaLinha(linhas[i])] }, proxima: i + 1 };
+}
+
+const juntarLinhas = (ultimo: { linhas: Pedaco[][] }, novo: { linhas: Pedaco[][] }) => { ultimo.linhas.push(...novo.linhas); };
+/**
+ * Como um bloco recebe o seguinte do mesmo tipo: as linhas seguidas de texto, de uma lista ou de uma citação viram um bloco só
+ * (a numerada fica com o número da primeira; a de tarefas leva as caixinhas junto). Os outros (null) ficam separados: cada
+ * linha é um título, e dois códigos, divisórias ou tabelas seguidos são dois.
+ */
+const JUNTA: { [T in TipoBloco]: ((ultimo: BlocoDo<T>, novo: BlocoDo<T>) => void) | null } = {
+  texto: juntarLinhas, lista: juntarLinhas, numerada: juntarLinhas, citacao: juntarLinhas,
+  tarefas: (ultimo, novo) => { juntarLinhas(ultimo, novo); ultimo.caixinhas.push(...novo.caixinhas); },
+  titulo: null, codigo: null, divisoria: null, tabela: null
+};
+
+/**
+ * O texto em blocos: as linhas que começam com "- " seguidas viram uma lista ("- [ ] " e "- [x] ", uma lista de tarefas; "1. ",
+ * uma numerada), as que começam com "> ", uma citação, as que começam com "# ", "## " ou "### " viram títulos (um por linha),
+ * o que fica entre linhas com ``` é código, "---" sozinho é uma divisória, as linhas com "|" sobre uma linha "|---|" são uma
+ * tabela, e as outras ficam como foram escritas. Cada linha é lida uma vez só.
  */
 export function blocosDoTexto(texto: string): Bloco[] {
-  const blocos: Bloco[] = [];
-  for (const linha of texto.replace(/\r\n?/g, '\n').split('\n')) {
-    const { bloco, inicio } = inicioDaLinha(linha), pedacos = pedacosDaLinha(linha.slice(inicio.length));
-    const ultimo = blocos.at(-1);
-    if (ultimo?.tipo === bloco.tipo && JUNTA_LINHAS[bloco.tipo]) ultimo.linhas.push(pedacos);
-    else blocos.push({ ...bloco, linhas: [pedacos] });
+  const linhas = texto.replace(/\r\n?/g, '\n').split('\n'), blocos: Bloco[] = [];
+  for (let i = 0; i < linhas.length;) {
+    const { bloco, proxima } = lerBloco(linhas, i), ultimo = blocos.at(-1);
+    const juntar = JUNTA[bloco.tipo] as ((ultimo: Bloco, novo: Bloco) => void) | null;
+    if (ultimo?.tipo === bloco.tipo && juntar) juntar(ultimo, bloco);
+    else blocos.push(bloco);
+    i = proxima;
   }
-  // Uma linha em branco logo antes ou logo depois de uma lista ou de um título só separa: eles já têm o seu espaço.
+  // Uma linha em branco logo antes ou logo depois de um bloco que não é texto (lista, título, código…) só separa: ele já tem o
+  // seu espaço.
   const especial = (b: Bloco | undefined) => !!b && b.tipo !== 'texto';
   blocos.forEach((b, i) => {
     if (b.tipo !== 'texto') return;
     if (especial(blocos[i - 1]) && !b.linhas[0]?.length) b.linhas.shift();
     if (especial(blocos[i + 1]) && !b.linhas.at(-1)?.length) b.linhas.pop();
   });
-  return blocos.filter(b => b.linhas.length);
+  return blocos.filter(b => b.tipo !== 'texto' || b.linhas.length);
+}
+
+/**
+ * Marca ou desmarca a caixinha da lista de tarefas que está na linha dada do texto (a primeira é a 0), trocando só o caractere
+ * entre os colchetes: o resto do texto fica igual, até as quebras de linha. Se ali não há uma caixinha (como a leitura a vê:
+ * dentro de um código, por exemplo, não há), devolve o texto como está.
+ */
+export function alternarItemDeTarefa(texto: string, linha: number): string {
+  const caixinha = blocosDoTexto(texto).some(b => b.tipo === 'tarefas' && b.caixinhas.some(c => c.linha === linha));
+  if (!caixinha) return texto;
+  const quebra = /\r\n?|\n/g;
+  let de = 0;
+  for (let n = 0; n < linha; n++) {
+    const m = quebra.exec(texto);
+    if (m) de = m.index + m[0].length;
+  }
+  const onde = de + POSICAO_DA_CAIXINHA, vira = texto.charAt(onde) === CAIXINHA.vazia ? CAIXINHA.marcada : CAIXINHA.vazia;
+  return texto.slice(0, onde) + vira + texto.slice(onde + 1);
 }
 
 /** O texto da caixa e o trecho escolhido nela, antes e depois de um botão ou atalho. */
@@ -221,12 +450,11 @@ function bordas(linha: string) {
 /**
  * Põe a marca em volta do trecho escolhido, ou a tira se ele já está marcado (por fora ou por dentro da escolha). Os espaços
  * das pontas ficam fora da marca, e um trecho de várias linhas ganha a marca em cada linha (a marca vale numa linha só). Sem
- * trecho escolhido, põe as duas marcas e deixa o cursor entre elas, para a pessoa escrever. O itálico conta os asteriscos
- * seguidos: um número ímpar ("*" ou "***") tem itálico; o negrito, dois ou mais.
+ * trecho escolhido, põe as duas marcas e deixa o cursor entre elas, para a pessoa escrever. Se o trecho já tem a marca, conta
+ * os caracteres seguidos dela (TEM_A_MARCA).
  */
-export function alternarMarca({ texto, inicio, fim }: Escolha, marca: Marca): Escolha {
-  const m = MARCA_NO_TEXTO[marca], t = m.length, ch = m.charAt(0), escolhido = texto.slice(inicio, fim);
-  const tem = (n: number) => marca === 'negrito' ? n >= 2 : n % 2 === 1;
+export function alternarMarca({ texto, inicio, fim }: Escolha, marca: MarcaDoBotao): Escolha {
+  const m = MARCA_NO_TEXTO[marca], t = m.length, ch = m.charAt(0), escolhido = texto.slice(inicio, fim), tem = TEM_A_MARCA[marca];
   const seguidos = (s: string, de: number, passo: 1 | -1) => { let n = 0; while (s.charAt(de + n * passo) === ch) n++; return n; };
   if (tem(seguidos(texto, inicio - 1, -1)) && tem(seguidos(texto, fim, 1)))
     return { texto: texto.slice(0, inicio - t) + escolhido + texto.slice(fim + t), inicio: inicio - t, fim: fim - t };
@@ -241,19 +469,62 @@ export function alternarMarca({ texto, inicio, fim }: Escolha, marca: Marca): Es
   return { texto: texto.slice(0, inicio) + b.antes + m + b.miolo + m + b.depois + texto.slice(fim), inicio: comeco, fim: comeco + b.miolo.length };
 }
 
+/** Onde começam e terminam (sem a quebra) as linhas que a escolha toca, inteiras. */
+function linhasDaEscolha(texto: string, inicio: number, fim: number) {
+  const de = inicio ? texto.lastIndexOf('\n', inicio - 1) + 1 : 0, quebra = texto.indexOf('\n', Math.max(fim - 1, inicio));
+  return { de, ate: quebra < 0 ? texto.length : quebra };
+}
+
 /**
  * Põe o começo de linha do botão (INICIO_NO_TEXTO) em cada linha do trecho escolhido, ou tira de todas se todas já o têm. Os
- * começos não se somam: um item de lista que vira título perde o "- ", e um "# " vira "## ". Sem trecho, o cursor fica onde
- * estava (anda junto com o texto).
+ * começos não se somam: um item de lista que vira título perde o "- ", e um "# " vira "## ". Ao pôr, a linha que já tem o
+ * começo do botão fica como está (menos na numerada, veja "mantem" em INICIO_NO_TEXTO). Sem trecho, o cursor fica onde estava
+ * (anda junto com o texto).
  */
 export function alternarInicioDeLinha({ texto, inicio, fim }: Escolha, tipo: InicioDeLinha): Escolha {
-  const p = INICIO_NO_TEXTO[tipo];
-  const de = inicio ? texto.lastIndexOf('\n', inicio - 1) + 1 : 0, quebra = texto.indexOf('\n', Math.max(fim - 1, inicio)), ate = quebra < 0 ? texto.length : quebra;
-  const linhas = texto.slice(de, ate).split('\n'), todas = linhas.every(l => l.startsWith(p)), novo = todas ? '' : p;
-  const novas = linhas.map(l => novo + l.slice(inicioDaLinha(l).inicio.length)).join('\n');
-  const antigo = inicioDaLinha(linhas[0]).inicio.length, cursor = de + Math.max(novo.length, inicio - de - antigo + novo.length);
+  const { tem, poe, mantem } = INICIO_NO_TEXTO[tipo], { de, ate } = linhasDaEscolha(texto, inicio, fim);
+  const linhas = texto.slice(de, ate).split('\n'), todas = linhas.every(l => tem.test(l));
+  const novo = (l: string, i: number) => todas ? '' : mantem && tem.test(l) ? comecoDaLinha(l) : poe(i);
+  const novas = linhas.map((l, i) => novo(l, i) + l.slice(comecoDaLinha(l).length)).join('\n');
+  const antigo = comecoDaLinha(linhas[0]).length, primeiro = novo(linhas[0], 0).length;
+  const cursor = de + Math.max(primeiro, inicio - de - antigo + primeiro);
   return { texto: texto.slice(0, de) + novas + texto.slice(ate), inicio: cursor, fim: inicio === fim ? cursor : de + novas.length };
 }
+
+/** O número da linha do texto (a primeira é a 0) em que está a posição. */
+const numeroDaLinha = (texto: string, posicao: number) => texto.slice(0, posicao).split('\n').length - 1;
+
+/**
+ * Diz se, na leitura do texto (a mesma que o mostra), um bloco de código abre na linha "abre" e fecha exatamente na linha
+ * "fecha". Assim o ``` que fecha um bloco anterior nunca é tomado pela cerca que abre outro.
+ */
+function codigoEntre(texto: string, abre: number, fecha: number): boolean {
+  const linhas = texto.split('\n');
+  let i = 0;
+  while (i < abre) i = lerBloco(linhas, i).proxima;
+  const lido = i === abre ? lerCodigo(linhas, abre) : null;
+  return !!lido && lido.proxima === fecha + 1;
+}
+
+/**
+ * Faz das linhas do trecho escolhido um bloco de código (uma linha ``` antes e outra depois), ou tira as cercas se o trecho é
+ * todo o miolo de um bloco de código, ou se ele é um bloco inteiro, com as cercas. O que fica dentro continua escolhido.
+ */
+export function alternarBlocoDeCodigo({ texto, inicio, fim }: Escolha): Escolha {
+  const { de, ate } = linhasDaEscolha(texto, inicio, fim), linhas = texto.slice(de, ate).split('\n'), primeira = numeroDaLinha(texto, de);
+  const antes = de > 0 ? linhaEm(texto, de - 1) : undefined, depois = ate < texto.length ? linhaEm(texto, ate + 1) : undefined;
+  if (antes && depois && codigoEntre(texto, primeira - 1, primeira + linhas.length)) {
+    const miolo = texto.slice(de, ate);
+    return { texto: texto.slice(0, antes.de) + miolo + texto.slice(depois.ate), inicio: antes.de, fim: antes.de + miolo.length };
+  }
+  const cercado = linhas.length >= 2 && codigoEntre(texto, primeira, primeira + linhas.length - 1);
+  const miolo = (cercado ? linhas.slice(1, -1) : linhas).join('\n');
+  const novo = cercado ? miolo : CERCA_DE_CODIGO + '\n' + miolo + '\n' + CERCA_DE_CODIGO;
+  const comeco = cercado ? de : de + CERCA_DE_CODIGO.length + 1;
+  return { texto: texto.slice(0, de) + novo + texto.slice(ate), inicio: comeco, fim: comeco + miolo.length };
+}
+/** O botão Código: num trecho de várias linhas, o bloco de código; numa linha só (ou sem trecho), o código em linha (`assim`). */
+export const alternarCodigo = (e: Escolha) => e.texto.slice(e.inicio, e.fim).includes('\n') ? alternarBlocoDeCodigo(e) : alternarMarca(e, 'codigo');
 
 /** Põe "- " no começo de cada linha do trecho escolhido, ou tira de todas se todas já são da lista. */
 export const alternarLista = (e: Escolha) => alternarInicioDeLinha(e, 'lista');

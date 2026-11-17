@@ -326,3 +326,60 @@ test.describe('O cadastro e o cartão da anotação, nos casos de canto', () => 
     await expect(doMateus.getByText(/Compartilhada com/).last()).toBeVisible();
   });
 });
+
+test.describe('O texto da anotação com o Markdown completo (#344)', () => {
+  test('dada uma anotação com "- [ ] item", quando a pessoa clica na caixinha, então ela fica marcada e continua marcada ao reabrir', async ({ page }) => {
+    // Dado
+    let cartao = await criarAnotacao(page, 'Lista do protocolo', { texto: 'Levar:\n- [ ] Procuração\n- [x] Comprovante' });
+    const procuracao = cartao.getByRole('checkbox', { name: 'Procuração' });
+    await expect(procuracao).not.toBeChecked();
+    await expect(cartao.getByRole('checkbox', { name: 'Comprovante' })).toBeChecked();
+    // Quando
+    await procuracao.click();
+    // Então
+    await expect(page.getByText('Anotação atualizada.')).toBeVisible();
+    await expect(procuracao).toBeChecked();
+    // Quando: reabre a anotação
+    cartao = await abrirAnotacao(page, 'Lista do protocolo');
+    // Então
+    await expect(cartao.getByRole('checkbox', { name: 'Procuração' })).toBeChecked();
+    await expect(cartao.getByRole('checkbox', { name: 'Comprovante' })).toBeChecked();
+    // E o texto guardado mudou junto
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await expect(cartao.getByLabel('Texto', { exact: true })).toHaveValue('Levar:\n- [x] Procuração\n- [x] Comprovante');
+  });
+
+  test('dada uma anotação com caixinhas, quando quem só a lê abre o cartão, então as caixinhas aparecem, mas não se marcam', async ({ page }) => {
+    // Dado: o Mateus escreve uma anotação ligada a uma demanda em que o Bruno está
+    await page.goto('/inicio/');
+    const demanda = await idDaDemanda(page, 'Registro de marca');
+    await criarAnotacao(page, 'Conferência do registro', { texto: '- [ ] Ver o INPI', endereco: '/documentos/nova/?demanda=' + demanda });
+    // Quando
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirAnotacao(page, 'Conferência do registro');
+    // Então
+    const caixinha = cartao.getByRole('checkbox', { name: 'Ver o INPI' });
+    await expect(caixinha).toBeDisabled();
+    await expect(caixinha).not.toBeChecked();
+  });
+
+  test('quando a pessoa escreve lista numerada, citação, tachado, código, divisória e tabela, então o cartão mostra cada um formatado, sem as marcas', async ({ page }) => {
+    // Dado / Quando
+    const cartao = await criarAnotacao(page, 'Resumo da audiência', { texto: [
+      '1. Abertura', '2. Depoimentos', '> O juiz disse que ~~não~~ vai decidir hoje.', '---', 'Comando: `**não** é negrito`',
+      '```', '<script>alert(1)</script>', '```', '| Parte | Valor |', '|---|--:|', '| Autor | R$ 10 |'
+    ].join('\n') });
+    // Então
+    await expect(cartao.getByRole('list').filter({ hasText: 'Abertura' }).getByRole('listitem')).toHaveText(['Abertura', 'Depoimentos']);
+    await expect(cartao.locator('blockquote')).toHaveText('O juiz disse que não vai decidir hoje.');
+    await expect(cartao.locator('del', { hasText: 'não' })).toBeVisible();
+    await expect(cartao.getByRole('separator')).toBeVisible();
+    await expect(cartao.locator('code', { hasText: '**não** é negrito' })).toBeVisible();
+    await expect(cartao.locator('pre')).toHaveText('<script>alert(1)</script>');
+    await expect(cartao.locator('script')).toHaveCount(0);
+    const tabela = cartao.getByRole('table');
+    await expect(tabela.getByRole('columnheader')).toHaveText(['Parte', 'Valor']);
+    await expect(tabela.getByRole('cell')).toHaveText(['Autor', 'R$ 10']);
+    await expect(cartao.getByText('|---|')).toHaveCount(0);
+  });
+});

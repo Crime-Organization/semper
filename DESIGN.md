@@ -122,6 +122,7 @@ Regras:
 | `{typography.body}` | 16px | 400 | 1.65 | 0 | Textos corridos, anotações, publicações |
 | `{typography.card-title}` | 15px | 700 | 1.35 | 0 | Título do cartão no kanban |
 | `{typography.text-heading}` | 19 / 17 / 15px | 900 | 1.3 | −.01em | Títulos `#`, `##` e `###` dentro do texto formatado (h3, h4 e h5; variáveis `--texto-titulo-1` a `-3`), em `{colors.ink}` |
+| `{typography.text-table}` | 14px | 400 / 800 | 1.5 | 0 | Tabelas dentro do texto formatado (variável `--texto-tabela`; o cabeçalho em 800, `{colors.ink}`) |
 | `{typography.button}` | 15–16px | 700 / 900 | 1 | 0 | Botões (900 no principal) |
 | `{typography.eyebrow}` | 13px | 700 | 1.4 | .2em | `.olho`, em caixa alta |
 | `{typography.label-caps}` | 11–12px | 900 | 1.4 | .12–.18em | Cabeçalhos de coluna, selos, tags, em caixa alta |

@@ -51,6 +51,10 @@ const ICONES = {
   divisao: '<path d="M12 4a8 8 0 108 8h-8z"/><path d="M15 3.5a8 8 0 015.5 5.5H15z"/>',
   texto: '<path d="M5 6h14M5 10h14M5 14h14M5 18h9"/>',
   lista: '<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>',
+  numerada: '<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 4.5l1.5-1v5M3.5 8.5h3.5"/><path d="M3.5 15a1.6 1.6 0 013.2.3c0 1.2-3.2 2.2-3.2 3.7h3.3"/>',
+  caixinha: '<rect x="3" y="4" width="6" height="6" rx="1.2"/><path d="M4.6 7l1.2 1.2 2-2.3"/><rect x="3" y="14" width="6" height="6" rx="1.2"/><path d="M13 7h8M13 17h8"/>',
+  citacao: '<path d="M4.5 5v14"/><path d="M9 7h11M9 12h11M9 17h7"/>',
+  codigo: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/>',
   anexo: '<path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.1-8.1a3.3 3.3 0 014.7 4.7l-8.1 8.1a1.7 1.7 0 01-2.4-2.4l7.4-7.4"/>'
 };
 export type NomeIcone = keyof typeof ICONES;

@@ -1,5 +1,5 @@
 // Cadastro de anotação do módulo Documentos (#303), numa etapa só: o título, o texto (com negrito, itálico, títulos, listas
-// e links), o responsável e com quem ela é compartilhada. Vindo do cartão de um item (?pessoa=, ?processo=, ?contrato=,
+// e links e, desde a #344, o Markdown comum: tarefas, listas numeradas, citações, código, tabelas), o responsável e com quem ela é compartilhada. Vindo do cartão de um item (?pessoa=, ?processo=, ?contrato=,
 // ?demanda=, ?tarefa= ou ?compromisso=), a anotação nasce ligada a ele e, ao salvar, a janela fecha e volta ao cartão.
 // Pelo lápis do cartão da anotação, o mesmo formulário edita.
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
@@ -139,7 +139,7 @@ export default function NovaAnotacao({ edicao }: { edicao?: EdicaoNoCartao } = {
     <Campo rotulo="Título" para="titulo" obrigatorio erro={erros.titulo}>
       <input type="text" {...propsDoCampo('titulo', { erro: erros.titulo })} maxLength={TAMANHO_ANOTACAO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
     </Campo>
-    <Campo rotulo="Texto" para="texto" erro={erros.texto} dica="Use # para títulos, - para listas e [texto](https://…) para links, ou os botões da barra.">
+    <Campo rotulo="Texto" para="texto" erro={erros.texto} dica="Use # para títulos, - para listas, - [ ] para tarefas, 1. para listas numeradas, > para citações, `código` e [texto](https://…) para links, ou os botões da barra.">
       <CaixaFormatada {...propsDoCampo('texto', { dica: true, erro: erros.texto })} className="anotacao-caixa" maxLength={TAMANHO_ANOTACAO.texto} valor={c.texto}
         aoMudar={texto => mudar({ texto })} />
     </Campo>

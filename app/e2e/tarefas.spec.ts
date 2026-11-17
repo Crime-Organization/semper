@@ -723,7 +723,8 @@ test.describe('Descrição com negrito, itálico e listas (#293)', () => {
     await escolher(24, 35);
     await descricao.press('Control+i');
     await escolher(38, 44);
-    await page.getByRole('button', { name: 'Lista' }).click();
+    // Desde a #344 há também "Lista numerada" e "Lista de tarefas" na barra
+    await page.getByRole('button', { name: 'Lista', exact: true }).click();
     // Então
     await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\n- RG\n- CPF');
     // Quando: Ctrl+Z desfaz só a última marca (a lista), e Ctrl+Y a refaz
@@ -751,5 +752,28 @@ test.describe('Descrição com negrito, itálico e listas (#293)', () => {
     await page.getByRole('searchbox').fill('procuração');
     // Então
     await expect(page.getByRole('row').filter({ hasText: 'Juntar os documentos' })).toBeVisible();
+  });
+});
+
+test.describe('Descrição com o Markdown completo (#344)', () => {
+  test('quando a pessoa escreve uma lista de tarefas, uma numerada e código na descrição, então o cartão mostra tudo formatado, e as caixinhas só para ler', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/nova/');
+    await page.getByLabel('Título').fill('Preparar o protocolo');
+    // Quando
+    await page.getByRole('textbox', { name: 'Descrição' }).fill(['- [ ] Imprimir a petição', '- [x] Assinar', '1. Guia', '2. Cópias', 'Rodar `npm run teste`'].join('\n'));
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar tarefa' }).click();
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Preparar o protocolo' })).toBeVisible();
+    const imprimir = cartao.getByRole('checkbox', { name: 'Imprimir a petição' }), assinar = cartao.getByRole('checkbox', { name: 'Assinar' });
+    await expect(imprimir).not.toBeChecked();
+    await expect(assinar).toBeChecked();
+    await expect(imprimir).toBeDisabled();
+    await expect(cartao.getByRole('list').filter({ hasText: 'Guia' }).getByRole('listitem')).toHaveText(['Guia', 'Cópias']);
+    await expect(cartao.locator('code', { hasText: 'npm run teste' })).toBeVisible();
+    await expect(cartao.getByText('- [ ]', { exact: false })).toHaveCount(0);
   });
 });

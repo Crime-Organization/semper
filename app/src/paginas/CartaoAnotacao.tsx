@@ -1,7 +1,7 @@
 // Cartão da anotação (painel ao lado ou janela no centro), no modelo dos outros cartões (#303): no topo, o código e as ações;
 // o título e o texto formatado, em medida de leitura; a equipe; os itens a que ela está ligada, com a busca para ligar a
 // mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada.
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO } from '../dados/limites';
 import { alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO } from '../regras/anotacao';
@@ -51,9 +51,25 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
   const [editando, setEditando] = useState(false);
+  /**
+   * As caixinhas marcadas uma atrás da outra: são gravadas em fila, na ordem dos cliques. Enquanto há gravação pendente, nenhuma
+   * leitura do banco troca o texto da tela (ela viria sem os cliques ainda na fila, e o próximo clique partiria dela e os
+   * apagaria). "confirmado" é o último texto que o banco aceitou, para a tela voltar a ele se uma gravação falhar; "geracao" muda
+   * na falha, e as gravações que já estavam na fila, calculadas sobre o clique que falhou, são descartadas.
+   */
+  const caixinhas = useRef({ fila: Promise.resolve(), pendentes: 0, confirmado: '', geracao: 0 });
+  /** Cada leitura da anotação ganha um número, e só vale a resposta da mais recente (as respostas podem chegar fora de ordem). */
+  const leitura = useRef(0);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
-  const carregar = useCallback(() => SD.anotacaoObter(id).then(x => { setA(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
+  const carregar = useCallback(() => {
+    const esta = ++leitura.current;
+    return SD.anotacaoObter(id).then(x => {
+      if (esta !== leitura.current || caixinhas.current.pendentes) return;   // velha, ou há caixinha na fila: a fila lê no fim
+      setA(x);
+      setErro('');
+    }).catch(e => setErro((e as Error).message));
+  }, [id]);
   const carregarItens = useCallback(() => SD.anotacaoItens(id).then(setItens).catch(e => setItens((e as Error).message)), [id]);
   useEffect(() => { void carregar(); void carregarItens(); }, [carregar, carregarItens]);
   // Depois de desfazer: mostra a anotação como ficou.
@@ -100,6 +116,34 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       depois();
     } catch (e) { falha(e); }
   }
+  /**
+   * Marca ou desmarca uma caixinha da lista de tarefas do texto: a caixinha muda na hora e o texto novo é gravado como na edição
+   * (com o aviso e o desfazer). O texto novo parte do que está na tela, que já tem os cliques anteriores, mesmo os ainda na fila
+   * (veja "caixinhas"). Se uma gravação falhar, a tela volta ao último texto gravado, e os cliques seguintes já na fila não são
+   * gravados. Quando a fila esvazia, a anotação é lida de novo.
+   */
+  function marcarCaixinha(texto: string) {
+    const c = caixinhas.current, antes = a!.texto, id = a!.id, geracao = c.geracao;
+    if (!c.pendentes) c.confirmado = antes;
+    c.pendentes++;
+    setA(atual => atual && { ...atual, texto });
+    c.fila = c.fila.then(async () => {
+      if (geracao !== c.geracao) return;   // um clique anterior não foi gravado, e este partiu dele: fica de fora
+      try {
+        await SD.anotacaoAtualizar(id, { texto });
+        c.confirmado = texto;
+        feito('Anotação atualizada.', 'atualização da anotação', async () => {
+          await SD.anotacaoAtualizar(id, { texto: antes });
+          return { tipo: 'anotacaoAtualizada', id };
+        });
+      } catch (e) {
+        const gravado = c.confirmado;
+        c.geracao++;
+        falha(e);
+        setA(atual => atual && { ...atual, texto: gravado });
+      }
+    }).then(() => { if (--c.pendentes === 0) depois(); });
+  }
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) depois();
@@ -131,7 +175,7 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
         : 'Anotação arquivada. Só quem a escreveu ou um administrador pode excluí-la.'}</span>
     </div>}
 
-    {a.texto.trim() ? <TextoFormatado className="anotacao-texto" texto={a.texto} /> : <Nota>Sem texto ainda.{podeAlterar && !a.arquivado_em ? ' Escreva pelo lápis do cartão.' : ''}</Nota>}
+    {a.texto.trim() ? <TextoFormatado className="anotacao-texto" texto={a.texto} aoMarcar={podeAlterar && !a.arquivado_em ? marcarCaixinha : undefined} /> : <Nota>Sem texto ainda.{podeAlterar && !a.arquivado_em ? ' Escreva pelo lápis do cartão.' : ''}</Nota>}
 
     <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={totalLigados}>
       {itens === null ? <Carregando />

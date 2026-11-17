@@ -1,21 +1,23 @@
-// Texto com negrito, itálico, listas (#293), títulos e links (#303): o texto já formatado, para ler, e a caixa de escrever com
-// os botões B, I, cabeçalho, lista e link e os atalhos Ctrl+B e Ctrl+I. As marcas são lidas em regras/formatacao.ts; aqui só há
-// elementos do React, nunca HTML solto, então o que alguém escrever parecido com código de página aparece como texto, e o
+// Texto com negrito, itálico, listas (#293), títulos e links (#303) e, desde a #344, o Markdown comum: listas de tarefas
+// (caixinhas), listas numeradas, citações, tachado, código, linha divisória e tabelas. Aqui ficam o texto já formatado, para ler,
+// e a caixa de escrever com a barra de botões e os atalhos Ctrl+B e Ctrl+I. As marcas são lidas em regras/formatacao.ts; aqui só
+// há elementos do React, nunca HTML solto, então o que alguém escrever parecido com código de página aparece como texto, e o
 // endereço de um link só sai de linkPermitido (http, https e mailto).
 import { Fragment, useRef, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import {
-  TAMANHO_DO_ENDERECO, alternarLista, alternarMarca, alternarTitulo, blocosDoTexto, linkPermitido, porLink, tirarLink,
-  type Bloco, type Escolha, type Marca, type NivelTitulo, type Pedaco, type TipoBloco
+  TAMANHO_DO_ENDERECO, alternarCodigo, alternarInicioDeLinha, alternarItemDeTarefa, alternarLista, alternarMarca, alternarTitulo,
+  blocosDoTexto, linkPermitido, porLink, tirarLink,
+  type Bloco, type BlocoDo, type Escolha, type Marca, type MarcaDoBotao, type NivelTitulo, type Pedaco, type TipoBloco
 } from '../../regras/formatacao';
 import { avisar } from '../avisos';
-import { Icone } from '../Icone';
+import { Icone, type NomeIcone } from '../Icone';
 import { pedirTexto } from '../janela';
 import { estiloBotao } from './botao';
 
 /** O elemento de cada destaque. */
-const ELEMENTO: Record<Marca, 'strong' | 'em'> = { negrito: 'strong', italico: 'em' };
+const ELEMENTO: Record<Marca, 'strong' | 'em' | 'del' | 'code'> = { negrito: 'strong', italico: 'em', tachado: 'del', codigo: 'code' };
 /** Os atalhos da caixa (com Ctrl, ou Cmd no Mac). */
-const ATALHOS: Record<string, Marca> = { b: 'negrito', i: 'italico' };
+const ATALHOS: Record<string, MarcaDoBotao> = { b: 'negrito', i: 'italico' };
 /**
  * O elemento de cada nível de título. Começa no h3: o cartão já usa h2 no nome do item e h3 nas seções, e um "#" escrito
  * no texto não pode virar o título da página.
@@ -23,6 +25,8 @@ const ATALHOS: Record<string, Marca> = { b: 'negrito', i: 'italico' };
 const ELEMENTO_DO_TITULO: Record<NivelTitulo, 'h3' | 'h4' | 'h5'> = { 1: 'h3', 2: 'h4', 3: 'h5' };
 /** O começo do endereço que abre o programa de e-mail: esse link não abre aba nova. */
 const DE_EMAIL = 'mailto:';
+/** O nome da caixinha de um item da lista de tarefas sem texto. */
+const ITEM_SEM_TEXTO = 'Item sem texto';
 
 function Marcas({ p }: { p: Pedaco }) {
   return p.marcas.reduceRight<ReactNode>((dentro, m) => { const E = ELEMENTO[m]; return <E>{dentro}</E>; }, p.texto);
@@ -50,22 +54,70 @@ function Pedacos({ pedacos }: { pedacos: Pedaco[] }) {
 
 /** As linhas comuns, como foram escritas: uma quebra entre elas (o pre-wrap do estilo mantém as quebras). */
 const Linhas = ({ b }: { b: Bloco }) => b.linhas.map((l, j) => <Fragment key={j}>{j > 0 && '\n'}<Pedacos pedacos={l} /></Fragment>);
+/** O texto de uma linha, sem os destaques. */
+const textoDaLinha = (l: Pedaco[]) => l.map(p => p.texto).join('');
+
+/** A tabela: as células vêm em sequência, uma por coluna em cada linha, e a primeira linha é o cabeçalho. */
+function Tabela({ b }: { b: BlocoDo<'tabela'> }) {
+  const n = b.colunas.length, linhas: Pedaco[][][] = [];
+  for (let i = 0; i < b.linhas.length; i += n) linhas.push(b.linhas.slice(i, i + n));
+  const [cabecalho, ...corpo] = linhas;
+  const celula = (E: 'th' | 'td') => (c: Pedaco[], k: number) =>
+    <E key={k} data-alinhamento={b.colunas[k] ?? undefined}><Pedacos pedacos={c} /></E>;
+  // A tabela larga rola de lado dentro da sua caixa, sem alargar o cartão.
+  return <div className="texto-formatado-tabela">
+    <table>
+      <thead><tr>{cabecalho.map(celula('th'))}</tr></thead>
+      {corpo.length > 0 && <tbody>{corpo.map((l, j) => <tr key={j}>{l.map(celula('td'))}</tr>)}</tbody>}
+    </table>
+  </div>;
+}
+
+/** O que o desenho de um bloco recebe além dele: como marcar a caixinha de uma linha do texto (sem isso, as caixinhas só se veem). */
+interface Desenho { marcar?: (linha: number) => void }
 
 /** Como cada tipo de bloco aparece. */
-const BLOCO: { [T in TipoBloco]: (b: Extract<Bloco, { tipo: T }>) => ReactNode } = {
+const BLOCO: { [T in TipoBloco]: (b: BlocoDo<T>, d: Desenho) => ReactNode } = {
   texto: b => <p><Linhas b={b} /></p>,
   lista: b => <ul>{b.linhas.map((l, j) => <li key={j}><Pedacos pedacos={l} /></li>)}</ul>,
-  titulo: b => { const H = ELEMENTO_DO_TITULO[b.nivel]; return <H><Linhas b={b} /></H>; }
+  tarefas: (b, { marcar }) => <ul className="texto-formatado-tarefas">{b.linhas.map((l, j) => {
+    const c = b.caixinhas[j];
+    return <li key={j}>
+      {/* O clique na caixinha não abre o item em volta, como o do link. */}
+      <input type="checkbox" checked={c.marcada} disabled={!marcar} aria-label={textoDaLinha(l) || ITEM_SEM_TEXTO}
+        onChange={() => marcar?.(c.linha)} onClick={e => e.stopPropagation()} />
+      <span><Pedacos pedacos={l} /></span>
+    </li>;
+  })}</ul>,
+  numerada: b => <ol start={b.inicio}>{b.linhas.map((l, j) => <li key={j}><Pedacos pedacos={l} /></li>)}</ol>,
+  citacao: b => <blockquote><Linhas b={b} /></blockquote>,
+  titulo: b => { const H = ELEMENTO_DO_TITULO[b.nivel]; return <H><Linhas b={b} /></H>; },
+  codigo: b => <pre><code>{b.linhas.map(textoDaLinha).join('\n')}</code></pre>,
+  divisoria: () => <hr />,
+  tabela: b => <Tabela b={b} />
 };
-const desenhar = (b: Bloco) => (BLOCO[b.tipo] as (b: Bloco) => ReactNode)(b);
+const desenhar = (b: Bloco, d: Desenho) => (BLOCO[b.tipo] as (b: Bloco, d: Desenho) => ReactNode)(b, d);
+
+interface PropsTexto {
+  texto: string;
+  className?: string;
+  /**
+   * Quem pode mudar o texto marca e desmarca as caixinhas da lista de tarefas: recebe o texto novo, com a caixinha trocada.
+   * Sem isso, as caixinhas aparecem marcadas ou não, mas desabilitadas.
+   */
+  aoMarcar?: (texto: string) => void;
+}
 
 /**
- * O texto já formatado. As linhas comuns ficam como foram escritas, com as quebras; as que começam com "- " viram lista, as
- * que começam com "#", "##" ou "###" e um espaço viram títulos, e [texto](endereço) vira link.
+ * O texto já formatado. As linhas comuns ficam como foram escritas, com as quebras; as que começam com "- " viram lista ("- [ ] "
+ * e "- [x] ", caixinhas), "1. " lista numerada, "> " citação, "#", "##" ou "###" e um espaço viram títulos, o que fica entre
+ * linhas com ``` é código, "---" é uma linha divisória, as linhas com "|" sobre um "|---|" são uma tabela, e [texto](endereço)
+ * vira link.
  */
-export function TextoFormatado({ texto, className }: { texto: string; className?: string }) {
+export function TextoFormatado({ texto, className, aoMarcar }: PropsTexto) {
+  const desenho: Desenho = { marcar: aoMarcar && (linha => aoMarcar(alternarItemDeTarefa(texto, linha))) };
   return <div className={['texto-formatado', className].filter(Boolean).join(' ')}>
-    {blocosDoTexto(texto).map((b, i) => <Fragment key={i}>{desenhar(b)}</Fragment>)}
+    {blocosDoTexto(texto).map((b, i) => <Fragment key={i}>{desenhar(b, desenho)}</Fragment>)}
   </div>;
 }
 
@@ -74,11 +126,24 @@ function digitar(texto: string) {
   try { return document.execCommand('insertText', false, texto); } catch { return false; }
 }
 
+/** Os botões com ícone da barra, na ordem em que aparecem entre o Itálico e o Link. */
+const BOTOES: { rotulo: string; icone: NomeIcone; fazer: (e: Escolha) => Escolha }[] = [
+  { rotulo: 'Cabeçalho', icone: 'texto', fazer: alternarTitulo },
+  { rotulo: 'Lista', icone: 'lista', fazer: alternarLista },
+  { rotulo: 'Lista numerada', icone: 'numerada', fazer: e => alternarInicioDeLinha(e, 'numerada') },
+  { rotulo: 'Lista de tarefas', icone: 'caixinha', fazer: e => alternarInicioDeLinha(e, 'tarefa') },
+  { rotulo: 'Citação', icone: 'citacao', fazer: e => alternarInicioDeLinha(e, 'citacao') },
+  { rotulo: 'Código', icone: 'codigo', fazer: alternarCodigo }
+];
+/** O tamanho dos ícones da barra. */
+const TAMANHO_DO_ICONE = 15;
+
 type PropsCaixa =Omit<ComponentProps<'textarea'>, 'value' | 'onChange' | 'ref'> & { valor: string; aoMudar: (texto: string) => void };
 
 /**
- * A caixa de escrever com a barra B, I, cabeçalho, lista e link. Fica dentro de <Campo>, com as props de propsDoCampo. Ctrl+B e
- * Ctrl+I só valem com o foco na caixa, e não deixam o navegador abrir os favoritos (Firefox).
+ * A caixa de escrever com a barra B, I, cabeçalho, listas (comum, numerada e de tarefas), citação, código e link. Fica dentro de
+ * <Campo>, com as props de propsDoCampo. Ctrl+B e Ctrl+I só valem com o foco na caixa, e não deixam o navegador abrir os
+ * favoritos (Firefox).
  */
 export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCaixa) {
   const caixa = useRef<HTMLTextAreaElement>(null);
@@ -88,8 +153,8 @@ export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCai
   };
   /**
    * Troca o texto da caixa pelo resultado do botão, a partir da escolha dada (ou da que está na caixa agora). Diz se trocou: se o
-   * resultado passa do tamanho da caixa, nada muda (B, I, cabeçalho e lista ficam calados; o Link avisa, porque a pessoa escreveu
-   * um endereço).
+   * resultado passa do tamanho da caixa, nada muda (os botões de marca e de começo de linha ficam calados; o Link avisa, porque a
+   * pessoa escreveu um endereço).
    */
   function aplicar(fazer: (e: Escolha) => Escolha, escolha = escolhaAtual()): boolean {
     const el = caixa.current;
@@ -104,7 +169,7 @@ export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCai
     setTimeout(() => { el.focus(); el.setSelectionRange(r.inicio, r.fim); }, 0);
     return true;
   }
-  const marcar = (marca: Marca) => aplicar(e => alternarMarca(e, marca));
+  const marcar = (marca: MarcaDoBotao) => aplicar(e => alternarMarca(e, marca));
   /** Sobre um link, tira o link; fora dele, pede o endereço (a escolha fica guardada enquanto a janela está aberta). */
   async function link() {
     const escolha = escolhaAtual();
@@ -134,9 +199,9 @@ export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCai
     <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={resto.id}>
       <button type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>
       <button type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>
-      <button type="button" className={botao} aria-label="Cabeçalho" title="Cabeçalho" onClick={() => aplicar(alternarTitulo)}><Icone nome="texto" tam={15} /></button>
-      <button type="button" className={botao} aria-label="Lista" title="Lista" onClick={() => aplicar(alternarLista)}><Icone nome="lista" tam={15} /></button>
-      <button type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={15} /></button>
+      {BOTOES.map(({ rotulo, icone, fazer }) =>
+        <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>)}
+      <button type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
     </div>
     <textarea ref={caixa} {...resto} value={valor} onChange={e => aoMudar(e.target.value)} onKeyDown={teclar} />
   </div>;

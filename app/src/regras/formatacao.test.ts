@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  TAMANHO_DO_ENDERECO, alternarInicioDeLinha, alternarLista, alternarMarca, alternarTitulo, blocosDoTexto, linkPermitido, pedacosDaLinha,
-  porLink, tirarLink, type Escolha, type Marca
+  TAMANHO_DO_ENDERECO, alternarCodigo, alternarInicioDeLinha, alternarItemDeTarefa, alternarLista, alternarMarca, alternarTitulo,
+  blocosDoTexto, linkPermitido, pedacosDaLinha, porLink, tirarLink, type Escolha, type Marca
 } from './formatacao';
 
 const so = (texto: string) => ({ texto, marcas: [] });
@@ -427,5 +427,244 @@ describe('O botão Link lê os links como a leitura (#303)', () => {
   it.each([['«[nota] importante»'], ['C:\\«pasta»']])('dado o trecho "%s", que não seria lido como link, quando põe o link, então o botão recusa', antes => {
     // Então
     expect(porLink(escolhaLink(antes), SITE)).toBeNull();
+  });
+});
+
+describe('Listas de tarefas (#344)', () => {
+  it('dadas linhas com "- [ ] " e "- [x] ", quando lê, então viram uma lista de tarefas, com cada caixinha e a linha dela no texto', () => {
+    // Quando
+    const b = blocosDoTexto('Para sexta:\n- [ ] Juntar RG\n- [x] Pagar **custas**\n- [X] Protocolar\n- [ ]');
+    // Então
+    expect(b).toEqual([
+      { tipo: 'texto', linhas: [[so('Para sexta:')]] },
+      {
+        tipo: 'tarefas',
+        caixinhas: [{ marcada: false, linha: 1 }, { marcada: true, linha: 2 }, { marcada: true, linha: 3 }, { marcada: false, linha: 4 }],
+        linhas: [[so('Juntar RG')], [so('Pagar '), { texto: 'custas', marcas: ['negrito'] }], [so('Protocolar')], []]
+      }
+    ]);
+  });
+
+  it.each([['- [a] item'], ['- [ ]item'], ['- []  item']])('dado "%s", quando lê, então é um item de lista comum, sem caixinha', texto => {
+    // Então
+    expect(blocosDoTexto(texto)).toEqual([{ tipo: 'lista', linhas: [[so(texto.slice(2))]] }]);
+  });
+
+  it('dada a linha de uma caixinha vazia, quando a marca, então só o espaço entre os colchetes vira "x"; marcando de novo, volta', () => {
+    // Dado
+    const texto = 'Tarefas\r\n- [ ] RG\r\n- [x] CPF';
+    // Quando
+    const marcado = alternarItemDeTarefa(texto, 1);
+    // Então
+    expect(marcado).toBe('Tarefas\r\n- [x] RG\r\n- [x] CPF');
+    // Quando
+    const desmarcado = alternarItemDeTarefa(alternarItemDeTarefa(marcado, 2), 1);
+    // Então
+    expect(desmarcado).toBe('Tarefas\r\n- [ ] RG\r\n- [ ] CPF');
+  });
+
+  it('dada uma linha que não é caixinha (texto comum ou dentro de um código), quando tenta marcá-la, então o texto fica igual', () => {
+    // Dado
+    const texto = 'Texto\n```\n- [ ] dentro do código\n```\n- [ ] fora';
+    // Então
+    expect(alternarItemDeTarefa(texto, 0)).toBe(texto);
+    expect(alternarItemDeTarefa(texto, 2)).toBe(texto);
+    expect(alternarItemDeTarefa(texto, 9)).toBe(texto);
+    expect(alternarItemDeTarefa(texto, 4)).toBe('Texto\n```\n- [ ] dentro do código\n```\n- [x] fora');
+  });
+});
+
+describe('Listas numeradas, citações e divisórias (#344)', () => {
+  it('dadas linhas com "3. ", "4. " e "9) ", quando lê, então viram uma lista numerada que começa no primeiro número', () => {
+    // Então
+    expect(blocosDoTexto('3. Petição\n4. Procuração\n9) *Custas*')).toEqual([
+      { tipo: 'numerada', inicio: 3, linhas: [[so('Petição')], [so('Procuração')], [{ texto: 'Custas', marcas: ['italico'] }]] }
+    ]);
+  });
+
+  it.each([['2024 foi um ano'], ['1.5 litro'], ['1.Sem espaço']])('dado "%s", quando lê, então fica como texto', texto => {
+    // Então
+    expect(blocosDoTexto(texto)).toEqual([{ tipo: 'texto', linhas: [[so(texto)]] }]);
+  });
+
+  it('dadas linhas com "> ", quando lê, então viram uma citação, e ">" sozinho é uma linha em branco dela', () => {
+    // Então
+    expect(blocosDoTexto('Disse:\n> Não **assino**\n>\n> nada\n>50% fica como texto')).toEqual([
+      { tipo: 'texto', linhas: [[so('Disse:')]] },
+      { tipo: 'citacao', linhas: [[so('Não '), { texto: 'assino', marcas: ['negrito'] }], [], [so('nada')]] },
+      { tipo: 'texto', linhas: [[so('>50% fica como texto')]] }
+    ]);
+  });
+
+  it.each([['---'], ['***'], ['___'], ['-----  ']])('dado "%s" sozinho na linha, quando lê, então é uma linha divisória', divisoria => {
+    // Então
+    expect(blocosDoTexto(`Antes\n\n${divisoria}\n\nDepois`)).toEqual([
+      { tipo: 'texto', linhas: [[so('Antes')]] }, { tipo: 'divisoria', linhas: [] }, { tipo: 'texto', linhas: [[so('Depois')]] }
+    ]);
+  });
+});
+
+describe('Tachado e código (#344)', () => {
+  it('dado "~~assim~~", quando lê, então o trecho é tachado; um "~" só ou três ficam como texto', () => {
+    // Então
+    expect(pedacosDaLinha('Valor ~~R$ 100~~ R$ 90')).toEqual([so('Valor '), { texto: 'R$ 100', marcas: ['tachado'] }, so(' R$ 90')]);
+    expect(pedacosDaLinha('~cerca de~ 10 e ~~~a~~~')).toEqual([so('~cerca de~ 10 e ~~~a~~~')]);
+  });
+
+  it('dado um código em linha com marcas e link dentro, quando lê, então o texto dele fica literal, sem negrito e sem link', () => {
+    // Então
+    expect(pedacosDaLinha('Use `**não** [x](https://exemplo.com)` aqui')).toEqual([
+      so('Use '), { texto: '**não** [x](https://exemplo.com)', marcas: ['codigo'] }, so(' aqui')
+    ]);
+  });
+
+  it('dado código dentro do negrito e um link com código, quando lê, então o código leva o negrito e o link de fora', () => {
+    // Então
+    expect(pedacosDaLinha('**`art. 5º`** e [`lei`](https://exemplo.com)')).toEqual([
+      { texto: 'art. 5º', marcas: ['negrito', 'codigo'] }, so(' e '), { texto: 'lei', marcas: ['codigo'], link: 'https://exemplo.com/' }
+    ]);
+  });
+
+  it('dadas crases sem par e crases duplas com uma dentro, quando lê, então a sem par fica como texto e a dupla guarda a de dentro', () => {
+    // Então
+    expect(pedacosDaLinha('a ` b')).toEqual([so('a ` b')]);
+    expect(pedacosDaLinha('`` a`b `` e `c`')).toEqual([{ texto: 'a`b', marcas: ['codigo'] }, so(' e '), { texto: 'c', marcas: ['codigo'] }]);
+  });
+
+  it('dado código parecido com código de página, quando lê, então é só texto', () => {
+    // Então
+    expect(pedacosDaLinha('`<script>alert(1)</script>`')).toEqual([{ texto: '<script>alert(1)</script>', marcas: ['codigo'] }]);
+  });
+
+  it('dado um bloco entre linhas com ```, quando lê, então as linhas de dentro ficam literais, mesmo as que seriam lista ou título', () => {
+    // Então
+    expect(blocosDoTexto('Antes\n```js\nconst a = **1**;\n\n- [ ] não é tarefa\n# nem título\n```\nDepois')).toEqual([
+      { tipo: 'texto', linhas: [[so('Antes')]] },
+      { tipo: 'codigo', linhas: [[so('const a = **1**;')], [], [so('- [ ] não é tarefa')], [so('# nem título')]] },
+      { tipo: 'texto', linhas: [[so('Depois')]] }
+    ]);
+  });
+
+  it('dado um bloco de código que não fecha, quando lê, então ele vai até o fim do texto', () => {
+    // Então
+    expect(blocosDoTexto('```\na\n``\nb')).toEqual([{ tipo: 'codigo', linhas: [[so('a')], [so('``')], [so('b')]] }]);
+  });
+
+  it('dada uma linha do tamanho máximo, cheia de crases e tis soltos, quando lê, então termina logo, sem travar o cartão', () => {
+    // Dado
+    const texto = '`a '.repeat(600) + '``b '.repeat(600) + '~~c '.repeat(600) + '~d~~ '.repeat(300);
+    // Quando
+    const comeco = performance.now();
+    const blocos = blocosDoTexto(texto);
+    // Então
+    expect(performance.now() - comeco).toBeLessThan(300);
+    expect(blocos).toHaveLength(1);
+  });
+});
+
+describe('Tabelas (#344)', () => {
+  it('dada uma tabela com cabeçalho, linha separadora e dados, quando lê, então as células vêm em ordem, com o alinhamento das colunas', () => {
+    // Então
+    expect(blocosDoTexto('Custas:\n| Item | Valor | Obs |\n|:--|--:|:-:|\n| Guia | **R$ 10** | a \\| b |\n| Cópias |')).toEqual([
+      { tipo: 'texto', linhas: [[so('Custas:')]] },
+      {
+        tipo: 'tabela', colunas: ['esquerda', 'direita', 'centro'],
+        linhas: [
+          [so('Item')], [so('Valor')], [so('Obs')],
+          [so('Guia')], [{ texto: 'R$ 10', marcas: ['negrito'] }], [so('a | b')],
+          [so('Cópias')], [], []
+        ]
+      }
+    ]);
+  });
+
+  it('dada uma tabela sem as barras das pontas, quando lê, então ela vale, e a primeira linha sem "|" já é texto', () => {
+    // Então
+    expect(blocosDoTexto('a | b\n--- | ---\n1 | 2\nfim')).toEqual([
+      { tipo: 'tabela', colunas: [null, null], linhas: [[so('a')], [so('b')], [so('1')], [so('2')]] },
+      { tipo: 'texto', linhas: [[so('fim')]] }
+    ]);
+  });
+
+  it.each([['a | b\nc | d'], ['a | b\n|---|'], ['a | b\n|---|x|']])('dado "%s", sem a linha separadora certa, quando lê, então fica como texto', texto => {
+    // Então
+    expect(blocosDoTexto(texto).every(b => b.tipo === 'texto')).toBe(true);
+  });
+
+  it('dado um link "javascript:" numa célula e numa citação, quando lê, então ele fica como texto', () => {
+    // Quando
+    const b = blocosDoTexto('| [a](javascript:alert(1)) |\n|---|\n> [b](javascript:alert(1))');
+    // Então
+    expect(b.map(x => x.tipo)).toEqual(['tabela', 'citacao']);
+    expect(b.flatMap(x => x.linhas).flat().some(p => 'link' in p)).toBe(false);
+  });
+});
+
+describe('Botões de lista numerada, tarefas, citação e código (#344)', () => {
+  it.each([
+    ['«a\nb\nc»', 'numerada', '1. «a\n2. b\n3. c»'],
+    ['«1. a\n2) b»', 'numerada', '«a\nb»'],
+    ['«a\n- b»', 'tarefa', '- [ ] «a\n- [ ] b»'],
+    ['«- [x] a»', 'tarefa', '«a»'],
+    ['«- [x] a»', 'lista', '- «a»'],
+    ['«- a»', 'tarefa', '- [ ] «a»'],
+    ['«Fala\n> já citada»', 'citacao', '> «Fala\n> já citada»'],
+    ['«> a\n>»', 'citacao', '«a\n»']
+  ] as const)('dado "%s", quando aperta o botão de %s, então o começo antigo sai e fica "%s"', (antes, tipo, depois) => {
+    // Então
+    expect(verLink(alternarInicioDeLinha(escolhaLink(antes), tipo))).toBe(depois);
+  });
+
+  it('dada uma tarefa marcada e uma linha comum escolhidas juntas, quando aperta Lista de tarefas, então só a linha comum ganha a caixinha, e a marcada continua marcada', () => {
+    // Dado
+    const antes = escolhaLink('«- [x] a\nb»');
+    // Quando
+    const depois = alternarInicioDeLinha(antes, 'tarefa');
+    // Então
+    expect(verLink(depois)).toBe('- [x] «a\n- [ ] b»');
+  });
+
+  it('dada uma linha já numerada com outro número e uma comum, quando aperta Lista numerada, então as duas são renumeradas a partir do 1', () => {
+    // Quando
+    const depois = alternarInicioDeLinha(escolhaLink('«5. a\nb»'), 'numerada');
+    // Então
+    expect(verLink(depois)).toBe('1. «a\n2. b»');
+  });
+
+  it('dado um trecho numa linha, quando aperta Código, então ele fica entre crases; apertando de novo, elas saem', () => {
+    // Quando
+    const codigo = alternarCodigo(escolha('Use [npm run] aqui'));
+    // Então
+    expect(ver(codigo)).toBe('Use `[npm run]` aqui');
+    expect(ver(alternarCodigo(codigo))).toBe('Use [npm run] aqui');
+  });
+
+  it('dado um trecho de várias linhas, quando aperta Código, então ele vira um bloco de código; apertando de novo, volta', () => {
+    // Quando
+    const bloco = alternarCodigo(escolha('Antes\n[a = 1\nb = 2]\nDepois'));
+    // Então
+    expect(ver(bloco)).toBe('Antes\n```\n[a = 1\nb = 2]\n```\nDepois');
+    expect(blocosDoTexto(bloco.texto)[1]).toEqual({ tipo: 'codigo', linhas: [[so('a = 1')], [so('b = 2')]] });
+    expect(ver(alternarCodigo(bloco))).toBe('Antes\n[a = 1\nb = 2]\nDepois');
+    expect(ver(alternarCodigo(escolha('[```\nx\n```]')))).toBe('[x]');
+  });
+
+  it('dado um trecho entre dois blocos de código, quando aperta Código, então ele vira um bloco seu, e os dois blocos de fora ficam como estavam', () => {
+    // Dado: o ``` de cima fecha o primeiro bloco e o de baixo abre o segundo; nenhum dos dois cerca o trecho
+    const antes = escolha('```\na\n```\n[x\ny]\n```\nb\n```');
+    // Quando
+    const depois = alternarCodigo(antes);
+    // Então
+    expect(ver(depois)).toBe('```\na\n```\n```\n[x\ny]\n```\n```\nb\n```');
+    expect(blocosDoTexto(depois.texto).map(b => b.tipo)).toEqual(['codigo', 'codigo', 'codigo']);
+  });
+
+  it('dado um trecho que vai da cerca que fecha um bloco até a que abre o seguinte, quando aperta Código, então ele é cercado, e os blocos de fora não se juntam', () => {
+    // Dado
+    const antes = escolha('```\na\n[```\nx\n```]\nb\n```');
+    // Quando
+    const depois = alternarCodigo(antes);
+    // Então: nada some; o trecho ganha cercas novas
+    expect(depois.texto).toBe('```\na\n```\n```\nx\n```\n```\nb\n```');
   });
 });
