@@ -24,7 +24,7 @@ export const GRATUIDADES: Record<GratuidadeProcesso, string> = { nao_pedida: 'N�
 
 /** As listas prontas; o administrador acrescenta outras opções a cada uma. */
 export const OPCOES_PRONTAS: Record<CampoDeOpcao, string[]> = {
-  sistema: ['PJe', 'eproc', 'Projudi', 'SEI', 'e-SAJ', 'e-INSS', 'e-Marcas', 'e-Patentes', 'Físico (sem sistema)'],
+  sistema: ['PJe', 'eproc', 'Projudi', 'SEEU', 'JPe', 'CPE (STJ)', 'SEI', 'e-SAJ', 'e-INSS', 'e-Marcas', 'e-Patentes', 'Físico (sem sistema)'],
   natureza: ['Procedimento comum', 'Procedimento especial', 'Juizado especial', 'Execução', 'Cumprimento de sentença', 'Mandado de segurança', 'Ação trabalhista', 'Ação penal'],
   area: ['Cível', 'Consumidor', 'Empresarial', 'Família e sucessões', 'Previdenciário', 'Propriedade intelectual', 'Trabalhista', 'Tributário', 'Penal', 'Administrativo']
 };
@@ -32,9 +32,20 @@ export const OPCOES_PRONTAS: Record<CampoDeOpcao, string[]> = {
 export const LISTAS_DO_PROCESSO: Record<CampoDeOpcao, { rotulo: string }> = {
   sistema: { rotulo: 'Sistema de tramitação' }, natureza: { rotulo: 'Natureza processual' }, area: { rotulo: 'Área do direito' }
 };
-/** A lista de um campo: as prontas, as do escritório e o valor atual, se ele tiver saído da lista. */
-export const opcoesDoCampo = (campo: CampoDeOpcao, doEscritorio: string[], atual = ''): string[] =>
-  [...new Set([...OPCOES_PRONTAS[campo], ...doEscritorio, ...(atual ? [atual] : [])])];
+/**
+ * A lista de um campo: as prontas, as do escritório e o valor atual, se ele tiver saído da lista. Um nome aparece uma vez só,
+ * sem contar maiúsculas nem acentos, na grafia da lista pronta (#288). O valor atual é a exceção: se foi gravado com outra
+ * grafia ("Seeu"), ele toma o lugar da opção igual, para o processo continuar com o sistema dele até alguém trocar.
+ */
+export function opcoesDoCampo(campo: CampoDeOpcao, doEscritorio: string[], atual = ''): string[] {
+  const lista: string[] = [];
+  for (const o of [...OPCOES_PRONTAS[campo], ...doEscritorio]) if (!opcaoNaLista(lista, o)) lista.push(o);
+  if (!atual) return lista;
+  const igual = opcaoNaLista(lista, atual);
+  return igual === null ? [...lista, atual] : lista.map(o => o === igual ? atual : o);
+}
+/** Se o valor é de uma lista pronta (sem contar maiúsculas nem acentos): retirar do escritório não o tiraria da lista. */
+export const ehOpcaoPronta = (campo: CampoDeOpcao, valor: string) => opcaoNaLista(OPCOES_PRONTAS[campo], valor) !== null;
 /** A opção da lista com esse texto, sem contar maiúsculas nem acentos (para não repetir "PJE" e "PJe", "Civel" e "Cível"). */
 export const opcaoNaLista = (lista: string[], texto: string) => {
   const procurado = normal(texto.trim());

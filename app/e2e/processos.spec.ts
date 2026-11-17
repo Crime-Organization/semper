@@ -230,6 +230,31 @@ test.describe('Cadastro de processo', () => {
     await page.getByLabel('Sistema de tramitação').selectOption({ label: 'PJe' });
     await expect(page.getByLabel('Sistema de tramitação').getByRole('option', { name: 'Tucujuris' })).toHaveCount(0);
   });
+
+  test('quando a pessoa escolhe CPE (STJ), da lista pronta, e salva, então o cartão mostra esse sistema (#288)', async ({ page }) => {
+    // Dado
+    await cadastroAteDetalhes(page, NUMERO_NOVO);
+    // Quando
+    await page.getByLabel('Sistema de tramitação').selectOption({ label: 'CPE (STJ)' });
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await abrirSecao(page.getByRole('dialog'), 'Dados do processo');
+    await expect(page.getByRole('dialog').getByText('CPE (STJ)', { exact: true })).toBeVisible();
+  });
+
+  test('quando o administrador acrescenta "seeu", então nada novo é gravado e a opção pronta SEEU fica escolhida (#288)', async ({ page }) => {
+    // Dado
+    await cadastroAteDetalhes(page, NUMERO_NOVO);
+    // Quando
+    await page.getByRole('button', { name: 'Acrescentar opção' }).first().click();
+    await page.getByRole('textbox', { name: 'Acrescentar opção em "Sistema de tramitação"' }).fill('seeu');
+    await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(page.getByLabel('Sistema de tramitação')).toHaveValue('SEEU');
+    await expect(page.getByLabel('Sistema de tramitação').getByRole('option', { name: /^seeu$/i })).toHaveCount(1);
+    await expect(page.getByRole('button', { name: 'Retirar da lista' })).toHaveCount(0);
+  });
 });
 
 test.describe('Cartão do processo', () => {

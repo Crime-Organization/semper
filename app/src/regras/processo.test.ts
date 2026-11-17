@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
-  aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
+  aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
   semSairDoProcesso, validarProcesso, valorLegivelProcesso, type CamposProcesso
 } from './processo';
 
@@ -178,6 +178,44 @@ describe('Listas e cartão', () => {
     expect(opcaoNaLista(opcoesDoCampo('area', []), 'civel')).toBe('Cível');
     expect(opcaoNaLista(opcoesDoCampo('sistema', []), 'Tucujuris')).toBeNull();
     expect(new Set(opcoesDoCampo('sistema', ['PJe'])).size).toBe(opcoesDoCampo('sistema', ['PJe']).length);
+  });
+
+  it('dado um escritório qualquer, quando monta a lista de sistemas, então SEEU, JPe e CPE (STJ) já estão nela (#288)', () => {
+    // Quando
+    const lista = opcoesDoCampo('sistema', []);
+    // Então
+    expect(lista).toEqual(expect.arrayContaining(['SEEU', 'JPe', 'CPE (STJ)', 'PJe', 'Físico (sem sistema)']));
+  });
+
+  it('dado um escritório que acrescentou "Seeu" e "PJE", quando monta a lista, então cada nome aparece uma vez, na grafia da lista pronta (#288)', () => {
+    // Quando
+    const lista = opcoesDoCampo('sistema', ['Seeu', 'seeu', 'PJE', 'Tucujuris', 'tucujurís']);
+    // Então
+    expect(lista).toEqual([...OPCOES_PRONTAS.sistema, 'Tucujuris']);
+  });
+
+  it('dado um processo salvo com "Seeu", quando a lista é montada para editar, então aparece só "Seeu", no lugar de SEEU, e o processo continua com ele (#288)', () => {
+    // Quando
+    const lista = opcoesDoCampo('sistema', ['SEEU'], 'Seeu');
+    // Então
+    expect(lista).toContain('Seeu');
+    expect(lista).not.toContain('SEEU');
+    expect(lista).toHaveLength(OPCOES_PRONTAS.sistema.length);
+    expect(lista.indexOf('Seeu')).toBe(OPCOES_PRONTAS.sistema.indexOf('SEEU'));
+  });
+
+  it('dado um administrador que digita "seeu" em "Acrescentar opção", quando confere a lista, então vale a opção pronta SEEU (#288)', () => {
+    // Então
+    expect(opcaoNaLista(opcoesDoCampo('sistema', []), 'seeu')).toBe('SEEU');
+    expect(opcaoNaLista(opcoesDoCampo('sistema', []), 'cpe (stj)')).toBe('CPE (STJ)');
+  });
+
+  it('quando confere se um valor é de uma lista pronta, então não conta maiúsculas nem acentos (#288)', () => {
+    // Então
+    expect(ehOpcaoPronta('sistema', 'seeu')).toBe(true);
+    expect(ehOpcaoPronta('area', 'civel')).toBe(true);
+    expect(ehOpcaoPronta('sistema', 'Tucujuris')).toBe(false);
+    expect(ehOpcaoPronta('sistema', '')).toBe(false);
   });
 
   it('quando mostra os dados no cartão, então só aparecem os preenchidos, e o segredo de justiça só quando há', () => {

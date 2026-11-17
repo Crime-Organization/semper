@@ -9,7 +9,7 @@ import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
 import { MASCARAS } from '../regras/pessoa';
 import {
-  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
+  aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
@@ -226,7 +226,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     } catch (e) { falha(e); }
   }
   // A escolhida, quando é uma das que o escritório acrescentou: o administrador pode retirá-la (ex.: digitada errado).
-  const opcaoEscolhida = (campo: CampoDeOpcao) => opcoes.find(o => o.campo === campo && o.valor === c[campo]);
+  // Se ela também é de uma lista pronta, retirar não a tira da lista: o botão não aparece (#288).
+  const opcaoEscolhida = (campo: CampoDeOpcao) => ehOpcaoPronta(campo, c[campo]) ? undefined : opcoes.find(o => o.campo === campo && o.valor === c[campo]);
   const listaDe = (campo: CampoDeOpcao, escolhida = opcaoEscolhida(campo)) => <Campo rotulo={LISTAS_DO_PROCESSO[campo].rotulo} para={campo}
     depois={ctx.ehAdmin && <div className="acoes-lote">
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void acrescentarOpcao(campo)}><Icone nome="mais" tam={13} /> Acrescentar opção</button>
