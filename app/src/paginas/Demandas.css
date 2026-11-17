@@ -19,7 +19,8 @@
 .lista-demanda li > label > span { overflow-wrap: anywhere }
 .lista-demanda li.feito > label > span { color: var(--muted); text-decoration: line-through }
 /* Tarefas da demanda (#298): a caixa é só a caixa (conclui); o nome é um link que abre a tarefa. */
-.tarefas-da-demanda li > input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); flex-shrink: 0; cursor: pointer }
+/* A caixa fica ao lado da primeira linha do nome, como nas listas do cartão (o nome tem 4px em cima; a caixa, 2px a mais). */
+.tarefas-da-demanda li > input { width: 18px; height: 18px; margin: 6px 0 0; align-self: flex-start; accent-color: var(--accent); flex-shrink: 0; cursor: pointer }
 .tarefas-da-demanda li > input:disabled { cursor: default }
 .tarefa-da-demanda-nome { flex: 1; min-width: 0; padding: 4px 0; font-size: 14px; line-height: 1.45; color: var(--ink); overflow-wrap: anywhere;
   text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px }
