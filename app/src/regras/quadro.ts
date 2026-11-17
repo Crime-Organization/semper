@@ -66,7 +66,6 @@ export function blocosDoQuadro<C extends ColunaNoQuadro>(colunas: C[], grupos: G
   return blocos;
 }
 
-/** O que separa o nome do grupo do nome da coluna, quando a situação é dita fora do quadro (ex.: "AGUARDANDO: ANÁLISE"). */
 /**
  * A ordem guardada de uma coluna, se o módulo a tem; senão, a manual. Uma ordem que esta versão do site não conhece (escolhida
  * noutra versão ou noutro módulo) não pode quebrar a coluna (#291).
@@ -74,6 +73,24 @@ export function blocosDoQuadro<C extends ColunaNoQuadro>(colunas: C[], grupos: G
 export const ordemDaColuna = <O extends string>(guardada: string | undefined, opcoes: readonly O[], manual: O): O =>
   opcoes.find(o => o === guardada) ?? manual;
 
+/**
+ * As ordens escolhidas nas colunas, por coluna ("sem" ou o id dela), em duas chaves do perfil: as de sempre, que todas as
+ * versões do site conhecem, e as a mais (as do prazo, #291), numa chave que a versão anterior não lê. Assim, voltar a versão
+ * do site deixa a coluna na ordem manual em vez de quebrá-la.
+ */
+export interface OrdensGuardadas { deSempre: Record<string, string>; aMais: Record<string, string> }
+const semColuna = (ordens: Record<string, string>, coluna: string) => Object.fromEntries(Object.entries(ordens).filter(([k]) => k !== coluna));
+/** Guarda a ordem da coluna na chave certa e a tira da outra. A manual é a padrão: não se guarda. */
+export function guardarOrdem(g: OrdensGuardadas, coluna: string, ordem: string, deSempre: readonly string[], manual = 'manual'): OrdensGuardadas {
+  const limpo = { deSempre: semColuna(g.deSempre, coluna), aMais: semColuna(g.aMais, coluna) };
+  if (ordem === manual) return limpo;
+  const onde: keyof OrdensGuardadas = deSempre.includes(ordem) ? 'deSempre' : 'aMais';
+  return { ...limpo, [onde]: { ...limpo[onde], [coluna]: ordem } };
+}
+/** A ordem guardada da coluna: a a mais, se houver; senão, a de sempre. */
+export const ordemGuardada = (g: OrdensGuardadas, coluna: string): string | undefined => g.aMais[coluna] ?? g.deSempre[coluna];
+
+/** O que separa o nome do grupo do nome da coluna, quando a situação é dita fora do quadro (ex.: "AGUARDANDO: ANÁLISE"). */
 export const SEPARADOR_DO_GRUPO = ': ';
 
 /** Uma situação possível do cartão: a coluna e o nome dela com o grupo na frente, se ela está num grupo (#302). */

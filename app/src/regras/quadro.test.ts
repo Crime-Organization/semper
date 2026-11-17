@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -285,5 +285,32 @@ describe('Ordem guardada de uma coluna (#291)', () => {
     expect(ordemDaColuna('data_de_entrega', DO_MODULO, 'manual')).toBe('manual');
     expect(ordemDaColuna('prazo', ['manual', 'nome'] as const, 'manual')).toBe('manual');
     expect(ordemDaColuna(undefined, DO_MODULO, 'manual')).toBe('manual');
+  });
+});
+
+describe('Onde a ordem da coluna fica guardada (#291)', () => {
+  const DE_SEMPRE = ['manual', 'nome', 'novos'];
+  const vazio = { deSempre: {}, aMais: {} };
+  it('dada a ordem pelo prazo escolhida numa coluna, quando guarda, então ela fica só na chave a mais, que a versão anterior do site não lê', () => {
+    // Quando
+    const g = guardarOrdem({ deSempre: { c1: 'nome' }, aMais: {} }, 'c1', 'prazo', DE_SEMPRE);
+    // Então
+    expect(g).toEqual({ deSempre: {}, aMais: { c1: 'prazo' } });
+    expect(ordemGuardada(g, 'c1')).toBe('prazo');
+  });
+
+  it('dada a coluna no prazo, quando a pessoa volta a uma ordem de sempre, então ela sai da chave a mais', () => {
+    // Quando
+    const g = guardarOrdem({ deSempre: { c2: 'novos' }, aMais: { c1: 'prazo' } }, 'c1', 'nome', DE_SEMPRE);
+    // Então
+    expect(g).toEqual({ deSempre: { c2: 'novos', c1: 'nome' }, aMais: {} });
+  });
+
+  it('dada a ordem manual, quando guarda, então a coluna sai das duas chaves', () => {
+    // Quando
+    const g = guardarOrdem({ deSempre: { c1: 'nome' }, aMais: { c1: 'prazo' } }, 'c1', 'manual', DE_SEMPRE);
+    // Então
+    expect(g).toEqual(vazio);
+    expect(ordemGuardada(g, 'c1')).toBeUndefined();
   });
 });

@@ -8,7 +8,7 @@ import { ORDENS_DO_QUADRO } from '../ordem';
 import { avisar, falha, feito } from '../avisos';
 import { janela, pedirTexto } from '../janela';
 import { lerPreferencia, salvarPreferencia } from '../preferencias';
-import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, ordemAoPosicionar, ordemDaColuna, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro, type BlocoDoQuadro, type ItemDoTopo, type SituacaoDoQuadro } from '../../regras/quadro';
+import { antesDeAoAndar, blocosDoQuadro, filaDoTopo, grupoEstaAberto, guardarOrdem, ordemAoPosicionar, ordemDaColuna, ordemGuardada, type OrdensGuardadas, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro, type BlocoDoQuadro, type ItemDoTopo, type SituacaoDoQuadro } from '../../regras/quadro';
 import { normal } from '../../regras/texto';
 
 /**
@@ -76,9 +76,10 @@ export function useColunas<O extends OrdemComPrazo = Ordem>(modulo: Modulo, ctx:
   const [pronto, setPronto] = useState(false);
   const atuais = useRef(colunas);
   atuais.current = colunas;
-  // Ordem escolhida em cada coluna, guardada no perfil: { "sem" | id da coluna: ordem }.
-  const chaveOrdens = `${modulo}.ordem.colunas`;
-  const [ordens, setOrdens] = useState<Record<string, string>>(() => lerPreferencia(chaveOrdens, {}));
+  // Ordem escolhida em cada coluna, guardada no perfil: { "sem" | id da coluna: ordem }. As do prazo ficam numa chave à parte,
+  // que a versão anterior do site não lê (regras/quadro.ts, guardarOrdem).
+  const chaves: Record<keyof OrdensGuardadas, string> = { deSempre: `${modulo}.ordem.colunas`, aMais: `${modulo}.ordem.colunas.amais` };
+  const [ordens, setOrdens] = useState<OrdensGuardadas>(() => ({ deSempre: lerPreferencia(chaves.deSempre, {}), aMais: lerPreferencia(chaves.aMais, {}) }));
   const [grupos, setGrupos] = useState<GrupoDeColunas[]>([]);
   const gruposAtuais = useRef(grupos);
   gruposAtuais.current = grupos;
@@ -181,10 +182,10 @@ export function useColunas<O extends OrdemComPrazo = Ordem>(modulo: Modulo, ctx:
   }
 
   function ordenarCartoes(colunaId: string | null, ordem: O) {
-    const k = colunaId || 'sem', novas = { ...ordens, [k]: ordem };
-    if (ordem === 'manual') delete novas[k];
+    const novas = guardarOrdem(ordens, colunaId || 'sem', ordem, ORDENS_DO_QUADRO);
     setOrdens(novas);
-    salvarPreferencia(chaveOrdens, novas);
+    salvarPreferencia(chaves.deSempre, novas.deSempre);
+    salvarPreferencia(chaves.aMais, novas.aMais);
   }
 
   // ---------- grupos ----------
@@ -274,7 +275,7 @@ export function useColunas<O extends OrdemComPrazo = Ordem>(modulo: Modulo, ctx:
     grupoAberto: g => grupoEstaAberto(g, abertos),
     alternarGrupo, criarGrupo, renomearGrupo, alternarComecoFechado, posicionarGrupo, moverGrupo, excluirGrupo, agrupar,
     // Uma ordem que o site não conhece (guardada por outra versão) vale como a manual, em vez de quebrar a coluna.
-    ordemDe: id => ordemDaColuna(ordens[id || 'sem'], opcoes, 'manual' as O),
+    ordemDe: id => ordemDaColuna(ordemGuardada(ordens, id || 'sem'), opcoes, 'manual' as O),
     ordenar: ordenarCartoes,
     ordens: opcoes,
     nomeDe: id => situacoes.find(x => x.coluna.id === id)?.rotulo || '',
