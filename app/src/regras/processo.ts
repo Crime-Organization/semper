@@ -18,7 +18,8 @@ export const TIPOS_PROCESSO: Record<TipoProcesso, { nome: string; titulo: string
 };
 export const TIPOS = Object.keys(TIPOS_PROCESSO) as TipoProcesso[];
 
-export const POLOS: Record<PoloProcesso, string> = { autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro' };
+/** O polo do cliente; vítima, investigado e apenado servem aos processos criminais (#289). A lista do banco é a mesma (migração polo_criminal). */
+export const POLOS: Record<PoloProcesso, string> = { autor: 'Autor', reu: 'Réu', terceiro: 'Terceiro', vitima: 'Vítima', investigado: 'Investigado', apenado: 'Apenado' };
 export const MEIOS: Record<MeioProcesso, string> = { eletronico: 'Eletrônico', fisico: 'Físico' };
 export const GRATUIDADES: Record<GratuidadeProcesso, string> = { nao_pedida: 'Não pedida', pedida: 'Pedida', concedida: 'Concedida', negada: 'Negada' };
 

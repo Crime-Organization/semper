@@ -685,7 +685,7 @@ export interface DadosModelos {
 /** Processo: judicial ou administrativo (não muda depois), com número e pelo menos um cliente. O código (curto e aleatório) é dado pelo banco.
  *  Quem não é administrador vê só os que criou, de que é responsável ou colaborador. */
 export type TipoProcesso = 'judicial' | 'administrativo';
-export type PoloProcesso = 'autor' | 'reu' | 'terceiro';
+export type PoloProcesso = 'autor' | 'reu' | 'terceiro' | 'vitima' | 'investigado' | 'apenado';
 export type MeioProcesso = 'fisico' | 'eletronico';
 export type GratuidadeProcesso = 'pedida' | 'concedida' | 'negada' | 'nao_pedida';
 /** As listas que o administrador pode ampliar. */

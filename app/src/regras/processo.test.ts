@@ -218,6 +218,16 @@ describe('Listas e cartão', () => {
     expect(ehOpcaoPronta('sistema', '')).toBe(false);
   });
 
+  it.each(['vitima', 'investigado', 'apenado'] as const)('dado o polo %s escolhido no cadastro, judicial ou administrativo, quando salva e abre para editar, então o polo volta igual (#289)', polo => {
+    for (const tipo of ['judicial', 'administrativo'] as const) {
+      // Quando
+      const d = dadosDoProcesso(valido({ tipo, polo }));
+      // Então
+      expect(d.polo).toBe(polo);
+      expect(camposDoProcesso({ ...d, id: 'x', clientes: [] } as unknown as Processo).polo).toBe(polo);
+    }
+  });
+
   it('quando mostra os dados no cartão, então só aparecem os preenchidos, e o segredo de justiça só quando há', () => {
     // Dado
     const p = { numero: '123', orgao: 'INPI', comarca: null, vara: '', segredo: false, valor_causa: 10 } as unknown as Processo;
@@ -233,7 +243,7 @@ describe('Listas e cartão', () => {
   });
 
   it.each([
-    ['polo', 'reu', 'Réu'], ['gratuidade', 'nao_pedida', 'Não pedida'], ['meio', 'fisico', 'Físico'], ['segredo', true, 'Sim'], ['segredo', false, 'Não'],
+    ['polo', 'reu', 'Réu'], ['polo', 'vitima', 'Vítima'], ['polo', 'investigado', 'Investigado'], ['polo', 'apenado', 'Apenado'], ['gratuidade', 'nao_pedida', 'Não pedida'], ['meio', 'fisico', 'Físico'], ['segredo', true, 'Sim'], ['segredo', false, 'Não'],
     ['distribuicao', '2026-03-02', '02/03/2026'], ['valor_causa', 1500.5, 'R$ 1.500,50'], ['comarca', null, '—'], ['comarca', 'Montes Claros', 'Montes Claros']
   ])('quando o campo %s vale %j, então aparece como "%s"', (campo, valor, texto) => {
     // Então

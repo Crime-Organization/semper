@@ -243,6 +243,25 @@ test.describe('Cadastro de processo', () => {
     await expect(page.getByRole('dialog').getByText('CPE (STJ)', { exact: true })).toBeVisible();
   });
 
+  test('quando a pessoa escolhe o polo Vítima e salva, então o cartão mostra "Vítima", com acento (#289)', async ({ page }) => {
+    // Dado
+    await page.goto('/processos/novo/');
+    await page.getByLabel('Número do processo').fill(NUMERO_NOVO);
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('textbox', { name: 'Cliente', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
+    // Então
+    await expect(page.getByLabel('Polo do cliente').getByRole('option')).toHaveText(['Não informado', 'Autor', 'Réu', 'Terceiro', 'Vítima', 'Investigado', 'Apenado']);
+    // Quando
+    await page.getByLabel('Polo do cliente').selectOption({ label: 'Vítima' });
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('button', { name: 'Salvar processo' }).click();
+    // Então
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo')).toBeVisible();
+    await abrirSecao(page.getByRole('dialog'), 'Dados do processo');
+    await expect(page.getByRole('dialog').getByText('Vítima', { exact: true })).toBeVisible();
+  });
+
   test('quando o administrador acrescenta "seeu", então nada novo é gravado e a opção pronta SEEU fica escolhida (#288)', async ({ page }) => {
     // Dado
     await cadastroAteDetalhes(page, NUMERO_NOVO);
