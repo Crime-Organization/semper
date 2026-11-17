@@ -26,7 +26,12 @@ export function TextoFormatado({ texto, className }: { texto: string; className?
   </div>;
 }
 
-type PropsCaixa = Omit<ComponentProps<'textarea'>, 'value' | 'onChange' | 'ref'> & { valor: string; aoMudar: (texto: string) => void };
+/** Escreve na caixa com o foco, pelo navegador (entra no histórico do Ctrl+Z). Diz se conseguiu. */
+function digitar(texto: string) {
+  try { return document.execCommand('insertText', false, texto); } catch { return false; }
+}
+
+type PropsCaixa =Omit<ComponentProps<'textarea'>, 'value' | 'onChange' | 'ref'> & { valor: string; aoMudar: (texto: string) => void };
 
 /**
  * A caixa de escrever com a barra B, I e lista. Fica dentro de <Campo>, com as props de propsDoCampo. Ctrl+B e Ctrl+I só valem
@@ -39,7 +44,11 @@ export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCai
     if (!el) return;
     const r = fazer({ texto: valor, inicio: el.selectionStart, fim: el.selectionEnd });
     if (resto.maxLength && r.texto.length > resto.maxLength) return;   // a marca não cabe: nada muda
-    aoMudar(r.texto);
+    // O texto novo entra pelo próprio navegador, como se fosse digitado: assim Ctrl+Z desfaz a marca e não perde o que veio antes.
+    // Onde o navegador não deixa (ou nos testes), entra pelo estado, como as outras caixas.
+    el.focus();
+    el.setSelectionRange(0, el.value.length);
+    if (!digitar(r.texto)) aoMudar(r.texto);
     setTimeout(() => { el.focus(); el.setSelectionRange(r.inicio, r.fim); }, 0);
   }
   const marcar = (marca: Marca) => aplicar(e => alternarMarca(e, marca));

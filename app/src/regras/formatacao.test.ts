@@ -109,3 +109,52 @@ describe('Botões B, I e lista (#293)', () => {
     expect(r.texto).toBe('Um\n- Dois\nTrês');
   });
 });
+
+describe('Casos achados na revisão (#293)', () => {
+  it('dado itálico com um negrito dentro, quando lê, então o negrito fica dentro do itálico, sem marcas cruas', () => {
+    // Então
+    expect(pedacosDaLinha('*Atenção: **prazo** amanhã*')).toEqual([
+      { texto: 'Atenção: ', marcas: ['italico'] }, { texto: 'prazo', marcas: ['italico', 'negrito'] }, { texto: ' amanhã', marcas: ['italico'] }
+    ]);
+  });
+
+  it('dada uma descrição do tamanho máximo, cheia de marcas soltas, quando lê, então termina logo, sem travar o cartão', () => {
+    // Dado
+    const texto = '**a* '.repeat(800) + '**a _b_ '.repeat(500);
+    // Quando
+    const comeco = performance.now();
+    const blocos = blocosDoTexto(texto);
+    // Então: a leitura antiga levava segundos
+    expect(performance.now() - comeco).toBeLessThan(300);
+    expect(blocos).toHaveLength(1);
+  });
+
+  it.each([
+    ['italico', 'Ver [o prazo ]agora', 'Ver *[o prazo]* agora'],
+    ['negrito', 'Ver[ o prazo] agora', 'Ver **[o prazo]** agora'],
+    ['italico', '***[forte]***', '**[forte]**'],
+    ['negrito', '***[forte]***', '*[forte]*'],
+    ['italico', '[*Atenção: **prazo***]', '[Atenção: **prazo**]']
+  ] as const)('dada a marca %s e "%s", quando aperta o botão, então fica "%s"', (marca, antes, depois) => {
+    // Então
+    expect(ver(alternarMarca(escolha(antes), marca))).toBe(depois);
+  });
+
+  it('dado um trecho de duas linhas, quando aperta B, então cada linha ganha a sua marca, e as duas aparecem em negrito', () => {
+    // Quando
+    const r = alternarMarca(escolha('[RG\n\nCPF]'), 'negrito');
+    // Então
+    expect(r.texto).toBe('**RG**\n\n**CPF**');
+    expect(blocosDoTexto(r.texto)[0].linhas.flat().every(p => p.marcas.includes('negrito'))).toBe(true);
+  });
+
+  it('dado o cursor no meio de uma linha, quando aperta o botão de lista, então o cursor só anda junto, sem escolher o resto da linha', () => {
+    // Então
+    expect(ver(alternarLista(escolha('Um\nDo[]is\nTrês')))).toBe('Um\n- Do[]is\nTrês');
+  });
+
+  it('dada uma descrição que começa com uma linha em branco e o cursor no começo, quando aperta o botão de lista, então só a primeira linha vira item', () => {
+    // Então
+    expect(ver(alternarLista(escolha('[]\nabc')))).toBe('- []\nabc');
+  });
+});

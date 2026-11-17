@@ -726,6 +726,14 @@ test.describe('Descrição com negrito, itálico e listas (#293)', () => {
     await page.getByRole('button', { name: 'Lista' }).click();
     // Então
     await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\n- RG\n- CPF');
+    // Quando: Ctrl+Z desfaz só a última marca (a lista), e Ctrl+Y a refaz
+    await descricao.press('Control+z');
+    // Então
+    await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\nRG\nCPF');
+    // Quando
+    await descricao.press('Control+y');
+    // Então
+    await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\n- RG\n- CPF');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
