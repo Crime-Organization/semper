@@ -162,7 +162,7 @@ export default function Demandas() {
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
       ]}
-      mais={[{ rotulo: 'Modelos de lista', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }]}
+      mais={[{ rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'

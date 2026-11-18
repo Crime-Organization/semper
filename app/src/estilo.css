@@ -77,6 +77,14 @@
   --botao-do-calendario: 32px;
   /* O botão do calendário fica a esta distância da borda direita do campo; o texto da data para antes dele, com a mesma folga */
   --recuo-do-botao-do-calendario: 6px;
+  /* O botão "⋯" de cada linha de uma lista dentro do cartão (cada item de um checklist, #358): um pouco menor que o .icone-btn */
+  --botao-da-linha: 30px;
+  /* A caixa de marcar de cada item de um checklist (#358) e o alvo do dedo em volta dela, centrado na caixa e sem a linha
+     crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
+  --caixa-de-marcar: 18px;
+  --alvo-de-toque: 44px;
+  /* A folga em cima e embaixo do texto de cada item de um checklist; a caixa ao lado tem a mesma, para ficar na primeira linha */
+  --folga-do-item: 4px;
   /* As letras dos dias da semana no topo da grade (D S T Q Q S S), miúdas como as do rótulo em caixa alta, e o número de cada dia */
   --texto-dia-da-semana: 11px;
   --texto-dia-do-calendario: 14px;

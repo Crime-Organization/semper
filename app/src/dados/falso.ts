@@ -1207,7 +1207,7 @@ function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, 
   const m: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>> = {};
   if (campos.nome !== undefined) {
     m.nome = nomeDaLista(campos.nome);
-    if (bd.modelos!.some(x => x.id !== id && normal(x.nome) === normal(m.nome))) throw new Error('Já existe um modelo de lista com esse nome.');
+    if (bd.modelos!.some(x => x.id !== id && normal(x.nome) === normal(m.nome))) throw new Error('Já existe um modelo de checklist com esse nome.');
   }
   if (campos.itens !== undefined) {
     m.itens = campos.itens.map(i => i.trim()).filter(Boolean);
@@ -1866,8 +1866,8 @@ const listaLida = ({ demanda_id: _d, tarefa_id: _t, criado_em: _c, ...l }: NonNu
 /** Como as regras do banco: nome e texto sem espaços nas pontas e não vazios, no tamanho de cada um. */
 function nomeDaLista(nome: string) {
   const n = nome.trim();
-  if (!n) throw new Error('Dê um nome à lista.');
-  if (n.length > TAMANHO_LISTA) throw new Error(`O nome da lista pode ter até ${TAMANHO_LISTA} caracteres.`);
+  if (!n) throw new Error('Dê um nome ao checklist.');
+  if (n.length > TAMANHO_LISTA) throw new Error(`O nome do checklist pode ter até ${TAMANHO_LISTA} caracteres.`);
   return n;
 }
 function textoDoItem(texto: string) {
@@ -2681,14 +2681,14 @@ export const SD: Dados = {
     gravar(); return espera(listaLida(l));
   },
   async listaAtualizar(id, { nome, ordem }) {
-    const l = bd.listas!.find(x => x.id === id); if (!l) return erro('Lista não encontrada.');
+    const l = bd.listas!.find(x => x.id === id); if (!l) return erro('Checklist não encontrado.');
     Object.assign(l, nome === undefined ? {} : { nome: nomeDaLista(nome) }, ordem === undefined ? {} : { ordem }); gravar();
   },
   async listaExcluir(id) {
     bd.listas = bd.listas!.filter(l => l.id !== id); bd.itensDeLista = bd.itensDeLista!.filter(i => i.lista_id !== id); gravar();
   },
   async itemCriar(listaId, texto) {
-    if (!bd.listas!.some(l => l.id === listaId)) return erro('Lista não encontrada.');
+    if (!bd.listas!.some(l => l.id === listaId)) return erro('Checklist não encontrado.');
     const ordem = Math.max(0, ...bd.itensDeLista!.filter(i => i.lista_id === listaId).map(i => i.ordem)) + 1;
     const item = { id: novoId(), lista_id: listaId, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem };
     bd.itensDeLista!.push(item); gravar();

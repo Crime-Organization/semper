@@ -22,7 +22,7 @@ const REPETIDO: Regra[] = [
   { padrao: /convites_email_pendente/, mensagem: 'Este e-mail já tem um convite pendente.' },
   { padrao: /pessoa_vinculos_unico/, mensagem: 'Essas duas pessoas já têm esse vínculo.' },
   { padrao: /vinculo_tipos_unico/, mensagem: 'Esse tipo de vínculo já existe.' },
-  { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de lista com esse nome.' },
+  { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de checklist com esse nome.' },
   { padrao: /orgaos_sigla_unica/, mensagem: 'Já existe um órgão com essa sigla.' },
   { padrao: /quadro_grupos_nome_unico/, mensagem: 'Já existe um grupo com esse nome neste quadro.' },
   { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },

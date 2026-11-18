@@ -65,8 +65,8 @@ test.describe('Quem está no contrato vê as demandas dele', () => {
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Arquivar' })).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeDisabled();
-    await abrirSecao(cartao, 'Listas');
-    await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toHaveCount(0);
+    await abrirSecao(cartao, 'Checklists');
+    await expect(cartao.getByRole('button', { name: 'Adicionar checklist' })).toHaveCount(0);
   });
 
   test('dado alguém fora do contrato, quando abre (no banco fictício) uma demanda dele em que não está, então o cartão não diz que ele está no contrato', async ({ page }) => {

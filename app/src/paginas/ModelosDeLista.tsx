@@ -1,6 +1,7 @@
-// Modelos de lista do escritório (ex.: "Documentos de pessoa jurídica"): criar, editar e excluir. Numa demanda, um
-// clique em "Adicionar lista" usa o modelo (copia o nome e os itens); mudar o modelo depois não muda as listas feitas.
-// Comuns a toda a equipe; quem criou ou um administrador exclui.
+// Modelos de checklist do escritório (#358; no código e no banco, "modelos de lista"), como "Documentos de pessoa jurídica":
+// criar, editar e excluir. Numa demanda ou tarefa, um clique em "Adicionar checklist" usa o modelo (copia o nome e os itens);
+// mudar o modelo depois não muda os checklists feitos. Comuns a toda a equipe; quem criou ou um administrador exclui. Chega-se
+// aqui pelo menu ⋯ de Demandas e pelo de Tarefas.
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { SD, type ModeloDeLista } from '../dados';
@@ -18,7 +19,7 @@ import './Demandas.css';
 type Edicao = { id: string | null; nome: string; texto: string };
 
 export default function ModelosDeLista() {
-  useTitulo('Modelos de lista');
+  useTitulo('Modelos de checklist');
   const ctx = useCtx();
   const [modelos, setModelos] = useState<ModeloDeLista[] | string | null>(null);
   const [edicao, setEdicao] = useState<Edicao | null>(null);
@@ -62,9 +63,9 @@ export default function ModelosDeLista() {
 
   return <div className="miolo">
     <header>
-      <p className="olho"><Link to="/demandas/">Demandas</Link></p>
-      <h1 className="titulo">Modelos de lista<span className="ponto">.</span></h1>
-      <p className="lead">Listas prontas para usar nas demandas e nas tarefas com um clique, em "Adicionar lista". Mudar um modelo não muda as listas já feitas com ele.</p>
+      <p className="olho"><Link to="/demandas/">Demandas</Link> · <Link to="/tarefas/">Tarefas</Link></p>
+      <h1 className="titulo">Modelos de checklist<span className="ponto">.</span></h1>
+      <p className="lead">Checklists prontos para usar nas demandas e nas tarefas com um clique, em "Adicionar checklist". Mudar um modelo não muda os checklists já feitos com ele.</p>
       <Nota>Modelo com o mesmo nome de um objeto de contrato (por exemplo, "Registro de marca") vira as tarefas da demanda desse objeto: quando o contrato é assinado, cada item do modelo nasce como uma tarefa dela.</Nota>
     </header>
     {!edicao && <div><button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setEdicao({ id: null, nome: '', texto: '' })}>
@@ -73,8 +74,8 @@ export default function ModelosDeLista() {
     {edicao && !edicao.id && formulario}
     {modelos === null ? <Carregando />
       : typeof modelos === 'string' ? <Aviso tipo="erro">{modelos}</Aviso>
-      : !modelos.length ? <Vazio>Nenhum modelo ainda. Crie o primeiro, ou salve como modelo uma lista de uma demanda ou de uma tarefa.</Vazio>
-      : <ul className="modelos" aria-label="Modelos de lista">{modelos.map(m => edicao?.id === m.id
+      : !modelos.length ? <Vazio>Nenhum modelo ainda. Crie o primeiro, ou salve como modelo um checklist de uma demanda ou de uma tarefa.</Vazio>
+      : <ul className="modelos" aria-label="Modelos de checklist">{modelos.map(m => edicao?.id === m.id
         ? <li key={m.id}>{formulario}</li>
         : <li key={m.id} aria-label={`Modelo ${m.nome}`}><Cartao className="modelo">
           <header>

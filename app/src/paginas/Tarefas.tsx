@@ -153,7 +153,11 @@ export default function Tarefas() {
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
-      mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
+      mais={[
+        { rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') },
+        // A mesma página do menu de Demandas (#358): os checklists prontos servem às duas.
+        { rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }
+      ]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<TarefaLista, OrdemComPrazo> quadro={quadro} podeArrastar={t => !soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m))}

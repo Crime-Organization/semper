@@ -50,8 +50,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByText('toda a equipe vê este cartão', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeDisabled();
-    await abrirSecao(cartao, 'Listas');
-    await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toHaveCount(0);
+    await abrirSecao(cartao, 'Checklists');
+    await expect(cartao.getByRole('button', { name: 'Adicionar checklist' })).toHaveCount(0);
   });
 
   test('dada a chave ligada, quando um advogado sem vínculo entra no processo, então passa a poder alterar', async ({ page }) => {

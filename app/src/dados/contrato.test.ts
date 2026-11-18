@@ -4023,7 +4023,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Quando
         const repetido = SD.modeloCriar(nome.toLowerCase(), ['B']);
         // Então
-        await expect(repetido).rejects.toThrow('Já existe um modelo de lista com esse nome.');
+        await expect(repetido).rejects.toThrow('Já existe um modelo de checklist com esse nome.');
       });
 
       it('quando o modelo é editado, então muda; e excluído, some da lista', async () => {

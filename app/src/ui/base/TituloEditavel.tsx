@@ -1,17 +1,18 @@
 // Título que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no título e ele vira um
 // campo ali mesmo, com o mesmo tamanho de letra (o campo fica dentro do próprio h1/h2 e herda a letra dele). Enter ou sair do
 // campo salva; Esc desfaz. Título em branco não é salvo: o aviso diz por quê. Quem só lê vê o título comum, e nada vira campo.
-// Peça comum: desde a #346, também nos títulos dos cartões de tarefa, demanda, processo e compromisso.
+// Peça comum: desde a #346, também nos títulos dos cartões de tarefa, demanda, processo e compromisso; desde a #358, no nome
+// de cada checklist (nível 4) e no texto de cada item dele (nível "texto": uma linha comum, que não é título).
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type KeyboardEvent } from 'react';
 import { avisar, falha } from '../avisos';
 import { haJanelaAberta } from '../janela';
 
-/** O nível do título: 1 no alto de uma página, 2 no cartão. */
-export type NivelDoTitulo = 1 | 2;
-const ELEMENTO: Record<NivelDoTitulo, 'h1' | 'h2'> = { 1: 'h1', 2: 'h2' };
+/** O nível do título: 1 no alto de uma página, 2 no cartão, 4 numa parte do cartão (o checklist), "texto" numa linha que não é título (o item). */
+export type NivelDoTitulo = 1 | 2 | 4 | 'texto';
+const ELEMENTO: Record<NivelDoTitulo, 'h1' | 'h2' | 'h4' | 'span'> = { 1: 'h1', 2: 'h2', 4: 'h4', texto: 'span' };
 /** O aviso quando quem chama não diz como conferir o título. */
 export const TITULO_EM_BRANCO = 'O título não pode ficar em branco.';
-/** A dica do título que se muda com um clique. */
+/** A dica do título que se muda com um clique (quem chama pode trocar, como o "Clique para renomear" do checklist). */
 const DICA = 'Clique para mudar o título';
 /** Quebra de linha no título (colado de outro lugar): vira um espaço, porque o título é uma linha só, que quebra para caber. */
 const QUEBRA = /\s*[\r\n]+\s*/g;
@@ -79,10 +80,12 @@ interface Props {
   placeholder?: string;
   /** O que a pessoa está escrevendo, a cada tecla (null: fora da edição), para o cartão avisar ao sair sem salvar. */
   aoMudarRascunho?: (rascunho: string | null) => void;
+  /** A dica ao passar o mouse, que diz o que o clique faz. Sem isto, "Clique para mudar o título". */
+  dica?: string;
   className?: string;
 }
 
-export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, className }: Props) {
+export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, dica = DICA, className }: Props) {
   const [rascunho, setRascunho] = useState<string | null>(null);
   /** Marcado ao salvar ou desfazer: o campo some, e o "sair do campo" que vem depois não salva de novo. */
   const fechado = useRef(false);
@@ -150,6 +153,6 @@ export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, 
     placeholder={placeholder} onChange={e => mudar(e.target.value)} onKeyDown={teclar} onBlur={sair} />;
   // O botão leva o próprio título como nome: o título continua sendo lido igual, e o clique (ou Enter) o abre para mudar.
   return <H className={juntar('titulo-editavel', className)}>
-    <button ref={botao} type="button" className="titulo-editavel-botao" title={DICA} onClick={entrar}>{exibido ?? valor}</button>
+    <button ref={botao} type="button" className="titulo-editavel-botao" title={dica} onClick={entrar}>{exibido ?? valor}</button>
   </H>;
 }
