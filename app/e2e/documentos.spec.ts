@@ -383,3 +383,48 @@ test.describe('O texto da anotação com o Markdown completo (#344)', () => {
     await expect(cartao.getByText('|---|')).toHaveCount(0);
   });
 });
+
+/** Clica em "Baixar .md" no cartão e devolve o nome e o conteúdo do arquivo baixado. */
+async function baixarMd(page: Page, cartao: ReturnType<Page['getByRole']>) {
+  const baixando = page.waitForEvent('download');
+  await cartao.getByRole('button', { name: 'Baixar .md' }).click();
+  const download = await baixando;
+  const conteudo = Buffer.concat(await (await download.createReadStream()).toArray()).toString('utf8');
+  return { nome: download.suggestedFilename(), conteudo };
+}
+
+test.describe('Baixar a anotação em .md (#345)', () => {
+  test('dada uma anotação, quando a pessoa clica em "Baixar .md", então baixa um arquivo com o nome do título e, no topo, as propriedades; depois, o título e o texto como foram escritos', async ({ page }) => {
+    // Dado: uma anotação ligada a uma demanda
+    await page.goto('/inicio/');
+    const demanda = await idDaDemanda(page, 'Registro de marca');
+    const texto = 'Levar:\n- [ ] Procuração\n\n---\n\n**Atenção:** prazo "fatal".';
+    const cartao = await criarAnotacao(page, 'Reunião: cliente', { texto, endereco: '/documentos/nova/?demanda=' + demanda });
+    // Quando
+    const { nome, conteudo } = await baixarMd(page, cartao);
+    // Então
+    expect(nome).toBe('Reunião cliente.md');
+    const [, propriedades] = conteudo.split(/^---$/m);
+    expect(propriedades).toMatch(/^codigo: \S+$/m);
+    expect(propriedades).toMatch(/^criada: \d{4}-\d{2}-\d{2}T[\d:]+Z$/m);
+    expect(propriedades).toMatch(/^responsavel: /m);
+    expect(propriedades).toContain('ligada_a:\n  - "Demanda · ');
+    expect(propriedades).toContain('Registro de marca');
+    expect(conteudo.endsWith('\n# Reunião: cliente\n\n' + texto)).toBe(true);
+  });
+
+  test('dada uma anotação que a pessoa só lê, quando abre o cartão, então também pode baixá-la, sem os botões de mudar', async ({ page }) => {
+    // Dado: o Mateus escreve uma anotação ligada a uma demanda em que o Bruno está
+    await page.goto('/inicio/');
+    const demanda = await idDaDemanda(page, 'Registro de marca');
+    await criarAnotacao(page, 'Estratégia da marca', { texto: 'Pedir o registro.', endereco: '/documentos/nova/?demanda=' + demanda });
+    // Quando
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirAnotacao(page, 'Estratégia da marca');
+    // Então
+    await expect(cartao.getByRole('button', { name: 'Arquivar' })).toHaveCount(0);
+    const { nome, conteudo } = await baixarMd(page, cartao);
+    expect(nome).toBe('Estratégia da marca.md');
+    expect(conteudo).toContain('\n# Estratégia da marca\n\nPedir o registro.');
+  });
+});

@@ -3,7 +3,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AcoesDoCartao, RodapeDaEdicao } from './AcoesDoCartao';
+import { AcoesDeQuemLe, AcoesDoCartao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
 import { falha } from './avisos';
 import { Janelas } from './janela';
 
@@ -105,6 +105,52 @@ describe('Ações no topo do cartão arquivado', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(aoConfirmar).not.toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Excluir' })).toHaveFocus();
+  });
+});
+
+describe('Ações a mais no topo do cartão', () => {
+  const baixar = (aoClicar: AcaoDoTopo['aoClicar'] = vi.fn()): AcaoDoTopo => ({ rotulo: 'Baixar .md', icone: 'baixar', aoClicar });
+
+  it('quando o cartão tem uma ação a mais, então ela vem antes de Arquivar e Editar e chama a sua ação', async () => {
+    // Dado
+    const aoClicar = vi.fn();
+    render(<AcoesDoCartao arquivado={false} editando={false} aoArquivar={() => {}} aoEditar={() => {}} extras={[baixar(aoClicar)]} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Baixar .md' }));
+    // Então
+    expect(aoClicar).toHaveBeenCalledOnce();
+    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Baixar .md', 'Arquivar', 'Editar']);
+    expect(screen.getByRole('button', { name: 'Baixar .md' })).toHaveAttribute('title', 'Baixar .md');
+  });
+
+  it('quando o cartão está em edição, então a ação a mais some com os outros botões', () => {
+    // Quando
+    render(<AcoesDoCartao arquivado={false} editando aoArquivar={() => {}} aoEditar={() => {}} extras={[baixar()]} />);
+    // Então
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('quando quem só lê abre o cartão, então ele tem só as ações a mais, sem Arquivar nem Editar', async () => {
+    // Dado
+    const aoClicar = vi.fn();
+    render(<AcoesDeQuemLe acoes={[baixar(aoClicar)]} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Baixar .md' }));
+    // Então
+    expect(aoClicar).toHaveBeenCalledOnce();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('enquanto a ação a mais roda, então o botão fica desligado (sem baixar duas vezes)', async () => {
+    // Dado
+    let terminar = () => {};
+    render(<AcoesDeQuemLe acoes={[baixar(() => new Promise<void>(r => { terminar = r; }))]} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Baixar .md' }));
+    // Então
+    expect(screen.getByRole('button', { name: 'Baixar .md' })).toBeDisabled();
+    terminar();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Baixar .md' })).toBeEnabled());
   });
 });
 

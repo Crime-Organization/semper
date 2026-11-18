@@ -1,12 +1,13 @@
 // Cartão da anotação (painel ao lado ou janela no centro), no modelo dos outros cartões (#303): no topo, o código e as ações;
 // o título e o texto formatado, em medida de leitura; a equipe; os itens a que ela está ligada, com a busca para ligar a
-// mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada.
+// mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada. Todos podem baixá-la em .md (#345).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO } from '../dados/limites';
 import { alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO } from '../regras/anotacao';
+import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { AcoesDeQuemLe, AcoesDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
@@ -16,7 +17,7 @@ import { LigarItem } from '../ui/LigarItem';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
-import { dataCurta, relativo } from '../ui/util';
+import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { plural } from './importarPessoas/textos';
 import NovaAnotacao from './NovaAnotacao';
@@ -35,6 +36,9 @@ const POR_QUE_SO_LE = {
   equipe: 'Toda a equipe vê as anotações do escritório. Só quem a escreveu, o responsável e quem está nela podem mudá-la.',
   item: 'Você vê esta anotação porque vê um item ligado a ela. Só quem a escreveu, o responsável e quem está nela podem mudá-la.'
 };
+
+/** O tipo do arquivo baixado: Markdown, em UTF-8 (acentos e emojis do texto chegam inteiros). */
+const TIPO_MARKDOWN = 'text/markdown;charset=utf-8';
 
 interface Props {
   id: string;
@@ -144,6 +148,17 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       }
     }).then(() => { if (--c.pendentes === 0) depois(); });
   }
+  /**
+   * Baixa a anotação como arquivo .md, como está na tela. Os itens ligados são lidos na hora (a seção "Ligada a" pode estar
+   * fechada ou ainda carregando), e só entram os que a pessoa vê.
+   */
+  async function baixar() {
+    try {
+      const { visiveis } = await SD.anotacaoItens(a!.id);
+      baixarArquivo(nomeDoArquivo(a!.titulo, a!.codigo), markdownDaAnotacao(a!, visiveis, { responsavel: nomeDe(a!.responsavel_id) }), TIPO_MARKDOWN);
+    } catch (e) { falha(e); }
+  }
+  const baixarMd: AcaoDoTopo = { rotulo: 'Baixar .md', icone: 'baixar', aoClicar: baixar };
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) depois();
@@ -157,7 +172,10 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       <div className="linha">
         <Selo tipo="escuro">Anotação</Selo><span className="codigo">{a.codigo}</span>
         {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!a.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} />}
+        {podeAlterar
+          ? <AcoesDoCartao editando={editando} arquivado={!!a.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)}
+            excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={[baixarMd]} />
+          : <AcoesDeQuemLe acoes={[baixarMd]} />}
       </div>
       <h2>{a.titulo}</h2>
     </header>

@@ -195,6 +195,11 @@ export const PROCESSOS_PARA_LIGAR = 50;
 export const TAMANHO_ANOTACAO = { titulo: 300, texto: 20000 };
 /** A quantos itens uma anotação pode ser ligada (exigido pelo banco, mesma migração: ele recusa o 51º). */
 export const ITENS_DA_ANOTACAO = 50;
+/**
+ * Até quantos caracteres do título entram no nome do arquivo da anotação baixada em .md (#345), sem contar o ".md". Fica bem
+ * abaixo dos 255 que o Windows e o Mac aceitam, para sobrar lugar ao "(1)" que o navegador põe quando o nome se repete.
+ */
+export const TAMANHO_NOME_DO_ARQUIVO = 120;
 /** Quantas anotações entram na seção "Anotações" do cartão de um item (as atualizadas mais recentemente). */
 export const ANOTACOES_LIGADAS = 200;
 /** Quantas alterações do histórico aparecem no cartão da anotação. */
