@@ -7,13 +7,25 @@
 .lote-limpar { margin-left: 8px; color: inherit }
 
 /* O texto da anotação no cartão: o corpo de leitura do DESIGN.md (16/1.65), na largura de leitura. */
-.texto-formatado.anotacao-texto { max-width: 68ch; margin: 4px 0 8px; font-size: 16px; line-height: 1.65 }
+.texto-formatado.anotacao-texto { max-width: 68ch; margin: 4px 0 8px; font-size: var(--texto-nota); line-height: 1.65 }
 .texto-formatado.anotacao-texto > :is(h3, h4, h5) { margin-top: 20px }
 .texto-formatado.anotacao-texto > :is(h3, h4, h5):first-child { margin-top: 0 }
 .texto-formatado.anotacao-texto > ul { margin: 6px 0 }
 
-/* A caixa do texto no cadastro: espaço para escrever um documento, não uma linha. */
-textarea.anotacao-caixa { min-height: 240px; line-height: 1.6 }
+/* A caixa do texto, na anotação nova e na edição no cartão: espaço para escrever um documento, não uma linha, na medida de leitura. */
+textarea.anotacao-caixa { min-height: 240px; max-width: calc(68ch + 30px) }
+
+/* A anotação nova (#339): a nota em branco no visual do cartão. A equipe numa linha discreta (os nomes pequenos em caixa alta vêm de .rotulo-caps). */
+.anotacao-nova { gap: 22px }
+.anotacao-equipe { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 28px }
+.anotacao-equipe > .pergunta { flex: 1 1 220px; min-width: 0; gap: 6px }
+.anotacao-nova .anotacao-equipe { padding-top: 18px; border-top: 1px solid var(--line) }
+.anotacao-nova .anotacao-equipe select { height: var(--campo-discreto); font-size: var(--texto-corrido) }
+.edicao-cartao .anotacao-equipe { flex-direction: column }
+.edicao-cartao .anotacao-equipe > .pergunta { flex: none; width: 100% }
+.anotacao-nova-ligada { display: flex; flex-direction: column; gap: 10px; padding-top: 18px; border-top: 1px solid var(--line) }
+.anotacao-nova-ligada .ligados-acoes { margin-top: 0 }
+.anotacao-nova-salvar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line) }
 
 /* Ligar a outro item: o tipo de item e a busca lado a lado (um embaixo do outro no cartão estreito). */
 .ligar-item { flex: 1 1 100% }

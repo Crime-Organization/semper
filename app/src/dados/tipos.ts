@@ -1273,6 +1273,8 @@ export interface ItemDaAnotacao {
   /** Só nos processos: o tipo, que decide a página do cartão (enderecoDoItem, em regras/anotacao.ts). */
   tipo?: TipoProcesso;
 }
+/** Um item a que a anotação se liga: o módulo dele e o id. */
+export type ItemParaLigar = Pick<ItemDaAnotacao, 'modulo' | 'id'>;
 export interface FiltroAnotacoes {
   termo?: string;
   /** Só as ligadas a algum item deste módulo; 'nenhum': as que não estão ligadas a nada. */
@@ -1290,8 +1292,11 @@ export interface FiltroAnotacoes {
 export interface DadosAnotacoes {
   anotacoesListar(f?: FiltroAnotacoes): Promise<Pagina<AnotacaoLista>>;
   anotacaoObter(id: string): Promise<Anotacao | null>;
-  /** "ligarA": o item em cujo cartão a anotação nasceu; se a ligação falhar, nada fica gravado. */
-  anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: { modulo: ModuloDaAnotacao; id: string }): Promise<{ id: string; codigo: string }>;
+  /**
+   * "ligarA": o item, ou os itens na ordem em que foram escolhidos, a que a anotação já nasce ligada: o do cartão em que ela
+   * nasceu e os escolhidos antes de salvar (#339). Item repetido conta uma vez. Se uma ligação falhar, nada fica gravado.
+   */
+  anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: ItemParaLigar | ItemParaLigar[]): Promise<{ id: string; codigo: string }>;
   /**
    * Duplica a anotação (#343): cria a cópia com estes dados (o que ela leva vem de dadosDaCopia, em regras/anotacao.ts) e liga a
    * ela os itens da original que quem duplica vê, na mesma ordem; os que não vê ficam de fora. A cópia tem código e histórico

@@ -8,6 +8,8 @@ import { estiloBotao, type EstiloBotao } from './botao';
 
 export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } from './botao';
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
+export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
+export { TextoEditavel } from './TextoEditavel';
 
 /** Link com cara de botão (ex.: "Nova pessoa" no cabeçalho do módulo). */
 export function BotaoLink({ forma, variante, pequeno, className, ...resto }: ComponentProps<typeof Link> & EstiloBotao) {

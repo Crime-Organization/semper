@@ -49,6 +49,14 @@
   --texto-titulo-3: 15px;
   /* As tabelas dentro do texto formatado: um ponto abaixo do texto (15px), para caber mais colunas sem rolar */
   --texto-tabela: 14px;
+  /* A letra da nota (o texto da anotação, lido e escrito, #339): um ponto acima do texto corrido, para ler e escrever com folga */
+  --texto-nota: 16px;
+  /* O texto corrido das telas: campos e convites */
+  --texto-corrido: 15px;
+  /* A letra miúda das dicas de atalho ("Ctrl+Enter salva") */
+  --texto-miudo: 12px;
+  /* O campo numa linha discreta (a equipe da anotação nova, #339): um pouco mais baixo que o das perguntas (48px) */
+  --campo-discreto: 40px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -95,7 +103,8 @@ button, input, select, textarea { font-family: inherit }
 .titulo .ponto { color: var(--accent) }
 .lead { margin: 10px 0 0; font-size: 17px; color: var(--text2); max-width: 640px }
 h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em }
-.rotulo-caps { display: block; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }
+/* O nome pequeno em caixa alta. Também nos nomes dos campos da equipe da anotação (#339), que vêm do <Campo> e da <EscolhaDaEquipe>. */
+.rotulo-caps, .anotacao-equipe > .pergunta > :is(label, .rot) { display: block; font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--muted) }
 .nota { font-size: 13px; color: var(--muted); margin: 0; line-height: 1.6; overflow-wrap: anywhere }
 .link { background: none; border: 0; padding: 0; color: var(--accent-ink); font-weight: 700; font-size: 14px; cursor: pointer; border-bottom: 1px solid currentColor }
 .carregando { color: var(--muted); font-size: 15px }
@@ -155,6 +164,29 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .caixa-formatada { display: flex; flex-direction: column; gap: 6px }
 .caixa-formatada-barra { display: flex; flex-wrap: wrap; gap: 6px }
 .caixa-formatada-botao { width: 34px; padding: 0; justify-content: center; font-size: 15px }
+/* Título e texto que se mudam no próprio lugar (<TituloEditavel>, <TextoEditavel>, #339). O campo do título fica dentro do próprio
+   título e herda a letra dele; o recuo de 6px, devolvido pela margem, deixa o texto parado ao entrar e ao sair da edição. */
+.titulo-editavel-botao, .titulo-editavel-campo { display: block; width: calc(100% + 12px); margin: 0 -6px; padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; letter-spacing: inherit; line-height: inherit; color: inherit; text-align: left; overflow-wrap: anywhere }
+.titulo-editavel-botao { cursor: text; transition: background-color .15s ease-out }
+.titulo-editavel-botao:hover { background: var(--soft) }
+.titulo-editavel-campo { background: var(--superficie); resize: none; overflow: hidden; field-sizing: content }
+.titulo-editavel-campo:focus { outline: 2px solid var(--accent); outline-offset: 2px }
+.titulo-editavel-campo::placeholder { color: var(--faint); opacity: 1 }
+.texto-editavel { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
+.texto-editavel-area { align-self: stretch; margin: 0 -10px; padding: 2px 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
+.texto-editavel-area:hover { background: var(--soft) }
+/* "Mudar o texto": o caminho do teclado, discreto até receber o mouse ou o foco. */
+.mini.texto-editavel-botao { margin-left: -12px; border-color: transparent; background: none; color: var(--muted) }
+.mini.texto-editavel-botao:hover, .mini.texto-editavel-botao:focus-visible { border-color: var(--line2); color: var(--ink) }
+.texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
+.texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
+.texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
+.texto-editavel-caixa { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); resize: vertical }
+.texto-editavel-caixa:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
+.texto-editavel-caixa::placeholder { color: var(--muted); opacity: 1 }
+/* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
+.texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
+.texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
 

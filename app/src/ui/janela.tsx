@@ -32,6 +32,9 @@ export function janela<T>({ titulo, corpo = null, acoes }: { titulo: string; cor
   });
 }
 
+/** Há uma janela aberta por cima de tudo (uma pergunta à espera de resposta). */
+export const haJanelaAberta = () => pedidos.ler().length > 0;
+
 export const confirmar = (titulo: string, texto: ReactNode, rotulo = 'Confirmar', perigo = false) =>
   janela<boolean>({ titulo, corpo: <p>{texto}</p>, acoes: [{ rotulo: 'Cancelar', valor: false }, { rotulo, valor: true, tipo: perigo ? 'perigo' : 'pri' }] });
 

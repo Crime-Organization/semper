@@ -15,9 +15,11 @@ interface Props {
   /** Os itens que já estão ligados: ficam fora da lista. */
   ligados: Pick<ItemDaAnotacao, 'modulo' | 'id'>[];
   aoEscolher: (item: ItemDaAnotacao) => unknown;
+  /** O texto do botão que abre a busca (na anotação nova sem itens, "Ligar a um item"). */
+  rotulo?: string;
 }
 
-export function LigarItem({ modulos, ligados, aoEscolher }: Props) {
+export function LigarItem({ modulos, ligados, aoEscolher, rotulo = 'Ligar a outro item' }: Props) {
   const [buscando, setBuscando] = useState(false);
   const [modulo, setModulo] = useState<ModuloDaAnotacao>(modulos[0]);
   const [termo, setTermo] = useState('');
@@ -60,7 +62,7 @@ export function LigarItem({ modulos, ligados, aoEscolher }: Props) {
   if (!modulos.length) return null;
   if (!buscando) return <div>
     <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}>
-      <Icone nome="vinculo" tam={13} /> Ligar a outro item
+      <Icone nome="vinculo" tam={13} /> {rotulo}
     </button>
   </div>;
 

@@ -1,11 +1,14 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { TAMANHO_ANOTACAO } from '../dados/limites';
-import type { Anotacao, Membro } from '../dados/tipos';
+import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
+import type { Anotacao, ItemParaLigar, Membro } from '../dados/tipos';
+/** Um item escolhido para a anotação nova, com o nome que a tela mostra. */
+type ItemComNome = ItemParaLigar & { nome: string };
 import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
   camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
-  SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, type CamposAnotacao, type ChavesDaEquipe
+  SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
+  edicaoPorSalvar, mesmoItem, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
@@ -304,5 +307,102 @@ describe('A cópia da anotação (#343)', () => {
     const a = anotacao({ responsavel_id: 'u-excluido', participantes: ['u-desativado', 'u-bruno'] });
     // Quando / Então
     expect(dadosDaCopia(a, quem('u-ana', true))).toMatchObject({ responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+  });
+});
+
+describe('O título e o texto editados no próprio lugar (#339)', () => {
+  it.each([
+    ['um título comum', 'Estratégia', ''],
+    ['o título só com espaços', '   ', 'Dê um título à anotação.'],
+    ['o título no tamanho máximo', 'x'.repeat(TAMANHO_ANOTACAO.titulo), ''],
+    ['o título maior que o máximo', 'x'.repeat(TAMANHO_ANOTACAO.titulo + 1), 'O título pode ter até 300 caracteres.']
+  ])('dado %s, quando a pessoa salva o título, então o erro é "%s"', (_caso, titulo, erro) => {
+    // Quando / Então
+    expect(erroDoTitulo(titulo)).toBe(erro);
+  });
+
+  it.each([
+    ['o texto vazio', '', ''],
+    ['o texto no tamanho máximo', 'x'.repeat(TAMANHO_ANOTACAO.texto), ''],
+    ['o texto maior que o máximo', 'x'.repeat(TAMANHO_ANOTACAO.texto + 1), 'O texto pode ter até 20.000 caracteres.']
+  ])('dado %s, quando a pessoa salva o texto, então o erro é "%s"', (_caso, texto, erro) => {
+    // Quando / Então
+    expect(erroDoTexto(texto)).toBe(erro);
+  });
+});
+
+describe('A equipe da anotação, pelo lápis do cartão (#339)', () => {
+  it('dada uma anotação gravada, quando o lápis abre, então os campos são só o responsável e os participantes', () => {
+    // Dado / Quando / Então
+    expect(equipeDaAnotacao(anotacao())).toEqual({ responsavelId: 'u-ana', participantes: ['u-carla'] });
+  });
+
+  it('quando a equipe é gravada, então vão só o responsável e os participantes, sem ele, e nunca o título e o texto', () => {
+    // Dado / Quando
+    const dados = dadosDaEquipe({ responsavelId: 'u-bruno', participantes: ['u-bruno', 'u-carla'] });
+    // Então
+    expect(dados).toEqual({ responsavel_id: 'u-bruno', participantes: ['u-carla'] });
+  });
+
+  it('dado o responsável em branco, então a equipe pede que ele seja escolhido', () => {
+    // Dado / Quando / Então
+    expect(erroDaEquipe({ responsavelId: '', participantes: [] })).toBe('Escolha o responsável.');
+    expect(erroDaEquipe({ responsavelId: 'u-ana', participantes: [] })).toBe('');
+  });
+});
+
+describe('Os itens escolhidos antes de salvar a anotação nova (#339)', () => {
+  const demanda: ItemComNome = { modulo: 'demandas', id: 'd1', nome: 'Registro de marca' };
+  const pessoa: ItemComNome = { modulo: 'pessoas', id: 'p1', nome: 'JOSÉ' };
+
+  it('quando a pessoa escolhe dois itens, então eles ficam na ordem da escolha', () => {
+    // Quando
+    const lista = comMaisUmItem(comMaisUmItem([], demanda), pessoa);
+    // Então
+    expect(lista).toEqual([demanda, pessoa]);
+  });
+
+  it('dado um item já escolhido, quando a pessoa o escolhe de novo, então ele não se repete', () => {
+    // Dado
+    const lista = [demanda];
+    // Quando / Então
+    expect(comMaisUmItem(lista, { ...demanda })).toBe(lista);
+  });
+
+  it('dada a lista no máximo de itens do banco, quando a pessoa escolhe mais um, então ele não entra', () => {
+    // Dado
+    const cheia = Array.from({ length: ITENS_DA_ANOTACAO }, (_, i): ItemParaLigar => ({ modulo: 'pessoas', id: 'p' + i }));
+    // Quando / Então
+    expect(comMaisUmItem(cheia, { modulo: 'demandas', id: 'd1' })).toHaveLength(ITENS_DA_ANOTACAO);
+  });
+
+  it('dados dois itens escolhidos, quando a pessoa tira um, então fica só o outro', () => {
+    // Dado / Quando / Então
+    expect(semOItem([demanda, pessoa], { modulo: 'demandas', id: 'd1' })).toEqual([pessoa]);
+    expect(mesmoItem(demanda, { modulo: 'pessoas', id: 'd1' })).toBe(false);
+  });
+
+  it('quando a anotação nova é salva, então vão para o banco só o módulo e o id de cada item, na ordem', () => {
+    // Dado / Quando / Então
+    expect(ligacoesDaAnotacaoNova([pessoa, demanda])).toEqual([{ modulo: 'pessoas', id: 'p1' }, { modulo: 'demandas', id: 'd1' }]);
+  });
+});
+
+describe('A edição por salvar no cartão da anotação (#339)', () => {
+  const a = anotacao({ titulo: 'Estratégia', texto: 'Plano', responsavel_id: 'u-ana', participantes: ['u-carla'] });
+
+  it.each<[string, RascunhosDaAnotacao, boolean]>([
+    ['nada aberto', {}, false],
+    ['o título aberto e igual', { titulo: 'Estratégia', texto: null }, false],
+    ['o título aberto só com espaços a mais nas pontas', { titulo: '  Estratégia ' }, false],
+    ['o título mudado', { titulo: 'Estratégia nova' }, true],
+    ['o texto aberto e igual', { texto: 'Plano' }, false],
+    ['o texto mudado', { texto: 'Plano B' }, true],
+    ['a equipe aberta e igual', { equipe: { responsavelId: 'u-ana', participantes: ['u-carla'] } }, false],
+    ['a equipe com o responsável repetido entre os participantes', { equipe: { responsavelId: 'u-ana', participantes: ['u-carla', 'u-ana'] } }, false],
+    ['a equipe com mais alguém', { equipe: { responsavelId: 'u-ana', participantes: ['u-carla', 'u-bruno'] } }, true]
+  ])('dado %s, então a edição por salvar é %s', (_caso, rascunhos, esperado) => {
+    // Quando / Então
+    expect(edicaoPorSalvar(a, rascunhos)).toBe(esperado);
   });
 });

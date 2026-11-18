@@ -2,16 +2,22 @@
 // o título e o texto formatado, em medida de leitura; a equipe; os itens a que ela está ligada, com a busca para ligar a
 // mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada. Todos podem baixá-la em .md (#345)
 // e duplicá-la (#343): a cópia é de quem a faz e leva só os itens ligados que ela vê.
+// Desde a #339, como uma nota do Obsidian: quem altera clica no título ou no texto e muda ali mesmo (cada um grava só o que
+// mudou); o lápis muda só a equipe. Com uma edição por salvar, sair do cartão pergunta antes (AvisoAoSair).
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
-import { ITENS_DA_ANOTACAO } from '../dados/limites';
-import { alteraAAnotacao, dadosDaCopia, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO } from '../regras/anotacao';
+import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
+import {
+  alteraAAnotacao, dadosDaCopia, DICA_DO_TEXTO, edicaoPorSalvar, enderecoDoItem, erroDoTexto, erroDoTitulo, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao,
+  MODULOS_DA_ANOTACAO, type RascunhosDaAnotacao
+} from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
 import { AcoesDeQuemLe, AcoesDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
+import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
@@ -22,8 +28,8 @@ import { useQuantos } from '../ui/useQuantos';
 import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
+import { EditarEquipeDaAnotacao } from './EquipeDaAnotacao';
 import { plural } from './importarPessoas/textos';
-import NovaAnotacao from './NovaAnotacao';
 import './Documentos.css';
 
 /** O nome de cada campo no histórico. */
@@ -45,6 +51,8 @@ const NAO_ENCONTRADA = 'Esta anotação não foi encontrada. Ela pode ter sido e
 
 /** O tipo do arquivo baixado: Markdown, em UTF-8 (acentos e emojis do texto chegam inteiros). */
 const TIPO_MARKDOWN = 'text/markdown;charset=utf-8';
+/** Para onde vai quem se tira da anotação: a página Documentos, sem o cartão (ela pode deixar de vê-la). */
+const DOCUMENTOS = '/documentos/';
 
 interface Props {
   id: string;
@@ -62,6 +70,16 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
   const [editando, setEditando] = useState(false);
+  /** A equipe está sendo gravada pelo lápis: sair agora pede para esperar (a gravação termina mesmo assim). */
+  const [salvandoEquipe, setSalvandoEquipe] = useState(false);
+  /** Muda quando a pessoa escolhe "Sair sem salvar": o título, o texto e a equipe em edição recomeçam, sem o que ela descartou. */
+  const [edicaoDescartada, setEdicaoDescartada] = useState(0);
+  /** O que está aberto para editar (o título, o texto, a equipe), para avisar ao sair com algo por salvar. */
+  const [rascunhos, setRascunhos] = useState<RascunhosDaAnotacao>({});
+  const mudarRascunho = useCallback(<K extends keyof RascunhosDaAnotacao>(campo: K) => (r: RascunhosDaAnotacao[K]) =>
+    setRascunhos(atual => ({ ...atual, [campo]: r })), []);
+  /** Marcada logo antes de sair por conta própria (a pessoa se tirou da anotação): aí o aviso de sair sem salvar não pergunta. */
+  const saidaLiberada = useRef(false);
   /**
    * As caixinhas marcadas uma atrás da outra: são gravadas em fila, na ordem dos cliques. Enquanto há gravação pendente, nenhuma
    * leitura do banco troca o texto da tela (ela viria sem os cliques ainda na fila, e o próximo clique partiria dela e os
@@ -128,21 +146,23 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
   /**
-   * Marca ou desmarca uma caixinha da lista de tarefas do texto: a caixinha muda na hora e o texto novo é gravado como na edição
-   * (com o aviso e o desfazer). O texto novo parte do que está na tela, que já tem os cliques anteriores, mesmo os ainda na fila
-   * (veja "caixinhas"). Se uma gravação falhar, a tela volta ao último texto gravado, e os cliques seguintes já na fila não são
-   * gravados. Quando a fila esvazia, a anotação é lida de novo.
+   * Grava o texto novo: a tela muda na hora e a gravação entra na fila das caixinhas (veja "caixinhas"), com o aviso e o desfazer.
+   * Vale para a caixinha marcada (o texto novo parte do que está na tela, que já tem os cliques anteriores, mesmo os ainda na
+   * fila) e para o texto editado no próprio lugar (#339). Se uma gravação falhar, a tela volta ao último texto gravado, e as
+   * seguintes já na fila não são gravadas. Quando a fila esvazia, a anotação é lida de novo. Diz se este texto foi gravado.
    */
-  function marcarCaixinha(texto: string) {
+  function gravarTexto(texto: string): Promise<boolean> {
     const c = caixinhas.current, antes = a!.texto, id = a!.id, geracao = c.geracao;
     if (!c.pendentes) c.confirmado = antes;
     c.pendentes++;
     setA(atual => atual && { ...atual, texto });
+    let gravou = false;
     c.fila = c.fila.then(async () => {
-      if (geracao !== c.geracao) return;   // um clique anterior não foi gravado, e este partiu dele: fica de fora
+      if (geracao !== c.geracao) return;   // uma gravação anterior falhou, e esta partiu dela: fica de fora
       try {
         await SD.anotacaoAtualizar(id, { texto });
         c.confirmado = texto;
+        gravou = true;
         feito('Anotação atualizada.', 'atualização da anotação', async () => {
           await SD.anotacaoAtualizar(id, { texto: antes });
           return { tipo: 'anotacaoAtualizada', id };
@@ -154,6 +174,32 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
         setA(atual => atual && { ...atual, texto: gravado });
       }
     }).then(() => { if (--c.pendentes === 0) depois(); });
+    return c.fila.then(() => gravou);
+  }
+  const marcarCaixinha = (texto: string) => void gravarTexto(texto);
+  /**
+   * Grava o título mudado no próprio lugar (#339): só o título, com o aviso e o desfazer. A tela já mostra o novo; se a gravação
+   * falhar, o título gravado volta.
+   */
+  async function salvarTitulo(titulo: string) {
+    const antes = a!.titulo, id = a!.id;
+    setA(atual => atual && { ...atual, titulo });
+    try {
+      await SD.anotacaoAtualizar(id, { titulo });
+      feito('Anotação atualizada.', 'atualização da anotação', async () => {
+        await SD.anotacaoAtualizar(id, { titulo: antes });
+        return { tipo: 'anotacaoAtualizada', id };
+      });
+      depois();
+    } catch (e) {
+      setA(atual => atual && { ...atual, titulo: antes });
+      throw e;
+    }
+  }
+  /** Quem se tirou da anotação pela equipe: o cartão fecha sem perguntar (veja EditarEquipeDaAnotacao). */
+  function sairDaAnotacao() {
+    saidaLiberada.current = true;
+    navegar(DOCUMENTOS);
   }
   /**
    * Baixa a anotação como arquivo .md, como está na tela. Os itens ligados são lidos na hora (a seção "Ligada a" pode estar
@@ -197,8 +243,18 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
 
   const lidos = itens && typeof itens !== 'string' ? itens : null;
   const totalLigados = lidos ? lidos.visiveis.length + lidos.ocultos : undefined;
+  // O título e o texto se mudam no próprio lugar só por quem altera, e só com a anotação ativa (a arquivada fica como está).
+  const mudaNoLugar = podeAlterar && !a.arquivado_em;
+  // "Sair sem salvar" descarta o que está em edição. O cartão pode continuar ao fundo (a anotação nova abre por cima dele), e
+  // assim o título descartado não é salvo quando o campo perde o foco para ela.
+  function descartarEdicao() {
+    setEditando(false);
+    setRascunhos({});
+    setEdicaoDescartada(v => v + 1);
+  }
 
   return <>
+    {edicaoPorSalvar(a, rascunhos) && <AvisoAoSair preenchido liberada={saidaLiberada} ocupado={salvandoEquipe} aoDescartar={descartarEdicao} />}
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Anotação</Selo><span className="codigo">{a.codigo}</span>
@@ -208,15 +264,18 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
             excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoTopo} />
           : <AcoesDeQuemLe acoes={acoesDoTopo} />}
       </div>
-      <h2>{a.titulo}</h2>
+      <TituloEditavel key={edicaoDescartada} valor={a.titulo} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo} maximo={TAMANHO_ANOTACAO.titulo}
+        placeholder="Sem título" aoMudarRascunho={mudarRascunho('titulo')} />
     </header>
 
-    {editando ? <NovaAnotacao edicao={{ id: a.id, aoTerminar: terminarEdicao }} /> : <>
-
-    <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, a.responsavel_id, 'Responsável')}
-        participantes={a.participantes.map(p => naEquipe(ctx.equipe, p, 'Compartilhada'))} />
-    </div>
+    {/* O lápis muda só a equipe: o título e o texto já se mudam no próprio lugar. */}
+    {editando
+      ? <EditarEquipeDaAnotacao anotacao={a} aoTerminar={terminarEdicao} aoSairDaAnotacao={sairDaAnotacao} aoMudarRascunho={mudarRascunho('equipe')}
+        aoMudarOcupado={setSalvandoEquipe} />
+      : <div className="cartao-acoes">
+        <EquipeDoCartao responsavel={naEquipe(ctx.equipe, a.responsavel_id, 'Responsável')}
+          participantes={a.participantes.map(p => naEquipe(ctx.equipe, p, 'Compartilhada'))} />
+      </div>}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {a.arquivado_em && <div className="cartao-arquivada">
@@ -224,7 +283,9 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
         : 'Anotação arquivada. Só quem a escreveu ou um administrador pode excluí-la.'}</span>
     </div>}
 
-    {a.texto.trim() ? <TextoFormatado className="anotacao-texto" texto={a.texto} aoMarcar={podeAlterar && !a.arquivado_em ? marcarCaixinha : undefined} /> : <Nota>Sem texto ainda.{podeAlterar && !a.arquivado_em ? ' Escreva pelo lápis do cartão.' : ''}</Nota>}
+    <TextoEditavel key={edicaoDescartada} texto={a.texto} className="anotacao-texto" classeDaCaixa="anotacao-caixa" maximo={TAMANHO_ANOTACAO.texto} conferir={erroDoTexto}
+      placeholder={DICA_DO_TEXTO} vazio={<Nota>Sem texto ainda.</Nota>} convite="Sem texto ainda. Clique para escrever."
+      aoSalvar={mudaNoLugar ? gravarTexto : undefined} aoMarcar={mudaNoLugar ? marcarCaixinha : undefined} aoMudarRascunho={mudarRascunho('texto')} />
 
     <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={totalLigados}>
       {itens === null ? <Carregando />
@@ -253,6 +314,5 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       <span>Criada em {dataCurta(a.criado_em)}{a.criado_por ? ' por ' + nomeDe(a.criado_por) : ''}</span>
       <span>Atualizada {relativo(a.atualizado_em)}</span>
     </footer>
-    </>}
   </>;
 }

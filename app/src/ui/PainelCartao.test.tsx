@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { useContext } from 'react';
+import { useContext, useEffect } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -287,5 +287,37 @@ describe('Janela sem a coluna dos comentários e larga (a anotação, #340)', ()
     // Então
     expect(screen.getByText('Sem a coluna; botões no painel')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toHaveClass('lado');
+  });
+});
+
+/** Uma tela que, ao abrir, põe o cursor no próprio campo (como o título da anotação nova, #339). */
+function ComCursorNoCampo() {
+  useEffect(() => {
+    const t = setTimeout(() => document.getElementById('campo-do-teste')?.focus(), 0);
+    return () => clearTimeout(t);
+  }, []);
+  return <input id="campo-do-teste" aria-label="Título" />;
+}
+/** Espera o quadro seguinte da tela, em que o painel aparece. */
+const proximoQuadro = () => new Promise(pronto => requestAnimationFrame(() => pronto(null)));
+
+describe('O foco ao abrir o painel', () => {
+  beforeEach(() => iniciarPreferencias({}));
+
+  it('dada uma tela sem campo com foco, quando o painel abre, então o foco vai ao painel', async () => {
+    // Quando
+    abrir();
+    // Então
+    await vi.waitFor(() => expect(screen.getByRole('dialog')).toHaveFocus());
+  });
+
+  it('dada uma tela que já pôs o cursor num campo dela, quando o painel abre, então o painel não tira o foco do campo', async () => {
+    // Quando
+    render(<PainelCartao aoFechar={() => {}}><ComCursorNoCampo /></PainelCartao>);
+    await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Título' })).toHaveFocus());
+    await proximoQuadro();
+    await proximoQuadro();
+    // Então: mesmo depois do quadro em que o painel aparece
+    expect(screen.getByRole('textbox', { name: 'Título' })).toHaveFocus();
   });
 });

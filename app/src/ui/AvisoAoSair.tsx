@@ -1,6 +1,7 @@
 // Pergunta antes de sair de um cadastro novo com algo preenchido (#82): pelo X, pelo Esc, pelo menu, por um link ou pelo Voltar do
 // navegador. Ao fechar ou recarregar a aba, quem pergunta é o próprio navegador.
-// Só entra na tela do cadastro novo: a edição dentro do cartão não usa este aviso.
+// Entra na tela do cadastro novo e, desde a #339, na edição no próprio lugar (o título e o texto da anotação), que diz direto
+// se há o que perder ("preenchido"). Um só por vez: o roteador só segura uma saída de cada vez.
 import { useEffect, useRef, type RefObject } from 'react';
 import { useBlocker } from 'react-router';
 import { avisar } from './avisos';
@@ -36,20 +37,32 @@ export async function podeSairDoCadastro() {
 
 interface PropsDoAviso {
   /** Os campos do formulário. Se ficarem diferentes de como estavam quando a pessoa mexeu num campo pela primeira vez, há o que perder. */
-  estado: unknown;
+  estado?: unknown;
+  /**
+   * Para quem já sabe se há o que perder (a edição no próprio lugar compara o rascunho com o que está gravado): vale no lugar da
+   * comparação de "estado".
+   */
+  preenchido?: boolean;
   /** O formulário marca como true logo antes de sair por conta própria (salvou, ou a pessoa escolheu ver outro cadastro). */
   liberada: RefObject<boolean>;
   /** Salvando: a saída espera, porque o cadastro pode acabar criado depois de a pessoa ter escolhido sair. */
   ocupado: boolean;
+  /**
+   * A pessoa escolheu "Sair sem salvar": chamado logo antes de sair. Para a edição no próprio lugar, que pode continuar na tela
+   * ao fundo (a anotação nova abre por cima do cartão): o que ela mandou descartar é descartado, e não salvo depois.
+   */
+  aoDescartar?: () => void;
 }
 
-export function AvisoAoSair({ estado, liberada, ocupado }: PropsDoAviso) {
+export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoDescartar }: PropsDoAviso) {
+  const descartar = useRef(aoDescartar);
+  descartar.current = aoDescartar;
   const atual = JSON.stringify(estado);
   // Até a pessoa mexer num campo, o que muda veio do sistema (dados da pessoa escolhida, parâmetros do endereço), e não há o que perder.
   const mexeu = useRef(false);
   const base = useRef(atual);
   if (!mexeu.current) base.current = atual;
-  const preenchido = atual !== base.current;
+  const preenchido = jaSabe ?? atual !== base.current;
   const agora = useRef({ preenchido, ocupado });
   agora.current = { preenchido, ocupado };
 
@@ -87,7 +100,7 @@ export function AvisoAoSair({ estado, liberada, ocupado }: PropsDoAviso) {
     void perguntarSeSai().then(sair => {
       perguntando.current = false;
       if (!montado.current) return;   // a sessão acabou com a pergunta aberta: o bloqueio já não existe
-      if (sair) bloqueio.proceed();
+      if (sair) { descartar.current?.(); bloqueio.proceed(); }
       else bloqueio.reset();
     });
   }, [bloqueio]);

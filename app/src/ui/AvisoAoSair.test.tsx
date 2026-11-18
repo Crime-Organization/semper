@@ -250,3 +250,70 @@ describe('Aviso ao sair de um cadastro', () => {
     expect(pediu).toBe(false);
   });
 });
+
+/** A edição no próprio lugar (#339): o aviso só existe enquanto há algo por salvar, e quem o põe já diz que há. */
+function EdicaoNoLugar({ aoDescartar }: { aoDescartar?: () => void }) {
+  const [porSalvar, setPorSalvar] = useState(false);
+  const liberada = useRef(false);
+  return <>
+    {porSalvar && <AvisoAoSair preenchido liberada={liberada} ocupado={false} aoDescartar={aoDescartar} />}
+    <button type="button" onClick={() => setPorSalvar(true)}>Mudar o título</button>
+    <button type="button" onClick={() => setPorSalvar(false)}>Salvar o título</button>
+    <Link to="/lista">Lista</Link>
+  </>;
+}
+
+describe('Aviso ao sair de uma edição no próprio lugar (#339)', () => {
+  afterEach(() => {
+    if (pergunta()) fireEvent.keyDown(document, { key: 'Escape' });
+    cleanup();
+  });
+  function abrirEdicao(aoDescartar?: () => void) {
+    const roteador = createMemoryRouter([
+      { path: '/cartao', element: <EdicaoNoLugar aoDescartar={aoDescartar} /> },
+      { path: '/lista', element: <p>Página da lista</p> }
+    ], { initialEntries: ['/cartao'] });
+    render(<><RouterProvider router={roteador} /><Janelas /></>);
+  }
+
+  it('dada uma mudança por salvar, quando a pessoa sai por um link, então o SEMPER pergunta antes, sem precisar comparar campos', async () => {
+    // Dado
+    abrirEdicao();
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar o título' }));
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+    expect(screen.queryByText('Página da lista')).not.toBeInTheDocument();
+  });
+
+  it('dada a mudança já salva, quando a pessoa sai por um link, então sai sem pergunta', async () => {
+    // Dado
+    abrirEdicao();
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar o título' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar o título' }));
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(pergunta()).not.toBeInTheDocument();
+  });
+
+  it('dada a pergunta aberta, quando a pessoa escolhe "Sair sem salvar", então a edição é descartada antes de sair; ao continuar, nada é descartado', async () => {
+    // Dado
+    const aoDescartar = vi.fn();
+    abrirEdicao(aoDescartar);
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar o título' }));
+    await irParaLista();
+    // Quando: continua
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar no cadastro' }));
+    // Então
+    expect(aoDescartar).not.toHaveBeenCalled();
+    // Quando: tenta de novo e escolhe sair
+    await irParaLista();
+    await userEvent.click(await screen.findByRole('button', { name: 'Sair sem salvar' }));
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(aoDescartar).toHaveBeenCalledOnce();
+  });
+});

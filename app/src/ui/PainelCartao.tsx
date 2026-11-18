@@ -98,7 +98,11 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
   const pedirParaFechar = () => tentarFechar(trava.current, fechar.current);
   useEffect(() => {
     document.body.classList.add('sem-rolagem');
-    const r = requestAnimationFrame(() => { setOn(true); painel.current?.focus(); });
+    // O foco vai ao painel, a não ser que a tela de dentro já o tenha posto num campo dela (o título da anotação nova, #339).
+    const r = requestAnimationFrame(() => {
+      setOn(true);
+      if (!painel.current?.contains(document.activeElement)) painel.current?.focus();
+    });
     const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.veu-janela')) tentarFechar(trava.current, fechar.current); };
     document.addEventListener('keydown', tecla);
     return () => { cancelAnimationFrame(r); document.removeEventListener('keydown', tecla); document.body.classList.remove('sem-rolagem'); };

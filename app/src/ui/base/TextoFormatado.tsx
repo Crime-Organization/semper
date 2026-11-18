@@ -165,8 +165,11 @@ export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCai
     // Onde o navegador não deixa (ou nos testes), entra pelo estado, como as outras caixas.
     el.focus();
     el.setSelectionRange(0, el.value.length);
-    if (!digitar(r.texto)) aoMudar(r.texto);
-    setTimeout(() => { el.focus(); el.setSelectionRange(r.inicio, r.fim); }, 0);
+    const escolher = () => { el.focus(); el.setSelectionRange(r.inicio, r.fim); };
+    // Pelo navegador, o texto já está na caixa: a escolha volta na hora. Se esperasse, apagaria um trecho que a pessoa escolhesse logo
+    // em seguida. Pelo estado, ela só volta depois que o React desenha o texto novo.
+    if (digitar(r.texto)) escolher();
+    else { aoMudar(r.texto); setTimeout(escolher, 0); }
     return true;
   }
   const marcar = (marca: MarcaDoBotao) => aplicar(e => alternarMarca(e, marca));

@@ -1,8 +1,8 @@
 // Regras da anotação (módulo Documentos, #303): os módulos a que ela se liga, o nome e o endereço de cada item ligado, e quem
 // vê e quem altera. Tudo puro, sem tela nem banco. As regras do banco são as mesmas (supabase/migrations/…_anotacoes.sql);
 // o banco fictício (dados/falso.ts) usa estas funções para se comportar igual.
-import type { Anotacao, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAnotacao, Membro, ModuloDaAnotacao, Pessoa, Processo, Tarefa } from '../dados/tipos';
-import { TAMANHO_ANOTACAO } from '../dados/limites';
+import type { Anotacao, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAnotacao, ItemParaLigar, Membro, ModuloDaAnotacao, Pessoa, Processo, Tarefa } from '../dados/tipos';
+import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import { TIPOS_COMPROMISSO } from './compromisso';
 import { clientesPorExtenso } from './contrato';
 import { ativoNaEquipe } from './equipe';
@@ -116,14 +116,21 @@ export function desdeDoPeriodo(periodo: PeriodoDaAnotacao, hoje: string): string
 }
 
 // ---------- o cadastro ----------
+/** A dica dentro da caixa do texto vazia: o Markdown que se pode escrever (a barra de botões faz o mesmo). */
+export const DICA_DO_TEXTO = 'Escreva aqui. # título, - lista, - [ ] tarefa, **negrito**, [link](https://…)';
 /** Os campos do cadastro de anotação, como a tela os guarda. */
 export interface CamposAnotacao { titulo: string; texto: string; responsavelId: string; participantes: string[] }
 type CampoConferido = 'titulo' | 'texto' | 'responsavelId';
+/** O que o título confere ('' = está certo): não fica vazio e cabe no banco. Vale no cadastro e na edição no próprio título (#339). */
+export const erroDoTitulo = (titulo: string) => !titulo.trim() ? 'Dê um título à anotação.'
+  : titulo.length > TAMANHO_ANOTACAO.titulo ? `O título pode ter até ${TAMANHO_ANOTACAO.titulo} caracteres.` : '';
+/** O que o texto confere ('' = está certo): cabe no banco. Pode ficar vazio. */
+export const erroDoTexto = (texto: string) =>
+  texto.length > TAMANHO_ANOTACAO.texto ? `O texto pode ter até ${TAMANHO_ANOTACAO.texto.toLocaleString('pt-BR')} caracteres.` : '';
 /** O que cada campo confere ('' = está certo). Os tamanhos são os do banco. */
 export const VALIDACAO_DA_ANOTACAO: Record<CampoConferido, (c: CamposAnotacao) => string> = {
-  titulo: c => !c.titulo.trim() ? 'Dê um título à anotação.'
-    : c.titulo.length > TAMANHO_ANOTACAO.titulo ? `O título pode ter até ${TAMANHO_ANOTACAO.titulo} caracteres.` : '',
-  texto: c => c.texto.length > TAMANHO_ANOTACAO.texto ? `O texto pode ter até ${TAMANHO_ANOTACAO.texto.toLocaleString('pt-BR')} caracteres.` : '',
+  titulo: c => erroDoTitulo(c.titulo),
+  texto: c => erroDoTexto(c.texto),
   responsavelId: c => c.responsavelId ? '' : 'Escolha o responsável.'
 };
 /** Os erros do cadastro, só dos campos errados. */
@@ -137,6 +144,49 @@ export const dadosDaAnotacao = (c: CamposAnotacao) => ({
 export const camposDaAnotacao = (a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>): CamposAnotacao => ({
   titulo: a.titulo, texto: a.texto, responsavelId: a.responsavel_id, participantes: a.participantes
 });
+
+// ---------- a equipe da anotação (o lápis do cartão, desde a #339) ----------
+/** Os campos da equipe: quem responde pela anotação e com quem ela é compartilhada. */
+export type CamposDaEquipe = Pick<CamposAnotacao, 'responsavelId' | 'participantes'>;
+/** O erro da equipe ('' = está certa): só o responsável é obrigatório. */
+export const erroDaEquipe = (c: CamposDaEquipe) => c.responsavelId ? '' : 'Escolha o responsável.';
+/** O que a edição da equipe grava: só o responsável e os participantes (sem ele), nunca o título e o texto. */
+export const dadosDaEquipe = (c: CamposDaEquipe) => ({
+  responsavel_id: c.responsavelId, participantes: c.participantes.filter(p => p !== c.responsavelId)
+});
+/** Os campos da equipe a partir de uma anotação gravada. */
+export const equipeDaAnotacao = (a: Pick<Anotacao, 'responsavel_id' | 'participantes'>): CamposDaEquipe => ({
+  responsavelId: a.responsavel_id, participantes: a.participantes
+});
+
+// ---------- a edição no próprio cartão (#339) ----------
+/** O que está aberto para editar no cartão: o título, o texto e a equipe (null ou ausente: fechado). */
+export interface RascunhosDaAnotacao { titulo?: string | null; texto?: string | null; equipe?: CamposDaEquipe | null }
+/**
+ * Há edição por salvar no cartão? Só quando algum rascunho aberto ficou diferente do que está gravado: abrir e não mudar nada
+ * não conta (o título, sem os espaços das pontas, como ele é gravado; a equipe, como a edição a gravaria).
+ */
+export function edicaoPorSalvar(a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>, r: RascunhosDaAnotacao) {
+  const equipe = (c: CamposDaEquipe) => JSON.stringify(dadosDaEquipe(c));
+  return (r.titulo != null && r.titulo.trim() !== a.titulo.trim())
+    || (r.texto != null && r.texto !== a.texto)
+    || (r.equipe != null && equipe(r.equipe) !== equipe(equipeDaAnotacao(a)));
+}
+
+// ---------- os itens escolhidos antes de salvar (#339) ----------
+/** O mesmo item: o mesmo módulo e o mesmo id. */
+export const mesmoItem = (a: ItemParaLigar, b: ItemParaLigar) => a.modulo === b.modulo && a.id === b.id;
+/**
+ * A lista dos itens escolhidos para a anotação nova, com mais um: ele entra no fim (a ordem em que a anotação nasce ligada);
+ * o que já está na lista não se repete, e a lista não passa de ITENS_DA_ANOTACAO (o máximo do banco).
+ */
+export function comMaisUmItem<I extends ItemParaLigar>(lista: I[], item: I): I[] {
+  return lista.some(i => mesmoItem(i, item)) || lista.length >= ITENS_DA_ANOTACAO ? lista : [...lista, item];
+}
+/** A lista dos itens escolhidos sem este. */
+export const semOItem = <I extends ItemParaLigar>(lista: I[], item: ItemParaLigar) => lista.filter(i => !mesmoItem(i, item));
+/** O que a anotação nova manda ligar ao banco: o módulo e o id de cada item escolhido, na ordem. */
+export const ligacoesDaAnotacaoNova = (itens: ItemParaLigar[]): ItemParaLigar[] => itens.map(({ modulo, id }) => ({ modulo, id }));
 
 /**
  * O banco aceita a gravação que deixa a pessoa fora da anotação? Aceita para quem continua a vê-la sem estar nela: o administrador,

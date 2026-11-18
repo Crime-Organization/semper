@@ -5077,6 +5077,44 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.anotacoesListar({ termo: titulo, situacao: 'arquivadas' })).total).toBe(0);
       });
 
+      it('quando cria a anotação já ligada a vários itens escolhidos antes de salvar (#339), então ela nasce ligada a todos, na ordem da escolha, sem repetir', async () => {
+        // Dado
+        const d = await demandaNova(), p = await processoNovo(), { id: pessoa } = await criar(marca());
+        // Quando
+        const { id } = await anotacao({}, [{ modulo: 'demandas', id: d.id }, { modulo: 'pessoas', id: pessoa }, { modulo: 'processos', id: p.id }, { modulo: 'demandas', id: d.id }]);
+        // Então
+        expect((await SD.anotacaoItens(id)).visiveis.map(i => [i.modulo, i.id])).toEqual([['demandas', d.id], ['pessoas', pessoa], ['processos', p.id]]);
+        expect(await ligadaA(id)).toEqual(['demandas', 'pessoas', 'processos']);
+        expect((await SD.anotacoesDoItem('processos', p.id)).map(a => a.id)).toEqual([id]);
+      });
+
+      it('quando cria a anotação com a lista de itens vazia, então ela nasce sem ligações', async () => {
+        // Quando
+        const { id } = await anotacao({}, []);
+        // Então
+        expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('quando cria a anotação ligada a vários itens e um deles não existe, então é recusado e nada fica gravado, nem as ligações já feitas', async () => {
+        // Dado
+        const titulo = marca(), d = await demandaNova();
+        // Quando / Então
+        await expect(anotacao({ titulo }, [{ modulo: 'demandas', id: d.id }, { modulo: 'tarefas', id: crypto.randomUUID() }])).rejects.toThrow('Item não encontrado neste escritório.');
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+        expect((await SD.anotacoesListar({ termo: titulo, situacao: 'arquivadas' })).total).toBe(0);
+        expect(await SD.anotacoesDoItem('demandas', d.id)).toEqual([]);
+      });
+
+      it('quando cria a anotação ligada a mais itens do que o máximo, então é recusado e nada fica gravado', async () => {
+        // Dado
+        const titulo = marca();
+        const pessoas = await Promise.all(Array.from({ length: ITENS_DA_ANOTACAO + 1 }, () => criar(marca())));
+        // Quando / Então
+        await expect(anotacao({ titulo }, pessoas.map(p => ({ modulo: 'pessoas' as const, id: p.id }))))
+          .rejects.toThrow(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+      });
+
       it('dadas anotações de uma marca, quando busca pelo título, pelo texto sem acento e pelo código, então acha só a certa', async () => {
         // Dado
         const m = marca();

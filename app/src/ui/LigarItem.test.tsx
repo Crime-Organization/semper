@@ -126,3 +126,19 @@ describe('Ligar a anotação a outro item: a busca', () => {
     expect(await screen.findByText('Nenhum item ativo com esse texto que você possa ligar.')).toBeInTheDocument();
   });
 });
+
+describe('Ligar a anotação nova a um item (#339)', () => {
+  beforeEach(() => {
+    itensParaLigar.mockReset();
+    itensParaLigar.mockImplementation(async modulo => ACHADOS[modulo] ?? []);
+  });
+
+  it('dado um texto próprio para o botão, quando a pessoa o usa, então a busca abre do mesmo jeito', async () => {
+    // Dado
+    render(<LigarItem modulos={['pessoas']} ligados={[]} aoEscolher={vi.fn()} rotulo="Ligar a um item" />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Ligar a um item' }));
+    // Então
+    expect(busca()).toHaveFocus();
+  });
+});

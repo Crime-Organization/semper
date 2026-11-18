@@ -2731,9 +2731,10 @@ export const SD: Dados = {
       criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as Anotacao;
     bd.anotacoes!.push(a);
     try {
-      if (ligarA) ligarNaAnotacaoFalsa(a, ligarA.modulo, ligarA.id);
+      // Na ordem em que foram escolhidos; o repetido não faz nada (como em supabase.ts).
+      for (const i of [ligarA ?? []].flat()) ligarNaAnotacaoFalsa(a, i.modulo, i.id);
     } catch (e) {
-      // Se a ligação falha, nada fica gravado (como em supabase.ts).
+      // Se uma ligação falha, nada fica gravado (como em supabase.ts).
       bd.anotacoes = bd.anotacoes!.filter(x => x.id !== a.id);
       bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
       throw e;
@@ -2742,18 +2743,10 @@ export const SD: Dados = {
     return espera({ id: a.id, codigo: a.codigo });
   },
   async anotacaoDuplicar(id, dados) {
-    // Como em supabase.ts: só os itens que quem duplica vê, na ordem da original.
+    // Como em supabase.ts: só os itens que quem duplica vê, na ordem da original; se uma ligação falha, a cópia sai inteira.
     if (!bd.anotacoes!.some(x => x.id === id && vejoAnotacao(x))) return erro(SEM_PERMISSAO);
-    const [primeiro, ...resto] = (await SD.anotacaoItens(id)).visiveis;
-    const copia = await SD.anotacaoCriar(dados, primeiro && { modulo: primeiro.modulo, id: primeiro.id });
-    try {
-      for (const i of resto) await SD.anotacaoLigar(copia.id, i.modulo, i.id);
-    } catch (e) {
-      // Se uma ligação falha, a cópia sai inteira (como em supabase.ts).
-      apagarAnotacao(bd.anotacoes!.find(x => x.id === copia.id)!); gravar();
-      throw e;
-    }
-    return copia;
+    const { visiveis } = await SD.anotacaoItens(id);
+    return SD.anotacaoCriar(dados, visiveis.map(i => ({ modulo: i.modulo, id: i.id })));
   },
   async anotacaoAtualizar(id, dados) {
     // Como a regra de alterar do banco: quem não altera (ou nem vê) não muda nada.
