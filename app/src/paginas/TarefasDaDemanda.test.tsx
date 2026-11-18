@@ -9,7 +9,7 @@ import { TarefasDaDemanda } from './TarefasDaDemanda';
 
 const coluna = (id: string, nome: string, ordem: number, marco: Coluna['marco']) => ({ id, nome, ordem, grupo_id: null, criado_por: null, oculta: false, marco }) as Coluna;
 const tarefa = (id: string, titulo: string, etapa_id: string) =>
-  ({ id, codigo: id.toUpperCase(), titulo, prazo: null, prazo_hora: null, etapa_id, arquivado_em: null, criado_em: '2026-11-01T12:00:00Z', papeis: [] }) as TarefaLigada;
+  ({ id, codigo: id.toUpperCase(), titulo, prazo: null, prazo_hora: null, etapa_id, arquivado_em: null, criado_em: '2026-11-01T12:00:00Z', contrato_id: null, papeis: [] }) as TarefaLigada;
 
 async function montar(somenteLer: boolean) {
   render(<MemoryRouter><TarefasDaDemanda demandaId="d1" versao={0} aoMudar={() => undefined} somenteLer={somenteLer} /></MemoryRouter>);

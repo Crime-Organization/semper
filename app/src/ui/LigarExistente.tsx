@@ -3,7 +3,7 @@
 // dados já tira o que não se pode ligar: arquivado, já ligado, sem permissão), como mostrar cada achado (o título, o detalhe e,
 // se ele não pode ser escolhido, o motivo, que aparece no lugar do detalhe) e o que fazer ao escolher. Sem nada digitado,
 // aparecem os mais recentes. No cartão só para ler (ou arquivado), a peça não aparece.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { falha } from './avisos';
 import { estiloBotao, Nota } from './base';
 import { Icone, type NomeIcone } from './Icone';
@@ -37,13 +37,15 @@ interface Props<T> {
   aviso?: string;
   /** O cartão só para ler (ou arquivado): nada de ligar. */
   somenteLer?: boolean;
+  /** Por que agora não se pode ligar (ex.: a lista do cartão já tem o máximo): o botão aparece desabilitado, com o motivo ao lado. */
+  indisponivel?: string;
   icone?: NomeIcone;
 }
 
 /** Os botões dos achados que se podem escolher, na ordem da lista. */
 const ESCOLHIVEIS = '.achados button:not(:disabled)';
 
-export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, icone = 'vinculo' }: Props<T>) {
+export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, indisponivel, icone = 'vinculo' }: Props<T>) {
   const [buscando, setBuscando] = useState(false);
   const [termo, setTermo] = useState('');
   const buscado = useAtrasado(termo);
@@ -51,6 +53,7 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const botao = useRef<HTMLButtonElement>(null);
+  const motivo = useId();
   // A busca de quem usa costuma ser uma função nova a cada desenho: fica guardada aqui, para não buscar de novo a cada desenho.
   const busca = useRef(buscar);
   busca.current = buscar;
@@ -84,10 +87,12 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
     void aoEscolher(x);
   }
 
-  if (!buscando) return <div>
-    <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}>
+  if (!buscando) return <div className={indisponivel ? 'ligar-indisponivel' : undefined}>
+    <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setBuscando(true)}
+      disabled={!!indisponivel} aria-describedby={indisponivel ? motivo : undefined}>
       <Icone nome={icone} tam={13} /> {rotulo}
     </button>
+    {indisponivel && <Nota id={motivo}>{indisponivel}</Nota>}
   </div>;
 
   const mostrados = achados?.lista.map(x => ({ x, ...mostrar(x) }));

@@ -107,4 +107,16 @@ describe('Ligar um item que já existe: a busca', () => {
     expect(screen.queryByRole('button', { name: 'Ligar anotação existente' })).not.toBeInTheDocument();
     expect(buscar).not.toHaveBeenCalled();
   });
+
+  it('dada a lista do cartão cheia, então o botão aparece desabilitado, com o motivo ao lado, e nada é buscado', async () => {
+    // Dado / Quando
+    montar({ indisponivel: 'Este processo já tem 10 clientes, o máximo.' });
+    // Então
+    const botao = screen.getByRole('button', { name: 'Ligar anotação existente' });
+    expect(botao).toBeDisabled();
+    expect(botao).toHaveAccessibleDescription('Este processo já tem 10 clientes, o máximo.');
+    await userEvent.click(botao);
+    expect(screen.queryByRole('textbox', { name: 'Buscar anotação para ligar' })).not.toBeInTheDocument();
+    expect(buscar).not.toHaveBeenCalled();
+  });
 });

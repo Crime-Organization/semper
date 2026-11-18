@@ -33,6 +33,11 @@ import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
+import { AcoesDosLigados } from '../ui/ItensLigados';
+import { LigarDoModulo } from '../ui/LigarDoModulo';
+import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
+import { LigarPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -74,6 +79,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
   const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, t.demanda), m => contratosEmQueEsta([t.contrato, t.demanda?.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
+  // Ligar à tarefa um item que já existe (#341): quem altera a tarefa, com ela ativa. A demanda e o contrato, só enquanto a tarefa
+  // não tem (mais de um é a #283). Depois, o cartão lê tudo de novo.
+  const podeLigar = podeAlterar && !t.arquivado_em, modulos = ctx.escritorio?.modulos;
+  const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
@@ -167,6 +176,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demanda ? 1 : 0}>
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
+      {podeLigar && !t.demanda_id && modulos?.demandas && <AcoesDosLigados>
+        <LigarDoModulo modulo="demandas" motivo={d => motivoDeContratoDiferente(t.contrato_id, d.contrato_id)}
+          aviso="Quem está na demanda passa a ver esta tarefa. Sem pessoas ou sem contrato, a tarefa leva os clientes e o contrato da demanda."
+          aoEscolher={d => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),
+            { feito: `Demanda ligada: ${d.titulo}.`, oQue: 'ligação da demanda', ja: 'Esta tarefa já estava nesta demanda.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
     </Recolhivel>
 
     {(comProcessos || t.processo_id) && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={t.processo_id ? 1 : 0}>
@@ -178,10 +193,17 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
+      {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} />}
     </Recolhivel>
 
     <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contrato ? 1 : 0}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta tarefa não está ligada a um contrato.</Nota>}
+      {podeLigar && !t.contrato_id && modulos?.contratos && <AcoesDosLigados>
+        <LigarDoModulo modulo="contratos" motivo={k => motivoDeContratoDiferente(t.demanda?.contrato_id, k.id, DEMANDA_DE_OUTRO_CONTRATO)}
+          aviso="Quem está no contrato passa a ver, só para ler, esta tarefa."
+          aoEscolher={k => ligarEAvisar(() => ligarNoItem('contrato da tarefa', t.id, k.id),
+            { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta tarefa já estava ligada a este contrato.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
     </Recolhivel>
 
     <AnotacoesDoCartao modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} />

@@ -11,3 +11,5 @@
 .acomp-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
 .acomp-form { display: flex; flex-direction: column; gap: 16px }
 .acomp-form-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px }
+/* A busca da tarefa para ligar ao prazo (#341), aberta, ocupa a linha toda das ações. */
+.acomp-acoes > .busca-existente { flex: 1 1 100% }

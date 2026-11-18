@@ -56,3 +56,14 @@ export function ItensLigados({ itens, vazio, novo, rotulo }: { itens: ItemLigado
     <BotaoLink forma="mini" className="ligados-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={16} /></BotaoLink>
   </div>;
 }
+
+/**
+ * Embaixo da lista de uma seção do cartão (#341): os botões de ligar um item que já existe e, ao lado, o atalho para criar um novo já
+ * ligado, como nos processos do contrato e da demanda. A busca aberta ocupa a linha toda.
+ */
+export function AcoesDosLigados({ children, novo }: { children?: ReactNode; novo?: NovoLigado }) {
+  return <div className="ligados-acoes">
+    {children}
+    {novo && <BotaoLink forma="mini" to={novo.para}><Icone nome="mais" tam={13} /> {novo.rotulo}</BotaoLink>}
+  </div>;
+}

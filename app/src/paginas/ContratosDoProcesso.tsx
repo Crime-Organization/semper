@@ -1,4 +1,4 @@
-// No cartão do processo, os contratos ligados a ele (a ligação é feita no cartão ou no cadastro do contrato) (#294).
+// No cartão do processo, os contratos ligados a ele (#294). A ligação é feita no cartão ou no cadastro do contrato e, desde a #341, também aqui.
 // Quem não é parte vê o contrato sem os valores; o que a pessoa não pode abrir só conta.
 import { useEffect, useState } from 'react';
 import { SD, type ContratoDoProcesso } from '../dados';
@@ -18,7 +18,7 @@ export function ContratosDoProcesso({ processoId, versao }: { processoId: string
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
   return <>
     {lista.ocultos > 0 && <Nota>Há {plural(lista.ocultos, 'contrato ligado', 'contratos ligados')} a este processo que você não tem acesso para abrir.</Nota>}
-    <ItensLigados rotulo="Contratos ligados" vazio={lista.ocultos ? undefined : 'Nenhum contrato ligado a este processo. A ligação é feita no cartão do contrato.'}
+    <ItensLigados rotulo="Contratos ligados" vazio={lista.ocultos ? undefined : 'Nenhum contrato ligado a este processo.'}
       itens={lista.visiveis.map(k => ({ id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, detalhe: clientesPorExtenso(k.cliente_nome),
         selo: k.arquivado_em ? 'Arquivado' : undefined }))} />
   </>;

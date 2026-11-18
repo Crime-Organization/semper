@@ -7,9 +7,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { SD, type AnotacaoLigada, type AnotacaoParaLigar, type ModuloDaAnotacao } from '../dados';
 import { ITEM_DA_ANOTACAO, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER } from '../regras/anotacao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando } from '../ui/base';
-import { Icone } from '../ui/Icone';
-import { ItensLigados } from '../ui/ItensLigados';
+import { Aviso, Carregando } from '../ui/base';
+import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
 import { LigarExistente } from '../ui/LigarExistente';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
@@ -66,13 +65,12 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
         id: a.id, para: ENDERECO_DA_ANOTACAO + a.id, codigo: a.codigo, titulo: a.titulo, selo: a.arquivado_em ? 'Arquivada' : undefined,
         detalhe: `Atualizada ${relativo(a.atualizado_em)}`
       }))} />}
-    {!somenteLer && <div className="ligados-acoes">
+    {!somenteLer && <AcoesDosLigados novo={{ para: cadastro, rotulo: 'Nova anotação' }}>
       <LigarExistente<AnotacaoParaLigar> rotulo="Ligar anotação existente" buscar={termo => SD.anotacoesParaLigar(modulo, id, termo)}
         mostrar={a => ({ id: a.id, titulo: a.titulo, detalhe: `${a.codigo} · Atualizada ${relativo(a.atualizado_em)}`, motivo: motivoDeNaoLigarAAnotacao(a) })}
         aoEscolher={ligar} rotuloDaBusca="Buscar anotação para ligar" dicaDaBusca="Título ou código da anotação" nomeDaLista="Anotações para ligar"
         semAchados={{ comTexto: 'Nenhuma anotação ativa com esse texto que você possa ligar.', semTexto: 'Nenhuma anotação ativa que você possa ligar.' }}
         aviso={QUEM_PASSA_A_LER[modulo] || undefined} />
-      <BotaoLink forma="mini" to={cadastro}><Icone nome="mais" tam={13} /> Nova anotação</BotaoLink>
-    </div>}
+    </AcoesDosLigados>}
   </Recolhivel>;
 }

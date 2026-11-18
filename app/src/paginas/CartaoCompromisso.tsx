@@ -25,6 +25,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { LigarPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -144,6 +145,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length}>
       {c.pessoas.length ? <ItensLigados itens={c.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a este compromisso.</Nota>}
+      {/* Ligar uma pessoa que já está no cadastro (#341): quem muda o compromisso, com ele ativo. */}
+      {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
     <AnotacoesDoCartao modulo="compromissos" id={c.id} somenteLer={somenteLer} />

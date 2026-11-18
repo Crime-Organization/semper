@@ -15,6 +15,7 @@ import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { PASTA_APAGADA } from '../regras/pastas';
@@ -389,6 +390,33 @@ const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnot
   compromissos: async termo => (await SD.compromissosListar({ termo, porPagina: ITENS_PARA_LIGAR })).linhas.map(x => itemDaAnotacao('compromissos', x))
 };
 
+// ---------- ligar a um cartão um item que já existe (#341, etapa 2) ----------
+/** As colunas que as buscas para ligar conferem em cada tabela: a lista de pessoas e as ligações de um só. */
+interface ColunasParaLigar { pessoas?: string; sem?: Partial<Record<LigacaoDeUmSo, string>> }
+/** O que as buscas para ligar têm em comum: só os ativos, pela busca, fora os já ligados e os que já têm a pessoa, os mais novos primeiro. */
+function paraLigar(q: Livre, f: FiltroParaLigar<LigacaoDeUmSo>, colunas: ColunasParaLigar = {}) {
+  q = q.is('arquivado_em', null);
+  const t = termoBusca(f.termo);
+  if (t) q = q.ilike('busca', `%${t}%`);
+  const sem = f.sem && colunas.sem?.[f.sem];
+  if (sem) q = q.is(sem, null);
+  if (f.semAPessoa && colunas.pessoas) q = q.not(colunas.pessoas, 'cs', `{${f.semAPessoa}}`);
+  if (f.fora?.length) q = q.not('id', 'in', `(${f.fora.join(',')})`);
+  return q.order('criado_em', { ascending: false }).order('id').limit(ITENS_PARA_LIGAR);
+}
+/**
+ * Quem não é administrador, fora da fase de adaptação, só liga o que altera por estar nele: quem criou, o responsável e a equipe
+ * do item (`equipe`: a coluna dela). Como as regras de alterar do banco (vejo_demanda, vejo_tarefa, vejo_processo...).
+ */
+const soOsMeus = (q: Livre, equipe: string) => ctx && !ctx.ehAdmin && !equipeEditaTudo(ctx.escritorio)
+  ? q.or(`criado_por.eq.${uid()},responsavel_id.eq.${uid()},${equipe}.cs.{${uid()}}`) : q;
+/** Junta as leituras de uma busca para ligar feita em partes, sem repetir, na mesma ordem e no mesmo limite (e sem a data). */
+function juntarOsAchados(...listas: { id: string; criado_em: string }[][]): Livre[] {
+  const unicos = [...new Map(listas.flat().map(x => [x.id, x])).values()];
+  return unicos.sort((a, b) => b.criado_em.localeCompare(a.criado_em) || a.id.localeCompare(b.id)).slice(0, ITENS_PARA_LIGAR)
+    .map(({ criado_em: _criado, ...x }) => x);
+}
+
 // ---------- andamentos e prazos do processo ----------
 const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
 const CAMPOS_PRAZO = 'id, processo_id, descricao, final, intimacao, dias, contagem, disponibilizacao, sem_recesso, andamento_id, tarefa_id, concluido_em, '
@@ -475,9 +503,9 @@ function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
 }
-type TarefaParaLigar = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'participantes'>
+type TarefaParaLigar = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'contrato_id' | 'responsavel_id' | 'participantes'>
   & { pessoas: string[] };
-const CAMPOS_TAREFA_LIGADA = 'id, codigo, titulo, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, responsavel_id, participantes, pessoas';
+const CAMPOS_TAREFA_LIGADA = 'id, codigo, titulo, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, contrato_id, responsavel_id, participantes, pessoas';
 const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, responsavel_id, participantes, ...t }: TarefaParaLigar): TarefaLigada =>
   ({ ...t, papeis: pessoaId ? papeisNaTarefa({ pessoas, responsavel_id, participantes }, pessoaId, perfilId) : [] });
 // Na ordem do quadro (como as demandas do contrato).
@@ -1063,14 +1091,17 @@ export const SD: Dados = {
 
   // ---------- processo e demanda ----------
   async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
-    await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, papel, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }));
+    // A linha repetida é descartada e não volta na resposta (como anotacaoLigar): assim se sabe se a ligação é nova.
+    const { data } = await rodar(sb.from('processo_demandas').upsert({ processo_id: processoId, demanda_id: demandaId, papel, criado_por: uid() }, { onConflict: 'processo_id,demanda_id', ignoreDuplicates: true }).select('processo_id'));
+    return data.length > 0;
   },
   async processoDemandaDesligar(processoId, demandaId) {
     // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
     conferirQueMudou((await rodar(sb.from('processo_demandas').delete().eq('processo_id', processoId).eq('demanda_id', demandaId).select('processo_id').maybeSingle())).data);
   },
   async contratoProcessoLigar(contratoId, processoId) {
-    await rodar(sb.from('contrato_processos').upsert({ contrato_id: contratoId, processo_id: processoId, criado_por: uid() }, { onConflict: 'contrato_id,processo_id', ignoreDuplicates: true }));
+    const { data } = await rodar(sb.from('contrato_processos').upsert({ contrato_id: contratoId, processo_id: processoId, criado_por: uid() }, { onConflict: 'contrato_id,processo_id', ignoreDuplicates: true }).select('processo_id'));
+    return data.length > 0;
   },
   async contratoProcessoDesligar(contratoId, processoId) {
     conferirQueMudou((await rodar(sb.from('contrato_processos').delete().eq('contrato_id', contratoId).eq('processo_id', processoId).select('processo_id').maybeSingle())).data);
@@ -1221,6 +1252,42 @@ export const SD: Dados = {
     const { data: itens } = await rodar(sb.from('anotacao_ligacoes').select('anotacao_id').in('anotacao_id', achadas.map(a => a.id)));
     const contar = (id: string) => (itens as { anotacao_id: string }[]).filter(l => l.anotacao_id === id).length;
     return achadas.map(a => ({ ...a, itens: contar(a.id) }));
+  },
+
+  // ---------- ligar a um cartão um item que já existe (#341, etapa 2) ----------
+  async demandasParaLigar(f) {
+    const q = soOsMeus(sb.from('demandas').select('id, codigo, titulo, cliente_nome, contrato_id, contrato_codigo, prazo, clientes, criado_em'), 'colaboradores');
+    return juntarOsAchados((await rodar(paraLigar(q, f, { pessoas: 'clientes', sem: { contratos: 'contrato_id' } }))).data);
+  },
+  async tarefasParaLigar(f) {
+    // O contrato da demanda vem pela regra de leitura das demandas: quem não vê a demanda recebe null.
+    type Lida = Omit<TarefaParaEscolher, 'contrato_da_demanda'> & { criado_em: string; demanda: { contrato_id: string | null } | null };
+    const ler = async (filtro: (q: Livre) => Livre) => (await rodar(paraLigar(filtro(soOsMeus(sb.from('tarefas')
+      .select('id, codigo, titulo, pessoa_nome, prazo, demanda_id, demanda_codigo, contrato_id, processo_id, pessoas, criado_em, demanda:demandas(contrato_id)'), 'participantes')),
+      f, { pessoas: 'pessoas', sem: { demandas: 'demanda_id', contratos: 'contrato_id', processos: 'processo_id' } }))).data as Lida[];
+    // As deste processo e as sem processo: duas leituras, juntas na mesma ordem.
+    const listas = f.doProcesso ? await Promise.all([ler(q => q.eq('processo_id', f.doProcesso)), ler(q => q.is('processo_id', null))]) : [await ler(q => q)];
+    return juntarOsAchados(...listas).map(({ demanda, ...t }) => ({ ...t, contrato_da_demanda: demanda?.contrato_id ?? null }));
+  },
+  async compromissosParaLigar(f) {
+    const q = soOsMeus(sb.from('compromissos').select('id, codigo, tipo, titulo, data, hora, pessoa_nome, processo_id, processo_numero, pessoas, criado_em'), 'participantes');
+    return juntarOsAchados((await rodar(paraLigar(q, f, { pessoas: 'pessoas', sem: { processos: 'processo_id' } }))).data);
+  },
+  async processosParaPorCliente(f) {
+    const q = soOsMeus(sb.from('processos').select('id, codigo, tipo, numero, titulo, cliente_nome, clientes, criado_em'), 'colaboradores');
+    return juntarOsAchados((await rodar(paraLigar(q, f, { pessoas: 'clientes' }))).data);
+  },
+  async contratosParaLigar(f) {
+    // Como privado.altero_o_contrato: o administrador e, na fase de adaptação, toda a equipe alteram todos; os outros, os que criaram,
+    // de que são responsáveis ou em que são participantes (a lista de participantes guarda a pessoa do usuário, com o percentual).
+    const base = () => sb.from('contratos_da_equipe').select('id, codigo, servico, cliente_nome, criado_em');
+    if (!ctx || ctx.ehAdmin || equipeEditaTudo(ctx.escritorio)) return juntarOsAchados((await rodar(paraLigar(base(), f))).data);
+    const pessoa = ctx.perfil?.pessoa_id;
+    const leituras = await Promise.all([
+      rodar(paraLigar(base().or(`criado_por.eq.${uid()},responsavel_id.eq.${uid()}`), f)),
+      ...(pessoa ? [rodar(paraLigar(base().contains('participantes', JSON.stringify([{ pessoa_id: pessoa }])), f))] : [])
+    ]);
+    return juntarOsAchados(...leituras.map(r => r.data));
   },
 
   // ---------- pastas dos documentos (supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------

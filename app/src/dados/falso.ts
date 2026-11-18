@@ -49,6 +49,7 @@ import { CORES } from '../regras/etiquetas';
 import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
 import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
+import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import { ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, modulosLigados, veAAnotacao, type ChavesDaEquipe } from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
@@ -1177,6 +1178,7 @@ function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
 }
 const tarefaLigada = (pessoaId: string, perfilId: string | null) => (t: TarefaGuardada): TarefaLigada => ({
   id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, etapa_id: t.etapa_id, arquivado_em: t.arquivado_em, criado_em: t.criado_em,
+  contrato_id: t.contrato_id,
   papeis: pessoaId ? papeisNaTarefa(t, pessoaId, perfilId) : []
 });
 /** Na ordem do quadro (como as demandas do contrato). */
@@ -1488,6 +1490,20 @@ const PARA_LIGAR: Record<ModuloDaAnotacao, (termo: string) => Promise<ItemDaAnot
   tarefas: async termo => (await SD.tarefasListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('tarefas', x)),
   compromissos: async termo => (await SD.compromissosListar({ termo, ...TODOS })).linhas.map(x => itemDaAnotacao('compromissos', x))
 };
+
+// ---------- ligar a um cartão um item que já existe (#341, etapa 2; como em supabase.ts) ----------
+/** Como a regra de alterar do banco nas buscas para ligar: quem está no item e, na fase de adaptação, toda a equipe. */
+const alteroNoFalso = (estaNele: boolean) => !!bd.equipeEditaTudo || estaNele;
+/** O que cada busca para ligar sabe do seu módulo: quem altera, o texto da busca, a lista de pessoas e as ligações de um só. */
+interface ModuloParaLigar<T> { altero: (x: T) => boolean; busca: (x: T) => string; pessoas?: (x: T) => string[]; sem?: Partial<Record<LigacaoDeUmSo, (x: T) => string | null>> }
+/** Como paraLigar, em supabase.ts: só os ativos que quem lê altera, pela busca, fora os já ligados e os que já têm a pessoa, os mais novos primeiro. */
+function paraLigarNoFalso<T extends { id: string; arquivado_em: string | null; criado_em: string }>(lista: T[], f: FiltroParaLigar<LigacaoDeUmSo>, m: ModuloParaLigar<T>) {
+  const t = termo(f.termo), fora = new Set(f.fora ?? []), sem = f.sem && m.sem?.[f.sem];
+  return lista.filter(x => !x.arquivado_em && m.altero(x) && !fora.has(x.id) && !sem?.(x)
+    && (!f.semAPessoa || !m.pessoas?.(x).includes(f.semAPessoa))
+    && (!t || m.busca(x).includes(t)))
+    .sort((a, b) => b.criado_em.localeCompare(a.criado_em) || a.id.localeCompare(b.id)).slice(0, ITENS_PARA_LIGAR);
+}
 
 // ---------- andamentos e prazos do processo ----------
 const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
@@ -2840,6 +2856,28 @@ export const SD: Dados = {
     .sort((a, b) => ORDENS_ANOTACAO.recentes(a, b) || a.id.localeCompare(b.id)).slice(0, ITENS_PARA_LIGAR)
     .map(a => ({ id: a.id, codigo: a.codigo, titulo: a.titulo, atualizado_em: a.atualizado_em, itens: ligacoesDaAnotacao(a.id).length }))),
 
+  // ---------- ligar a um cartão um item que já existe (#341, etapa 2; como em supabase.ts) ----------
+  demandasParaLigar: f => espera(paraLigarNoFalso(bd.demandas!, f, { altero: d => alteroNoFalso(estaNaDemanda(d, membroLogado())), busca: buscaDemanda,
+    pessoas: d => d.clientes, sem: { contratos: d => d.contrato_id } })
+    .map(d => ({ id: d.id, codigo: d.codigo, titulo: d.titulo, cliente_nome: nomesDosClientes(d.clientes), contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, prazo: d.prazo, clientes: d.clientes }))),
+  tarefasParaLigar: f => espera(paraLigarNoFalso(bd.tarefas!.filter(t => !f.doProcesso || !t.processo_id || t.processo_id === f.doProcesso), f, {
+    altero: t => alteroNoFalso(estaNaTarefa(t, membroLogado())), busca: buscaTarefa, pessoas: t => t.pessoas,
+    sem: { demandas: t => t.demanda_id, contratos: t => t.contrato_id, processos: t => t.processo_id }
+  }).map(t => {
+    // O contrato da demanda vem pela regra de leitura das demandas, como a junção do banco.
+    const d = demandaDaTarefaNoFalso(t);
+    return { id: t.id, codigo: t.codigo, titulo: t.titulo, pessoa_nome: nomesDosClientes(t.pessoas), prazo: t.prazo, demanda_id: t.demanda_id, demanda_codigo: t.demanda_codigo,
+      contrato_id: t.contrato_id, processo_id: t.processo_id, pessoas: t.pessoas, contrato_da_demanda: d && vejoDemanda(d) ? d.contrato_id : null };
+  })),
+  compromissosParaLigar: f => espera(paraLigarNoFalso(bd.compromissos!, f, {
+    altero: c => alteroNoFalso(souAdmin() || c.criado_por === eu || c.responsavel_id === eu || c.participantes.includes(eu)), busca: buscaCompromisso,
+    pessoas: c => c.pessoas, sem: { processos: c => c.processo_id }
+  }).map(c => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, pessoas: c.pessoas }))),
+  processosParaPorCliente: f => espera(paraLigarNoFalso(bd.processos!, f, { altero: p => alteroNoFalso(alteraOProcesso(p, membroLogado())), busca: buscaProcesso, pessoas: p => p.clientes })
+    .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), clientes: p.clientes }))),
+  contratosParaLigar: f => espera(paraLigarNoFalso(bd.contratos!, f, { altero: k => alcancoContrato(k) && (alteroContrato(k) || !!bd.equipeEditaTudo), busca: buscaContrato })
+    .map(k => ({ id: k.id, codigo: k.codigo, servico: k.servico, cliente_nome: nomeDoCliente(k) }))),
+
   // ---------- pastas dos documentos (como supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------
   // Todo o escritório vê, cria, renomeia, move e apaga a vazia; as regras de nome e de ciclo são as de regras/pastas.ts.
   pastasListar: () => espera([...bd.pastas!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
@@ -2961,9 +2999,10 @@ export const SD: Dados = {
   async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
     const d = bd.demandas!.find(x => x.id === demandaId);
     if (!processoAtivo(processoId) || !d || soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
-    if (!bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId)) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId, papel });
+    const nova = !bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId);
+    if (nova) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId, papel });
     gravar();
-    return espera(undefined);
+    return espera(nova);
   },
   // (como supabase/migrations/20261111095627_ligar_processo_existente.sql): desligar é de quem está na demanda.
   async processoDemandaDesligar(processoId, demandaId) {
@@ -2977,9 +3016,10 @@ export const SD: Dados = {
   // ---------- processo e contrato (como supabase/migrations/20261111095627_ligar_processo_existente.sql) ----------
   async contratoProcessoLigar(contratoId, processoId) {
     if (!processoAtivo(processoId) || !alteroContratoDoId(contratoId)) return erro(SEM_PERMISSAO);
-    if (!bd.contratoProcessos!.some(l => l.contrato_id === contratoId && l.processo_id === processoId)) bd.contratoProcessos!.push({ contrato_id: contratoId, processo_id: processoId });
+    const nova = !bd.contratoProcessos!.some(l => l.contrato_id === contratoId && l.processo_id === processoId);
+    if (nova) bd.contratoProcessos!.push({ contrato_id: contratoId, processo_id: processoId });
     gravar();
-    return espera(undefined);
+    return espera(nova);
   },
   async contratoProcessoDesligar(contratoId, processoId) {
     const ligado = bd.contratoProcessos!.some(l => l.contrato_id === contratoId && l.processo_id === processoId);

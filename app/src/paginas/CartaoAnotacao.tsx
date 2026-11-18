@@ -55,6 +55,8 @@ const POR_QUE_SO_LE = {
 
 /** Quando a anotação não vem do banco (ao abrir o cartão, ou ao duplicar uma que sumiu depois que ele abriu). */
 const NAO_ENCONTRADA = 'Esta anotação não foi encontrada. Ela pode ter sido excluída, ou você não tem acesso a ela.';
+/** O aviso quando o item escolhido já estava ligado à anotação (alguém o ligou enquanto a busca estava aberta). */
+export const ITEM_JA_LIGADO = 'Este item já estava ligado a esta anotação.';
 
 /** O tipo do arquivo baixado: Markdown, em UTF-8 (acentos e emojis do texto chegam inteiros). */
 const TIPO_MARKDOWN = 'text/markdown;charset=utf-8';
@@ -144,7 +146,8 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   }
   async function ligar(i: Pick<ItemDaAnotacao, 'modulo' | 'id' | 'nome'>) {
     try {
-      await SD.anotacaoLigar(a!.id, i.modulo, i.id);
+      // Se outra pessoa ligou o mesmo item enquanto a busca estava aberta, nada é gravado: sem Desfazer, que apagaria a ligação dela (#341).
+      if (!await SD.anotacaoLigar(a!.id, i.modulo, i.id)) { avisar(ITEM_JA_LIGADO, 'info'); depois(); return; }
       feito(`Ligada a ${ITEM_DA_ANOTACAO[i.modulo].rotulo.toLowerCase()}: ${i.nome}.`, 'ligação da anotação', async () => { await SD.anotacaoDesligar(a!.id, i.modulo, i.id); });
       depois();
     } catch (e) { falha(e); }

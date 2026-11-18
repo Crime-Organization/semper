@@ -34,6 +34,11 @@ import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { motivoDeContratoDiferente } from '../regras/ligarExistente';
+import { AcoesDosLigados } from '../ui/ItensLigados';
+import { LigarDoModulo } from '../ui/LigarDoModulo';
+import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
+import { LigarPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -78,6 +83,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
   const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m), m => contratosEmQueEsta([d.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
+  // Ligar à demanda um item que já existe (#341): quem altera a demanda, com ela ativa. Depois, o cartão lê tudo de novo.
+  const podeLigar = podeAlterar && !d.arquivado_em;
+  const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
@@ -154,6 +162,12 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="demandas.cartao.tarefas" contador={ligados.tarefas}
       novo={podeAlterar && !d.arquivado_em ? { para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa desta demanda' } : undefined}>
       <TarefasDaDemanda demandaId={d.id} versao={versaoHist} somenteLer={!podeAlterar} aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
+      {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?demanda=' + d.id, rotulo: 'Nova tarefa' }}>
+        <LigarDoModulo modulo="tarefas" filtro={{ sem: 'demandas' }} motivo={t => motivoDeContratoDiferente(t.contrato_id, d.contrato_id)}
+          aviso="Quem está nesta demanda passa a ver a tarefa que você ligar. Sem pessoas ou sem contrato, a tarefa leva os clientes e o contrato da demanda."
+          aoEscolher={t => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),
+            { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava nesta demanda.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
@@ -163,11 +177,19 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length}>
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
+      {podeLigar && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar}
+        aviso={d.contrato_id ? 'Esta demanda é de um contrato: confira se a pessoa também é parte dele.' : undefined} />}
     </Recolhivel>
 
     <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" contador={contrato ? 1 : 0}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
+      {/* Um contrato só: com ele, trocar é pelo lápis (a demanda pode ter nascido de um objeto dele). */}
+      {podeLigar && !d.contrato_id && ctx.escritorio?.modulos?.contratos && <AcoesDosLigados>
+        <LigarDoModulo modulo="contratos" aviso="Quem está no contrato passa a ver, só para ler, esta demanda e as tarefas dela."
+          aoEscolher={k => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
+            { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
     </Recolhivel>
 
     <AnotacoesDoCartao modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} />

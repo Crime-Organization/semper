@@ -34,6 +34,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
 import { ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
+import { LigarAPessoa } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -114,6 +115,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   const textoQual = qualificacao(p, { representantes });
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
   const ehUsuario = ctx.equipe.some(m => m.pessoa_id === p.id);
+  // Ligar a pessoa a um item que já existe (#341): no cartão arquivado, não. Depois, as seções e os contadores leem de novo.
+  const podeLigar = !p.arquivado_em;
+  const depoisDeLigar = () => setVersaoHist(v => v + 1);
   const local = (mun: string | null, uf: string | null) => mun ? mun + (uf ? '/' + uf : '') : '';
   const dadosDoCadastro = [
       { titulo: 'Identificação', linhas: [['Nome', p.nome], [p.tipo === 'pj' ? 'CNPJ' : 'CPF', V('documento')], ['Gênero', V('genero')], ['Nacionalidade', p.nacionalidade], ['Profissão', p.profissao], ['Estado civil', V('estado_civil')], ['RG', p.rg], ['Expedição do RG', V('rg_expedicao')]] as [string, ReactNode][] },
@@ -236,19 +240,22 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="pessoas.cartao.demandas" contador={quantos.demandas} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda com esta pessoa como cliente' }}>
-      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." />
+      <CartoesLigados modulo="demandas" carregar={() => SD.demandasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma demanda ligada a esta pessoa." versao={versaoHist} />
+      {podeLigar && <LigarAPessoa modulo="demandas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda' }} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}>
-      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} />
+      <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="pessoas.cartao.compromissos" contador={quantos.compromissos} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso com esta pessoa' }}>
-      <CompromissosLigados carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa." />
+      <CompromissosLigados key={versaoHist} carregar={() => SD.compromissosDaPessoa(id, perfilDaPessoa)} vazio="Nenhum compromisso ligado a esta pessoa." />
+      {podeLigar && <LigarAPessoa modulo="compromissos" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/agenda/novo/?pessoa=' + id, rotulo: 'Novo compromisso' }} />}
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="pessoas.cartao.tarefas" contador={quantos.tarefas} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa ligada a esta pessoa' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." />
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDaPessoa(id, perfilDaPessoa)} vazio="Nenhuma tarefa ligada a esta pessoa." versao={versaoHist} />
+      {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa' }} />}
     </Recolhivel>}
 
     <AnotacoesDoCartao modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} />

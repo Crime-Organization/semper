@@ -31,6 +31,10 @@ import NovoContrato from './NovoContrato';
 import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
+import { AcoesDosLigados } from '../ui/ItensLigados';
+import { LigarDoModulo } from '../ui/LigarDoModulo';
+import { ligarEAvisar, ligarNoItem } from './ligarNoCartao';
 
 interface Props {
   id: string;
@@ -101,6 +105,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     ...k.participantes.filter(p => !daEquipe(p)).map(participante),
     ...(k.indicador ? [pessoaLigada(k.indicador, 'indicador-', comPercentual('Indicador', k.indicador_percentual))] : [])
   ];
+  // Ligar ao contrato uma demanda ou uma tarefa que já existe (#341): quem altera o contrato (ou, na fase de adaptação, sem os
+  // valores), com ele ativo. Depois, as seções e os contadores leem de novo.
+  const podeLigar = !k.arquivado_em && (podeAlterar || semValores);
+  const depoisDeLigar = () => { aoMudar(); setVersaoHist(v => v + 1); };
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
 
   async function arquivar() {
@@ -170,6 +178,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {semObjeto && <Aviso tipo="info">{SEM_OBJETO_DEFINIDO}</Aviso>}
       <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
         antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
+      {podeLigar && <AcoesDosLigados novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda' }}>
+        <LigarDoModulo modulo="demandas" filtro={{ sem: 'contratos' }} aviso="Quem está neste contrato passa a ver, só para ler, a demanda que você ligar e as tarefas dela."
+          aoEscolher={d => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
+            { feito: `Demanda ligada: ${d.titulo}.`, oQue: 'ligação da demanda', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
     </Recolhivel>
     : <Recolhivel titulo={k.objetos.length > 1 ? 'Objetos do contrato' : 'Objeto do contrato'} icone="demandas" preferencia="contratos.cartao.objetos" contador={k.objetos.length}>
       <ItensLigados rotulo="Objetos do contrato" vazio="Nenhum objeto cadastrado." itens={k.objetos.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto }))} />
@@ -222,7 +235,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
 
     {modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="contratos.cartao.tarefas" contador={tarefas} novo={oculto && !semValores ? undefined : { para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa deste contrato' }}>
-      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." />
+      <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." versao={versaoHist} />
+      {podeLigar && <AcoesDosLigados novo={{ para: '/tarefas/nova/?contrato=' + k.id, rotulo: 'Nova tarefa' }}>
+        <LigarDoModulo modulo="tarefas" filtro={{ sem: 'contratos' }} motivo={t => motivoDeContratoDiferente(t.contrato_da_demanda, k.id, DEMANDA_DE_OUTRO_CONTRATO)}
+          aviso="Quem está neste contrato passa a ver, só para ler, a tarefa que você ligar."
+          aoEscolher={t => ligarEAvisar(() => ligarNoItem('contrato da tarefa', t.id, k.id),
+            { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este contrato.' }, depoisDeLigar)} />
+      </AcoesDosLigados>}
     </Recolhivel>}
 
     <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)} />

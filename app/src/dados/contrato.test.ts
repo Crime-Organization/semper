@@ -2036,13 +2036,14 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         return SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana', clientes: [cliente] });
       };
 
-      it('quando liga, então a demanda aparece no processo e o processo na demanda; ligar de novo não repete', async () => {
+      it('quando liga, então a demanda aparece no processo e o processo na demanda; ligar de novo não repete e diz que já existia', async () => {
         // Dado
         const [p, d] = [await novoProcesso(), await novaDemanda()];
         // Quando
-        await SD.processoDemandaLigar(p.id, d.id);
-        await SD.processoDemandaLigar(p.id, d.id);
+        const nova = await SD.processoDemandaLigar(p.id, d.id);
+        const deNovo = await SD.processoDemandaLigar(p.id, d.id);
         // Então
+        expect([nova, deNovo]).toEqual([true, false]);
         expect((await SD.demandasDoProcesso(p.id)).map(x => x.id)).toEqual([d.id]);
         expect((await SD.processosDaDemanda(d.id)).visiveis.map(x => x.id)).toEqual([p.id]);
       });
@@ -2133,14 +2134,14 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
       };
 
-      it('quando liga dois processos ao contrato, então eles aparecem no contrato e o contrato aparece em cada processo; ligar de novo não repete', async () => {
+      it('quando liga dois processos ao contrato, então eles aparecem no contrato e o contrato aparece em cada processo; ligar de novo não repete e diz que já existia', async () => {
         // Dado
         const [k, p, q] = [await novoContrato(), await novoProcesso(), await novoProcesso()];
         // Quando
-        await SD.contratoProcessoLigar(k.id, p.id);
-        await SD.contratoProcessoLigar(k.id, q.id);
-        await SD.contratoProcessoLigar(k.id, p.id);
+        const novas = [await SD.contratoProcessoLigar(k.id, p.id), await SD.contratoProcessoLigar(k.id, q.id)];
+        const deNovo = await SD.contratoProcessoLigar(k.id, p.id);
         // Então
+        expect([...novas, deNovo]).toEqual([true, true, false]);
         expect((await SD.processosDoContrato(k.id)).visiveis.map(x => x.id)).toEqual([p.id, q.id]);
         expect(await SD.contratosDoProcesso(p.id)).toMatchObject({ visiveis: [{ id: k.id, codigo: k.codigo }], ocultos: 0 });
       });
@@ -5542,6 +5543,133 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Ligar a um cartão um item que já existe (#341, etapa 2)', () => {
+      const demandaNova = (extra: Partial<Parameters<Dados['demandaCriar']>[0]> = {}) => SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra });
+      const tarefaNova = (extra: Partial<Parameters<Dados['tarefaCriar']>[0]> = {}) => SD.tarefaCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra });
+      const compromissoNovo = (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) =>
+        SD.compromissoCriar({ tipo: 'reuniao', titulo: marca(), data: '2026-12-10', hora: '14:30', responsavel_id: 'u-master', ...extra });
+      const processoNovo = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+        const { id: cliente } = await criar(marca());
+        return SD.processoCriar({ tipo: 'administrativo', numero: marca(), responsavel_id: 'u-master', clientes: [cliente], ...extra });
+      };
+      const contratoNovo = async (servico = marca()) => {
+        const { id: cliente } = await criar(marca());
+        return SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: [servico], servico, categoria: 'pro_labore' });
+      };
+      const ids = (lista: { id: string }[]) => lista.map(x => x.id);
+
+      it('dada uma pessoa, quando busca demandas para ligar, então vêm as ativas que ainda não a têm como cliente, com os clientes de cada uma', async () => {
+        // Dado
+        const m = marca(), { id: pessoa } = await criar(marca()), { id: outra } = await criar(marca());
+        const livre = await demandaNova({ titulo: m + ' livre', clientes: [outra] });
+        const dela = await demandaNova({ titulo: m + ' dela', clientes: [pessoa] });
+        const arquivada = await demandaNova({ titulo: m + ' arquivada' });
+        await SD.demandasArquivar([arquivada.id]);
+        // Quando
+        const achadas = await SD.demandasParaLigar({ termo: m, semAPessoa: pessoa });
+        // Então
+        expect(achadas).toEqual([expect.objectContaining({ id: livre.id, titulo: m + ' livre', clientes: [outra], contrato_id: null })]);
+        expect(ids(await SD.demandasParaLigar({ termo: m }))).toEqual(expect.arrayContaining([livre.id, dela.id]));
+      });
+
+      it('dado um contrato, quando busca demandas sem contrato, então a que já tem contrato e as já ligadas ao cartão ficam fora', async () => {
+        // Dado
+        const m = marca(), k = await contratoNovo();
+        const solta = await demandaNova({ titulo: m + ' solta' });
+        await demandaNova({ titulo: m + ' do contrato', contrato_id: k.id });
+        const fora = await demandaNova({ titulo: m + ' fora' });
+        // Quando
+        const achadas = await SD.demandasParaLigar({ termo: m, sem: 'contratos', fora: [fora.id] });
+        // Então
+        expect(ids(achadas)).toEqual([solta.id]);
+      });
+
+      it('quando busca para ligar sem texto, então vêm no máximo o limite', async () => {
+        // Dado
+        for (let i = 0; i <= ITENS_PARA_LIGAR; i++) await demandaNova();
+        // Quando
+        const achadas = await SD.demandasParaLigar({});
+        // Então
+        expect(achadas).toHaveLength(ITENS_PARA_LIGAR);
+      });
+
+      it('dadas tarefas com e sem demanda, contrato e processo, quando busca as que não têm cada um, então só vêm as que não têm', async () => {
+        // Dado
+        const m = marca(), d = await demandaNova(), k = await contratoNovo(), p = await processoNovo();
+        const solta = await tarefaNova({ titulo: m + ' solta' });
+        const naDemanda = await tarefaNova({ titulo: m + ' na demanda', demanda_id: d.id });
+        const noContrato = await tarefaNova({ titulo: m + ' no contrato', contrato_id: k.id });
+        const noProcesso = await tarefaNova({ titulo: m + ' no processo', processo_id: p.id });
+        // Quando
+        const sem = {
+          demandas: ids(await SD.tarefasParaLigar({ termo: m, sem: 'demandas' })),
+          contratos: ids(await SD.tarefasParaLigar({ termo: m, sem: 'contratos' })),
+          processos: ids(await SD.tarefasParaLigar({ termo: m, sem: 'processos' }))
+        };
+        // Então
+        expect(new Set(sem.demandas)).toEqual(new Set([solta.id, noContrato.id, noProcesso.id]));
+        expect(new Set(sem.contratos)).toEqual(new Set([solta.id, naDemanda.id, noProcesso.id]));
+        expect(new Set(sem.processos)).toEqual(new Set([solta.id, naDemanda.id, noContrato.id]));
+      });
+
+      it('dado um prazo do processo, quando busca a tarefa que o cumpre, então vêm as deste processo e as sem processo, nunca as de outro processo', async () => {
+        // Dado
+        const m = marca(), p = await processoNovo(), outro = await processoNovo();
+        const deste = await tarefaNova({ titulo: m + ' deste', processo_id: p.id });
+        const semProcesso = await tarefaNova({ titulo: m + ' sem processo' });
+        await tarefaNova({ titulo: m + ' de outro', processo_id: outro.id });
+        // Quando
+        const achadas = await SD.tarefasParaLigar({ termo: m, doProcesso: p.id });
+        // Então
+        expect(new Set(ids(achadas))).toEqual(new Set([deste.id, semProcesso.id]));
+      });
+
+      it('dada uma tarefa numa demanda de um contrato, quando aparece na busca, então traz o contrato da demanda e as pessoas', async () => {
+        // Dado
+        const m = marca(), k = await contratoNovo(), { id: pessoa } = await criar(marca());
+        const d = await demandaNova({ contrato_id: k.id });
+        const t = await tarefaNova({ titulo: m, demanda_id: d.id, pessoas: [pessoa] });
+        // Quando
+        const [achada] = await SD.tarefasParaLigar({ termo: m });
+        // Então
+        expect(achada).toMatchObject({ id: t.id, demanda_id: d.id, contrato_da_demanda: k.id, pessoas: [pessoa] });
+        expect(await SD.tarefasParaLigar({ termo: m, semAPessoa: pessoa })).toEqual([]);
+      });
+
+      it('dados compromissos com e sem processo, quando busca os sem processo e sem a pessoa, então só vem o que não tem nenhum dos dois', async () => {
+        // Dado
+        const m = marca(), p = await processoNovo(), { id: pessoa } = await criar(marca());
+        const solto = await compromissoNovo({ titulo: m + ' solto' });
+        await compromissoNovo({ titulo: m + ' do processo', processo_id: p.id });
+        await compromissoNovo({ titulo: m + ' com ela', pessoas: [pessoa] });
+        // Quando
+        const achados = await SD.compromissosParaLigar({ termo: m, sem: 'processos', semAPessoa: pessoa });
+        // Então
+        expect(achados).toEqual([expect.objectContaining({ id: solto.id, titulo: m + ' solto', tipo: 'reuniao', pessoas: [], processo_id: null })]);
+      });
+
+      it('dada uma pessoa, quando busca processos para pô-la como cliente, então vêm os que ainda não a têm, com os clientes de cada um', async () => {
+        // Dado
+        const m = marca(), { id: pessoa } = await criar(marca());
+        const livre = await processoNovo({ titulo: m + ' livre' });
+        await processoNovo({ titulo: m + ' dela', clientes: [pessoa] });
+        // Quando
+        const achados = await SD.processosParaPorCliente({ termo: m, semAPessoa: pessoa });
+        // Então
+        expect(achados).toEqual([expect.objectContaining({ id: livre.id, titulo: m + ' livre', clientes: [expect.any(String)] })]);
+      });
+
+      it('dado um processo, quando busca contratos para ligar, então vêm os ativos, fora os já ligados e os arquivados', async () => {
+        // Dado
+        const m = marca(), ligado = await contratoNovo(m + ' ligado'), livre = await contratoNovo(m + ' livre'), arquivado = await contratoNovo(m + ' arquivado');
+        await SD.contratosArquivar([arquivado.id]);
+        // Quando
+        const achados = await SD.contratosParaLigar({ termo: m, fora: [ligado.id] });
+        // Então
+        expect(achados).toEqual([expect.objectContaining({ id: livre.id, servico: m + ' livre', codigo: livre.codigo })]);
+      });
+    });
+
     describe('Sessão', () => {
       it('dada uma sessão ativa, quando confere com o login, então ela não está encerrada', async () => {
         // Quando / Então
@@ -5845,6 +5973,58 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     expect(r).toMatchObject({ excluidas: 1, naoExcluidas: 0 });
   });
 });
+// A troca de conta só existe no banco fictício: a regra de quem altera cada item é a das regras de alterar do banco de verdade.
+describe('Ligar a um cartão um item que já existe: só o que a pessoa altera (banco fictício, #341)', () => {
+  let SD: Dados;
+  const falso = () => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void; equipeVeTudo(l: boolean): void } }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  const marca = () => 'LIGAR ' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  const ids = async (lista: Promise<{ id: string }[]>) => new Set((await lista).map(x => x.id));
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+  });
+  afterEach(async () => { entrarComo('u-master'); await SD.faseDeAdaptacaoDefinir(false); falso().equipeVeTudo(false); });
+
+  it('dados itens do master, um deles com a conta comum na equipe, quando ela busca para ligar, então só vem o dela; na fase de adaptação, todos', async () => {
+    // Dado: em cada módulo, um item em que Bruno está e outro só do master
+    const m = marca(), { id: cliente } = await SD.pessoaCriar({ tipo: 'pf', nome: marca() });
+    const demandas = [await SD.demandaCriar({ titulo: m, responsavel_id: 'u-master', colaboradores: ['u-bruno'] }), await SD.demandaCriar({ titulo: m, responsavel_id: 'u-master' })];
+    const tarefas = [await SD.tarefaCriar({ titulo: m, responsavel_id: 'u-master', participantes: ['u-bruno'] }), await SD.tarefaCriar({ titulo: m, responsavel_id: 'u-master' })];
+    const compromissos = [
+      await SD.compromissoCriar({ tipo: 'reuniao', titulo: m, data: '2026-12-10', hora: '10:00', responsavel_id: 'u-bruno' }),
+      await SD.compromissoCriar({ tipo: 'reuniao', titulo: m, data: '2026-12-10', hora: '10:00', responsavel_id: 'u-master' })
+    ];
+    const processos = [
+      await SD.processoCriar({ tipo: 'administrativo', numero: marca(), titulo: m, responsavel_id: 'u-master', colaboradores: ['u-bruno'], clientes: [cliente] }),
+      await SD.processoCriar({ tipo: 'administrativo', numero: marca(), titulo: m, responsavel_id: 'u-master', clientes: [cliente] })
+    ];
+    // O contrato dele: ele criou (o responsável é sempre um advogado).
+    entrarComo('u-bruno');
+    const doBruno = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: [m], servico: m, categoria: 'pro_labore' });
+    entrarComo('u-master');
+    const contratos = [doBruno, await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: [m], servico: m, categoria: 'pro_labore' })];
+    const buscar = () => [
+      ids(SD.demandasParaLigar({ termo: m })), ids(SD.tarefasParaLigar({ termo: m })), ids(SD.compromissosParaLigar({ termo: m })),
+      ids(SD.processosParaPorCliente({ termo: m })), ids(SD.contratosParaLigar({ termo: m }))
+    ];
+    const todos = [demandas, tarefas, compromissos, processos, contratos];
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await Promise.all(buscar())).toEqual(todos.map(([dele]) => new Set([dele.id])));
+    // Quando: a fase de adaptação abre a edição de tudo
+    entrarComo('u-master');
+    falso().equipeVeTudo(true);
+    await SD.faseDeAdaptacaoDefinir(true);
+    entrarComo('u-bruno');
+    // Então
+    expect(await Promise.all(buscar())).toEqual(todos.map(lista => new Set(lista.map(x => x.id))));
+  });
+});
+
 // A troca de conta só existe no banco fictício; no banco de verdade, a regra é provada em supabase/tests/visibilidade_contratos.test.sql.
 describe('Visibilidade dos contratos (banco fictício)', () => {
   let SD: Dados;

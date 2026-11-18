@@ -8,11 +8,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Anotacao, DadosAnotacoes, DadosEtiquetas, DadosPastas, DadosSessao } from '../dados';
 import { Avisos } from '../ui/avisos';
 import { iniciarPreferencias } from '../ui/preferencias';
-import { CartaoAnotacao } from './CartaoAnotacao';
+import { CartaoAnotacao, ITEM_JA_LIGADO } from './CartaoAnotacao';
 
 // O cartão lê a anotação, os itens ligados, o histórico, as etiquetas e as pastas (#342), e grava o texto; o mock declara
 // exatamente essas operações.
-const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } = vi.hoisted(() => ({
+const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, anotacaoLigar, anotacaoDesligar, itensParaLigar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } = vi.hoisted(() => ({
+  anotacaoLigar: vi.fn<DadosAnotacoes['anotacaoLigar']>(),
+  anotacaoDesligar: vi.fn<DadosAnotacoes['anotacaoDesligar']>(async () => {}),
+  itensParaLigar: vi.fn<DadosAnotacoes['itensParaLigar']>(async () => []),
   etiquetasListar: vi.fn<DadosEtiquetas['etiquetasListar']>(async () => []),
   etiquetasDoCartao: vi.fn<DadosEtiquetas['etiquetasDoCartao']>(async () => []),
   pastasListar: vi.fn<DadosPastas['pastasListar']>(async () => []),
@@ -23,8 +26,8 @@ const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salv
   salvarPreferencia: vi.fn<DadosSessao['salvarPreferencia']>(async () => {})
 }));
 vi.mock('../dados', () => ({
-  SD: { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } satisfies
-    Pick<DadosAnotacoes & DadosSessao & DadosEtiquetas & DadosPastas, 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'salvarPreferencia'
+  SD: { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, anotacaoLigar, anotacaoDesligar, itensParaLigar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } satisfies
+    Pick<DadosAnotacoes & DadosSessao & DadosEtiquetas & DadosPastas, 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'anotacaoLigar' | 'anotacaoDesligar' | 'itensParaLigar' | 'salvarPreferencia'
       | 'etiquetasListar' | 'etiquetasDoCartao' | 'pastasListar'>
 }));
 /** A equipe do escritório: quem escreve e alguém com quem compartilhar. */
@@ -191,5 +194,46 @@ describe('Título e texto mudados no próprio cartão (#339)', () => {
     await responder();
     await act(async () => { await roteador.navigate('/fora'); });
     expect(await screen.findByText('Outra página')).toBeInTheDocument();
+  });
+});
+
+describe('Ligar um item pela seção "Ligada a" (#341)', () => {
+  beforeEach(() => {
+    iniciarPreferencias({});
+    anotacaoObter.mockReset();
+    anotacaoObter.mockImplementation(async () => anotacao(''));
+    itensParaLigar.mockResolvedValue([{ modulo: 'pessoas', id: 'p1', codigo: 'P-1', nome: 'JOSÉ DA SILVA', arquivado_em: null }]);
+    anotacaoLigar.mockReset();
+  });
+  /** Abre a seção, busca e escolhe a pessoa. */
+  async function ligarAPessoa() {
+    render(<MemoryRouter><CartaoAnotacao id="a1" aoMudar={() => undefined} aoFechar={() => undefined} /><Avisos /></MemoryRouter>);
+    const secao = await screen.findByRole('button', { name: /^Ligada a/ });
+    if (secao.getAttribute('aria-expanded') === 'false') await userEvent.click(secao);
+    await userEvent.click(screen.getByRole('button', { name: /^Ligar a (outro|um) item/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /JOSÉ DA SILVA/ }));
+  }
+
+  it('dado um item que outra pessoa já ligou enquanto a busca estava aberta, quando a pessoa o escolhe, então o aviso diz que já estava, sem Desfazer', async () => {
+    // Dado
+    anotacaoLigar.mockResolvedValue(false);
+    // Quando
+    await ligarAPessoa();
+    // Então
+    // (os avisos dos casos anteriores podem ainda estar no pé da tela: confere só o deste)
+    const aviso = (await screen.findByText(ITEM_JA_LIGADO)).closest('div')!;
+    expect(within(aviso).queryByRole('button', { name: 'Desfazer' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Ligada a pessoa: JOSÉ DA SILVA.')).not.toBeInTheDocument();
+  });
+
+  it('dado um item ainda não ligado, quando a pessoa o escolhe, então o aviso oferece Desfazer, que desliga só ele', async () => {
+    // Dado
+    anotacaoLigar.mockResolvedValue(true);
+    // Quando
+    await ligarAPessoa();
+    const aviso = (await screen.findByText('Ligada a pessoa: JOSÉ DA SILVA.')).closest('div')!;
+    await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
+    // Então
+    expect(anotacaoDesligar).toHaveBeenCalledWith('a1', 'pessoas', 'p1');
   });
 });

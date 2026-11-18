@@ -417,7 +417,7 @@ export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_
 /** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
 /** Tarefa como aparece em outro cartão (da pessoa, da demanda ou do contrato), com o papel da pessoa nela. */
-export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em'> {
+export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'contrato_id'> {
   papeis: PapelNaTarefa[];
 }
 /** Campos que o cadastro de tarefa grava. */
@@ -1341,6 +1341,54 @@ export interface DadosAnotacoes {
   anotacoesParaLigar(modulo: ModuloDaAnotacao, itemId: string, termo: string): Promise<AnotacaoParaLigar[]>;
 }
 
+// ---------- ligar a um cartão um item que já existe (#341, etapa 2) ----------
+/** Os módulos das ligações de um só: a tarefa tem uma demanda, um contrato e um processo; a demanda, um contrato; o compromisso, um processo. */
+export type LigacaoDeUmSo = 'demandas' | 'contratos' | 'processos';
+/**
+ * O filtro das buscas para ligar, no cartão de um item, outro que já existe. Todas trazem só itens ativos que quem lê pode alterar
+ * (o administrador e, na fase de adaptação, toda a equipe alteram todos; os outros, aqueles em que estão: quem criou, o
+ * responsável e a equipe dele), os criados mais recentemente primeiro, até ITENS_PARA_LIGAR.
+ */
+export interface FiltroParaLigar<Sem extends LigacaoDeUmSo = never> {
+  /** O texto digitado (código, título, nomes…), como na busca da lista do módulo. Vazio: os mais recentes. */
+  termo?: string;
+  /** Só os que ainda não estão ligados a um item deste módulo (ex.: a tarefa sem demanda, a demanda sem contrato). */
+  sem?: Sem;
+  /** Fora os que já têm esta pessoa na lista (os clientes da demanda e do processo, as pessoas da tarefa e do compromisso). */
+  semAPessoa?: string;
+  /** Fora estes: os que já estão ligados ao cartão, nas ligações de muitos para muitos. */
+  fora?: string[];
+}
+/** Demanda achada na busca para ligar, com os clientes (no máximo CLIENTES_MAXIMOS) e o contrato que ela já tem. */
+export type DemandaParaEscolher = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'cliente_nome' | 'contrato_id' | 'contrato_codigo' | 'prazo'> & { clientes: string[] };
+/** Tarefa achada na busca para ligar, com o que ela já tem ligado. */
+export type TarefaParaEscolher = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'pessoa_nome' | 'prazo' | 'demanda_id' | 'demanda_codigo' | 'contrato_id' | 'processo_id'> & {
+  pessoas: string[];
+  /** O contrato da demanda da tarefa, se quem lê vê a demanda (null: sem demanda, a demanda sem contrato, ou que quem lê não vê). */
+  contrato_da_demanda: string | null;
+};
+/** Compromisso achado na busca para ligar, com as pessoas e o processo que ele já tem. */
+export type CompromissoParaEscolher = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'pessoa_nome' | 'processo_id' | 'processo_numero'> & { pessoas: string[] };
+/** Processo achado na busca para pôr uma pessoa como cliente, com os clientes que ele já tem. */
+export type ProcessoParaEscolher = ProcessoParaLigar & { clientes: string[] };
+/** Contrato achado na busca para ligar. */
+export type ContratoParaEscolher = Pick<ContratoLista, 'id' | 'codigo' | 'servico' | 'cliente_nome'>;
+export interface DadosParaLigar {
+  /** As demandas que quem lê altera (como estaNaDemanda, em regras/demanda.ts); `sem: 'contratos'`: só as sem contrato. */
+  demandasParaLigar(f: FiltroParaLigar<'contratos'>): Promise<DemandaParaEscolher[]>;
+  /**
+   * As tarefas que quem lê altera por estar nelas (quem criou, o responsável e os participantes; quem está só na demanda da tarefa
+   * a liga pela demanda). `doProcesso`: só as tarefas deste processo ou sem processo (o prazo liga a tarefa que já o cumpre).
+   */
+  tarefasParaLigar(f: FiltroParaLigar<LigacaoDeUmSo> & { doProcesso?: string }): Promise<TarefaParaEscolher[]>;
+  /** Os compromissos que quem lê muda por estar neles (quem criou, o responsável e os participantes). */
+  compromissosParaLigar(f: FiltroParaLigar<'processos'>): Promise<CompromissoParaEscolher[]>;
+  /** Os processos que quem lê altera (como alteraOProcesso, em regras/processo.ts), para pôr uma pessoa como cliente. */
+  processosParaPorCliente(f: FiltroParaLigar): Promise<ProcessoParaEscolher[]>;
+  /** Os contratos que quem lê altera (como alteraOContrato, em regras/contrato.ts; na fase de adaptação, todos). */
+  contratosParaLigar(f: FiltroParaLigar): Promise<ContratoParaEscolher[]>;
+}
+
 // ---------- pastas dos documentos (#342) ----------
 /**
  * Pasta dos documentos, como no Obsidian: pode ficar dentro de outra (pasta_mae_id) e guarda anotações. É do escritório todo:
@@ -1407,13 +1455,14 @@ export interface DadosAcompanhamento {
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
   /** Liga o processo à demanda: "originou" quando ele nasceu dela; "atua" quando foi ligado depois, à mão. Ligar de novo não muda
-   *  nada. Só um processo ativo em que a pessoa está, numa demanda em que ela está. */
-  processoDemandaLigar(processoId: string, demandaId: string, papel?: PapelDaDemandaNoProcesso): Promise<void>;
+   *  nada. Só um processo ativo em que a pessoa está, numa demanda em que ela está. Devolve se a ligação é nova (false: já existia,
+   *  talvez posta por outra pessoa agora há pouco). */
+  processoDemandaLigar(processoId: string, demandaId: string, papel?: PapelDaDemandaNoProcesso): Promise<boolean>;
   /** Quem está na demanda e vê o processo desliga os dois (mesmo com o processo arquivado). */
   processoDemandaDesligar(processoId: string, demandaId: string): Promise<void>;
   /** Liga o processo ao contrato (supabase/migrations/20261111095627_ligar_processo_existente.sql): quem altera o contrato, com um
-   *  processo ativo em que está. Ligar de novo não muda nada. */
-  contratoProcessoLigar(contratoId: string, processoId: string): Promise<void>;
+   *  processo ativo em que está. Ligar de novo não muda nada. Devolve se a ligação é nova (false: já existia). */
+  contratoProcessoLigar(contratoId: string, processoId: string): Promise<boolean>;
   /** Quem altera o contrato e vê o processo desliga os dois. */
   contratoProcessoDesligar(contratoId: string, processoId: string): Promise<void>;
   /** Os processos ligados ao contrato que quem está logado pode ver, e quantos há que ele não pode abrir. */
@@ -1660,4 +1709,4 @@ export interface DadosParcelas {
   financeiroSocioRestaurar(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas {}
+export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}

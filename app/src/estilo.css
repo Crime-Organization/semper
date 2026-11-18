@@ -716,6 +716,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Os botões abaixo da lista ("+ Ligar processo", "+ Criar processo"), lado a lado; a busca aberta ocupa a linha toda. */
 .ligados-acoes { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 10px }
 .ligados-acoes > :is(.busca-processo, .busca-existente) { flex: 1 1 100% }
+/* A lista do cartão já está cheia (#341): o botão de ligar desabilitado, com o motivo ao lado. */
+.ligar-indisponivel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
 .ligados-vazio { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px }
 .itens-ligados > li { display: flex; align-items: center; gap: 8px }
 .item-ligado { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--superficie); color: var(--ink); font: inherit; text-align: left }
