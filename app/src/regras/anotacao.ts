@@ -1,7 +1,7 @@
 // Regras da anotação (módulo Documentos, #303): os módulos a que ela se liga, o nome e o endereço de cada item ligado, e quem
 // vê e quem altera. Tudo puro, sem tela nem banco. As regras do banco são as mesmas (supabase/migrations/…_anotacoes.sql);
 // o banco fictício (dados/falso.ts) usa estas funções para se comportar igual.
-import type { Anotacao, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAnotacao, ItemParaLigar, Membro, ModuloDaAnotacao, Pessoa, Processo, Tarefa } from '../dados/tipos';
+import type { Anotacao, AnotacaoParaLigar, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAnotacao, ItemParaLigar, Membro, ModuloDaAnotacao, Pessoa, Processo, Tarefa } from '../dados/tipos';
 import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import { TIPOS_COMPROMISSO } from './compromisso';
 import { clientesPorExtenso } from './contrato';
@@ -95,6 +95,23 @@ export const ligaNaAnotacao = (a: QuemEstaNaAnotacao & Pick<Anotacao, 'arquivado
 /** Excluir de vez: só a anotação arquivada, por quem criou ou por um administrador (o padrão de todos os módulos). */
 export const excluiAAnotacao = (a: Pick<Anotacao, 'criado_por' | 'arquivado_em'>, m: Pick<Membro, 'id' | 'papel'>) =>
   !!a.arquivado_em && (ehAdministrador(m) || m.id === a.criado_por);
+
+// ---------- ligar, no cartão de um item, uma anotação que já existe (#341) ----------
+/** Por que a anotação não aceita mais um item ('' = aceita): a cheia já está ligada a ITENS_DA_ANOTACAO, o máximo do banco. */
+export const motivoDeNaoLigarAAnotacao = (a: Pick<AnotacaoParaLigar, 'itens'>) =>
+  a.itens >= ITENS_DA_ANOTACAO ? `Já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo.` : '';
+/**
+ * O aviso embaixo da busca, no cartão de cada tipo de item: quem passa a ler a anotação ligada a ele (as regras de
+ * privado.anotacoes_pelos_itens). A pessoa não abre a anotação (ABRE_A_ANOTACAO): nada a avisar.
+ */
+export const QUEM_PASSA_A_LER: Record<ModuloDaAnotacao, string> = {
+  pessoas: '',
+  processos: 'Quem vê este processo passa a ler a anotação que você ligar.',
+  contratos: 'Quem vê este contrato passa a ler a anotação que você ligar, inclusive quem foi mencionado nele.',
+  demandas: 'Quem vê esta demanda passa a ler a anotação que você ligar, inclusive quem está no contrato dela.',
+  tarefas: 'Quem vê esta tarefa passa a ler a anotação que você ligar, inclusive quem está na demanda e no contrato dela.',
+  compromissos: 'Quem vê este compromisso passa a ler a anotação que você ligar. Se ele está na Agenda geral, é todo o escritório.'
+};
 
 // ---------- o filtro "Data" da página Documentos ----------
 /** Quanto cada período volta a partir de hoje. */

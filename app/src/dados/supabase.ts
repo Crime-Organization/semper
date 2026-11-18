@@ -14,7 +14,7 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import type { AnotacaoLigada, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { AnotacaoLigada, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { PASTA_APAGADA } from '../regras/pastas';
@@ -1167,9 +1167,10 @@ export const SD: Dados = {
     return data;
   },
   async anotacaoLigar(id, modulo, itemId) {
-    // O mesmo item de novo não faz nada: o banco descarta a linha repetida.
+    // O mesmo item de novo não faz nada: o banco descarta a linha repetida, e ela não volta na resposta.
     const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
-    await rodar(sb.from('anotacao_ligacoes').upsert({ anotacao_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `anotacao_id,${coluna}`, ignoreDuplicates: true }));
+    const { data } = await rodar(sb.from('anotacao_ligacoes').upsert({ anotacao_id: id, [coluna]: itemId, criado_por: uid() }, { onConflict: `anotacao_id,${coluna}`, ignoreDuplicates: true }).select('id'));
+    return data.length > 0;
   },
   async anotacaoDesligar(id, modulo, itemId) {
     // A regra do banco não apaga o que a pessoa não pode desligar: nenhuma linha sai, e a tela precisa saber.
@@ -1202,6 +1203,25 @@ export const SD: Dados = {
     return (data as (AnotacaoLigada & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a);
   },
   itensParaLigar: (modulo, termo) => PARA_LIGAR[modulo](termo),
+  async anotacoesParaLigar(modulo, itemId, termo) {
+    // As que já estão ligadas a este item ficam fora da busca (as que quem lê não vê nem viriam). Um item com muitas anotações
+    // deixa o filtro comprido, mas cada uma é um id: cabe no endereço.
+    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+    const { data: ja } = await rodar(sb.from('anotacao_ligacoes').select('anotacao_id').eq(coluna, itemId));
+    const ligadas = (ja as { anotacao_id: string }[]).map(l => l.anotacao_id);
+    let q = filtrarAnotacoes(sb.from('anotacoes').select('id, codigo, titulo, atualizado_em'), { termo, situacao: 'ativas' });
+    // Só as que quem lê altera, como privado.altero_a_anotacao (a regra de ligar do banco): o administrador e, na fase de
+    // adaptação, toda a equipe alteram todas; os outros, as que criaram, de que são responsáveis ou participantes.
+    if (ctx && !ctx.ehAdmin && !equipeEditaTudo(ctx.escritorio)) q = q.or(`criado_por.eq.${uid()},responsavel_id.eq.${uid()},participantes.cs.{${uid()}}`);
+    if (ligadas.length) q = q.not('id', 'in', `(${ligadas.join(',')})`);
+    const { data } = await rodar(q.order('atualizado_em', { ascending: false }).order('id').limit(ITENS_PARA_LIGAR));
+    const achadas = data as Omit<AnotacaoParaLigar, 'itens'>[];
+    if (!achadas.length) return [];
+    // Quantos itens cada uma já tem (no máximo ITENS_DA_ANOTACAO por anotação: cabem numa leitura).
+    const { data: itens } = await rodar(sb.from('anotacao_ligacoes').select('anotacao_id').in('anotacao_id', achadas.map(a => a.id)));
+    const contar = (id: string) => (itens as { anotacao_id: string }[]).filter(l => l.anotacao_id === id).length;
+    return achadas.map(a => ({ ...a, itens: contar(a.id) }));
+  },
 
   // ---------- pastas dos documentos (supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------
   async pastasListar() {

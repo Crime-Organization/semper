@@ -225,7 +225,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoContrato(k.id)} vazio="Nenhuma tarefa ligada a este contrato." />
     </Recolhivel>}
 
-    <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (oculto && !semValores)} />
+    <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)} />
 
     <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso={oculto ? undefined : 'Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir.'} />
 

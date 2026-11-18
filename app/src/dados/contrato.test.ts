@@ -4968,10 +4968,11 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Dado
         const { id } = await anotacao(), d = await demandaNova(), p = await processoNovo();
         // Quando
-        await SD.anotacaoLigar(id, 'processos', p.id);
-        await SD.anotacaoLigar(id, 'demandas', d.id);
-        await SD.anotacaoLigar(id, 'demandas', d.id);
-        // Então
+        const novas = [await SD.anotacaoLigar(id, 'processos', p.id), await SD.anotacaoLigar(id, 'demandas', d.id)];
+        const deNovo = await SD.anotacaoLigar(id, 'demandas', d.id);
+        // Então: as duas primeiras são novas; a repetida diz que já estava (a tela não oferece Desfazer)
+        expect(novas).toEqual([true, true]);
+        expect(deNovo).toBe(false);
         const itens = await SD.anotacaoItens(id);
         expect(itens.ocultos).toBe(0);
         expect(itens.visiveis.map(i => [i.modulo, i.id])).toEqual([['processos', p.id], ['demandas', d.id]]);
@@ -5009,7 +5010,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await expect(SD.anotacaoLigar(id, 'pessoas', pessoas[ITENS_DA_ANOTACAO].id)).rejects.toThrow(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
         expect((await SD.anotacaoItens(id)).visiveis).toHaveLength(ITENS_DA_ANOTACAO);
         // Ligar de novo um que já está não conta como mais um.
-        await expect(SD.anotacaoLigar(id, 'pessoas', pessoas[0].id)).resolves.toBeUndefined();
+        await expect(SD.anotacaoLigar(id, 'pessoas', pessoas[0].id)).resolves.toBe(false);
       });
 
       it('dada uma anotação arquivada, quando liga um item, então é recusado', async () => {
@@ -5272,6 +5273,44 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(demandas).toEqual([{ modulo: 'demandas', id: ativa.id, codigo: ativa.codigo, nome: m + ' ativa', arquivado_em: null }]);
         expect(processos.map(i => [i.id, i.tipo])).toEqual([[p.id, 'administrativo']]);
         expect((await SD.itensParaLigar('pessoas', '')).length).toBeLessThanOrEqual(ITENS_PARA_LIGAR);
+      });
+
+      it('dado o cartão de uma demanda, quando busca anotações para ligar pelo código ou pelo título, então acha as ativas ainda não ligadas a ela, com quantos itens cada uma tem (#341)', async () => {
+        // Dado
+        const m = marca(), d = await demandaNova(), p = await criar(marca());
+        const livre = await anotacao({ titulo: m + ' livre' }, { modulo: 'pessoas', id: p.id });
+        const ligada = await anotacao({ titulo: m + ' ligada' }, { modulo: 'demandas', id: d.id });
+        const arquivada = await anotacao({ titulo: m + ' arquivada' });
+        await SD.anotacoesArquivar([arquivada.id]);
+        // Quando
+        const pelo = { titulo: await SD.anotacoesParaLigar('demandas', d.id, m), codigo: await SD.anotacoesParaLigar('demandas', d.id, livre.codigo) };
+        // Então
+        const esperada = { id: livre.id, codigo: livre.codigo, titulo: m + ' livre', itens: 1 };
+        expect(pelo.titulo).toEqual([expect.objectContaining(esperada)]);
+        expect(pelo.codigo).toEqual([expect.objectContaining(esperada)]);
+        expect(await SD.anotacoesParaLigar('demandas', d.id, ligada.codigo)).toEqual([]);
+        // No cartão de outro item, a que está ligada à demanda é oferecida.
+        expect((await SD.anotacoesParaLigar('pessoas', p.id, m)).map(a => a.id)).toEqual([ligada.id]);
+      });
+
+      it('dado o cartão de uma pessoa, quando liga uma anotação achada na busca, então ela aparece no cartão e sai da busca (#341)', async () => {
+        // Dado
+        const m = marca(), p = await criar(marca()), { id } = await anotacao({ titulo: m });
+        const [achada] = await SD.anotacoesParaLigar('pessoas', p.id, m);
+        // Quando
+        await SD.anotacaoLigar(achada.id, 'pessoas', p.id);
+        // Então
+        expect((await SD.anotacoesDoItem('pessoas', p.id)).map(a => a.id)).toEqual([id]);
+        expect((await SD.anotacaoItens(id)).visiveis.map(i => i.id)).toEqual([p.id]);
+        expect(await SD.anotacoesParaLigar('pessoas', p.id, m)).toEqual([]);
+      });
+
+      it('quando busca anotações para ligar sem texto, então vêm no máximo o limite (#341)', async () => {
+        // Dado
+        const d = await demandaNova();
+        for (let i = 0; i <= ITENS_PARA_LIGAR; i++) await anotacao();
+        // Quando / Então
+        expect((await SD.anotacoesParaLigar('demandas', d.id, '')).length).toBe(ITENS_PARA_LIGAR);
       });
 
       it('dada uma demanda ligada, quando ela é excluída, então a ligação sai da anotação', async () => {
@@ -5674,7 +5713,7 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     // Quando
     entrarComo('u-bruno');
     // Então
-    await expect(SD.anotacaoLigar(id, 'demandas', alheia)).resolves.toBeUndefined();   // já ligada: não faz nada
+    await expect(SD.anotacaoLigar(id, 'demandas', alheia)).resolves.toBe(false);   // já ligada: não faz nada
     expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 1 });
     await expect(SD.anotacaoLigar(id, 'demandas', outra)).rejects.toThrow(SEM_PERMISSAO);
   });
@@ -5689,6 +5728,29 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     const achados = await SD.itensParaLigar('demandas', m);
     // Então
     expect(achados.map(i => i.id)).toEqual([minha]);
+  });
+
+  it('dadas anotações que a conta comum só lê, quando ela busca anotações para ligar a um item, então só vêm as que ela altera; na fase de adaptação, todas (#341)', async () => {
+    // Dado: uma compartilhada com ela, uma que ela vê só pela demanda em que colabora, e a chave de ver tudo ligada
+    const m = marca();
+    const { id: demanda } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id: pessoa } = await SD.pessoaCriar({ tipo: 'pf', nome: marca() });
+    const { id: comEla } = await doMaster({ titulo: m + ' com ela', participantes: ['u-bruno'] });
+    const { id: soLe } = await doMaster({ titulo: m + ' só lê' }, { modulo: 'demandas', id: demanda });
+    const { id: alheia } = await doMaster({ titulo: m + ' alheia' });
+    falso().equipeVeTudo(true);
+    // Quando
+    entrarComo('u-bruno');
+    const achadas = await SD.anotacoesParaLigar('pessoas', pessoa, m);
+    // Então
+    expect(achadas.map(a => a.id)).toEqual([comEla]);
+    expect(await vejo(soLe)).toBe(true);
+    // Quando: a fase de adaptação abre a edição de todas
+    entrarComo('u-master');
+    await SD.faseDeAdaptacaoDefinir(true);
+    entrarComo('u-bruno');
+    // Então
+    expect(new Set((await SD.anotacoesParaLigar('pessoas', pessoa, m)).map(a => a.id))).toEqual(new Set([comEla, soLe, alheia]));
   });
 
   it('dada a chave "equipe_ve_tudo", quando a conta comum entra, então vê a anotação alheia, mas só lê', async () => {

@@ -1419,15 +1419,16 @@ const refazerLigadaA = (id: string) => {
   if (a) a.ligada_a = modulosLigados(ligacoesDaAnotacao(id).map(l => l.modulo));
 };
 /** Como o gatilho e as regras de ligar do banco, na mesma ordem: o item existe; repetido não faz nada; até ITENS_DA_ANOTACAO; e quem liga altera a anotação e vê o item. */
-function ligarNaAnotacaoFalsa(a: Anotacao, modulo: ModuloDaAnotacao, itemId: string) {
+function ligarNaAnotacaoFalsa(a: Anotacao, modulo: ModuloDaAnotacao, itemId: string): boolean {
   if (!ITEM_NO_FALSO[modulo](itemId)) throw new Error('Item não encontrado neste escritório.');
   const pode = ligaNaAnotacao(a, membroLogado(), chavesDaEquipe());
   const ligacoes = ligacoesDaAnotacao(a.id);
-  if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return;
+  if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return false;
   if (ligacoes.length >= ITENS_DA_ANOTACAO) throw new Error(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
   if (!pode || !vejoOItem(modulo, itemId)) throw new Error(SEM_PERMISSAO);
   bd.anotacaoLigacoes!.push({ anotacao_id: a.id, modulo, item_id: itemId, criado_por: eu, criado_em: agora() });
   refazerLigadaA(a.id);
+  return true;
 }
 /** Como o on delete cascade das ligações: o item excluído sai das anotações, e a lista dos módulos ligados é refeita. */
 function soltarDasAnotacoes(modulo: ModuloDaAnotacao, itemId: string) {
@@ -2812,7 +2813,8 @@ export const SD: Dados = {
   async anotacaoLigar(id, modulo, itemId) {
     const a = bd.anotacoes!.find(x => x.id === id);
     if (!a) return erro(SEM_PERMISSAO);
-    ligarNaAnotacaoFalsa(a, modulo, itemId); gravar();
+    const nova = ligarNaAnotacaoFalsa(a, modulo, itemId); gravar();
+    return nova;
   },
   async anotacaoDesligar(id, modulo, itemId) {
     const a = bd.anotacoes!.find(x => x.id === id);
@@ -2832,6 +2834,11 @@ export const SD: Dados = {
     .sort(ORDENS_ANOTACAO.recentes).slice(0, ANOTACOES_LIGADAS).map(anotacaoLigada)),
   // A listagem de cada módulo, no banco fictício, ainda mostra tudo: aqui ficam só os itens que as regras do módulo deixam ver.
   itensParaLigar: async (modulo, termo) => (await PARA_LIGAR[modulo](termo)).filter(i => vejoOItem(i.modulo, i.id)).slice(0, ITENS_PARA_LIGAR),
+  // Como em supabase.ts: as ativas que quem lê altera (privado.altero_a_anotacao), fora as já ligadas a este item, pela busca.
+  anotacoesParaLigar: (modulo, itemId, texto) => espera(filtrarAnotacoes({ termo: texto, situacao: 'ativas' })
+    .filter(a => alteroAnotacaoDoId(a.id) && !ligacoesDaAnotacao(a.id).some(l => l.modulo === modulo && l.item_id === itemId))
+    .sort((a, b) => ORDENS_ANOTACAO.recentes(a, b) || a.id.localeCompare(b.id)).slice(0, ITENS_PARA_LIGAR)
+    .map(a => ({ id: a.id, codigo: a.codigo, titulo: a.titulo, atualizado_em: a.atualizado_em, itens: ligacoesDaAnotacao(a.id).length }))),
 
   // ---------- pastas dos documentos (como supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------
   // Todo o escritório vê, cria, renomeia, move e apaga a vazia; as regras de nome e de ciclo são as de regras/pastas.ts.

@@ -1277,6 +1277,11 @@ export interface ItemDaAnotacao {
 }
 /** Um item a que a anotação se liga: o módulo dele e o id. */
 export type ItemParaLigar = Pick<ItemDaAnotacao, 'modulo' | 'id'>;
+/**
+ * Anotação que se pode ligar a um item, no cartão dele (#341): com quantos itens ela já está ligada (a cheia, com
+ * ITENS_DA_ANOTACAO, não aceita mais; veja motivoDeNaoLigarAAnotacao, em regras/anotacao.ts).
+ */
+export type AnotacaoParaLigar = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'atualizado_em'> & { itens: number };
 export interface FiltroAnotacoes {
   termo?: string;
   /** Só as ligadas a algum item deste módulo; 'nenhum': as que não estão ligadas a nada. */
@@ -1316,8 +1321,11 @@ export interface DadosAnotacoes {
   /** Só anotações arquivadas são excluídas (por quem criou ou um administrador). */
   anotacoesExcluir(ids: string[]): Promise<Exclusao>;
   anotacaoHistorico(id: string): Promise<Historico[]>;
-  /** Ligar de novo o mesmo item não faz nada. */
-  anotacaoLigar(id: string, modulo: ModuloDaAnotacao, itemId: string): Promise<void>;
+  /**
+   * Devolve true quando a ligação é nova. Ligar de novo o mesmo item não faz nada e devolve false (ex.: outra pessoa ligou
+   * enquanto a busca estava aberta): a tela então não oferece Desfazer, que apagaria a ligação feita por outra pessoa.
+   */
+  anotacaoLigar(id: string, modulo: ModuloDaAnotacao, itemId: string): Promise<boolean>;
   anotacaoDesligar(id: string, modulo: ModuloDaAnotacao, itemId: string): Promise<void>;
   /** Os itens ligados que quem lê pode abrir, e quantos há que ele não pode. */
   anotacaoItens(id: string): Promise<{ visiveis: ItemDaAnotacao[]; ocultos: number }>;
@@ -1325,6 +1333,12 @@ export interface DadosAnotacoes {
   anotacoesDoItem(modulo: ModuloDaAnotacao, itemId: string): Promise<AnotacaoLigada[]>;
   /** Itens do módulo para ligar, pela busca, entre os que quem lê pode ver (ativos). */
   itensParaLigar(modulo: ModuloDaAnotacao, termo: string): Promise<ItemDaAnotacao[]>;
+  /**
+   * O caminho inverso, no cartão do item (#341): as anotações que se podem ligar a ele, pela busca (o código, o título e o
+   * texto, como em anotacoesListar). Só as ativas que quem lê pode alterar (as que ligaNaAnotacao, em regras/anotacao.ts,
+   * aceita) e que ainda não estão ligadas a este item; as atualizadas mais recentemente primeiro, até ITENS_PARA_LIGAR.
+   */
+  anotacoesParaLigar(modulo: ModuloDaAnotacao, itemId: string, termo: string): Promise<AnotacaoParaLigar[]>;
 }
 
 // ---------- pastas dos documentos (#342) ----------

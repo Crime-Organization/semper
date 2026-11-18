@@ -8,7 +8,7 @@ import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
   camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
   SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
-  edicaoPorSalvar, mesmoItem, motivoDaListaVazia, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
+  edicaoPorSalvar, mesmoItem, motivoDaListaVazia, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
@@ -127,6 +127,22 @@ describe('Quem vê e quem altera a anotação', () => {
   ] as const)('quando quem exclui é %s, então excluir é %s', (_caso, campos, m, pode) => {
     // Então
     expect(excluiAAnotacao(anotacao(campos), m)).toBe(pode);
+  });
+});
+
+describe('Ligar, no cartão de um item, uma anotação que já existe (#341)', () => {
+  it.each([
+    [0, ''],
+    [ITENS_DA_ANOTACAO - 1, ''],
+    [ITENS_DA_ANOTACAO, `Já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo.`]
+  ])('dada uma anotação ligada a %i itens, quando aparece na busca, então o motivo de não ligar é "%s"', (itens, motivo) => {
+    // Dado / Quando / Então
+    expect(motivoDeNaoLigarAAnotacao({ itens })).toBe(motivo);
+  });
+
+  it.each(MODULOS_DA_ANOTACAO)('dado o cartão de %s, então o aviso de quem passa a ler só aparece onde o item abre a anotação', modulo => {
+    // Dado / Quando / Então: a pessoa não abre a anotação, e não há o que avisar; os outros avisam.
+    expect(!!QUEM_PASSA_A_LER[modulo]).toBe(ABRE_A_ANOTACAO[modulo]);
   });
 });
 

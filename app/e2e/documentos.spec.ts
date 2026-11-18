@@ -117,6 +117,116 @@ test.describe('Anotações no cartão de um item', () => {
   });
 });
 
+test.describe('Ligar uma anotação que já existe, no cartão de um item (#341)', () => {
+  /** O código da anotação que acabou de ser cadastrada, lido do aviso no pé da tela. */
+  async function codigoDoAviso(page: Page) {
+    const aviso = page.getByText(/Anotação \w+ cadastrada\./);
+    await expect(aviso).toBeVisible();
+    return /Anotação (\w+) cadastrada\./.exec((await aviso.textContent())!)![1];
+  }
+  /** Abre o cartão de uma pessoa pela tabela. */
+  async function abrirPessoa(page: Page, nome: string) {
+    await page.goto('/pessoas/');
+    await page.getByRole('row').filter({ hasText: nome }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: nome, level: 2 })).toBeVisible();
+    return cartao;
+  }
+  /** Na seção "Anotações" do cartão: "Ligar anotação existente", busca pelo texto e escolhe a anotação achada. */
+  async function ligarExistente(cartao: Locator, texto: string, titulo: string) {
+    await abrirSecao(cartao, 'Anotações');
+    await cartao.getByRole('button', { name: 'Ligar anotação existente' }).click();
+    await cartao.getByRole('textbox', { name: 'Buscar anotação para ligar' }).fill(texto);
+    await cartao.getByRole('list', { name: 'Anotações para ligar' }).getByRole('button', { name: new RegExp(titulo) }).click();
+  }
+
+  test('dado o cartão de uma pessoa, quando a pessoa liga uma anotação existente achada pelo código, então ela aparece na seção, o cartão dela mostra a pessoa em "Ligada a", e ela não é oferecida de novo', async ({ page }) => {
+    // Dado
+    await criarAnotacao(page, 'Parecer da prescrição');
+    const codigo = await codigoDoAviso(page);
+    let cartao = await abrirPessoa(page, 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(cartao, 'Anotações');
+    await expect(cartao.getByRole('link', { name: 'Nova anotação', exact: true })).toBeVisible();
+    // Quando
+    await ligarExistente(cartao, codigo, 'Parecer da prescrição');
+    // Então
+    await expect(page.getByText('Anotação ligada: Parecer da prescrição.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Anotações/ })).toHaveText(/^Anotações\s*1$/);
+    await cartao.getByRole('list', { name: 'Anotações ligadas' }).getByRole('link', { name: /Parecer da prescrição/ }).click();
+    const anotacao = page.getByRole('dialog');
+    await expect(anotacao.getByRole('heading', { name: 'Parecer da prescrição', level: 2 })).toBeVisible();
+    await abrirSecao(anotacao, 'Ligada a');
+    await expect(anotacao.getByRole('list', { name: 'Itens ligados' }).getByRole('link', { name: /JOSÉ DA SILVA TESTE/ })).toContainText('Pessoa');
+    // E, já ligada, ela não aparece de novo na busca do cartão da pessoa
+    cartao = await abrirPessoa(page, 'JOSÉ DA SILVA TESTE');
+    await abrirSecao(cartao, 'Anotações');
+    await cartao.getByRole('button', { name: 'Ligar anotação existente' }).click();
+    await cartao.getByRole('textbox', { name: 'Buscar anotação para ligar' }).fill(codigo);
+    await expect(cartao.getByText('Nenhuma anotação ativa com esse texto que você possa ligar.')).toBeVisible();
+  });
+
+  test('dado o cartão de uma demanda, quando a pessoa busca pelo título e liga, então a busca avisa quem passa a ler, a anotação aparece na seção e o cartão dela mostra a demanda', async ({ page }) => {
+    // Dado
+    await criarAnotacao(page, 'Estratégia do depósito');
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    await abrirSecao(cartao, 'Anotações');
+    await cartao.getByRole('button', { name: 'Ligar anotação existente' }).click();
+    await cartao.getByRole('textbox', { name: 'Buscar anotação para ligar' }).fill('estratégia do dep');
+    // Então: antes de escolher, a busca diz quem passa a ler a anotação
+    await expect(cartao.getByText('Quem vê esta demanda passa a ler a anotação que você ligar, inclusive quem está no contrato dela.')).toBeVisible();
+    // Quando
+    await cartao.getByRole('list', { name: 'Anotações para ligar' }).getByRole('button', { name: /Estratégia do depósito/ }).click();
+    // Então
+    await expect(cartao.getByRole('list', { name: 'Anotações ligadas' }).getByRole('link', { name: /Estratégia do depósito/ })).toBeVisible();
+    const anotacao = await abrirAnotacao(page, 'Estratégia do depósito');
+    await abrirSecao(anotacao, 'Ligada a');
+    await expect(anotacao.getByRole('list', { name: 'Itens ligados' }).getByRole('link', { name: /Registro de marca/ })).toContainText('Demanda');
+  });
+
+  test('dada uma demanda arquivada, quando a pessoa abre a seção "Anotações" do cartão, então não há como ligar nem criar anotação', async ({ page }) => {
+    // Dado
+    await criarAnotacao(page, 'Anotação solta');
+    const id = await idDaDemanda(page, 'Registro de marca');
+    await page.evaluate(([chave, demanda]) => {
+      const bd = JSON.parse(sessionStorage.getItem(chave)!) as { demandas: { id: string; arquivado_em: string | null }[] };
+      bd.demandas.find(d => d.id === demanda)!.arquivado_em = new Date().toISOString();
+      sessionStorage.setItem(chave, JSON.stringify(bd));
+    }, [CHAVE, id]);
+    // Quando
+    await page.goto('/demandas/?id=' + id);
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Registro de marca', level: 2 })).toBeVisible();
+    await abrirSecao(cartao, 'Anotações');
+    // Então
+    await expect(cartao.getByText('Nenhuma anotação ligada a esta demanda.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Ligar anotação existente' })).toHaveCount(0);
+    await expect(cartao.getByRole('link', { name: /^Nova anotação/ })).toHaveCount(0);
+  });
+
+  test('dado um contrato em que a conta comum só foi mencionada, quando ela abre a seção "Anotações", então não há como ligar nem criar anotação', async ({ page }) => {
+    // Dado: Ana mencionou Bruno num comentário do contrato "Ação de cobrança", que não é dele. O banco fictício recusaria a
+    // menção a um estagiário, então ela entra direto na aba (como em visibilidade-contratos.spec.ts).
+    await entrarComo(page, 'u-bruno');
+    const id = await page.evaluate(chave => {
+      const bd = JSON.parse(sessionStorage.getItem(chave)!) as { contratos: { id: string; servico: string }[]; comentarios: unknown[] };
+      const contrato = bd.contratos.find(k => k.servico.startsWith('Ação de cobrança'))!.id;
+      bd.comentarios.push({ id: 'cm-mencao', modulo: 'contratos', cartao_id: contrato, autor_id: 'u-ana', texto: 'Veja este, @bruno.souza',
+        mencoes: ['u-bruno'], criado_em: new Date().toISOString(), editado_em: null });
+      sessionStorage.setItem(chave, JSON.stringify(bd));
+      return contrato;
+    }, CHAVE);
+    // Quando
+    await page.goto('/contratos/?id=' + id);
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('Você vê este contrato porque foi mencionado num comentário.')).toBeVisible();
+    await abrirSecao(cartao, 'Anotações');
+    // Então
+    await expect(cartao.getByText('Nenhuma anotação ligada a este contrato.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Ligar anotação existente' })).toHaveCount(0);
+    await expect(cartao.getByRole('link', { name: /^Nova anotação/ })).toHaveCount(0);
+  });
+});
+
 test.describe('O texto da anotação', () => {
   test('quando a pessoa escreve títulos, negrito, itálico, listas e links, então o cartão mostra o texto formatado, sem as marcas e sem virar código de página', async ({ page }) => {
     // Dado / Quando
