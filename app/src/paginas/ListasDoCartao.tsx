@@ -10,7 +10,7 @@ import { fmtData, lerData } from '../regras/pessoa';
 import { avisar, falha } from '../ui/avisos';
 import { Aviso, Carregando, estiloBotao, Nota, Selo } from '../ui/base';
 import { Icone } from '../ui/Icone';
-import { confirmar, pedirTexto } from '../ui/janela';
+import { confirmar, pedirData, pedirTexto } from '../ui/janela';
 import { MenuFlutuante } from '../ui/Menu';
 import { Recolhivel } from '../ui/Recolhivel';
 import { hojeISO } from '../ui/util';
@@ -74,7 +74,7 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
     if (texto && texto !== item.texto) await mexer(() => SD.itemAtualizar(item.id, { texto }));
   }
   async function prazoDoItemPedir(item: ItemDaLista) {
-    const texto = await pedirTexto('Data de entrega (DD/MM/AAAA). Deixe vazio para tirar.', fmtData(item.prazo), { maximo: 10 });
+    const texto = await pedirData('Data de entrega (DD/MM/AAAA). Deixe vazio para tirar.', fmtData(item.prazo));
     if (texto === null) return;
     let prazo: string | null;
     try { prazo = lerData(texto); } catch (e) { falha(e); return; }

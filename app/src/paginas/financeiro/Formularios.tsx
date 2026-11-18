@@ -10,7 +10,7 @@ import { erroDoDas, lerAliquota } from '../../regras/financeiro';
 import { fmtData } from '../../regras/pessoa';
 import { normal } from '../../regras/texto';
 import { avisar, falha, feito } from '../../ui/avisos';
-import { Campo, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
+import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 
@@ -64,7 +64,7 @@ export function FormLancamento({ alvo, inicial, contas, aoTerminar, aoCancelar }
         </select>
       </Campo>
       <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} />
       </Campo>
       <Campo rotulo="Categoria" para={id + 'cat'}>
         <select {...propsDoCampo(id + 'cat')} value={f.categoria} onChange={e => mudar({ categoria: e.target.value as FormDoLancamento['categoria'] })}>
@@ -113,7 +113,7 @@ export function FormTransferencia({ inicial, contas, aoTerminar, aoCancelar }: P
     <div className="financeiro-form-linha">
       <Campo rotulo="Sai de" para={id + 'de'}><select {...propsDoCampo(id + 'de')} value={f.de} onChange={e => mudar({ de: e.target.value })}>{opcoes}</select></Campo>
       <Campo rotulo="Entra em" para={id + 'para'} erro={erros.para}><select {...propsDoCampo(id + 'para', { erro: erros.para })} value={f.para} onChange={e => mudar({ para: e.target.value })}>{opcoes}</select></Campo>
-      <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}><input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} /></Campo>
+      <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}><CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} /></Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}><input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} /></Campo>
     </div>
     <Campo rotulo="Descrição" para={id + 'desc'} obrigatorio erro={erros.descricao}>
@@ -175,7 +175,7 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
           <input type="text" inputMode="decimal" {...propsDoCampo(id + 'saldo', { dica: true, erro: erros.saldoInicial })} value={f.saldoInicial} onChange={e => mudar({ saldoInicial: e.target.value })} />
         </Campo>
         <Campo rotulo="Em que dia" para={id + 'em'} obrigatorio erro={erros.saldoInicialEm} dica="Nada pode ser lançado antes desse dia.">
-          <input type="date" {...propsDoCampo(id + 'em', { dica: true, erro: erros.saldoInicialEm })} value={f.saldoInicialEm} onChange={e => mudar({ saldoInicialEm: e.target.value })} />
+          <CampoData formato="iso" {...propsDoCampo(id + 'em', { dica: true, erro: erros.saldoInicialEm })} valor={f.saldoInicialEm} aoMudar={v => mudar({ saldoInicialEm: v })} />
         </Campo>
       </div>
       <label className="financeiro-marcar"><input type="checkbox" checked={f.temDas} onChange={e => mudar({ temDas: e.target.checked })} /> Esta conta recolhe DAS (é a conta da empresa)</label>

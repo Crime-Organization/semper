@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 interface Props { botao: HTMLElement; aoFechar: () => void; painel?: boolean; rotulo?: string; children: ReactNode }
 
 /** Quanto o menu fica longe das bordas da tela e do botão que o abriu, em pixels. */
-const MARGEM_DA_TELA = 12, DISTANCIA_DO_BOTAO = 6;
+export const MARGEM_DA_TELA = 12, DISTANCIA_DO_BOTAO = 6;
 
 export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);

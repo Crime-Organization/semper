@@ -13,6 +13,7 @@ import type {
 } from './tipos';
 import { ehAjuste } from '../regras/caixa';
 import { compararPeloPrazo } from '../regras/ordemPorPrazo';
+import { compararPeloInicio, INICIO_VAZIO, inicioDoCriadoEm, inicioNosLimites } from '../regras/dataDeInicio';
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
@@ -315,7 +316,7 @@ function demandaNova(): DemandaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', colaboradores: [], clientes: [], contrato_id: null,
     contrato_codigo: null, objeto: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
-    criado_em: agora(), atualizado_por: null, atualizado_em: agora()
+    criado_em: agora(), atualizado_por: null, atualizado_em: agora(), data_inicio: inicioDoCriadoEm(agora())
   };
 }
 /** Tarefa com os campos que não vêm no cadastro já vazios (como os padrões do banco). */
@@ -323,7 +324,7 @@ function tarefaNova(): TarefaGuardada {
   return {
     id: '', codigo: '', titulo: '', descricao: null, prazo: null, prazo_hora: null, lembrete: null, responsavel_id: '', participantes: [], pessoas: [], demanda_id: null, demanda_codigo: null,
     contrato_id: null, contrato_codigo: null, processo_id: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu,
-    criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null
+    criado_em: agora(), atualizado_por: null, atualizado_em: agora(), concluida_em: null, data_inicio: inicioDoCriadoEm(agora())
   };
 }
 /** A data de daqui a alguns dias (negativo: dias atrás), como o banco guarda (aaaa-mm-dd), contada a partir do dia em Brasília. */
@@ -523,6 +524,8 @@ if (!bd.colunas.some(c => c.modulo === 'tarefas')) {
     marco: i === 0 ? 'inicio' as const : i === SITUACOES_TAREFA.length - 1 ? 'concluido' as const : null })));
 }
 bd.historicoTarefas ??= [];
+// Sessões abertas antes da data de início (#357): cada demanda começa no dia em que foi criada (como a migração data_de_inicio).
+bd.demandas.forEach(d => { d.data_inicio ??= inicioDoCriadoEm(d.criado_em); });
 // Tarefas de exemplo: três da demanda "Registro de marca" (uma já concluída) e uma avulsa, da Ana, com o prazo vencido.
 if (!bd.tarefas) {
   const d = bd.demandas.find(x => x.titulo === 'Registro de marca');
@@ -538,6 +541,8 @@ if (!bd.tarefas) {
   ];
 }
 // Sessões abertas antes do cronômetro: a tarefa já concluída ganha a data de conclusão (como a migração do tempo).
+// Sessões abertas antes da data de início (#357): cada tarefa começa no dia em que foi criada (como a migração data_de_inicio).
+bd.tarefas.forEach(t => { t.data_inicio ??= inicioDoCriadoEm(t.criado_em); });
 bd.tarefas.forEach(t => { t.concluida_em ??= bd.colunas.find(c => c.id === t.etapa_id)?.marco === 'concluido' ? t.atualizado_em : null; });
 // Tempo de exemplo: "Emitir a GRU" (Mateus e Bruno) e "Organizar a pasta", concluída, com um ajuste do Bruno.
 if (!bd.tempos) {
@@ -907,6 +912,13 @@ function historicoContrato(k: ContratoGuardado, dados: Record<string, unknown>) 
 /** A hora como o banco aceita (hh:mm ou hh:mm:ss). */
 const HORA_DO_BANCO = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
 /**
+ * Como a regra "not null" da coluna (migração data_de_inicio): a data de início pode mudar, mas não ficar vazia (#357). A vazia
+ * chega ao banco de verdade como null (supabase.ts, inicioVazioComoNulo), e ele a recusa pela mesma regra.
+ */
+function conferirInicio(dados: Pick<DadosTarefa, 'data_inicio'>) {
+  if (dados.data_inicio !== undefined && !dados.data_inicio) throw new Error(INICIO_VAZIO);
+}
+/**
  * Como as colunas prazo_hora (time) e lembrete (com a regra dos valores aceitos) do banco: a hora volta com os segundos,
  * e o lembrete fora da lista é recusado. Como no banco, nada amarra os dois ao prazo (a tela é que confere).
  */
@@ -928,7 +940,7 @@ const nomesDosClientes = (ids: string[]) => ids.map(id => bd.pessoas.find(p => p
 const demandaCompleta = (d: DemandaGuardada): Demanda =>
   ({ ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes), contrato: contratoDoCartao(d.contrato_id) });
 const demandaLista = (d: DemandaGuardada): DemandaLista => ({
-  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
+  id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, data_inicio: d.data_inicio, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
   cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
   arquivado_em: d.arquivado_em, criado_por: d.criado_por, criado_em: d.criado_em, atualizado_em: d.atualizado_em
 });
@@ -937,11 +949,11 @@ function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
   return bd.demandas!.filter(d => (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
     && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
-    && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta))
+    && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta)) && inicioNosLimites(d.data_inicio, f)
     && (!t || buscaDemanda(d).includes(t)));
 }
 /** Ordem das demandas e das tarefas ("nome" é o título). Pelo prazo, a mesma regra do banco, com o id desempatando (#291). */
-type PeloTitulo = Pick<DemandaGuardada, 'id' | 'titulo' | 'etapa_ordem' | 'criado_em' | 'atualizado_em' | 'prazo' | 'prazo_hora'>;
+type PeloTitulo = Pick<DemandaGuardada, 'id' | 'titulo' | 'etapa_ordem' | 'criado_em' | 'atualizado_em' | 'prazo' | 'prazo_hora' | 'data_inicio'>;
 const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (a: PeloTitulo, b: PeloTitulo) => number> = {
   manual: (a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || b.criado_em.localeCompare(a.criado_em),
   nome: (a, b) => a.titulo.localeCompare(b.titulo),
@@ -950,7 +962,9 @@ const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (a: PeloTitulo, b: PeloTitulo) =
   antigos: (a, b) => a.criado_em.localeCompare(b.criado_em),
   recentes: (a, b) => b.atualizado_em.localeCompare(a.atualizado_em),
   prazo: (a, b) => compararPeloPrazo(a, b) || a.id.localeCompare(b.id),
-  prazo_desc: (a, b) => compararPeloPrazo(a, b, -1) || a.id.localeCompare(b.id)
+  prazo_desc: (a, b) => compararPeloPrazo(a, b, -1) || a.id.localeCompare(b.id),
+  inicio: (a, b) => compararPeloInicio(a, b) || a.id.localeCompare(b.id),
+  inicio_desc: (a, b) => compararPeloInicio(a, b, -1) || a.id.localeCompare(b.id)
 };
 const acharDemanda = (id: string) => {
   const d = bd.demandas!.find(x => x.id === id);
@@ -962,6 +976,7 @@ const acharDemanda = (id: string) => {
  * da equipe, sem repetir e sem o responsável entre os colaboradores; o número do contrato copiado.
  */
 function prepararDemanda(dados: DadosDemanda, atual?: DemandaGuardada): DadosDemanda & { contrato_codigo?: string | null } {
+  conferirInicio(dados);
   const d: DadosDemanda & { contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
   if (d.titulo !== undefined) {
     d.titulo = d.titulo.trim();
@@ -1095,7 +1110,7 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   // Como o banco, quem está na demanda ligada (as listagens do banco fictício não filtram quem vê, e quem não vê a demanda não está nela).
   const d = demandaDaTarefaNoFalso(t);
   return {
-    id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, responsavel_id: t.responsavel_id, participantes: t.participantes,
+    id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, data_inicio: t.data_inicio, responsavel_id: t.responsavel_id, participantes: t.participantes,
     pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
     etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em,
     equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores } : null
@@ -1106,7 +1121,7 @@ function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
   return bd.tarefas!.filter(x => (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)
     && (!f.pessoa || x.responsavel_id === f.pessoa || x.participantes.includes(f.pessoa))
-    && (!f.etiqueta || temEtiqueta('tarefas', x.id, f.etiqueta))
+    && (!f.etiqueta || temEtiqueta('tarefas', x.id, f.etiqueta)) && inicioNosLimites(x.data_inicio, f)
     && (!t || buscaTarefa(x).includes(t)));
 }
 const acharTarefa = (id: string) => {
@@ -1119,6 +1134,7 @@ const acharTarefa = (id: string) => {
  * da equipe, sem repetir e sem o responsável entre os participantes; os códigos da demanda e do contrato copiados.
  */
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
+  conferirInicio(dados);
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
   // Como o banco: a tarefa nasce com um processo que existe; trocar depois só aceita um processo ativo.
   if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');

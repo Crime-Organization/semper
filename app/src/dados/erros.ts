@@ -1,6 +1,7 @@
 // Erros do banco e do login em português, para a tela mostrar. Vale para qualquer erro que vier do Supabase.
 // Erro novo é uma linha nova numa das listas abaixo. A ordem importa: vale a primeira regra que casar.
 // Uma regra casa quando o código (se houver) e o padrão da mensagem (se houver) batem os dois.
+import { INICIO_VAZIO } from '../regras/dataDeInicio';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
@@ -35,6 +36,7 @@ const REPETIDO: Regra[] = [
 ];
 
 const ERROS: Regra[] = [
+  { codigo: '23502', padrao: /data_inicio/, mensagem: INICIO_VAZIO },
   { codigo: '23503', padrao: /perfis_pessoa_fkey/, mensagem: 'Esta pessoa é usuária do sistema e não pode ser excluída.' },
   { codigo: '23503', padrao: /contratos_(cliente|participante|indicador)_id_fkey|contrato_participantes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em contratos e não pode ser excluída.' },
   { codigo: '23503', padrao: /demanda_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em demandas e não pode ser excluída.' },

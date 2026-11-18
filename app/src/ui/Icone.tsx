@@ -46,6 +46,7 @@ const ICONES = {
   check: '<path d="M5 12l5 5L20 7"/>',
   abaixo: '<path d="M6 9l6 6 6-6"/>',
   direita: '<path d="M9 6l6 6-6 6"/>',
+  esquerda: '<path d="M15 6l-6 6 6 6"/>',
   acima: '<path d="M6 15l6-6 6 6"/>',
   expandir: '<path d="M7 6l5 5 5-5"/><path d="M7 13l5 5 5-5"/>',
   recolher: '<path d="M7 18l5-5 5 5"/><path d="M7 11l5-5 5 5"/>',

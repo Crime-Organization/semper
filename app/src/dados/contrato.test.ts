@@ -14,6 +14,7 @@ import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
+import { INICIO_VAZIO, inicioDoCriadoEm } from '../regras/dataDeInicio';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -795,6 +796,67 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         await SD.mensagemMarcarLida((await avisosDe(titulo))[0].id);
         // Então
         expect(await SD.mensagensNaoLidas()).toBe(antes - 1);
+      });
+    });
+
+    describe('Data de início de tarefas e demandas (#357)', () => {
+      const nome = () => 'INICIO ' + Math.random().toString(36).slice(2);
+
+      it('quando uma tarefa e uma demanda são criadas sem a data de início, então começam hoje (Brasília), no cartão e nas listas', async () => {
+        // Dado
+        const titulo = nome();
+        // Quando
+        const t = await SD.tarefaCriar({ titulo, responsavel_id: 'u-master' });
+        const d = await SD.demandaCriar({ titulo, responsavel_id: 'u-master' });
+        // Então
+        const tarefa = (await SD.tarefaObter(t.id))!, demanda = (await SD.demandaObter(d.id))!;
+        expect(tarefa.data_inicio).toBe(inicioDoCriadoEm(tarefa.criado_em));
+        expect(demanda.data_inicio).toBe(inicioDoCriadoEm(demanda.criado_em));
+        expect((await SD.tarefasListar({ termo: titulo })).linhas[0].data_inicio).toBe(tarefa.data_inicio);
+        expect((await SD.demandasListar({ termo: titulo })).linhas[0].data_inicio).toBe(demanda.data_inicio);
+      });
+
+      it('quando a data de início muda, então o cartão a mostra e o histórico guarda a de antes e a nova', async () => {
+        // Dado
+        const t = await SD.tarefaCriar({ titulo: nome(), responsavel_id: 'u-master' });
+        const d = await SD.demandaCriar({ titulo: nome(), responsavel_id: 'u-master' });
+        const antes = (await SD.tarefaObter(t.id))!.data_inicio;
+        // Quando
+        await SD.tarefaAtualizar(t.id, { data_inicio: '2030-01-15' });
+        await SD.demandaAtualizar(d.id, { data_inicio: '2030-02-01' });
+        // Então
+        expect((await SD.tarefaObter(t.id))!.data_inicio).toBe('2030-01-15');
+        expect((await SD.demandaObter(d.id))!.data_inicio).toBe('2030-02-01');
+        expect((await SD.tarefaHistorico(t.id))[0].alteracoes.data_inicio).toEqual({ de: antes, para: '2030-01-15' });
+        expect((await SD.demandaHistorico(d.id))[0].alteracoes.data_inicio.para).toBe('2030-02-01');
+      });
+
+      it('quando a data de início fica vazia, então é recusada, como no banco', async () => {
+        // Dado
+        const t = await SD.tarefaCriar({ titulo: nome(), responsavel_id: 'u-master' });
+        // Então
+        await expect(SD.tarefaAtualizar(t.id, { data_inicio: '' })).rejects.toThrow(INICIO_VAZIO);
+      });
+
+      it('quando a lista é filtrada e ordenada pela data de início, então só vêm as do período, na ordem do início', async () => {
+        // Dado
+        const titulo = nome();
+        const ids: Record<string, string> = {};
+        for (const [qual, inicio] of [['meio', '2031-03-10'], ['antes', '2031-03-01'], ['fora', '2031-05-01'], ['depois', '2031-03-20']]) {
+          ids[qual] = (await SD.tarefaCriar({ titulo: `${titulo} ${qual}`, responsavel_id: 'u-master', data_inicio: inicio })).id;
+          await SD.demandaCriar({ titulo: `${titulo} ${qual}`, responsavel_id: 'u-master', data_inicio: inicio });
+        }
+        const filtro = { termo: titulo, inicioDesde: '2031-03-01', inicioAte: '2031-03-31' };
+        // Quando
+        const tarefas = await SD.tarefasListar({ ...filtro, ordem: 'inicio' });
+        const tarefasAoContrario = await SD.tarefasListar({ ...filtro, ordem: 'inicio_desc' });
+        const demandas = await SD.demandasListar({ ...filtro, ordem: 'inicio' });
+        const naColuna = await SD.tarefasDaEtapa(null, { ...filtro, ordem: 'inicio', situacao: 'ativas' });
+        // Então
+        expect(tarefas.linhas.map(x => x.id)).toEqual([ids.antes, ids.meio, ids.depois]);
+        expect(tarefasAoContrario.linhas.map(x => x.id)).toEqual([ids.depois, ids.meio, ids.antes]);
+        expect(demandas.linhas.map(x => x.data_inicio)).toEqual(['2031-03-01', '2031-03-10', '2031-03-20']);
+        expect(naColuna.linhas.map(x => x.id)).toEqual([ids.antes, ids.meio, ids.depois]);
       });
     });
 

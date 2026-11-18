@@ -5,7 +5,7 @@ import { SD, type Socio } from '../../dados';
 import { dadosDoSocio, errosDoSocio, periodoDoSocio, type FormDoSocio } from '../../regras/parcelas';
 import { avisar, falha, feito } from '../../ui/avisos';
 import { BuscaPessoa } from '../../ui/BuscaPessoa';
-import { Campo, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
+import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 
@@ -13,10 +13,10 @@ export function CamposDoPeriodo({ f, erros, mudar }: { f: FormDoSocio; erros: Pa
   const id = useId();
   return <>
     <Campo rotulo="Desde" para={id + 'desde'} obrigatorio erro={erros.desde}>
-      <input type="date" {...propsDoCampo(id + 'desde', { erro: erros.desde })} value={f.desde} onChange={e => mudar({ desde: e.target.value })} />
+      <CampoData formato="iso" {...propsDoCampo(id + 'desde', { erro: erros.desde })} valor={f.desde} aoMudar={v => mudar({ desde: v })} />
     </Campo>
     <Campo rotulo="Até" para={id + 'ate'} erro={erros.ate} dica="Em branco enquanto for sócio.">
-      <input type="date" {...propsDoCampo(id + 'ate', { erro: erros.ate })} value={f.ate} onChange={e => mudar({ ate: e.target.value })} />
+      <CampoData formato="iso" {...propsDoCampo(id + 'ate', { erro: erros.ate })} valor={f.ate} aoMudar={v => mudar({ ate: v })} />
     </Campo>
   </>;
 }

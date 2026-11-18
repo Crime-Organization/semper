@@ -15,7 +15,8 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DataEditavel, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
@@ -29,7 +30,7 @@ import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { Botao } from '../ui/Botoes';
 import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
-import { dataCurta, relativo } from '../ui/util';
+import { relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
@@ -136,7 +137,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */
   const mudaNoLugar = podeAlterar && !t.arquivado_em;
   /** Grava o título ou a descrição mudados no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. */
-  const salvarNoLugar = (novo: Partial<Pick<Tarefa, 'titulo' | 'descricao'>>, antes: typeof novo) => gravarNoLugar({
+  const salvarNoLugar = (novo: Partial<Pick<Tarefa, 'titulo' | 'descricao' | 'data_inicio'>>, antes: typeof novo) => gravarNoLugar({
     novo, antes, gravar: d => SD.tarefaAtualizar(t!.id, d), aviso: 'Tarefa atualizada.', oQue: 'atualização da tarefa',
     mudanca: { tipo: 'tarefaAtualizada', id: t!.id }, mostrar: d => setT(atual => atual && { ...atual, ...d }),
     depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
@@ -164,6 +165,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />
+      {/* A data de criação, fixa, e a de início, que quem altera muda no próprio lugar (#357). */}
+      <p className="cartao-datas">
+        <span>Criada em <b>{dataDaCriacao(t.criado_em)}</b></span>
+        <DataEditavel key={'inicio-' + noLugar.chave} rotulo="Início" nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
+          aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
+      </p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>
@@ -240,7 +247,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     <footer className="cartao-rodape">
-      <span>Criada em {dataCurta(t.criado_em)}{t.criado_por ? ' por ' + nomeDe(t.criado_por) : ''}</span>
+      <span>Criada em {dataDaCriacao(t.criado_em)}{t.criado_por ? ' por ' + nomeDe(t.criado_por) : ''}</span>
       <span>Atualizada {relativo(t.atualizado_em)}</span>
     </footer>
     </>}

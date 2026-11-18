@@ -10,7 +10,7 @@ import {
 } from '../regras/conferencia';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
 import { PaginaModulo } from '../ui/PaginaModulo';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
@@ -88,7 +88,7 @@ function Linha({ l, nomeDe, aoMudar, aoVerHistorico }: { l: LinhaDaConferencia; 
   return <tr>
     <td>{l.cliente}{l.servico && <div className="nota">{l.servico}</div>}{l.referencia && <div className="nota">{l.referencia}</div>}</td>
     <td>
-      <input type="date" className="campo" aria-label={`Pago em: ${rotulo}`} {...propsDoCampo(id + 'data', { erro: erros.pagoEm })} value={f.pagoEm} onChange={e => setF({ ...f, pagoEm: e.target.value })} onBlur={salvarPagamento} />
+      <CampoData formato="iso" className="campo" aria-label={`Pago em: ${rotulo}`} {...propsDoCampo(id + 'data', { erro: erros.pagoEm })} valor={f.pagoEm} aoMudar={v => setF({ ...f, pagoEm: v })} onBlur={salvarPagamento} />
       {erros.pagoEm && <div className="msg-erro" role="alert" id={id + 'data-erro'}>{erros.pagoEm}</div>}
     </td>
     <td>

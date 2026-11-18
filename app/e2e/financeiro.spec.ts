@@ -370,7 +370,7 @@ test.describe('Caixa', () => {
     await page.getByLabel('Mês', { exact: true }).first().fill('');
     await page.getByRole('button', { name: 'Novo lançamento' }).click();
     // Então
-    await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Data')).toHaveValue('2026-03-01');
+    await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Data')).toHaveValue('01/03/2026');   // o campo de data mostra dd/mm/aaaa (#357)
   });
 
   test('quando exclui o lançamento que está sendo mudado, então o formulário fecha', async ({ page }) => {

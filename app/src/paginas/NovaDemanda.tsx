@@ -11,8 +11,7 @@ import {
   camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, semSairDaDemanda, validarDemanda,
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
-import { MASCARAS } from '../regras/pessoa';
-import { CampoDoLembrete, CampoDaHora } from './CamposDoLembrete';
+import { CampoDoInicio, CampoDoLembrete, CampoDaHora, CampoDoPrazo } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -242,12 +241,11 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
             aoMudar={descricao => mudar({ descricao })} />
         </Campo>
       </>}
-      <Campo rotulo="Prazo de entrega" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
-        <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
-          onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />
-      </Campo>
+      <CampoDoPrazo rotulo="Prazo de entrega" valor={c.prazo} erro={erros.prazo} hora={c.hora} aoMudar={prazo => mudar({ prazo })} aoMudarHora={hora => mudar({ hora })} />
       <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
       <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
+      {/* A data de início só ao mudar uma demanda que já existe: a nova começa no dia em que é criada (#357). */}
+      {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
     </>,
     pessoas: () => <>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pela demanda: qualquer um da equipe.">

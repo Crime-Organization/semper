@@ -36,6 +36,7 @@ describe('Erros do banco em português', () => {
   });
 
   it.each([
+    ['data de início vazia (#357)', { code: '23502', message: 'null value in column "data_inicio" of relation "tarefas" violates not-null constraint' }, 'Informe a data de início.'],
     ['usuário que não pode ser excluído', { code: '23503', message: 'violates foreign key constraint "perfis_pessoa_fkey"' }, 'Esta pessoa é usuária do sistema e não pode ser excluída.'],
     ['pasta com subpastas', { code: '23503', message: 'update or delete on table "anotacao_pastas" violates foreign key constraint "anotacao_pastas_mae_fkey" on table "anotacao_pastas"' },
       'Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.'],

@@ -18,7 +18,7 @@ import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
-import { Aviso, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, CampoData, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
 import { DOCUMENTO_INVALIDO, fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
 import { ETAPAS } from './novaPessoa/etapas';
 import { FormularioCtx, type Formulario, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
@@ -400,7 +400,8 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       inputMode={props.numerico ? 'numeric' : undefined} value={c[campo] as string}
       onChange={e => mudarTexto(campo, props.mascara ? MASCARAS[props.mascara](e.target.value) : e.target.value)}
       onBlur={() => { if (props.maiusculas) mudarTexto(campo, maiusculas(cRef.current[campo] as string)); props.aoSair?.(); }} />;
-  const data = (campo: keyof Campos) => texto(campo, { mascara: 'data', placeholder: 'DD/MM/AAAA', numerico: true });
+  // As datas do cadastro com o calendário pequeno (#357): a mesma máscara dd/mm/aaaa, e o texto continua a ser conferido ao seguir.
+  const data = (campo: keyof Campos) => <CampoData {...propsDoCampo(campo, { dica: true, erro: erros[campo] })} valor={c[campo] as string} aoMudar={v => mudarTexto(campo, v)} />;
   const radios = (nome: keyof Campos, opcoes: [string, string][], aoEscolher?: (v: string) => void) => opcoes.map(([v, t]) =>
     <label key={v}><input type="radio" name={nome} value={v} checked={c[nome] === v} onChange={() => { mudarTexto(nome, v); aoEscolher?.(v); }} />{t}</label>);
   const ufs = (campo: keyof Campos) => <select id={campo} value={c[campo] as string} onChange={e => mudarTexto(campo, e.target.value)}>

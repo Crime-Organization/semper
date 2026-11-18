@@ -259,7 +259,7 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
 }
 
 // ---------- demandas ----------
-const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
+const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 /** Quem está no contrato (#326), para saber no cartão quem pode ser mencionado. A lista gravada traz as pessoas com o %. */
 const EQUIPE_DO_CONTRATO = 'id, criado_por, responsavel_id, participantes';
@@ -267,7 +267,7 @@ type EquipeLida<K extends EquipeDoContrato> = Omit<K, 'participantes'> & { parti
 const comAEquipe = <K extends EquipeDoContrato>(k: EquipeLida<K> | null): K | null =>
   k && { ...k, participantes: k.participantes.map(p => p.pessoa_id) } as K;
 // O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
-const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
+const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO})`;
 type DemandaLida = Omit<Demanda, 'clientes' | 'contrato'> & { clientela: { ordem: number; pessoa: PessoaResumida }[]; contrato: EquipeLida<ContratoDoCartao> | null };
@@ -283,11 +283,25 @@ const ORDENS_PELO_TITULO: Record<OrdemComPrazo, (q: Livre) => Livre> = {
   antigos: q => q.order('criado_em', { ascending: true }),
   recentes: q => q.order('atualizado_em', { ascending: false }),
   prazo: q => q.order('prazo', { ascending: true, nullsFirst: false }).order('prazo_hora', { ascending: true, nullsFirst: true }),
-  prazo_desc: q => q.order('prazo', { ascending: false, nullsFirst: false }).order('prazo_hora', { ascending: false, nullsFirst: false })
+  prazo_desc: q => q.order('prazo', { ascending: false, nullsFirst: false }).order('prazo_hora', { ascending: false, nullsFirst: false }),
+  // Pela data de início (#357): no mesmo dia, pelo momento da criação (regras/dataDeInicio.ts, que o banco fictício usa).
+  inicio: q => q.order('data_inicio', { ascending: true }).order('criado_em', { ascending: true }),
+  inicio_desc: q => q.order('data_inicio', { ascending: false }).order('criado_em', { ascending: false })
 };
 const ordenarPeloTitulo = (q: Livre, ordem: OrdemComPrazo) => ORDENS_PELO_TITULO[ordem](q).order('id');
+/**
+ * A data de início vazia vai ao banco como null (#357): ele a recusa pela regra "not null" (23502, que erros.ts traduz), como o banco
+ * fictício. Mandada como '', o banco daria um erro de formato de data, que não diz qual campo.
+ */
+const inicioVazioComoNulo = <D extends { data_inicio?: string }>(dados: D) => dados.data_inicio === '' ? { ...dados, data_inicio: null } : dados;
+/** Só os cartões que começam entre os limites do filtro "Início" (#357). */
+function porInicio(q: Livre, f: Pick<FiltroTarefas, 'inicioDesde' | 'inicioAte'>) {
+  if (f.inicioDesde) q = q.gte('data_inicio', f.inicioDesde);
+  if (f.inicioAte) q = q.lte('data_inicio', f.inicioAte);
+  return q;
+}
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
-  q = porEtiqueta(q, f);
+  q = porInicio(porEtiqueta(q, f), f);
   if (f.paraLigar && ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
@@ -480,10 +494,10 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 
 // ---------- tarefas ----------
 // Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
-const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
+const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores)';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + `demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})), `
@@ -496,7 +510,7 @@ type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato'> & {
 const comPessoas = ({ ligadas, demanda, contrato, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa),
   demanda: demanda && { ...demanda, contrato: comAEquipe(demanda.contrato) }, contrato: comAEquipe(contrato) });
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
-  q = porEtiqueta(q, f);
+  q = porInicio(porEtiqueta(q, f), f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},participantes.cs.{${f.pessoa}}`);
   const t = termoBusca(f.termo);
@@ -919,11 +933,11 @@ export const SD: Dados = {
   },
   // O código é dado pelo banco ao gravar.
   async demandaCriar(dados) {
-    const { data } = await rodar(sb.from('demandas').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    const { data } = await rodar(sb.from('demandas').insert({ ...inicioVazioComoNulo(dados), criado_por: uid() }).select('id, codigo').single());
     return data;
   },
   async demandaAtualizar(id, dados) {
-    const { data } = await rodar(sb.from('demandas').update(dados).eq('id', id).select('id, codigo').single());
+    const { data } = await rodar(sb.from('demandas').update(inicioVazioComoNulo(dados)).eq('id', id).select('id, codigo').single());
     return data;
   },
   async demandasArquivar(ids, arquivar = true) {
@@ -1634,11 +1648,11 @@ export const SD: Dados = {
   },
   // O código é dado pelo banco ao gravar.
   async tarefaCriar(dados) {
-    const { data } = await rodar(sb.from('tarefas').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
+    const { data } = await rodar(sb.from('tarefas').insert({ ...inicioVazioComoNulo(dados), criado_por: uid() }).select('id, codigo').single());
     return data;
   },
   async tarefaAtualizar(id, dados) {
-    const { data } = await rodar(sb.from('tarefas').update(dados).eq('id', id).select('id, codigo').single());
+    const { data } = await rodar(sb.from('tarefas').update(inicioVazioComoNulo(dados)).eq('id', id).select('id, codigo').single());
     return data;
   },
   async tarefasArquivar(ids, arquivar = true) {

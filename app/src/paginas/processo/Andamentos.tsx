@@ -9,7 +9,7 @@ import {
   type FormDoAndamento
 } from '../../regras/andamentos';
 import { falha, feito } from '../../ui/avisos';
-import { Campo, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
+import { Campo, CampoData, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { useCtx } from '../../ui/sessao';
@@ -47,7 +47,7 @@ function FormDoAndamentoNaTela({ inicial, mudando, aoSalvar, aoCancelar }: { ini
         </select>
       </Campo>
       <Campo rotulo={tipo.rotuloData} para={id + 'data'} obrigatorio erro={erros.data}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} hora={{ valor: f.hora, aoMudar: hora => mudar({ hora }) }} />
       </Campo>
     </div>
     {tipo.marcado && <div className="acomp-form-linha">

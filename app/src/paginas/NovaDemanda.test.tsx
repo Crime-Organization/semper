@@ -19,7 +19,7 @@ vi.mock('../ui/sessao', () => ({
 }));
 
 const demanda = (extra: Partial<Demanda>) => ({
-  id: 'd1', codigo: 'D1', titulo: 'Registro de marca', descricao: null, prazo: null, responsavel_id: 'u-bruno', colaboradores: [], clientes: [], contrato_id: null,
+  id: 'd1', codigo: 'D1', titulo: 'Registro de marca', descricao: null, prazo: null, data_inicio: '2026-11-10', responsavel_id: 'u-bruno', colaboradores: [], clientes: [], contrato_id: null,
   contrato_codigo: null, criado_por: 'u-ana', ...extra
 }) as unknown as Demanda;
 

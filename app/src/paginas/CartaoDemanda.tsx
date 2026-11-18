@@ -14,7 +14,8 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DataEditavel, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
@@ -29,7 +30,7 @@ import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
-import { dataCurta, relativo } from '../ui/util';
+import { relativo } from '../ui/util';
 import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
 import { oferecerProcesso } from './concluirDemanda';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
@@ -129,7 +130,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a demanda ativa (como o lápis). */
   const mudaNoLugar = podeAlterar && !d.arquivado_em;
   /** Grava o título ou a descrição mudados no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. */
-  const salvarNoLugar = (novo: Partial<Pick<Demanda, 'titulo' | 'descricao'>>, antes: typeof novo) => gravarNoLugar({
+  const salvarNoLugar = (novo: Partial<Pick<Demanda, 'titulo' | 'descricao' | 'data_inicio'>>, antes: typeof novo) => gravarNoLugar({
     novo, antes, gravar: x => SD.demandaAtualizar(d!.id, x), aviso: 'Demanda atualizada.', oQue: 'atualização da demanda',
     mudanca: { tipo: 'demandaAtualizada', id: d!.id }, mostrar: x => setD(atual => atual && { ...atual, ...x }),
     depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
@@ -157,6 +158,12 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_DEMANDA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: d.descricao }) : undefined} />
+      {/* A data de criação, fixa, e a de início, que quem altera muda no próprio lugar (#357). */}
+      <p className="cartao-datas">
+        <span>Criada em <b>{dataDaCriacao(d.criado_em)}</b></span>
+        <DataEditavel key={'inicio-' + noLugar.chave} rotulo="Início" nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio}
+          aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
+      </p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
@@ -225,7 +232,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     <footer className="cartao-rodape">
-      <span>Criada em {dataCurta(d.criado_em)}{d.criado_por ? ' por ' + nomeDe(d.criado_por) : ''}</span>
+      <span>Criada em {dataDaCriacao(d.criado_em)}{d.criado_por ? ' por ' + nomeDe(d.criado_por) : ''}</span>
       <span>Atualizada {relativo(d.atualizado_em)}</span>
     </footer>
     </>}

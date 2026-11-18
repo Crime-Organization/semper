@@ -10,6 +10,8 @@ export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } fr
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
 export { TextoEditavel } from './TextoEditavel';
+export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { DataEditavel } from './DataEditavel';
 
 /** Link com cara de botão (ex.: "Nova pessoa" no cabeçalho do módulo). */
 export function BotaoLink({ forma, variante, pequeno, className, ...resto }: ComponentProps<typeof Link> & EstiloBotao) {

@@ -191,7 +191,8 @@ export const TIPOS_NA_TELA: Record<TipoSemExpediente, { curto: string; explicaca
 };
 
 export const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-const DIAS_DA_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+/** Os dias da semana por extenso, de domingo a sábado (a ordem de getUTCDay). */
+export const DIAS_DA_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 /** O dia da semana de "aaaa-mm-dd", por extenso. */
 export function diaDaSemana(iso: string) {
   const [a, m, d] = iso.split('-').map(Number);

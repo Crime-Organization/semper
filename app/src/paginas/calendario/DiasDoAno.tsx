@@ -7,7 +7,7 @@ import { diaDaSemana, erroDoLancamento, fmtPeriodo, linhasDoLancamento, MESES, O
 import type { TipoSemExpediente } from '../../regras/prazos';
 import { avisar, falha } from '../../ui/avisos';
 import { BotaoDuplo } from '../../ui/Botoes';
-import { Aviso, Campo, Carregando, Cartao, Escolhas, estiloBotao, naGrade, Nota, propsDoCampo, Selo, TituloSecao, Vazio, type TipoSelo } from '../../ui/base';
+import { Aviso, Campo, CampoData, Carregando, Cartao, Escolhas, estiloBotao, naGrade, Nota, propsDoCampo, Selo, TituloSecao, type TipoSelo, Vazio } from '../../ui/base';
 import { Icone } from '../../ui/Icone';
 
 /** Os anos que a pessoa pode ver: do anterior até alguns à frente. */
@@ -119,11 +119,11 @@ function LancarDias({ orgaos, aoFechar, aoLancar }: { orgaos: Orgao[]; aoFechar:
       <div className="grade-form campos">
         <div className="campo-form" style={naGrade({ p: 6, m: 6, g: 3 })}>
           <label htmlFor="ld-de">Primeiro dia</label>
-          <input id="ld-de" type="date" value={p.de} onChange={e => mudar({ de: e.target.value })} />
+          <CampoData formato="iso" id="ld-de" valor={p.de} aoMudar={v => mudar({ de: v })} />
         </div>
         <div className="campo-form" style={naGrade({ p: 6, m: 6, g: 3 })}>
           <label htmlFor="ld-ate">Último dia <small>(em branco: um dia só)</small></label>
-          <input id="ld-ate" type="date" value={p.ate} onChange={e => mudar({ ate: e.target.value })} />
+          <CampoData formato="iso" id="ld-ate" valor={p.ate} aoMudar={v => mudar({ ate: v })} />
         </div>
       </div>
       <Escolhas rotulo="Vale para" obrigatorio arranjo="multipla">

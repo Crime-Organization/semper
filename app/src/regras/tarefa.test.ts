@@ -87,18 +87,18 @@ describe('Cadastro de tarefa', () => {
 
   it('quando a tarefa salva volta ao formulário, então os campos voltam como foram digitados', () => {
     // Dado
-    const t = { titulo: 'X', descricao: null, prazo: '2026-11-10', responsavel_id: 'u-ana', participantes: ['u-bruno'],
+    const t = { titulo: 'X', descricao: null, prazo: '2026-11-10', data_inicio: '2026-11-05', responsavel_id: 'u-ana', participantes: ['u-bruno'],
       pessoas: [{ id: 'p1' }], demanda_id: 'd1', contrato_id: null, processo_id: 'pr1' } as unknown as Tarefa;
     // Quando
     const campos = camposDaTarefa(t);
     // Então
-    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, responsavelId: 'u-ana', participantes: ['u-bruno'],
+    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', participantes: ['u-bruno'],
       pessoas: ['p1'], demandaId: 'd1', contratoId: '', processoId: 'pr1' });
   });
 
   it('dado uma tarefa sem prazo que ficou com hora e lembrete no banco, quando volta ao formulário, então os dois vêm vazios e a edição não trava', () => {
     // Dado: o site antigo tirou o prazo sem conhecer as colunas novas
-    const t = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 60, responsavel_id: 'u-ana', participantes: [],
+    const t = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 60, data_inicio: '2026-11-05', responsavel_id: 'u-ana', participantes: [],
       pessoas: [], demanda_id: null, contrato_id: null } as unknown as Tarefa;
     // Quando
     const campos = camposDaTarefa(t);

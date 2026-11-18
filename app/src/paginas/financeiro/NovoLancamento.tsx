@@ -13,7 +13,7 @@ import { dadosDoRecebimento, errosDoFormDeRecebimento, linhasDaDivisao, maiorPar
 import { fmtData } from '../../regras/pessoa';
 import { BANCOS, codigoDeBancoValido, contaDeDestino, FORMAS_DE_PAGAMENTO } from '../../regras/recebimento';
 import { falha, feito } from '../../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Segmentos, Vazio } from '../../ui/base';
+import { Aviso, Campo, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, Segmentos, Vazio } from '../../ui/base';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO } from '../../ui/util';
 import { DadosDoContrato, ReceitasETextos } from './DetalheFinanceiro';
@@ -180,7 +180,7 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
           </select>
         </Campo>
         <Campo rotulo="Data do pagamento" para={id + 'data'} obrigatorio erro={erros.data}>
-          <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
+          <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} />
         </Campo>
         <Campo rotulo="Valor pago" para={id + 'valor'} obrigatorio erro={erros.valor}>
           <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={form.valor} onChange={e => mudar({ valor: e.target.value })} />
@@ -282,7 +282,7 @@ export function FormDoCaixa({ tipo, titulo, rotulo, aoRegistrar }: { tipo: 'entr
   return <form className="financeiro-form" noValidate aria-label={titulo} onSubmit={enviar}>
     <div className="financeiro-form-linha">
       <Campo rotulo="Data" para={id + 'data'} obrigatorio erro={erros.data}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} />
       </Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor}>
         <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} />

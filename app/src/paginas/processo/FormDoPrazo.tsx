@@ -7,7 +7,7 @@ import { dadosDoPrazo, errosDoPrazo, MODOS_DO_PRAZO, type FormDoPrazo as Form, t
 import { fmtData } from '../../regras/pessoa';
 import { CONTAGENS, PRAZO_MAXIMO_DIAS, type Contagem } from '../../regras/prazos';
 import { falha } from '../../ui/avisos';
-import { Aviso, Campo, Escolhas, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
+import { Aviso, Campo, CampoData, Escolhas, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { Resultado } from '../calendario/CalcularPrazo';
 import { useContagem } from '../calendario/useContagem';
 import '../Calendario.css';
@@ -62,14 +62,14 @@ export function FormDoPrazo({ inicial, orgao, siglaDoProcesso, mudando, aoSalvar
 
     {f.modo === 'digitar'
       ? <Campo rotulo="Último dia" para={id + 'final'} obrigatorio erro={erros.final}>
-          <input type="date" {...propsDoCampo(id + 'final', { erro: erros.final })} value={f.final} onChange={e => { setDataEscolhida(true); mudar({ final: e.target.value }); }} />
+          <CampoData formato="iso" {...propsDoCampo(id + 'final', { erro: erros.final })} valor={f.final} aoMudar={v => { setDataEscolhida(true); mudar({ final: v }); }} />
         </Campo>
       : <>
         {siglaDoProcesso && !orgao && <Aviso tipo="info">O órgão {siglaDoProcesso} não está cadastrado em Feriados e prazos: a conta usa só os feriados nacionais e os dias lançados para todos os órgãos.</Aviso>}
         {!siglaDoProcesso && <Aviso tipo="info">Este processo não tem órgão: a conta usa só os feriados nacionais e os dias lançados para todos os órgãos.</Aviso>}
         <div className="acomp-form-linha">
           <Campo rotulo={f.disponibilizacao ? 'Disponibilização' : 'Intimação'} para={id + 'data'}>
-            <input type="date" {...propsDoCampo(id + 'data')} value={f.intimacao} onChange={e => mudar({ intimacao: e.target.value })} />
+            <CampoData formato="iso" {...propsDoCampo(id + 'data')} valor={f.intimacao} aoMudar={v => mudar({ intimacao: v })} />
           </Campo>
           <Campo rotulo="Dias" para={id + 'dias'}>
             <input type="number" inputMode="numeric" {...propsDoCampo(id + 'dias')} min={1} max={PRAZO_MAXIMO_DIAS} value={f.dias} onChange={e => mudar({ dias: e.target.value })} />

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dataDaOrdem } from './ordem';
+import { colunaDaOrdem, dataDaOrdem } from './ordem';
 
 describe('Data que acompanha a ordem escolhida', () => {
   const item = { criado_em: '2026-10-12T15:00:00Z', atualizado_em: '2026-10-28T13:00:00Z' };
@@ -34,5 +34,25 @@ describe('Data que acompanha a ordem escolhida', () => {
     const texto = dataDaOrdem('novos', { atualizado_em: item.atualizado_em });
     // Então
     expect(texto).toBe('');
+  });
+
+  it.each([['inicio'], ['inicio_desc']] as const)('quando a ordem é "%s", então o cartão mostra a data de início (#357)', ordem => {
+    // Quando
+    const texto = dataDaOrdem(ordem, { ...item, data_inicio: '2026-11-25' });
+    // Então
+    expect(texto).toBe('Início: 25/11/2026');
+  });
+
+  it.each([
+    ['novos', 'Criada', '12/10/2026'],
+    ['inicio', 'Início', '25/11/2026'],
+    ['recentes', 'Atualizada', 'há 2 h'],
+    ['prazo', 'Atualizada', 'há 2 h']
+  ] as const)('quando a tabela está na ordem "%s", então a última coluna é "%s", com %s', (ordem, titulo, valor) => {
+    // Quando
+    const coluna = colunaDaOrdem(ordem);
+    // Então
+    expect(coluna.titulo).toBe(titulo);
+    expect(coluna.valor({ ...item, data_inicio: '2026-11-25' })).toBe(valor);
   });
 });

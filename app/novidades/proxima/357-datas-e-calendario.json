@@ -1,0 +1,5 @@
+{
+  "titulo": "Calendário nos campos de data e data de início nos cartões",
+  "texto": "Ao clicar num campo de data, abre um calendário pequeno, com a hora logo abaixo quando o campo tem hora; dá para continuar escrevendo a data à mão. No celular, abre o calendário do próprio aparelho. Tarefas e demandas mostram quando foram criadas e a data de início, que começa igual e pode ser mudada com um clique.",
+  "ondeAchar": "Em qualquer campo de data dos cadastros. A data de início fica no alto do cartão da tarefa e da demanda, e o quadro e a tabela ordenam e filtram por ela em Filtros, no campo Início."
+}

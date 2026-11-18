@@ -19,7 +19,7 @@ vi.mock('../ui/sessao', () => ({
 }));
 
 const tarefa = (extra: Partial<Tarefa>) => ({
-  id: 't1', codigo: 'T1', titulo: 'Emitir a GRU', descricao: null, prazo: null, responsavel_id: 'u-bruno', participantes: [], pessoas: [], demanda_id: null, demanda: null,
+  id: 't1', codigo: 'T1', titulo: 'Emitir a GRU', descricao: null, prazo: null, data_inicio: '2026-11-10', responsavel_id: 'u-bruno', participantes: [], pessoas: [], demanda_id: null, demanda: null,
   demanda_codigo: null, contrato_id: null, contrato_codigo: null, contrato: null, criado_por: 'u-ana', ...extra
 }) as unknown as Tarefa;
 const DEMANDA_QUE_VEJO = { id: 'd1', codigo: 'D1', titulo: 'Registro de marca', etapa_id: null, criado_por: 'u-ana', responsavel_id: 'u-bruno', colaboradores: [], contrato_id: null, contrato: null };

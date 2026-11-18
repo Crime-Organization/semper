@@ -8,7 +8,7 @@ import { diasDoMes, fmtCentavos, mesDe, mesValido } from '../regras/caixa';
 import { resumoDasParcelas, SITUACOES_DA_PARCELA } from '../regras/parcelas';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, Campo, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, Selo, TituloSecao, Vazio } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { PaginaModulo } from '../ui/PaginaModulo';
 import { useCtx } from '../ui/sessao';
@@ -49,7 +49,7 @@ function FormPagar({ repasse, contas, hoje, aoTerminar, aoCancelar }: { repasse:
         </select>
       </Campo>
       <Campo rotulo="Data do pagamento" para={id + 'data'} obrigatorio erro={erro}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro })} value={data} onChange={e => setData(e.target.value)} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro })} valor={data} aoMudar={v => setData(v)} />
       </Campo>
     </div>
     <div className="financeiro-acoes">

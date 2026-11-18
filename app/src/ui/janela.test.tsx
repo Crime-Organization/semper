@@ -141,3 +141,37 @@ describe('Janela larga', () => {
     expect(screen.getByRole('dialog', { name: 'Excluir' })).not.toHaveClass('larga');
   });
 });
+
+describe('Pedir uma data (#357)', () => {
+  const abrir = (valor = '10/11/2030') => { let r!: Promise<string | null>; act(() => { r = janela.pedirData('Data de entrega', valor); }); return r; };
+
+  it('quando abre, então o campo de data já vem com a data atual e o foco', () => {
+    // Quando
+    void abrir();
+    // Então
+    const campo = screen.getByRole('textbox', { name: 'Data de entrega' });
+    expect(campo).toHaveValue('10/11/2030');
+    expect(campo).toHaveFocus();
+  });
+
+  it('quando a pessoa escolhe um dia no calendário e salva, então devolve a data escolhida', async () => {
+    // Dado
+    const resposta = abrir();
+    await userEvent.click(screen.getByRole('textbox', { name: 'Data de entrega' }));
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /^sexta-feira, 15 de novembro de 2030/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    // Então
+    await expect(resposta).resolves.toBe('15/11/2030');
+  });
+
+  it('quando a pessoa apaga a data e salva, então devolve vazio (para tirar a data)', async () => {
+    // Dado
+    const resposta = abrir();
+    // Quando
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Data de entrega' }));
+    await userEvent.keyboard('{Enter}');
+    // Então
+    await expect(resposta).resolves.toBe('');
+  });
+});

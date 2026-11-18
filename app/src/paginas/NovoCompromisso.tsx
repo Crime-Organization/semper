@@ -13,13 +13,12 @@ import {
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
-import { MASCARAS } from '../regras/pessoa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -252,7 +251,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         <input type="text" {...propsDoCampo('titulo', { dica: doProcesso, erro: erros.titulo })} maxLength={TAMANHO_COMPROMISSO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
       </Campo>}
       <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
-        <input type="text" {...propsDoCampo('data', { erro: erros.data })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.data} onChange={e => mudar({ data: MASCARAS.data(e.target.value) })} />
+        <CampoData {...propsDoCampo('data', { erro: erros.data })} valor={c.data} aoMudar={data => mudar({ data })} hora={{ valor: c.hora, aoMudar: hora => mudar({ hora }) }} />
       </Campo>
       <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
         <input type="time" {...propsDoCampo('hora', { dica: true, erro: erros.hora })} value={c.hora} onChange={e => mudar({ hora: e.target.value })} />

@@ -73,7 +73,7 @@ describe('Cadastro de demanda', () => {
 
   it('dado uma demanda sem prazo que ficou com hora e lembrete no banco, quando volta ao formulário, então os dois vêm vazios e a edição não trava', () => {
     // Dado: o site antigo tirou o prazo sem conhecer as colunas novas
-    const d = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 1440, responsavel_id: 'u-ana', colaboradores: [],
+    const d = { titulo: 'X', descricao: null, prazo: null, prazo_hora: '14:00:00', lembrete: 1440, data_inicio: '2026-11-05', responsavel_id: 'u-ana', colaboradores: [],
       clientes: [], contrato_id: null } as unknown as Demanda;
     // Quando
     const campos = camposDaDemanda(d);
@@ -103,12 +103,12 @@ describe('Cadastro de demanda', () => {
 
   it('quando a demanda salva volta ao formulário, então os campos voltam como foram digitados', () => {
     // Dado
-    const d = { titulo: 'X', descricao: null, prazo: '2026-11-10', responsavel_id: 'u-ana', colaboradores: ['u-bruno'],
+    const d = { titulo: 'X', descricao: null, prazo: '2026-11-10', data_inicio: '2026-11-05', responsavel_id: 'u-ana', colaboradores: ['u-bruno'],
       clientes: [{ id: 'p1' }], contrato_id: 'k1' } as unknown as Demanda;
     // Quando
     const campos = camposDaDemanda(d);
     // Então
-    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, responsavelId: 'u-ana', colaboradores: ['u-bruno'], clientes: ['p1'], contratoId: 'k1' });
+    expect(campos).toEqual({ titulo: 'X', descricao: '', prazo: '10/11/2026', hora: '', lembrete: null, inicio: '05/11/2026', responsavelId: 'u-ana', colaboradores: ['u-bruno'], clientes: ['p1'], contratoId: 'k1' });
   });
 
   it('quando o título falta, então a primeira etapa é a que tem erro, e a etapa das pessoas não acusa o título', () => {

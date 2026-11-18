@@ -6,7 +6,7 @@ import { DIAS_INICIAIS_DO_PRAZO } from '../../regras/andamentos';
 import { diaDaSemana, pulosEmPeriodos } from '../../regras/calendario';
 import { fmtData } from '../../regras/pessoa';
 import { CONTAGENS, PRAZO_MAXIMO_DIAS, type Contagem, type PrazoContado } from '../../regras/prazos';
-import { Aviso, Cartao, Escolhas, naGrade, Nota, TituloSecao } from '../../ui/base';
+import { Aviso, CampoData, Cartao, Escolhas, naGrade, Nota, TituloSecao } from '../../ui/base';
 import { hojeISO } from '../../ui/util';
 import { useContagem } from './useContagem';
 
@@ -44,7 +44,7 @@ export function CalcularPrazo({ orgaos, versao }: { orgaos: Orgao[]; versao: num
       </div>
       <div className="campo-form" style={naGrade({ p: 7, m: 3, g: 3 })}>
         <label htmlFor="cp-intimacao">{disponibilizacao ? 'Disponibilização' : 'Intimação'}</label>
-        <input id="cp-intimacao" type="date" value={intimacao} onChange={e => setIntimacao(e.target.value)} />
+        <CampoData formato="iso" id="cp-intimacao" valor={intimacao} aoMudar={v => setIntimacao(v)} />
       </div>
       <div className="campo-form" style={naGrade({ p: 5, m: 3, g: 2 })}>
         <label htmlFor="cp-dias">Dias</label>

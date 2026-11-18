@@ -584,20 +584,20 @@ test.describe('Andamentos, prazos e intimações', () => {
     await form.getByLabel('Dias', { exact: true }).fill('30');
     await expect(resultado).toContainText('01/04/2026');
     await form.getByText('Digitar a data').click();
-    await expect(form.getByLabel('Último dia')).toHaveValue('2026-04-01');
+    await expect(form.getByLabel('Último dia')).toHaveValue('01/04/2026');   // o campo de data mostra dd/mm/aaaa (#357)
     // Quando
     await form.getByText('Calcular pelo calendário').click();
     await form.getByLabel('Dias', { exact: true }).fill('5');
     await expect(resultado).toContainText('09/03/2026');
     await form.getByText('Digitar a data').click();
     // Então
-    await expect(form.getByLabel('Último dia')).toHaveValue('2026-03-09');
+    await expect(form.getByLabel('Último dia')).toHaveValue('09/03/2026');
     // Quando: digita à mão e passeia pelos modos
     await form.getByLabel('Último dia').fill('2026-05-20');
     await form.getByText('Calcular pelo calendário').click();
     await form.getByText('Digitar a data').click();
     // Então: a data digitada fica
-    await expect(form.getByLabel('Último dia')).toHaveValue('2026-05-20');
+    await expect(form.getByLabel('Último dia')).toHaveValue('20/05/2026');
   });
 
   test('quando dá dois cliques em "Criar tarefa", então nasce uma tarefa só', async ({ page }) => {
@@ -767,7 +767,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Quando
     await lista.getByRole('button', { name: 'Lançar prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
-    await expect(form.getByLabel('Intimação')).toHaveValue('2026-11-13');
+    await expect(form.getByLabel('Intimação')).toHaveValue('13/11/2026');   // o campo de data mostra dd/mm/aaaa (#357)
     await form.getByLabel('Que prazo é este').fill('Manifestação');
     await expect(form.getByRole('status', { name: 'Resultado do prazo' })).toContainText('Último dia');
     await form.getByRole('button', { name: 'Lançar prazo' }).click();
