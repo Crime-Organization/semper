@@ -9,7 +9,8 @@ import { TAMANHO_TAREFA } from '../dados/limites';
 import { useNavigate } from 'react-router';
 import { colunaComMarco } from '../regras/quadro';
 import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
-import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa } from '../regras/tarefa';
+import { CAMPOS_TAREFA, continuaPelaDemanda, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa } from '../regras/tarefa';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -17,7 +18,7 @@ import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeNoTopo } from './EquipeNoTopo';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -178,8 +179,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 
     <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, t.responsavel_id, 'Responsável')}
-        participantes={t.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
+      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
+      <EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} mudar={mudaNoLugar ? {
+        saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, t.demanda_id)), peloLigado: continuaPelaDemanda(t, t.demanda_id) },
+        depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+      } : null} />
     </div>
     {soLeitura && <Nota>{soLeitura}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}

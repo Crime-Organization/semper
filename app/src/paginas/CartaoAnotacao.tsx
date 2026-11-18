@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import {
-  alteraAAnotacao, dadosDaCopia, DICA_DO_TEXTO, edicaoPorSalvar, enderecoDoItem, erroDoTexto, erroDoTitulo, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao,
+  alteraAAnotacao, dadosDaCopia, DICA_DO_TEXTO, edicaoPorSalvar, enderecoDoItem, erroDoTexto, erroDoTitulo, excluiAAnotacao, gravaForaDaAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao,
   MODULOS_DA_ANOTACAO, type RascunhosDaAnotacao
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
@@ -22,7 +22,7 @@ import { AcoesDeQuemLe, AcoesDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCart
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeNoTopo } from './EquipeNoTopo';
 import { CirculoDeEtiquetas, SelosDasEtiquetas, useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
@@ -315,8 +315,10 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       ? <EditarEquipeDaAnotacao anotacao={a} aoTerminar={terminarEdicao} aoSairDaAnotacao={sairDaAnotacao} aoMudarRascunho={mudarRascunho('equipe')}
         aoMudarOcupado={setSalvandoEquipe} />
       : <div className="cartao-acoes">
-        <EquipeDoCartao responsavel={naEquipe(ctx.equipe, a.responsavel_id, 'Responsável')}
-          participantes={a.participantes.map(p => naEquipe(ctx.equipe, p, 'Compartilhada'))} />
+        {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da anotação do lápis (#276). */}
+        <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} mudar={mudaNoLugar ? {
+          saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
+        } : null} />
       </div>}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}

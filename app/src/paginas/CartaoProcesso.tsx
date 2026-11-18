@@ -10,7 +10,7 @@ import { TAMANHO_PROCESSO } from '../dados/limites';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
-import { advogadoNaAdaptacao, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
+import { advogadoNaAdaptacao, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import {
   alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
@@ -19,7 +19,8 @@ import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeNoTopo } from './EquipeNoTopo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -169,8 +170,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 
     <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, p.responsavel_id, 'Responsável')}
-        participantes={p.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
+      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
+      <EquipeNoTopo modulo="processos" id={p.id} equipe={{ responsavel_id: p.responsavel_id, lista: p.colaboradores }} mudar={mudaNoLugar ? {
+        saida: { podeSair: gravaForaDoCartao(ctx, p.criado_por === eu) }, depois: depoisDeLigar,
+        aoSair: equipeVeTudo(ctx.escritorio) ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+      } : null} />
     </div>
     {!podeAlterar && <Nota>{podeEntrar ? SO_LEITURA_DO_PROCESSO_ADVOGADO : SO_LEITURA_DO_PROCESSO}</Nota>}
     {podeEntrar && <div className="cartao-acoes">

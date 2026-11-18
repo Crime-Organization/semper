@@ -515,7 +515,8 @@ test.describe('Equipe da tarefa', () => {
   test('quando a pessoa clica na bolinha de alguém da equipe, então vê o nome e o papel, e abre o cartão da pessoa', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    const bolinhas = cartao.getByRole('group', { name: 'Equipe' }).getByRole('button');
+    // As bolinhas das pessoas (desde a #356, o grupo tem também a bolinha "Pôr participante", para quem altera a tarefa).
+    const bolinhas = cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, (Responsável|Participante)$/ });
     await expect(bolinhas).toHaveText(['AL', 'MG']);
     // Quando
     await bolinhas.first().click();

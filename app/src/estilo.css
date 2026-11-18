@@ -645,6 +645,19 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-ficha b { font-size: 15px; color: var(--ink); overflow-wrap: anywhere }
 .equipe-ficha small { font-size: 13px; color: var(--muted) }
 .equipe-ficha-link { font-size: 14px; font-weight: 700; color: var(--accent-ink) }
+/* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
+   tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
+.equipe-mais { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 1px dashed var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); cursor: pointer }
+.equipe-mais:not([aria-disabled="true"]):hover { border-style: solid; border-color: var(--faint); color: var(--ink); background: var(--soft) }
+.equipe-mais:focus-visible, .equipe-mais[aria-expanded="true"] { border-style: solid; color: var(--ink); outline: 2px solid var(--accent); outline-offset: 1px }
+/* Desligada (lista cheia, ninguém mais na equipe, gravando), ela continua no Tab: aria-disabled, não disabled. */
+.equipe-mais[aria-disabled="true"] { cursor: not-allowed; opacity: .5 }
+/* A ação na ficha da bolinha (tirar o participante, trocar o responsável), separada do nome por uma linha. */
+.equipe-ficha-acao { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line) }
+.kmenu .equipe-ficha-acao > button, .kmenu .equipe-ficha-acao > div > button { width: 100%; padding: 0 10px }
+.kmenu .equipe-ficha-acao > button:hover, .kmenu .equipe-ficha-acao > button:focus-visible, .kmenu .equipe-ficha-acao > div > button:hover, .kmenu .equipe-ficha-acao > div > button:focus-visible { background: var(--soft); outline: 0 }
+/* Dentro de um painel (a ficha, o "+"), a lista de achados fica no fluxo, sem flutuar por cima: o painel já está por cima. */
+.kmenu .busca-equipe .achados { position: static; box-shadow: none }
 /* Item arquivado: aviso em texto, logo abaixo das ações. A exclusão fica na lixeira, no topo do cartão. */
 .cartao-arquivada { padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
 .bloco { display: flex; flex-direction: column; gap: 10px }

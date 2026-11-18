@@ -1,0 +1,5 @@
+{
+  "titulo": "Pôr participantes direto no cartão",
+  "texto": "No topo do cartão, ao lado das bolinhas da equipe, a bolinha com “+” busca alguém da equipe e já o põe como participante, sem abrir a edição. Clicando na bolinha de um participante, dá para tirá-lo; na do responsável, trocá-lo.",
+  "ondeAchar": "Nos cartões de tarefa, demanda, processo, compromisso e anotação, na bolinha com “+” depois das bolinhas da equipe."
+}

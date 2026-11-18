@@ -8,7 +8,7 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
 import { TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
-  CAMPOS_COMPROMISSO, compromissoVazio, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO,
+  CAMPOS_COMPROMISSO, compromissoVazio, continuaPeloProcesso, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO,
   TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
 } from '../regras/compromisso';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
@@ -19,7 +19,8 @@ import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeNoTopo } from './EquipeNoTopo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -136,8 +137,12 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>
 
     <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, c.responsavel_id, 'Responsável')}
-        participantes={c.participantes.map(p => naEquipe(ctx.equipe, p, 'Participante'))} />
+      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora
+          dele, o cartão diria "não encontrado": fecha. */}
+      <EquipeNoTopo modulo="compromissos" id={c.id} equipe={{ responsavel_id: c.responsavel_id, lista: c.participantes }} mudar={somenteLer ? null : {
+        saida: { podeSair: gravaForaDoCartao(ctx, c.criado_por === eu, continuaPeloProcesso(c, c.processo_id)), peloLigado: continuaPeloProcesso(c, c.processo_id) },
+        depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }, aoSair: () => { aoMudar(); aoFechar(); }
+      }} />
     </div>
     {!podeMudar && <Nota>Você vê este compromisso porque ele está na Agenda geral. Só quem participa dele pode mudá-lo.</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}

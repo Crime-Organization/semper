@@ -1,0 +1,70 @@
+// A equipe mudada no topo do cartão (#356): as gravações. Cada uma lê a equipe gravada no item logo antes de gravar, para não
+// apagar o que outra pessoa acabou de pôr, e usa a mesma função de dados do lápis de cada módulo (o histórico do cartão registra
+// a mudança como registra a do lápis). As regras de cada passo estão em regras/equipeNoCartao.ts.
+import { SD } from '../dados';
+import {
+  AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, planoDaMudanca, saidaPelaBolinhaFalhou, type EquipeAGravar, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe,
+  type SaidaDaPessoa
+} from '../regras/equipeNoCartao';
+import { avisar, feito, type Mudanca } from '../ui/avisos';
+import { sairDoCartao } from '../ui/sairDoCartao';
+import { ITEM_SUMIU } from './ligarNoCartao';
+
+interface EquipeDoItem {
+  /** A equipe gravada agora (null: o item não foi encontrado). */
+  ler: (id: string) => Promise<EquipeGravada | null>;
+  gravar: (id: string, e: EquipeAGravar) => Promise<unknown>;
+  /** O sinal de "dados mudaram" depois de desfazer, como o do lápis. */
+  mudanca: string;
+}
+/** O responsável vai junto só na troca: pôr e tirar gravam só a lista. */
+const comResponsavel = (e: EquipeAGravar) => e.responsavel_id ? { responsavel_id: e.responsavel_id } : {};
+const equipe = (x: { responsavel_id: string } | null, lista: string[] | undefined): EquipeGravada | null =>
+  x && { responsavel_id: x.responsavel_id, lista: lista ?? [] };
+
+/** Onde fica a equipe de cada item: os participantes da tarefa, do compromisso e da anotação; os colaboradores da demanda e do processo. */
+const EQUIPE_DO_ITEM: Record<ModuloDaEquipe, EquipeDoItem> = {
+  tarefas: { ler: async id => { const t = await SD.tarefaObter(id); return equipe(t, t?.participantes); },
+    gravar: (id, e) => SD.tarefaAtualizar(id, { ...comResponsavel(e), participantes: e.lista }), mudanca: 'tarefaAtualizada' },
+  demandas: { ler: async id => { const d = await SD.demandaObter(id); return equipe(d, d?.colaboradores); },
+    gravar: (id, e) => SD.demandaAtualizar(id, { ...comResponsavel(e), colaboradores: e.lista }), mudanca: 'demandaAtualizada' },
+  processos: { ler: async id => { const p = await SD.processoObter(id); return equipe(p, p?.colaboradores); },
+    gravar: (id, e) => SD.processoAtualizar(id, { ...comResponsavel(e), colaboradores: e.lista }), mudanca: 'processoAtualizado' },
+  compromissos: { ler: async id => { const c = await SD.compromissoObter(id); return equipe(c, c?.participantes); },
+    gravar: (id, e) => SD.compromissoAtualizar(id, { ...comResponsavel(e), participantes: e.lista }), mudanca: 'compromissoAtualizado' },
+  anotacoes: { ler: async id => { const a = await SD.anotacaoObter(id); return equipe(a, a?.participantes); },
+    gravar: (id, e) => SD.anotacaoAtualizar(id, { ...comResponsavel(e), participantes: e.lista }), mudanca: 'anotacaoAtualizada' }
+};
+
+/** Como terminou: gravou (com Desfazer), nada mudou (já estava assim; o aviso já saiu) ou a pessoa saiu do cartão. */
+export type FimDaMudanca = 'gravou' | 'nada' | 'saiu';
+
+/**
+ * Faz a mudança pedida na equipe do item e avisa: a gravada, com Desfazer (como o lápis); a que não muda nada, sem. Quem se
+ * tira do cartão sem poder gravar fora dele sai por último (sairDoCartao), sem Desfazer, como no lápis.
+ */
+export async function mudarAEquipe(modulo: ModuloDaEquipe, itemId: string, pedido: PedidoNaEquipe, saida: SaidaDaPessoa): Promise<FimDaMudanca> {
+  const l = EQUIPE_DO_ITEM[modulo], m = EQUIPE_DO_MODULO[modulo];
+  const antes = await l.ler(itemId);
+  if (!antes) throw new Error(ITEM_SUMIU);
+  const plano = planoDaMudanca(modulo, pedido, antes, saida);
+  if ('aviso' in plano) {
+    avisar(plano.aviso, plano.tipo);
+    return 'nada';
+  }
+  await l.gravar(itemId, plano.gravar);
+  if (plano.sai) {
+    // A falha da saída vem com o texto do lápis ("Salve de novo"), e aqui não há Salvar: o aviso diz como sair pela bolinha.
+    await sairDoCartao(modulo, itemId, `Você saiu ${m.doItem}, e a saída ficou no histórico.`).catch(() => { throw new Error(saidaPelaBolinhaFalhou(modulo)); });
+    return 'saiu';
+  }
+  feito(AVISO_DA_MUDANCA[pedido.tipo](modulo, pedido.nome), m.oQue, async (): Promise<Mudanca> => {
+    const agora = await l.ler(itemId);
+    if (!agora) throw new Error(ITEM_SUMIU);
+    const volta = desfazerMudanca(modulo, pedido, antes, agora);
+    if (volta && 'aviso' in volta) throw new Error(volta.aviso);
+    if (volta) await l.gravar(itemId, volta);
+    return { tipo: l.mudanca, id: itemId };
+  });
+  return 'gravou';
+}

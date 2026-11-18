@@ -17,7 +17,8 @@ import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeNoTopo } from './EquipeNoTopo';
+import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -165,8 +166,10 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
 
     <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={naEquipe(ctx.equipe, d.responsavel_id, 'Responsável')}
-        participantes={d.colaboradores.map(c => naEquipe(ctx.equipe, c, 'Colaborador'))} />
+      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
+      <EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} mudar={mudaNoLugar ? {
+        saida: { podeSair: gravaForaDoCartao(ctx, d.criado_por === eu) }, depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+      } : null} />
     </div>
     {soLeitura && <Nota>{soLeitura}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
