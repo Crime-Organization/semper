@@ -58,10 +58,36 @@ export function motivoParaNaoParticipar(equipe: Membro[], pessoaId: string): str
  * de maiúsculas e acentos. Sem nada digitado, vêm todos os que podem entrar. Em ordem alfabética.
  */
 export function candidatosDaEquipe(equipe: Membro[], termo: string, fora: string[]): Membro[] {
+  return peloNome(equipe.filter(m => ativo(m) && !fora.includes(m.id)), termo);
+}
+
+/** Quem tem no nome todas as palavras digitadas, sem diferença de maiúsculas e acentos, em ordem alfabética. Sem nada digitado, vêm todos. */
+function peloNome(lista: Membro[], termo: string): Membro[] {
   const palavras = normal(termo).split(/\s+/).filter(Boolean);
-  return equipe
-    .filter(m => ativo(m) && !fora.includes(m.id) && palavras.every(p => normal(m.nome).includes(p)))
-    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  return lista.filter(m => palavras.every(p => normal(m.nome).includes(p))).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/**
+ * Quem da equipe pode entrar como participante de um contrato (#348), com a mesma busca pelo nome de candidatosDaEquipe:
+ * quem consta nos contratos (ativo, ou com conta reservada, que existe para isso), tem cadastro em Pessoas (o contrato guarda
+ * o participante pela pessoa) e ainda não está no contrato como participante nem como indicador (`noContrato`, ids de
+ * pessoa: o banco recusa a mesma pessoa duas vezes).
+ */
+export function candidatosAoContrato(equipe: Membro[], termo: string, noContrato: string[]): Membro[] {
+  return peloNome(equipe.filter(m => constaNosContratos(m) && !!m.pessoa_id && !noContrato.includes(m.pessoa_id)), termo);
+}
+
+/** Um participante na lista do contrato: o nome, o integrante da equipe (se é) e, se ele não poderia entrar hoje, o porquê. */
+export interface ParticipanteNaLista { nome: string; membro?: Membro; situacao: string | null }
+
+/**
+ * Como um participante aparece na lista do contrato: com o nome da equipe e, se saiu dela ou nunca foi (contrato de antes de
+ * o participante ser sempre da equipe), marcado com o motivo, mas na lista: ele só sai do contrato se alguém o tirar.
+ * Quem foi excluído já vem com "(excluído)" no nome e não ganha outra marca.
+ */
+export function participanteNaLista(equipe: Membro[], pessoaId: string, nomeNoCadastro: string): ParticipanteNaLista {
+  const membro = equipe.find(m => m.pessoa_id === pessoaId);
+  return { nome: membro?.nome ?? nomeNoCadastro, membro, situacao: membro?.excluido ? null : motivoParaNaoParticipar(equipe, pessoaId) };
 }
 
 /** O que a tela diz quando a conta reservada não é criada (cada resposta da função equipe-reservar-conta). */

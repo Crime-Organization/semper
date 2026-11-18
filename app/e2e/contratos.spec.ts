@@ -3,11 +3,11 @@
 // Na equipe, Mateus e Ana são advogados, Bruno é estagiário e Carla (desativada) é do administrativo.
 // O cadastro é por etapas, como o de pessoa: Cliente e responsável, O que foi contratado, Honorários, Divisão, Documento e observações.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirSecao, adicionarParticipante } from './ajudantes';
 
 const ANO = new Date().getFullYear();
 
-/** Escolhe uma pessoa do cadastro num campo de busca (Cliente, Participante 1, Indicador). */
+/** Escolhe uma pessoa do cadastro num campo de busca (Cliente, Indicador). */
 async function escolherPessoa(page: Page, campo: string, busca: string, nome: string) {
   await page.getByRole('textbox', { name: campo, exact: true }).fill(busca);
   await page.getByRole('button', { name: new RegExp(nome) }).click();
@@ -89,8 +89,7 @@ test.describe('Cadastro de contratos', () => {
     await expect(page.getByRole('status', { name: 'Valor da parcela' })).toHaveText(/1\.000,00/);
     await proxima(page, 'Divisão');
     await page.getByText('20% do que o cliente pagar', { exact: true }).click();
-    await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
+    await adicionarParticipante(page, 'bruno', 'Bruno Exemplo Souza');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     // Então: 100% − 20% do escritório − 10% do participante
     await expect(page.getByRole('status', { name: 'Fica com o responsável' })).toHaveText('70%');
@@ -112,11 +111,9 @@ test.describe('Cadastro de contratos', () => {
     await ateDivisao(page);
     await page.getByText('30% do que o cliente pagar', { exact: true }).click();
     // Quando
-    await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
+    await adicionarParticipante(page, 'bruno', 'Bruno Exemplo Souza');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
-    await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 2', 'ana teste', 'ANA TESTE LIMA');
+    await adicionarParticipante(page, 'ana teste', 'Ana Teste Lima');
     await page.getByRole('textbox', { name: '% do participante 2' }).fill('5');
     await escolherPessoa(page, 'Indicador', 'raimundo', 'RAIMUNDO NONATO ENSAIO');
     await page.getByLabel('% do indicador').fill('10');
@@ -141,8 +138,7 @@ test.describe('Cadastro de contratos', () => {
     await preencherObrigatorios(page);
     await ateDivisao(page);
     await page.getByText('100% do que o cliente pagar', { exact: true }).click();
-    await page.getByRole('button', { name: 'Adicionar participante' }).click();
-    await escolherPessoa(page, 'Participante 1', 'bruno', 'BRUNO EXEMPLO SOUZA');
+    await adicionarParticipante(page, 'bruno', 'Bruno Exemplo Souza');
     await page.getByRole('textbox', { name: '% do participante 1' }).fill('85');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
@@ -160,17 +156,18 @@ test.describe('Função na equipe', () => {
     await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option')).toHaveText(['Escolha…', 'Mateus Freitas Gonçalves', 'Ana Teste Lima']);
   });
 
-  test('quando a busca de participante mostra alguém de fora da equipe, então ele vem desligado, com o motivo', async ({ page }) => {
+  // Desde a #348, a busca de participante é só na equipe: quem é de fora nem aparece (antes vinha desligado, com o motivo).
+  test('quando a busca de participante procura alguém de fora da equipe, então ele não aparece', async ({ page }) => {
     // Dado
     await preencherObrigatorios(page);
     await ateDivisao(page);
-    await page.getByRole('button', { name: 'Adicionar participante' }).click();
+    await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
     // Quando
-    await page.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('luciana');
+    await page.getByRole('textbox', { name: 'Buscar na equipe: adicionar participante' }).fill('luciana');
     // Então
-    const deFora = page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ });
-    await expect(deFora).toBeDisabled();
-    await expect(deFora).toContainText('não é da equipe');
+    const achados = page.getByRole('list', { name: 'Equipe' });
+    await expect(achados).toContainText('Ninguém da equipe com esse nome.');
+    await expect(achados.getByRole('button')).toHaveCount(0);
   });
 
   test('quando o indicador é de fora da equipe, então ele pode ser escolhido', async ({ page }) => {
@@ -193,6 +190,111 @@ test.describe('Função na equipe', () => {
     await page.getByRole('dialog').getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(page.getByRole('dialog').getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
+  });
+});
+
+/** O contrato de JOSÉ DA SILVA TESTE (Registro de marca, de Mateus), na semente. */
+const CONTRATO_DO_JOSE = 'Registro de marca';
+/** Põe a Carla (desativada na equipe) como participante de 5% do contrato de JOSÉ, direto no banco fictício: é o contrato antigo de quem saiu. */
+async function carlaNoContrato(page: Page) {
+  await page.goto('/inicio/');
+  await page.evaluate(servico => {
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { contratos: { servico: string; participantes: unknown[] }[] };
+    bd.contratos.find(k => k.servico.startsWith(servico))!.participantes.push({ pessoa_id: 'p-carla', percentual: 5 });
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+  }, CONTRATO_DO_JOSE);
+  // O banco fictício lê a aba ao abrir a página: recarrega para valer a mudança.
+  await page.reload();
+}
+/** Abre a edição do contrato de JOSÉ pelo lápis do cartão. */
+async function editarContratoDoJose(page: Page) {
+  await page.goto('/contratos/');
+  await page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' }).click();
+  const cartao = page.getByRole('dialog');
+  await cartao.getByRole('button', { name: 'Editar' }).click();
+  await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toBeVisible();
+  return cartao;
+}
+const participantes = (lugar: Page | ReturnType<Page['getByRole']>) => lugar.getByRole('list', { name: 'Participantes' });
+
+test.describe('Participantes só da equipe (#348)', () => {
+  test('dado o cadastro, quando a pessoa abre a busca de participante, então vêm só os integrantes ativos, sem quem já está no contrato', async ({ page }) => {
+    // Dado: Bruno já é participante, e a Ana é a indicadora
+    await preencherObrigatorios(page);
+    await ateDivisao(page);
+    await adicionarParticipante(page, 'bruno', 'Bruno Exemplo Souza');
+    await escolherPessoa(page, 'Indicador', 'ana teste', 'ANA TESTE LIMA');
+    // Quando
+    await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    // Então: só o Mateus; nem a Carla (desativada) nem clientes como a Luciana
+    const achados = page.getByRole('list', { name: 'Equipe' });
+    await expect(achados.getByRole('button')).toHaveCount(1);
+    await expect(achados.getByRole('button', { name: 'Mateus Freitas Gonçalves', exact: true })).toBeVisible();
+  });
+
+  test('dado a edição pelo cartão, quando a pessoa abre a busca de participante, então vêm só os integrantes ativos, sem quem já está', async ({ page }) => {
+    // Dado: Bruno entra como participante na edição
+    const cartao = await editarContratoDoJose(page);
+    await adicionarParticipante(cartao, 'bruno', 'Bruno Exemplo Souza');
+    // Quando
+    await cartao.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    // Então
+    const achados = cartao.getByRole('list', { name: 'Equipe' });
+    await expect(achados.getByRole('button')).toHaveCount(2);
+    await expect(achados.getByRole('button', { name: 'Ana Teste Lima', exact: true })).toBeVisible();
+    await expect(achados.getByRole('button', { name: 'Mateus Freitas Gonçalves', exact: true })).toBeVisible();
+  });
+
+  test('dado um contrato antigo com quem saiu da equipe, quando é aberto e salvo sem mexer, então ela continua nele, marcada', async ({ page }) => {
+    // Dado
+    await carlaNoContrato(page);
+    let cartao = await editarContratoDoJose(page);
+    // Então: aparece, marcada, com o % dela
+    await expect(participantes(cartao)).toContainText('Carla Fictícia Rocha (desativado na equipe)');
+    await expect(cartao.getByRole('textbox', { name: '% do participante 1' })).toHaveValue('5');
+    // Quando
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toHaveCount(0);
+    // Então: ninguém a tirou, e ela continua
+    cartao = await editarContratoDoJose(page);
+    await expect(participantes(cartao)).toContainText('Carla Fictícia Rocha');
+  });
+
+  test('dado um contrato antigo com quem saiu da equipe, quando ela é tirada e o contrato salvo, então ela sai do contrato', async ({ page }) => {
+    // Dado
+    await carlaNoContrato(page);
+    const cartao = await editarContratoDoJose(page);
+    // Quando
+    await cartao.getByRole('button', { name: 'Tirar Carla Fictícia Rocha' }).click();
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Equipe' })).not.toContainText('Carla');
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await expect(cartao.getByRole('group', { name: 'Participantes' })).not.toContainText('Carla');
+  });
+
+  test('quando participantes entram e saem, então o que fica com o responsável é recalculado e o % de quem fica não muda', async ({ page }) => {
+    // Dado: o escritório fica com 20%
+    await preencherObrigatorios(page);
+    await ateDivisao(page);
+    await page.getByText('20% do que o cliente pagar', { exact: true }).click();
+    const responsavel = page.getByRole('status', { name: 'Fica com o responsável' });
+    // Quando: Bruno com 10% e Ana com 5%
+    await adicionarParticipante(page, 'bruno', 'Bruno Exemplo Souza');
+    await page.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await adicionarParticipante(page, 'ana', 'Ana Teste Lima');
+    await page.getByRole('textbox', { name: '% do participante 2' }).fill('5');
+    // Então: 100% − 20% − 10% − 5%
+    await expect(responsavel).toHaveText('65%');
+    // Quando: Bruno sai
+    await page.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
+    // Então: a Ana fica com os 5% dela, e o responsável volta a 75%
+    await expect(page.getByRole('textbox', { name: '% do participante 1' })).toHaveValue('5');
+    await expect(responsavel).toHaveText('75%');
+    await salvarContrato(page);
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima, Participante · 5%' })).toBeVisible();
   });
 });
 

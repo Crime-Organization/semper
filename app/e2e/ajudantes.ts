@@ -56,6 +56,16 @@ export async function abrirSecao(lugar: Page | Locator, titulo: string) {
 }
 
 /**
+ * Põe alguém da equipe como participante do contrato (na etapa Divisão ou na edição pelo cartão): "+ Adicionar participante"
+ * abre a busca só na equipe (#348), e o nome é o da equipe ("Bruno Exemplo Souza"), não o do cadastro em Pessoas.
+ */
+export async function adicionarParticipante(lugar: Page | Locator, busca: string, nome: string) {
+  await lugar.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+  await lugar.getByRole('textbox', { name: 'Buscar na equipe: adicionar participante' }).fill(busca);
+  await lugar.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: nome, exact: true }).click();
+}
+
+/**
  * A altura de um elemento, medida depois de terminarem as animações dele e de quem o contém. Durante a entrada de uma
  * etapa, o navegador tira a altura da conta "fundo menos topo" com posições fracionadas, e 48 pode vir como 47,99997.
  */

@@ -2,7 +2,7 @@
 // A tela "Meus valores" e a seção "A passar" das Parcelas. Quem está logado é o Mateus (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela } from './ajudantes';
+import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 type Lugar = ReturnType<Page['getByRole']>;
@@ -59,11 +59,9 @@ const comAnaResponsavel = (ajustar: (cartao: Lugar) => Promise<void>) => async (
 };
 
 /** Tudo na conta, com alguém da equipe como participante de 10%. */
-const comParticipante = (busca: string, nome: RegExp) => async (cartao: Lugar) => {
+const comParticipante = (busca: string, nome: string) => async (cartao: Lugar) => {
   await tudoNaConta(cartao);
-  await cartao.getByRole('button', { name: 'Adicionar participante' }).click();
-  await cartao.getByRole('textbox', { name: 'Participante 1', exact: true }).fill(busca);
-  await cartao.getByRole('button', { name: nome }).click();
+  await adicionarParticipante(cartao, busca, nome);
   await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
 };
 
@@ -134,7 +132,7 @@ test.describe('Meus valores', () => {
   test('dado que sou participante, quando o valor é marcado como pago, então minha linha passa a recebido; e desfazer volta', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', /MATEUS FREITAS/)));
+    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', 'Mateus Freitas Gonçalves')));
     await page.goto('/meus-valores/');
     const participante = linhas(page).filter({ hasText: 'Participante' });
     await expect(participante).toContainText('A receber');
@@ -188,7 +186,7 @@ test.describe('Meus valores', () => {
   test('dado o responsável com um participante, quando abre, então a linha é a parte dele, sem o que ele passa ao participante', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     // Quando
     await page.goto('/meus-valores/');
     // Então: R$ 740,00 chegam a ele, e R$ 92,50 são do participante
@@ -201,7 +199,7 @@ test.describe('Meus valores', () => {
   test('dado o responsável que também é participante, quando abre, então há uma linha só, com o que é dele, e nada a passar a si mesmo', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('mateus', /MATEUS FREITAS/));
+    await receberComContrato(page, comParticipante('mateus', 'Mateus Freitas Gonçalves'));
     // Quando
     await page.goto('/meus-valores/');
     // Então
@@ -215,7 +213,7 @@ test.describe('Meus valores', () => {
   test('dado um valor a receber, quando abre um mês seguinte, então ele continua na tela e no total; recebido, fica só no mês dele', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', /MATEUS FREITAS/)));
+    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', 'Mateus Freitas Gonçalves')));
     await page.goto('/meus-valores/');
     // Quando
     await page.getByLabel('Mês').fill('2099-12');
@@ -268,7 +266,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então a linha continua, e ele marca como pago', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     const cartao = await abrirContrato(page);
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await cartao.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
@@ -288,7 +286,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então quem paga é o responsável da época', async ({ page }) => {
     // Dado: o Mateus recebe, e o contrato passa para a Ana
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     const cartao = await abrirContrato(page);
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await cartao.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
@@ -307,7 +305,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um recebimento cujo responsável não tem mais perfil, quando o administrador abre, então quem paga é "Usuário removido"', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.evaluate(() => {
       const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!);
       for (const r of bd.recebimentos) r.responsavel_id = null;
@@ -322,7 +320,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado o celular, quando abre, então quem paga aparece ao lado de para quem, sem precisar rolar a tabela', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.setViewportSize({ width: 375, height: 812 });
     // Quando
     await page.goto('/parcelas/');
@@ -335,7 +333,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dada a tela de computador, quando abre, então a tabela cabe inteira, com a parcela junto do contrato e o botão de marcar à vista', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     // Quando
     await page.goto('/parcelas/');
     // Então
@@ -347,7 +345,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um participante, quando o responsável marca como pago, então fica pago, sem lançamento no caixa; e o valor de quem recebe não aparece para mim', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.goto('/parcelas/');
     const tabela = secao(page).getByRole('table');
     await expect(tabela).toContainText('BRUNO EXEMPLO SOUZA');
@@ -372,7 +370,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um valor marcado e desfeito, quando abre o registro de ações, então as duas ações dizem o contrato, a parcela, a data e o valor', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.goto('/parcelas/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
@@ -396,7 +394,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dada uma data em branco, quando confirma, então pede a data e não marca', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.goto('/parcelas/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     const form = page.getByRole('form', { name: /Marcar como pago: BRUNO/ });
@@ -411,7 +409,7 @@ test.describe('A passar a participantes e indicadores', () => {
   test('dado um valor marcado como pago, quando estorna, então é recusado até desfazer a marcação', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('bruno', /BRUNO EXEMPLO SOUZA/));
+    await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     await page.goto('/parcelas/');
     await secao(page).getByRole('button', { name: /Marcar como pago: BRUNO/ }).click();
     await page.getByRole('form', { name: /Marcar como pago: BRUNO/ }).getByRole('button', { name: 'Confirmar' }).click();

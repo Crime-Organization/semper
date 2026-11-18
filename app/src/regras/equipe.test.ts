@@ -1,7 +1,10 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
-import { candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoDarAcesso, motivoParaNaoParticipar, nomeNaEquipe, opcoesDeResponsavel, podeExcluir } from './equipe';
+import {
+  candidatosAoContrato, candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoDarAcesso, motivoParaNaoParticipar, nomeNaEquipe, opcoesDeResponsavel,
+  participanteNaLista, podeExcluir
+} from './equipe';
 
 const EQUIPE: Membro[] = [
   { id: 'u-adv', nome: 'Advogada', funcao: 'advogado', ativo: true, pessoa_id: 'p-adv' },
@@ -88,6 +91,71 @@ describe('Quem da equipe pode entrar numa lista', () => {
   it('quando ninguém combina com o que foi digitado, então a lista vem vazia', () => {
     // Quando / Então
     expect(candidatosDaEquipe(EQUIPE, 'saiu', [])).toEqual([]);
+  });
+});
+
+describe('Quem da equipe pode entrar como participante de um contrato (#348)', () => {
+  const reservada: Membro = { id: 'u-res', nome: 'Conta Reservada', funcao: 'advogado', ativo: false, reservada: true, pessoa_id: 'p-res' };
+  const excluida: Membro = { id: 'u-exc', nome: 'Excluída (excluído)', ativo: false, excluido: true, pessoa_id: 'p-exc' };
+  const semCadastro: Membro = { id: 'u-sem', nome: 'Sem Cadastro', ativo: true, pessoa_id: null };
+  const equipe = [...EQUIPE, reservada, excluida, semCadastro];
+
+  it('quando nada foi digitado, então vêm os ativos e as contas reservadas, sem quem saiu, foi excluído ou não tem cadastro em Pessoas', () => {
+    // Quando
+    const achados = candidatosAoContrato(equipe, '', []);
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-adv', 'u-antigo', 'u-res', 'u-est', 'u-adm']);
+  });
+
+  it('dado quem já está no contrato como participante ou indicador, quando a busca é montada, então essas pessoas ficam de fora', () => {
+    // Dado: as pessoas do contrato, pelo id do cadastro
+    const noContrato = ['p-adv', 'p-res'];
+    // Quando
+    const achados = candidatosAoContrato(equipe, '', noContrato);
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-antigo', 'u-est', 'u-adm']);
+  });
+
+  it('quando a pessoa digita parte do nome, sem acento, então vêm só os que combinam', () => {
+    // Quando
+    const achados = candidatosAoContrato(equipe, 'secretaria', []);
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-adm']);
+  });
+
+  it('dado alguém de fora da equipe (um cliente), quando a busca é montada, então ele nunca aparece, digitando o nome ou não', () => {
+    // Dado: a busca só olha a equipe; um cliente não está nela
+    // Quando
+    const achados = candidatosAoContrato(equipe, 'luciana', []);
+    // Então
+    expect(achados).toEqual([]);
+  });
+});
+
+describe('Um participante na lista do contrato (#348)', () => {
+  it('dado alguém ativo na equipe, quando aparece, então vem com o nome da equipe e sem marca', () => {
+    // Quando
+    const p = participanteNaLista(EQUIPE, 'p-adv', 'ADVOGADA NO CADASTRO');
+    // Então
+    expect(p).toMatchObject({ nome: 'Advogada', situacao: null });
+    expect(p.membro?.id).toBe('u-adv');
+  });
+
+  it('dado alguém que saiu da equipe, quando aparece, então continua com o nome, marcado como desativado', () => {
+    // Quando / Então
+    expect(participanteNaLista(EQUIPE, 'p-saiu', 'ADVOGADO QUE SAIU')).toMatchObject({ nome: 'Advogado que saiu', situacao: 'desativado na equipe' });
+  });
+
+  it('dado alguém que nunca foi da equipe (contrato antigo), quando aparece, então vem com o nome do cadastro, marcado', () => {
+    // Quando / Então
+    expect(participanteNaLista(EQUIPE, 'p-cliente', 'LUCIANA ROCHA')).toEqual({ nome: 'LUCIANA ROCHA', membro: undefined, situacao: 'não é da equipe' });
+  });
+
+  it('dado alguém excluído da equipe, quando aparece, então o nome já diz "(excluído)" e não ganha outra marca', () => {
+    // Dado
+    const excluida: Membro = { id: 'u-exc', nome: 'Excluída (excluído)', ativo: false, excluido: true, pessoa_id: 'p-exc' };
+    // Quando / Então
+    expect(participanteNaLista([excluida], 'p-exc', 'EXCLUÍDA')).toMatchObject({ nome: 'Excluída (excluído)', situacao: null });
   });
 });
 

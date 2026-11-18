@@ -5,13 +5,14 @@
 import { useEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContaParaEscolher, type Contrato, type PessoaLista } from '../dados';
-import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
+import type { Membro } from '../dados/tipos';
+import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import {
   calculadosDoContrato, camposDoContrato, CATEGORIAS, CONTRATO_VAZIO, dadosDoContrato, dadosSemValores, dinheiroNoCampo, errosDaEtapa, ETAPAS_CONTRATO,
   fmtDinheiro, fmtPercentual, lerDinheiro, nomesPorExtenso, PERCENTUAIS_ESCRITORIO, primeiraEtapaComErro, validarContrato,
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
-import { motivoParaNaoParticipar, opcoesDeResponsavel } from '../regras/equipe';
+import { opcoesDeResponsavel } from '../regras/equipe';
 import { MASCARAS } from '../regras/pessoa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
@@ -28,6 +29,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { mudancasNosProcessos } from '../regras/processo';
 import { gravarProcessos } from './ProcessosDoCartao';
+import { ParticipantesDoContrato } from './ParticipantesDoContrato';
 import './Contratos.css';
 
 type Escolhida = Pick<PessoaLista, 'id' | 'nome'> | null;
@@ -72,9 +74,8 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [chaves, setChaves] = useState<number[]>([1]);
   const [chavesPart, setChavesPart] = useState<number[]>([]);
   const proximaChave = useRef(2);
-  // A pessoa escolhida em cada linha de participante (para mostrar o nome) e a linha nova, que recebe o foco.
+  // A pessoa de cada linha de participante, com o nome do cadastro (para mostrar quem já não está na equipe).
   const [participantes, setParticipantes] = useState<Escolhida[]>([]);
-  const [focarParticipante, setFocarParticipante] = useState<number | null>(null);
   const [sugeridos, setSugeridos] = useState<string[]>([]);
   // Na edição: os processos ligados (os que a pessoa pode abrir; os outros só contados) e os que já estavam, para gravar só o que mudou.
   const comProcessos = !!ctx.escritorio?.modulos?.processos && !!edicao;
@@ -214,31 +215,21 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   // ---------- participantes ----------
   const mudarParticipante = (i: number, campos: Partial<CamposContrato['participantes'][number]>) =>
     setC(atual => ({ ...atual, participantes: atual.participantes.map((p, j) => j === i ? { ...p, ...campos } : p) }));
-  // Trocar a pessoa de uma linha mantém o % já digitado.
-  const escolherParticipante = (i: number) => (p: PessoaLista | null) => {
-    setParticipantes(atual => atual.map((x, j) => j === i ? p : x));
-    mudarParticipante(i, { pessoaId: p?.id ?? '' });
-  };
-  function acrescentarParticipante() {
+  // Quem foi escolhido na busca da equipe entra no fim da lista, ainda sem %. O contrato guarda o participante pela pessoa.
+  function acrescentarParticipante(m: Membro) {
+    if (!m.pessoa_id) return;
     const chave = proximaChave.current++;
-    setC(atual => ({ ...atual, participantes: [...atual.participantes, { pessoaId: '', percentual: '' }] }));
-    setParticipantes(atual => [...atual, null]);
+    setC(atual => ({ ...atual, participantes: [...atual.participantes, { pessoaId: m.pessoa_id!, percentual: '' }] }));
+    setParticipantes(atual => [...atual, { id: m.pessoa_id!, nome: m.nome }]);
     setChavesPart(atual => [...atual, chave]);
-    setFocarParticipante(chave);
   }
   function tirarParticipante(i: number) {
     setC(atual => ({ ...atual, participantes: atual.participantes.toSpliced(i, 1) }));
     setParticipantes(atual => atual.toSpliced(i, 1));
     setChavesPart(atual => atual.toSpliced(i, 1));
   }
-  // Na busca de cada linha, quem já está no contrato aparece desligado, com o motivo.
-  const jaNoContrato = (i: number) => (p: PessoaLista) => p.id === c.indicadorId ? 'já é o indicador'
-    : c.participantes.some((x, j) => j !== i && x.pessoaId === p.id) ? 'já é participante' : null;
-
   // Quem pode ser responsável: os advogados da equipe e quem já é o responsável (para não sair sem querer).
   const opcoesResp = opcoesDeResponsavel(ctx.equipe, c.responsavelId);
-  // Participante é sempre alguém da equipe; quem não é aparece desligado na busca, com o motivo.
-  const podeParticipar = (i: number) => (p: PessoaLista) => jaNoContrato(i)(p) ?? motivoParaNaoParticipar(ctx.equipe, p.id);
 
   // ---------- envio ----------
   // Os processos que entraram e saíram na edição, e o contrário, para desfazer.
@@ -420,27 +411,9 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         </select>
       </Campo>}
       {calculado('Fica com o responsável', fmtPercentual(calculados.responsavel), erros.divisao)}
-      <div className={'pergunta' + (erros.participantes ? ' erro' : '')} role="group" aria-labelledby="participantes-rotulo">
-        <span className="rot" id="participantes-rotulo">Participantes</span>
-        <p className="dica">Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o líquido.</p>
-        {c.participantes.map((p, i) => <div className="linha-participante" key={chavesPart[i]}>
-          <div className="campo-busca">
-            <BuscaPessoa rotulo={`Participante ${i + 1}`} escolhida={participantes[i]} aoEscolher={escolherParticipante(i)}
-              desativar={podeParticipar(i)} focar={chavesPart[i] === focarParticipante} />
-          </div>
-          <label>%
-            <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
-              aria-invalid={erros.participantes ? true : undefined} onChange={e => mudarParticipante(i, { percentual: e.target.value })} />
-          </label>
-          <button type="button" className="icone-btn" aria-label={`Tirar o participante ${i + 1}`} onClick={() => tirarParticipante(i)}>
-            <Icone nome="fechar" tam={15} />
-          </button>
-        </div>)}
-        <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.participantes.length >= PARTICIPANTES_MAXIMOS} onClick={acrescentarParticipante}>
-          <Icone nome="mais" tam={13} /> Adicionar participante
-        </button></div>
-        {erros.participantes && <span className="msg-erro" role="alert">{erros.participantes}</span>}
-      </div>
+      <ParticipantesDoContrato equipe={ctx.equipe} linhas={c.participantes} nomes={participantes.map(p => p?.nome ?? '')} chaves={chavesPart}
+        indicadorId={c.indicadorId} erro={erros.participantes} aoAdicionar={acrescentarParticipante} aoTirar={tirarParticipante}
+        aoMudarPercentual={(i, percentual) => mudarParticipante(i, { percentual })} />
       <div className="grade-indicador">
         {pessoa('indicador', 'Indicador', p => c.participantes.some(x => x.pessoaId === p.id) ? 'já é participante' : null)}
         <Campo rotulo="% do indicador" para="indicadorPercentual" erro={erros.indicadorPercentual}>

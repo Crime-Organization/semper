@@ -2,7 +2,7 @@
 // As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mateus (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela } from './ajudantes';
+import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
@@ -278,9 +278,7 @@ test.describe('Receber', () => {
     const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await cartao.getByText('100% do que o cliente pagar').click();
-    await cartao.getByRole('button', { name: 'Adicionar participante' }).click();
-    await cartao.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('bruno');
-    await cartao.getByRole('button', { name: /BRUNO EXEMPLO SOUZA/ }).click();
+    await adicionarParticipante(cartao, 'bruno', 'Bruno Exemplo Souza');
     await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     await abrirSecao(cartao, 'Honorários'); // as parcelas ficam dentro de Honorários, com a divisão
@@ -454,9 +452,7 @@ test.describe('A entrada completa (#266)', () => {
     const cartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await cartao.getByText('100% do que o cliente pagar').click();
-    await cartao.getByRole('button', { name: 'Adicionar participante' }).click();
-    await cartao.getByRole('textbox', { name: 'Participante 1', exact: true }).fill('bruno');
-    await cartao.getByRole('button', { name: /BRUNO EXEMPLO SOUZA/ }).click();
+    await adicionarParticipante(cartao, 'bruno', 'Bruno Exemplo Souza');
     await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     await abrirSecao(cartao, 'Honorários');
