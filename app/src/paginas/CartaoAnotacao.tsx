@@ -1,10 +1,12 @@
 // Cartão da anotação (painel ao lado ou janela no centro), no modelo dos outros cartões (#303): no topo, o código e as ações;
 // o título e o texto formatado, em medida de leitura; a equipe; os itens a que ela está ligada, com a busca para ligar a
-// mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada. Todos podem baixá-la em .md (#345).
+// mais um; o histórico e o rodapé. Quem a vê só por um item ligado lê tudo, mas não muda nada. Todos podem baixá-la em .md (#345)
+// e duplicá-la (#343): a cópia é de quem a faz e leva só os itens ligados que ela vê.
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO } from '../dados/limites';
-import { alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO } from '../regras/anotacao';
+import { alteraAAnotacao, dadosDaCopia, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
 import { AcoesDeQuemLe, AcoesDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
@@ -19,6 +21,7 @@ import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
 import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
+import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
 import { plural } from './importarPessoas/textos';
 import NovaAnotacao from './NovaAnotacao';
 import './Documentos.css';
@@ -37,6 +40,9 @@ const POR_QUE_SO_LE = {
   item: 'Você vê esta anotação porque vê um item ligado a ela. Só quem a escreveu, o responsável e quem está nela podem mudá-la.'
 };
 
+/** Quando a anotação não vem do banco (ao abrir o cartão, ou ao duplicar uma que sumiu depois que ele abriu). */
+const NAO_ENCONTRADA = 'Esta anotação não foi encontrada. Ela pode ter sido excluída, ou você não tem acesso a ela.';
+
 /** O tipo do arquivo baixado: Markdown, em UTF-8 (acentos e emojis do texto chegam inteiros). */
 const TIPO_MARKDOWN = 'text/markdown;charset=utf-8';
 
@@ -50,6 +56,7 @@ type ItensLidos = { visiveis: ItemDaAnotacao[]; ocultos: number };
 
 export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   const ctx = useCtx();
+  const navegar = useNavigate();
   const [a, setA] = useState<Anotacao | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
   const [itens, setItens] = useState<ItensLidos | string | null>(null);
   const [erro, setErro] = useState('');
@@ -82,7 +89,7 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (a === undefined) return <Carregando />;
-  if (!a) return <Vazio>Esta anotação não foi encontrada. Ela pode ter sido excluída, ou você não tem acesso a ela.</Vazio>;
+  if (!a) return <Vazio>{NAO_ENCONTRADA}</Vazio>;
 
   const chaves = { equipeEditaTudo: equipeEditaTudo(ctx.escritorio) };
   const podeAlterar = alteraAAnotacao(a, ctx.perfil, chaves);
@@ -159,6 +166,30 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
   const baixarMd: AcaoDoTopo = { rotulo: 'Baixar .md', icone: 'baixar', aoClicar: baixar };
+  /**
+   * Duplica a anotação e abre o cartão da cópia. O que ela leva vem de dadosDaCopia; as ligações, só as que a pessoa vê, o banco
+   * copia. A cópia parte do que está gravado, não da tela: espera as caixinhas ainda na fila e lê a original de novo (outra
+   * pessoa pode tê-la mudado depois que o cartão abriu). Desfazer arquiva e exclui a cópia, como no cadastro.
+   */
+  async function duplicar() {
+    try {
+      await caixinhas.current.fila;
+      const original = await SD.anotacaoObter(id);
+      if (!original) throw new Error(NAO_ENCONTRADA);
+      const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves), equipe: ctx.equipe };
+      const copia = await SD.anotacaoDuplicar(original.id, dadosDaCopia(original, quem));
+      feito(`Anotação ${original.codigo} duplicada como ${copia.codigo}.`, 'cópia da anotação', async () => {
+        await SD.anotacoesArquivar([copia.id], true);
+        const x = await SD.anotacoesExcluir([copia.id]);
+        if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer a cópia.');
+        return { tipo: 'anotacaoCriada', id: copia.id };
+      });
+      aoMudar();
+      navegar(ENDERECO_DA_ANOTACAO + copia.id);
+    } catch (e) { falha(e); }
+  }
+  const duplicarAcao: AcaoDoTopo = { rotulo: 'Duplicar', icone: 'copiar', aoClicar: duplicar };
+  const acoesDoTopo = [duplicarAcao, baixarMd];
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) depois();
@@ -174,8 +205,8 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
         {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar
           ? <AcoesDoCartao editando={editando} arquivado={!!a.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)}
-            excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={[baixarMd]} />
-          : <AcoesDeQuemLe acoes={[baixarMd]} />}
+            excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoTopo} />
+          : <AcoesDeQuemLe acoes={acoesDoTopo} />}
       </div>
       <h2>{a.titulo}</h2>
     </header>

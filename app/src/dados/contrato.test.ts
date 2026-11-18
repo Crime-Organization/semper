@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipos';
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
+import { dadosDaCopia } from '../regras/anotacao';
 import { ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
@@ -5029,6 +5030,44 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.anotacoesDoItem('demandas', d.id)).map(a => a.id)).toEqual([id]);
       });
 
+      it('dada uma anotação com texto, participante e dois itens, quando duplica, então nasce a cópia com código e histórico próprios, o mesmo texto e as mesmas ligações, e a original fica igual', async () => {
+        // Dado: a original, já alterada uma vez (tem histórico)
+        const d = await demandaNova(), p = await processoNovo();
+        const { id, codigo } = await anotacao({ texto: '- [ ] Ligar ao cliente', participantes: ['u-bruno'] }, { modulo: 'processos', id: p.id });
+        await SD.anotacaoLigar(id, 'demandas', d.id);
+        await SD.anotacaoAtualizar(id, { texto: '- [x] Ligar ao cliente' });
+        const original = (await SD.anotacaoObter(id))!, historico = await SD.anotacaoHistorico(id);
+        // Quando
+        const copia = await SD.anotacaoDuplicar(id, dadosDaCopia(original, { id: 'u-master', alteraAOriginal: true, equipe: [{ id: 'u-master' }, { id: 'u-bruno' }] }));
+        // Então
+        expect(copia.id).not.toBe(id);
+        expect(copia.codigo).not.toBe(codigo);
+        expect(await SD.anotacaoObter(copia.id)).toMatchObject({ titulo: original.titulo + ' (cópia)', texto: '- [x] Ligar ao cliente', responsavel_id: 'u-master',
+          participantes: ['u-bruno'], ligada_a: ['demandas', 'processos'], criado_por: 'u-master', arquivado_em: null });
+        expect((await SD.anotacaoItens(copia.id)).visiveis.map(i => [i.modulo, i.id])).toEqual([['processos', p.id], ['demandas', d.id]]);
+        expect(await SD.anotacaoHistorico(copia.id)).toEqual([]);
+        expect(await SD.anotacaoObter(id)).toEqual(original);
+        expect(await SD.anotacaoHistorico(id)).toEqual(historico);
+        expect((await SD.anotacaoItens(id)).visiveis.map(i => i.id)).toEqual([p.id, d.id]);
+      });
+
+      it('dada uma anotação sem itens ligados, quando duplica, então a cópia nasce sem ligações', async () => {
+        // Dado
+        const { id } = await anotacao();
+        // Quando
+        const copia = await SD.anotacaoDuplicar(id, { titulo: marca(), responsavel_id: 'u-master' });
+        // Então
+        expect(await SD.anotacaoItens(copia.id)).toEqual({ visiveis: [], ocultos: 0 });
+      });
+
+      it('quando duplica uma anotação que não existe, então é recusado e nada fica gravado', async () => {
+        // Dado
+        const titulo = marca();
+        // Quando / Então
+        await expect(SD.anotacaoDuplicar(crypto.randomUUID(), { titulo, responsavel_id: 'u-master' })).rejects.toThrow(SEM_PERMISSAO);
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+      });
+
       it('quando cria a anotação ligada a um item que não existe, então é recusado e nada fica gravado', async () => {
         // Dado
         const titulo = marca();
@@ -5320,6 +5359,23 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     await expect(SD.anotacaoLigar(id, 'demandas', outra)).rejects.toThrow(SEM_PERMISSAO);
     await expect(SD.anotacaoDesligar(id, 'demandas', demanda)).rejects.toThrow(SEM_PERMISSAO);
     await expect(SD.anotacoesArquivar([id])).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada uma anotação ligada a uma demanda que a conta comum vê e a outra que não vê, quando ela duplica, então a cópia é dela e só leva a que ela vê', async () => {
+    // Dado
+    const { id: minha } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id: alheia } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-ana' });
+    const { id } = await doMaster({ texto: 'Plano' }, { modulo: 'demandas', id: minha });
+    await SD.anotacaoLigar(id, 'demandas', alheia);
+    entrarComo('u-bruno');
+    const original = (await SD.anotacaoObter(id))!;
+    // Quando
+    const copia = await SD.anotacaoDuplicar(id, dadosDaCopia(original, { id: 'u-bruno', alteraAOriginal: false, equipe: [{ id: 'u-master' }, { id: 'u-bruno' }] }));
+    // Então
+    expect(await SD.anotacaoObter(copia.id)).toMatchObject({ texto: 'Plano', responsavel_id: 'u-bruno', criado_por: 'u-bruno' });
+    expect(await SD.anotacaoItens(copia.id)).toEqual({ visiveis: [expect.objectContaining({ id: minha })], ocultos: 0 });
+    entrarComo('u-master');
+    expect((await SD.anotacaoItens(id)).visiveis.map(i => i.id)).toEqual([minha, alheia]);
   });
 
   it('dada a anotação de quem é participante, quando liga uma demanda que ele não vê, então é recusado; e o item que não vê conta como oculto', async () => {

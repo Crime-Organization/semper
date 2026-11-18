@@ -4,7 +4,8 @@ import { TAMANHO_ANOTACAO } from '../dados/limites';
 import type { Anotacao, Membro } from '../dados/tipos';
 import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
-  camposDaAnotacao, dadosDaAnotacao, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO, veAAnotacao, type CamposAnotacao, type ChavesDaEquipe
+  camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
+  SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, type CamposAnotacao, type ChavesDaEquipe
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
@@ -217,5 +218,91 @@ describe('Sair da anotação (#303, padrão da #276)', () => {
   ] as const)('dado %s, quando confere se grava fora da anotação, então dá %s', (_caso, ctx, criou, esperado) => {
     // Então
     expect(gravaForaDaAnotacao(ctx, criou)).toBe(esperado);
+  });
+});
+
+describe('A cópia da anotação (#343)', () => {
+  const equipe = [{ id: 'u-ana' }, { id: 'u-bruno', ativo: true }, { id: 'u-carla' }, { id: 'u-dani' }, { id: 'u-desativado', ativo: false },
+    { id: 'u-excluido', excluido: true }];
+  const quem = (id: string, alteraAOriginal: boolean) => ({ id, alteraAOriginal, equipe });
+
+  it('dado um título curto, quando duplica, então a cópia tem "(cópia)" no fim', () => {
+    // Dado / Quando / Então
+    expect(tituloDaCopia('  Estratégia do caso  ')).toBe('Estratégia do caso (cópia)');
+  });
+
+  it('dado um título no tamanho máximo, quando duplica, então a original é cortada antes do sufixo e a cópia cabe no banco', () => {
+    // Dado
+    const titulo = 'x'.repeat(TAMANHO_ANOTACAO.titulo);
+    // Quando
+    const copia = tituloDaCopia(titulo);
+    // Então
+    expect(copia).toHaveLength(TAMANHO_ANOTACAO.titulo);
+    expect(copia).toBe('x'.repeat(TAMANHO_ANOTACAO.titulo - SUFIXO_DA_COPIA.length) + SUFIXO_DA_COPIA);
+  });
+
+  it('dado um título longo com espaço ou emoji bem no corte, quando duplica, então nem o espaço nem meio emoji ficam antes do sufixo', () => {
+    // Dado
+    const corte = TAMANHO_ANOTACAO.titulo - SUFIXO_DA_COPIA.length;
+    const comEspaco = 'x'.repeat(corte - 1) + ' resto';
+    const comEmoji = 'x'.repeat(corte - 1) + '😀 resto';   // o emoji ocupa duas posições: só a primeira caberia
+    // Quando / Então
+    expect(tituloDaCopia(comEspaco)).toBe('x'.repeat(corte - 1) + SUFIXO_DA_COPIA);
+    expect(tituloDaCopia(comEmoji)).toBe('x'.repeat(corte - 1) + SUFIXO_DA_COPIA);
+  });
+
+  it('dado um título longo com bandeira ou emoji de família bem no corte, quando duplica, então nenhum pedaço deles fica antes do sufixo', () => {
+    // Dado
+    const corte = TAMANHO_ANOTACAO.titulo - SUFIXO_DA_COPIA.length;
+    const comBandeira = 'x'.repeat(corte - 2) + '🇧🇷 resto';   // a bandeira são duas letras regionais (quatro posições): só a primeira caberia
+    const comFamilia = 'x'.repeat(corte - 3) + '👨‍👩‍👧 resto';   // o homem e o ZWJ que o junta ao resto caberiam
+    const comTom = 'x'.repeat(corte - 2) + '👍🏽 resto';   // a mão caberia, sem o tom de pele
+    // Quando / Então
+    expect(tituloDaCopia(comBandeira)).toBe('x'.repeat(corte - 2) + SUFIXO_DA_COPIA);
+    expect(tituloDaCopia(comFamilia)).toBe('x'.repeat(corte - 3) + SUFIXO_DA_COPIA);
+    expect(tituloDaCopia(comTom)).toBe('x'.repeat(corte - 2) + SUFIXO_DA_COPIA);
+  });
+
+  it('dado um título longo com bandeira inteira antes do corte, quando duplica, então a bandeira fica', () => {
+    // Dado
+    const corte = TAMANHO_ANOTACAO.titulo - SUFIXO_DA_COPIA.length;
+    const titulo = 'x'.repeat(corte - 4) + '🇧🇷 resto';
+    // Quando / Então
+    expect(tituloDaCopia(titulo)).toBe('x'.repeat(corte - 4) + '🇧🇷' + SUFIXO_DA_COPIA);
+  });
+
+  it('dado quem altera a original, quando duplica, então a cópia leva o mesmo texto, o mesmo responsável e os mesmos participantes', () => {
+    // Dado
+    const a = anotacao({ texto: '# Plano', participantes: ['u-carla', 'u-dani'] });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-dani', true))).toEqual({ titulo: 'Estratégia (cópia)', texto: '# Plano', responsavel_id: 'u-ana', participantes: ['u-carla', 'u-dani'] });
+  });
+
+  it('dado quem só lê a original, quando duplica, então ela é a responsável da cópia, e os participantes continuam', () => {
+    // Dado
+    const a = anotacao({ participantes: ['u-carla', 'u-bruno'] });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-bruno', false))).toMatchObject({ responsavel_id: 'u-bruno', participantes: ['u-carla'] });
+  });
+
+  it('dado um responsável e um participante que saíram da equipe, quando duplica, então quem copia fica responsável e o participante fica de fora', () => {
+    // Dado
+    const a = anotacao({ responsavel_id: 'u-saiu', participantes: ['u-carla', 'u-saiu-tambem'] });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-dani', true))).toMatchObject({ responsavel_id: 'u-dani', participantes: ['u-carla'] });
+  });
+
+  it('dado um responsável desativado e um participante excluído da equipe, quando duplica, então nenhum dos dois vai para a cópia', () => {
+    // Dado
+    const a = anotacao({ responsavel_id: 'u-desativado', participantes: ['u-excluido', 'u-carla', 'u-desativado'] });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-dani', true))).toMatchObject({ responsavel_id: 'u-dani', participantes: ['u-carla'] });
+  });
+
+  it('dado um participante desativado e um responsável excluído, quando quem altera duplica, então quem copia fica responsável e o desativado fica de fora', () => {
+    // Dado
+    const a = anotacao({ responsavel_id: 'u-excluido', participantes: ['u-desativado', 'u-bruno'] });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-ana', true))).toMatchObject({ responsavel_id: 'u-ana', participantes: ['u-bruno'] });
   });
 });

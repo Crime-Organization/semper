@@ -428,3 +428,82 @@ test.describe('Baixar a anotação em .md (#345)', () => {
     expect(conteudo).toContain('\n# Estratégia da marca\n\nPedir o registro.');
   });
 });
+
+test.describe('Duplicar a anotação (#343)', () => {
+  test('dada uma anotação ligada a dois itens e já alterada, quando a pessoa usa "Duplicar", então abre a cópia com "(cópia)" no título, o mesmo texto, os dois itens e histórico próprio, e a original continua igual', async ({ page }) => {
+    // Dado: uma anotação ligada a uma demanda e a uma pessoa, com uma caixinha marcada (uma alteração no histórico)
+    await page.goto('/inicio/');
+    const demanda = await idDaDemanda(page, 'Registro de marca');
+    let cartao = await criarAnotacao(page, 'Plano da audiência', { texto: 'Levar:\n- [ ] A **procuração**', endereco: '/documentos/nova/?demanda=' + demanda });
+    await abrirSecao(cartao, 'Ligada a');
+    await cartao.getByRole('button', { name: 'Ligar a outro item' }).click();
+    await cartao.getByRole('textbox', { name: 'Buscar item para ligar' }).fill('josé da silva');
+    await cartao.getByRole('button', { name: /JOSÉ DA SILVA TESTE/ }).click();
+    await expect(cartao.getByRole('list', { name: 'Itens ligados' }).getByRole('link')).toHaveCount(2);
+    await cartao.getByRole('checkbox', { name: /procuração/ }).click();
+    await expect(page.getByText('Anotação atualizada.')).toBeVisible();
+    const historico = (c: typeof cartao) => c.getByRole('button', { name: /^Histórico de alterações/ });
+    await expect(historico(cartao)).toHaveText(/^Histórico de alterações\s*1$/);
+    // Quando
+    await cartao.getByRole('button', { name: 'Duplicar' }).click();
+    // Então: o aviso diz de qual para qual, e abre o cartão da cópia, com o texto gravado e sem histórico
+    const aviso = page.getByText(/Anotação \w+ duplicada como \w+\./);
+    await expect(aviso).toBeVisible();
+    const [, codigoDaOriginal, codigoDaCopia] = /Anotação (\w+) duplicada como (\w+)\./.exec((await aviso.textContent())!)!;
+    expect(codigoDaCopia).not.toBe(codigoDaOriginal);
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Plano da audiência (cópia)', level: 2 })).toBeVisible();
+    await expect(cartao.getByText(codigoDaCopia, { exact: true })).toBeVisible();
+    await expect(cartao.getByText('procuração', { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('checkbox', { name: /procuração/ })).toBeChecked();
+    await expect(historico(cartao)).toHaveText(/^Histórico de alterações\s*0$/);
+    await abrirSecao(cartao, 'Ligada a');
+    let ligados = cartao.getByRole('list', { name: 'Itens ligados' });
+    await expect(ligados.getByRole('link')).toHaveCount(2);
+    await expect(ligados.getByRole('link', { name: /Registro de marca/ })).toBeVisible();
+    await expect(ligados.getByRole('link', { name: /JOSÉ DA SILVA TESTE/ })).toBeVisible();
+    // E a original continua igual, com o código e o histórico dela
+    await page.goto('/documentos/');
+    await expect(titulosNaTabela(page).filter({ hasText: 'Plano da audiência' })).toHaveCount(2);
+    await titulosNaTabela(page).filter({ hasText: 'Plano da audiência' }).filter({ hasNotText: '(cópia)' }).click();
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Plano da audiência', exact: true, level: 2 })).toBeVisible();
+    await expect(cartao.getByText(codigoDaOriginal, { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('checkbox', { name: /procuração/ })).toBeChecked();
+    await abrirSecao(cartao, 'Ligada a');
+    ligados = cartao.getByRole('list', { name: 'Itens ligados' });
+    await expect(ligados.getByRole('link')).toHaveCount(2);
+    await expect(historico(cartao)).toHaveText(/^Histórico de alterações\s*1$/);
+  });
+
+  test('dada uma anotação que a pessoa só lê, ligada a um item que ela não vê, quando duplica, então a cópia é dela e leva só o item que ela vê', async ({ page }) => {
+    // Dado: o Mateus liga a anotação à demanda em que o Bruno está e a outra, em que ele não está
+    await page.goto('/inicio/');
+    const demanda = await idDaDemanda(page, 'Registro de marca');
+    let cartao = await criarAnotacao(page, 'Roteiro do registro', { texto: 'Conferir a classe.', endereco: '/documentos/nova/?demanda=' + demanda });
+    await abrirSecao(cartao, 'Ligada a');
+    await cartao.getByRole('button', { name: 'Ligar a outro item' }).click();
+    await cartao.getByRole('combobox', { name: 'Tipo de item' }).selectOption('demandas');
+    await cartao.getByRole('textbox', { name: 'Buscar item para ligar' }).fill('busca de anterioridade');
+    await cartao.getByRole('button', { name: /Busca de anterioridade/ }).click();
+    await expect(cartao.getByRole('list', { name: 'Itens ligados' }).getByRole('link')).toHaveCount(2);
+    await entrarComo(page, 'u-bruno');
+    cartao = await abrirAnotacao(page, 'Roteiro do registro');
+    await abrirSecao(cartao, 'Ligada a');
+    await expect(cartao.getByText('Há 1 item ligado aqui que você não tem acesso para abrir.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('button', { name: 'Duplicar' }).click();
+    // Então: a cópia abre, o Bruno pode mudá-la, é o responsável e só a demanda dele foi junto
+    await expect(page.getByText(/Anotação \w+ duplicada como \w+\./)).toBeVisible();
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Roteiro do registro (cópia)', level: 2 })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, Responsável$/ })).toHaveAccessibleName(/^Bruno/);
+    await abrirSecao(cartao, 'Ligada a');
+    const ligados = cartao.getByRole('list', { name: 'Itens ligados' });
+    await expect(ligados.getByRole('link')).toHaveCount(1);
+    await expect(ligados.getByRole('link', { name: /Registro de marca/ })).toBeVisible();
+    await expect(cartao.getByText(/que você não tem acesso para abrir/)).toHaveCount(0);
+  });
+});

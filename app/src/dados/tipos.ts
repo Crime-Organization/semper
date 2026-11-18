@@ -1292,6 +1292,12 @@ export interface DadosAnotacoes {
   anotacaoObter(id: string): Promise<Anotacao | null>;
   /** "ligarA": o item em cujo cartão a anotação nasceu; se a ligação falhar, nada fica gravado. */
   anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: { modulo: ModuloDaAnotacao; id: string }): Promise<{ id: string; codigo: string }>;
+  /**
+   * Duplica a anotação (#343): cria a cópia com estes dados (o que ela leva vem de dadosDaCopia, em regras/anotacao.ts) e liga a
+   * ela os itens da original que quem duplica vê, na mesma ordem; os que não vê ficam de fora. A cópia tem código e histórico
+   * próprios, e a original não muda. Se uma ligação falhar, a cópia é excluída e nada fica gravado.
+   */
+  anotacaoDuplicar(id: string, dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>): Promise<{ id: string; codigo: string }>;
   anotacaoAtualizar(id: string, dados: DadosAnotacao): Promise<{ id: string; codigo: string }>;
   anotacoesArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só anotações arquivadas são excluídas (por quem criou ou um administrador). */

@@ -16,7 +16,9 @@ export const FUNCOES: Record<Funcao, string> = { advogado: 'Advogado', administr
 export const FUNCAO_INICIAL: Funcao = 'advogado';
 
 const funcaoDe = (m: Membro) => m.funcao ?? FUNCAO_INICIAL;
-const ativo = (m: Membro) => m.ativo !== false;
+const ativo = (m: Pick<Membro, 'ativo'>) => m.ativo !== false;
+/** Quem está ativo na equipe e não foi excluído: só essa pessoa pode ser responsável ou participante de um item novo. */
+export const ativoNaEquipe = (m: Pick<Membro, 'ativo' | 'excluido'>) => ativo(m) && !m.excluido;
 
 /** Quem consta nos contratos: quem está ativo e quem tem conta reservada, que não entra no sistema mas faz parte da equipe. Quem foi excluído, não. */
 const constaNosContratos = (m: Membro) => !m.excluido && (ativo(m) || !!m.reservada);

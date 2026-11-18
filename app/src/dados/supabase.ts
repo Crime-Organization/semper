@@ -1125,6 +1125,21 @@ export const SD: Dados = {
     }
     return data;
   },
+  async anotacaoDuplicar(id, dados) {
+    // Só os itens que quem duplica vê: a regra de leitura do banco já deixa os outros de fora.
+    if (!await SD.anotacaoObter(id)) throw new Error(NAO_MUDOU);
+    const [primeiro, ...resto] = (await SD.anotacaoItens(id)).visiveis;
+    const copia = await SD.anotacaoCriar(dados, primeiro && { modulo: primeiro.modulo, id: primeiro.id });
+    try {
+      // Uma de cada vez, para a cópia guardar a ordem em que os itens foram ligados na original.
+      for (const i of resto) await SD.anotacaoLigar(copia.id, i.modulo, i.id);
+    } catch (e) {
+      // Sem uma transação só: a cópia que ficou pela metade sai (quem a criou arquiva e exclui), como em anotacaoCriar.
+      await SD.anotacoesArquivar([copia.id]).then(() => SD.anotacoesExcluir([copia.id])).catch(() => undefined);
+      throw e;
+    }
+    return copia;
+  },
   async anotacaoAtualizar(id, dados) {
     // Quem só vê a anotação pelo item ligado não altera: nenhuma linha muda, sem erro do banco.
     const { data } = await rodar(sb.from('anotacoes').update(dados).eq('id', id).select('id, codigo').maybeSingle());

@@ -5,6 +5,7 @@ import type { Anotacao, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAno
 import { TAMANHO_ANOTACAO } from '../dados/limites';
 import { TIPOS_COMPROMISSO } from './compromisso';
 import { clientesPorExtenso } from './contrato';
+import { ativoNaEquipe } from './equipe';
 import { fmtData } from './pessoa';
 import { equipeVeTudo } from './equipeVeTudo';
 import { TIPOS_PROCESSO } from './processo';
@@ -152,4 +153,45 @@ export function semSairDaAnotacao<D extends DadosAnotacao>(d: D, eu: string, pod
   const participantes = d.participantes ?? [];
   const r = pessoasAoGravar(participantes, d.responsavel_id, eu, antes, podeSair);
   return { dados: r.lista === participantes ? d : { ...d, participantes: r.lista }, ficou: r.ficou };
+}
+
+// ---------- a cópia (#343) ----------
+/** O que vai no fim do título da cópia. */
+export const SUFIXO_DA_COPIA = ' (cópia)';
+/** Separa o texto no que a pessoa vê como um caractere só: letra com acento, emoji, bandeira, emoji de família, tom de pele. */
+const GRAFEMAS = new Intl.Segmenter('pt-BR', { granularity: 'grapheme' });
+/**
+ * O título da cópia: o da original com " (cópia)" no fim. Se não couber no tamanho do banco, a original é cortada antes do
+ * sufixo, sem partir nenhum caractere ao meio (nem emoji, bandeira ou emoji de família) e sem deixar espaço antes dele.
+ */
+export function tituloDaCopia(titulo: string) {
+  const cabe = TAMANHO_ANOTACAO.titulo - SUFIXO_DA_COPIA.length;
+  let base = '';
+  for (const { segment } of GRAFEMAS.segment(titulo.trim())) {
+    if (base.length + segment.length > cabe) break;
+    base += segment;
+  }
+  return base.trimEnd() + SUFIXO_DA_COPIA;
+}
+/** Quem duplica: quem é, o que pode na anotação original e a equipe do escritório. */
+export interface QuemCopia {
+  id: string;
+  /** Altera a original (veja alteraAAnotacao): aí escolhe o responsável, e a cópia fica com o mesmo. */
+  alteraAOriginal: boolean;
+  /** A equipe do escritório: só quem está ativo nela (veja ativoNaEquipe) vai como responsável ou participante da cópia. */
+  equipe: Pick<Membro, 'id' | 'ativo' | 'excluido'>[];
+}
+/**
+ * O que a cópia grava, num lugar só: o título com " (cópia)", o mesmo texto, o mesmo responsável e os mesmos participantes.
+ * A cópia é de quem a faz (ela é a autora). Quem só lê a original não escolhe o responsável dela: a cópia fica com ela mesma.
+ * Responsável ou participante que saiu da equipe não vai para a cópia (no lugar do responsável, fica quem copia). As ligações
+ * são copiadas pelo banco (SD.anotacaoDuplicar). Pasta e etiquetas (#342), quando existirem, entram aqui.
+ */
+export function dadosDaCopia(a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>, quem: QuemCopia) {
+  const ativo = (id: string) => quem.equipe.some(m => m.id === id && ativoNaEquipe(m));
+  const responsavel_id = quem.alteraAOriginal && ativo(a.responsavel_id) ? a.responsavel_id : quem.id;
+  return {
+    titulo: tituloDaCopia(a.titulo), texto: a.texto, responsavel_id,
+    participantes: a.participantes.filter(p => p !== responsavel_id && ativo(p))
+  };
 }

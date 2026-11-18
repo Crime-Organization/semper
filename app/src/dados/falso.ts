@@ -2741,6 +2741,20 @@ export const SD: Dados = {
     auditar('anotacoes', 'inclusao', { id: a.id, codigo: a.codigo }); gravar();
     return espera({ id: a.id, codigo: a.codigo });
   },
+  async anotacaoDuplicar(id, dados) {
+    // Como em supabase.ts: só os itens que quem duplica vê, na ordem da original.
+    if (!bd.anotacoes!.some(x => x.id === id && vejoAnotacao(x))) return erro(SEM_PERMISSAO);
+    const [primeiro, ...resto] = (await SD.anotacaoItens(id)).visiveis;
+    const copia = await SD.anotacaoCriar(dados, primeiro && { modulo: primeiro.modulo, id: primeiro.id });
+    try {
+      for (const i of resto) await SD.anotacaoLigar(copia.id, i.modulo, i.id);
+    } catch (e) {
+      // Se uma ligação falha, a cópia sai inteira (como em supabase.ts).
+      apagarAnotacao(bd.anotacoes!.find(x => x.id === copia.id)!); gravar();
+      throw e;
+    }
+    return copia;
+  },
   async anotacaoAtualizar(id, dados) {
     // Como a regra de alterar do banco: quem não altera (ou nem vê) não muda nada.
     const a = bd.anotacoes!.find(x => x.id === id);
