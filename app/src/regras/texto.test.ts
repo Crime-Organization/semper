@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { normal, sugestoesQueCombinam } from './texto';
+import { normal, semAcento, sugestoesQueCombinam } from './texto';
 
 describe('Busca sem acento', () => {
   it.each([
@@ -13,6 +13,13 @@ describe('Busca sem acento', () => {
     const comparavel = normal(texto);
     // Então
     expect(comparavel).toBe(esperado);
+  });
+
+  it('dado um texto com espaços nas pontas, quando só se tiram os acentos, então os espaços ficam e cada letra continua no lugar', () => {
+    // Quando
+    const comparavel = semAcento(' Ação ');
+    // Então
+    expect(comparavel).toBe(' acao ');
   });
 });
 

@@ -210,3 +210,14 @@ export const ITENS_PARA_LIGAR = 8;
 // ---------- Pastas dos documentos (#342) ----------
 /** Nome de uma pasta dos documentos (exigido pelo banco: supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql). */
 export const TAMANHO_PASTA = 80;
+
+// ---------- Busca geral (#321) ----------
+/** Quantos itens de cada módulo a busca geral mostra; o resto fica em "Ver todos em <módulo>", que abre a página com a busca. */
+export const BUSCA_GERAL_POR_MODULO = 5;
+/**
+ * Quantos itens de cada módulo a busca geral traz para escolher os que mostra: entre eles, o exato e os que começam com o termo
+ * sobem (o nome inteiro de uma pessoa acha a pessoa, mesmo com mais de BUSCA_GERAL_POR_MODULO cadastros mais novos que o contêm).
+ */
+export const BUSCA_GERAL_CANDIDATOS = 25;
+/** Quantas letras ou números é preciso digitar para a busca geral começar (com menos, quase tudo combinaria). */
+export const BUSCA_GERAL_MINIMO = 2;

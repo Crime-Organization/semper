@@ -113,7 +113,7 @@ test.describe('Conferência dos lançamentos', () => {
     await expect(page.getByText('Nenhuma linha com esse filtro.')).toBeVisible();
     // Quando
     await page.getByLabel('Situação', { exact: true }).selectOption({ label: 'A conferir' });
-    await page.getByLabel('Buscar').fill('sem entrada');
+    await page.getByRole('searchbox', { name: 'Buscar' }).fill('sem entrada');
     // Então
     await expect(linhas(page).getByRole('row', { name: /CLIENTE SEM ENTRADA/ })).toBeVisible();
     await expect(linhas(page).getByRole('row', { name: /CLIENTE QUE CONFERE/ })).toHaveCount(0);

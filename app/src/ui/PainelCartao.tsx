@@ -17,6 +17,7 @@ import { avisar } from './avisos';
 import { Icone, type NomeIcone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { GrupoDeSecoes } from './Recolhivel';
+import { travarRolagem } from './rolagem';
 
 type FormatoCartao = 'lado' | 'centro';
 /** Em cada formato, o botão oferece o outro. */
@@ -97,7 +98,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
   const [travar] = useState(() => (motivo: string | null) => { trava.current = motivo; });
   const pedirParaFechar = () => tentarFechar(trava.current, fechar.current);
   useEffect(() => {
-    document.body.classList.add('sem-rolagem');
+    const soltarRolagem = travarRolagem();
     // O foco vai ao painel, a não ser que a tela de dentro já o tenha posto num campo dela (o título da anotação nova, #339).
     const r = requestAnimationFrame(() => {
       setOn(true);
@@ -105,7 +106,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
     });
     const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !document.querySelector('.veu-janela')) tentarFechar(trava.current, fechar.current); };
     document.addEventListener('keydown', tecla);
-    return () => { cancelAnimationFrame(r); document.removeEventListener('keydown', tecla); document.body.classList.remove('sem-rolagem'); };
+    return () => { cancelAnimationFrame(r); document.removeEventListener('keydown', tecla); soltarRolagem(); };
   }, []);
   function trocarFormato() {
     const outro = FORMATOS[formato].outro;

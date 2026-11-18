@@ -1,0 +1,5 @@
+{
+  "titulo": "Busca geral: ache qualquer coisa de qualquer página",
+  "texto": "Uma janela só busca em pessoas, processos, contratos, demandas, tarefas, compromissos e anotações de uma vez, pelo nome, pelo CPF ou CNPJ, pelo número do processo (com ou sem pontuação) ou pelo código do item. Os resultados vêm separados por módulo, com filtros por módulo e por data; as setas andam pela lista e o Enter abre o cartão. Aparece só o que você já pode ver em cada módulo.",
+  "ondeAchar": "No botão Buscar, no alto do menu lateral (no celular, a lupa na barra do topo), ou com Ctrl+K (Cmd+K no Mac) em qualquer página. A busca de cada página continua como era."
+}

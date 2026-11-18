@@ -16,7 +16,7 @@ export const pedeNovaAba = (e: Pick<MouseEvent, 'ctrlKey' | 'metaKey'>) => e.ctr
  * Abre o endereço numa aba nova. Sem "noopener" de propósito: assim o navegador leva para a aba nova uma cópia da
  * sessão desta aba (sessionStorage), onde o banco fictício do modo de teste guarda os dados.
  */
-function abrirEmNovaAba(para: string) {
+export function abrirEmNovaAba(para: string) {
   window.open(para, '_blank');
 }
 

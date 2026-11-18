@@ -3,7 +3,9 @@
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
 import { useEffect, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router';
 import type { OrdemComPrazo } from '../dados';
+import { PARAMETRO_DA_BUSCA, PARAMETROS_DO_VER_TODOS } from '../regras/buscaGeral';
 import { Icone, type NomeIcone } from './Icone';
 import { BotaoLink } from './base';
 import { MenuFlutuante } from './Menu';
@@ -53,7 +55,22 @@ interface Props {
 export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], ordem, mais = [], visoes = ['tabela', 'kanban'], visao, aoTrocarVisao, lote, children }: Props) {
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [painel, setPainel] = useState<HTMLElement | null>(null);
-  const [termo, setTermo] = useState('');
+  // A busca pode chegar pelo endereço (/pessoas/?busca=maria): é o "Ver todos em …" da busca geral (#321). Ela entra no
+  // campo ao abrir a página e cada vez que o endereço a traz. Lida, ela sai do endereço (com os outros parâmetros do "Ver todos",
+  // que a página já leu ao desenhar): o campo é o que vale, a busca antiga não volta ao recarregar, e um novo "Ver todos" com o
+  // mesmo termo preenche o campo de novo.
+  const [parametros, setParametros] = useSearchParams();
+  const doEndereco = parametros.get(PARAMETRO_DA_BUSCA);
+  const [termo, setTermo] = useState(doEndereco ?? '');
+  const [enderecoLido, setEnderecoLido] = useState(doEndereco);
+  if (doEndereco !== enderecoLido) {
+    setEnderecoLido(doEndereco);
+    if (doEndereco !== null) setTermo(doEndereco);
+  }
+  useEffect(() => {
+    if (doEndereco === null) return;
+    setParametros(p => { PARAMETROS_DO_VER_TODOS.forEach(k => p.delete(k)); return p; }, { replace: true });
+  }, [doEndereco, setParametros]);
   const atrasado = useAtrasado(termo);
   const aoBuscar = busca?.aoBuscar;
   const [buscado, setBuscado] = useState('');
