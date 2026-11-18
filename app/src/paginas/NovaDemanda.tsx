@@ -3,7 +3,8 @@
 // Vindo do cartão de uma pessoa (?cliente=) ou de um contrato (?contrato=), ela já vem escolhida.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type ContratoLista, type Demanda, type PessoaLista } from '../dados';
+import { SD, type ContratoLista, type DadosDemanda, type Demanda, type PessoaLista } from '../dados';
+import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, TAMANHO_DEMANDA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import {
@@ -170,6 +171,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   }
 
   // ---------- envio ----------
+  /** No lápis do cartão, o título e a descrição ficam de fora: o cartão já os muda no próprio lugar (#346). */
+  const noLapis = (d: DadosDemanda): DadosDemanda => edicao ? semOsCamposDoLugar(d) : d;
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -180,12 +183,12 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       focarErro();
       return;
     }
-    const dados = dadosDaDemanda(c);
+    const dados: DadosDemanda = noLapis(dadosDaDemanda(c));
     setOcupado(true);
     try {
       if (alvo) {
         // Para desfazer: a demanda como estava, no mesmo formato que o cadastro grava.
-        const antes = dadosDaDemanda(camposDaDemanda(alvo));
+        const antes = noLapis(dadosDaDemanda(camposDaDemanda(alvo)));
         const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDaDemanda(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.demandaAtualizar(alvo.id, gravar);
         // Os processos antes de uma eventual saída: depois dela, a pessoa pode não poder mais ligar nem desligar.
@@ -228,14 +231,17 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
 
   const CONTEUDO: Record<EtapaDemanda, () => ReactNode> = {
     demanda: () => <>
-      <Campo rotulo="Título" para="titulo" obrigatorio erro={erros.titulo} dica="O que precisa ser feito. Ex.: Pedido de registro de marca.">
-        <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_DEMANDA.titulo} value={c.titulo}
-          onChange={e => mudar({ titulo: e.target.value })} />
-      </Campo>
-      <Campo rotulo="Descrição" para="descricao" erro={erros.descricao}>
-        <CaixaFormatada {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_DEMANDA.descricao} valor={c.descricao}
-          aoMudar={descricao => mudar({ descricao })} />
-      </Campo>
+      {/* No lápis do cartão, o título e a descrição não se repetem: o cartão os muda no próprio lugar (#346). */}
+      {!edicao && <>
+        <Campo rotulo="Título" para="titulo" obrigatorio erro={erros.titulo} dica="O que precisa ser feito. Ex.: Pedido de registro de marca.">
+          <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_DEMANDA.titulo} value={c.titulo}
+            onChange={e => mudar({ titulo: e.target.value })} />
+        </Campo>
+        <Campo rotulo="Descrição" para="descricao" erro={erros.descricao}>
+          <CaixaFormatada {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_DEMANDA.descricao} valor={c.descricao}
+            aoMudar={descricao => mudar({ descricao })} />
+        </Campo>
+      </>}
       <Campo rotulo="Prazo de entrega" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
           onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />

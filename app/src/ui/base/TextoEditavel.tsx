@@ -2,7 +2,7 @@
 // a caixa de escrever (com a barra de formatação) ali mesmo, com Salvar e Cancelar logo abaixo. Ctrl+Enter salva. O clique num
 // link ou numa caixinha de tarefa faz o que sempre fez (abre o link, marca a caixinha) e não abre a edição, nem o clique que
 // termina escolhendo um trecho para copiar. Pelo teclado, o botão "Mudar o texto" abre a edição. Quem só lê vê o texto
-// formatado, e nada vira campo. Peça comum: a #346 leva o mesmo jeito às descrições dos outros cartões.
+// formatado, e nada vira campo. Peça comum: desde a #346, também nas descrições dos cartões de tarefa e de demanda.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { avisar, falha } from '../avisos';
 import { Icone } from '../Icone';
@@ -36,6 +36,8 @@ interface Props {
   vazio?: ReactNode;
   /** O convite no lugar do texto vazio, para quem pode escrever. */
   convite?: string;
+  /** O nome do botão que abre a edição pelo teclado (ex.: "Mudar a descrição", no cartão da tarefa). */
+  mudar?: string;
   /** A classe do texto formatado (ex.: a medida de leitura da anotação). */
   className?: string;
   /** A classe da caixa de escrever (ex.: a altura da caixa da anotação). */
@@ -45,8 +47,8 @@ interface Props {
 }
 
 export function TextoEditavel({
-  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', className, classeDaCaixa,
-  aoMudarRascunho
+  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', mudar: rotuloDoBotao = 'Mudar o texto', className,
+  classeDaCaixa, aoMudarRascunho
 }: Props) {
   const id = useId();
   const [rascunho, setRascunho] = useState<string | null>(null);
@@ -133,7 +135,7 @@ export function TextoEditavel({
       <TextoFormatado className={className} texto={texto} aoMarcar={aoMarcar} />
     </div>
     <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' }, 'texto-editavel-botao')} onClick={() => mudar(texto)}>
-      <Icone nome="editar" tam={TAMANHO_DO_LAPIS} /> Mudar o texto
+      <Icone nome="editar" tam={TAMANHO_DO_LAPIS} /> {rotuloDoBotao}
     </button>
   </div>;
 }

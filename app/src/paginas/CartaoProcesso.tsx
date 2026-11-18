@@ -1,15 +1,23 @@
 // Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo, o nome
 // e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
 // numa seção que recolhe (prazos, andamentos, dados, clientes, tarefas, histórico).
+// Desde a #346, quem altera o processo muda o nome do cartão no próprio lugar, como na anotação (o lápis não o repete). Sem
+// nome, o título mostra os clientes (ou o número); o campo abre em branco, e apagar o nome volta a mostrá-los. O número
+// abaixo do título não vira campo: muda pelo lápis, com a conferência do CNJ.
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type ComoEntrarNoProcesso, type CampoDeProcesso, type PessoaResumida, type Processo } from '../dados';
+import { TAMANHO_PROCESSO } from '../dados/limites';
+import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
 import { advogadoNaAdaptacao, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
-import { alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, valorLegivelProcesso } from '../regras/processo';
+import {
+  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
+} from '../regras/processo';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
@@ -60,6 +68,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  // O nome do cartão em edição no próprio lugar (#346).
+  const noLugar = useEdicaoNoLugar();
 
   const carregar = useCallback(() => SD.processoObter(id).then(x => { setP(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -123,12 +133,22 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       aoMudar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
+  /** O nome do cartão muda no próprio lugar só por quem altera o processo, e só com ele ativo (como o lápis). */
+  const mudaNoLugar = podeAlterar && !p.arquivado_em;
+  /** Grava o nome mudado no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. Em branco, o nome sai. */
+  const salvarNome = (nome: string) => gravarNoLugar<Pick<Processo, 'titulo'>>({
+    novo: { titulo: tituloOpcionalAoGravar(nome) }, antes: { titulo: p.titulo }, gravar: x => SD.processoAtualizar(p.id, x),
+    aviso: 'Processo atualizado.', oQue: 'atualização do processo', mudanca: { tipo: 'processoAtualizado', id: p.id },
+    mostrar: x => setP(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); void lerCampos(); setVersaoHist(x => x + 1); }
   }
 
   return <>
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo><span className="codigo">{p.codigo}</span>
@@ -136,7 +156,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o processo', aoConfirmar: excluir } : undefined} />}
       </div>
-      <h2>{nomeDoProcesso(p)}</h2>
+      <TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
+        maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
+        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />
       <p className="demanda-descricao">{p.numero}</p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>

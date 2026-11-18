@@ -3,7 +3,8 @@
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type Demanda, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
+import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
+import { SD, type DadosProcesso, type Demanda, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
@@ -240,6 +241,8 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   </Campo>;
 
   // ---------- envio ----------
+  /** No lápis do cartão, o nome do cartão fica de fora: o cartão já o muda no próprio lugar (#346). */
+  const noLapis = (d: DadosProcesso): DadosProcesso => edicao ? semOsCamposDoLugar(d) : d;
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -256,10 +259,10 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     try {
       // Parte do que está guardado agora: alguém pode ter preenchido um campo novo depois que este formulário abriu.
       const guardados = alvo ? (await SD.processoObter(alvo.id))?.campos ?? alvo.campos : {};
-      const dados = { ...dadosDoProcesso(c), campos: valoresParaGravar(camposDoEscritorio, c.tipo, c.extras, guardados) };
+      const dados = { ...noLapis(dadosDoProcesso(c)), campos: valoresParaGravar(camposDoEscritorio, c.tipo, c.extras, guardados) };
       if (alvo) {
         // Para desfazer: o processo como estava, no mesmo formato que o cadastro grava.
-        const antes = dadosDoProcesso(camposDoProcesso(alvo));
+        const antes = noLapis(dadosDoProcesso(camposDoProcesso(alvo)));
         const eu = ctx.perfil.id, { dados: gravar, ficou } = semSairDoProcesso(dados, eu, gravaForaDoCartao(ctx, alvo.criado_por === eu), { responsavel_id: alvo.responsavel_id, lista: alvo.colaboradores });
         await SD.processoAtualizar(alvo.id, gravar);
         if (ficou) {
@@ -322,10 +325,11 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         <CampoComSugestoes type="text" {...propsDoCampo('orgao', { dica: true, erro: erros.orgao })} maxLength={TAMANHO_PROCESSO.orgao} valor={c.orgao}
           aoMudar={orgao => mudar({ orgao: orgao.toUpperCase() })} sugestoes={emSugestoes(siglas)} />
       </Campo>
-      <Campo rotulo="Nome do cartão" para="titulo" erro={erros.titulo} dica="Opcional. Sem ele, o cartão mostra o nome dos clientes.">
+      {/* No lápis do cartão, o nome não se repete: o cartão o muda no próprio lugar (#346). */}
+      {!edicao && <Campo rotulo="Nome do cartão" para="titulo" erro={erros.titulo} dica="Opcional. Sem ele, o cartão mostra o nome dos clientes.">
         <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_PROCESSO.titulo} value={c.titulo}
           onChange={e => mudar({ titulo: e.target.value })} />
-      </Campo>
+      </Campo>}
     </>,
     pessoas: () => <>
       <div className={'pergunta' + (erros.clientes ? ' erro' : '')} role="group" aria-label="Clientes">

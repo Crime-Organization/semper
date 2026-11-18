@@ -3,7 +3,7 @@
 // fictício: "Reunião de equipe" hoje às 09:00 (Agenda geral), a audiência do processo de JOSÉ DA SILVA TESTE amanhã às 14:00,
 // e as tarefas "Renovar a procuração" (prazo ontem) e "Emitir a GRU" (prazo em dois dias). Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirSecao, entrarComo } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 const HOJE = '04/11/2026';
@@ -338,6 +338,7 @@ test.describe('Quadro e cartão', () => {
     await expect(cartao.getByText('Ainda sem resultado.')).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Editar' }).click();
+    await expect(cartao.getByLabel('Data')).toBeFocused();   // o lápis já pôs o foco no primeiro campo
     await cartao.getByLabel('Resultado').fill('Acordo homologado');
     await cartao.getByRole('button', { name: 'Salvar' }).click();
     // Então
@@ -372,5 +373,129 @@ test.describe('Quadro e cartão', () => {
     await cartao.getByRole('button', { name: 'Comentar' }).click();
     // Então
     await expect(cartao.getByText('Levar a pauta')).toBeVisible();
+  });
+});
+
+test.describe('Título no próprio lugar (#346)', () => {
+  /** Abre o cartão de um compromisso pela tabela da agenda. */
+  async function abrirCompromisso(page: Page, nome: string) {
+    await page.goto('/agenda/');
+    await visao(page, 'Tabela');
+    await page.getByRole('row').filter({ hasText: nome }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: nome, level: 2 })).toBeVisible();
+    return cartao;
+  }
+
+  test('dado um compromisso que a pessoa pode mudar, quando clica no título, muda e aperta Enter, então o título fica gravado ao fechar e abrir o cartão', async ({ page }) => {
+    // Dado
+    let cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    // Quando
+    await cartao.getByRole('button', { name: 'Reunião de equipe', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    await expect(campo).toHaveValue('Reunião de equipe');
+    await campo.fill('Reunião de equipe semanal');
+    await campo.press('Enter');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Compromisso atualizado.' })).toBeVisible();
+    await expect(cartao.getByRole('heading', { name: 'Reunião de equipe semanal', level: 2 })).toBeVisible();
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirCompromisso(page, 'Reunião de equipe semanal');
+    await expect(cartao.getByRole('heading', { name: 'Reunião de equipe semanal', level: 2 })).toBeVisible();
+  });
+
+  test('dada uma reunião, quando a pessoa apaga o título e aperta Enter, então o erro aparece; e Esc desfaz, sem fechar o cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    await cartao.getByRole('button', { name: 'Reunião de equipe', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    // Quando
+    await campo.fill('');
+    await campo.press('Enter');
+    // Então
+    await expect(page.getByText('Dê um título ao compromisso.')).toBeVisible();
+    await expect(campo).toBeVisible();
+    // Quando
+    await campo.press('Escape');
+    // Então
+    await expect(campo).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Reunião de equipe', level: 2 })).toBeVisible();
+  });
+
+  test('dada uma audiência sem título, quando a pessoa clica no título, então o campo abre em branco, e o título escrito fica no cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCompromisso(page, AUDIENCIA);
+    // Quando
+    await cartao.getByRole('button', { name: AUDIENCIA, exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    // Então
+    await expect(campo).toHaveValue('');
+    await expect(campo).toHaveAttribute('placeholder', AUDIENCIA);
+    // Quando
+    await campo.fill('Audiência de conciliação');
+    await campo.press('Enter');
+    // Então
+    await expect(cartao.getByRole('heading', { name: 'Audiência de conciliação', level: 2 })).toBeVisible();
+  });
+
+  test('dado o lápis do compromisso, quando a pessoa o usa, então o formulário não repete o título; só o pede se o tipo novo exige um e não há', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCompromisso(page, AUDIENCIA);
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar compromisso' });
+    // Então
+    await expect(edicao.getByLabel('Data')).toBeVisible();
+    await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    // Quando: a audiência sem título vira reunião, que precisa de um
+    await edicao.getByRole('group', { name: 'Tipo' }).getByText('Reunião', { exact: true }).click();
+    // Então
+    await expect(edicao.getByRole('textbox', { name: 'Título' })).toBeVisible();
+  });
+
+  test('dado o lápis aberto, quando o título muda no próprio lugar, então o lápis decide pelo título de agora', async ({ page }) => {
+    // Dado: o lápis da audiência sem título está aberto
+    const cartao = await abrirCompromisso(page, AUDIENCIA);
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar compromisso' });
+    const tipo = edicao.getByRole('group', { name: 'Tipo' });
+    await expect(edicao.getByLabel('Data')).toBeFocused();   // o lápis já pôs o foco no primeiro campo
+    // Quando: o título é dado no topo, e a audiência vira reunião
+    await cartao.getByRole('button', { name: AUDIENCIA, exact: true }).click();
+    await cartao.getByRole('textbox', { name: 'Título' }).fill('Conversa com o cliente');
+    await cartao.getByRole('textbox', { name: 'Título' }).press('Enter');
+    await expect(cartao.getByRole('heading', { name: 'Conversa com o cliente', level: 2 })).toBeVisible();
+    await tipo.getByText('Reunião', { exact: true }).click();
+    // Então: o título já existe, e o lápis não o pede
+    await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    // Quando: de volta a audiência, o título é apagado no topo, e ela vira reunião de novo
+    await tipo.getByText('Audiência', { exact: true }).click();
+    await cartao.getByRole('button', { name: 'Conversa com o cliente', exact: true }).click();
+    await cartao.getByRole('textbox', { name: 'Título' }).fill('');
+    await cartao.getByRole('textbox', { name: 'Título' }).press('Enter');
+    await expect(cartao.getByRole('heading', { name: AUDIENCIA, level: 2 })).toBeVisible();
+    await tipo.getByText('Reunião', { exact: true }).click();
+    await edicao.getByRole('button', { name: 'Salvar' }).click();
+    // Então: o lápis pede o título que agora falta, em vez de gravar a reunião sem nome
+    await expect(edicao.getByText('Dê um título ao compromisso.')).toBeVisible();
+    // Quando
+    await edicao.getByRole('textbox', { name: 'Título' }).fill('Reunião com o cliente');
+    await edicao.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(cartao.getByRole('heading', { name: 'Reunião com o cliente', level: 2 })).toBeVisible();
+    await expect(edicao).toHaveCount(0);
+  });
+
+  test('dado um compromisso que a pessoa só vê pela Agenda geral, quando clica no título, então nada vira campo', async ({ page }) => {
+    // Dado: o Bruno não está na "Reunião de equipe", que está na Agenda geral
+    await page.goto('/inicio/');
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    await expect(cartao.getByText('Você vê este compromisso porque ele está na Agenda geral.', { exact: false })).toBeVisible();
+    // Quando
+    await cartao.getByRole('heading', { name: 'Reunião de equipe', level: 2 }).click();
+    // Então
+    await expect(cartao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Reunião de equipe', exact: true })).toHaveCount(0);
   });
 });

@@ -259,19 +259,161 @@ test.describe('Editar no cartão', () => {
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
   });
 
-  test('quando o título fica vazio, então salvar mostra o erro e continua editando; cancelar deixa como estava', async ({ page }) => {
+  // Desde a #346, o título se muda no próprio lugar, e não mais pelo lápis: o título em branco é recusado ali mesmo.
+  test('quando a pessoa apaga o título no próprio lugar e aperta Enter, então o erro aparece e o campo continua aberto; Esc deixa como estava', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    // Quando
+    await campo.fill('');
+    await campo.press('Enter');
+    // Então
+    await expect(page.getByText('Dê um título à tarefa.')).toBeVisible();
+    await expect(campo).toBeFocused();
+    // Quando
+    await campo.press('Escape');
+    // Então
+    await expect(campo).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
+  });
+});
+
+test.describe('Título e descrição no próprio lugar (#346)', () => {
+  test('dada uma tarefa que a pessoa pode alterar, quando clica no título, muda e aperta Enter, então o título muda ali mesmo e continua assim ao fechar e abrir o cartão', async ({ page }) => {
+    // Dado
+    let cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
+    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    // Então: o título vira campo ali mesmo, com o texto dele, e não há outro título
+    await expect(campo).toBeFocused();
+    await expect(campo).toHaveValue('Renovar a procuração');
+    await expect(cartao.getByRole('heading', { level: 2 })).toHaveCount(1);
+    // Quando
+    await campo.fill('Renovar a procuração do José');
+    await campo.press('Enter');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração do José', level: 2 })).toBeVisible();
+    await expect(cartao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    // E continua assim ao fechar e abrir o cartão
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirTarefa(page, 'Renovar a procuração do José', 'Histórico de alterações');
+    await expect(cartao.getByText(/Título:/).first()).toBeVisible();
+  });
+
+  test('dado o título em edição, quando a pessoa clica fora, então salva; e quando aperta Esc, então desfaz, sem fechar o cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    // Quando: Esc
+    await campo.fill('Título que não fica');
+    await campo.press('Escape');
+    // Então
+    await expect(campo).toHaveCount(0);
+    await expect(cartao).toBeVisible();
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
+    await expect(page.getByText('Tarefa atualizada.')).toHaveCount(0);
+    // Quando: clica fora
+    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
+    await campo.fill('Renovar a procuração já');
+    await cartao.getByRole('heading', { name: 'Situação', level: 3 }).click();
+    // Então
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração já', level: 2 })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
+  });
+
+  test('dada uma tarefa que a pessoa pode alterar, quando clica na descrição, então ela vira a caixa de texto formatado ali mesmo, com Salvar e Cancelar, e o salvo continua ao reabrir', async ({ page }) => {
+    // Dado: "Renovar a procuração" tem a descrição "A procuração vence este mês."
+    let cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
+    await cartao.getByText('A procuração vence este mês.').click();
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    // Então
+    await expect(caixa).toBeFocused();
+    await expect(caixa).toHaveValue('A procuração vence este mês.');
+    await expect(cartao.getByRole('button', { name: 'Negrito (Ctrl+B)' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+    // Quando: Cancelar desfaz
+    await caixa.fill('Texto que não fica');
+    await cartao.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
+    // Quando: Salvar grava
+    await cartao.getByRole('button', { name: 'Mudar a descrição' }).click();
+    await caixa.fill('A procuração vence **este mês**.');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
+    await expect(cartao.locator('strong', { hasText: 'este mês' })).toBeVisible();
+    // E continua assim ao fechar e abrir o cartão
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await expect(cartao.locator('strong', { hasText: 'este mês' })).toBeVisible();
+    await expect(cartao.getByText('**este mês**')).toHaveCount(0);
+  });
+
+  test('dada a descrição mudada e não salva, quando a pessoa fecha o cartão, então o SEMPER pergunta antes', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Mudar a descrição' }).click();
+    await cartao.getByRole('textbox', { name: 'Descrição' }).fill('Uma ideia que não pode se perder.');
+    // Quando
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    const pergunta = page.getByRole('dialog', { name: 'Sair sem salvar?' });
+    await expect(pergunta).toBeVisible();
+    await pergunta.getByRole('button', { name: 'Continuar no cadastro' }).click();
+    await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Uma ideia que não pode se perder.');
+  });
+
+  test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título e a descrição, e salvar não os muda', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
+    // Então
+    await expect(edicao.getByLabel('Prazo')).toBeVisible();
+    await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    await expect(edicao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toHaveCount(1);
     // Quando
-    await edicao.getByLabel('Título').fill('');
+    await edicao.getByLabel('Prazo').fill('20112030');
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
-    await expect(edicao.getByText('Dê um título à tarefa.')).toBeVisible();
-    await edicao.getByRole('button', { name: 'Cancelar' }).click();
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
+    await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
+  });
+
+  test('dado o cadastro de uma tarefa nova, quando a pessoa o abre, então o título e a descrição continuam nele', async ({ page }) => {
+    // Quando
+    await page.goto('/tarefas/nova/');
+    // Então
+    await expect(page.getByRole('textbox', { name: 'Título' })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Descrição' })).toBeVisible();
+  });
+
+  test('dada uma tarefa que a pessoa só lê, quando clica no título ou na descrição, então nada vira campo', async ({ page }) => {
+    // Dado: com a chave da equipe ligada, o Bruno vê "Renovar a procuração", em que não está, só para ler
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 }).click();
+    await cartao.getByText('A procuração vence este mês.').click();
+    // Então
+    await expect(cartao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Renovar a procuração', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
   });
 });
 

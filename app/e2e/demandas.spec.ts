@@ -3,7 +3,7 @@
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
 // devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Page } from '@playwright/test';
-import { abrirSecao, alturaParada } from './ajudantes';
+import { abrirSecao, alturaParada, entrarComo } from './ajudantes';
 
 /** Abre o cartão de uma demanda pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirDemanda(page: Page, titulo: string, ...secoes: string[]) {
@@ -256,5 +256,78 @@ test.describe('Ordem pelo prazo (#291)', () => {
     await page.getByRole('button', { name: 'Filtros' }).click();
     // Então
     await expect(page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Ordenar').getByRole('option', { name: /^Prazo/ })).toHaveCount(0);
+  });
+});
+
+test.describe('Título e descrição no próprio lugar (#346)', () => {
+  test('dada uma demanda que a pessoa pode alterar, quando muda o título e a descrição ali mesmo, então os dois ficam gravados ao fechar e abrir o cartão', async ({ page }) => {
+    // Dado: "Notificar o devedor" tem a descrição "Mandar a notificação extrajudicial antes da ação."
+    let cartao = await abrirDemanda(page, 'Notificar o devedor');
+    // Quando: o título
+    await cartao.getByRole('button', { name: 'Notificar o devedor', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    await expect(campo).toHaveValue('Notificar o devedor');
+    await campo.fill('Notificar o devedor pelo correio');
+    await campo.press('Enter');
+    // Então
+    await expect(cartao.getByRole('heading', { name: 'Notificar o devedor pelo correio', level: 2 })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: 'Demanda atualizada.' })).toBeVisible();
+    // Quando: a descrição
+    await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').click();
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toHaveValue('Mandar a notificação extrajudicial antes da ação.');
+    await caixa.fill('Mandar a notificação com *aviso de recebimento*.');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(caixa).toHaveCount(0);
+    // Então: continuam assim ao fechar e abrir o cartão
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirDemanda(page, 'Notificar o devedor pelo correio');
+    await expect(cartao.locator('em', { hasText: 'aviso de recebimento' })).toBeVisible();
+  });
+
+  test('dado o título da demanda em edição, quando a pessoa aperta Esc, então desfaz, sem fechar o cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Notificar o devedor');
+    await cartao.getByRole('button', { name: 'Notificar o devedor', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    await campo.fill('Outro título');
+    // Quando
+    await campo.press('Escape');
+    // Então
+    await expect(campo).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Notificar o devedor', level: 2 })).toBeVisible();
+    await expect(page.getByText('Demanda atualizada.')).toHaveCount(0);
+  });
+
+  test('dado o lápis da demanda, quando a pessoa o usa, então o formulário não repete o título e a descrição', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Notificar o devedor');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    const edicao = cartao.getByRole('form', { name: 'Editar demanda' });
+    // Então
+    await expect(edicao.getByLabel('Prazo de entrega')).toBeVisible();
+    await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    await expect(edicao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
+    // Quando
+    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então
+    await expect(edicao).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'Notificar o devedor', level: 2 })).toBeVisible();
+    await expect(cartao.getByText('Mandar a notificação extrajudicial antes da ação.')).toBeVisible();
+  });
+
+  test('dada uma demanda que a pessoa só lê, quando clica no título, então nada vira campo', async ({ page }) => {
+    // Dado: com a chave da equipe ligada, o Bruno lê "Busca de anterioridade", em que não está
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade');
+    // Quando
+    await cartao.getByRole('heading', { name: 'Busca de anterioridade', level: 2 }).click();
+    // Então
+    await expect(cartao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Busca de anterioridade', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Sem descrição. Clique para escrever.' })).toHaveCount(0);
   });
 });

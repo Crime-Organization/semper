@@ -224,3 +224,56 @@ describe('Título que se muda no próprio lugar (#339)', () => {
     expect(aoSalvar).not.toHaveBeenCalled();
   });
 });
+
+describe('Título que pode faltar, com outro nome à mostra (#346)', () => {
+  /** O processo sem nome: o cartão mostra os clientes; o nome gravado pode ficar em branco. */
+  function Processo({ aoSalvar = vi.fn() }: { aoSalvar?: (t: string) => unknown }) {
+    const [nome, setNome] = useState('');
+    return <>
+      <Avisos />
+      <TituloEditavel valor={nome} exibido={nome || 'JOSÉ DA SILVA'} conferir={() => ''} placeholder="JOSÉ DA SILVA"
+        aoSalvar={t => { setNome(t); return aoSalvar(t); }} />
+    </>;
+  }
+
+  it('dado um título vazio com outro nome à mostra, quando a pessoa clica nele, então o campo abre em branco, com o nome à mostra como dica', async () => {
+    // Dado
+    render(<Processo />);
+    expect(titulo()).toHaveTextContent('JOSÉ DA SILVA');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'JOSÉ DA SILVA' }));
+    // Então
+    expect(campo()).toHaveValue('');
+    expect(campo()).toHaveAttribute('placeholder', 'JOSÉ DA SILVA');
+  });
+
+  it('dado o título que pode faltar, quando a pessoa escreve um nome e depois o apaga, então cada um é salvo, e sem nome volta o de sempre', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Processo aoSalvar={aoSalvar} />);
+    await userEvent.click(screen.getByRole('button', { name: 'JOSÉ DA SILVA' }));
+    // Quando
+    await userEvent.type(campo(), 'Oposição à marca{Enter}');
+    // Então
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenLastCalledWith('Oposição à marca'));
+    expect(titulo()).toHaveTextContent('Oposição à marca');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Oposição à marca' }));
+    await userEvent.clear(campo());
+    await userEvent.keyboard('{Enter}');
+    // Então
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenLastCalledWith(''));
+    expect(titulo()).toHaveTextContent('JOSÉ DA SILVA');
+  });
+
+  it('dado quem só lê um título vazio, quando olha o cartão, então lê o nome à mostra, sem botão nem campo', async () => {
+    // Dado
+    render(<TituloEditavel valor="" exibido="Audiência · JOSÉ DA SILVA" />);
+    // Quando
+    await userEvent.click(titulo());
+    // Então
+    expect(titulo()).toHaveTextContent('Audiência · JOSÉ DA SILVA');
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+});

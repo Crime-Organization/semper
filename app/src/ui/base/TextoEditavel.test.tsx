@@ -219,3 +219,15 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     expect(aoSalvar).not.toHaveBeenCalled();
   });
 });
+
+describe('A descrição de um cartão, no mesmo jeito do texto (#346)', () => {
+  it('dado um nome próprio para o botão e para a caixa, quando a pessoa usa o teclado, então o botão e a caixa têm esses nomes', async () => {
+    // Dado
+    render(<TextoEditavel texto="Pagar até sexta." rotulo="Descrição" mudar="Mudar a descrição" aoSalvar={vi.fn()} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mudar a descrição' }));
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Pagar até sexta.');
+    expect(screen.queryByRole('button', { name: 'Mudar o texto' })).not.toBeInTheDocument();
+  });
+});

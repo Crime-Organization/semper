@@ -4,7 +4,8 @@
 // escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type ContratoLista, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
+import { SD, type ContratoLista, type DadosTarefa, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
+import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TAREFA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { MASCARAS } from '../regras/pessoa';
@@ -194,6 +195,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   }
 
   // ---------- envio ----------
+  /** No lápis do cartão, o título e a descrição ficam de fora: o cartão já os muda no próprio lugar (#346). */
+  const noLapis = (d: DadosTarefa): DadosTarefa => edicao ? semOsCamposDoLugar(d) : d;
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -204,12 +207,12 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       focarErro();
       return;
     }
-    const dados = dadosDaTarefa(c);
+    const dados: DadosTarefa = noLapis(dadosDaTarefa(c));
     setOcupado(true);
     try {
       if (alvo) {
         // Para desfazer: a tarefa como estava, no mesmo formato que o cadastro grava.
-        const antes = dadosDaTarefa(camposDaTarefa(alvo));
+        const antes = noLapis(dadosDaTarefa(camposDaTarefa(alvo)));
         const eu = ctx.perfil.id, peloLigado = continuaPelaDemanda(alvo, dados.demanda_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
         const { dados: gravar, ficou } = semSairDaTarefa(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
         await SD.tarefaAtualizar(alvo.id, gravar);
@@ -247,14 +250,17 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
 
   const CONTEUDO: Record<EtapaTarefa, () => ReactNode> = {
     tarefa: () => <>
-      <Campo rotulo="Título" para="titulo" obrigatorio erro={erros.titulo} dica="O que precisa ser feito. Ex.: Emitir a GRU.">
-        <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_TAREFA.titulo} value={c.titulo}
-          onChange={e => mudar({ titulo: e.target.value })} />
-      </Campo>
-      <Campo rotulo="Descrição" para="descricao" erro={erros.descricao}>
-        <CaixaFormatada {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_TAREFA.descricao} valor={c.descricao}
-          aoMudar={descricao => mudar({ descricao })} />
-      </Campo>
+      {/* No lápis do cartão, o título e a descrição não se repetem: o cartão os muda no próprio lugar (#346). */}
+      {!edicao && <>
+        <Campo rotulo="Título" para="titulo" obrigatorio erro={erros.titulo} dica="O que precisa ser feito. Ex.: Emitir a GRU.">
+          <input type="text" {...propsDoCampo('titulo', { dica: true, erro: erros.titulo })} maxLength={TAMANHO_TAREFA.titulo} value={c.titulo}
+            onChange={e => mudar({ titulo: e.target.value })} />
+        </Campo>
+        <Campo rotulo="Descrição" para="descricao" erro={erros.descricao}>
+          <CaixaFormatada {...propsDoCampo('descricao', { erro: erros.descricao })} maxLength={TAMANHO_TAREFA.descricao} valor={c.descricao}
+            aoMudar={descricao => mudar({ descricao })} />
+        </Campo>
+      </>}
       <Campo rotulo="Prazo" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
         <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
           onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />

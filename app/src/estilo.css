@@ -189,6 +189,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Salvar e Cancelar, presos ao pé do cartão enquanto o texto longo rola. */
 .texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 .texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
+/* A descrição no topo dos cartões (#346): a caixa e o convite guardam do título a mesma distância da descrição lida, e o convite
+   da descrição vazia é discreto, para não pesar mais que o título. */
+.cartao-cabeca :is(.texto-editavel-edicao, .texto-editavel-vazio) { margin-top: 8px }
+.cartao-cabeca .texto-editavel-vazio { padding: 8px 12px; border-radius: 8px; font-size: var(--texto-tabela) }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }
 

@@ -8,8 +8,9 @@ import { SD, type Compromisso, type PessoaLista, type PessoaResumida, type Proce
 import { CLIENTES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
   camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
-  semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
+  semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
+import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { MASCARAS } from '../regras/pessoa';
@@ -38,7 +39,10 @@ const ENDERECO = '/agenda/';
 const rotuloDoProcesso = (p: Pick<ProcessoParaLigar, 'numero' | 'titulo' | 'cliente_nome'>) =>
   [p.numero, p.titulo, p.cliente_nome && clientesPorExtenso(p.cliente_nome)].filter(Boolean).join(' · ');
 
-export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } = {}) {
+/** O lápis do cartão do compromisso: além do de todo cartão, o título gravado agora, que o cartão muda no próprio lugar (#346). */
+export interface EdicaoDoCompromisso extends EdicaoNoCartao { titulo: string | null }
+
+export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromisso } = {}) {
   const ctx = useCtx();
   const navegar = useNavigate();
   /** Marcada logo antes de sair por conta própria: aí o aviso de sair sem salvar não pergunta. */
@@ -66,6 +70,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
   const buscaAtrasada = useAtrasado(buscaProcesso);
   const [rotuloProcesso, setRotuloProcesso] = useState('');
   useTitulo(edicao ? null : alvo ? 'Atualizar compromisso' : 'Novo compromisso');
+  // Com o lápis aberto, o título ainda muda no próprio lugar do cartão: o formulário acompanha o que ficou gravado, para decidir
+  // se pede um título (tituloNoLapis), validar e desfazer com o título de agora, e não com o de quando o lápis abriu.
+  const [tituloVisto, setTituloVisto] = useState(edicao?.titulo);
+  if (edicao && edicao.titulo !== tituloVisto) {
+    setTituloVisto(edicao.titulo);
+    setC(x => ({ ...x, titulo: edicao.titulo ?? '' }));
+  }
 
   const mudar = (campos: Partial<CamposCompromisso>) => setC(atual => ({ ...atual, ...campos }));
   // As pessoas de uma vez (ao abrir um compromisso salvo, ou ao escolher um processo com clientes).
@@ -175,6 +186,12 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
   }
 
   // ---------- envio ----------
+  /**
+   * No lápis do cartão, o título fica de fora: o cartão já o muda no próprio lugar (#346). Só volta quando o tipo escolhido
+   * exige um título e o compromisso não tem nenhum (veja tituloNoLapis).
+   */
+  const comTitulo = !edicao || !alvo || tituloNoLapis(c.tipo, edicao.titulo);
+  const noLapis = (d: ReturnType<typeof dadosDoCompromisso>): ReturnType<typeof dadosDoCompromisso> => comTitulo ? d : semOsCamposDoLugar(d);
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -185,12 +202,12 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
       focarErro();
       return;
     }
-    const dados = dadosDoCompromisso(c);
+    const dados = noLapis(dadosDoCompromisso(c));
     setOcupado(true);
     try {
       if (alvo) {
         // Para desfazer: o compromisso como estava, no mesmo formato que o cadastro grava.
-        const antes = dadosDoCompromisso(camposDoCompromisso(alvo));
+        const antes = noLapis(dadosDoCompromisso(camposDoCompromisso(edicao ? { ...alvo, titulo: edicao.titulo } : alvo)));
         const eu = ctx.perfil.id, peloLigado = continuaPeloProcesso(alvo, dados.processo_id), podeSair = gravaForaDoCartao(ctx, alvo.criado_por === eu, peloLigado);
         const { dados: gravar, ficou } = semSairDoCompromisso(dados, eu, podeSair, { responsavel_id: alvo.responsavel_id, lista: alvo.participantes }, peloLigado);
         await SD.compromissoAtualizar(alvo.id, gravar);
@@ -231,9 +248,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoNoCartao } 
       <Escolhas rotulo="Tipo" obrigatorio>
         {TIPOS.map(t => <label key={t}><input type="radio" name="tipo" checked={c.tipo === t} onChange={() => mudar({ tipo: t })} />{TIPOS_COMPROMISSO[t].nome}</label>)}
       </Escolhas>
-      <Campo rotulo="Título" para="titulo" obrigatorio={!doProcesso} erro={erros.titulo} dica={doProcesso ? 'Opcional. Sem ele, o cartão mostra o tipo e as pessoas.' : undefined}>
+      {comTitulo && <Campo rotulo="Título" para="titulo" obrigatorio={!doProcesso} erro={erros.titulo} dica={doProcesso ? 'Opcional. Sem ele, o cartão mostra o tipo e as pessoas.' : undefined}>
         <input type="text" {...propsDoCampo('titulo', { dica: doProcesso, erro: erros.titulo })} maxLength={TAMANHO_COMPROMISSO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
-      </Campo>
+      </Campo>}
       <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
         <input type="text" {...propsDoCampo('data', { erro: erros.data })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.data} onChange={e => mudar({ data: MASCARAS.data(e.target.value) })} />
       </Campo>

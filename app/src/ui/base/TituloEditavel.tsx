@@ -1,7 +1,7 @@
 // Título que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no título e ele vira um
 // campo ali mesmo, com o mesmo tamanho de letra (o campo fica dentro do próprio h1/h2 e herda a letra dele). Enter ou sair do
 // campo salva; Esc desfaz. Título em branco não é salvo: o aviso diz por quê. Quem só lê vê o título comum, e nada vira campo.
-// Peça comum: a #346 leva o mesmo jeito aos títulos dos outros cartões.
+// Peça comum: desde a #346, também nos títulos dos cartões de tarefa, demanda, processo e compromisso.
 import { useEffect, useLayoutEffect, useRef, useState, type ComponentProps, type KeyboardEvent } from 'react';
 import { avisar, falha } from '../avisos';
 import { haJanelaAberta } from '../janela';
@@ -58,8 +58,13 @@ export function CampoDoTitulo({ nivel = 2, className, value, onChange, focar = f
 }
 
 interface Props {
-  /** O título gravado. */
+  /** O título gravado (vazio no item que pode ficar sem título: o campo abre em branco). */
   valor: string;
+  /**
+   * O que se lê fora da edição, quando não é o próprio título gravado (#346): o processo sem nome mostra os clientes, e o
+   * compromisso sem título, o tipo e as pessoas. Sem isto, lê-se o título gravado.
+   */
+  exibido?: string;
   nivel?: NivelDoTitulo;
   /**
    * Quem pode alterar recebe o título novo, sem os espaços das pontas (só quando ele mudou). Sem isto, o título só se lê. Se a
@@ -77,7 +82,7 @@ interface Props {
   className?: string;
 }
 
-export function TituloEditavel({ valor, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, className }: Props) {
+export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, className }: Props) {
   const [rascunho, setRascunho] = useState<string | null>(null);
   /** Marcado ao salvar ou desfazer: o campo some, e o "sair do campo" que vem depois não salva de novo. */
   const fechado = useRef(false);
@@ -96,7 +101,7 @@ export function TituloEditavel({ valor, nivel = 2, aoSalvar, conferir, rotulo = 
   }, [podeMudar, editando]);
 
   const H = ELEMENTO[nivel];
-  if (!aoSalvar) return <H className={className}>{valor}</H>;
+  if (!aoSalvar) return <H className={className}>{exibido ?? valor}</H>;
 
   function mudar(texto: string | null) {
     setRascunho(texto);
@@ -145,6 +150,6 @@ export function TituloEditavel({ valor, nivel = 2, aoSalvar, conferir, rotulo = 
     placeholder={placeholder} onChange={e => mudar(e.target.value)} onKeyDown={teclar} onBlur={sair} />;
   // O botão leva o próprio título como nome: o título continua sendo lido igual, e o clique (ou Enter) o abre para mudar.
   return <H className={juntar('titulo-editavel', className)}>
-    <button ref={botao} type="button" className="titulo-editavel-botao" title={DICA} onClick={entrar}>{valor}</button>
+    <button ref={botao} type="button" className="titulo-editavel-botao" title={DICA} onClick={entrar}>{exibido ?? valor}</button>
   </H>;
 }

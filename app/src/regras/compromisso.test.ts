@@ -4,7 +4,7 @@ import type { Compromisso, Membro } from '../dados/tipos';
 import {
   camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, detalheDoLigado, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, fmtHora, horarioDoCompromisso, linhasDoCompromisso, mencaoNegadaNoCompromisso,
   motivoSemMencaoNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, podeMudarCompromisso, primeiraEtapaComErroCompromisso, quandoDoCompromisso, semSairDoCompromisso, soLeNaLista, TIPOS,
-  TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso, veOCompromisso, type CamposCompromisso
+  TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, valorLegivelCompromisso, veOCompromisso, type CamposCompromisso
 } from './compromisso';
 
 const preenchido = (campos: Partial<CamposCompromisso> = {}): CamposCompromisso => ({
@@ -260,5 +260,18 @@ describe('Quem vê e quem muda o compromisso', () => {
   ])('quando na tela é %s, então poder mudar é %s', (_caso, eu, ehAdmin, campos, esperado) => {
     // Quando / Então
     expect(podeMudarCompromisso({ ...c, ...(campos as Partial<Compromisso>) }, eu, ehAdmin)).toBe(esperado);
+  });
+});
+
+describe('O título no lápis do cartão (#346)', () => {
+  it.each([
+    ['uma reunião com título', 'reuniao', 'Reunião com o cliente', false],
+    ['uma audiência sem título', 'audiencia', null, false],
+    ['uma audiência sem título que o lápis muda para reunião', 'reuniao', null, true],
+    ['um "outro" com o título só de espaços', 'outro', '  ', true],
+    ['uma perícia com título', 'pericia', 'Perícia médica', false]
+  ] as const)('dado %s, quando o lápis abre, então ele só pede o título se o tipo exige um e não há nenhum gravado', (_caso, tipo, titulo, pede) => {
+    // Quando / Então
+    expect(tituloNoLapis(tipo, titulo)).toBe(pede);
   });
 });

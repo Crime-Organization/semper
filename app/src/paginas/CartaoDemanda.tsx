@@ -3,15 +3,19 @@
 // a situação; depois, cada
 // tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
+// Desde a #346, quem altera a demanda muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Demanda, type PessoaResumida } from '../dados';
-import { CAMPOS_DEMANDA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, valorLegivelDemanda, estaNaDemanda } from '../regras/demanda';
+import { TAMANHO_DEMANDA } from '../dados/limites';
+import { CAMPOS_DEMANDA, DEMANDA_VAZIA, motivoSemMencaoNaDemanda, SEM_SITUACAO_DEMANDA, validarDemanda, valorLegivelDemanda, estaNaDemanda } from '../regras/demanda';
+import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
 import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -58,6 +62,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  // O título e a descrição em edição no próprio lugar (#346).
+  const noLugar = useEdicaoNoLugar();
 
   const carregar = useCallback(() => SD.demandaObter(id).then(x => { setD(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -119,12 +125,22 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
 
+  /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a demanda ativa (como o lápis). */
+  const mudaNoLugar = podeAlterar && !d.arquivado_em;
+  /** Grava o título ou a descrição mudados no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. */
+  const salvarNoLugar = (novo: Partial<Pick<Demanda, 'titulo' | 'descricao'>>, antes: typeof novo) => gravarNoLugar({
+    novo, antes, gravar: x => SD.demandaAtualizar(d!.id, x), aviso: 'Demanda atualizada.', oQue: 'atualização da demanda',
+    mudanca: { tipo: 'demandaAtualizada', id: d!.id }, mostrar: x => setD(atual => atual && { ...atual, ...x }),
+    depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
   return <>
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
@@ -133,8 +149,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a demanda', aoConfirmar: excluir } : undefined} />}
       </div>
-      <h2>{d.titulo}</h2>
-      {d.descricao && <TextoFormatado className="descricao-formatada" texto={d.descricao} />}
+      <TituloEditavel key={'titulo-' + noLugar.chave} valor={d.titulo} maximo={TAMANHO_DEMANDA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
+        conferir={titulo => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'titulo', titulo)}
+        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: d.titulo }) : undefined} />
+      <TextoEditavel key={'descricao-' + noLugar.chave} texto={d.descricao || ''} className="descricao-formatada" rotulo="Descrição" mudar="Mudar a descrição"
+        convite="Sem descrição. Clique para escrever." maximo={TAMANHO_DEMANDA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
+        conferir={texto => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'descricao', texto)}
+        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: d.descricao }) : undefined} />
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />

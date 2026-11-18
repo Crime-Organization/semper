@@ -2,16 +2,20 @@
 // destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
 // recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da situação, o cronômetro (TempoNaTarefa).
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
+// Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
+import { TAMANHO_TAREFA } from '../dados/limites';
 import { useNavigate } from 'react-router';
 import { colunaComMarco } from '../regras/quadro';
-import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, valorLegivelTarefa, estaNaTarefa } from '../regras/tarefa';
+import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
+import { CAMPOS_TAREFA, motivoSemMencaoNaTarefa, SEM_SITUACAO_TAREFA, TAREFA_VAZIA, validarTarefa, valorLegivelTarefa, estaNaTarefa } from '../regras/tarefa';
 import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, Nota, Selo, TextoFormatado, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
@@ -59,6 +63,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   // Concluir e Reabrir trocam de lugar: o foco do teclado passa para o botão novo, em vez de cair no começo da página.
   const acaoDaSituacao = useRef<HTMLDivElement>(null);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  // O título e a descrição em edição no próprio lugar (#346).
+  const noLugar = useEdicaoNoLugar();
 
   const carregar = useCallback(() => SD.tarefaObter(id).then(x => { setT(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -126,12 +132,22 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
 
+  /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */
+  const mudaNoLugar = podeAlterar && !t.arquivado_em;
+  /** Grava o título ou a descrição mudados no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. */
+  const salvarNoLugar = (novo: Partial<Pick<Tarefa, 'titulo' | 'descricao'>>, antes: typeof novo) => gravarNoLugar({
+    novo, antes, gravar: d => SD.tarefaAtualizar(t!.id, d), aviso: 'Tarefa atualizada.', oQue: 'atualização da tarefa',
+    mudanca: { tipo: 'tarefaAtualizada', id: t!.id }, mostrar: d => setT(atual => atual && { ...atual, ...d }),
+    depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
   return <>
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
@@ -140,8 +156,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
       </div>
-      <h2>{t.titulo}</h2>
-      {t.descricao && <TextoFormatado className="descricao-formatada" texto={t.descricao} />}
+      <TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
+        conferir={titulo => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'titulo', titulo)}
+        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />
+      <TextoEditavel key={'descricao-' + noLugar.chave} texto={t.descricao || ''} className="descricao-formatada" rotulo="Descrição" mudar="Mudar a descrição"
+        convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
+        conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
+        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>

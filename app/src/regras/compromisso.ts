@@ -155,6 +155,13 @@ export function errosDaEtapaCompromisso(etapa: EtapaCompromisso, c: CamposCompro
 export const primeiraEtapaComErroCompromisso = (c: CamposCompromisso) =>
   ETAPAS_COMPROMISSO.findIndex(e => Object.keys(errosDaEtapaCompromisso(e.id, c)).length > 0);
 
+/**
+ * O lápis do cartão pede o título? Desde a #346, o título se muda no próprio lugar do cartão, e o lápis não o repete. A não ser
+ * quando o tipo escolhido no lápis exige um título (reunião, outro) e o compromisso não tem nenhum gravado (era uma audiência
+ * sem título): aí o campo aparece no lápis, para a mudança de tipo poder ser salva.
+ */
+export const tituloNoLapis = (tipo: TipoCompromisso, tituloGravado: string | null) => !TIPOS_COMPROMISSO[tipo].doProcesso && !tituloGravado?.trim();
+
 // ---------- cartão e histórico ----------
 type ParaNomear = Pick<Compromisso, 'tipo' | 'titulo' | 'pessoa_nome' | 'processo_numero'>;
 /** O nome do cartão: o título; sem ele, o tipo e as pessoas (ou o número do processo). */

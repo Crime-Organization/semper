@@ -3,7 +3,7 @@
 // (TJMG, em "Distribuído"), e o administrativo 912345678, "Registro da marca Exemplo", de MARIA APARECIDA EXEMPLO (INPI,
 // em "Protocolado"). Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirSecao, entrarComo } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
 
@@ -1100,3 +1100,80 @@ test.describe('Processo a partir da demanda', () => {
   });
 });
 
+
+test.describe('Nome do cartão no próprio lugar (#346)', () => {
+  /** Abre o processo judicial da semente (sem nome: o título mostra o cliente) pela tabela. */
+  async function abrirJudicial(page: Page) {
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: '0001234-97.2026.8.13.0024' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { level: 2 })).toBeVisible();
+    return cartao;
+  }
+
+  test('dado um processo sem nome, quando a pessoa clica no título, dá um nome e aperta Enter, então o nome fica no cartão ao fechar e abrir; apagá-lo volta ao cliente', async ({ page }) => {
+    // Dado
+    let cartao = await abrirJudicial(page);
+    await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
+    // Quando
+    await cartao.getByRole('button', { name: 'JOSÉ DA SILVA TESTE', exact: true }).click();
+    const campo = cartao.getByRole('textbox', { name: 'Nome do cartão' });
+    // Então: o campo abre em branco, com o cliente como dica
+    await expect(campo).toBeFocused();
+    await expect(campo).toHaveValue('');
+    await expect(campo).toHaveAttribute('placeholder', 'JOSÉ DA SILVA TESTE');
+    // Quando
+    await campo.fill('Cobrança do aluguel');
+    await campo.press('Enter');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Processo atualizado.' })).toBeVisible();
+    await expect(cartao.getByRole('heading', { name: 'Cobrança do aluguel', level: 2 })).toBeVisible();
+    // E continua assim ao fechar e abrir o cartão
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirJudicial(page);
+    await expect(cartao.getByRole('heading', { name: 'Cobrança do aluguel', level: 2 })).toBeVisible();
+    // Quando: apaga o nome
+    await cartao.getByRole('button', { name: 'Cobrança do aluguel', exact: true }).click();
+    await cartao.getByRole('textbox', { name: 'Nome do cartão' }).fill('');
+    await cartao.getByRole('textbox', { name: 'Nome do cartão' }).press('Enter');
+    // Então
+    await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
+  });
+
+  test('dado o nome em edição, quando a pessoa aperta Esc, então desfaz, sem fechar o cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirJudicial(page);
+    await cartao.getByRole('button', { name: 'JOSÉ DA SILVA TESTE', exact: true }).click();
+    await cartao.getByRole('textbox', { name: 'Nome do cartão' }).fill('Nome que não fica');
+    // Quando
+    await cartao.getByRole('textbox', { name: 'Nome do cartão' }).press('Escape');
+    // Então
+    await expect(cartao.getByRole('textbox', { name: 'Nome do cartão' })).toHaveCount(0);
+    await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
+    await expect(page.getByText('Processo atualizado.')).toHaveCount(0);
+  });
+
+  test('dado o lápis do processo, quando a pessoa o usa, então o formulário não repete o nome do cartão', async ({ page }) => {
+    // Dado
+    const cartao = await abrirJudicial(page);
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    // Então
+    await expect(cartao.getByLabel('Comarca')).toBeVisible();
+    await expect(cartao.getByRole('textbox', { name: 'Nome do cartão' })).toHaveCount(0);
+  });
+
+  test('dado um processo que a pessoa só lê, quando clica no título, então nada vira campo', async ({ page }) => {
+    // Dado: com a chave da equipe ligada, o Bruno (estagiário) lê o processo, em que não está
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    const cartao = await abrirJudicial(page);
+    // Quando
+    await cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 }).click();
+    // Então
+    await expect(cartao.getByRole('textbox', { name: 'Nome do cartão' })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'JOSÉ DA SILVA TESTE', exact: true })).toHaveCount(0);
+  });
+});

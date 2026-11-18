@@ -1,14 +1,23 @@
 // Cartão do compromisso (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de processo: no topo, o tipo,
 // o nome e a data; as ações, com a equipe em bolinhas, e a situação; depois, cada tópico numa seção que recolhe. Quem só vê o
 // compromisso pela Agenda geral lê tudo e comenta, mas não muda nada.
+// Desde a #346, quem muda o compromisso muda o título no próprio lugar, como na anotação (o lápis não o repete). A audiência e a
+// perícia podem ficar sem título: aí o título mostra o tipo e as pessoas, o campo abre em branco, e apagar o título volta a
+// mostrá-los. A data e a hora, logo abaixo, continuam no lápis (a #361 faz o mesmo com elas).
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
-import { CAMPOS_COMPROMISSO, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, TIPOS_COMPROMISSO, valorLegivelCompromisso } from '../regras/compromisso';
+import { TAMANHO_COMPROMISSO } from '../dados/limites';
+import {
+  CAMPOS_COMPROMISSO, compromissoVazio, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO,
+  TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
+} from '../regras/compromisso';
+import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
@@ -44,6 +53,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  // O título em edição no próprio lugar (#346).
+  const noLugar = useEdicaoNoLugar();
 
   const carregar = useCallback(() => SD.compromissoObter(id).then(x => { setC(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
   useEffect(() => { void carregar(); }, [carregar]);
@@ -90,12 +101,20 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       aoMudar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
+  /** Grava o título mudado no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. Em branco (só a audiência e a perícia), o título sai. */
+  const salvarTitulo = (titulo: string) => gravarNoLugar<Pick<Compromisso, 'titulo'>>({
+    novo: { titulo: tituloOpcionalAoGravar(titulo) }, antes: { titulo: c.titulo }, gravar: x => SD.compromissoAtualizar(c.id, x),
+    aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
+    mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
   return <>
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo><span className="codigo">{c.codigo}</span>
@@ -103,7 +122,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         {c.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         {podeMudar && <AcoesDoCartao editando={editando} arquivado={!!c.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o compromisso', aoConfirmar: excluir } : undefined} />}
       </div>
-      <h2>{nomeDoCompromisso(c)}</h2>
+      {/* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */}
+      <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
+        maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
+        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />
       <p className="cartao-quando">{quandoDoCompromisso(c)}</p>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
@@ -111,7 +133,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       </section>}
     </header>
 
-    {editando ? <NovoCompromisso edicao={{ id: c.id, aoTerminar: terminarEdicao }} /> : <>
+    {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>
 
     <div className="cartao-acoes">
       <EquipeDoCartao responsavel={naEquipe(ctx.equipe, c.responsavel_id, 'Responsável')}
