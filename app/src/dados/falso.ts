@@ -2038,10 +2038,23 @@ function conferirContaDeDestino(id: string | null | undefined) {
 function conferirResponsavel(id: string | undefined) {
   if (EQUIPE.find(m => m.id === id)?.funcao !== 'advogado') throw new Error('O responsável do contrato precisa ser um advogado da equipe.');
 }
-/** Como o gatilho preparar do banco: o texto sem espaços nas pontas e as menções achadas nele; em contratos, só advogados. */
-function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: string) {
+/**
+ * Como o começo do gatilho preparar do banco: o texto sem espaços nas pontas, nunca vazio. No banco ele é um gatilho "before", que
+ * roda ANTES das regras de acesso: o texto vazio é recusado com esta mensagem mesmo num cartão que quem está logado não vê ou que
+ * não existe (nos dois casos a mesma resposta, que não revela nada).
+ */
+function textoDoComentario(bruto: string) {
   const texto = bruto.trim();
   if (!texto) throw new Error('Escreva o comentário.');
+  return texto;
+}
+/**
+ * Como o gatilho preparar do banco (o texto e as menções achadas nele) e os gatilhos "after" que conferem as menções (em contratos,
+ * só advogados; na demanda, na tarefa e no compromisso, só quem os vê). Só roda depois de o cartão ser alcançado (CARTAO_ALCANCADO),
+ * como no banco, onde a conferência das menções vem depois das regras de acesso (#365).
+ */
+function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: string) {
+  const texto = textoDoComentario(bruto);
   const mencoes = mencoesNoTexto(texto, EQUIPE), primeiro = (lista: typeof mencoes) => lista.sort((a, b) => a.nome.localeCompare(b.nome))[0];
   const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
   if (negado) throw new Error(mencaoNegada(negado.nome));
@@ -2061,13 +2074,18 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
   return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
 }
-/** O cartão de cada módulo existe? (No banco, a ligação do comentário com o cartão.) */
-const CARTAO_EXISTE: Record<ModuloComentado, (id: string) => boolean> = {
+/**
+ * O cartão de cada módulo existe e quem está logado chega a ele, como na listagem do módulo? (No banco, as regras dos comentários
+ * consultam o cartão pelas regras de leitura dele.) Quem não chega ao cartão recebe a recusa de sempre das regras de acesso
+ * (SEM_PERMISSAO, o texto em que o erros.ts traduz o 42501 do banco), a mesma de quando ele não existe, antes de qualquer
+ * conferência de menção: a recusa da menção diria que o cartão existe e quem está nele (#365).
+ */
+const CARTAO_ALCANCADO: Record<ModuloComentado, (id: string) => boolean> = {
   pessoas: id => bd.pessoas.some(p => p.id === id),
   contratos: alcancoContratoDoId,
-  demandas: id => bd.demandas!.some(d => d.id === id),
-  tarefas: id => bd.tarefas!.some(t => t.id === id),
-  compromissos: id => bd.compromissos!.some(c => c.id === id)
+  demandas: id => bd.demandas!.some(d => d.id === id) && vejoNoModulo('demandas', id),
+  tarefas: id => bd.tarefas!.some(t => t.id === id) && vejoNoModulo('tarefas', id),
+  compromissos: id => bd.compromissos!.some(c => c.id === id) && vejoNoModulo('compromissos', id)
 };
 /** O código e o nome do cartão do comentário, para a caixa de mensagens. */
 const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: string; nome: string | null } | undefined> = {
@@ -3937,17 +3955,18 @@ export const SD: Dados = {
   },
 
   // ---------- comentários (como o gatilho e as regras de supabase/migrations/20261027000016_comentarios.sql) ----------
-  comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId && CARTAO_EXISTE[modulo](cartaoId))
+  comentariosListar: (modulo, cartaoId) => espera(bd.comentarios!.filter(c => c.modulo === modulo && c.cartao_id === cartaoId && CARTAO_ALCANCADO[modulo](cartaoId))
     .sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, COMENTARIOS_DO_CARTAO).map(comentarioLido)),
   async comentarioCriar(modulo, cartaoId, texto) {
-    if (!CARTAO_EXISTE[modulo](cartaoId)) return erro('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    textoDoComentario(texto);   // como o gatilho "before" do banco, que roda antes das regras de acesso
+    if (!CARTAO_ALCANCADO[modulo](cartaoId)) return erro(SEM_PERMISSAO);
     const c = { id: novoId(), modulo, cartao_id: cartaoId, autor_id: eu, ...prepararComentario(modulo, texto, cartaoId), criado_em: agora(), editado_em: null };
     bd.comentarios!.push(c); mensagensDoComentario(c); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioEditar(id, texto) {
     const c = bd.comentarios!.find(x => x.id === id);
-    if (!c || c.autor_id !== eu || !CARTAO_EXISTE[c.modulo](c.cartao_id)) return erro('Só quem escreveu o comentário pode editá-lo.');
+    if (!c || c.autor_id !== eu || !CARTAO_ALCANCADO[c.modulo](c.cartao_id)) return erro('Só quem escreveu o comentário pode editá-lo.');
     Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); mensagensDoComentario(c); gravar();
     return espera(comentarioLido(c));
   },

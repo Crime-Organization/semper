@@ -6141,7 +6141,8 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
     entrarComo('u-bruno');
     // Então
     await expect(SD.contratoAtualizar(id, { observacoes: 'alterado' })).rejects.toThrow('Contrato não encontrado.');
-    await expect(SD.comentarioCriar('contratos', id, 'Oi')).rejects.toThrow('Este cartão não foi encontrado.');
+    // A recusa de sempre das regras de acesso, como no banco (#365): antes era "Este cartão não foi encontrado.", só no banco fictício.
+    await expect(SD.comentarioCriar('contratos', id, 'Oi')).rejects.toThrow('Você não tem permissão para fazer isso.');
     await SD.contratosArquivar([id]);
     entrarComo('u-master');
     expect(await SD.contratoObter(id)).toMatchObject({ arquivado_em: null, observacoes: null });
@@ -6962,5 +6963,86 @@ describe('Pedir para participar (banco fictício, #363)', () => {
     // Então
     expect(achado).toMatchObject({ modulo: 'processos', grupo: 'administrativos', codigo, numero: 'BR1020200123456' });
     expect(await SD.itensParaPedir('BR 10 2020')).toEqual([]);
+  });
+});
+
+describe('Menções sem revelar o item a quem não o vê (banco fictício, #365)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  /**
+   * A recusa de quem não chega ao cartão: a mesma de quando ele não existe e a mesma do banco, onde as regras de acesso recusam com
+   * 42501 e o erros.ts traduz para este texto.
+   */
+  const RECUSA = 'Você não tem permissão para fazer isso.';
+  const TEXTOS = ['Sem menção nenhuma', 'Veja, @ana.lima', 'Veja, @bruno.souza'];
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    falso().fecharVisibilidade(true);
+  });
+  afterEach(() => entrarComo('u-master'));
+
+  it('dado Bruno fora de uma demanda, uma tarefa e um compromisso, quando comenta neles com ou sem menção, então recebe sempre a recusa de quem não tem permissão, sem nome', async () => {
+    // Dado
+    const demanda = await SD.demandaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana' });
+    const tarefa = await SD.tarefaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana' });
+    const compromisso = await SD.compromissoCriar({ tipo: 'reuniao', titulo: 'Sem o Bruno', data: hojeISO(), hora: '14:30', responsavel_id: 'u-ana' });
+    const cartoes = [['demandas', demanda.id], ['tarefas', tarefa.id], ['compromissos', compromisso.id], ['demandas', 'nao-existe']] as const;
+    entrarComo('u-bruno');
+    // Quando
+    const tentativas = await Promise.allSettled(cartoes.flatMap(([modulo, id]) => TEXTOS.map(texto => SD.comentarioCriar(modulo, id, texto))));
+    // Então
+    expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(tentativas.map(() => RECUSA));
+    entrarComo('u-master');
+    expect(await SD.comentariosListar('demandas', demanda.id)).toEqual([]);
+  });
+
+  it('dado Bruno fora de um contrato, quando comenta nele com uma menção a quem não é advogado, então recebe a recusa de quem não tem permissão, sem nome', async () => {
+    // Dado
+    const contrato = await SD.contratoCriar({ clientes: ['p-ana'], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+    entrarComo('u-bruno');
+    // Quando
+    const tentativas = await Promise.allSettled([contrato.id, 'nao-existe'].flatMap(id => TEXTOS.map(texto => SD.comentarioCriar('contratos', id, texto))));
+    // Então
+    expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(tentativas.map(() => RECUSA));
+  });
+
+  it('dado Bruno fora de uma demanda, quando manda um comentário vazio nela ou num cartão que não existe, então recebe "Escreva o comentário." nos dois, como o gatilho que roda antes das regras de acesso', async () => {
+    // Dado
+    const demanda = await SD.demandaCriar({ titulo: 'Sem o Bruno', responsavel_id: 'u-ana' });
+    entrarComo('u-bruno');
+    // Quando
+    const tentativas = await Promise.allSettled([demanda.id, 'nao-existe'].map(id => SD.comentarioCriar('demandas', id, '   ')));
+    // Então
+    expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(['Escreva o comentário.', 'Escreva o comentário.']);
+  });
+
+  it('dado Bruno, que saiu da demanda, quando edita o próprio comentário nela, então é recusado como quem não o escreveu, sem conferir menções', async () => {
+    // Dado
+    const demanda = await SD.demandaCriar({ titulo: 'Com o Bruno', responsavel_id: 'u-ana', colaboradores: ['u-bruno'] });
+    entrarComo('u-bruno');
+    const comentario = await SD.comentarioCriar('demandas', demanda.id, 'Veja, @ana.lima');
+    entrarComo('u-master');
+    await SD.demandaAtualizar(demanda.id, { colaboradores: [] });
+    entrarComo('u-bruno');
+    // Quando / Então
+    for (const texto of TEXTOS)
+      await expect(SD.comentarioEditar(comentario.id, texto)).rejects.toThrow('Só quem escreveu o comentário pode editá-lo.');
+    entrarComo('u-master');
+    expect((await SD.comentariosListar('demandas', demanda.id)).map(c => c.texto)).toEqual(['Veja, @ana.lima']);
+  });
+
+  it('dado quem está na demanda, quando menciona, então funciona como antes', async () => {
+    // Dado
+    const demanda = await SD.demandaCriar({ titulo: 'Com o Bruno', responsavel_id: 'u-ana', colaboradores: ['u-bruno'] });
+    entrarComo('u-bruno');
+    // Quando
+    const comentario = await SD.comentarioCriar('demandas', demanda.id, 'Veja, @ana.lima');
+    // Então
+    expect(comentario.mencoes).toEqual(['u-ana']);
   });
 });
