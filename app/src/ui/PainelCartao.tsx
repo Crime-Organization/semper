@@ -5,6 +5,9 @@
 // não há coluna, e os comentários ficam numa seção do cartão).
 // Com "soNoCentro" (o cadastro novo, numa janela sobre a página), é sempre a janela no centro, sem a coluna e sem a
 // troca, e o clique fora não fecha. "rotulo" dá nome à janela para o leitor de tela (padrão: "Cadastro").
+// Com "semColuna" (um cartão sem comentários, como a anotação), a janela no centro não tem a coluna da direita, e os botões
+// do cartão (Arquivar, Editar…) ficam na linha dos botões do painel, como no painel ao lado. Com "largo" (um texto para
+// ler e escrever), a janela no centro ocupa quase toda a tela, com uma margem estreita em volta (no celular, como as outras).
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
 // As seções que recolhem ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" acima da primeira.
@@ -73,13 +76,17 @@ interface PropsPainel {
   rotulo?: string;
   /** A janela no centro fica da altura do que mostra (um formulário curto), em vez de ocupar a tela toda. */
   ajustado?: boolean;
+  /** O cartão não tem comentários: a janela no centro fica sem a coluna da direita. */
+  semColuna?: boolean;
+  /** A janela no centro ocupa quase toda a tela (ao lado, o painel continua do tamanho de sempre). */
+  largo?: boolean;
   children: ReactNode;
 }
-export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro', ajustado = false, children }: PropsPainel) {
+export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro', ajustado = false, semColuna = false, largo = false, children }: PropsPainel) {
   const [on, setOn] = useState(false);
   const [escolhido, setFormato] = useState(formatoGuardado);
   const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
-  const comColuna = formato === 'centro' && !soNoCentro;
+  const comColuna = formato === 'centro' && !soNoCentro && !semColuna;
   const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const [vaga, setVaga] = useState<HTMLElement | null>(null);
   const estreita = useEstreita();
@@ -105,7 +112,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
   return createPortal(<>
     {/* No cadastro, um clique fora não fecha (perderia o que foi digitado): só o X ou o Esc. */}
     <div className={'veu' + (on ? ' on' : '')} onClick={() => { if (!soNoCentro) pedirParaFechar(); }} />
-    <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? rotulo : undefined} tabIndex={-1} ref={painel}>
+    <aside className={`cartao-painel ${formato}` + (soNoCentro || semColuna ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (largo ? ' largo' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? rotulo : undefined} tabIndex={-1} ref={painel}>
       <div className="cartao-botoes">
         <span className="cartao-botoes-do-cartao" ref={setVaga} />
         {!soNoCentro && <button type="button" className="cartao-botao cartao-formato" aria-label={rotuloDoFormato} title={rotuloDoFormato} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>}
@@ -114,7 +121,8 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
       <div className="cartao-conteudo">
         <TravaDoPainel.Provider value={travar}>
           <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
-            <BotoesNoPainel.Provider value={formato === 'lado' || estreita ? vaga : null}>
+            {/* Sem a coluna, os botões do painel ficam por cima do cartão: os do cartão vão para junto deles. */}
+            <BotoesNoPainel.Provider value={formato === 'lado' || estreita || semColuna ? vaga : null}>
               <GrupoDeSecoes>
                 <div className="cartao-corpo">{children}</div>
               </GrupoDeSecoes>

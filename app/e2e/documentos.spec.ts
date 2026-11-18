@@ -507,3 +507,53 @@ test.describe('Duplicar a anotação (#343)', () => {
     await expect(cartao.getByText(/que você não tem acesso para abrir/)).toHaveCount(0);
   });
 });
+
+test.describe('A janela da anotação no centro (#340)', () => {
+  /** A janela do cartão, já parada (depois de terminar de abrir), em relação à tela. */
+  async function caixaDaJanela(page: Page) {
+    const j = (await page.getByRole('dialog').boundingBox())!, tela = page.viewportSize()!;
+    return {
+      largura: j.width / tela.width, altura: j.height / tela.height,
+      esquerda: Math.round(j.x), direita: Math.round(tela.width - j.x - j.width), topo: Math.round(j.y), embaixo: Math.round(tela.height - j.y - j.height),
+      meio: j.x + j.width / 2, larguraEmPx: Math.round(j.width)
+    };
+  }
+
+  test('dada uma anotação num computador, quando a pessoa a abre no centro, então a janela ocupa quase toda a tela, com uma margem estreita em volta, e não tem a coluna dos comentários', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const cartao = await criarAnotacao(page, 'Parecer sobre o registro', { texto: 'Um texto para ler e escrever, na medida de leitura.' });
+    // Quando
+    await cartao.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    // Então: quase a tela toda, mas com a página de trás à vista nos quatro lados
+    await expect(cartao.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
+    // (espera a janela terminar de ir para o meio: aí as margens dos lados ficam iguais)
+    await expect.poll(async () => { const c = await caixaDaJanela(page); return c.esquerda - c.direita; }).toBe(0);
+    const caixa = await caixaDaJanela(page);
+    expect(caixa.largura).toBeGreaterThan(.85);
+    expect(caixa.altura).toBeGreaterThan(.85);
+    for (const margem of [caixa.esquerda, caixa.direita, caixa.topo, caixa.embaixo]) expect(margem).toBeGreaterThan(0);
+    // E sem a coluna da direita: nada de comentários, e o conteúdo do cartão fica no meio da janela, e não espremido à esquerda dela
+    await expect(cartao.getByRole('region', { name: 'Comentários' })).toHaveCount(0);
+    await expect(cartao.getByRole('textbox', { name: 'Escrever um comentário' })).toHaveCount(0);
+    const secao = (await cartao.getByRole('button', { name: /^Ligada a/ }).boundingBox())!;
+    expect(Math.abs(secao.x + secao.width / 2 - caixa.meio)).toBeLessThan(caixa.larguraEmPx * .05);
+    // E o texto continua na medida de leitura, sem esticar pela janela toda
+    const texto = (await cartao.getByText('Um texto para ler e escrever, na medida de leitura.').boundingBox())!;
+    expect(texto.width).toBeLessThan(caixa.larguraEmPx / 2);
+  });
+
+  test('dada a anotação no centro, quando ela abre num celular, então ocupa a largura toda, encostada embaixo, como os outros cartões', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const cartao = await criarAnotacao(page, 'Parecer no celular');
+    await cartao.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    // Quando
+    await page.setViewportSize({ width: 390, height: 844 });
+    await abrirAnotacao(page, 'Parecer no celular');
+    // Então
+    await expect.poll(async () => (await caixaDaJanela(page)).larguraEmPx).toBe(390);
+    await expect.poll(async () => (await caixaDaJanela(page)).embaixo).toBe(0);
+    await expect(page.getByRole('button', { name: /Abrir (no centro da tela|ao lado)/ })).toBeHidden();
+  });
+});

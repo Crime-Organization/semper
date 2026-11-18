@@ -113,7 +113,8 @@ export default function Documentos() {
         tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
           filtrado={filtrado} selecao={sel} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
     </PaginaModulo>
-    {aberto && <PainelCartao aoFechar={fechar}>
+    {/* A anotação é um texto próprio, sem comentários; e, para ler e escrever, a janela no centro ocupa quase toda a tela (#340). */}
+    {aberto && <PainelCartao aoFechar={fechar} semColuna largo>
       <CartaoAnotacao key={aberto} id={aberto} aoMudar={recarregar} aoFechar={fechar} />
     </PainelCartao>}
   </>;

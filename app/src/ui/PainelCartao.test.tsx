@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
+import { useContext } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosSessao } from '../dados';
-import { PainelCartao, PREFERENCIA_FORMATO, useTravarPainel } from './PainelCartao';
+import { BotoesNoPainel, ColunaDoCartao, PainelCartao, PREFERENCIA_FORMATO, useTravarPainel } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
 import { Recolhivel } from './Recolhivel';
 
@@ -248,5 +249,43 @@ describe('Expandir tudo com uma seção dentro de outra', () => {
     expect(screen.queryByText('O histórico')).toBeNull();
     expect(screen.getByRole('button', { name: 'Recolher tudo' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Expandir tudo|Recolher tudo/ })).toHaveLength(1);
+  });
+});
+
+describe('Janela sem a coluna dos comentários e larga (a anotação, #340)', () => {
+  /** Diz, como texto, onde o cartão pode pôr os comentários e os botões dele (o que o PainelCartao oferece a quem está dentro). */
+  function OndeFica() {
+    const coluna = useContext(ColunaDoCartao), botoes = useContext(BotoesNoPainel);
+    return <p>{coluna ? 'Com a coluna' : 'Sem a coluna'}; {botoes ? 'botões no painel' : 'botões no cartão'}</p>;
+  }
+  beforeEach(() => { iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'centro' }); });
+
+  it('dado um cartão no centro sem pedir nada, quando abre, então tem a coluna da direita, com os botões no cartão, e não fica largo', () => {
+    // Quando
+    render(<PainelCartao aoFechar={() => {}}><OndeFica /></PainelCartao>);
+    // Então
+    expect(screen.getByText('Com a coluna; botões no cartão')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveClass('largo');
+    expect(screen.getByRole('dialog')).not.toHaveClass('sem-coluna');
+  });
+
+  it('dado um cartão sem coluna e largo, quando abre no centro, então não há a coluna, os botões dele vão para a linha do painel e a janela fica larga', () => {
+    // Quando
+    render(<PainelCartao semColuna largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
+    // Então
+    expect(screen.getByText('Sem a coluna; botões no painel')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveClass('centro', 'sem-coluna', 'largo');
+    // E a troca de formato continua (não é uma janela só do centro)
+    expect(screen.getByRole('button', { name: 'Abrir ao lado' })).toBeInTheDocument();
+  });
+
+  it('dado um cartão sem coluna, quando abre ao lado, então também não há a coluna, e os botões ficam na linha do painel, como nos outros', () => {
+    // Dado
+    iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' });
+    // Quando
+    render(<PainelCartao semColuna largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
+    // Então
+    expect(screen.getByText('Sem a coluna; botões no painel')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveClass('lado');
   });
 });

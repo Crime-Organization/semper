@@ -50,8 +50,9 @@ interface PropsAcoes {
 }
 
 /**
- * Os botões do topo do cartão. No painel ao lado (e na janela estreita), vão para a linha dos botões do painel, lado a lado com
- * o formato e o "X"; na janela larga, ficam na linha dos selos do cartão, encostados à direita do conteúdo.
+ * Os botões do topo do cartão. No painel ao lado (e na janela estreita, ou sem a coluna dos comentários), vão para a linha dos
+ * botões do painel, lado a lado com o formato e o "X"; na janela larga com a coluna, ficam na linha dos selos do cartão,
+ * encostados à direita do conteúdo.
  */
 function NoTopo({ children }: { children: ReactNode }) {
   const noPainel = useContext(BotoesNoPainel);

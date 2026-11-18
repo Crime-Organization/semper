@@ -76,3 +76,26 @@ test.describe('Formato do cartão', () => {
     });
   }
 });
+
+test.describe('A janela no centro dos outros módulos, depois da janela larga da anotação (#340)', () => {
+  /** A largura da janela no centro com a coluna dos comentários, num computador largo (a de sempre, em estilo.css). */
+  const LARGURA_DA_JANELA = 1100;
+
+  test('dado o cartão de uma tarefa, quando a pessoa o abre no centro, então continua do tamanho de antes, com os comentários na coluna da direita', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
+    // Quando
+    await page.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    // Então
+    await expect.poll(async () => (await posicao(page)).meio).toBe(0);
+    await expect.poll(async () => (await posicao(page)).largura).toBe(LARGURA_DA_JANELA);
+    const coluna = page.getByRole('region', { name: 'Comentários' });
+    await expect(coluna.getByRole('textbox', { name: 'Escrever um comentário' })).toBeVisible();
+    const [janela, lado] = await Promise.all([page.getByRole('dialog').boundingBox(), coluna.boundingBox()]);
+    expect(lado!.x).toBeGreaterThan(janela!.x + janela!.width / 2);
+  });
+});

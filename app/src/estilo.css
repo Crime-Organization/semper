@@ -484,6 +484,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-painel.centro.ajustado { width: min(720px, calc(100vw - 2 * var(--janela-margem))) }
 .cartao-painel.ajustado .cartao-corpo { padding-bottom: 28px }
 .cartao-painel.ajustado form.cartao { border: 0; padding: 0; background: transparent }
+/* A janela larga (a anotação, um texto para ler e escrever, #340): quase a tela toda, só com a margem estreita
+   (--janela-margem) em volta, onde se vê a página de trás, e sempre dessa altura, como uma folha aberta. O conteúdo fica
+   no meio, na medida de um documento (--medida-documento: a das publicações do DESIGN.md), para a linha não ficar longa
+   demais para ler. No celular, sobe do pé da tela como os outros cartões (veja abaixo). */
+:root { --medida-documento: 720px }
+.cartao-painel.centro.largo { width: calc(100vw - 2 * var(--janela-margem)); height: var(--janela-altura) }
+.cartao-painel.centro.largo .cartao-corpo { padding-inline: max(var(--cartao-corpo-lado), (100% - var(--medida-documento)) / 2) }
 .cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
 .comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
 /* Janela estreita: a coluna dos comentários desce para baixo do cartão. */
@@ -502,7 +509,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* No celular, nos dois formatos, o cartão sobe do pé da tela, na largura toda e da altura do conteúdo (até perto do
    topo, deixando ver a página por trás): não há o que escolher. */
 @media (max-width: 640px) {
-  .cartao-painel, .cartao-painel.centro, .cartao-painel.centro.sem-coluna, .cartao-painel.centro.ajustado { --janela-altura: calc(100vh - var(--janela-margem)); --janela-altura: calc(100dvh - var(--janela-margem)); inset: auto var(--sem-barra) 0 0; width: auto; height: auto; max-height: var(--janela-altura); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.18); transform: translateY(24px); padding-bottom: env(safe-area-inset-bottom) }
+  .cartao-painel, .cartao-painel.centro, .cartao-painel.centro.sem-coluna, .cartao-painel.centro.ajustado, .cartao-painel.centro.largo { --janela-altura: calc(100vh - var(--janela-margem)); --janela-altura: calc(100dvh - var(--janela-margem)); inset: auto var(--sem-barra) 0 0; width: auto; height: auto; max-height: var(--janela-altura); border: 0; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.18); transform: translateY(24px); padding-bottom: env(safe-area-inset-bottom) }
   .cartao-painel.on, .cartao-painel.centro.on { transform: none }
   .cartao-formato { display: none }
 }
@@ -533,7 +540,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* O comentário que a mensagem abriu. */
 .comentario-citado .comentario-texto { background: var(--accent-tint); outline: 1px solid var(--accent); outline-offset: -1px }
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
-.cartao-corpo { padding: 28px clamp(18px, 4vw, 32px) 40px; display: flex; flex-direction: column; gap: 26px }
+/* O espaço entre o conteúdo do cartão e as bordas dele, dos lados (a janela larga centraliza o conteúdo a partir dele). */
+:root { --cartao-corpo-lado: clamp(18px, 4vw, 32px) }
+.cartao-corpo { padding: 28px var(--cartao-corpo-lado) 40px; display: flex; flex-direction: column; gap: 26px }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }
 /* Linha abaixo do título do cartão: a equipe em bolinhas, na ponta direita. */
@@ -549,8 +558,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Com uma ação a mais antes de Arquivar e Editar (ex.: baixar a anotação), são cinco: a linha dos selos, que fica na altura
    deles, reserva mais um botão e o espaço dele. O título, logo abaixo, mantém a reserva dos quatro (no celular, não fica espremido). */
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(3)) .cartao-cabeca .linha { padding-right: calc(5 * var(--botao-redondo) + 4 * var(--botao-redondo-vao)) }
+/* Na janela larga com a coluna, os botões do painel ficam sobre ela, e a cabeça não reserva nada. Sem a coluna (a anotação),
+   os do cartão vão para a linha dos botões do painel, por cima do conteúdo, e a reserva acima continua. */
 @media (min-width: 901px) {
-  .cartao-painel.centro .cartao-cabeca :is(.linha, h2) { padding-right: 0 }
+  .cartao-painel.centro:not(:has(.cartao-botoes .cartao-topo-acoes)) .cartao-cabeca :is(.linha, h2) { padding-right: 0 }
 }
 .cartao-botao.cartao-editar { background: var(--accent); border-color: var(--accent); color: #fff }
 .cartao-botao.cartao-editar:hover { background: var(--accent-hover) }
