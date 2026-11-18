@@ -3,6 +3,8 @@
 // módulo Pessoas.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
+import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
+import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type CompromissoLista, type FiltroCompromissos, type Ordem, type OrdemCompromisso, type Pagina, type TipoCompromisso } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { PARAMETRO_DA_VISAO } from '../regras/buscaGeral';
@@ -52,8 +54,11 @@ export default function Compromissos() {
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  // Vindo do painel do Início (?pessoa=eu), a agenda abre no que é de quem está logado; senão, na última escolha da pessoa. O
+  // parâmetro sai do endereço depois de lido.
+  const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
   const [f, setF] = useState<FiltroCompromissos>(() => {
-    let pessoa = lerPreferencia('compromissos.pessoa', '');
+    let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('compromissos.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
     return { termo: '', pessoa, tipo: '', situacao: 'ativos', pagina: 0 };
   });

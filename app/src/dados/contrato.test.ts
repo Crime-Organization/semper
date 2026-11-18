@@ -9,7 +9,7 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -1544,6 +1544,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const r = await SD.prazosDoPeriodo(DIA_A, DIA_C, { termo: parte });
         // Então
         expect(r.map(p => [p.origem, p.id, p.prazo]).sort((a, b) => a[0].localeCompare(b[0]))).toEqual([['demandas', demanda.id, DIA_B], ['tarefas', tarefa.id, DIA_A]]);
+      });
+
+      it('dados mais concluídos de prazo antigo que o limite da agenda, quando se pedem os prazos, então o em aberto mais novo ainda vem', async () => {
+        // Dado: ITENS_DA_AGENDA + 1 tarefas na coluna das concluídas (não arquivadas), todas com prazo antes da que está em aberto
+        const parte = marca(), concluida = (await SD.colunasListar('tarefas')).find(c => c.marco === 'concluido')!;
+        await Promise.all(Array.from({ length: ITENS_DA_AGENDA + 1 }, (_, i) =>
+          SD.tarefaCriar({ titulo: `${parte} Feita ${i}`, prazo: DIA_A, responsavel_id: 'u-ana', etapa_id: concluida.id })));
+        const aberta = await SD.tarefaCriar({ titulo: parte + ' Aberta', prazo: DIA_C, responsavel_id: 'u-ana' });
+        // Quando
+        const r = await SD.prazosDoPeriodo(DIA_A, DIA_C, { termo: parte });
+        // Então
+        expect(r.map(p => p.id)).toEqual([aberta.id]);
       });
 
       it('quando se buscam os processos para ligar, então vêm os que combinam, mesmo os mais antigos', async () => {

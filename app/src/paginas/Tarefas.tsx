@@ -4,6 +4,8 @@
 // <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
+import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type FiltroTarefas, type OrdemComPrazo, type Pagina, type TarefaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
@@ -54,8 +56,10 @@ export default function Tarefas() {
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  // Vindo do painel do Início (?pessoa=eu), a lista abre no que é de quem está logado; senão, na última escolha da pessoa. O parâmetro sai do endereço depois de lido.
+  const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
   const [f, setF] = useState<FiltroTarefas>(() => {
-    let pessoa = lerPreferencia('tarefas.pessoa', '');
+    let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('tarefas.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
     return { termo: '', pessoa, situacao: 'ativas', pagina: 0 };
   });

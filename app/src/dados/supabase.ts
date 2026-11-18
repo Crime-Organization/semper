@@ -1050,15 +1050,18 @@ export const SD: Dados = {
     return data.map(({ pessoas: _pessoas, responsavel_id: _responsavel, participantes: _participantes, ...c }: Livre) => ({ ...c, papeis: [] }));
   },
   async prazosDoPeriodo(de, ate, f = {}) {
-    // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem.
-    const [{ data: concluidas }, { data: demandas }, { data: tarefas }] = await Promise.all([
-      rodar(sb.from('quadro_colunas').select('id').eq('marco', 'concluido').in('modulo', ['demandas', 'tarefas'])),
-      rodar(filtrarDemandas(sb.from('demandas').select('id, codigo, titulo, prazo, hora:prazo_hora, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA)),
-      rodar(filtrarTarefas(sb.from('tarefas').select('id, codigo, titulo, prazo, hora:prazo_hora, responsavel_id, etapa_id'), f).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA))
+    // Os prazos do que já foi concluído (na coluna-marco de concluídos) não aparecem. Eles saem no próprio pedido, antes do corte em
+    // ITENS_DA_AGENDA: num período longo (os vencidos do painel do Início, #319), os concluídos e não arquivados, mais antigos, tomariam
+    // o lugar dos que ainda estão em aberto.
+    const { data: concluidas } = await rodar(sb.from('quadro_colunas').select('id').eq('marco', 'concluido').in('modulo', ['demandas', 'tarefas']));
+    const ids = concluidas.map((c: Livre) => c.id);
+    const semConcluidos = (q: Livre) => ids.length ? q.or(`etapa_id.is.null,etapa_id.not.in.(${ids.join(',')})`) : q;
+    const campos = 'id, codigo, titulo, prazo, hora:prazo_hora, responsavel_id';
+    const [{ data: demandas }, { data: tarefas }] = await Promise.all([
+      rodar(semConcluidos(filtrarDemandas(sb.from('demandas').select(campos), f)).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA)),
+      rodar(semConcluidos(filtrarTarefas(sb.from('tarefas').select(campos), f)).gte('prazo', de).lte('prazo', ate).order('prazo').limit(ITENS_DA_AGENDA))
     ]);
-    const fim = new Set(concluidas.map((c: Livre) => c.id));
-    const naAgenda = (origem: PrazoNaAgenda['origem'], linhas: Livre[]): PrazoNaAgenda[] => linhas.filter(l => !fim.has(l.etapa_id))
-      .map(({ etapa_id: _etapa, ...l }) => ({ origem, ...l, hora: fmtHora(l.hora) || null }));
+    const naAgenda = (origem: PrazoNaAgenda['origem'], linhas: Livre[]): PrazoNaAgenda[] => linhas.map(l => ({ origem, ...l, hora: fmtHora(l.hora) || null }));
     return [...naAgenda('demandas', demandas), ...naAgenda('tarefas', tarefas)];
   },
   async processosParaLigar(termo = '') {

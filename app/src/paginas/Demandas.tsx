@@ -3,6 +3,8 @@
 // Concluído) e o cartão de cada uma. A estrutura da página vem de <PaginaModulo>; o modelo é o módulo Pessoas.
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
+import { useParametroLido } from '../ui/useParametroLido';
 import { oferecerProcesso } from './concluirDemanda';
 import { SD, type DemandaLista, type FiltroDemandas, type Lembrete, type OrdemComPrazo, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
@@ -64,8 +66,10 @@ export default function Demandas() {
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  // Vindo do painel do Início (?pessoa=eu), a lista abre no que é de quem está logado; senão, na última escolha da pessoa. O parâmetro sai do endereço depois de lido.
+  const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
   const [f, setF] = useState<FiltroDemandas>(() => {
-    let pessoa = lerPreferencia('demandas.pessoa', '');
+    let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('demandas.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
     return { termo: '', pessoa, situacao: 'ativas', pagina: 0 };
   });

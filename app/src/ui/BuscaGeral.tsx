@@ -59,6 +59,20 @@ export function BotaoBuscaGeral({ soIcone = false }: { soIcone?: boolean }) {
   </button>;
 }
 
+/**
+ * A busca no alto do painel da página inicial (#319): um botão grande com cara de campo, que abre a mesma janela do botão do menu
+ * e do Ctrl+K. Não se digita nele: a busca é a da janela.
+ */
+export function CampoDaBuscaGeral() {
+  const atalho = atalhoDaBusca(ehMac());
+  return <button type="button" className="busca-do-painel" aria-label="Buscar em todo o SEMPER" aria-keyshortcuts="Control+K Meta+K"
+    onClick={e => { e.stopPropagation(); abrirBuscaGeral(); }}>
+    <Icone nome="buscar" tam={18} />
+    <span>Buscar pessoa, processo, contrato, tarefa…</span>
+    <kbd aria-hidden="true">{atalho}</kbd>
+  </button>;
+}
+
 interface Props {
   /** Os módulos em que buscar: os que o escritório tem ligados (modulosLigados, em regras/buscaGeral.ts). */
   modulos: readonly ModuloDaBusca[];

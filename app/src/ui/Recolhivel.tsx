@@ -6,7 +6,7 @@
 // primeira mostra, logo acima dela e alinhado às setas, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas
 // abertas), que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BotaoLink } from './base';
+import { BotaoLink, Contador } from './base';
 import { Icone, type NomeIcone } from './Icone';
 import type { NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
@@ -100,7 +100,7 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
       <h3 className={novo ? 'com-novo' : undefined}>
         <button type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
           <Icone nome={icone} tam={14} />{titulo}
-          {contador !== undefined && <span className={'recolher-contador' + (contador ? '' : ' vazio')}>{contador}</span>}
+          {contador !== undefined && <Contador apagado={!contador}>{contador}</Contador>}
           {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span>}
         </button>
         {novo && <>

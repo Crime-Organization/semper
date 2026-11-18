@@ -2894,7 +2894,10 @@ export const SD: Dados = {
     const noPeriodo = (x: { prazo: string | null; etapa_id: string | null }) => !!x.prazo && x.prazo >= de && x.prazo <= ate && !concluida(x.etapa_id);
     const naAgenda = (origem: PrazoNaAgenda['origem']) => (x: { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora?: string | null; responsavel_id: string }): PrazoNaAgenda =>
       ({ origem, id: x.id, codigo: x.codigo, titulo: x.titulo, prazo: x.prazo!, responsavel_id: x.responsavel_id, hora: fmtHora(x.prazo_hora) || null });
-    return espera([...filtrarDemandas(f).filter(noPeriodo).map(naAgenda('demandas')), ...filtrarTarefas(f).filter(noPeriodo).map(naAgenda('tarefas'))]);
+    // Como no banco: os concluídos saem antes do corte em ITENS_DA_AGENDA, em cada módulo, pela ordem do prazo.
+    const primeiros = <T extends { prazo: string | null; etapa_id: string | null }>(itens: T[]) =>
+      itens.filter(noPeriodo).sort((a, b) => a.prazo!.localeCompare(b.prazo!)).slice(0, ITENS_DA_AGENDA);
+    return espera([...primeiros(filtrarDemandas(f)).map(naAgenda('demandas')), ...primeiros(filtrarTarefas(f)).map(naAgenda('tarefas'))]);
   },
   processosParaLigar: (texto = '') => espera(bd.processos!.filter(p => !p.arquivado_em && (!termo(texto) || buscaProcesso(p).includes(termo(texto)))).sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, PROCESSOS_PARA_LIGAR)
     .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes) }))),

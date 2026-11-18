@@ -974,6 +974,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .indicador.destaque { background: var(--dark); border-color: var(--dark-borda); padding: 18px 20px; flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 6px; border-radius: 12px }
 .indicador.destaque .indicador-rotulo, .indicador.destaque .indicador-detalhe { color: var(--gray) }
 
+/* A lista de números (<ListaDeNumeros>): o número em destaque à esquerda e o nome; com link, a linha toda leva à página. */
+.lista-de-numeros { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
+.lista-de-numeros li + li { border-top: 1px solid var(--line) }
+.lista-de-numeros li > * { display: flex; align-items: baseline; gap: 12px; padding: 8px 4px; color: var(--text); text-decoration: none; border-radius: 8px }
+.lista-de-numeros a:hover { background: var(--soft); color: var(--ink) }
+.lista-de-numeros a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.lista-de-numeros b { min-width: 2.5ch; font-size: var(--texto-titulo-1); font-weight: 900; letter-spacing: -.02em; line-height: 1.1; color: var(--ink); font-variant-numeric: tabular-nums }
+.lista-de-numeros span { font-size: var(--texto-tabela) }
+
 .segmentos { display: inline-flex; align-self: flex-start; gap: 4px; padding: 4px; max-width: 100%; overflow-x: auto; scrollbar-width: none; background: var(--soft); border: 1px solid var(--line); border-radius: 999px }
 .segmentos::-webkit-scrollbar, .abas-nav::-webkit-scrollbar { display: none }
 .segmentos button { position: relative; flex: 0 0 auto; height: 34px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; font-weight: 700; font-size: 13px; color: var(--text2); cursor: pointer }

@@ -13,6 +13,8 @@
   --icone-da-busca-geral: 32px;
   /* A altura do botão "Buscar" do menu: a mesma dos itens do menu */
   --botao-da-busca-geral: 36px;
+  /* A largura máxima da busca no alto da página inicial (#319): a de um campo de busca, sem atravessar a página */
+  --largura-da-busca-do-painel: 560px;
 }
 
 /* ---------- o botão do menu ---------- */
@@ -24,7 +26,15 @@
 .topo-acoes { display: flex; align-items: center; gap: 8px }
 .topo-cel .busca-geral-lupa { color: var(--ink) }
 
-.busca-geral kbd, .busca-geral-botao kbd { display: inline-flex; align-items: center; gap: 2px; min-height: 20px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 6px;
+/* ---------- a busca no alto da página inicial (#319): um botão com cara de campo, que abre a janela ---------- */
+.busca-do-painel { display: flex; align-items: center; gap: 12px; width: 100%; max-width: var(--largura-da-busca-do-painel); min-height: var(--altura-campo);
+  padding: 0 12px 0 18px; border: 1px solid var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); font: inherit;
+  font-size: var(--texto-corrido); cursor: pointer; text-align: left; transition: border-color .15s, color .15s }
+.busca-do-painel:hover { border-color: var(--faint); color: var(--ink) }
+.busca-do-painel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.busca-do-painel > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+.busca-geral kbd, .busca-geral-botao kbd, .busca-do-painel kbd { display: inline-flex; align-items: center; gap: 2px; min-height: 20px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 6px;
   background: var(--soft); color: var(--muted); font-family: var(--font); font-size: var(--texto-miudo); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap }
 
 /* ---------- a janela ---------- */
