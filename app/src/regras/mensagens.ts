@@ -88,3 +88,12 @@ export const textoDoContador = (naoLidas: number) => naoLidas > MAIOR_CONTADOR_D
 
 /** O nome do item do menu para quem usa leitor de tela, com o número de não lidas. */
 export const rotuloDoMenu = (naoLidas: number) => ({ 0: 'Mensagens', 1: 'Mensagens, 1 não lida' } as Record<number, string>)[naoLidas] ?? `Mensagens, ${naoLidas} não lidas`;
+
+/**
+ * A caixa junta as mensagens de cada origem (as menções e os prazos; os pedidos para participar, #363, vêm de outra tabela): da mais
+ * nova para a mais antiga, até o limite da caixa. Entre as do mesmo instante, fica a ordem em que cada origem as trouxe.
+ */
+export function juntarAsCaixas<M extends { criado_em: string }>(caixas: readonly (readonly M[])[], limite: number): M[] {
+  return caixas.flat().map((m, i) => ({ m, i, quando: Date.parse(m.criado_em) }))
+    .sort((a, b) => b.quando - a.quando || a.i - b.i).slice(0, limite).map(x => x.m);
+}

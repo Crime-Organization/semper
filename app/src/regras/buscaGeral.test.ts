@@ -7,7 +7,7 @@ import type { CompromissoLista } from '../dados/tipos';
 import {
   achadoDoGrupo, ANUNCIO_DA_BUSCA, atalhoDaBusca, buscaPronta, ehAtalhoDaBusca, ehExato, enderecoDaLinha, enderecoDaPagina, enderecoDoCartao, FILTROS_PADRAO,
   gruposDosModulos, LEITURA_DO_TERMO, lerTermo, linhaDaOpcao, modulosLigados, montarGrupos, noPeriodo, opcoesDosGrupos, ordenarAchados, PARAMETROS_DO_VER_TODOS,
-  proximaOpcao, resumoDosResultados, semAcessoQueAparece, situacaoDaBusca, textoDoVerTodos, trechoQueCombina,
+  podeSerOCodigo, proximaOpcao, resumoDosResultados, semAcessoDoPedido, semAcessoQueAparece, MODULO_DO_GRUPO_DO_PEDIDO, situacaoDaBusca, textoDoVerTodos, trechoQueCombina,
   type BuscaDoGrupo, type ItemAchado, type ItemSemAcesso
 } from './buscaGeral';
 
@@ -269,13 +269,19 @@ describe('Busca geral: ordem, filtros e grupos', () => {
 describe('Busca geral: item de que a pessoa não faz parte (ponto de encaixe da #363)', () => {
   const alheia: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'tarefas', id: 'x', codigo: 'BEEF0001' };
   const processo: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'administrativos', id: 'y', codigo: 'AAAA0001', numero: '912345678' };
+  const patente: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'administrativos', id: 'z', codigo: 'AAAA0002', numero: 'BR1020200123456' };
+  const contrato: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'contratos', id: 'k', codigo: 'HE62-0163-2026' };
 
   it.each([
     ['o código exato', alheia, 'beef0001', true],
     ['parte do código', alheia, 'BEEF', false],
     ['um nome', alheia, 'emitir a gru', false],
     ['o número do processo', processo, '912345678', true],
-    ['outro número', processo, '912345670', false]
+    ['outro número', processo, '912345670', false],
+    ['o número com letras, como foi escrito', patente, 'BR 10 2020 012345-6', true],
+    ['o número com letras, sem pontuação e em minúsculas', patente, 'br1020200123456', true],
+    ['parte do número com letras', patente, 'BR 10 2020', false],
+    ['o número do contrato, em minúsculas', contrato, 'he62-0163-2026', true]
   ])('quando a pessoa busca %s, então o item aparece: %s', (_caso, item, texto, aparece) => {
     // Quando / Então
     expect(semAcessoQueAparece(item, lerTermo(texto))).toBe(aparece);
@@ -327,5 +333,25 @@ describe('Busca geral: o realce e o teclado', () => {
   it.each([[true, '⌘ K'], [false, 'Ctrl K']])('dado um Mac (%s), então a dica do atalho é "%s"', (mac, dica) => {
     // Quando / Então
     expect(atalhoDaBusca(mac)).toBe(dica);
+  });
+});
+
+describe('Busca geral: os itens para pedir (#363)', () => {
+  it.each([
+    ['um código', 'f00d1234', true], ['o número de um contrato', 'HE62-0163-2026', true], ['um número de processo', '0001234-97.2026.8.13.0024', true],
+    ['um número administrativo', '912345678', true], ['um nome', 'maria', false], ['um CPF', '529.982.247-25', false],
+    ['um número com letras (patente do INPI)', 'BR 10 2020 012345-6', true], ['parte de um código, sem algarismo', 'BEEF', false], ['um nome com acento e algarismo', 'João 2', false]
+  ])('quando a pessoa digita %s, então a busca pergunta ao banco pelos itens para pedir: %s', (_caso, texto, pergunta) => {
+    // Quando / Então
+    expect(podeSerOCodigo(lerTermo(texto))).toBe(pergunta);
+  });
+
+  it('dado um processo que o banco achou pelo número, quando vira linha da janela, então leva o grupo, o código, o número e o pedido pendente', () => {
+    // Quando
+    const item = semAcessoDoPedido({ modulo: 'processos', grupo: 'judiciais', id: 'p1', codigo: 'EEEE0001', numero: '00012349720268130024', pedido_id: 'x1' });
+    // Então
+    expect(item).toEqual({ tipo: 'semAcesso', grupo: 'judiciais', id: 'p1', codigo: 'EEEE0001', numero: '00012349720268130024', pedido_id: 'x1' });
+    expect(semAcessoQueAparece(item, lerTermo('0001234-97.2026.8.13.0024'))).toBe(true);
+    expect(MODULO_DO_GRUPO_DO_PEDIDO[item.grupo]).toBe('processos');
   });
 });

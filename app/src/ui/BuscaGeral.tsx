@@ -9,12 +9,14 @@ import {
   ANUNCIO_DA_BUSCA, atalhoDaBusca, buscaPronta, enderecoDaLinha, FILTROS_PADRAO, gruposDosModulos, GRUPOS_DA_BUSCA, ehAtalhoDaBusca, LEITURA_DO_TERMO, lerTermo,
   linhaDaOpcao, MODULOS_DA_BUSCA, montarGrupos, opcoesDosGrupos, pelaLinha, PERIODOS_DA_BUSCA, proximaOpcao, situacaoDaBusca, textoDoVerTodos, trechoQueCombina,
   type FiltroDeModulo, type FiltrosDaBusca, type GrupoDaBusca, type GrupoMostrado, type LinhaDaBusca, type ModuloDaBusca, type OpcaoDaBusca, type PeriodoDaBusca,
-  type PorTipoDaLinha, type SituacaoDaBusca, type TermoDaBusca
+  type ItemSemAcesso, type PorTipoDaLinha, type SituacaoDaBusca, type TermoDaBusca
 } from '../regras/buscaGeral';
+import { estadoDoItemSemAcesso, ITEM_SEM_ACESSO } from '../regras/pedidoDeParticipacao';
 import { abrirEmNovaAba, cliquesQueAbrem, pedeNovaAba } from './abrirItem';
-import { falha } from './avisos';
+import { avisar, falha } from './avisos';
+import { Botao } from './Botoes';
 import { Aviso, Carregando, estiloBotao, Nota, Segmentos, Vazio } from './base';
-import { abrirBuscaGeral, buscaGeralAberta, buscarEmTudo, fecharBuscaGeral, type BuscarEmTudo, type ResultadoDaBuscaGeral } from './fontesDaBuscaGeral';
+import { abrirBuscaGeral, alternarPedido, buscaGeralAberta, buscarEmTudo, fecharBuscaGeral, type AlternarPedido, type BuscarEmTudo, type ResultadoDaBuscaGeral } from './fontesDaBuscaGeral';
 import { Icone, type NomeIcone } from './Icone';
 import { haJanelaAberta } from './janela';
 import { travarRolagem } from './rolagem';
@@ -62,6 +64,8 @@ interface Props {
   modulos: readonly ModuloDaBusca[];
   /** Onde buscar; os testes trocam pela resposta que quiserem. */
   buscar?: BuscarEmTudo;
+  /** Pedir para participar de um item, ou cancelar o pedido (#363); os testes trocam. */
+  alternar?: AlternarPedido;
   /** O instante do filtro de data; os testes fixam. */
   agora?: () => Date;
 }
@@ -73,7 +77,7 @@ export function BuscaGeral(props: Props) {
   return aberta ? <JanelaDaBusca {...props} /> : null;
 }
 
-function JanelaDaBusca({ modulos, buscar = buscarEmTudo, agora = () => new Date() }: Props) {
+function JanelaDaBusca({ modulos, buscar = buscarEmTudo, alternar = alternarPedido, agora = () => new Date() }: Props) {
   const navegar = useNavigate();
   const [texto, setTexto] = useState('');
   const atrasado = useAtrasado(texto);
@@ -81,6 +85,9 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, agora = () => new Date(
   /** A última resposta: o termo, o que veio e quando chegou (o filtro de data conta a partir daí). */
   const [resposta, setResposta] = useState<{ termo: string; resultado: ResultadoDaBuscaGeral; em: Date } | null>(null);
   const [ativa, setAtiva] = useState(-1);
+  /** Os pedidos feitos ou cancelados nesta janela (#363), pelo id do item: valem por cima do que a busca trouxe. */
+  const [pedidos, setPedidos] = useState<Record<string, string | null>>({});
+  const pedindo = useRef(false);
   const campo = useRef<HTMLInputElement>(null);
   const lista = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -122,8 +129,9 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, agora = () => new Date(
   const emDia = !!atual && lerTermo(texto).escrito === termo.escrito;
   const mostrada = pronta ? (atual ?? resposta) : null;
   const termoMostrado = useMemo(() => lerTermo(mostrada?.termo ?? ''), [mostrada]);
-  const mostrados = useMemo(() => mostrada ? montarGrupos(mostrada.resultado.buscas, mostrada.resultado.semAcesso, termoMostrado, filtros, mostrada.em) : [],
-    [mostrada, termoMostrado, filtros]);
+  const semAcesso = useMemo(() => (mostrada?.resultado.semAcesso ?? []).map(s => s.id in pedidos ? { ...s, pedido_id: pedidos[s.id] } : s), [mostrada, pedidos]);
+  const mostrados = useMemo(() => mostrada ? montarGrupos(mostrada.resultado.buscas, semAcesso, termoMostrado, filtros, mostrada.em) : [],
+    [mostrada, semAcesso, termoMostrado, filtros]);
   const opcoes = useMemo(() => opcoesDosGrupos(mostrados), [mostrados]);
   const situacao = situacaoDaBusca({ pronta, respondida: !!atual, linhas: opcoes.length });
   // A cada lista nova, a primeira linha fica escolhida: Enter abre o primeiro resultado. É no mesmo desenho que mostra a lista
@@ -138,8 +146,23 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, agora = () => new Date(
     lista.current?.querySelector(`[id="${CSS.escape(opcoes[ativa]?.id ?? '')}"]`)?.scrollIntoView?.({ block: 'nearest' });
   }, [ativa, opcoes]);
 
+  /** O botão da linha do item de que a pessoa não faz parte: pede para participar, ou cancela o pedido pendente. */
+  async function alternarPedidoDaLinha(item: ItemSemAcesso) {
+    if (pedindo.current) return;
+    pedindo.current = true;
+    try {
+      const pedido = await alternar(item);
+      setPedidos(p => ({ ...p, [item.id]: pedido }));
+      avisar(ITEM_SEM_ACESSO[estadoDoItemSemAcesso(item.pedido_id)].feito);
+    } catch (e) { falha(e); }
+    finally { pedindo.current = false; }
+  }
+
   function abrir(o: OpcaoDaBusca, novaAba = false) {
-    const para = enderecoDaLinha(linhaDaOpcao(o), termoMostrado.escrito);
+    const linha = linhaDaOpcao(o);
+    // O item de que a pessoa não faz parte não abre: o Enter faz o que o botão da linha faz.
+    if (linha.tipo === 'semAcesso') { void alternarPedidoDaLinha(linha); return; }
+    const para = enderecoDaLinha(linha, termoMostrado.escrito);
     if (!para) return;
     if (novaAba) { abrirEmNovaAba(para); return; }
     fechar(false);
@@ -189,7 +212,7 @@ function JanelaDaBusca({ modulos, buscar = buscarEmTudo, agora = () => new Date(
       <div className="busca-geral-corpo" aria-busy={pronta && !atual}>
         <div ref={lista} id={idLista} role="listbox" aria-label="Resultados" hidden={!opcoes.length}>
           {mostrados.map(g => <Grupo key={g.grupo} g={g} opcoes={opcoes} ativaId={ativaId} termo={termoMostrado} periodo={filtros.periodo}
-            aoApontar={o => setAtiva(opcoes.indexOf(o))} aoAbrir={abrir} />)}
+            aoApontar={o => setAtiva(opcoes.indexOf(o))} aoAbrir={abrir} aoAlternar={alternarPedidoDaLinha} />)}
         </div>
         {SITUACAO[situacao]({ termo: termo.escrito, filtrosLigados, limparFiltros: () => setFiltros(FILTROS_PADRAO) })}
         {!!atual?.resultado.falhas.length && <Aviso tipo="erro" className="busca-geral-falha">
@@ -214,8 +237,9 @@ interface PropsGrupo {
   periodo: PeriodoDaBusca;
   aoApontar: (o: OpcaoDaBusca) => void;
   aoAbrir: (o: OpcaoDaBusca, novaAba?: boolean) => void;
+  aoAlternar: (item: ItemSemAcesso) => Promise<void>;
 }
-function Grupo({ g, opcoes, ativaId, termo, periodo, aoApontar, aoAbrir }: PropsGrupo) {
+function Grupo({ g, opcoes, ativaId, termo, periodo, aoApontar, aoAbrir, aoAlternar }: PropsGrupo) {
   const idTitulo = useId();
   const doGrupo = opcoes.filter(o => o.grupo === g.grupo);
   return <div role="group" aria-labelledby={idTitulo} className="busca-geral-grupo">
@@ -224,14 +248,15 @@ function Grupo({ g, opcoes, ativaId, termo, periodo, aoApontar, aoAbrir }: Props
       const linha = linhaDaOpcao(o);
       return <Linha key={o.id} id={o.id} linha={linha} para={enderecoDaLinha(linha, termo.escrito)} ativa={o.id === ativaId}
         aoApontar={() => aoApontar(o)} aoAbrir={() => aoAbrir(o)}>
-        {pelaLinha(CONTEUDO_DA_LINHA, linha, { g, termo, periodo })}
+        {pelaLinha(CONTEUDO_DA_LINHA, linha, { g, termo, periodo, aoAlternar })}
       </Linha>;
     })}
   </div>;
 }
 
 /** O que a linha mostra, de cada tipo de linha. */
-const CONTEUDO_DA_LINHA: PorTipoDaLinha<[{ g: GrupoMostrado; termo: TermoDaBusca; periodo: PeriodoDaBusca }], ReactNode> = {
+interface ContextoDaLinha { g: GrupoMostrado; termo: TermoDaBusca; periodo: PeriodoDaBusca; aoAlternar: (item: ItemSemAcesso) => Promise<void> }
+const CONTEUDO_DA_LINHA: PorTipoDaLinha<[ContextoDaLinha], ReactNode> = {
   verTodos: (_l, { g, periodo }) => <><span className="busca-geral-icone"><Icone nome="seta" tam={16} /></span>
     <span className="busca-geral-texto"><span className="busca-geral-titulo">Ver todos em {GRUPOS_DA_BUSCA[g.grupo].pagina}</span>
       <span className="busca-geral-meta">{textoDoVerTodos(g.total, periodo)}</span></span></>,
@@ -241,12 +266,17 @@ const CONTEUDO_DA_LINHA: PorTipoDaLinha<[{ g: GrupoMostrado; termo: TermoDaBusca
       <span className="busca-geral-meta"><span>{GRUPOS_DA_BUSCA[g.grupo].tipo}</span><span className="busca-geral-codigo">{item.codigo}</span>
         {item.contexto && <span className="busca-geral-contexto">{item.contexto}</span>}</span>
     </span></>,
-  // #363: o item existe, mas a pessoa não faz parte dele: só o tipo e o código (o botão "Pedir para participar" vem com a #363).
-  semAcesso: (item, { g }) => <><span className="busca-geral-icone"><Icone nome="cadeado" tam={16} /></span>
-    <span className="busca-geral-texto">
-      <span className="busca-geral-titulo">{GRUPOS_DA_BUSCA[g.grupo].tipo} <span className="busca-geral-codigo">{item.codigo}</span></span>
-      <span className="busca-geral-meta">Você não faz parte deste item.</span>
-    </span></>
+  // #363: o item existe, mas a pessoa não faz parte dele: só o tipo e o código, e o botão de pedir (ou de cancelar o pedido). O botão
+  // não recebe o foco (ele fica no campo, como em toda a lista): o Enter na linha faz o mesmo.
+  semAcesso: (item, { g, aoAlternar }) => {
+    const tipo = GRUPOS_DA_BUSCA[g.grupo].tipo, estado = ITEM_SEM_ACESSO[estadoDoItemSemAcesso(item.pedido_id)];
+    return <><span className="busca-geral-icone"><Icone nome="cadeado" tam={16} /></span>
+      <span className="busca-geral-texto">
+        <span className="busca-geral-titulo">{tipo} <span className="busca-geral-codigo">{item.codigo}</span></span>
+        <span className="busca-geral-meta">{estado.meta}</span>
+      </span>
+      <Botao forma="mini" tabIndex={-1} className="busca-geral-pedir" aria-label={estado.rotulo(tipo, item.codigo)} onClick={() => aoAlternar(item)}>{estado.botao}</Botao></>;
+  }
 };
 
 interface PropsLinha {
@@ -264,7 +294,7 @@ interface PropsLinha {
  * Ctrl+clique (Cmd no Mac) e a rodinha abrem numa aba nova. Nenhum clique tira o foco do campo.
  */
 function Linha({ id, linha, para, ativa, aoApontar, aoAbrir, children }: PropsLinha) {
-  return <div id={id} role="option" aria-selected={ativa} aria-disabled={!para || undefined}
+  return <div id={id} role="option" aria-selected={ativa} aria-disabled={(!para && linha.tipo !== 'semAcesso') || undefined}
     className={'busca-geral-linha' + (linha.tipo === 'verTodos' ? ' ver-todos' : '')}
     onMouseMove={() => { if (!ativa) aoApontar(); }} {...(para ? cliquesQueAbrem(para, aoAbrir) : {})} onMouseDown={e => e.preventDefault()}>
     {children}

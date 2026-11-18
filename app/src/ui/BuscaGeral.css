@@ -75,6 +75,9 @@
 .busca-geral-codigo { font-variant-numeric: tabular-nums; letter-spacing: .02em }
 .busca-geral-linha.ver-todos .busca-geral-titulo { color: var(--accent-ink) }
 .busca-geral-linha.ver-todos .busca-geral-icone { border-style: dashed }
+/* O item de que a pessoa não faz parte (#363): a linha não abre; a ação é o botão do fim ("Pedir para participar" ou "Cancelar"). */
+.busca-geral-linha:has(.busca-geral-pedir) { cursor: default }
+.busca-geral-pedir { flex: none }
 
 .busca-geral-situacao { padding: 18px 12px; color: var(--text2); font-size: var(--texto-corrido); line-height: 1.6 }
 .busca-geral-situacao p { margin: 0 0 6px }

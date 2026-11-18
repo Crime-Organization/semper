@@ -7,12 +7,15 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BuscaDoGrupo, GrupoDaBusca, ItemAchado, ItemSemAcesso } from '../regras/buscaGeral';
 import { BotaoBuscaGeral, BuscaGeral } from './BuscaGeral';
-import { buscaGeralAberta, type BuscarEmTudo } from './fontesDaBuscaGeral';
+import { avisar, falha } from './avisos';
+import { buscaGeralAberta, type AlternarPedido, type BuscarEmTudo } from './fontesDaBuscaGeral';
 import { MenuFlutuante } from './Menu';
 import { travarRolagem } from './rolagem';
 
 // A janela recebe a busca de quem a monta: aqui, uma resposta fixa (a camada de dados nem é carregada).
 vi.mock('../dados', () => ({ SD: {} }));
+// Os avisos do pé da tela: o teste confere o que a janela avisou.
+vi.mock('./avisos', async original => ({ ...(await original<typeof import('./avisos')>()), avisar: vi.fn(), falha: vi.fn() }));
 
 const AGORA = new Date('2026-11-18T12:00:00-03:00');
 const achado = (grupo: GrupoDaBusca, id: string, titulo: string, contexto = '', codigo = id.toUpperCase()): ItemAchado =>
@@ -44,11 +47,11 @@ function BotaoFiltros() {
     </MenuFlutuante>}
   </>;
 }
-function montar(buscar = buscaQueDevolve(TUDO)) {
+function montar(buscar = buscaQueDevolve(TUDO), alternar: AlternarPedido = vi.fn<AlternarPedido>(async () => 'pedido-1')) {
   render(<MemoryRouter initialEntries={['/inicio/']}>
     <BotaoBuscaGeral />
     <BotaoFiltros />
-    <BuscaGeral modulos={['pessoas', 'processos', 'tarefas']} buscar={buscar} agora={() => AGORA} />
+    <BuscaGeral modulos={['pessoas', 'processos', 'tarefas']} buscar={buscar} alternar={alternar} agora={() => AGORA} />
     <Endereco />
   </MemoryRouter>);
   return buscar;
@@ -246,18 +249,69 @@ describe('Busca geral: a janela', () => {
     expect(campo()).toHaveAccessibleDescription('CPF 529.982.247-25');
   });
 
-  it('dado um item de que a pessoa não faz parte (#363), quando ela busca o código exato, então ele aparece só com o tipo e o código, e não abre', async () => {
+  // Com a #363, a linha do item ganhou o botão "Pedir para participar" e o Enter passou a pedir: ela deixou de ser uma linha
+  // desabilitada (aria-disabled), mas continua sem abrir o cartão.
+  it('dado um item de que a pessoa não faz parte (#363), quando ela busca o código exato e clica na linha, então ele aparece só com o tipo e o código, e não abre nem pede', async () => {
     // Dado
     const alheio: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'tarefas', id: 'x', codigo: 'BEEF0001' };
-    montar(buscaQueDevolve([{ grupo: 'tarefas', itens: [], total: 0 }], [alheio]));
+    const alternar = vi.fn<AlternarPedido>(async () => 'pedido-1');
+    montar(buscaQueDevolve([{ grupo: 'tarefas', itens: [], total: 0 }], [alheio]), alternar);
     await userEvent.click(screen.getByRole('button', { name: 'Buscar em todo o SEMPER' }));
     await buscar('BEEF0001');
     // Quando
     const linha = screen.getByRole('option', { name: /BEEF0001/ });
-    await userEvent.click(linha);
+    await userEvent.click(within(linha).getByText('BEEF0001'));
     // Então
-    expect(linha).toHaveTextContent('Tarefa BEEF0001Você não faz parte deste item.');
-    expect(linha).toHaveAttribute('aria-disabled', 'true');
+    expect(linha).toHaveTextContent('Tarefa BEEF0001Você não faz parte deste item.Pedir para participar');
+    expect(within(linha).getByRole('button', { name: 'Pedir para participar: Tarefa BEEF0001' })).toBeInTheDocument();
+    expect(alternar).not.toHaveBeenCalled();
     expect(screen.getByRole('status', { name: 'Endereço' })).toHaveTextContent('/inicio/');
+  });
+
+  it('dado um item de que a pessoa não faz parte, quando ela clica em "Pedir para participar", então o pedido sai, a linha mostra "Pedido enviado" e o aviso confirma', async () => {
+    // Dado
+    const alheio: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'tarefas', id: 'x', codigo: 'BEEF0001' };
+    const alternar = vi.fn<AlternarPedido>(async () => 'pedido-1');
+    montar(buscaQueDevolve([{ grupo: 'tarefas', itens: [], total: 0 }], [alheio]), alternar);
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar em todo o SEMPER' }));
+    await buscar('BEEF0001');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Pedir para participar: Tarefa BEEF0001' }));
+    // Então
+    expect(alternar).toHaveBeenCalledWith(alheio);
+    const linha = screen.getByRole('option', { name: /BEEF0001/ });
+    expect(linha).toHaveTextContent('Pedido enviado · aguardando resposta');
+    expect(within(linha).getByRole('button', { name: 'Cancelar o pedido: Tarefa BEEF0001' })).toBeInTheDocument();
+    expect(avisar).toHaveBeenCalledWith('Pedido enviado. Quem pode aprovar recebe nas Mensagens.');
+    expect(campo()).toHaveFocus();
+  });
+
+  it('dado um pedido pendente, quando a pessoa aperta Enter na linha, então o pedido é cancelado e a linha volta a oferecer o pedido', async () => {
+    // Dado
+    const pendente: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'tarefas', id: 'x', codigo: 'BEEF0001', pedido_id: 'pedido-1' };
+    const alternar = vi.fn<AlternarPedido>(async () => null);
+    montar(buscaQueDevolve([{ grupo: 'tarefas', itens: [], total: 0 }], [pendente]), alternar);
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar em todo o SEMPER' }));
+    await buscar('BEEF0001');
+    expect(screen.getByRole('option', { name: /BEEF0001/ })).toHaveTextContent('Pedido enviado');
+    // Quando
+    await userEvent.keyboard('{Enter}');
+    // Então
+    expect(alternar).toHaveBeenCalledWith(pendente);
+    await waitFor(() => expect(screen.getByRole('option', { name: /BEEF0001/ })).toHaveTextContent('Você não faz parte deste item.Pedir para participar'));
+    expect(screen.getByRole('status', { name: 'Endereço' })).toHaveTextContent('/inicio/');
+  });
+
+  it('dado um pedido que o banco recusa, quando a pessoa pede, então o aviso de erro diz o motivo e a linha não muda', async () => {
+    // Dado
+    const alheio: ItemSemAcesso = { tipo: 'semAcesso', grupo: 'tarefas', id: 'x', codigo: 'BEEF0001' };
+    montar(buscaQueDevolve([{ grupo: 'tarefas', itens: [], total: 0 }], [alheio]), vi.fn<AlternarPedido>(async () => { throw new Error('Você já faz parte deste item.'); }));
+    await userEvent.click(screen.getByRole('button', { name: 'Buscar em todo o SEMPER' }));
+    await buscar('BEEF0001');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Pedir para participar: Tarefa BEEF0001' }));
+    // Então
+    expect(falha).toHaveBeenCalledWith(new Error('Você já faz parte deste item.'));
+    expect(screen.getByRole('option', { name: /BEEF0001/ })).toHaveTextContent('Você não faz parte deste item.');
   });
 });

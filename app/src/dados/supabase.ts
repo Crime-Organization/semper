@@ -16,6 +16,7 @@ import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, Contrat
 import { PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
+import type { ItemParaPedir, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { PASTA_APAGADA } from '../regras/pastas';
@@ -24,7 +25,7 @@ import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
 import { fmtHora, nomeDoCompromisso, papeisNoCompromisso } from '../regras/compromisso';
 import { advogadoNaAdaptacao, equipeEditaTudo } from '../regras/equipeVeTudo';
-import { colunaCancelada, paginaDoPrazo } from '../regras/mensagens';
+import { colunaCancelada, juntarAsCaixas, paginaDoPrazo } from '../regras/mensagens';
 import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
@@ -203,12 +204,26 @@ const prazoDaLinha = (l: LinhaDaMensagem): PrazoDaMensagem | null => {
 /** Junta o comentário e o cartão dele. Sem o comentário, ou sem o cartão, a pessoa não vê mais de onde veio a menção. */
 function mensagemLida(l: LinhaDaMensagem): Mensagem {
   const { comentario: c, id, tipo, criado_em, lido_em } = l;
-  const m = { id, tipo, criado_em, lido_em, prazo: prazoDaLinha(l) };
+  const m = { id, tipo, criado_em, lido_em, prazo: prazoDaLinha(l), pedido: null };
   const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
   const cartao = modulo && c?.[modulo];
   if (!c || !modulo || !cartao) return { ...m, comentario: null };
   return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]] } };
 }
+/**
+ * As mensagens do pedido para participar (#363), da tabela própria. O processo vem com o tipo (a página do cartão depende dele); para
+ * quem não vê o processo, a ligação vem vazia.
+ */
+const CAMPOS_MENSAGEM_DE_PEDIDO = 'id, tipo, criado_em, lido_em, pedido:pedidos_de_participacao(id, modulo, item_id, item_codigo, pedido_por, situacao, respondido_por, processo:processos(tipo))';
+type LinhaDaMensagemDePedido = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & { tipo: 'pedido' | 'resposta';
+  pedido: (Omit<PedidoDaMensagem, 'tipo_do_processo'> & { processo: { tipo: TipoProcesso } | null }) | null };
+const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem => {
+  const { processo, ...p } = pedido ?? { processo: null };
+  return { ...m, comentario: null, prazo: null, pedido: pedido && { ...(p as Omit<PedidoDaMensagem, 'tipo_do_processo'>), tipo_do_processo: processo?.tipo ?? null } };
+};
+/** As duas tabelas da caixa: a de sempre e a dos pedidos para participar. Marcar como lida vale nas duas (o id só existe numa). */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao'] as const;
+
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id' };
 
@@ -1954,19 +1969,30 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const { data } = await rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA));
-    return (data as LinhaDaMensagem[]).map(mensagemLida);
+    const [sempre, pedidos] = await Promise.all([
+      rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+    ]);
+    return juntarAsCaixas([(pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido), (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {
-    const { count } = await rodar(sb.from('mensagens').select('id', { count: 'exact', head: true }).is('lido_em', null));
-    return count ?? 0;
+    const contagens = await Promise.all(CAIXAS.map(t => rodar(sb.from(t).select('id', { count: 'exact', head: true }).is('lido_em', null))));
+    return contagens.reduce((soma, { count }) => soma + (count ?? 0), 0);
   },
   async mensagemMarcarLida(id) {
-    await rodar(sb.from('mensagens').update({ lido_em: new Date().toISOString() }).eq('id', id).is('lido_em', null));
+    const agora = new Date().toISOString();
+    await Promise.all(CAIXAS.map(t => rodar(sb.from(t).update({ lido_em: agora }).eq('id', id).is('lido_em', null))));
   },
   async mensagensMarcarTodasLidas() {
-    await rodar(sb.from('mensagens').update({ lido_em: new Date().toISOString() }).is('lido_em', null));
+    const agora = new Date().toISOString();
+    await Promise.all(CAIXAS.map(t => rodar(sb.from(t).update({ lido_em: agora }).is('lido_em', null))));
   },
+
+  // ---------- pedir para participar (#363): as regras ficam no banco ----------
+  itensParaPedir: termo => rpc('itens_para_pedir', { p_termo: termo }) as Promise<ItemParaPedir[]>,
+  participacaoPedir: (modulo, itemId) => rpc('participacao_pedir', { p_modulo: modulo, p_item: itemId }) as Promise<string>,
+  async participacaoCancelar(pedidoId) { await rpc('participacao_cancelar', { p_pedido: pedidoId }); },
+  async participacaoResponder(pedidoId, aprovar) { await rpc('participacao_responder', { p_pedido: pedidoId, p_aprovar: aprovar }); },
 
   // ---------- ligação com a conta Google ----------
   async ligacaoGoogle() {

@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { MAIOR_CONTADOR_DE_MENSAGENS, TRECHO_DA_MENSAGEM } from '../dados/limites';
-import { colunaCancelada, dataDoAviso, EMAILS_DE_PRAZO, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, paginaDoPrazo, rotuloDoAviso, rotuloDoMenu, textoDoContador, trechoDaMensagem } from './mensagens';
+import { juntarAsCaixas, colunaCancelada, dataDoAviso, EMAILS_DE_PRAZO, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, paginaDoPrazo, rotuloDoAviso, rotuloDoMenu, textoDoContador, trechoDaMensagem } from './mensagens';
 
 describe('Caixa de mensagens', () => {
   it.each([
@@ -142,5 +142,26 @@ describe('Lembretes na caixa de Mensagens (#286)', () => {
     // Então
     expect(EMAILS_DE_PRAZO.map(e => e.chave)).toContain('email_lembretes');
     expect(EMAILS_DE_PRAZO.find(e => e.chave === 'email_lembretes')?.rotulo).toBe('Lembretes que eu marcar nas tarefas e demandas, na hora escolhida');
+  });
+});
+
+describe('Caixa de mensagens: as duas origens (#363)', () => {
+  it('dadas as mensagens de sempre e as dos pedidos, quando a caixa as junta, então vêm da mais nova para a mais antiga, até o limite', () => {
+    // Dado
+    const pedidos = [{ id: 'p2', criado_em: '2026-11-18T12:00:00Z' }, { id: 'p1', criado_em: '2026-11-16T12:00:00Z' }];
+    const sempre = [{ id: 'm2', criado_em: '2026-11-18T09:30:00-03:00' }, { id: 'm1', criado_em: '2026-11-17T10:00:00.000000+00:00' }];
+    // Quando
+    const caixa = juntarAsCaixas([pedidos, sempre], 3);
+    // Então
+    expect(caixa.map(m => m.id)).toEqual(['m2', 'p2', 'm1']);
+  });
+
+  it('dadas duas mensagens do mesmo instante, quando a caixa as junta, então fica a ordem em que cada origem as trouxe', () => {
+    // Dado
+    const instante = '2026-11-18T12:00:00Z';
+    // Quando
+    const caixa = juntarAsCaixas([[{ id: 'a', criado_em: instante }], [{ id: 'b', criado_em: instante }, { id: 'c', criado_em: instante }]], 10);
+    // Então
+    expect(caixa.map(m => m.id)).toEqual(['a', 'b', 'c']);
   });
 });

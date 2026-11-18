@@ -4,7 +4,10 @@
 // O que mostrar de cada linha, a ordem e os filtros ficam em regras/buscaGeral.ts.
 import { SD, type Pagina } from '../dados';
 import { BUSCA_GERAL_CANDIDATOS } from '../dados/limites';
-import { achadoDoGrupo, type BuscaDoGrupo, type GrupoDaBusca, type ItemSemAcesso, type LinhaDoGrupo } from '../regras/buscaGeral';
+import {
+  achadoDoGrupo, lerTermo, MODULO_DO_GRUPO_DO_PEDIDO, podeSerOCodigo, semAcessoDoPedido, type BuscaDoGrupo, type GrupoDaBusca, type ItemSemAcesso, type LinhaDoGrupo
+} from '../regras/buscaGeral';
+import { estadoDoItemSemAcesso, type EstadoDoItemSemAcesso } from '../regras/pedidoDeParticipacao';
 import { criarLoja } from './loja';
 import { fecharMenusAbertos } from './Menu';
 
@@ -37,11 +40,22 @@ async function buscarNoGrupo<G extends GrupoDaBusca>(grupo: G, termo: string): P
 }
 
 /**
- * Ponto de encaixe da #363 (pedir para participar): os itens que existem, mas de que a pessoa não faz parte, achados pelo código
- * exato ou pelo número do processo. Por enquanto, nenhum: com a fase de adaptação ligada, todos veem tudo, e a consulta (que
- * precisa de uma função nova no banco, para devolver só o tipo e o código) vem com a #363.
+ * Os itens que existem, mas de que a pessoa não faz parte (#363), achados pelo código exato ou pelo número inteiro do processo:
+ * o banco devolve só o tipo e o código, do escritório dela, e só o que ela ainda não vê. Nomes e palavras não vão ao banco.
  */
-const buscarSemAcesso = async (_termo: string, _grupos: readonly GrupoDaBusca[]): Promise<ItemSemAcesso[]> => [];
+async function buscarSemAcesso(termo: string, grupos: readonly GrupoDaBusca[]): Promise<ItemSemAcesso[]> {
+  if (!podeSerOCodigo(lerTermo(termo))) return [];
+  const itens = await SD.itensParaPedir(termo);
+  return itens.filter(i => grupos.includes(i.grupo)).map(semAcessoDoPedido);
+}
+
+/** O botão da linha do item: pede para participar ou cancela o pedido pendente. Devolve o pedido pendente depois da ação. */
+export type AlternarPedido = (item: ItemSemAcesso) => Promise<string | null>;
+const ACAO_DO_PEDIDO: Record<EstadoDoItemSemAcesso, AlternarPedido> = {
+  livre: item => SD.participacaoPedir(MODULO_DO_GRUPO_DO_PEDIDO[item.grupo], item.id),
+  pedido: async item => { await SD.participacaoCancelar(item.pedido_id!); return null; }
+};
+export const alternarPedido: AlternarPedido = item => ACAO_DO_PEDIDO[estadoDoItemSemAcesso(item.pedido_id)](item);
 
 export interface ResultadoDaBuscaGeral {
   buscas: BuscaDoGrupo[];

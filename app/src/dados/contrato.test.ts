@@ -6759,3 +6759,208 @@ describe('O nome de alguém da equipe (banco fictício)', () => {
     await expect(SD.equipeDefinirNome('u-ana', 'A')).rejects.toThrow('Informe um nome de 2 a 200 letras.');
   });
 });
+
+describe('Pedir para participar (banco fictício, #363)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  /** Um item da semente, lido da aba como o banco fictício o guarda. */
+  const daSemente = <T,>(colecao: string, achar: (x: T) => boolean) =>
+    (JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as Record<string, T[]>)[colecao].find(achar)!;
+  /** A tarefa "Renovar a procuração" (F00D1234): da Ana, com o master; o Bruno não está nela. */
+  const procuracao = () => daSemente<{ id: string; codigo: string }>('tarefas', t => t.codigo === 'F00D1234');
+  const minhasDoTipo = async (tipo: string) => (await SD.mensagensListar()).filter(m => m.tipo === tipo);
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    falso().fecharVisibilidade(true);
+  });
+  afterEach(() => entrarComo('u-master'));
+
+  it('dada a visualização fechada, quando Bruno busca o código de uma tarefa de que não faz parte, então acha só o tipo e o código; por nome ou parte do código, nada', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando
+    const achados = await SD.itensParaPedir('f00d1234');
+    // Então
+    expect((await SD.tarefasListar({ termo: 'F00D1234' })).linhas).toEqual([]);
+    expect(await SD.tarefaObter(procuracao().id)).toBeNull();
+    expect(achados).toEqual([{ modulo: 'tarefas', grupo: 'tarefas', id: procuracao().id, codigo: 'F00D1234', numero: null, pedido_id: null }]);
+    expect(await SD.itensParaPedir('Renovar a procuração')).toEqual([]);
+    expect(await SD.itensParaPedir('F00D12')).toEqual([]);
+  });
+
+  it('dado quem já vê a tarefa, quando busca o código, então nada há para pedir', async () => {
+    // Dado
+    entrarComo('u-ana');
+    // Quando / Então
+    expect(await SD.itensParaPedir('F00D1234')).toEqual([]);
+  });
+
+  it('dado Bruno, quando pede para participar, então o pedido chega às Mensagens de quem aprova, não se pede de novo e pode ser cancelado', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando
+    const pedido = await SD.participacaoPedir('tarefas', procuracao().id);
+    // Então
+    await expect(SD.participacaoPedir('tarefas', procuracao().id)).rejects.toThrow('Você já pediu para participar deste item. Aguarde a resposta ou cancele o pedido.');
+    expect((await SD.itensParaPedir('F00D1234'))[0].pedido_id).toBe(pedido);
+    expect(await minhasDoTipo('pedido')).toEqual([]);
+    entrarComo('u-ana');
+    expect(await SD.mensagensNaoLidas()).toBeGreaterThan(0);
+    const [chegou] = await minhasDoTipo('pedido');
+    expect(chegou.pedido).toMatchObject({ id: pedido, modulo: 'tarefas', item_codigo: 'F00D1234', pedido_por: 'u-bruno', situacao: 'pendente' });
+    entrarComo('u-master');
+    expect(await minhasDoTipo('pedido')).toHaveLength(1);
+    // Quando
+    entrarComo('u-bruno');
+    await SD.participacaoCancelar(pedido);
+    // Então
+    await expect(SD.participacaoCancelar(pedido)).rejects.toThrow('Este pedido já foi respondido.');
+    expect((await SD.itensParaPedir('F00D1234'))[0].pedido_id).toBeNull();
+    entrarComo('u-ana');
+    expect(await minhasDoTipo('pedido')).toEqual([]);
+  });
+
+  it('dado um pedido, quando a administradora aprova, então Bruno entra como participante, vê a tarefa, a resposta chega a ele e o segundo que responde vê "já respondido"', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('tarefas', procuracao().id);
+    await expect(SD.participacaoResponder(pedido, true)).rejects.toThrow('Só um administrador, o responsável ou quem criou o item responde a este pedido.');
+    // Quando
+    entrarComo('u-ana');
+    await SD.participacaoResponder(pedido, true);
+    // Então
+    entrarComo('u-master');
+    await expect(SD.participacaoResponder(pedido, false)).rejects.toThrow('Este pedido já foi respondido.');
+    expect(await minhasDoTipo('pedido')).toEqual([]);
+    const tarefa = await SD.tarefaObter(procuracao().id);
+    expect(tarefa?.participantes).toContain('u-bruno');
+    expect((await SD.tarefaHistorico(procuracao().id))[0].alteracoes).toEqual({ pedido_aprovado: { de: null, para: 'Bruno Exemplo Souza' } });
+    entrarComo('u-bruno');
+    expect(await SD.tarefaObter(procuracao().id)).not.toBeNull();
+    expect(await SD.itensParaPedir('F00D1234')).toEqual([]);
+    const [resposta] = await minhasDoTipo('resposta');
+    expect(resposta.pedido).toMatchObject({ situacao: 'aprovado', respondido_por: 'u-ana', item_codigo: 'F00D1234' });
+    await SD.mensagensMarcarTodasLidas();
+    expect(await SD.mensagensNaoLidas()).toBe(0);
+  });
+
+  it('dado um pedido, quando o responsável recusa, então Bruno não entra, é avisado e a recusa fica no histórico', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('tarefas', procuracao().id);
+    // Quando
+    entrarComo('u-ana');
+    await SD.participacaoResponder(pedido, false);
+    // Então
+    expect((await SD.tarefaObter(procuracao().id))?.participantes).not.toContain('u-bruno');
+    expect((await SD.tarefaHistorico(procuracao().id))[0].alteracoes).toEqual({ pedido_recusado: { de: null, para: 'Bruno Exemplo Souza' } });
+    entrarComo('u-bruno');
+    expect((await minhasDoTipo('resposta'))[0].pedido).toMatchObject({ situacao: 'recusado' });
+    expect(await SD.tarefaObter(procuracao().id)).toBeNull();
+  });
+
+  /** Os contratos da semente: "Registro de marca" (do Mateus) tem a demanda D3A1F09C, em que Bruno é colaborador; "Ação de cobrança" (da Ana), nenhuma de Bruno. */
+  const contratoDaSemente = (servico: string) => daSemente<{ id: string; codigo: string; servico: string }>('contratos', k => k.servico.startsWith(servico));
+
+  it('dado um contrato de que Bruno não é parte, mas está numa demanda ligada a ele, quando a administradora aprova o pedido, então ele entra com 0% da divisão', async () => {
+    // Dado
+    const contrato = contratoDaSemente('Registro de marca');
+    entrarComo('u-bruno');
+    const [achado] = await SD.itensParaPedir(contrato.codigo.toLowerCase());
+    const pedido = await SD.participacaoPedir(achado.modulo, achado.id);
+    // Quando
+    entrarComo('u-ana');
+    await SD.participacaoResponder(pedido, true);
+    // Então
+    expect((await SD.contratoObter(contrato.id))?.participantes).toContainEqual(expect.objectContaining({ pessoa: expect.objectContaining({ id: 'p-bruno' }), percentual: 0 }));
+    entrarComo('u-bruno');
+    expect(await SD.itensParaPedir(contrato.codigo)).toEqual([]);
+  });
+
+  it('dado um item arquivado ou um módulo que não existe, quando alguém pede, então é recusado', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    // Quando / Então
+    await expect(SD.participacaoPedir('tarefas', 'nao-existe')).rejects.toThrow('Item não encontrado neste escritório.');
+    await expect(SD.participacaoPedir('perfis' as never, procuracao().id)).rejects.toThrow('Item não encontrado neste escritório.');
+  });
+
+  it('dado o código do contrato, que dá para adivinhar, quando Bruno busca cada contrato do escritório pelo código, então só acha o ligado a uma demanda dele', async () => {
+    // Dado
+    const codigos = (JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { contratos: { codigo: string }[] }).contratos.map(k => k.codigo);
+    entrarComo('u-bruno');
+    // Quando
+    const achados = (await Promise.all(codigos.map(c => SD.itensParaPedir(c)))).flat();
+    // Então
+    expect(achados.map(i => i.codigo)).toEqual([contratoDaSemente('Registro de marca').codigo]);
+    expect(await SD.itensParaPedir(contratoDaSemente('Ação de cobrança').codigo)).toEqual([]);
+  });
+
+  it('dado Bruno como indicador do contrato, quando busca o código ou pede, então o contrato não é oferecido e o pedido é recusado', async () => {
+    // Dado
+    const contrato = contratoDaSemente('Registro de marca');
+    await SD.contratoAtualizar(contrato.id, { indicador_id: 'p-bruno', indicador_percentual: 5 });
+    entrarComo('u-bruno');
+    // Quando / Então
+    expect(await SD.itensParaPedir(contrato.codigo)).toEqual([]);
+    await expect(SD.participacaoPedir('contratos', contrato.id)).rejects.toThrow('Você é o indicador deste contrato: o indicador não entra na divisão como participante.');
+  });
+
+  it('dado um pedido, quando Bruno vira o indicador do contrato antes da aprovação, então ninguém aprova (como o gatilho do banco), mas o pedido pode ser recusado', async () => {
+    // Dado
+    const contrato = contratoDaSemente('Registro de marca');
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('contratos', contrato.id);
+    entrarComo('u-master');
+    await SD.contratoAtualizar(contrato.id, { indicador_id: 'p-bruno', indicador_percentual: 5 });
+    // Quando / Então
+    await expect(SD.participacaoResponder(pedido, true)).rejects.toThrow('O indicador e os participantes precisam ser pessoas diferentes.');
+    await SD.participacaoResponder(pedido, false);
+    expect((await SD.contratoObter(contrato.id))?.participantes).not.toContainEqual(expect.objectContaining({ pessoa: expect.objectContaining({ id: 'p-bruno' }) }));
+  });
+
+  it('dado um contrato com parcelas e a responsável que não é administradora, quando ela aprova, então a trava da divisão recusa; a administração aprova', async () => {
+    // Dado
+    const contrato = contratoDaSemente('Ação de cobrança');
+    await SD.parcelaCriar(contrato.id, { vencimento: '2031-02-01', valor: 20000 });
+    await SD.equipeDefinirPapel('u-ana', 'usuario');
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('contratos', contrato.id);
+    // Quando
+    entrarComo('u-ana');
+    // Então
+    await expect(SD.participacaoResponder(pedido, true)).rejects.toThrow('Este contrato tem parcelas: só um administrador muda a divisão.');
+    entrarComo('u-master');
+    await SD.participacaoResponder(pedido, true);
+    expect((await SD.contratoObter(contrato.id))?.participantes).toContainEqual(expect.objectContaining({ pessoa: expect.objectContaining({ id: 'p-bruno' }), percentual: 0 }));
+  });
+
+  it('dado um pedido, quando a tarefa é arquivada antes da resposta, então ninguém aprova, mas o pedido pode ser recusado', async () => {
+    // Dado
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('tarefas', procuracao().id);
+    entrarComo('u-master');
+    await SD.tarefasArquivar([procuracao().id]);
+    // Quando / Então
+    await expect(SD.participacaoResponder(pedido, true)).rejects.toThrow('Este item foi arquivado: ele não recebe participantes. Recuse o pedido ou desarquive o item antes.');
+    await SD.participacaoResponder(pedido, false);
+    expect(await minhasDoTipo('pedido')).toEqual([]);
+  });
+
+  it('dado um processo administrativo com letras no número (patente do INPI), quando Bruno busca o número inteiro, então acha o processo', async () => {
+    // Dado
+    const cliente = daSemente<{ id: string; nome: string }>('pessoas', p => p.nome === 'MARIA APARECIDA EXEMPLO').id;
+    const { codigo } = await SD.processoCriar({ tipo: 'administrativo', numero: 'BR 10 2020 012345-6', responsavel_id: 'u-ana', clientes: [cliente] });
+    entrarComo('u-bruno');
+    // Quando
+    const [achado] = await SD.itensParaPedir('br 10 2020 012345-6');
+    // Então
+    expect(achado).toMatchObject({ modulo: 'processos', grupo: 'administrativos', codigo, numero: 'BR1020200123456' });
+    expect(await SD.itensParaPedir('BR 10 2020')).toEqual([]);
+  });
+});

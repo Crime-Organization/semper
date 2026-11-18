@@ -3,13 +3,13 @@
 // módulo mostra de cada achado, a ordem dos achados e dos grupos, os filtros por módulo e por data e os endereços que se abrem.
 // A busca em si é a de cada módulo (a mesma da busca da página dele, com as mesmas regras de quem vê o quê): ui/fontesDaBuscaGeral.ts.
 import { BUSCA_GERAL_MINIMO, BUSCA_GERAL_POR_MODULO } from '../dados/limites';
-import type { AnotacaoLista, CompromissoLista, ContratoLista, DemandaLista, PessoaLista, ProcessoLista, TarefaLista } from '../dados/tipos';
+import type { AnotacaoLista, CompromissoLista, ContratoLista, DemandaLista, GrupoDoPedido, ItemParaPedir, ModuloDoPedido, PessoaLista, ProcessoLista, TarefaLista } from '../dados/tipos';
 import { DIA } from '../ui/tempos';
 import { fmtHora, nomeDoCompromisso, TIPOS_COMPROMISSO } from './compromisso';
 import { clientesPorExtenso } from './contrato';
 import { DIGITOS_DO_CNJ, fmtCNJ } from './numeroCNJ';
 import { cnpjComLetrasNaBusca, cnpjValido, cpfValido, dig, fmtData, fmtDocumento, limparDocumento, TIPOS as TIPOS_PESSOA } from './pessoa';
-import { TIPOS_PROCESSO } from './processo';
+import { numeroParaComparar, TIPOS_PROCESSO } from './processo';
 import { normal, semAcento } from './texto';
 
 // ---------- módulos e grupos ----------
@@ -151,19 +151,27 @@ export interface ItemAchado {
   exatos: string[];
 }
 /**
- * Ponto de encaixe da #363 (pedir para participar): um item que existe, mas de que a pessoa não faz parte. Ele só aparece numa
- * busca pelo código exato ou pelo número do processo (semAcessoQueAparece), e só com o tipo e o código: nada do título, dos
- * clientes ou do conteúdo. Por enquanto ninguém o produz (com a fase de adaptação ligada, todos veem tudo); a #363 traz a
- * consulta ao banco e o botão "Pedir para participar".
+ * Um item que existe, mas de que a pessoa não faz parte (#363). Ele só aparece numa busca pelo código exato ou pelo número do
+ * processo (semAcessoQueAparece), e só com o tipo e o código: nada do título, dos clientes ou do conteúdo. A linha mostra o botão
+ * "Pedir para participar" ou, com o pedido pendente, "Cancelar". A consulta é SD.itensParaPedir (ui/fontesDaBuscaGeral.ts).
  */
 export interface ItemSemAcesso {
   tipo: 'semAcesso';
-  grupo: GrupoDaBusca;
+  grupo: GrupoDoPedido;
   id: string;
   codigo: string;
   /** Nos processos: o número, só para conferir a busca (nunca aparece na tela). */
   numero?: string | null;
+  /** O pedido pendente de quem busca, se houver. */
+  pedido_id?: string | null;
 }
+/** O módulo de cada grupo em que se pede para participar (os dois grupos de processos são do mesmo módulo). */
+export const MODULO_DO_GRUPO_DO_PEDIDO: Record<GrupoDoPedido, ModuloDoPedido> = {
+  tarefas: 'tarefas', demandas: 'demandas', judiciais: 'processos', administrativos: 'processos', compromissos: 'compromissos', contratos: 'contratos', anotacoes: 'anotacoes'
+};
+/** O item que o banco achou para pedir, como a janela o mostra. */
+export const semAcessoDoPedido = (i: ItemParaPedir): ItemSemAcesso =>
+  ({ tipo: 'semAcesso', grupo: i.grupo, id: i.id, codigo: i.codigo, numero: i.numero, pedido_id: i.pedido_id });
 export type ResultadoDaBusca = ItemAchado | ItemSemAcesso;
 
 /** A linha que a listagem de cada grupo devolve. */
@@ -245,11 +253,24 @@ export const ordenarAchados = (itens: readonly ItemAchado[], t: TermoDaBusca) =>
  * numa busca por nome ou por parte do código, ele não aparece.
  */
 export function semAcessoQueAparece(item: ItemSemAcesso, t: TermoDaBusca) {
-  const exatos = [normal(item.codigo), dig(item.numero)].filter(Boolean);
-  return !!t.comparavel && PEDE_O_EXATO[t.forma] && exatos.includes(t.comparavel);
+  // Compara como o banco (privado.itens_pelo_codigo) e a regra processos_numero_unico: só letras e algarismos, em maiúsculas.
+  const termo = numeroParaComparar(t.escrito);
+  return podeSerOCodigo(t) && !!termo && [item.codigo, item.numero ?? ''].map(numeroParaComparar).includes(termo);
 }
-/** As formas de termo que podem ser o código ou o número de um item (o número do processo administrativo não tem formato). */
-const PEDE_O_EXATO: Record<FormaDoTermo, boolean> = { vazio: false, cnj: true, cpf: false, cnpj: false, codigo: true, numero: true, texto: false };
+/** O termo pode ser o código ou o número de um item: só então a busca procura os itens de que a pessoa não faz parte. */
+export const podeSerOCodigo = (t: TermoDaBusca) => PEDE_O_EXATO[t.forma](t.escrito);
+/**
+ * O número de um processo administrativo com letras, como a patente do INPI (BR 10 2020 012345-6): letras sem acento, algarismos
+ * e a pontuação dos números, com pelo menos uma letra e um algarismo. O que tem só algarismos já é das outras formas.
+ */
+const NUMERO_COM_LETRAS = /^(?=.*\d)(?=.*[A-Z])[A-Z\d\s.\-/()]+$/i;
+/**
+ * As formas de termo que podem ser o código ou o número de um item (o número do processo administrativo não tem formato: pode ser
+ * só algarismos ou ter letras, e aí a forma é "texto").
+ */
+const PEDE_O_EXATO: Record<FormaDoTermo, (escrito: string) => boolean> = {
+  vazio: () => false, cnj: () => true, cpf: () => false, cnpj: () => false, codigo: () => true, numero: () => true, texto: e => NUMERO_COM_LETRAS.test(e)
+};
 
 // ---------- filtro de data ----------
 /** O filtro "Criado": pela data em que o item foi criado. Os nomes completam a frase ("Criado nos últimos 7 dias"). */
