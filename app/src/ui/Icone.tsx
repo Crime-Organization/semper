@@ -36,6 +36,10 @@ const ICONES = {
   oculto: '<path d="M3 3l18 18M10.6 5.1A10 10 0 0112 5c6.5 0 10 7 10 7a17 17 0 01-3.2 4.2M6.6 6.6A17 17 0 002 12s3.5 7 10 7a9.7 9.7 0 005.4-1.6"/><path d="M9.9 9.9a3 3 0 004.2 4.2"/>',
   relogio: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   seta: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  // Onde achar uma novidade (#353): a seta que desce e vira para a direita, como o ↳.
+  caminho: '<path d="M6 4v9a3 3 0 003 3h10M15 12l4 4-4 4"/>',
+  // Novidades (#353): o foguete subindo na diagonal, com a janela, as aletas e a chama.
+  foguete: '<path d="M14 4.5c2-1.3 4.3-1.7 6-1.5.2 1.7-.2 4-1.5 6L12 15.5 7.5 11z"/><circle cx="15.3" cy="8.7" r="1.6"/><path d="M9 9.5H5.5l-2 3 4.5.5M14.5 15v3.5l-3 2-.5-4.5M8 16.5c-1.8.4-3 1.8-3.5 3.5 1.7-.5 3.1-1.7 3.5-3.5z"/>',
   voltar: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
   pontos: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',

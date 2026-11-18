@@ -197,6 +197,11 @@ export function diaDaSemana(iso: string) {
   const [a, m, d] = iso.split('-').map(Number);
   return DIAS_DA_SEMANA[new Date(Date.UTC(a, m - 1, d)).getUTCDay()];
 }
+/** "aaaa-mm-dd" por extenso, como se escreve numa carta: "18 de novembro de 2026" (o dia 1 é "1º"). */
+export function dataPorExtenso(iso: string) {
+  const [a, m, d] = iso.split('-').map(Number);
+  return `${d === 1 ? '1º' : d} de ${MESES[m - 1]} de ${a}`;
+}
 /** "aaaa-mm-dd" → "dd/mm" (no calendário do ano, o ano já está no título). */
 export const fmtDiaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 /** O período em palavras: "25/12" ou "20/12 a 31/12". */

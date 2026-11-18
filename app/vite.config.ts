@@ -16,7 +16,12 @@ export default defineConfig(({ mode }) => {
   plugins: [react()],
   // A versão desta compilação, para o aviso de versão nova (ui/versaoNova.tsx). Vem da variável VERSAO, que só a rotina
   // "Publicar o SEMPER" preenche (a mesma do versao.txt); no npm run dev, no banco fictício e nos testes fica vazia.
-  define: { __VERSAO__: JSON.stringify(mode === 'test' ? '' : process.env.VERSAO ?? '') },
+  // A data dela (aaaa-mm-dd, DATA_DA_VERSAO, também da rotina) vai junto: as novidades ainda em app/novidades/proxima/ aparecem
+  // com esse número e essa data no site publicado (#353).
+  define: {
+    __VERSAO__: JSON.stringify(mode === 'test' ? '' : process.env.VERSAO ?? ''),
+    __DATA_DA_VERSAO__: JSON.stringify(mode === 'test' ? '' : process.env.DATA_DA_VERSAO ?? '')
+  },
   // O conversor AVIF da foto do perfil carrega o próprio .wasm ao lado do código: não pode ser reempacotado pelo Vite.
   optimizeDeps: { exclude: ['@jsquash/avif'] },
   // Em cópias de trabalho, node_modules pode ser um link para outra pasta: sem isto, o servidor local bloqueia as fontes e o .wasm da foto.

@@ -11,7 +11,7 @@ export interface AcaoJanela<T> {
   valor: T | null | ((campos: FormData) => T | null);
   tipo?: 'pri' | 'perigo';
 }
-interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; resolver: (v: unknown) => void }
+interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; larga: boolean; resolver: (v: unknown) => void }
 
 const pedidos = criarLoja<Pedido[]>([]);
 let seq = 0;
@@ -23,10 +23,14 @@ function fechar(id: number, valor: unknown) {
   p.resolver(valor);
 }
 
-export function janela<T>({ titulo, corpo = null, acoes }: { titulo: string; corpo?: ReactNode; acoes?: AcaoJanela<T>[] }): Promise<T | null> {
+/**
+ * Abre uma janela e espera a escolha. Com "larga" (um texto para ler, como as Novidades), ela fica mais larga e só o corpo
+ * rola: o título e os botões continuam à vista.
+ */
+export function janela<T>({ titulo, corpo = null, acoes, larga = false }: { titulo: string; corpo?: ReactNode; acoes?: AcaoJanela<T>[]; larga?: boolean }): Promise<T | null> {
   return new Promise(resolve => {
     pedidos.mudar(lista => [...lista, {
-      id: ++seq, titulo, corpo, acoes: (acoes || [{ rotulo: 'Fechar', valor: null }]) as AcaoJanela<unknown>[],
+      id: ++seq, titulo, corpo, larga, acoes: (acoes || [{ rotulo: 'Fechar', valor: null }]) as AcaoJanela<unknown>[],
       resolver: v => resolve(v as T | null)
     }]);
   });
@@ -68,7 +72,7 @@ function JanelaAberta({ p }: { p: Pedido }) {
     onKeyDown={e => {
       if (e.key === 'Enter' && (e.target as HTMLElement).tagName === 'INPUT') { e.preventDefault(); veu.current?.querySelector<HTMLElement>('.btn.pri')?.click(); }
     }}>
-    <form className="janela" ref={formulario} role="dialog" aria-modal="true" aria-labelledby={idTitulo} noValidate onSubmit={e => e.preventDefault()}>
+    <form className={p.larga ? 'janela larga' : 'janela'} ref={formulario} role="dialog" aria-modal="true" aria-labelledby={idTitulo} noValidate onSubmit={e => e.preventDefault()}>
       <h2 id={idTitulo}>{p.titulo}</h2>
       <div className="janela-corpo">{p.corpo}</div>
       <div className="janela-acoes">

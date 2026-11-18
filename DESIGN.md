@@ -240,6 +240,7 @@ Uma única fotografia de marca, `app/src/imagens/farol.webp` (já em escala de c
 - **`brand-mark`:** quadrado escuro de 28px com a inicial em `{colors.accent-bright}` + nome do escritório, com a submarca "SEMPER" em `{colors.accent-ink}`.
 - **`nav-item`:** 36px, `{rounded.sm}`, 14px `{colors.text}`. Hover e ativo com fundo `{colors.line}` (o ativo em 700 `{colors.ink}`). **Nunca verde.**
 - **`role-pill`:** pílula de 11px / 900 / .08em em caixa alta, escura para Master, `{colors.line2}` para os demais perfis.
+- **Novidades** (`ui/Novidades.tsx`, #353): primeiro item do rodapé da barra lateral, com o foguete. Enquanto há versão que a pessoa não viu, um ponto de 8px em `{colors.accent}` na ponta direita (`.nav-ponto`), que some ao abrir. No celular, onde a barra lateral é uma gaveta fechada, o mesmo botão fica também à direita da barra do topo, só com o ícone e o ponto no canto de cima; abrir por um apaga o ponto dos dois. A lista abre numa janela larga (`janela({ larga: true })`, até 640px, só o corpo rola): cada versão com o número num selo sem caixa alta e a data por extenso à direita, e cada novidade com o título em 900, o texto e a linha "onde achar" em `{colors.muted}`, com a seta que dobra.
 
 ### Buttons
 - **`button-primary`** (`.btn.pri`): fundo `{colors.accent}`, **texto branco** 900, `{rounded.full}`, 44px (48px nas telas de acesso). Hover em `{colors.accent-hover}`.

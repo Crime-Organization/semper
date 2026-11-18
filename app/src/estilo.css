@@ -61,6 +61,16 @@
   --campo-discreto: 40px;
   /* Quanto cada nível das pastas entra (#342): na árvore da página Documentos e no menu de escolher a pasta, que fica fora dela */
   --recuo-da-pasta: 14px;
+  /* O recuo da janela (ui/janela.tsx) por dentro; a janela larga usa o mesmo para o corpo rolar até a borda */
+  --recuo-da-janela: 24px;
+  /* A folga em volta da janela, até a borda da tela */
+  --folga-da-janela: 16px;
+  /* A largura da janela larga, para um texto de ler (as Novidades, #353) */
+  --largura-janela-larga: 640px;
+  /* A letra das linhas de apoio, em cinza (a data da versão e o "onde achar" das Novidades) */
+  --texto-apoio: 13px;
+  /* O título de cada novidade: um ponto acima do texto corrido, para separar uma novidade da outra */
+  --texto-titulo-da-novidade: 16px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -308,6 +318,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .nav-sub[hidden] { display: none }
 .nav-linha { display: flex; align-items: center; gap: 2px }
 .nav-contador { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 900; text-align: center; font-variant-numeric: tabular-nums }
+/* Ponto de "há o que ver" (Novidades, #353): o sinal verde, sem número. */
+.nav-ponto { margin-left: auto; flex: none; width: 8px; height: 8px; border-radius: 999px; background: var(--accent) }
 .nav-linha > a:first-child { flex: 1; min-width: 0 }
 .nav .nav-mais { width: 28px; min-height: 28px; height: 28px; padding: 0; flex: 0 0 28px; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--accent-ink) }
 .nav .nav-mais:hover { background: var(--accent); border-color: var(--accent); color: #fff }
@@ -364,6 +376,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   .side.aberta { transform: none }
   .topo-cel { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 30; padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--soft); border-bottom: 1px solid var(--line) }
   .topo-cel button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line2); background: var(--white); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
+  /* O ponto de novidade (#353) no botão só com o ícone: no canto de cima, como num aplicativo */
+  .topo-cel button { position: relative }
+  .topo-cel .nav-ponto { position: absolute; top: 6px; right: 6px; margin: 0 }
   .conteudo { padding-top: 28px }
 }
 
@@ -747,12 +762,29 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-rodape { border-top: 1px solid var(--line); padding-top: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted) }
 
 /* ---------- janelas ---------- */
-.veu-janela { display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 80 }
-.janela { width: min(480px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: var(--superficie); border-radius: 12px; padding: 24px; box-shadow: 0 12px 36px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 16px }
+.veu-janela { display: flex; align-items: center; justify-content: center; padding: var(--folga-da-janela); z-index: 80 }
+/* A altura máxima em dvh (com o vh antes, para quem não o conhece): no celular, cabe com as barras do navegador à vista. */
+.janela { width: min(480px, 100%); max-height: calc(100vh - 2 * var(--folga-da-janela)); max-height: calc(100dvh - 2 * var(--folga-da-janela)); overflow: auto; background: var(--superficie); border-radius: 12px; padding: var(--recuo-da-janela); box-shadow: 0 12px 36px rgba(0,0,0,.28); display: flex; flex-direction: column; gap: 16px }
 .janela h2 { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: -.01em }
 .janela-corpo { font-size: 15px; line-height: 1.6; color: var(--text) }
 .janela-corpo p { margin: 0 0 8px }
 .janela-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap }
+/* Janela larga (um texto para ler, como as Novidades): mais larga, e só o corpo rola; o título e o Fechar ficam à vista. */
+.janela.larga { width: min(var(--largura-janela-larga), 100%); overflow: hidden }
+.janela.larga .janela-corpo { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0 calc(-1 * var(--recuo-da-janela)); padding: 0 var(--recuo-da-janela); scrollbar-gutter: stable }
+
+/* ---------- novidades (#353) ---------- */
+.novidades { list-style: none; margin: 12px 0 0; padding: 0 }
+.novidades-versao { padding: 20px 0; border-top: 1px solid var(--line) }
+.novidades-versao:first-child { padding-top: 8px; border-top: 0 }
+.novidades-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; font-size: var(--texto-apoio); font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums }
+/* O número da versão vai como se escreve (v1.30.0), sem a caixa alta dos outros selos. */
+.novidades-cabeca .selo { text-transform: none; letter-spacing: 0; font-size: var(--texto-miudo); border: 1px solid var(--line2) }
+.novidade + .novidade { margin-top: 16px }
+.novidade h4 { margin: 0 0 4px; font-size: var(--texto-titulo-da-novidade); font-weight: 900; line-height: 1.35; letter-spacing: -.01em; color: var(--ink) }
+.janela-corpo .novidade p { margin: 0 0 6px }
+.novidade-onde { display: flex; align-items: flex-start; gap: 6px; font-size: var(--texto-apoio); line-height: 1.5; color: var(--muted) }
+.novidade-onde svg { flex: none; margin-top: 2px }
 
 /* ---------- formulário em etapas ---------- */
 .passos { max-width: 760px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 28px }

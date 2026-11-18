@@ -1,0 +1,5 @@
+{
+  "titulo": "Participantes do contrato só da equipe",
+  "texto": "Ao pôr participantes num contrato, a busca mostra só quem é da equipe do escritório. Quem saiu da equipe continua nos contratos antigos e pode ser tirado.",
+  "ondeAchar": "No cadastro ou na edição do contrato, no botão “+ Adicionar participante”."
+}

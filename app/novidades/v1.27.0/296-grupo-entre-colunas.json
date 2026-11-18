@@ -1,0 +1,5 @@
+{
+  "titulo": "Grupo entre colunas no quadro",
+  "texto": "O administrador pode arrastar um grupo de colunas para entre duas colunas sem grupo; a marca verde mostra onde ele entra.",
+  "ondeAchar": "Nos quadros (visão Kanban), arrastando o grupo, ou no menu ⋯ do grupo, em “Mover para a esquerda” e “Mover para a direita”."
+}

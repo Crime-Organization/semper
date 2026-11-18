@@ -13,6 +13,22 @@ O site só muda quando sai uma **versão** (`.github/workflows/publicar.yml`):
 
 A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, só se todos passarem, compila, cria a marca `vX.Y.Z` e a versão no GitHub (Releases, com a lista de commits), e grava o site pronto no ramo **`publicacao`**. Para ver o que está no ar, abra https://semper.app.br/versao.txt. A Hostinger (hPanel → Avançado → GIT, site `semper.app.br`) publica esse ramo; o `.htaccess` manda o `www` para `semper.app.br` e responde 410 (desligado) no endereço antigo, semper.bragaferreira.adv.br. Se a checagem ou os testes falharem, nada é publicado e o site continua como estava. Leva de 1 a 2 minutos.
 
+### Novidades de cada versão
+
+Quem usa o SEMPER vê o que mudou no botão **Novidades** do menu lateral (no celular, também na barra do topo, só com o ícone; com um ponto verde até abrir a lista da versão mais nova). O texto vem do repositório, sem banco: **toda mudança que o usuário percebe ganha uma novidade, escrita no mesmo commit**, num arquivo `app/novidades/proxima/<número da tarefa>-<palavras>.json` (ex.: `353-novidades.json`, sem espaços nem acentos no nome):
+
+```json
+{
+  "titulo": "Pastas e etiquetas nos Documentos",
+  "texto": "As anotações podem ficar em pastas e subpastas, com o caminho acima do título.",
+  "ondeAchar": "Em Documentos, na árvore de pastas ao lado da lista."
+}
+```
+
+Em português simples, curto (uma ou duas frases) e sempre com **onde achar** (a tela e o botão). Se houver um artigo ou vídeo, acrescente `"link": { "rotulo": "Como funciona", "endereco": "https://…" }`. Correção que o usuário não percebe não precisa de novidade. O teste `app/src/ui/Novidades.test.tsx` confere todos os arquivos (no `npm run verificar`).
+
+Quem escreve a mudança ainda não sabe o número da versão, por isso a novidade nasce em `proxima`. Na publicação: o site compilado mostra as de `proxima` com o número e a data da versão (variáveis `VERSAO` e `DATA_DA_VERSAO`, em `vite.config.ts`), e a última etapa da rotina, **Carimbar as novidades**, faz um commit no `main` que passa esses arquivos para `app/novidades/vX.Y.Z/`, com a data em `versao.json`. Só passam os que estavam no commit publicado; o que entrou depois continua em `proxima`. Por isso, **depois de publicar, rode `git pull`** antes de continuar. Voltar atrás não mexe nas novidades. Se essa etapa falhar (o site já está no ar), mova os arquivos à mão do mesmo jeito antes da próxima publicação.
+
 > **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
 
 | Pasta / arquivo | Conteúdo |
@@ -22,6 +38,7 @@ A rotina escolhe a versão, roda os testes (`testes.yml`) nesse mesmo commit e, 
 | `app/src/dados/` | `supabase.ts` (única parte que fala com o banco), `falso.ts` (banco fictício para testes), `tipos.ts` (o formato dos dados e o contrato `Dados`, dividido por área), `contrato.test.ts` (confere que o fictício se comporta como o banco), `erros.ts` (erros do banco em português), `consultas.ts` (CNPJ na Receita e CEP) e `limites.ts` (tamanhos de página e de campo). |
 | `app/src/regras/` | Regras puras, sem banco nem internet: formatos, validação, qualificação, conversão das respostas de CNPJ e CEP, vínculos, texto comparável (`texto.ts`), o CSV do Google Contatos (`contatosGoogle.ts`) e a agenda (`compromisso.ts` e `agenda.ts`, com o dia, a semana e o mês no horário de Brasília), com os testes. |
 | `app/e2e/` e `app/TESTES.md` | Testes de ponta a ponta (Playwright, no banco fictício) e o padrão dos testes (BDD: Dado / Quando / Então). |
+| `app/novidades/` | O que mudou em cada versão, para o botão Novidades: `proxima/` (a versão que ainda não saiu) e uma pasta por versão publicada (veja "Novidades de cada versão", acima). |
 | `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |

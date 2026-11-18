@@ -123,3 +123,21 @@ describe('Janela com campos', () => {
     await expect(resposta).resolves.toEqual({ nome: 'Urgente', cor: 'azul' });
   });
 });
+
+describe('Janela larga', () => {
+  it('quando abre um texto para ler com "larga", então a janela ganha a medida larga (só o corpo rola) e o Fechar vem com o foco', () => {
+    // Quando
+    act(() => { void janela.janela({ titulo: 'Novidades', corpo: <p>O que mudou.</p>, larga: true }); });
+    // Então
+    const aberta = screen.getByRole('dialog', { name: 'Novidades' });
+    expect(aberta).toHaveClass('janela', 'larga');
+    expect(screen.getByRole('button', { name: 'Fechar' })).toHaveFocus();
+  });
+
+  it('quando abre sem "larga", então fica na medida de sempre', () => {
+    // Quando
+    act(() => { void janela.confirmar('Excluir', 'Certeza?'); });
+    // Então
+    expect(screen.getByRole('dialog', { name: 'Excluir' })).not.toHaveClass('larga');
+  });
+});

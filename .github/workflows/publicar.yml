@@ -12,6 +12,10 @@ name: Publicar o SEMPER
 # Três etapas: escolhe a versão, roda os testes (testes.yml) nesse mesmo commit e, só se todos passarem, compila,
 # cria a marca e a versão no GitHub e grava o site pronto no ramo "publicacao", que é o que a Hostinger coloca no ar.
 # Se algo falhar, nenhuma marca é criada, nada é publicado e o site continua como estava.
+#
+# Novidades (#353): o site mostra as de app/novidades/proxima/ com o número e a data desta versão. Depois de publicar,
+# a última etapa passa esses arquivos para app/novidades/vX.Y.Z/ no main (um commit do github-actions), para a versão
+# seguinte não os mostrar como dela.
 on:
   workflow_dispatch:
     inputs:
@@ -40,6 +44,7 @@ jobs:
     outputs:
       versao: ${{ steps.versao.outputs.versao }}
       commit: ${{ steps.versao.outputs.commit }}
+      data: ${{ steps.versao.outputs.data }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -75,8 +80,17 @@ jobs:
             fi
           fi
           [[ "$VERSAO" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::\"$VERSAO\" não é uma versão no formato v1.2.3."; exit 1; }
+          # A data da versão, no horário de Brasília, que aparece nas Novidades (#353). Ao voltar atrás, a da marca (a que
+          # esta rotina cria é anotada: a data é a da publicação). Numa versão nova, ou numa marca criada à mão agora (que
+          # pode ser leve, com a data do commit, de dias antes), a de hoje.
+          if [ -n "$PEDIDA" ]; then
+            DATA=$(TZ=America/Sao_Paulo git for-each-ref --format='%(creatordate:format-local:%Y-%m-%d)' "refs/tags/$VERSAO")
+          else
+            DATA=$(TZ=America/Sao_Paulo date +%F)
+          fi
           echo "versao=$VERSAO" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "data=$DATA" >> "$GITHUB_OUTPUT"
           echo "Versão: $VERSAO ($(git rev-parse --short HEAD))"
 
   testes:
@@ -102,8 +116,10 @@ jobs:
         working-directory: app
         env:
           VERSAO: ${{ needs.versao.outputs.versao }}
+          DATA_DA_VERSAO: ${{ needs.versao.outputs.data }}
         run: |
           # O VERSAO também entra no código (vite.config.ts): a aba aberta compara com o versao.txt e avisa da versão nova.
+          # Com o DATA_DA_VERSAO, as novidades de app/novidades/proxima/ aparecem com o número e a data desta versão.
           npx vite build
           # Para conferir o que está no ar: https://semper.app.br/versao.txt
           printf '%s %s\n' "$VERSAO" "$(git rev-parse --short HEAD)" > dist/versao.txt
@@ -141,3 +157,44 @@ jobs:
           if git diff --cached --quiet; then echo "Nada mudou no site."; exit 0; fi
           git commit -q -m "SEMPER $VERSAO" -m "Publicação de $ORIGEM"
           git push origin publicacao
+
+      - name: Carimbar as novidades
+        # As novidades desta versão estavam em app/novidades/proxima/ (quem escreve a mudança ainda não sabe o número).
+        # O site que acabou de ir ao ar já as mostra com o número e a data desta versão; aqui elas passam, no main, para
+        # app/novidades/vX.Y.Z/ (com a data em versao.json), para a versão seguinte não as mostrar como dela (#353).
+        # Só passam as que estavam no commit publicado: o que entrou no main depois continua em "proxima".
+        # Voltar atrás (republicar uma versão) não muda nada. Se esta etapa falhar, o site já está no ar: mova os
+        # arquivos à mão, do mesmo jeito, antes da próxima publicação.
+        if: ${{ !inputs.versao }}
+        env:
+          VERSAO: ${{ needs.versao.outputs.versao }}
+          DATA: ${{ needs.versao.outputs.data }}
+          COMMIT: ${{ needs.versao.outputs.commit }}
+        run: |
+          set -euo pipefail
+          PASTA=app/novidades
+          NESTA=$(git ls-tree --name-only "$COMMIT" "$PASTA/proxima/" | grep '\.json$' || true)
+          if [ -z "$NESTA" ]; then echo "Nenhuma novidade nesta versão."; exit 0; fi
+          git fetch origin main
+          git worktree add -B carimbo ../carimbo origin/main
+          cd ../carimbo
+          if [ -e "$PASTA/$VERSAO" ]; then echo "As novidades da $VERSAO já estão na pasta dela."; exit 0; fi
+          mkdir -p "$PASTA/$VERSAO"
+          MOVIDAS=0
+          for ARQUIVO in $NESTA; do
+            if [ -f "$ARQUIVO" ]; then git mv "$ARQUIVO" "$PASTA/$VERSAO/"; MOVIDAS=$((MOVIDAS + 1)); fi
+          done
+          if [ "$MOVIDAS" -eq 0 ]; then echo "As novidades desta versão já saíram da pasta proxima."; exit 0; fi
+          printf '{\n  "data": "%s"\n}\n' "$DATA" > "$PASTA/$VERSAO/versao.json"
+          git add "$PASTA/$VERSAO/versao.json"
+          git commit -q -m "Novidades da $VERSAO" -m "As $MOVIDAS novidades publicadas na $VERSAO saem de $PASTA/proxima/ para $PASTA/$VERSAO/ (#353)."
+          # Se alguém enviou ao main enquanto isso, junta e tenta de novo. Sem o gancho de antes do envio (.githooks/pre-push):
+          # ele roda o npm run verificar, que aqui não tem as dependências (esta pasta é só o main, sem npm ci), e o commit só
+          # move arquivos de novidades que os testes desta mesma rotina já conferiram, mais o versao.json escrito acima.
+          for TENTATIVA in 1 2 3; do
+            if git -c core.hooksPath=/dev/null push origin HEAD:main; then exit 0; fi
+            # Se o junte der conflito, desfaz e cai no aviso abaixo, que diz como fazer à mão (sem isto, o set -e parava aqui).
+            git pull -q --rebase origin main || { git rebase --abort || true; break; }
+          done
+          echo "::error::Não deu para enviar ao main a mudança das novidades da $VERSAO. O site está no ar; mova à mão os arquivos de $PASTA/proxima/ publicados para $PASTA/$VERSAO/."
+          exit 1

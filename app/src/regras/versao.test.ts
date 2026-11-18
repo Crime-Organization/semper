@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { haVersaoNova, versaoDoArquivo } from './versao';
+import { compararVersoes, haVersaoNova, versaoDoArquivo } from './versao';
 
 describe('Versão no ar', () => {
   it.each([
@@ -29,5 +29,20 @@ describe('Aviso de versão nova', () => {
     const nova = haVersaoNova(daAba, noAr);
     // Então
     expect(nova).toBe(esperado);
+  });
+});
+
+describe('Ordem das versões', () => {
+  it.each([
+    ['v1.10.0', 'v1.9.3', 1],
+    ['v1.9.3', 'v1.10.0', -1],
+    ['v2.0.0', 'v1.99.99', 1],
+    ['v1.2.10', 'v1.2.9', 1],
+    ['v1.2.3', 'v1.2.3', 0]
+  ])('quando compara a %j com a %j, então o sinal é %d', (a, b, sinal) => {
+    // Quando
+    const ordem = compararVersoes(a, b);
+    // Então
+    expect(Math.sign(ordem)).toBe(sinal);
   });
 });

@@ -1,0 +1,5 @@
+{
+  "titulo": "Baixar a anotação em .md",
+  "texto": "Baixa a anotação num arquivo Markdown, para abrir fora do SEMPER (por exemplo, no Obsidian), com o código, a pasta, as etiquetas e os itens ligados no topo do arquivo.",
+  "ondeAchar": "No cartão da anotação, no botão “Baixar .md”."
+}

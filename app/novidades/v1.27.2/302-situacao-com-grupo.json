@@ -1,0 +1,5 @@
+{
+  "titulo": "Grupo antes da coluna no menu Situação",
+  "texto": "No menu de situação dos cartões, a coluna que fica num grupo aparece como “GRUPO: Coluna”, na mesma ordem do quadro.",
+  "ondeAchar": "Nos cartões de tarefa, demanda, contrato, processo e compromisso, no menu “Situação”."
+}

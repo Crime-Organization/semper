@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { DiaLancado, Orgao } from '../dados/tipos';
-import { anosDoPrazo, diaDaSemana, diasDoOrgao, erroDoLancamento, fmtPeriodo, pulosEmPeriodos, linhasDoLancamento, NENHUM_ORGAO, padraoDoOrgao, periodosDoAno, SIGLAS_SUGERIDAS, TODOS_OS_ORGAOS, type PedidoDeLancamento } from './calendario';
+import { anosDoPrazo, dataPorExtenso, diaDaSemana, diasDoOrgao, erroDoLancamento, fmtPeriodo, pulosEmPeriodos, linhasDoLancamento, NENHUM_ORGAO, padraoDoOrgao, periodosDoAno, SIGLAS_SUGERIDAS, TODOS_OS_ORGAOS, type PedidoDeLancamento } from './calendario';
 import { contarPrazo } from './prazos';
 
 const orgao = (sigla: string, extra: Partial<Orgao> = {}): Orgao => ({ id: 'o-' + sigla, ...padraoDoOrgao(sigla), ...extra });
@@ -261,5 +261,16 @@ describe('Prazo que não se suspende no recesso', () => {
     // Então: 18/12, depois 07/01, 08/01, 11/01 e 12/01
     expect(prazoFederal.final).toBe('2027-01-12');
     expect(prazoFederal.pulados).toContainEqual({ data: '2026-12-21', motivo: 'Feriado da Justiça Federal (20/12 a 06/01)' });
+  });
+});
+
+describe('Data por extenso', () => {
+  it.each([
+    ['2026-11-18', '18 de novembro de 2026'],
+    ['2026-12-01', '1º de dezembro de 2026'],
+    ['2027-03-09', '9 de março de 2027']
+  ])('quando a data é %j, então por extenso é %j', (iso, esperado) => {
+    // Quando / Então
+    expect(dataPorExtenso(iso)).toBe(esperado);
   });
 });

@@ -159,6 +159,11 @@ As mudanças vão direto ao `main`, sem pull request. O GitHub só roda a rotina
    `npm run teste --prefix app`.
 3. Confira os critérios de aceitação da tarefa.
 4. Se tem migração: confira que ela só acrescenta e que a versão anterior do site continua funcionando.
+5. **Novidades:** toda mudança que o usuário percebe ganha, no mesmo commit, uma novidade em
+   `app/novidades/proxima/<número da tarefa>-<palavras>.json`, com `titulo`, `texto` e `ondeAchar` (a tela e o botão), em
+   português simples e curto: uma ou duas frases por item. Nunca dado de cliente nem nome de quem é da equipe (o
+   repositório é público). O número e a data da versão entram sozinhos na publicação (veja "Novidades de cada versão"
+   no `README.md`); depois de publicar, rode `git pull`.
 
 Pull request continua existindo para quando a pessoa quiser que alguém revise antes, mas não é obrigatório.
 

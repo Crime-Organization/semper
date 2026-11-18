@@ -1,0 +1,5 @@
+{
+  "titulo": "Caixinha e nome separados nas tarefas da demanda",
+  "texto": "Na lista de tarefas do cartão da demanda, a caixinha conclui a tarefa e o nome abre o cartão dela.",
+  "ondeAchar": "No cartão da demanda, na seção Tarefas."
+}

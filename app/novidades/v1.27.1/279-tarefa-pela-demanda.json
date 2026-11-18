@@ -1,0 +1,5 @@
+{
+  "titulo": "Tarefa nova pelo “+” da seção Tarefas",
+  "texto": "No cartão da demanda, a tarefa nova nasce pelo “+” no título da seção Tarefas, que aparece mesmo com a seção fechada.",
+  "ondeAchar": "No cartão da demanda, no “+” ao lado de Tarefas."
+}

@@ -14,6 +14,7 @@ import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
 import { naoLidas, useConferirNaoLidas } from './mensagens';
 import { MenuFinanceiro } from './MenuFinanceiro';
+import { BotaoNovidades } from './Novidades';
 import { useSessao } from './sessao';
 import { SubmenuLateral } from './SubmenuLateral';
 import { definirTema, TEMAS, useTema, type Tema } from './tema';
@@ -62,11 +63,13 @@ export function Casca({ children }: { children: ReactNode }) {
     <NavLink to={para}><Icone nome={icone} /><span>{rotulo}</span></NavLink>;
 
   return <>
-    <div className="topo-cel">
+    {/* A barra do topo, só no celular: o menu lateral vira uma gaveta fechada, então as Novidades (#353) ficam também aqui,
+        só com o ícone, para o ponto de novidade aparecer sem abrir o menu. */}
+    <header className="topo-cel">
       <button type="button" aria-label="Abrir menu" onClick={e => { e.stopPropagation(); setAberta(a => !a); }}><Icone nome="menu" tam={18} /></button>
       <b className="topo-nome">{nomeEsc} <span style={{ color: 'var(--accent-ink)' }}>{MARCA.nome}</span></b>
-      <span style={{ width: 40 }} />
-    </div>
+      <BotaoNovidades soIcone />
+    </header>
     <div className="app">
       <aside className={'side' + (aberta ? ' aberta' : '')} aria-label="Menu" ref={lateral}>
         {/* O nome do escritório vem das Configurações. */}
@@ -124,6 +127,8 @@ export function Casca({ children }: { children: ReactNode }) {
             </div>
           </div>
           <nav className="nav" aria-label="Conta">
+            {/* No computador não há barra no topo: as novidades ficam aqui, junto do tema e da conta de cada pessoa (#353). */}
+            <BotaoNovidades />
             <Link to="/minha-conta/"><Icone nome="conta" /><span>Minha conta</span></Link>
             <button type="button" title="Trocar entre automático, claro e escuro" onClick={trocarTema}><Icone nome="tema" /><span>Tema: {TEMAS[tema]}</span></button>
             <button type="button" onClick={sair}><Icone nome="sair" /><span>Sair</span></button>
