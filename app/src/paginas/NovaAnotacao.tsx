@@ -4,20 +4,28 @@
 // (?pessoa=, ?processo=, ?contrato=, ?demanda=, ?tarefa= ou ?compromisso=), ele já vem na lista. Salvar (ou Ctrl+Enter) cria
 // a anotação ligada a todos os itens da lista: vinda do cartão de um item, a janela fecha e volta a ele; senão, abre o cartão
 // da nova. Para mudar uma anotação que já existe, o título e o texto se mudam no próprio cartão (o antigo ?id= leva a ele).
+// Desde a #342, acima do título fica a pasta (vinda da página Documentos, com ?pasta=, já vem escolhida) e, à esquerda dele, o
+// círculo das etiquetas: escolher ou criar etiquetas ali mesmo, e a anotação já nasce com elas.
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
-import { SD, type ItemDaAnotacao, type ModuloDaAnotacao } from '../dados';
+import { SD, type Etiqueta, type ItemDaAnotacao, type ModuloDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import {
   comMaisUmItem, dadosDaAnotacao, DICA_DO_TEXTO, errosDaAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligacoesDaAnotacaoNova, mesmoItem,
   MODULOS_DA_ANOTACAO, semOItem, type CamposAnotacao
 } from '../regras/anotacao';
+import { etiquetasQueExistem } from '../regras/etiquetas';
+import { PARAMETRO_DA_PASTA } from '../regras/pastas';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Aviso, CaixaFormatada, CampoDoTitulo, estiloBotao, Nota, Selo } from '../ui/base';
+import { CirculoDeEtiquetas, SelosDasEtiquetas } from '../ui/Etiquetas';
+import { buscarEtiquetas, lojaDeEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
+import { CaminhoDaPasta } from '../ui/Pastas';
+import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
 import { useCtx } from '../ui/sessao';
 import { useTitulo } from '../ui/util';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
@@ -54,6 +62,18 @@ export default function NovaAnotacao() {
   // Quem escreve já vem como responsável.
   const [c, setC] = useState<CamposAnotacao>(() => ({ titulo: '', texto: '', responsavelId: ctx.perfil.id, participantes: [] }));
   const [itens, setItens] = useState<ItemDaAnotacao[]>([]);
+  // A pasta e as etiquetas com que a anotação nasce (#342).
+  const [pasta, setPasta] = useState<string | null>(() => params.get(PARAMETRO_DA_PASTA));
+  const [etiquetas, setEtiquetas] = useState<string[]>([]);
+  // A pasta do endereço que a lista guardada não conhece (um colega acabou de criá-la) faz ler as pastas de novo; até a resposta
+  // chegar, a lista fica null.
+  const pastas = usePastas({ precisa: pasta });
+  // A pasta do endereço que não existe mais (apagada por um colega) não vai para a anotação.
+  if (pasta && pastas && !pastas.some(p => p.id === pasta)) setPasta(null);
+  // A etiqueta marcada e depois excluída (no próprio painel do círculo, ou por um colega) some da tela e não vai para a anotação:
+  // senão, a pessoa não teria como desmarcá-la, e o salvar falharia sempre.
+  const etiquetasMarcadas = etiquetasQueExistem(etiquetas, lojaDeEtiquetas.usar());
+  const marcarEtiqueta = (e: Etiqueta, marcada: boolean) => setEtiquetas(atual => marcada ? [...atual.filter(x => x !== e.id), e.id] : atual.filter(x => x !== e.id));
   const [origem, setOrigem] = useState<ItemDaAnotacao | null | undefined>(undefined);   // undefined: lendo ou sem origem
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -108,7 +128,7 @@ export default function NovaAnotacao() {
     }
     setOcupado(true);
     try {
-      const r = await SD.anotacaoCriar(dadosDaAnotacao(c), ligacoesDaAnotacaoNova(itens));
+      const r = await SD.anotacaoCriar({ ...dadosDaAnotacao(c), pasta_id: pasta }, ligacoesDaAnotacaoNova(itens), etiquetasMarcadas);
       feito(`Anotação ${r.codigo} cadastrada.`, 'cadastro da anotação', async () => {
         await SD.anotacoesArquivar([r.id], true);
         const x = await SD.anotacoesExcluir([r.id]);
@@ -123,19 +143,28 @@ export default function NovaAnotacao() {
     } catch (err) {
       falha(err);
       setOcupado(false);
+      // A pasta ou uma etiqueta pode ter sido apagada por um colega: as listas lidas de novo as tiram da tela, e o próximo salvar passa.
+      void buscarPastas(ctx.perfil.id);
+      void buscarEtiquetas();
     }
   }
   salvarPeloAtalho.current = () => void salvar();
 
   const cheia = itens.length >= ITENS_DA_ANOTACAO;
   return <div className="passos anotacao-nova">
-    <AvisoAoSair estado={{ c, itens }} liberada={saidaLiberada} ocupado={ocupado} />
+    <AvisoAoSair estado={{ c, itens, pasta, etiquetas: etiquetasMarcadas }} liberada={saidaLiberada} ocupado={ocupado} />
     <header className="cartao-cabeca">
       <div className="linha"><Selo tipo="escuro">Anotação</Selo><span className="codigo">Nova</span></div>
-      <CampoDoTitulo id={TITULO} aria-label="Título" placeholder="Sem título" maxLength={TAMANHO_ANOTACAO.titulo} value={c.titulo}
-        aria-invalid={erros.titulo ? true : undefined} onChange={e => mudar({ titulo: e.target.value })}
-        // Enter no título desce para o texto, como numa nota.
-        onKeyDown={e => { if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); focar(TEXTO); } }} />
+      {/* Sem link nos pedaços do caminho: abrir a pasta agora perderia a anotação que ainda não foi salva. */}
+      <CaminhoDaPasta pastas={pastas} pastaId={pasta} aoMudar={setPasta} />
+      <div className="anotacao-titulo">
+        <CirculoDeEtiquetas ids={etiquetas} aoMarcar={marcarEtiqueta} />
+        <CampoDoTitulo id={TITULO} aria-label="Título" placeholder="Sem título" maxLength={TAMANHO_ANOTACAO.titulo} value={c.titulo}
+          aria-invalid={erros.titulo ? true : undefined} onChange={e => mudar({ titulo: e.target.value })}
+          // Enter no título desce para o texto, como numa nota.
+          onKeyDown={e => { if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); focar(TEXTO); } }} />
+      </div>
+      <SelosDasEtiquetas ids={etiquetas} aoTirar={e => marcarEtiqueta(e, false)} />
     </header>
 
     <CaixaFormatada id={TEXTO} aria-label="Texto" className="texto-editavel-caixa anotacao-caixa" placeholder={DICA_DO_TEXTO} maxLength={TAMANHO_ANOTACAO.texto}

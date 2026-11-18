@@ -46,7 +46,8 @@ import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLu
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao } from './tipos';
+import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
 import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import { ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, modulosLigados, veAAnotacao, type ChavesDaEquipe } from '../regras/anotacao';
@@ -194,6 +195,8 @@ interface Banco {
   /** Cada ligação, a um item só (no banco, uma coluna por módulo). */
   anotacaoLigacoes?: { anotacao_id: string; modulo: ModuloDaAnotacao; item_id: string; criado_por: string; criado_em: string }[];
   historicoAnotacoes?: (Historico & { anotacao_id: string })[];
+  /** Pastas dos documentos (anotacao_pastas no banco, #342). */
+  pastas?: Pasta[];
 }
 /** Demanda como fica guardada: os clientes pelo id; os nomes e o contrato são lidos na hora (como as junções do banco). */
 type DemandaGuardada = Omit<Demanda, 'clientes' | 'cliente_nome' | 'contrato'> & { clientes: string[] };
@@ -557,6 +560,9 @@ bd.mensagens ??= bd.comentarios.flatMap(c => c.mencoes.filter(perfil => perfil !
 bd.anotacoes ??= [];
 bd.anotacaoLigacoes ??= [];
 bd.historicoAnotacoes ??= [];
+// Pastas (#342): começam vazias; as anotações de antes ficam fora de qualquer pasta (a coluna nova nasce nula no banco).
+bd.pastas ??= [];
+bd.anotacoes.forEach(a => { a.pasta_id ??= null; });
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
@@ -1361,6 +1367,12 @@ const ligacoesDaAnotacao = (id: string) => bd.anotacaoLigacoes!.filter(l => l.an
 const vejoAnotacao = (a: Anotacao) => veAAnotacao(a, membroLogado(), chavesDaEquipe(),
   ligacoesDaAnotacao(a.id).some(l => ABRE_A_ANOTACAO[l.modulo] && vejoOItem(l.modulo, l.item_id)));
 const alteroAnotacao = (a: Anotacao) => alteraAAnotacao(a, membroLogado(), chavesDaEquipe());
+/** Como a regra de leitura das etiquetas da anotação: segue quem vê a anotação. */
+const vejoAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && vejoAnotacao(a));
+/** Como privado.altero_a_anotacao, que as regras de aplicar e tirar etiquetas usam: a anotação ativa, por quem a altera. */
+const alteroAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe()));
+/** Quem pode tirar a etiqueta do cartão: nas anotações, só quem as altera; nos outros módulos, como antes. */
+const podeTirarEtiqueta = (modulo: ModuloComEtiquetas, id: string) => modulo !== 'anotacoes' || alteroAnotacaoDoId(id);
 /** Como o gatilho preparar e as regras check da migração: confere só quem está entrando na equipe da anotação. */
 function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao {
   const d: DadosAnotacao = { ...dados };
@@ -1377,6 +1389,8 @@ function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao
     if (lista.length > COLABORADORES_MAXIMOS) throw new Error(FORMATO_INVALIDO);
     d.participantes = lista;
   }
+  // Como a chave estrangeira anotacoes_pasta_fkey: a pasta existe neste escritório (apagada por um colega, erros.ts diz que sumiu).
+  if (d.pasta_id && !bd.pastas!.some(x => x.id === d.pasta_id)) throw new Error(PASTA_SUMIU);
   const fica = { ...atual, ...d };
   if (!fica.titulo || fica.titulo.length > TAMANHO_ANOTACAO.titulo || (fica.texto ?? '').length > TAMANHO_ANOTACAO.texto) throw new Error(FORMATO_INVALIDO);
   return d;
@@ -1385,7 +1399,9 @@ function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao
 const HISTORICO_DO_CAMPO_DA_ANOTACAO: Record<string, (de: unknown, para: unknown) => Historico['alteracoes'][string]> = {
   texto: () => ({ de: null, para: null }),
   responsavel_id: (de, para) => ({ de: EQUIPE.find(m => m.id === de)?.nome ?? null, para: EQUIPE.find(m => m.id === para)?.nome ?? null }),
-  participantes: (de, para) => ({ de: nomesDosMembros(de as string[]), para: nomesDosMembros(para as string[]) })
+  participantes: (de, para) => ({ de: nomesDosMembros(de as string[]), para: nomesDosMembros(para as string[]) }),
+  // Como privado.caminho_da_pasta: o caminho, e não o id (#342).
+  pasta_id: (de, para) => ({ de: textoDoCaminho(bd.pastas!, de as string | null) || null, para: textoDoCaminho(bd.pastas!, para as string | null) || null })
 };
 /** Como privado.nomes_da_equipe: os nomes juntos, na ordem; sem ninguém, null. */
 const nomesDosMembros = (ids: string[]) => ids.length ? ids.map(id => EQUIPE.find(m => m.id === id)?.nome ?? 'usuário removido').join(', ') : null;
@@ -1420,10 +1436,10 @@ function soltarDasAnotacoes(modulo: ModuloDaAnotacao, itemId: string) {
   bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => !saem.includes(l));
   saem.forEach(l => refazerLigadaA(l.anotacao_id));
 }
-const anotacaoLista = (a: Anotacao): AnotacaoLista => ({
-  id: a.id, codigo: a.codigo, titulo: a.titulo, responsavel_id: a.responsavel_id, participantes: a.participantes, ligada_a: a.ligada_a,
-  criado_por: a.criado_por, criado_em: a.criado_em, atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em
-});
+const anotacaoLista = (a: Anotacao): AnotacaoLista => comEtq('anotacoes', (x: Anotacao) => ({
+  id: x.id, codigo: x.codigo, titulo: x.titulo, responsavel_id: x.responsavel_id, participantes: x.participantes, ligada_a: x.ligada_a,
+  pasta_id: x.pasta_id ?? null, criado_por: x.criado_por, criado_em: x.criado_em, atualizado_em: x.atualizado_em, arquivado_em: x.arquivado_em
+}))(a);
 const anotacaoLigada = (a: Anotacao): AnotacaoLigada => ({
   id: a.id, codigo: a.codigo, titulo: a.titulo, criado_por: a.criado_por, criado_em: a.criado_em, atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em
 });
@@ -1436,6 +1452,8 @@ function filtrarAnotacoes(f: FiltroAnotacoes = {}) {
     && (!f.ligadaA || (f.ligadaA === 'nenhum' ? !a.ligada_a.length : a.ligada_a.includes(f.ligadaA)))
     && (!f.autor || a.criado_por === f.autor)
     && (!f.desde || a.criado_em >= f.desde)
+    && (!f.pastas || (!!a.pasta_id && f.pastas.includes(a.pasta_id)))
+    && (!f.etiqueta || temEtiqueta('anotacoes', a.id, f.etiqueta))
     && (!t || achou(a)));
 }
 // Não há quadro: a ordem manual é a das atualizadas por último (como em supabase.ts).
@@ -1452,6 +1470,7 @@ function apagarAnotacao(a: Anotacao) {
   bd.anotacoes = bd.anotacoes!.filter(x => x.id !== a.id);
   bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
   bd.historicoAnotacoes = bd.historicoAnotacoes!.filter(h => h.anotacao_id !== a.id);
+  bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(x => !(x.modulo === 'anotacoes' && x.cartao_id === a.id));
   auditar('anotacoes', 'exclusao', { id: a.id, codigo: a.codigo });
 }
 /**
@@ -1478,6 +1497,8 @@ const tarefaLigadaA = (id: string | null): TarefaDoAcompanhamento => {
 const comTarefa = <T extends { tarefa_id: string | null; excluido_em: string | null }>({ excluido_em: _excluido, ...item }: T) => ({ ...item, tarefa: tarefaLigadaA(item.tarefa_id) });
 const SEM_MUDANCA = 'Não foi possível: o processo pode ter sido arquivado, ou isto já foi excluído. Abra o cartão de novo.';
 const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
+/** O que o banco diz quando uma chave estrangeira recusa sem uma mensagem própria (erros.ts). */
+const NAO_DEU = 'Não foi possível concluir agora. Tente de novo.';
 // ---------- caixa ----------
 const semOExcluido = ({ excluido_em: _e, ...l }: LancamentoGuardado): Lancamento => l;
 const CATEGORIAS_DE_ENTRADA = ['recebimento', 'outra_entrada', 'ajuste_a_mais'], CATEGORIAS_DE_SAIDA = ['despesa', 'das', 'repasse', 'indicacao', 'divisao_lucro', 'ajuste_a_menos', 'correcao_recebimento'];
@@ -2725,18 +2746,22 @@ export const SD: Dados = {
     return espera({ linhas: r.slice(de, de + por).map(anotacaoLista), total: r.length });
   },
   anotacaoObter: id => { const a = bd.anotacoes!.find(x => x.id === id && vejoAnotacao(x)); return espera(a ?? null); },
-  async anotacaoCriar(dados, ligarA) {
+  async anotacaoCriar(dados, ligarA, etiquetas = []) {
     const pronto = prepararAnotacao({ texto: '', participantes: [], ...dados });
-    const a = { texto: '', participantes: [], ...pronto, id: novoId(), codigo: codigo(), ligada_a: [], arquivado_em: null, arquivado_por: null,
+    const a = { texto: '', participantes: [], pasta_id: null, ...pronto, id: novoId(), codigo: codigo(), ligada_a: [], arquivado_em: null, arquivado_por: null,
       criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as Anotacao;
     bd.anotacoes!.push(a);
     try {
       // Na ordem em que foram escolhidos; o repetido não faz nada (como em supabase.ts).
       for (const i of [ligarA ?? []].flat()) ligarNaAnotacaoFalsa(a, i.modulo, i.id);
+      // As etiquetas com que ela nasce: só as do escritório (a chave estrangeira do banco).
+      if (etiquetas.some(e => !bd.etiquetas!.some(x => x.id === e))) throw new Error(NAO_DEU);
+      etiquetas.forEach(e => ligarEtiqueta('anotacoes', a.id, e));
     } catch (e) {
-      // Se uma ligação falha, nada fica gravado (como em supabase.ts).
+      // Se uma ligação ou uma etiqueta falha, nada fica gravado (como em supabase.ts).
       bd.anotacoes = bd.anotacoes!.filter(x => x.id !== a.id);
       bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
+      bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(x => !(x.modulo === 'anotacoes' && x.cartao_id === a.id));
       throw e;
     }
     auditar('anotacoes', 'inclusao', { id: a.id, codigo: a.codigo }); gravar();
@@ -2745,8 +2770,8 @@ export const SD: Dados = {
   async anotacaoDuplicar(id, dados) {
     // Como em supabase.ts: só os itens que quem duplica vê, na ordem da original; se uma ligação falha, a cópia sai inteira.
     if (!bd.anotacoes!.some(x => x.id === id && vejoAnotacao(x))) return erro(SEM_PERMISSAO);
-    const { visiveis } = await SD.anotacaoItens(id);
-    return SD.anotacaoCriar(dados, visiveis.map(i => ({ modulo: i.modulo, id: i.id })));
+    const [{ visiveis }, etiquetas] = await Promise.all([SD.anotacaoItens(id), SD.etiquetasDoCartao('anotacoes', id)]);
+    return SD.anotacaoCriar(dados, visiveis.map(i => ({ modulo: i.modulo, id: i.id })), etiquetas);
   },
   async anotacaoAtualizar(id, dados) {
     // Como a regra de alterar do banco: quem não altera (ou nem vê) não muda nada.
@@ -2807,6 +2832,44 @@ export const SD: Dados = {
     .sort(ORDENS_ANOTACAO.recentes).slice(0, ANOTACOES_LIGADAS).map(anotacaoLigada)),
   // A listagem de cada módulo, no banco fictício, ainda mostra tudo: aqui ficam só os itens que as regras do módulo deixam ver.
   itensParaLigar: async (modulo, termo) => (await PARA_LIGAR[modulo](termo)).filter(i => vejoOItem(i.modulo, i.id)).slice(0, ITENS_PARA_LIGAR),
+
+  // ---------- pastas dos documentos (como supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------
+  // Todo o escritório vê, cria, renomeia, move e apaga a vazia; as regras de nome e de ciclo são as de regras/pastas.ts.
+  pastasListar: () => espera([...bd.pastas!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
+  async pastaCriar(nome, pastaMaeId) {
+    const problema = erroDoNomeDaPasta(nome, bd.pastas!, pastaMaeId);
+    if (problema) return erro(problema);
+    if (pastaMaeId && !bd.pastas!.some(p => p.id === pastaMaeId)) return erro(PASTA_SUMIU);
+    const p: Pasta = { id: novoId(), nome: nomeDaPasta(nome), pasta_mae_id: pastaMaeId, criada_por: eu, criada_em: agora() };
+    bd.pastas!.push(p);
+    auditar('anotacao_pastas', 'inclusao', { id: p.id, nome: p.nome }); gravar();
+    return espera(p);
+  },
+  async pastaRenomear(id, nome) {
+    const p = bd.pastas!.find(x => x.id === id);
+    if (!p) return erro(PASTA_APAGADA);   // como no banco: nenhuma linha muda, um colega já a apagou
+    const problema = erroDoNomeDaPasta(nome, bd.pastas!, p.pasta_mae_id, id);
+    if (problema) return erro(problema);
+    p.nome = nomeDaPasta(nome);
+    auditar('anotacao_pastas', 'alteracao', { id: p.id, nome: p.nome }); gravar();
+  },
+  async pastaMover(id, pastaMaeId) {
+    const p = bd.pastas!.find(x => x.id === id);
+    if (!p) return erro(PASTA_APAGADA);   // como no banco: nenhuma linha muda, um colega já a apagou
+    if (pastaMaeId && pastaMaeId !== id && !bd.pastas!.some(x => x.id === pastaMaeId)) return erro(PASTA_SUMIU);
+    const problema = erroAoMoverPasta(bd.pastas!, id, pastaMaeId);
+    if (problema) return erro(problema);
+    p.pasta_mae_id = pastaMaeId;
+    auditar('anotacao_pastas', 'alteracao', { id: p.id, nome: p.nome }); gravar();
+  },
+  async pastaExcluir(id) {
+    const p = bd.pastas!.find(x => x.id === id);
+    if (!p) return erro(PASTA_APAGADA);   // como no banco: nenhuma linha muda, um colega já a apagou
+    // Como as chaves estrangeiras: as subpastas e todas as anotações contam, mesmo as que quem apaga não vê.
+    if (bd.pastas!.some(x => x.pasta_mae_id === id) || bd.anotacoes!.some(a => a.pasta_id === id)) return erro(PASTA_COM_CONTEUDO);
+    bd.pastas = bd.pastas!.filter(x => x.id !== id);
+    auditar('anotacao_pastas', 'exclusao', { id: p.id, nome: p.nome }); gravar();
+  },
 
   // ---------- andamentos e prazos do processo (como supabase/migrations/20261102125539_andamentos_e_prazos.sql) ----------
   processoAndamentos: processoId => espera(bd.andamentos!.filter(a => a.processo_id === processoId && !a.excluido_em).toSorted(porDataDoAndamento)
@@ -3599,18 +3662,22 @@ export const SD: Dados = {
     bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => a.etiqueta_id !== id);   // on delete cascade
     gravar();
   },
-  etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id && (modulo !== 'contratos' || alcancoContratoDoId(id))).map(a => a.etiqueta_id)),
+  etiquetasDoCartao: (modulo, id) => espera(bd.etiquetasAplicadas!.filter(a => a.modulo === modulo && a.cartao_id === id && (modulo !== 'contratos' || alcancoContratoDoId(id))
+    && (modulo !== 'anotacoes' || vejoAnotacaoDoId(id))).map(a => a.etiqueta_id)),
   async etiquetaAplicar(modulo, id, etiquetaId) {
     if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
     if (modulo === 'contratos' && !vejoContratoDoId(id)) return erro('Você não tem permissão para fazer isso.');
+    if (modulo === 'anotacoes' && !alteroAnotacaoDoId(id)) return erro(SEM_PERMISSAO);
     aplicarEtiqueta(modulo, id, etiquetaId); gravar();
   },
-  async etiquetaTirar(modulo, id, etiquetaId) { tirarEtiqueta(modulo, id, etiquetaId); gravar(); },
+  // Como a regra "apagar" das ligações: o que quem tira não pode mudar fica como está, sem erro.
+  async etiquetaTirar(modulo, id, etiquetaId) { if (podeTirarEtiqueta(modulo, id)) tirarEtiqueta(modulo, id, etiquetaId); gravar(); },
   async etiquetaAplicarEmLote(modulo, ids, etiquetaId) {
     if (!bd.etiquetas!.some(e => e.id === etiquetaId)) return erro('Não foi possível concluir agora. Tente de novo.');
+    if (modulo === 'anotacoes' && !ids.every(alteroAnotacaoDoId)) return erro(SEM_PERMISSAO);
     ids.forEach(id => aplicarEtiqueta(modulo, id, etiquetaId)); gravar();
   },
-  async etiquetaTirarEmLote(modulo, ids, etiquetaId) { ids.forEach(id => tirarEtiqueta(modulo, id, etiquetaId)); gravar(); },
+  async etiquetaTirarEmLote(modulo, ids, etiquetaId) { ids.filter(id => podeTirarEtiqueta(modulo, id)).forEach(id => tirarEtiqueta(modulo, id, etiquetaId)); gravar(); },
 
   // ---------- calendário (como supabase/migrations/20261101112711_calendario_de_prazos.sql) ----------
   orgaosListar: () => espera([...bd.orgaos!].sort(porSigla)),

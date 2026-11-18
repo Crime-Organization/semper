@@ -8,11 +8,11 @@ import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
   camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
   SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
-  edicaoPorSalvar, mesmoItem, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
+  edicaoPorSalvar, mesmoItem, motivoDaListaVazia, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
-  id: 'a1', codigo: 'ABC', titulo: 'Estratégia', texto: '', responsavel_id: 'u-ana', participantes: ['u-carla'], ligada_a: [], arquivado_em: null, arquivado_por: null,
+  id: 'a1', codigo: 'ABC', titulo: 'Estratégia', texto: '', responsavel_id: 'u-ana', participantes: ['u-carla'], ligada_a: [], pasta_id: null, arquivado_em: null, arquivado_por: null,
   criado_por: 'u-dani', criado_em: '', atualizado_por: null, atualizado_em: '', ...campos
 });
 const membro = (id: string, papel: Membro['papel'] = 'usuario'): Pick<Membro, 'id' | 'papel'> => ({ id, papel });
@@ -278,7 +278,15 @@ describe('A cópia da anotação (#343)', () => {
     // Dado
     const a = anotacao({ texto: '# Plano', participantes: ['u-carla', 'u-dani'] });
     // Quando / Então
-    expect(dadosDaCopia(a, quem('u-dani', true))).toEqual({ titulo: 'Estratégia (cópia)', texto: '# Plano', responsavel_id: 'u-ana', participantes: ['u-carla', 'u-dani'] });
+    expect(dadosDaCopia(a, quem('u-dani', true))).toEqual({ titulo: 'Estratégia (cópia)', texto: '# Plano', responsavel_id: 'u-ana', participantes: ['u-carla', 'u-dani'], pasta_id: null });
+  });
+
+  it('dada uma anotação numa pasta, quando alguém a duplica, então a cópia fica na mesma pasta (#342)', () => {
+    // Dado
+    const a = anotacao({ pasta_id: 'p-pops' });
+    // Quando / Então
+    expect(dadosDaCopia(a, quem('u-dani', true)).pasta_id).toBe('p-pops');
+    expect(dadosDaCopia(a, quem('u-bruno', false)).pasta_id).toBe('p-pops');
   });
 
   it('dado quem só lê a original, quando duplica, então ela é a responsável da cópia, e os participantes continuam', () => {
@@ -404,5 +412,18 @@ describe('A edição por salvar no cartão da anotação (#339)', () => {
   ])('dado %s, então a edição por salvar é %s', (_caso, rascunhos, esperado) => {
     // Quando / Então
     expect(edicaoPorSalvar(a, rascunhos)).toBe(esperado);
+  });
+});
+
+describe('Lista de documentos vazia', () => {
+  const nada = { filtrada: false, arquivadas: false, pasta: false };
+  it.each([
+    ['com filtros, mesmo nas arquivadas e numa pasta', 'filtrada', { filtrada: true, arquivadas: true, pasta: true }],
+    ['nas arquivadas, mesmo numa pasta', 'arquivadas', { ...nada, arquivadas: true, pasta: true }],
+    ['numa pasta', 'pasta', { ...nada, pasta: true }],
+    ['sem filtros nem pasta', 'nenhuma', nada]
+  ] as const)('dada a lista vazia %s, então o motivo é "%s"', (_caso, motivo, situacao) => {
+    // Quando / Então
+    expect(motivoDaListaVazia(situacao)).toBe(motivo);
   });
 });

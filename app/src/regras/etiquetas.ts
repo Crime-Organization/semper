@@ -39,3 +39,9 @@ export const etiquetasQueCombinam = <E extends Pick<Etiqueta, 'cor' | 'texto'>>(
 
 /** Muda ou exclui a etiqueta quem criou ou um administrador. */
 export const podeMudarEtiqueta = (e: Pick<Etiqueta, 'criado_por'>, perfilId: string, ehAdmin: boolean) => ehAdmin || e.criado_por === perfilId;
+
+/**
+ * Das etiquetas marcadas (pelos ids), só as que ainda existem no escritório: a excluída depois de marcada (no próprio painel ou por
+ * um colega) some da tela e não pode ir para o cartão. Sem a lista (null: ainda não veio), ficam todas.
+ */
+export const etiquetasQueExistem = (ids: string[], lista: Pick<Etiqueta, 'id'>[] | null) => lista ? ids.filter(id => lista.some(e => e.id === id)) : ids;

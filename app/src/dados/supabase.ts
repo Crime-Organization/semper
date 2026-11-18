@@ -14,9 +14,10 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import type { AnotacaoLigada, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao } from './tipos';
+import type { AnotacaoLigada, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
+import { PASTA_APAGADA } from '../regras/pastas';
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
@@ -116,7 +117,8 @@ const ETIQUETAS_DO_MODULO: Record<ModuloComEtiquetas, { tabela: string; coluna: 
   demandas: { tabela: 'demanda_etiquetas', coluna: 'demanda_id' },
   tarefas: { tabela: 'tarefa_etiquetas', coluna: 'tarefa_id' },
   processos: { tabela: 'processo_etiquetas', coluna: 'processo_id' },
-  compromissos: { tabela: 'compromisso_etiquetas', coluna: 'compromisso_id' }
+  compromissos: { tabela: 'compromisso_etiquetas', coluna: 'compromisso_id' },
+  anotacoes: { tabela: 'anotacao_etiquetas', coluna: 'anotacao_id' }
 };
 /** Os campos da lista mais as etiquetas do item; filtrando por uma etiqueta, só vêm os itens que a têm (ligação !inner, com outro nome, para o item continuar trazendo todas). */
 function comEtiquetas(campos: string, modulo: ModuloComEtiquetas, f: { etiqueta?: string }) {
@@ -211,6 +213,8 @@ const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa
 
 /** Quem vê o cartão sem estar nele não altera: nenhuma linha muda, e o quadro precisa voltar o cartão. */
 const conferirQueMudou = (linha: unknown) => { if (!linha) throw new Error('Você não tem permissão para fazer isso.'); };
+/** As pastas são de todo o escritório: se nenhuma linha mudou, a pasta já não existe (um colega a apagou). */
+const conferirQueAPastaExiste = (linha: unknown) => { if (!linha) throw new Error(PASTA_APAGADA); };
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
@@ -325,8 +329,9 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
 }
 
 // ---------- anotações (supabase/migrations/20261117143714_anotacoes.sql) ----------
-const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes, ligada_a, criado_por, criado_em, atualizado_em, arquivado_em';
-const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
+const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes, ligada_a, pasta_id, criado_por, criado_em, atualizado_em, arquivado_em';
+const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, pasta_id, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
+const CAMPOS_PASTA = 'id, nome, pasta_mae_id, criada_por, criada_em';
 const CAMPOS_ANOTACAO_LIGADA = 'id, codigo, titulo, criado_por, criado_em, atualizado_em, arquivado_em';
 /**
  * Para cada módulo: a coluna do item em anotacao_ligacoes, e de onde ler o item com os campos do nome (regras/anotacao.ts). As
@@ -352,6 +357,8 @@ const ORDENS_ANOTACAO: Record<Ordem, (q: Livre) => Livre> = {
 };
 const ordenarAnotacoes = (q: Livre, ordem: Ordem) => ORDENS_ANOTACAO[ordem](q).order('id');
 function filtrarAnotacoes(q: Livre, f: FiltroAnotacoes) {
+  q = porEtiqueta(q, f);
+  if (f.pastas) q = q.in('pasta_id', f.pastas);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   // "Ligada a" usa a lista dos módulos ligados, que o banco mantém na anotação; 'nenhum' é a lista vazia.
   if (f.ligadaA) q = f.ligadaA === 'nenhum' ? q.eq('ligada_a', '{}') : q.contains('ligada_a', [f.ligadaA]);
@@ -1105,19 +1112,23 @@ export const SD: Dados = {
   // ---------- anotações (supabase/migrations/20261117143714_anotacoes.sql) ----------
   async anotacoesListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarAnotacoes(sb.from('anotacoes').select(CAMPOS_ANOTACAO_LISTA, { count: 'exact' }), f);
+    const q = filtrarAnotacoes(sb.from('anotacoes').select(comEtiquetas(CAMPOS_ANOTACAO_LISTA, 'anotacoes', f), { count: 'exact' }), f);
     const { data, count } = await rodar(ordenarAnotacoes(q, f.ordem ?? 'recentes').range(de, de + por - 1));
-    return { linhas: data, total: count || 0 };
+    // A ligação usada só no filtro por etiqueta não vai para a tela.
+    return { linhas: (data as Livre[]).map(({ filtro_etq: _filtro, ...a }) => a), total: count || 0 };
   },
   async anotacaoObter(id) {
     const { data } = await rodar(sb.from('anotacoes').select(CAMPOS_ANOTACAO).eq('id', id).maybeSingle());
     return data;
   },
-  async anotacaoCriar(dados, ligarA) {
+  async anotacaoCriar(dados, ligarA, etiquetas = []) {
     const { data } = await rodar(sb.from('anotacoes').insert({ ...dados, criado_por: uid() }).select('id, codigo').single());
     try {
       // Uma de cada vez, para a anotação guardar a ordem em que os itens foram escolhidos (o repetido o banco descarta).
       for (const i of [ligarA ?? []].flat()) await SD.anotacaoLigar(data.id, i.modulo, i.id);
+      // As etiquetas com que ela nasce, numa gravação só (a repetida o banco descarta).
+      if (etiquetas.length) await rodar(sb.from('anotacao_etiquetas').upsert(etiquetas.map(etiqueta_id => ({ anotacao_id: data.id, etiqueta_id })),
+        { onConflict: 'anotacao_id,etiqueta_id', ignoreDuplicates: true }));
     } catch (e) {
       // As gravações não vão numa transação só: a anotação que ficou pela metade sai (quem a criou arquiva e exclui).
       await SD.anotacoesArquivar([data.id]).then(() => SD.anotacoesExcluir([data.id])).catch(() => undefined);
@@ -1129,8 +1140,8 @@ export const SD: Dados = {
     // Só os itens que quem duplica vê: a regra de leitura do banco já deixa os outros de fora. Se uma ligação falhar, a cópia
     // sai inteira (anotacaoCriar).
     if (!await SD.anotacaoObter(id)) throw new Error(NAO_MUDOU);
-    const { visiveis } = await SD.anotacaoItens(id);
-    return SD.anotacaoCriar(dados, visiveis.map(i => ({ modulo: i.modulo, id: i.id })));
+    const [{ visiveis }, etiquetas] = await Promise.all([SD.anotacaoItens(id), SD.etiquetasDoCartao('anotacoes', id)]);
+    return SD.anotacaoCriar(dados, visiveis.map(i => ({ modulo: i.modulo, id: i.id })), etiquetas);
   },
   async anotacaoAtualizar(id, dados) {
     // Quem só vê a anotação pelo item ligado não altera: nenhuma linha muda, sem erro do banco.
@@ -1191,6 +1202,27 @@ export const SD: Dados = {
     return (data as (AnotacaoLigada & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a);
   },
   itensParaLigar: (modulo, termo) => PARA_LIGAR[modulo](termo),
+
+  // ---------- pastas dos documentos (supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql) ----------
+  async pastasListar() {
+    const { data } = await rodar(sb.from('anotacao_pastas').select(CAMPOS_PASTA).order('nome'));
+    return data as Pasta[];
+  },
+  async pastaCriar(nome, pastaMaeId) {
+    const { data } = await rodar(sb.from('anotacao_pastas').insert({ nome, pasta_mae_id: pastaMaeId, criada_por: uid() }).select(CAMPOS_PASTA).single());
+    return data as Pasta;
+  },
+  // Todo o escritório mexe nas pastas: nenhuma linha mudar quer dizer que um colega já apagou a pasta (PASTA_APAGADA).
+  async pastaRenomear(id, nome) {
+    conferirQueAPastaExiste((await rodar(sb.from('anotacao_pastas').update({ nome }).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async pastaMover(id, pastaMaeId) {
+    conferirQueAPastaExiste((await rodar(sb.from('anotacao_pastas').update({ pasta_mae_id: pastaMaeId }).eq('id', id).select('id').maybeSingle())).data);
+  },
+  async pastaExcluir(id) {
+    // Com conteúdo, as chaves estrangeiras recusam (erros.ts traduz para "Esvazie a pasta…").
+    conferirQueAPastaExiste((await rodar(sb.from('anotacao_pastas').delete().eq('id', id).select('id').maybeSingle())).data);
+  },
   // ---------- caixa ----------
   async financeiroContas() {
     const { data } = await rodar(sb.from('financeiro_contas').select(CAMPOS_DA_CONTA).order('criado_em'));

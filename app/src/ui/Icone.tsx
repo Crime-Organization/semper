@@ -10,6 +10,8 @@ const ICONES = {
   processos: '<path d="M12 3v18M7.5 21h9M5 6.5h14M5 6.5l-3 7a3.2 3.2 0 006 0zM19 6.5l-3 7a3.2 3.2 0 006 0z"/>',
   mais: '<path d="M12 5v14M5 12h14"/>',
   equipe: '<path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><circle cx="12" cy="11" r="2.5"/><path d="M8.5 16.5a4 4 0 017 0"/>',
+  // Pasta dos documentos (#342): a pasta fechada, com a aba no alto à esquerda.
+  pasta: '<path d="M3 7.5A1.5 1.5 0 014.5 6h4.2l2 2.2h8.8A1.5 1.5 0 0121 9.7v8.8a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18.5z"/>',
   etiqueta: '<path d="M3 12V5a2 2 0 012-2h7l9 9-9 9z"/><circle cx="8" cy="8" r="1.5"/>',
   calendario: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h2M14 14h2M8 17.5h2"/>',
   configuracoes: '<path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/>',
@@ -39,6 +41,7 @@ const ICONES = {
   pontos: '<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
   check: '<path d="M5 12l5 5L20 7"/>',
   abaixo: '<path d="M6 9l6 6 6-6"/>',
+  direita: '<path d="M9 6l6 6-6 6"/>',
   acima: '<path d="M6 15l6-6 6 6"/>',
   expandir: '<path d="M7 6l5 5 5-5"/><path d="M7 13l5 5 5-5"/>',
   recolher: '<path d="M7 18l5-5 5 5"/><path d="M7 11l5-5 5 5"/>',

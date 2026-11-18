@@ -235,13 +235,22 @@ export interface QuemCopia {
  * O que a cópia grava, num lugar só: o título com " (cópia)", o mesmo texto, o mesmo responsável e os mesmos participantes.
  * A cópia é de quem a faz (ela é a autora). Quem só lê a original não escolhe o responsável dela: a cópia fica com ela mesma.
  * Responsável ou participante que saiu da equipe não vai para a cópia (no lugar do responsável, fica quem copia). As ligações
- * são copiadas pelo banco (SD.anotacaoDuplicar). Pasta e etiquetas (#342), quando existirem, entram aqui.
+ * são copiadas pelo banco (SD.anotacaoDuplicar), e as etiquetas também (#342). A cópia fica na mesma pasta da original (#342).
  */
-export function dadosDaCopia(a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>, quem: QuemCopia) {
+export function dadosDaCopia(a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes' | 'pasta_id'>, quem: QuemCopia) {
   const ativo = (id: string) => quem.equipe.some(m => m.id === id && ativoNaEquipe(m));
   const responsavel_id = quem.alteraAOriginal && ativo(a.responsavel_id) ? a.responsavel_id : quem.id;
   return {
     titulo: tituloDaCopia(a.titulo), texto: a.texto, responsavel_id,
-    participantes: a.participantes.filter(p => p !== responsavel_id && ativo(p))
+    participantes: a.participantes.filter(p => p !== responsavel_id && ativo(p)),
+    pasta_id: a.pasta_id ?? null
   };
 }
+
+/** Por que a lista da página Documentos está vazia: cada motivo tem a mensagem dele (#342). */
+export type MotivoDaListaVazia = 'filtrada' | 'arquivadas' | 'pasta' | 'nenhuma';
+/** A situação da lista: com filtros, a das arquivadas, mostrando uma pasta. */
+export interface SituacaoDaLista { filtrada: boolean; arquivadas: boolean; pasta: boolean }
+/** Os motivos na ordem em que valem: o primeiro que vale explica a lista vazia; sem nenhum, ainda não há anotação. */
+const ORDEM_DOS_MOTIVOS: (keyof SituacaoDaLista)[] = ['filtrada', 'arquivadas', 'pasta'];
+export const motivoDaListaVazia = (s: SituacaoDaLista): MotivoDaListaVazia => ORDEM_DOS_MOTIVOS.find(m => s[m]) ?? 'nenhuma';

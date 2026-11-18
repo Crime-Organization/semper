@@ -833,7 +833,7 @@ export interface Etiqueta {
   sistema?: 'importada' | 'incompleta' | null;
 }
 /** Os módulos cujos cartões levam etiquetas. */
-export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos'>;
+export type ModuloComEtiquetas = Extract<Modulo, 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'processos' | 'compromissos' | 'anotacoes'>;
 /** Item de lista com as etiquetas dele (etq: as ligações, como vêm do banco). */
 export interface ComEtiquetas { etq?: { etiqueta_id: string }[] }
 
@@ -1254,6 +1254,8 @@ export interface Anotacao {
   participantes: string[];         // perfis da equipe, sem o responsável
   /** Os módulos dos itens ligados (o banco mantém). */
   ligada_a: ModuloDaAnotacao[];
+  /** A pasta em que está (#342); null: fora de qualquer pasta. */
+  pasta_id: string | null;
   arquivado_em: string | null;
   arquivado_por: string | null;
   criado_por: string | null;
@@ -1262,9 +1264,9 @@ export interface Anotacao {
   atualizado_em: string;
 }
 /** Campos que o cadastro de anotação grava. */
-export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>>;
-/** Linha da tabela de anotações. */
-export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'ligada_a' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
+export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes' | 'pasta_id'>>;
+/** Linha da tabela de anotações, com as etiquetas dela. */
+export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'ligada_a' | 'pasta_id' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'> & ComEtiquetas;
 /** Anotação como aparece no cartão de um item ligado a ela. */
 export type AnotacaoLigada = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
 /** Um item ligado a uma anotação, como aparece no cartão dela. */
@@ -1283,6 +1285,10 @@ export interface FiltroAnotacoes {
   autor?: string;
   /** Criadas a partir deste dia (AAAA-MM-DD). */
   desde?: string;
+  /** Só as que estão nestas pastas: a escolhida e as subpastas dela (pastasDescendentes, em regras/pastas.ts). */
+  pastas?: string[];
+  /** Só as que têm esta etiqueta. */
+  etiqueta?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: Ordem;
   pagina?: number;
@@ -1294,13 +1300,15 @@ export interface DadosAnotacoes {
   anotacaoObter(id: string): Promise<Anotacao | null>;
   /**
    * "ligarA": o item, ou os itens na ordem em que foram escolhidos, a que a anotação já nasce ligada: o do cartão em que ela
-   * nasceu e os escolhidos antes de salvar (#339). Item repetido conta uma vez. Se uma ligação falhar, nada fica gravado.
+   * nasceu e os escolhidos antes de salvar (#339). Item repetido conta uma vez. "etiquetas": as etiquetas do escritório com que
+   * ela já nasce (#342). Se uma ligação ou uma etiqueta falhar, nada fica gravado.
    */
-  anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: ItemParaLigar | ItemParaLigar[]): Promise<{ id: string; codigo: string }>;
+  anotacaoCriar(dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>, ligarA?: ItemParaLigar | ItemParaLigar[], etiquetas?: string[]): Promise<{ id: string; codigo: string }>;
   /**
    * Duplica a anotação (#343): cria a cópia com estes dados (o que ela leva vem de dadosDaCopia, em regras/anotacao.ts) e liga a
-   * ela os itens da original que quem duplica vê, na mesma ordem; os que não vê ficam de fora. A cópia tem código e histórico
-   * próprios, e a original não muda. Se uma ligação falhar, a cópia é excluída e nada fica gravado.
+   * ela os itens da original que quem duplica vê, na mesma ordem; os que não vê ficam de fora. Leva também as etiquetas da
+   * original (#342; a pasta vem em dadosDaCopia). A cópia tem código e histórico próprios, e a original não muda. Se uma
+   * ligação ou uma etiqueta falhar, a cópia é excluída e nada fica gravado.
    */
   anotacaoDuplicar(id: string, dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>): Promise<{ id: string; codigo: string }>;
   anotacaoAtualizar(id: string, dados: DadosAnotacao): Promise<{ id: string; codigo: string }>;
@@ -1317,6 +1325,32 @@ export interface DadosAnotacoes {
   anotacoesDoItem(modulo: ModuloDaAnotacao, itemId: string): Promise<AnotacaoLigada[]>;
   /** Itens do módulo para ligar, pela busca, entre os que quem lê pode ver (ativos). */
   itensParaLigar(modulo: ModuloDaAnotacao, termo: string): Promise<ItemDaAnotacao[]>;
+}
+
+// ---------- pastas dos documentos (#342) ----------
+/**
+ * Pasta dos documentos, como no Obsidian: pode ficar dentro de outra (pasta_mae_id) e guarda anotações. É do escritório todo:
+ * todos veem, criam, renomeiam, movem e apagam (a vazia). Não há duas com o mesmo nome na mesma pasta (maiúsculas e acentos
+ * não contam), nem pasta dentro dela mesma ou de uma subpasta dela.
+ */
+export interface Pasta {
+  id: string;
+  nome: string;
+  /** A pasta em que esta fica; null: no primeiro nível. */
+  pasta_mae_id: string | null;
+  criada_por: string | null;
+  criada_em: string;
+}
+/** Pastas (supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql). */
+export interface DadosPastas {
+  /** Todas as pastas do escritório (são poucas: a árvore se monta na tela, com regras/pastas.ts). */
+  pastasListar(): Promise<Pasta[]>;
+  pastaCriar(nome: string, pastaMaeId: string | null): Promise<Pasta>;
+  pastaRenomear(id: string, nome: string): Promise<void>;
+  /** Leva a pasta, com o que há nela, para dentro de outra (null: o primeiro nível). Para dentro dela mesma ou de uma subpasta, é recusado. */
+  pastaMover(id: string, pastaMaeId: string | null): Promise<void>;
+  /** Só a pasta vazia (sem subpastas e sem anotações, mesmo as que quem apaga não vê) é apagada; com conteúdo, a mensagem pede para esvaziá-la. */
+  pastaExcluir(id: string): Promise<void>;
 }
 /** Como a demanda se liga ao processo: deu origem a ele, ou trabalha nele (ligada depois). */
 export type PapelDaDemandaNoProcesso = 'originou' | 'atua';
@@ -1612,4 +1646,4 @@ export interface DadosParcelas {
   financeiroSocioRestaurar(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes {}
+export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas {}

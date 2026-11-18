@@ -41,6 +41,34 @@ describe('A anotação em Markdown', () => {
     ].join('\n'));
   });
 
+  it('dada uma anotação com pasta e etiquetas, quando é baixada, então o topo traz o caminho da pasta e as etiquetas como lista (#342)', () => {
+    // Dado
+    const nomes = { ...NOMES, pasta: ['Escritório', 'POPs', 'Financeiro'], etiquetas: ['POP', 'Reunião: semanal'] };
+    // Quando
+    const md = markdownDaAnotacao(anotacao(), [DEMANDA], nomes);
+    // Então
+    expect(cabecalho(md)).toEqual([
+      'codigo: ANT1',
+      'criada: 2026-11-17T14:05:09Z',
+      'atualizada: 2026-11-18T09:00:00Z',
+      'responsavel: Ana Exemplo',
+      'pasta: "Escritório / POPs / Financeiro"',
+      'etiquetas:',
+      '  - POP',
+      '  - "Reunião: semanal"',
+      'ligada_a:',
+      '  - "Demanda · DEM7 · Registro de marca"'
+    ]);
+    expect(lerValor('"Escritório / POPs / Financeiro"')).toBe('Escritório / POPs / Financeiro');
+  });
+
+  it('dada uma anotação fora de qualquer pasta e sem etiquetas, quando é baixada, então "pasta" e "etiquetas" ficam de fora', () => {
+    // Quando
+    const md = markdownDaAnotacao(anotacao(), [], { ...NOMES, pasta: [], etiquetas: [] });
+    // Então
+    expect(cabecalho(md).map(l => l.split(':')[0])).toEqual(['codigo', 'criada', 'atualizada', 'responsavel']);
+  });
+
   it('quando não há item ligado visível, então a propriedade "ligada_a" fica de fora, em vez de vazia', () => {
     // Quando
     const md = markdownDaAnotacao(anotacao(), [], NOMES);

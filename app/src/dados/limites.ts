@@ -206,3 +206,7 @@ export const ANOTACOES_LIGADAS = 200;
 export const HISTORICO_DA_ANOTACAO = 100;
 /** Quantos itens a busca para ligar oferece enquanto se digita, no cartão da anotação. */
 export const ITENS_PARA_LIGAR = 8;
+
+// ---------- Pastas dos documentos (#342) ----------
+/** Nome de uma pasta dos documentos (exigido pelo banco: supabase/migrations/20261118120000_pastas_e_etiquetas_das_anotacoes.sql). */
+export const TAMANHO_PASTA = 80;

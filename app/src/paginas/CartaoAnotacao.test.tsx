@@ -5,13 +5,17 @@ import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Anotacao, DadosAnotacoes, DadosSessao } from '../dados';
+import type { Anotacao, DadosAnotacoes, DadosEtiquetas, DadosPastas, DadosSessao } from '../dados';
 import { Avisos } from '../ui/avisos';
 import { iniciarPreferencias } from '../ui/preferencias';
 import { CartaoAnotacao } from './CartaoAnotacao';
 
-// O cartão lê a anotação, os itens ligados e o histórico, e grava o texto; o mock declara exatamente essas operações.
-const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia } = vi.hoisted(() => ({
+// O cartão lê a anotação, os itens ligados, o histórico, as etiquetas e as pastas (#342), e grava o texto; o mock declara
+// exatamente essas operações.
+const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } = vi.hoisted(() => ({
+  etiquetasListar: vi.fn<DadosEtiquetas['etiquetasListar']>(async () => []),
+  etiquetasDoCartao: vi.fn<DadosEtiquetas['etiquetasDoCartao']>(async () => []),
+  pastasListar: vi.fn<DadosPastas['pastasListar']>(async () => []),
   anotacaoObter: vi.fn<DadosAnotacoes['anotacaoObter']>(),
   anotacaoItens: vi.fn<DadosAnotacoes['anotacaoItens']>(async () => ({ visiveis: [], ocultos: 0 })),
   anotacaoHistorico: vi.fn<DadosAnotacoes['anotacaoHistorico']>(async () => []),
@@ -19,8 +23,9 @@ const { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salv
   salvarPreferencia: vi.fn<DadosSessao['salvarPreferencia']>(async () => {})
 }));
 vi.mock('../dados', () => ({
-  SD: { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia } satisfies
-    Pick<DadosAnotacoes & DadosSessao, 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'salvarPreferencia'>
+  SD: { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, pastasListar } satisfies
+    Pick<DadosAnotacoes & DadosSessao & DadosEtiquetas & DadosPastas, 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'salvarPreferencia'
+      | 'etiquetasListar' | 'etiquetasDoCartao' | 'pastasListar'>
 }));
 /** A equipe do escritório: quem escreve e alguém com quem compartilhar. */
 const EQUIPE = [{ id: 'u-mateus', nome: 'Mateus', ativo: true }, { id: 'u-bruno', nome: 'Bruno', ativo: true }];
@@ -29,7 +34,7 @@ vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus', pape
 /** O "banco": o texto guardado e as gravações que ainda não responderam, na ordem em que chegaram. */
 const banco = { texto: '', esperando: [] as { responder: (ok: boolean) => void }[] };
 const anotacao = (texto: string): Anotacao => ({
-  id: 'a1', codigo: 'A-1', titulo: 'Lista do protocolo', texto, responsavel_id: 'u-mateus', participantes: [], ligada_a: [],
+  id: 'a1', codigo: 'A-1', titulo: 'Lista do protocolo', texto, responsavel_id: 'u-mateus', participantes: [], ligada_a: [], pasta_id: null,
   arquivado_em: null, arquivado_por: null, criado_por: 'u-mateus', criado_em: '2026-11-10T12:00:00Z', atualizado_por: null,
   atualizado_em: '2026-11-16T12:00:00Z'
 });

@@ -9,8 +9,13 @@ import { ITEM_DA_ANOTACAO } from './anotacao';
 export type AnotacaoParaBaixar = Pick<Anotacao, 'codigo' | 'titulo' | 'texto' | 'criado_em' | 'atualizado_em'>;
 /** Os itens ligados que a pessoa vê (os que ela não pode abrir não entram no arquivo). */
 export type ItemParaBaixar = Pick<ItemDaAnotacao, 'modulo' | 'codigo' | 'nome'>;
-/** Os nomes que a tela conhece e a anotação guarda só pelo id (hoje, o do responsável). */
-export interface NomesDaAnotacao { responsavel: string }
+/**
+ * Os nomes que a tela conhece e a anotação guarda só pelo id: o do responsável, o caminho da pasta (as pastas do primeiro nível
+ * até a dela, em ordem; vazio: fora de qualquer pasta) e os nomes das etiquetas (#342).
+ */
+export interface NomesDaAnotacao { responsavel: string; pasta?: string[]; etiquetas?: string[] }
+/** Como o caminho da pasta vai para o arquivo ("Escritório / POPs / Financeiro"). */
+export const SEPARADOR_DA_PASTA_NO_ARQUIVO = ' / ';
 
 /** O valor de uma propriedade: um texto ou uma lista de textos. Vazio (texto ou lista), a propriedade fica de fora. */
 type ValorDaPropriedade = string | string[];
@@ -23,7 +28,7 @@ function dataISO(valor: string) {
 }
 
 /**
- * As propriedades do topo do arquivo, na ordem em que aparecem. Propriedade nova (a pasta e as etiquetas, da #342) é uma
+ * As propriedades do topo do arquivo, na ordem em que aparecem. Propriedade nova é uma
  * linha nova nesta tabela, com o dado novo em AnotacaoParaBaixar ou em NomesDaAnotacao.
  */
 const PROPRIEDADES: [chave: string, valor: (f: FonteDasPropriedades) => ValorDaPropriedade][] = [
@@ -31,6 +36,8 @@ const PROPRIEDADES: [chave: string, valor: (f: FonteDasPropriedades) => ValorDaP
   ['criada', f => dataISO(f.anotacao.criado_em)],
   ['atualizada', f => dataISO(f.anotacao.atualizado_em)],
   ['responsavel', f => f.nomes.responsavel],
+  ['pasta', f => (f.nomes.pasta ?? []).join(SEPARADOR_DA_PASTA_NO_ARQUIVO)],
+  ['etiquetas', f => f.nomes.etiquetas ?? []],
   ['ligada_a', f => f.itens.map(i => `${ITEM_DA_ANOTACAO[i.modulo].rotulo} · ${i.codigo} · ${i.nome}`)]
 ];
 

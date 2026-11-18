@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Etiqueta } from '../dados/tipos';
-import { erroDaEtiqueta, etiquetasNaOrdem, etiquetasQueCombinam, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta } from './etiquetas';
+import { erroDaEtiqueta, etiquetasNaOrdem, etiquetasQueCombinam, etiquetasQueExistem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta } from './etiquetas';
 
 const etiqueta = (id: string, cor: Etiqueta['cor'], texto: string | null): Etiqueta => ({ id, cor, texto, criado_por: 'u-ana' });
 const URGENTE = etiqueta('e1', 'vermelho', 'Urgência do cliente'), VERDE = etiqueta('e2', 'verde', null);
@@ -59,5 +59,18 @@ describe('Etiquetas', () => {
   ])('quando quem tenta mudar é %s, então a resposta é a certa', (_caso, perfil, ehAdmin, pode) => {
     // Então
     expect(podeMudarEtiqueta(URGENTE, perfil, ehAdmin)).toBe(pode);
+  });
+
+  it('dadas etiquetas marcadas, quando uma delas foi excluída do escritório, então só as que existem ficam', () => {
+    // Dado
+    const marcadas = ['e1', 'excluida', 'e2'];
+    // Quando / Então
+    expect(etiquetasQueExistem(marcadas, [URGENTE, VERDE])).toEqual(['e1', 'e2']);
+    expect(etiquetasQueExistem(marcadas, [])).toEqual([]);
+  });
+
+  it('dadas etiquetas marcadas, quando a lista do escritório ainda não veio, então todas ficam', () => {
+    // Então
+    expect(etiquetasQueExistem(['e1', 'e2'], null)).toEqual(['e1', 'e2']);
   });
 });

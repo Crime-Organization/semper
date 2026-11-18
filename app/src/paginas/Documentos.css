@@ -32,3 +32,85 @@ textarea.anotacao-caixa { min-height: 240px; max-width: calc(68ch + 30px) }
 .ligar-item-campos { display: flex; flex-wrap: wrap; gap: 8px }
 .ligar-item-campos > select { flex: 0 0 auto; width: auto }
 .ligar-item-campos > input { flex: 1 1 200px; min-width: 0 }
+
+/* ---------- Pastas e etiquetas (#342) ----------
+   A árvore das pastas ao lado da lista, no desenho do menu lateral (fundo --line na atual e no hover, nunca verde); em
+   conteúdo estreito (container query da página de módulo), ela some e o seletor aparece acima da lista. */
+.documentos-corpo {
+  --largura-da-arvore: 248px;      /* a coluna das pastas */
+  display: grid; grid-template-columns: var(--largura-da-arvore) minmax(0, 1fr); gap: 28px; align-items: start
+}
+.documentos-lista { display: flex; flex-direction: column; gap: 20px; min-width: 0 }
+.pastas-arvore { position: sticky; top: 16px; max-height: calc(100dvh - 32px); overflow-y: auto; padding-right: 12px; border-right: 1px solid var(--line) }
+.pastas-cabeca { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding-left: 10px }
+.pastas-lista, .pastas-lista ul { margin: 0; padding: 0; list-style: none }
+.pasta-linha { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; min-height: 36px; padding-left: calc(var(--nivel, 0) * var(--recuo-da-pasta));
+  border-radius: 6px; transition: background-color .15s ease-out }
+.pasta-linha:hover { background: var(--soft) }
+.pasta-linha.atual { background: var(--line) }
+.pasta-abrir { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 28px; padding: 0; border: 0; border-radius: 4px; background: none; color: var(--muted); cursor: pointer }
+span.pasta-abrir { cursor: default }
+.pasta-abrir:hover { color: var(--ink) }
+.pasta-nome { display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 36px; padding: 0 6px 0 2px; border: 0; background: none; font: inherit;
+  font-size: var(--texto-tabela); color: var(--text); text-align: left; cursor: pointer }
+.pasta-nome > svg { flex: none; color: var(--muted) }
+.pasta-nome > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pasta-linha.atual .pasta-nome { font-weight: 700; color: var(--ink) }
+.pasta-nome:focus-visible, .pasta-abrir:focus-visible, .pasta-mais:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px }
+.pasta-mais { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 999px;
+  background: none; color: var(--muted); cursor: pointer }
+.pasta-mais:hover { background: var(--line2); color: var(--ink) }
+/* O ⋯ de cada pasta aparece ao passar o mouse ou com o foco; no toque, fica sempre à vista. */
+.pasta-linha .pasta-mais { opacity: 0; transition: opacity .15s ease-out }
+.pasta-linha:hover .pasta-mais, .pasta-linha:focus-within .pasta-mais, .pasta-linha .pasta-mais[aria-expanded="true"] { opacity: 1 }
+@media (hover: none) { .pasta-linha .pasta-mais { opacity: 1 } }
+.pastas-vazio { margin: 8px 10px; font-size: var(--texto-miudo); line-height: 1.45; color: var(--faint) }
+.kmenu .pastas-vazio { max-width: 240px; margin: 6px 12px }
+
+.pastas-seletor { display: none; align-items: center; gap: 6px }
+.pastas-seletor-campo { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--muted) }
+.pastas-seletor-campo .filtro { flex: 1; min-width: 0 }
+@container (max-width: 760px) {
+  .documentos-corpo { grid-template-columns: minmax(0, 1fr) }
+  .pastas-arvore { display: none }
+  .pastas-seletor { display: flex }
+}
+
+/* O caminho da pasta na lista, ao lado do código. */
+.tabela-anotacoes .anotacao-pasta { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; color: var(--muted) }
+.tabela-anotacoes td .etiquetas { margin-bottom: 4px }
+
+/* O caminho acima do título da anotação: pequeno e discreto, cada pedaço um link que leva à pasta. */
+.caminho-da-pasta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-top: 10px; font-size: var(--texto-miudo); line-height: 1.4; color: var(--muted) }
+.caminho-da-pasta .carregando { margin: 0; font-size: inherit }
+.caminho-da-pasta ol { display: flex; flex-wrap: wrap; align-items: center; margin: 0; padding: 0; list-style: none }
+.caminho-da-pasta li + li::before { content: '›'; margin: 0 6px; color: var(--faint) }
+.caminho-da-pasta a { color: var(--muted); text-decoration: none; border-radius: 4px }
+.caminho-da-pasta a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 2px }
+.caminho-da-pasta a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.caminho-mudar { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 8px; border: 1px solid transparent; border-radius: 999px;
+  background: none; font: inherit; color: var(--faint); cursor: pointer; transition: background-color .15s ease-out, color .15s ease-out }
+.caminho-mudar:hover, .caminho-mudar[aria-expanded="true"] { background: var(--soft); border-color: var(--line2); color: var(--ink) }
+.caminho-mudar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.kmenu .escolha-da-pasta { padding-left: calc(12px + var(--nivel, 0) * var(--recuo-da-pasta)) }
+.kmenu [role="menuitemradio"][aria-checked="true"] { font-weight: 700 }
+
+/* O círculo das etiquetas, à esquerda do título: vazado sem etiqueta; com elas, as cores em fatias. O botão tem a área de toque
+   maior que o círculo desenhado, e o centro dele fica na altura da primeira linha do título. */
+.anotacao-titulo {
+  --circulo: 16px;                 /* o círculo desenhado */
+  --circulo-toque: 32px;           /* a área do botão */
+  display: flex; align-items: flex-start; gap: 6px
+}
+.anotacao-titulo > :is(h1, h2) { flex: 1; min-width: 0 }
+.circulo-etiquetas { flex: none; display: grid; place-items: center; width: var(--circulo-toque); height: var(--circulo-toque); margin: 4px 0 0 -8px; padding: 0;
+  border: 0; border-radius: 999px; background: none; cursor: pointer; transition: background-color .15s ease-out }
+span.circulo-etiquetas { cursor: default }
+.circulo-etiquetas::before { content: ''; width: var(--circulo); height: var(--circulo); border-radius: 999px; box-shadow: inset 0 0 0 1.5px var(--line2);
+  transition: box-shadow .15s ease-out, transform .15s ease-out }
+.circulo-etiquetas.com-etiquetas::before { background: var(--anel); box-shadow: 0 0 0 1px var(--superficie) }
+button.circulo-etiquetas:hover { background: var(--soft) }
+button.circulo-etiquetas:not(.com-etiquetas):hover::before { box-shadow: inset 0 0 0 1.5px var(--muted) }
+button.circulo-etiquetas:active::before { transform: scale(.9) }
+.circulo-etiquetas:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.cartao-cabeca > .etiquetas { margin-top: 10px }

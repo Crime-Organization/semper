@@ -18,6 +18,7 @@ describe('Erros do banco em português', () => {
       ['processo_campos_nome_unico', 'Já existe um campo com esse nome.'],
       ['etiquetas_texto_unico', 'Já existe uma etiqueta com esse texto.'],
       ['etiquetas_cor_unica', 'Já existe uma etiqueta só de cor nessa cor.'],
+      ['anotacao_pastas_nome_unico', 'Já existe uma pasta com esse nome aqui.'],
       ['outra_restricao', 'Esse registro já existe.']
     ])('quando a restrição é %s, então a mensagem é "%s"', (restricao, esperada) => {
       // Quando
@@ -36,8 +37,19 @@ describe('Erros do banco em português', () => {
 
   it.each([
     ['usuário que não pode ser excluído', { code: '23503', message: 'violates foreign key constraint "perfis_pessoa_fkey"' }, 'Esta pessoa é usuária do sistema e não pode ser excluída.'],
+    ['pasta com subpastas', { code: '23503', message: 'update or delete on table "anotacao_pastas" violates foreign key constraint "anotacao_pastas_mae_fkey" on table "anotacao_pastas"' },
+      'Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.'],
+    ['pasta com anotações', { code: '23503', message: 'update or delete on table "anotacao_pastas" violates foreign key constraint "anotacoes_pasta_fkey" on table "anotacoes"' },
+      'Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.'],
+    ['anotação numa pasta apagada', { code: '23503', message: 'insert or update on table "anotacoes" violates foreign key constraint "anotacoes_pasta_fkey"' },
+      'Essa pasta não existe mais: um colega pode tê-la apagado. Escolha outra.'],
+    ['subpasta numa pasta apagada', { code: '23503', message: 'insert or update on table "anotacao_pastas" violates foreign key constraint "anotacao_pastas_mae_fkey"' },
+      'Essa pasta não existe mais: um colega pode tê-la apagado. Escolha outra.'],
     ['pessoa que está em compromissos', { code: '23503', message: 'violates foreign key constraint "compromisso_pessoas_pessoa_id_fkey"' }, 'Esta pessoa está em compromissos e não pode ser excluída.'],
     ['audiência sem processo', { code: '23514', message: 'violates check constraint "compromisso_tem_processo"' }, 'Audiência e perícia precisam de um processo.'],
+    ['pasta sem nome', { code: '23514', message: 'new row for relation "anotacao_pastas" violates check constraint "anotacao_pastas_nome_preenchido"' }, 'Dê um nome à pasta.'],
+    ['pasta com nome longo demais', { code: '23514', message: 'new row for relation "anotacao_pastas" violates check constraint "anotacao_pastas_nome_tamanho"' },
+      'O nome da pasta pode ter até 80 caracteres.'],
     ['pessoa que está em contratos', { code: '23503', message: 'violates foreign key constraint "contratos_cliente_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
     ['pessoa que participa de contratos', { code: '23503', message: 'violates foreign key constraint "contrato_participantes_pessoa_id_fkey"' }, 'Esta pessoa está em contratos e não pode ser excluída.'],
     ['formato inválido', { code: '23514', message: 'violates check constraint' }, 'Algum campo está em formato inválido. Confira os dados e tente de novo.'],

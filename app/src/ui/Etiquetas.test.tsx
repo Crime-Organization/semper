@@ -5,7 +5,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Etiqueta } from '../dados';
-import { EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta } from './Etiquetas';
+import { anelDasEtiquetas, CirculoDeEtiquetas, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
 
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin }) }));
@@ -107,5 +107,52 @@ describe('Peças das etiquetas', () => {
     rerender(<EtiquetasDoItem etq={[{ etiqueta_id: MINHA.id }]} modulo="pessoas" id="p-qualquer" />);
     // Então
     expect(screen.getByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeTruthy();
+  });
+});
+
+describe('O círculo das etiquetas da anotação (#342)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
+    vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
+  });
+
+  it('dadas as cores das etiquetas, quando monta o anel, então cada uma ganha uma fatia igual, na ordem; sem etiqueta, não há anel', () => {
+    // Então
+    expect(anelDasEtiquetas([])).toBeUndefined();
+    expect(anelDasEtiquetas(['azul', 'verde'])).toEqual({ '--anel': 'conic-gradient(var(--etq-azul) 0% 50%, var(--etq-verde) 50% 100%)' });
+  });
+
+  it('dada uma anotação sem etiquetas, quando a pessoa clica no círculo e marca uma, então quem chama recebe a etiqueta marcada', async () => {
+    // Dado
+    const aoMarcar = vi.fn();
+    render(<CirculoDeEtiquetas ids={[]} aoMarcar={aoMarcar} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('checkbox', { name: 'Minha' }));
+    // Então
+    expect(aoMarcar).toHaveBeenCalledWith(MINHA, true);
+  });
+
+  it('dada uma anotação com etiquetas, quando quem só lê a vê, então o círculo mostra as cores mas não é um botão', () => {
+    // Quando
+    const { container } = render(<CirculoDeEtiquetas ids={[MINHA.id]} aoMarcar={() => undefined} somenteLer />);
+    // Então
+    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--anel')).toContain('var(--etq-azul)');
+  });
+
+  it('dadas as etiquetas da anotação, quando aparecem abaixo do título, então só quem pode mudar vê o x para tirar', async () => {
+    // Dado
+    const aoTirar = vi.fn();
+    const { rerender } = render(<SelosDasEtiquetas ids={[MINHA.id]} />);
+    // Então
+    expect(screen.getByText('Minha')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeNull();
+    // Quando
+    rerender(<SelosDasEtiquetas ids={[MINHA.id]} aoTirar={aoTirar} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Minha' }));
+    // Então
+    expect(aoTirar).toHaveBeenCalledWith(MINHA);
   });
 });

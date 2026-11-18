@@ -1,6 +1,8 @@
 // Erros do banco e do login em português, para a tela mostrar. Vale para qualquer erro que vier do Supabase.
 // Erro novo é uma linha nova numa das listas abaixo. A ordem importa: vale a primeira regra que casar.
 // Uma regra casa quando o código (se houver) e o padrão da mensagem (se houver) batem os dois.
+import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
+
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
   codigo?: string;
@@ -28,6 +30,7 @@ const REPETIDO: Regra[] = [
   { padrao: /financeiro_contas_nome_unico/, mensagem: 'Já existe uma conta com esse nome.' },
   { padrao: /etiquetas_texto_unico/, mensagem: 'Já existe uma etiqueta com esse texto.' },
   { padrao: /etiquetas_cor_unica/, mensagem: 'Já existe uma etiqueta só de cor nessa cor.' },
+  { padrao: /anotacao_pastas_nome_unico/, mensagem: PASTA_REPETIDA },
   { mensagem: 'Esse registro já existe.' }
 ];
 
@@ -39,9 +42,16 @@ const ERROS: Regra[] = [
   { codigo: '23503', padrao: /compromisso_pessoas_pessoa_id_fkey/, mensagem: 'Esta pessoa está em compromissos e não pode ser excluída.' },
   { codigo: '23503', padrao: /processo_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em processos e não pode ser excluída.' },
   { codigo: '23503', padrao: /anotacao_ligacoes_pessoa_id_fkey/, mensagem: 'Esta pessoa está ligada a anotações e não pode ser excluída.' },
+  // Apagar a pasta com subpastas ou anotações (mesmo as que quem apaga não vê): as chaves das duas recusam (#342).
+  { codigo: '23503', padrao: /update or delete on table "anotacao_pastas" violates foreign key constraint "(anotacao_pastas_mae_fkey|anotacoes_pasta_fkey)"/, mensagem: PASTA_COM_CONTEUDO },
+  // Pôr a anotação ou uma pasta dentro de uma pasta que já não existe (um colega a apagou com a lista desta tela já lida).
+  { codigo: '23503', padrao: /insert or update on table "(anotacoes|anotacao_pastas)" violates foreign key constraint "(anotacao_pastas_mae_fkey|anotacoes_pasta_fkey)"/, mensagem: PASTA_SUMIU },
   { codigo: '23503', padrao: /financeiro_(socios|repasses|retiradas)_pessoa_id_fkey|socio_do_recebimento_pessoa_id_fkey/, mensagem: 'Esta pessoa está no financeiro e não pode ser excluída.' },
   { codigo: '23503', padrao: /financeiro_recebimentos_(parcela|contrato)_id_fkey/, mensagem: 'Este contrato tem recebimentos e não pode ser excluído: eles ficam guardados no caixa.' },
   { codigo: '23514', padrao: /compromisso_tem_processo/, mensagem: 'Audiência e perícia precisam de um processo.' },
+  // O nome da pasta vazio ou longo demais: as mesmas mensagens do banco fictício (#342).
+  { codigo: '23514', padrao: /anotacao_pastas_nome_preenchido/, mensagem: PASTA_SEM_NOME },
+  { codigo: '23514', padrao: /anotacao_pastas_nome_tamanho/, mensagem: PASTA_NOME_LONGO },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: 'Você não tem permissão para fazer isso.' },
   { padrao: /permission denied|row-level security/i, mensagem: 'Você não tem permissão para fazer isso.' },

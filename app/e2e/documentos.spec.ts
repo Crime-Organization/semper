@@ -2,7 +2,7 @@
 // Módulo Documentos (#303): anotações em Markdown ligadas a pessoas, processos, contratos, demandas, tarefas e compromissos.
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao, entrarComo } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
@@ -784,5 +784,268 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'Pelo endereço antigo', level: 2 })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
+  });
+});
+
+// ---------- pastas e etiquetas (#342) ----------
+/** A árvore das pastas, ao lado da lista (a janela dos testes é larga: a árvore aparece, e não o seletor). */
+const arvore = (page: Page) => page.getByRole('navigation', { name: 'Pastas' });
+/** Cria uma pasta pela árvore: no primeiro nível, ou dentro de outra pelo ⋯ dela. A nova passa a ser a escolhida. */
+async function criarPasta(page: Page, nome: string, dentroDe?: string) {
+  if (dentroDe) {
+    await arvore(page).getByRole('button', { name: `Ações da pasta ${dentroDe}` }).click();
+    await page.getByRole('menuitem', { name: 'Nova subpasta' }).click();
+  } else await arvore(page).getByRole('button', { name: 'Nova pasta' }).click();
+  await page.getByRole('textbox', { name: dentroDe ? 'Nova subpasta' : 'Nova pasta' }).fill(nome);
+  await page.getByRole('button', { name: 'Salvar' }).click();
+  await expect(page.getByText(`Pasta "${nome}" criada.`)).toBeVisible();
+  await expect(arvore(page).getByRole('button', { name: nome, exact: true })).toHaveAttribute('aria-current', 'true');
+}
+/** O id de uma pasta, lido do banco fictício da aba. */
+const idDaPasta = (page: Page, nome: string) => page.evaluate(([chave, n]) =>
+  (JSON.parse(sessionStorage.getItem(chave)!) as { pastas: { id: string; nome: string }[] }).pastas.find(p => p.nome === n)!.id, [CHAVE, nome]);
+/** Cria a etiqueta pelo círculo à esquerda do título (ela já fica marcada) e fecha a escolha. */
+async function criarEtiquetaNoCirculo(page: Page, lugar: Locator | Page, texto: string, cor: string) {
+  await lugar.getByRole('button', { name: 'Escolher etiquetas' }).click();
+  const escolha = page.getByRole('dialog', { name: 'Escolher etiquetas' });
+  const form = escolha.getByRole('form', { name: 'Nova etiqueta' });
+  await form.getByLabel('Texto').fill(texto);
+  await form.getByRole('radio', { name: cor }).check();
+  await form.getByRole('button', { name: 'Criar etiqueta' }).click();
+  await expect(escolha.getByRole('checkbox', { name: texto })).toBeChecked();
+  await page.keyboard.press('Escape');
+  await expect(escolha).toBeHidden();
+}
+/** A pasta Escritório › POPs, criada pela árvore (POPs fica escolhida). */
+async function criarEscritorioEPops(page: Page) {
+  await page.goto('/documentos/');
+  await criarPasta(page, 'Escritório');
+  await criarPasta(page, 'POPs', 'Escritório');
+}
+/** O caminho acima do título do cartão (ou da anotação nova). */
+const caminho = (lugar: Locator | Page) => lugar.getByRole('navigation', { name: 'Pasta' });
+
+test.describe('Pastas e etiquetas dos documentos (#342)', () => {
+  test('dada a página Documentos, quando a pessoa cria uma pasta e uma subpasta dentro dela, então elas aparecem numa árvore ao lado da lista, que abre e fecha', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await expect(arvore(page).getByRole('button', { name: 'Todos os documentos' })).toHaveAttribute('aria-current', 'true');
+    // Quando
+    await criarPasta(page, 'Escritório');
+    await criarPasta(page, 'POPs', 'Escritório');
+    // Então: a subpasta aparece dentro da pasta, que abriu para mostrá-la
+    const subpastas = arvore(page).getByRole('button', { name: 'Subpastas de Escritório' });
+    await expect(subpastas).toHaveAttribute('aria-expanded', 'true');
+    await expect(arvore(page).getByRole('listitem').filter({ hasText: 'Escritório' }).getByRole('button', { name: 'POPs', exact: true })).toBeVisible();
+    // E a árvore fica ao lado da lista, e não acima dela
+    const lado = (await arvore(page).boundingBox())!, lista = (await page.getByText('Nenhuma anotação nesta pasta').boundingBox())!;
+    expect(lado.x + lado.width).toBeLessThanOrEqual(lista.x);
+    // Quando: fecha e abre a pasta
+    await subpastas.click();
+    // Então
+    await expect(subpastas).toHaveAttribute('aria-expanded', 'false');
+    await expect(arvore(page).getByRole('button', { name: 'POPs', exact: true })).toHaveCount(0);
+    await subpastas.click();
+    await expect(arvore(page).getByRole('button', { name: 'POPs', exact: true })).toBeVisible();
+  });
+
+  test('dada uma anotação, quando a pessoa escolhe a pasta ao criar e depois, então o caminho aparece acima do título, e clicar num pedaço mostra aquela pasta', async ({ page }) => {
+    // Dado: a pasta POPs, dentro de Escritório, escolhida na árvore
+    await criarEscritorioEPops(page);
+    // Quando: escreve a anotação nova pela página (ela já vem na pasta escolhida)
+    await page.getByRole('link', { name: 'Nova anotação' }).click();
+    const nova = page.getByRole('dialog', { name: 'Cadastro' });
+    // Então: o caminho aparece acima do título, sem links (sair perderia a anotação)
+    await expect(caminho(nova).getByRole('listitem')).toHaveText(['Escritório', 'POPs']);
+    await expect(caminho(nova).getByRole('link')).toHaveCount(0);
+    await nova.getByRole('textbox', { name: 'Título' }).fill('POP do caixa');
+    await nova.getByRole('button', { name: 'Salvar anotação' }).click();
+    // Então: o cartão mostra o caminho com links, acima do título
+    let cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'POP do caixa', level: 2 })).toBeVisible();
+    await expect(caminho(cartao).getByRole('link')).toHaveText(['Escritório', 'POPs']);
+    const noCaminho = (await caminho(cartao).boundingBox())!, titulo = (await cartao.getByRole('heading', { name: 'POP do caixa' }).boundingBox())!;
+    expect(noCaminho.y + noCaminho.height).toBeLessThanOrEqual(titulo.y);
+    // Quando: clica em "Escritório" no caminho
+    await caminho(cartao).getByRole('link', { name: 'Escritório' }).click();
+    // Então: o cartão fecha e a página mostra a pasta Escritório (com a anotação, que está numa subpasta dela)
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(arvore(page).getByRole('button', { name: 'Escritório', exact: true })).toHaveAttribute('aria-current', 'true');
+    await expect(titulosNaTabela(page)).toHaveCount(1);
+    await expect(titulosNaTabela(page)).toContainText('POP do caixa');
+    await expect(titulosNaTabela(page)).toContainText('Escritório › POPs');
+    // Quando: uma anotação criada fora das pastas ganha uma pasta depois, no cartão
+    cartao = await criarAnotacao(page, 'Ata solta');
+    await expect(caminho(cartao)).toHaveCount(0);
+    await cartao.getByRole('button', { name: 'Escolher a pasta' }).click();
+    await page.getByRole('menuitemradio', { name: 'Escritório', exact: true }).click();
+    // Então
+    await expect(page.getByText('Anotação levada para a pasta Escritório.')).toBeVisible();
+    await expect(caminho(cartao).getByRole('link')).toHaveText(['Escritório']);
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText('Pasta')).toBeVisible();
+  });
+
+  test('dada uma pasta escolhida na árvore, quando a pessoa olha a lista, então vê só o que está nela e nas subpastas', async ({ page }) => {
+    // Dado: Escritório › POPs, Modelos, e uma anotação em cada, mais uma fora das pastas
+    await criarEscritorioEPops(page);
+    await criarPasta(page, 'Modelos');
+    const [escritorio, pops, modelos] = [await idDaPasta(page, 'Escritório'), await idDaPasta(page, 'POPs'), await idDaPasta(page, 'Modelos')];
+    await criarAnotacao(page, 'No escritório', { endereco: '/documentos/nova/?pasta=' + escritorio });
+    await criarAnotacao(page, 'No POP', { endereco: '/documentos/nova/?pasta=' + pops });
+    await criarAnotacao(page, 'No modelo', { endereco: '/documentos/nova/?pasta=' + modelos });
+    await criarAnotacao(page, 'Fora das pastas');
+    await page.goto('/documentos/');
+    await expect(titulosNaTabela(page)).toHaveCount(4);
+    // Quando
+    await arvore(page).getByRole('button', { name: 'Escritório', exact: true }).click();
+    // Então
+    await expect(titulosNaTabela(page)).toHaveCount(2);
+    await expect(titulosNaTabela(page).filter({ hasText: 'No escritório' })).toHaveCount(1);
+    await expect(titulosNaTabela(page).filter({ hasText: 'No POP' })).toHaveCount(1);
+    // Então: a pasta escolhida abre e mostra as subpastas dela na árvore
+    await expect(arvore(page).getByRole('button', { name: 'Subpastas de Escritório' })).toHaveAttribute('aria-expanded', 'true');
+    // Quando: escolhe a subpasta
+    await arvore(page).getByRole('button', { name: 'POPs', exact: true }).click();
+    // Então
+    await expect(titulosNaTabela(page)).toHaveCount(1);
+    await expect(titulosNaTabela(page)).toContainText('No POP');
+    // Quando: volta a todos os documentos
+    await arvore(page).getByRole('button', { name: 'Todos os documentos' }).click();
+    // Então
+    await expect(titulosNaTabela(page)).toHaveCount(4);
+  });
+
+  test('dada uma anotação nova, quando a pessoa clica no círculo à esquerda do título, então escolhe ou cria etiquetas ali mesmo', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/nova/');
+    const titulo = page.getByRole('textbox', { name: 'Título' });
+    // Então: o círculo fica à esquerda do título
+    const circulo = (await page.getByRole('button', { name: 'Escolher etiquetas' }).boundingBox())!, campo = (await titulo.boundingBox())!;
+    expect(circulo.x + circulo.width).toBeLessThanOrEqual(campo.x + 1);
+    // Quando: cria "POP" e "Reunião" pelo círculo
+    await criarEtiquetaNoCirculo(page, page, 'POP', 'Azul');
+    await criarEtiquetaNoCirculo(page, page, 'Reunião', 'Verde');
+    // Então: as duas aparecem abaixo do título, e a escolha as mostra marcadas
+    await expect(page.getByText('POP', { exact: true })).toBeVisible();
+    await expect(page.getByText('Reunião', { exact: true })).toBeVisible();
+    // Quando: desmarca "Reunião" e salva
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    await page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Reunião' }).uncheck();
+    await page.keyboard.press('Escape');
+    await titulo.fill('POP de atendimento');
+    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    // Então: a anotação nasce com "POP", que aparece no cartão e na lista
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'POP de atendimento', level: 2 })).toBeVisible();
+    await expect(cartao.getByText('POP', { exact: true })).toBeVisible();
+    await expect(cartao.getByText('Reunião', { exact: true })).toHaveCount(0);
+    await expect(titulosNaTabela(page).filter({ hasText: 'POP de atendimento' }).getByText('POP', { exact: true })).toBeVisible();
+    // E "Reunião", criada ali, fica para o escritório: aparece na escolha de outro cartão
+    await cartao.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    await expect(page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Reunião' })).not.toBeChecked();
+  });
+
+  test('dada uma anotação nova com uma etiqueta marcada, quando a pessoa exclui a etiqueta no próprio painel e salva, então a anotação nasce sem ela', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/nova/');
+    await criarEtiquetaNoCirculo(page, page, 'Transitória', 'Amarelo');
+    await criarEtiquetaNoCirculo(page, page, 'POP', 'Azul');
+    // Quando: exclui "Transitória" pelo painel do círculo
+    await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
+    const escolha = page.getByRole('dialog', { name: 'Escolher etiquetas' });
+    await escolha.getByRole('button', { name: 'Mudar a etiqueta Transitória' }).click();
+    const form = escolha.getByRole('form', { name: 'Mudar a etiqueta Transitória' });
+    await form.getByRole('button', { name: 'Excluir' }).click();
+    await form.getByRole('button', { name: 'Confirmar exclusão' }).click();
+    await expect(escolha.getByRole('checkbox', { name: 'Transitória' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.getByRole('textbox', { name: 'Título' }).fill('Ata sem a transitória');
+    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    // Então: a anotação é criada, só com "POP"
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Ata sem a transitória', level: 2 })).toBeVisible();
+    await expect(cartao.getByText('POP', { exact: true })).toBeVisible();
+    await expect(cartao.getByText('Transitória', { exact: true })).toHaveCount(0);
+  });
+
+  test('dada a página Documentos, quando a pessoa filtra por etiqueta, então vê só os documentos com ela', async ({ page }) => {
+    // Dado: uma anotação com a etiqueta "Transitória" e outra sem
+    let cartao = await criarAnotacao(page, 'Rascunho de recurso');
+    await criarEtiquetaNoCirculo(page, cartao, 'Transitória', 'Amarelo');
+    await expect(cartao.getByText('Transitória', { exact: true })).toBeVisible();
+    cartao = await criarAnotacao(page, 'Ata definitiva');
+    await page.goto('/documentos/');
+    await expect(titulosNaTabela(page)).toHaveCount(2);
+    // Quando
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    await page.getByRole('dialog', { name: 'Filtros' }).getByRole('combobox', { name: 'Etiqueta' }).selectOption({ label: 'Transitória' });
+    // Então
+    await expect(titulosNaTabela(page)).toHaveCount(1);
+    await expect(titulosNaTabela(page)).toContainText('Rascunho de recurso');
+  });
+
+  test('dada uma pasta com conteúdo, quando alguém tenta apagá-la, então o SEMPER pede para esvaziá-la antes; vazia, ela sai', async ({ page }) => {
+    // Dado: Escritório › POPs, com uma anotação em POPs
+    await criarEscritorioEPops(page);
+    await criarAnotacao(page, 'POP guardado', { endereco: '/documentos/nova/?pasta=' + await idDaPasta(page, 'POPs') });
+    await page.goto('/documentos/');
+    // Quando: tenta apagar POPs
+    const apagar = async (nome: string) => {
+      await arvore(page).getByRole('button', { name: `Ações da pasta ${nome}` }).click();
+      await page.getByRole('menuitem', { name: 'Apagar' }).click();
+      await page.getByRole('dialog', { name: 'Apagar a pasta' }).getByRole('button', { name: 'Apagar' }).click();
+    };
+    await arvore(page).getByRole('button', { name: 'Subpastas de Escritório' }).click();
+    await apagar('POPs');
+    // Então
+    await expect(page.getByText('Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.')).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'POPs', exact: true })).toBeVisible();
+    // Quando: tenta apagar Escritório, que tem a subpasta
+    await apagar('Escritório');
+    // Então
+    await expect(page.getByText('Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.').last()).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'Escritório', exact: true })).toBeVisible();
+    // Quando: uma pasta vazia
+    await criarPasta(page, 'Vazia');
+    await apagar('Vazia');
+    // Então
+    await expect(page.getByText('Pasta "Vazia" apagada.')).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'Vazia', exact: true })).toHaveCount(0);
+  });
+
+  test('dada uma anotação com pasta e etiquetas, quando a pessoa usa "Baixar .md", então as propriedades do topo trazem a pasta e as etiquetas', async ({ page }) => {
+    // Dado
+    await criarEscritorioEPops(page);
+    const cartao = await criarAnotacao(page, 'POP do protocolo', { endereco: '/documentos/nova/?pasta=' + await idDaPasta(page, 'POPs') });
+    await criarEtiquetaNoCirculo(page, cartao, 'POP', 'Azul');
+    await criarEtiquetaNoCirculo(page, cartao, 'Reunião semanal', 'Verde');
+    await expect(cartao.getByText('Reunião semanal', { exact: true })).toBeVisible();
+    // Quando
+    const { conteudo } = await baixarMd(page, cartao);
+    // Então
+    const [, propriedades] = conteudo.split(/^---$/m);
+    expect(propriedades).toContain('\npasta: "Escritório / POPs"\n');
+    expect(propriedades).toContain('\netiquetas:\n  - POP\n  - Reunião semanal\n');
+  });
+
+  test('dada uma anotação com pasta e etiquetas, quando a pessoa a duplica, então a cópia fica na mesma pasta e com as mesmas etiquetas', async ({ page }) => {
+    // Dado
+    await criarEscritorioEPops(page);
+    let cartao = await criarAnotacao(page, 'POP original', { endereco: '/documentos/nova/?pasta=' + await idDaPasta(page, 'POPs') });
+    await criarEtiquetaNoCirculo(page, cartao, 'POP', 'Azul');
+    await expect(cartao.getByText('POP', { exact: true })).toBeVisible();
+    // Quando
+    await cartao.getByRole('button', { name: 'Duplicar' }).click();
+    // Então
+    await expect(page.getByText(/Anotação \w+ duplicada como \w+\./)).toBeVisible();
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'POP original (cópia)', level: 2 })).toBeVisible();
+    await expect(caminho(cartao).getByRole('link')).toHaveText(['Escritório', 'POPs']);
+    await expect(cartao.getByText('POP', { exact: true })).toBeVisible();
+    // E a lista da pasta mostra as duas, cada uma com a etiqueta
+    await page.goto('/documentos/?pasta=' + await idDaPasta(page, 'POPs'));
+    await expect(titulosNaTabela(page)).toHaveCount(2);
+    await expect(titulosNaTabela(page).getByText('POP', { exact: true })).toHaveCount(2);
   });
 });

@@ -9,7 +9,7 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
@@ -5297,6 +5297,212 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Pastas e etiquetas dos documentos (#342)', () => {
+      const ESVAZIE = 'Esvazie a pasta antes de apagá-la: tire dela as anotações e as subpastas.';
+      const anotacao = (extra: Partial<Parameters<Dados['anotacaoCriar']>[0]> = {}, etiquetas?: string[]) =>
+        SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra }, undefined, etiquetas);
+      const etiquetaNova = () => SD.etiquetaCriar('azul', marca());
+      const nomes = async () => (await SD.pastasListar()).map(p => p.nome);
+
+      it('quando alguém cria uma pasta e uma subpasta, então as duas vêm na lista, cada uma com a mãe dela, e o nome fica sem espaços sobrando', async () => {
+        // Quando
+        const mae = await SD.pastaCriar('  Escritório ' + marca() + ' ', null);
+        const filha = await SD.pastaCriar('POPs', mae.id);
+        // Então
+        const lista = await SD.pastasListar();
+        expect(lista.find(p => p.id === mae.id)).toMatchObject({ pasta_mae_id: null, criada_por: 'u-master' });
+        expect(mae.nome).toBe(mae.nome.trim());
+        expect(lista.find(p => p.id === filha.id)).toMatchObject({ nome: 'POPs', pasta_mae_id: mae.id });
+      });
+
+      it('quando o nome repete o de uma irmã (sem contar maiúsculas e acentos), então é recusado; em outra pasta, pode', async () => {
+        // Dado
+        const mae = await SD.pastaCriar(marca(), null);
+        await SD.pastaCriar('Atas de reunião', mae.id);
+        const outra = await SD.pastaCriar(marca(), null);
+        // Então
+        await expect(SD.pastaCriar('ATAS DE REUNIAO', mae.id)).rejects.toThrow('Já existe uma pasta com esse nome aqui.');
+        await expect(SD.pastaCriar('Atas de reunião', outra.id)).resolves.toMatchObject({ pasta_mae_id: outra.id });
+      });
+
+      it('quando alguém renomeia e move uma pasta, então ela muda; para dentro dela mesma ou de uma subpasta, é recusado', async () => {
+        // Dado
+        const a = await SD.pastaCriar(marca(), null);
+        const b = await SD.pastaCriar('B', a.id);
+        const c = await SD.pastaCriar('C', b.id);
+        // Quando
+        await SD.pastaRenomear(b.id, 'Bê');
+        await SD.pastaMover(c.id, a.id);
+        // Então
+        expect((await SD.pastasListar()).find(p => p.id === c.id)?.pasta_mae_id).toBe(a.id);
+        expect(await nomes()).toContain('Bê');
+        await expect(SD.pastaMover(a.id, a.id)).rejects.toThrow('Uma pasta não pode ir para dentro dela mesma nem de uma subpasta dela.');
+        await expect(SD.pastaMover(a.id, b.id)).rejects.toThrow('Uma pasta não pode ir para dentro dela mesma nem de uma subpasta dela.');
+        await SD.pastaMover(b.id, null);
+        expect((await SD.pastasListar()).find(p => p.id === b.id)?.pasta_mae_id).toBeNull();
+      });
+
+      it('dada uma pasta com subpasta ou com anotação, quando alguém tenta apagá-la, então pede para esvaziá-la; vazia, ela sai', async () => {
+        // Dado
+        const comFilha = await SD.pastaCriar(marca(), null);
+        const filha = await SD.pastaCriar('Filha', comFilha.id);
+        const comAnotacao = await SD.pastaCriar(marca(), null);
+        const { id } = await anotacao({ pasta_id: comAnotacao.id });
+        // Então
+        await expect(SD.pastaExcluir(comFilha.id)).rejects.toThrow(ESVAZIE);
+        await expect(SD.pastaExcluir(comAnotacao.id)).rejects.toThrow(ESVAZIE);
+        // Quando: as duas ficam vazias
+        await SD.pastaExcluir(filha.id);
+        await SD.anotacaoAtualizar(id, { pasta_id: null });
+        await SD.pastaExcluir(comFilha.id);
+        await SD.pastaExcluir(comAnotacao.id);
+        // Então
+        expect((await SD.pastasListar()).map(p => p.id)).not.toContain(comFilha.id);
+        expect((await SD.pastasListar()).map(p => p.id)).not.toContain(comAnotacao.id);
+      });
+
+      it('dada uma pasta que um colega apagou, quando alguém põe nela uma anotação, uma subpasta ou outra pasta, então diz que ela não existe mais', async () => {
+        // Dado
+        const SUMIU = 'Essa pasta não existe mais: um colega pode tê-la apagado. Escolha outra.';
+        const apagada = await SD.pastaCriar(marca(), null);
+        const outra = await SD.pastaCriar(marca(), null);
+        const { id } = await anotacao();
+        await SD.pastaExcluir(apagada.id);
+        const titulo = marca();
+        // Quando / Então
+        await expect(SD.anotacaoCriar({ titulo, responsavel_id: 'u-master', pasta_id: apagada.id })).rejects.toThrow(SUMIU);
+        await expect(SD.anotacaoAtualizar(id, { pasta_id: apagada.id })).rejects.toThrow(SUMIU);
+        await expect(SD.pastaCriar('Dentro da apagada', apagada.id)).rejects.toThrow(SUMIU);
+        await expect(SD.pastaMover(outra.id, apagada.id)).rejects.toThrow(SUMIU);
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+        expect((await SD.anotacaoObter(id))?.pasta_id).toBeNull();
+        expect((await SD.pastasListar()).find(p => p.id === outra.id)?.pasta_mae_id).toBeNull();
+      });
+
+      it('dada uma pasta que um colega apagou, quando alguém a renomeia, move ou apaga, então diz que ela não existe mais (e não que falta permissão)', async () => {
+        // Dado
+        const APAGADA = 'Essa pasta não existe mais: um colega pode tê-la apagado.';
+        const apagada = await SD.pastaCriar(marca(), null);
+        const outra = await SD.pastaCriar(marca(), null);
+        await SD.pastaExcluir(apagada.id);
+        // Quando / Então
+        await expect(SD.pastaRenomear(apagada.id, marca())).rejects.toThrow(APAGADA);
+        await expect(SD.pastaMover(apagada.id, outra.id)).rejects.toThrow(APAGADA);
+        await expect(SD.pastaExcluir(apagada.id)).rejects.toThrow(APAGADA);
+        expect((await SD.pastasListar()).map(p => p.id)).not.toContain(apagada.id);
+      });
+
+      it('quando o nome da pasta é vazio ou longo demais, então a recusa diz o que há de errado no nome, como a regra do banco', async () => {
+        // Dado
+        const pasta = await SD.pastaCriar(marca(), null);
+        // Quando / Então
+        await expect(SD.pastaCriar('   ', null)).rejects.toThrow('Dê um nome à pasta.');
+        await expect(SD.pastaCriar('x'.repeat(TAMANHO_PASTA + 1), null)).rejects.toThrow(`O nome da pasta pode ter até ${TAMANHO_PASTA} caracteres.`);
+        await expect(SD.pastaRenomear(pasta.id, '')).rejects.toThrow('Dê um nome à pasta.');
+        await expect(SD.pastaRenomear(pasta.id, 'x'.repeat(TAMANHO_PASTA + 1))).rejects.toThrow(`O nome da pasta pode ter até ${TAMANHO_PASTA} caracteres.`);
+      });
+
+      it('quando o nome da pasta vem colado com espaços não separáveis nas pontas, então fica guardado sem eles', async () => {
+        // Quando
+        const nome = marca();
+        const p = await SD.pastaCriar(`  ${nome} `, null);
+        // Então
+        expect(p.nome).toBe(nome);
+        expect((await SD.pastasListar()).find(x => x.id === p.id)?.nome).toBe(nome);
+      });
+
+
+      it('dada uma pasta com subpastas, quando a lista é filtrada por ela e pelas subpastas, então vêm só as anotações delas, com a pasta de cada uma', async () => {
+        // Dado
+        const mae = await SD.pastaCriar(marca(), null);
+        const filha = await SD.pastaCriar('Filha', mae.id);
+        const fora = await SD.pastaCriar(marca(), null);
+        const { id: naMae } = await anotacao({ pasta_id: mae.id });
+        const { id: naFilha } = await anotacao({ pasta_id: filha.id });
+        await anotacao({ pasta_id: fora.id });
+        await anotacao();
+        // Quando
+        const r = await SD.anotacoesListar({ pastas: [mae.id, filha.id], porPagina: 100 });
+        // Então
+        expect(r.linhas.map(a => a.id).sort()).toEqual([naMae, naFilha].sort());
+        expect(r.linhas.find(a => a.id === naFilha)?.pasta_id).toBe(filha.id);
+      });
+
+      it('dada uma anotação criada com etiquetas, quando a lista é filtrada pela etiqueta, então vem só ela, com as etiquetas dela', async () => {
+        // Dado
+        const pop = await etiquetaNova(), reuniao = await etiquetaNova();
+        const { id } = await anotacao({}, [pop.id, reuniao.id]);
+        await anotacao({}, [reuniao.id]);
+        // Quando
+        const r = await SD.anotacoesListar({ etiqueta: pop.id, porPagina: 100 });
+        // Então
+        expect(r.linhas.map(a => a.id)).toEqual([id]);
+        expect(r.linhas[0].etq?.map(e => e.etiqueta_id).sort()).toEqual([pop.id, reuniao.id].sort());
+        expect((await SD.etiquetasDoCartao('anotacoes', id)).sort()).toEqual([pop.id, reuniao.id].sort());
+      });
+
+      it('dada uma anotação, quando alguém aplica e tira etiquetas no cartão, então elas mudam sem entrar no histórico', async () => {
+        // Dado
+        const pop = await etiquetaNova();
+        const { id } = await anotacao();
+        // Quando
+        await SD.etiquetaAplicar('anotacoes', id, pop.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([pop.id]);
+        await SD.etiquetaTirar('anotacoes', id, pop.id);
+        expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([]);
+        expect(await SD.anotacaoHistorico(id)).toEqual([]);
+      });
+
+      it('quando a anotação muda de pasta, então o histórico mostra o caminho de antes e o de agora', async () => {
+        // Dado
+        const mae = await SD.pastaCriar(marca(), null);
+        const pops = await SD.pastaCriar('POPs', mae.id);
+        const atas = await SD.pastaCriar('Atas', mae.id);
+        const { id } = await anotacao({ pasta_id: pops.id });
+        // Quando
+        await SD.anotacaoAtualizar(id, { pasta_id: atas.id });
+        // Então
+        const [h] = await SD.anotacaoHistorico(id);
+        expect(h.alteracoes.pasta_id).toEqual({ de: `${mae.nome} › POPs`, para: `${mae.nome} › Atas` });
+        expect((await SD.anotacaoObter(id))?.pasta_id).toBe(atas.id);
+      });
+
+      it('dada uma anotação com pasta e etiquetas, quando alguém a duplica, então a cópia fica na mesma pasta e com as mesmas etiquetas', async () => {
+        // Dado
+        const pasta = await SD.pastaCriar(marca(), null);
+        const pop = await etiquetaNova(), reuniao = await etiquetaNova();
+        const { id } = await anotacao({ pasta_id: pasta.id }, [pop.id, reuniao.id]);
+        const original = (await SD.anotacaoObter(id))!;
+        // Quando
+        const copia = await SD.anotacaoDuplicar(id, dadosDaCopia(original, { id: 'u-master', alteraAOriginal: true, equipe: [{ id: 'u-master' }] }));
+        // Então
+        expect((await SD.anotacaoObter(copia.id))?.pasta_id).toBe(pasta.id);
+        expect((await SD.etiquetasDoCartao('anotacoes', copia.id)).sort()).toEqual([pop.id, reuniao.id].sort());
+        expect((await SD.etiquetasDoCartao('anotacoes', id)).sort()).toEqual([pop.id, reuniao.id].sort());
+      });
+
+      it('quando a anotação é criada com uma etiqueta que não existe, então nada fica gravado', async () => {
+        // Dado
+        const titulo = marca();
+        // Quando
+        const criando = SD.anotacaoCriar({ titulo, responsavel_id: 'u-master' }, undefined, ['etiqueta-que-nao-existe']);
+        // Então
+        await expect(criando).rejects.toThrow('Não foi possível concluir agora. Tente de novo.');
+        expect((await SD.anotacoesListar({ termo: titulo })).total).toBe(0);
+      });
+
+      it('dada uma etiqueta excluída, quando a anotação é lida, então ela não tem mais a etiqueta', async () => {
+        // Dado
+        const pop = await etiquetaNova();
+        const { id } = await anotacao({}, [pop.id]);
+        // Quando
+        await SD.etiquetaExcluir(pop.id);
+        // Então
+        expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([]);
+      });
+    });
+
     describe('Sessão', () => {
       it('dada uma sessão ativa, quando confere com o login, então ela não está encerrada', async () => {
         // Quando / Então
@@ -5341,6 +5547,50 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     SD = (await import('./falso')).SD;
   });
   afterEach(async () => { entrarComo('u-master'); await SD.faseDeAdaptacaoDefinir(false); falso().equipeVeTudo(false); });
+
+  it('dada uma etiqueta criada pela Ana, quando o Bruno abre a escolha de etiquetas, então ela aparece para ele também (#342)', async () => {
+    // Dado
+    entrarComo('u-ana');
+    const texto = marca();
+    const { id } = await SD.etiquetaCriar('verde', texto);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect((await SD.etiquetasListar()).find(e => e.id === id)).toMatchObject({ texto, criado_por: 'u-ana' });
+  });
+
+  it('dada uma anotação do master com etiqueta numa pasta, quando a conta comum de fora entra, então vê a pasta, mas não as etiquetas da anotação, não aplica e não apaga a pasta (#342)', async () => {
+    // Dado
+    const pasta = await SD.pastaCriar(marca(), null);
+    const { id: etiqueta } = await SD.etiquetaCriar('azul', marca());
+    const { id } = await SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-master', pasta_id: pasta.id }, undefined, [etiqueta]);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect((await SD.pastasListar()).map(p => p.id)).toContain(pasta.id);
+    expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([]);
+    await expect(SD.etiquetaAplicar('anotacoes', id, etiqueta)).rejects.toThrow(SEM_PERMISSAO);
+    await SD.etiquetaTirar('anotacoes', id, etiqueta);
+    await expect(SD.pastaExcluir(pasta.id)).rejects.toThrow('Esvazie a pasta antes de apagá-la');
+    entrarComo('u-master');
+    expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([etiqueta]);
+  });
+
+  it('dada uma anotação que a conta comum vê só pela demanda, quando ela tenta mudar as etiquetas, então vê, mas não aplica nem tira (#342)', async () => {
+    // Dado
+    const { id: demanda } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id: etiqueta } = await SD.etiquetaCriar('roxo', marca());
+    const { id: outra } = await SD.etiquetaCriar('rosa', marca());
+    const { id } = await doMaster({}, { modulo: 'demandas', id: demanda });
+    await SD.etiquetaAplicar('anotacoes', id, etiqueta);
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([etiqueta]);
+    await expect(SD.etiquetaAplicar('anotacoes', id, outra)).rejects.toThrow(SEM_PERMISSAO);
+    await SD.etiquetaTirar('anotacoes', id, etiqueta);
+    expect(await SD.etiquetasDoCartao('anotacoes', id)).toEqual([etiqueta]);
+  });
 
   it('dada uma anotação do master, quando uma conta comum de fora a procura, então ela não aparece em lugar nenhum', async () => {
     // Dado

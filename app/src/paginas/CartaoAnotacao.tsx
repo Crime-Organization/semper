@@ -4,6 +4,8 @@
 // e duplicá-la (#343): a cópia é de quem a faz e leva só os itens ligados que ela vê.
 // Desde a #339, como uma nota do Obsidian: quem altera clica no título ou no texto e muda ali mesmo (cada um grava só o que
 // mudou); o lápis muda só a equipe. Com uma edição por salvar, sair do cartão pergunta antes (AvisoAoSair).
+// Desde a #342, acima do título vem o caminho da pasta (cada pedaço leva à pasta, na página Documentos), e à esquerda dele o
+// círculo das etiquetas, que abre ali mesmo a escolha. Quem altera muda a pasta e as etiquetas; quem só lê, vê.
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
@@ -13,15 +15,20 @@ import {
   MODULOS_DA_ANOTACAO, type RascunhosDaAnotacao
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
+import { nomeDaEtiqueta } from '../regras/etiquetas';
+import { caminhoDaPasta, textoDoCaminho } from '../regras/pastas';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
 import { AcoesDeQuemLe, AcoesDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { CirculoDeEtiquetas, SelosDasEtiquetas, useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
+import { CaminhoDaPasta } from '../ui/Pastas';
+import { usePastas } from '../ui/pastasDoEscritorio';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
@@ -34,7 +41,7 @@ import './Documentos.css';
 
 /** O nome de cada campo no histórico. */
 const CAMPOS_ANOTACAO: Record<string, string> = {
-  titulo: 'Título', texto: 'Texto', responsavel_id: 'Responsável', participantes: 'Compartilhada com', arquivado_em: 'Arquivamento'
+  titulo: 'Título', texto: 'Texto', responsavel_id: 'Responsável', participantes: 'Compartilhada com', pasta_id: 'Pasta', arquivado_em: 'Arquivamento'
 };
 /** O texto não é guardado no histórico (seria grande demais): fica só que mudou, "Texto alterado". */
 const SO_QUE_MUDOU = ['texto'];
@@ -90,6 +97,10 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   /** Cada leitura da anotação ganha um número, e só vale a resposta da mais recente (as respostas podem chegar fora de ordem). */
   const leitura = useRef(0);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
+  // A pasta da anotação que a lista guardada não conhece (um colega a criou depois) faz ler as pastas de novo; até lá, null.
+  const pastas = usePastas({ precisa: a?.pasta_id ?? null });
+  const etiquetasDoEscritorio = useEtiquetas();
+  const etiquetas = useEtiquetasDoCartao('anotacoes', id);
 
   const carregar = useCallback(() => {
     const esta = ++leitura.current;
@@ -196,6 +207,23 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       throw e;
     }
   }
+  /** Leva a anotação para outra pasta (null: fora de qualquer pasta), com o aviso e o desfazer. */
+  async function mudarPasta(pastaId: string | null) {
+    const antes = a!.pasta_id, id = a!.id;
+    setA(atual => atual && { ...atual, pasta_id: pastaId });
+    try {
+      await SD.anotacaoAtualizar(id, { pasta_id: pastaId });
+      const onde = pastaId ? `para a pasta ${textoDoCaminho(pastas ?? [], pastaId)}` : 'para fora das pastas';
+      feito(`Anotação levada ${onde}.`, 'mudança da pasta da anotação', async () => {
+        await SD.anotacaoAtualizar(id, { pasta_id: antes });
+        return { tipo: 'anotacaoAtualizada', id };
+      });
+      depois();
+    } catch (e) {
+      setA(atual => atual && { ...atual, pasta_id: antes });
+      falha(e);
+    }
+  }
   /** Quem se tirou da anotação pela equipe: o cartão fecha sem perguntar (veja EditarEquipeDaAnotacao). */
   function sairDaAnotacao() {
     saidaLiberada.current = true;
@@ -207,8 +235,14 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
    */
   async function baixar() {
     try {
-      const { visiveis } = await SD.anotacaoItens(a!.id);
-      baixarArquivo(nomeDoArquivo(a!.titulo, a!.codigo), markdownDaAnotacao(a!, visiveis, { responsavel: nomeDe(a!.responsavel_id) }), TIPO_MARKDOWN);
+      // Com as pastas ainda chegando, lê aqui mesmo: o .md não sai sem a pasta.
+      const [{ visiveis }, lista] = await Promise.all([SD.anotacaoItens(a!.id), pastas ?? SD.pastasListar()]);
+      const nomes = {
+        responsavel: nomeDe(a!.responsavel_id),
+        pasta: caminhoDaPasta(lista, a!.pasta_id).map(p => p.nome),
+        etiquetas: etiquetasDoEscritorio.filter(e => etiquetas.ids.includes(e.id)).map(nomeDaEtiqueta)
+      };
+      baixarArquivo(nomeDoArquivo(a!.titulo, a!.codigo), markdownDaAnotacao(a!, visiveis, nomes), TIPO_MARKDOWN);
     } catch (e) { falha(e); }
   }
   const baixarMd: AcaoDoTopo = { rotulo: 'Baixar .md', icone: 'baixar', aoClicar: baixar };
@@ -264,8 +298,13 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
             excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoTopo} />
           : <AcoesDeQuemLe acoes={acoesDoTopo} />}
       </div>
-      <TituloEditavel key={edicaoDescartada} valor={a.titulo} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo} maximo={TAMANHO_ANOTACAO.titulo}
-        placeholder="Sem título" aoMudarRascunho={mudarRascunho('titulo')} />
+      <CaminhoDaPasta pastas={pastas} pastaId={a.pasta_id} comLinks aoMudar={mudaNoLugar ? mudarPasta : undefined} />
+      <div className="anotacao-titulo">
+        <CirculoDeEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} somenteLer={!mudaNoLugar} aoMudar={depois} />
+        <TituloEditavel key={edicaoDescartada} valor={a.titulo} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo} maximo={TAMANHO_ANOTACAO.titulo}
+          placeholder="Sem título" aoMudarRascunho={mudarRascunho('titulo')} />
+      </div>
+      <SelosDasEtiquetas ids={etiquetas.ids} aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
     </header>
 
     {/* O lápis muda só a equipe: o título e o texto já se mudam no próprio lugar. */}

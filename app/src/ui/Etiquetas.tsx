@@ -1,6 +1,6 @@
 // Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e a seção do cartão, onde a
 // pessoa aplica, cria, muda e exclui etiquetas. Todo módulo com quadro usa estas peças; a lista fica em etiquetasDoEscritorio.ts.
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
 import { CORES, CORES_DA_ETIQUETA, erroDaEtiqueta, etiquetasNaOrdem, nomeDaEtiqueta, podeMudarEtiqueta, textoDaEtiqueta, type CorDaEtiqueta, etiquetasQueCombinam } from '../regras/etiquetas';
@@ -86,11 +86,12 @@ interface PropsSecao {
   aoMudar: () => void;
 }
 
-/** Seção "Etiquetas" do cartão. */
-export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) {
-  const etiquetas = useEtiquetas();
+/**
+ * As etiquetas de um cartão, lidas do banco, e o marcar e desmarcar de cada uma: a caixa muda na hora e, se o banco recusar,
+ * volta como estava; tirar oferece desfazer. Usada pela seção "Etiquetas" dos cartões e pelo círculo da anotação (#342).
+ */
+export function useEtiquetasDoCartao(modulo: ModuloComEtiquetas, id: string) {
   const [ids, setIds] = useState<string[]>([]);
-  const [botao, setBotao] = useState<HTMLElement | null>(null);
   // Lê de novo quando algo muda fora daqui (ex.: "Marcar como conferido" tira "Incompleta").
   const [versao, setVersao] = useState(0);
   useMudancas(() => setVersao(v => v + 1));
@@ -114,7 +115,14 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
       else await tirarEtiqueta(modulo, [id], e);
     } catch (err) { trocar(!marcada); falha(err); }
   }
+  return { ids, marcar };
+}
 
+/** Seção "Etiquetas" do cartão. */
+export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) {
+  const etiquetas = useEtiquetas();
+  const { ids, marcar } = useEtiquetasDoCartao(modulo, id);
+  const [botao, setBotao] = useState<HTMLElement | null>(null);
   const minhas = etiquetas.filter(e => ids.includes(e.id));
   return <section className="bloco separada">
     <h3><Icone nome="etiqueta" tam={14} />Etiquetas</h3>
@@ -126,6 +134,55 @@ export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) 
       <PainelEtiquetas etiquetas={etiquetas} ids={ids} aoMarcar={marcar} aoMudar={aoMudar} aoCriar={e => marcar(e, true)} />
     </MenuFlutuante>}
   </section>;
+}
+
+/**
+ * O anel do círculo das etiquetas: as cores das etiquetas aplicadas, em fatias iguais, na ordem da lista (sem etiqueta, o círculo
+ * fica vazado). As cores são as variáveis da paleta (--etq-…, em estilo.css).
+ */
+export function anelDasEtiquetas(cores: CorDaEtiqueta[]): CSSProperties | undefined {
+  if (!cores.length) return undefined;
+  const fatia = 100 / cores.length;
+  const partes = cores.map((c, i) => `var(--etq-${c}) ${i * fatia}% ${(i + 1) * fatia}%`);
+  return { '--anel': `conic-gradient(${partes.join(', ')})` } as CSSProperties;
+}
+
+interface PropsDoCirculo {
+  /** As etiquetas do cartão (os ids). */
+  ids: string[];
+  /** Marcar ou desmarcar uma etiqueta (no cartão, useEtiquetasDoCartao; na anotação ainda por salvar, a lista da tela). */
+  aoMarcar: (e: Etiqueta, marcada: boolean) => void;
+  /** Quem só lê vê as cores, mas não abre a escolha. */
+  somenteLer?: boolean;
+  /** Uma etiqueta mudou de cor ou de texto: a lista da página relê. */
+  aoMudar?: () => void;
+}
+
+/**
+ * O círculo à esquerda do título da anotação (#342): mostra as cores das etiquetas dela e abre ali mesmo a escolha de etiquetas
+ * (a mesma dos outros cartões), onde também se cria uma etiqueta nova, que fica para todo o escritório.
+ */
+export function CirculoDeEtiquetas({ ids, aoMarcar, somenteLer, aoMudar = () => {} }: PropsDoCirculo) {
+  const etiquetas = useEtiquetas();
+  const [botao, setBotao] = useState<HTMLElement | null>(null);
+  const minhas = etiquetas.filter(e => ids.includes(e.id));
+  const estilo = anelDasEtiquetas(minhas.map(e => e.cor));
+  const classe = minhas.length ? 'circulo-etiquetas com-etiquetas' : 'circulo-etiquetas';
+  if (somenteLer) return <span className={classe} style={estilo} aria-hidden="true" />;
+  return <>
+    <button type="button" className={classe} style={estilo} aria-label="Escolher etiquetas" title="Etiquetas" aria-haspopup="dialog" aria-expanded={!!botao}
+      onClick={ev => { const alvo = ev.currentTarget; setBotao(b => b ? null : alvo); }} />
+    {botao && <MenuFlutuante painel rotulo="Escolher etiquetas" botao={botao} aoFechar={() => setBotao(null)}>
+      <PainelEtiquetas etiquetas={etiquetas} ids={ids} aoMarcar={aoMarcar} aoMudar={aoMudar} aoCriar={e => aoMarcar(e, true)} />
+    </MenuFlutuante>}
+  </>;
+}
+
+/** As etiquetas do cartão em selos, logo abaixo do título (com o x para tirar, para quem pode mudar). Sem etiqueta, nada. */
+export function SelosDasEtiquetas({ ids, aoTirar }: { ids: string[]; aoTirar?: (e: Etiqueta) => void }) {
+  const etiquetas = useEtiquetas();
+  const minhas = etiquetas.filter(e => ids.includes(e.id));
+  return minhas.length ? <div className="etiquetas">{minhas.map(e => <SeloEtiqueta key={e.id} e={e} aoTirar={aoTirar && (() => aoTirar(e))} />)}</div> : null;
 }
 
 const SEM_RESULTADO = 'Nenhuma etiqueta combina com essa pesquisa.';
