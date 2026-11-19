@@ -676,38 +676,56 @@ export interface DadosTempo {
   tempoPorTarefa(perfilId: string, de: string, ate: string): Promise<TempoNaTarefaDoPeriodo[]>;
 }
 
-/** Item de uma lista: feito_em e feito_por são dados pelo banco ao marcar. */
-export interface ItemDaLista { id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number }
-/** Cartões que têm listas. */
-export type CartaoComListas = Extract<Modulo, 'demandas' | 'tarefas'>;
-/** Lista de uma demanda ou de uma tarefa (como as do Trello), com os itens na ordem. */
-export interface ListaDoCartao { id: string; nome: string; ordem: number; itens: ItemDaLista[] }
+/** Item de uma lista: feito_em e feito_por são dados pelo banco ao marcar. grupo_id: o grupo em que está (null: no primeiro nível). */
+export interface ItemDaLista {
+  id: string; texto: string; prazo: string | null; feito_em: string | null; feito_por: string | null; ordem: number; grupo_id: string | null; criado_em: string;
+}
+/** Cartões que têm checklists (#309: também o contrato). */
+export type CartaoComListas = Extract<Modulo, 'demandas' | 'tarefas' | 'contratos'>;
+/** Grupo de um checklist (#309): junta itens e subgrupos. O número (1., 1.1) é calculado (regras/gruposDaLista.ts), não guardado. */
+export interface GrupoDaLista { id: string; nome: string; pai_id: string | null; ordem: number; criado_em: string }
+/** Lista de uma demanda, de uma tarefa ou de um contrato (como as do Trello), com os itens na ordem e os grupos. */
+export interface ListaDoCartao { id: string; nome: string; ordem: number; itens: ItemDaLista[]; grupos: GrupoDaLista[] }
+/** Onde um grupo ou um item fica: dentro de qual grupo (null: no primeiro nível) e a posição na ordem de leitura do checklist. */
+export interface PosicaoNaLista { id: string; tipo: 'grupo' | 'item'; pai_id: string | null; ordem: number }
+/** Um nó do modelo: item ({ texto }) ou grupo ({ texto, filhos }). */
+export interface NoDoModelo { texto: string; filhos?: NoDoModelo[] }
 
-/** Listas das demandas e das tarefas (supabase/migrations/20261027000018_listas_das_demandas.sql e supabase/migrations/20261030130000_listas_nas_tarefas.sql):
- * quem vê a demanda ou a tarefa vê e mexe nas listas dela. */
+/** Listas das demandas, das tarefas e dos contratos (supabase/migrations/20261027000018_listas_das_demandas.sql, 20261030130000_listas_nas_tarefas.sql e
+ * 20261119142702_checklists_com_grupos.sql): quem vê a demanda ou a tarefa vê e mexe nas listas dela; no contrato, lê quem lê e mexe quem altera. */
 export interface DadosListas {
-  /** As listas da demanda ou da tarefa, na ordem, cada uma com os itens na ordem. */
+  /** As listas do cartão, na ordem, cada uma com os itens na ordem e os grupos. */
   listasDoCartao(modulo: CartaoComListas, id: string): Promise<ListaDoCartao[]>;
-  /** Cria a lista no fim das listas do cartão, já com os itens (na ordem dada), se vierem. */
-  listaCriar(modulo: CartaoComListas, id: string, nome: string, itens?: string[]): Promise<ListaDoCartao>;
+  /** Cria a lista no fim das listas do cartão, já com os grupos e os itens (de um modelo), numa vez só. */
+  listaCriar(modulo: CartaoComListas, id: string, nome: string, arvore?: NoDoModelo[]): Promise<ListaDoCartao>;
   listaAtualizar(id: string, campos: Partial<Pick<ListaDoCartao, 'nome' | 'ordem'>>): Promise<void>;
   listaExcluir(id: string): Promise<void>;
-  /** Cria o item no fim da lista. */
-  itemCriar(listaId: string, texto: string): Promise<ItemDaLista>;
+  /** Cria o grupo onde a posição diz (pai_id e ordem; ver ondeEntraONovo em regras/gruposDaLista.ts). */
+  grupoDoChecklistCriar(listaId: string, nome: string, onde: Omit<PosicaoNaLista, 'id' | 'tipo'>): Promise<GrupoDaLista>;
+  grupoDoChecklistAtualizar(id: string, campos: Pick<GrupoDaLista, 'nome'>): Promise<void>;
+  /** Exclui o grupo, os subgrupos e os itens de dentro. */
+  grupoDoChecklistExcluir(id: string): Promise<void>;
+  /** Cria o item: sem "onde", no fim do checklist (depois do maior "ordem" de grupos e itens), no primeiro nível. */
+  itemCriar(listaId: string, texto: string, onde?: Omit<PosicaoNaLista, 'id' | 'tipo'>): Promise<ItemDaLista>;
   /** feito: marca (o banco anota quando e quem) ou desmarca. */
   itemAtualizar(id: string, campos: Partial<Pick<ItemDaLista, 'texto' | 'prazo' | 'ordem'>> & { feito?: boolean }): Promise<ItemDaLista>;
   itemExcluir(id: string): Promise<void>;
+  /** Grava as posições novas de uma vez (subir, descer, mover para grupo). Id que não é do checklist: recusa e nada muda. */
+  listaReordenar(listaId: string, posicoes: PosicaoNaLista[]): Promise<void>;
 }
 
-/** Modelo de lista do escritório: o nome e os itens, na ordem. Usar um modelo copia os dois para a demanda ou a tarefa. */
-export interface ModeloDeLista { id: string; nome: string; itens: string[]; criado_por: string | null; atualizado_em: string }
+/** Modelo de lista do escritório. "itens": as folhas, na ordem (o banco as mantém); "arvore": os grupos e os itens, já reconciliada
+ *  com "itens" (o modelo de antes vem sem grupos). Usar um modelo copia o nome e a árvore para o cartão. */
+export interface ModeloDeLista { id: string; nome: string; itens: string[]; arvore: NoDoModelo[]; criado_por: string | null; atualizado_em: string }
 
-/** Modelos de lista (supabase/migrations/20261027000019_modelos_de_lista.sql): comuns à equipe; quem criou ou um administrador exclui. */
+/** Modelos de lista (supabase/migrations/20261027000019_modelos_de_lista.sql e 20261119142702_checklists_com_grupos.sql): comuns à equipe;
+ *  quem criou ou um administrador exclui. */
 export interface DadosModelos {
   /** Os modelos do escritório, por nome. */
   modelosListar(): Promise<ModeloDeLista[]>;
-  modeloCriar(nome: string, itens: string[]): Promise<ModeloDeLista>;
-  modeloAtualizar(id: string, campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>): Promise<void>;
+  /** Grava o modelo com a árvore (o modelo sem grupos é arvoreDosItens(itens)); o banco põe as folhas em "itens". */
+  modeloCriar(nome: string, arvore: NoDoModelo[]): Promise<ModeloDeLista>;
+  modeloAtualizar(id: string, campos: Partial<Pick<ModeloDeLista, 'nome' | 'arvore'>>): Promise<void>;
   modeloExcluir(id: string): Promise<void>;
 }
 

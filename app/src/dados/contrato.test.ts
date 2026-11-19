@@ -15,6 +15,7 @@ import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
 import { INICIO_VAZIO, inicioDoCriadoEm } from '../regras/dataDeInicio';
+import { acharNo, arvoreDaLista, arvoreDosItens, CHECKLIST_MUDOU, emOrdemDeLeitura, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, ondeEntraONovo } from '../regras/gruposDaLista';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -497,7 +498,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const { id } = await criar('ASSINA ' + marca());
         const contratoId = (await SD.pessoaFecharContrato(id))!.id;
         const itemGrande = 'Depósito ' + 'x'.repeat(TAMANHO_TAREFA.titulo);
-        await SD.modeloCriar('Registro de marca ' + id, ['Busca prévia', itemGrande]);
+        await SD.modeloCriar('Registro de marca ' + id, arvoreDosItens(['Busca prévia', itemGrande]));
         // Quando
         await SD.contratoMover(contratoId, await etapaDe('contratos', 'assinado'), 1);
         const antes = await SD.demandasDoContrato(contratoId);
@@ -508,6 +509,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(antes).toHaveLength(0);
         expect(depois.map(d => d.objeto)).toEqual(['Registro de marca ' + id]);
         expect(tarefas.map(t => t.titulo).toSorted((a, b) => a.localeCompare(b))).toEqual(['Busca prévia', itemGrande.slice(0, TAMANHO_TAREFA.titulo)]);
+      });
+
+      it('dado um modelo com grupos (#309), quando o contrato assinado ganha o objeto, então só os itens viram tarefas, sem o nome do grupo', async () => {
+        // Dado
+        const { id } = await criar('AGRUPADO ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        await SD.modeloCriar('Benefício ' + id, [{ texto: 'Documentos pessoais', filhos: [{ texto: 'RG' }, { texto: 'CPF' }] }, { texto: 'CNIS' }]);
+        // Quando
+        await SD.contratoMover(contratoId, await etapaDe('contratos', 'assinado'), 1);
+        await SD.contratoAtualizar(contratoId, { objetos: ['Benefício ' + id] });
+        // Então
+        const tarefas = await SD.tarefasDoContrato(contratoId);
+        expect(tarefas.map(t => t.titulo).toSorted((a, b) => a.localeCompare(b))).toEqual(['CNIS', 'CPF', 'RG']);
       });
 
       it('dado um contrato assinado com um objeto de verdade e um "A definir", quando o "A definir" é trocado, então só o novo vira demanda', async () => {
@@ -4142,7 +4156,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const demanda = await novaDemanda();
         await SD.listaCriar('demandas', demanda, 'Primeira');
         // Quando
-        await SD.listaCriar('demandas', demanda, '  Pessoa jurídica ', ['Atos constitutivos', 'Quadro de sócios']);
+        await SD.listaCriar('demandas', demanda, '  Pessoa jurídica ', arvoreDosItens(['Atos constitutivos', 'Quadro de sócios']));
         // Então
         const listas = await SD.listasDoCartao('demandas', demanda);
         expect(listas.map(l => l.nome)).toEqual(['Primeira', 'Pessoa jurídica']);
@@ -4165,7 +4179,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando o item ganha data de entrega e muda de posição, e a lista é renomeada, então voltam assim', async () => {
         // Dado
         const demanda = await novaDemanda();
-        const lista = await SD.listaCriar('demandas', demanda, 'Documentos', ['A', 'B']);
+        const lista = await SD.listaCriar('demandas', demanda, 'Documentos', arvoreDosItens(['A', 'B']));
         // Quando
         await SD.itemAtualizar(lista.itens[0].id, { prazo: '2030-11-10', ordem: 3 });
         await SD.listaAtualizar(lista.id, { nome: 'Documentos do cliente' });
@@ -4178,7 +4192,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando a lista é excluída, então os itens vão junto', async () => {
         // Dado
         const demanda = await novaDemanda();
-        const lista = await SD.listaCriar('demandas', demanda, 'Para apagar', ['Item']);
+        const lista = await SD.listaCriar('demandas', demanda, 'Para apagar', arvoreDosItens(['Item']));
         // Quando
         await SD.listaExcluir(lista.id);
         // Então
@@ -4190,7 +4204,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Com listas', responsavel_id: 'u-master' });
         const demanda = await novaDemanda();
         // Quando
-        const lista = await SD.listaCriar('tarefas', tarefa, ' Documentos ', ['Procuração', 'Contrato social']);
+        const lista = await SD.listaCriar('tarefas', tarefa, ' Documentos ', arvoreDosItens(['Procuração', 'Contrato social']));
         const marcado = await SD.itemAtualizar(lista.itens[0].id, { feito: true });
         // Então
         const [lida] = await SD.listasDoCartao('tarefas', tarefa);
@@ -4203,7 +4217,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando a tarefa arquivada é excluída, então as listas dela vão junto', async () => {
         // Dado
         const { id: tarefa } = await SD.tarefaCriar({ titulo: 'Para excluir', responsavel_id: 'u-master' });
-        await SD.listaCriar('tarefas', tarefa, 'Documentos', ['Procuração']);
+        await SD.listaCriar('tarefas', tarefa, 'Documentos', arvoreDosItens(['Procuração']));
         await SD.tarefasArquivar([tarefa]);
         // Quando
         await SD.tarefasExcluir([tarefa]);
@@ -4217,7 +4231,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Dado
         const nome = 'Modelo ' + marca();
         // Quando
-        const m = await SD.modeloCriar('  ' + nome + ' ', [' Procuração ', '', 'Contrato social']);
+        const m = await SD.modeloCriar('  ' + nome + ' ', arvoreDosItens([' Procuração ', '', 'Contrato social']));
         // Então
         const lista = await SD.modelosListar();
         expect(lista.find(x => x.id === m.id)).toMatchObject({ nome, itens: ['Procuração', 'Contrato social'] });
@@ -4227,18 +4241,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando já existe um modelo com o mesmo nome, então criar outro é recusado com a mensagem em português', async () => {
         // Dado
         const nome = 'Modelo ' + marca();
-        await SD.modeloCriar(nome, ['A']);
+        await SD.modeloCriar(nome, arvoreDosItens(['A']));
         // Quando
-        const repetido = SD.modeloCriar(nome.toLowerCase(), ['B']);
+        const repetido = SD.modeloCriar(nome.toLowerCase(), arvoreDosItens(['B']));
         // Então
         await expect(repetido).rejects.toThrow('Já existe um modelo de checklist com esse nome.');
       });
 
       it('quando o modelo é editado, então muda; e excluído, some da lista', async () => {
         // Dado
-        const m = await SD.modeloCriar('Modelo ' + marca(), ['A']);
+        const m = await SD.modeloCriar('Modelo ' + marca(), arvoreDosItens(['A']));
         // Quando
-        await SD.modeloAtualizar(m.id, { itens: ['A', 'B'] });
+        await SD.modeloAtualizar(m.id, { arvore: arvoreDosItens(['A', 'B']) });
         const editado = (await SD.modelosListar()).find(x => x.id === m.id);
         await SD.modeloExcluir(m.id);
         // Então
@@ -4248,14 +4262,233 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
       it('quando um modelo é usado numa demanda e depois muda, então a lista da demanda continua como estava', async () => {
         // Dado
-        const m = await SD.modeloCriar('Modelo ' + marca(), ['Procuração']);
+        const m = await SD.modeloCriar('Modelo ' + marca(), arvoreDosItens(['Procuração']));
         const { id: demanda } = await SD.demandaCriar({ titulo: 'Com modelo', responsavel_id: 'u-master' });
-        await SD.listaCriar('demandas', demanda, m.nome, m.itens);
+        await SD.listaCriar('demandas', demanda, m.nome, m.arvore);
         // Quando
-        await SD.modeloAtualizar(m.id, { itens: ['Outra coisa'] });
+        await SD.modeloAtualizar(m.id, { arvore: arvoreDosItens(['Outra coisa']) });
         // Então
         const [lista] = await SD.listasDoCartao('demandas', demanda);
         expect(lista.itens.map(i => i.texto)).toEqual(['Procuração']);
+      });
+    });
+
+    describe('Checklists com grupos (#309)', () => {
+      // O exemplo do dono: 1. Documentos pessoais › 1.1 RG, 1.2 CPF; 2. Benefício › 2.1 Aposentadoria por idade › 2.1.1 CNIS,
+      // 2.1.2 Carteira de trabalho; 2.2 Auxílio-doença › 2.2.1 Laudo médico.
+      const EXEMPLO = [
+        { texto: 'Documentos pessoais', filhos: [{ texto: 'RG' }, { texto: 'CPF' }] },
+        { texto: 'Benefício', filhos: [
+          { texto: 'Aposentadoria por idade', filhos: [{ texto: 'CNIS' }, { texto: 'Carteira de trabalho' }] },
+          { texto: 'Auxílio-doença', filhos: [{ texto: 'Laudo médico' }] }] }
+      ];
+      const FUNDO_DEMAIS = [{ texto: 'A', filhos: [{ texto: 'B', filhos: [{ texto: 'C', filhos: [{ texto: 'D' }] }] }] }];
+      const novaDemanda = async () => (await SD.demandaCriar({ titulo: 'Com grupos', responsavel_id: 'u-master' })).id;
+      const numerados = (lista: Parameters<typeof arvoreDaLista>[0]) =>
+        emOrdemDeLeitura(arvoreDaLista(lista)).map(n => `${n.numero} ${n.tipo === 'grupo' ? n.grupo.nome : n.item.texto}`);
+      const lerUma = async (demanda: string) => (await SD.listasDoCartao('demandas', demanda))[0];
+      const grupoDe = (lista: Awaited<ReturnType<typeof lerUma>>, nome: string) => lista.grupos.find(g => g.nome === nome)!;
+
+      it('quando um checklist é criado com a árvore, então os grupos e os itens voltam nos lugares, numerados 1., 1.1, 2.1.1', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        // Quando
+        const criada = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        // Então
+        const lida = await lerUma(demanda);
+        expect(numerados(criada)).toEqual(numerados(lida));
+        expect(numerados(lida)).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF', '2. Benefício', '2.1 Aposentadoria por idade', '2.1.1 CNIS',
+          '2.1.2 Carteira de trabalho', '2.2 Auxílio-doença', '2.2.1 Laudo médico']);
+        expect(grupoDe(lida, 'Aposentadoria por idade').pai_id).toBe(grupoDe(lida, 'Benefício').id);
+        expect(lida.itens.map(i => i.texto)).toEqual(['RG', 'CPF', 'CNIS', 'Carteira de trabalho', 'Laudo médico']);
+      });
+
+      it('quando um checklist é criado no contrato, então ele vem só no contrato', async () => {
+        // Dado
+        const { id } = await criar('CHECKLIST ' + marca());
+        const contrato = (await SD.pessoaFecharContrato(id))!.id;
+        const demanda = await novaDemanda();
+        // Quando
+        await SD.listaCriar('contratos', contrato, 'Documentos do contrato', EXEMPLO);
+        await SD.listaCriar('demandas', demanda, 'Da demanda');
+        // Então
+        const doContrato = await SD.listasDoCartao('contratos', contrato);
+        expect(doContrato.map(l => l.nome)).toEqual(['Documentos do contrato']);
+        expect(doContrato[0].grupos).toHaveLength(4);
+        expect((await SD.listasDoCartao('demandas', demanda)).map(l => l.nome)).toEqual(['Da demanda']);
+      });
+
+      it('quando um grupo vai para o próprio subgrupo, ou passaria de 3 níveis, então é recusado com a mensagem do banco, e nada muda', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        const lista = await lerUma(demanda);
+        const [beneficio, aposentadoria, documentos] = ['Benefício', 'Aposentadoria por idade', 'Documentos pessoais'].map(n => grupoDe(lista, n));
+        // Quando
+        const ciclo = await SD.listaReordenar(lista.id, [{ id: beneficio.id, tipo: 'grupo', pai_id: aposentadoria.id, ordem: 20 }]).then(() => '', (e: Error) => e.message);
+        const fundo = await SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: aposentadoria.id, ordem: 20 }]).then(() => '', (e: Error) => e.message);
+        // Então
+        expect(ciclo).toBe(GRUPO_DENTRO_DELE);
+        expect(fundo).toBe(NIVEIS_DEMAIS);
+        expect(numerados(await lerUma(demanda))).toEqual(numerados(lista));
+      });
+
+      it('quando o checklist novo teria um item no 4º nível, então é recusado e nenhum checklist fica', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        // Quando
+        const fundo = SD.listaCriar('demandas', demanda, 'Fundo', FUNDO_DEMAIS);
+        // Então
+        await expect(fundo).rejects.toThrow(NIVEIS_DEMAIS);
+        expect(await SD.listasDoCartao('demandas', demanda)).toEqual([]);
+      });
+
+      it('quando vem uma posição de outro checklist, então é recusada e nada muda', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        const uma = await SD.listaCriar('demandas', demanda, 'Uma', arvoreDosItens(['A']));
+        const outra = await SD.listaCriar('demandas', demanda, 'Outra', arvoreDosItens(['B']));
+        // Quando
+        const errada = SD.listaReordenar(uma.id, [{ id: uma.itens[0].id, tipo: 'item', pai_id: null, ordem: 5 }, { id: outra.itens[0].id, tipo: 'item', pai_id: null, ordem: 6 }]);
+        // Então
+        await expect(errada).rejects.toThrow(CHECKLIST_MUDOU);
+        expect((await lerUma(demanda)).itens[0].ordem).toBe(uma.itens[0].ordem);
+      });
+
+      it('quando um grupo é excluído, então os subgrupos e os itens de dentro vão junto, e o checklist fica', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        // Quando
+        await SD.grupoDoChecklistExcluir(grupoDe(await lerUma(demanda), 'Benefício').id);
+        // Então
+        expect(numerados(await lerUma(demanda))).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF']);
+      });
+
+      it('quando o grupo vai para dentro de outro, numa chamada, então leva o que está dentro', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        const lista = await lerUma(demanda);
+        const [documentos, beneficio] = ['Documentos pessoais', 'Benefício'].map(n => grupoDe(lista, n));
+        // Quando
+        await SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: beneficio.id, ordem: 20 },
+          ...lista.itens.filter(i => i.grupo_id === documentos.id).map((i, k) => ({ id: i.id, tipo: 'item' as const, pai_id: documentos.id, ordem: 21 + k }))]);
+        // Então
+        expect(numerados(await lerUma(demanda))).toEqual(['1. Benefício', '1.1 Aposentadoria por idade', '1.1.1 CNIS', '1.1.2 Carteira de trabalho',
+          '1.2 Auxílio-doença', '1.2.1 Laudo médico', '1.3 Documentos pessoais', '1.3.1 RG', '1.3.2 CPF']);
+      });
+
+      it('quando um subgrupo e um item são criados onde a regra diz, então entram no fim do grupo; o subgrupo se renomeia', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        const lista = await lerUma(demanda), documentos = grupoDe(lista, 'Documentos pessoais');
+        // Quando
+        const { pai_id, ordem } = ondeEntraONovo(arvoreDaLista(lista), documentos.id);
+        const sub = await SD.grupoDoChecklistCriar(lista.id, '  Comprovantes ', { pai_id, ordem });
+        const onde = ondeEntraONovo(arvoreDaLista(await lerUma(demanda)), sub.id);
+        await SD.itemCriar(lista.id, 'Conta de luz', { pai_id: onde.pai_id, ordem: onde.ordem });
+        await SD.grupoDoChecklistAtualizar(sub.id, { nome: 'Comprovante de residência' });
+        // Então
+        expect(sub.nome).toBe('Comprovantes');
+        expect(numerados(await lerUma(demanda)).slice(0, 5))
+          .toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF', '1.3 Comprovante de residência', '1.3.1 Conta de luz']);
+      });
+
+      it('quando um item é criado sem lugar (como a versão anterior), então fica no fim, no primeiro nível, depois até de um grupo vazio', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        const lista = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        const { pai_id, ordem } = ondeEntraONovo(arvoreDaLista(lista), null);
+        await SD.grupoDoChecklistCriar(lista.id, 'Vazio', { pai_id, ordem });
+        // Quando
+        const novo = await SD.itemCriar(lista.id, 'Procuração');
+        // Então
+        expect(numerados(await lerUma(demanda)).slice(-2)).toEqual(['3. Vazio', '4. Procuração']);
+        expect(novo.grupo_id).toBeNull();
+      });
+
+      it('quando a versão anterior renumera os itens de 1 a n, então grupos e itens continuam nos mesmos lugares', async () => {
+        // Dado
+        const demanda = await novaDemanda();
+        await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+        const antes = await lerUma(demanda);
+        // Quando
+        for (const [k, i] of antes.itens.entries()) await SD.itemAtualizar(i.id, { ordem: k + 1 });
+        // Então
+        const depois = await lerUma(demanda);
+        expect(depois.itens.map(i => i.ordem)).toEqual([1, 2, 3, 4, 5]);
+        expect(numerados(depois)).toEqual(numerados(antes));
+        expect(acharNo(arvoreDaLista(depois), depois.itens[2].id)?.numero).toBe('2.1.1');
+      });
+
+      it('quando um modelo é gravado com a árvore, então os itens são as folhas; renomear mantém a árvore', async () => {
+        // Dado
+        const nome = 'Modelo ' + marca();
+        // Quando
+        const m = await SD.modeloCriar(nome, EXEMPLO);
+        await SD.modeloAtualizar(m.id, { nome: nome + ' novo' });
+        // Então
+        const lido = (await SD.modelosListar()).find(x => x.id === m.id)!;
+        expect(m.itens).toEqual(['RG', 'CPF', 'CNIS', 'Carteira de trabalho', 'Laudo médico']);
+        expect(lido).toMatchObject({ nome: nome + ' novo', arvore: EXEMPLO, itens: m.itens });
+      });
+
+      it('quando um modelo sem grupos é lido, então a árvore são os itens; com grupo no 3º nível, é recusado', async () => {
+        // Dado
+        const plano = await SD.modeloCriar('Modelo ' + marca(), arvoreDosItens(['A', 'B']));
+        // Quando
+        const fundo = await SD.modeloCriar('Modelo ' + marca(), FUNDO_DEMAIS).then(() => '', (e: Error) => e.message);
+        // Então
+        expect((await SD.modelosListar()).find(x => x.id === plano.id)?.arvore).toEqual([{ texto: 'A' }, { texto: 'B' }]);
+        expect(fundo).toBe(NIVEIS_DEMAIS);
+      });
+
+      describe('no contrato, quem só foi mencionado', () => {
+        const falso = () => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void; mudarFuncao(id: string, funcao: string): void } }).SEMPER_FALSO;
+        const entrarComo = (id: string) => falso().entrarComo(id);
+        afterEach(() => { entrarComo('u-master'); falso().mudarFuncao('u-bruno', 'estagiario'); });
+
+        it('quando lê o checklist do contrato, então o vê; criar, acrescentar item ou grupo e reordenar são recusados, e excluir não muda nada', async () => {
+          // Dado: um contrato de outra pessoa, com um checklist, e um comentário que menciona o Bruno (advogado, sem ser administrador)
+          falso().mudarFuncao('u-bruno', 'advogado');
+          const { id: cliente } = await criar(marca());
+          const contrato = (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' })).id;
+          const lista = await SD.listaCriar('contratos', contrato, 'Documentos do contrato', EXEMPLO);
+          const documentos = grupoDe(lista, 'Documentos pessoais');
+          await SD.comentarioCriar('contratos', contrato, 'Veja o checklist, @bruno.souza');
+          entrarComo('u-bruno');
+          // Quando
+          const lida = await SD.listasDoCartao('contratos', contrato);
+          const tentativas = await Promise.allSettled([
+            SD.listaCriar('contratos', contrato, 'Outro'),
+            SD.itemCriar(lista.id, 'Procuração', ondeEntraONovo(arvoreDaLista(lista), documentos.id)),
+            SD.grupoDoChecklistCriar(lista.id, 'Certidões', { pai_id: null, ordem: 99 }),
+            SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: null, ordem: 99 }])
+          ]);
+          await SD.grupoDoChecklistExcluir(documentos.id);
+          await SD.itemExcluir(lista.itens[0].id);
+          // Então
+          expect(numerados(lida[0])).toEqual(numerados(lista));
+          expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual([
+            'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.',
+            'Você não pode alterar este checklist.']);
+          entrarComo('u-master');
+          const depois = await SD.listasDoCartao('contratos', contrato);
+          expect(depois.map(l => l.nome)).toEqual(['Documentos do contrato']);
+          expect(numerados(depois[0])).toEqual(numerados(lista));
+        });
+      });
+
+      it('quando o modelo agrupado é usado, então o checklist entra agrupado e numerado', async () => {
+        // Dado
+        const m = await SD.modeloCriar('Modelo ' + marca(), EXEMPLO);
+        const demanda = await novaDemanda();
+        // Quando
+        await SD.listaCriar('demandas', demanda, m.nome, m.arvore);
+        // Então
+        expect(numerados(await lerUma(demanda)).slice(0, 3)).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF']);
       });
     });
 

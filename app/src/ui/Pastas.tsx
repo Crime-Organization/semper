@@ -16,9 +16,9 @@ import {
 } from '../regras/explorador';
 import { ATRIBUTO_DO_ALVO, FantasmaDoArrasto, useArrastar } from './arrastar';
 import { avisar, falha, feito } from './avisos';
-import { Campo, Carregando, Nota } from './base';
+import { Carregando, Nota } from './base';
 import { Icone, type NomeIcone } from './Icone';
-import { confirmar, janela, pedirTexto } from './janela';
+import { confirmar, escolherNaJanela, pedirTexto } from './janela';
 import { MenuFlutuante } from './Menu';
 import { ORDENS } from './ordem';
 import { buscarPastas } from './pastasDoEscritorio';
@@ -50,8 +50,6 @@ export function useNavegacaoRecolhida() {
 const TODAS = '';
 /** O atributo com o id da anotação no link dela, no explorador: por ele o foco a acha depois de ela mudar de pasta. */
 const ATRIBUTO_DA_ANOTACAO = 'data-anotacao';
-/** O id do campo da pasta de destino, na janela de mover (uma pasta ou uma anotação; só uma janela dessas fica aberta). */
-const DESTINO = 'pasta-destino';
 
 interface EscolhaNaJanela {
   titulo: string;
@@ -71,16 +69,8 @@ interface EscolhaNaJanela {
  * escolhida, ou null se a pessoa desistiu.
  */
 function escolherPastaNaJanela({ titulo, rotulo, raiz, destinos, pastas, atual }: EscolhaNaJanela) {
-  return janela<string>({
-    titulo,
-    corpo: <Campo rotulo={rotulo} para={DESTINO}>
-      <select id={DESTINO} name="destino" className="campo" defaultValue={atual}>
-        <option value={raiz.valor}>{raiz.nome}</option>
-        {destinos.map(n => <option key={n.pasta.id} value={n.pasta.id}>{textoDoCaminho(pastas, n.pasta.id)}</option>)}
-      </select>
-    </Campo>,
-    acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Mover', tipo: 'pri', valor: campos => String(campos.get('destino') ?? raiz.valor) }]
-  });
+  const opcoes = [raiz, ...destinos.map(n => ({ valor: n.pasta.id, nome: textoDoCaminho(pastas, n.pasta.id) }))];
+  return escolherNaJanela({ titulo, rotulo, opcoes, atual });
 }
 
 /**

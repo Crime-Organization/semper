@@ -54,6 +54,37 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: 'Adicionar checklist' })).toHaveCount(0);
   });
 
+  test('dada a chave ligada e um checklist com grupos na demanda, quando quem não participa o abre, então vê os grupos, os números e as contagens, sem alterar (#309)', async ({ page }) => {
+    // Dado: o Mateus põe o modelo agrupado na demanda
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).click();
+    await abrirSecao(page.getByRole('dialog'), 'Checklists');
+    await page.getByRole('dialog').getByRole('button', { name: 'Adicionar checklist' }).click();
+    await page.getByRole('menuitem', { name: 'Benefício previdenciário' }).click();
+    await expect(page.getByRole('dialog').getByRole('region', { name: 'Checklist Benefício previdenciário' })).toBeVisible();
+    await ligarAChave(page);
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await abrir(page, 'Demandas');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).click();
+    const cartao = page.getByRole('dialog');
+    await abrirSecao(cartao, 'Checklists');
+    const lista = cartao.getByRole('region', { name: 'Checklist Benefício previdenciário' });
+    // Então
+    const beneficio = lista.getByRole('button', { name: 'Fechar o grupo 2. Benefício' });
+    await expect(beneficio).toHaveAccessibleDescription('0 de 3 feitos');
+    await expect(lista.getByRole('checkbox', { name: 'CNIS' })).toHaveAccessibleDescription('2.1.1, no grupo 2. Benefício › 2.1 Aposentadoria por idade');
+    await expect(lista.getByRole('checkbox', { name: 'CNIS' })).toBeDisabled();
+    await expect(lista.getByRole('button', { name: /^(Ações do|Novo grupo|Adicionar item)/ })).toHaveCount(0);
+    // Quando
+    await beneficio.click();
+    // Então
+    await expect(lista.getByRole('button', { name: 'Abrir o grupo 2. Benefício' })).toBeVisible();
+    await expect(lista.getByRole('checkbox', { name: 'CNIS' })).toHaveCount(0);
+  });
+
   test('dada a chave ligada, quando um advogado sem vínculo entra no processo, então passa a poder alterar', async ({ page }) => {
     // Dado: Bruno, aqui como advogado, não está no processo
     await ligarAChave(page);

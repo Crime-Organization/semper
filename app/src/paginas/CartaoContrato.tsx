@@ -13,6 +13,7 @@ import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
+import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao } from './ProcessosDoCartao';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
 import { chegouAoAssinado } from '../regras/parcelas';
@@ -172,6 +173,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </div>}
 
     <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (oculto && !semValores)} aoMudar={aoMudar} />
+
+    {/* Os checklists do contrato (#309): mexe quem altera o contrato (ou, com a equipe editando tudo, quem o vê), como nas
+        anotações e nos processos; arquivado, só se lê. */}
+    <ListasDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)} />
 
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}

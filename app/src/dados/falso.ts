@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
@@ -38,7 +38,8 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, ITENS_DO_MODELO, TAREFAS_LIGADAS,
+import { arvoreDoModelo, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
+import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
 import { fmtData } from '../regras/pessoa';
@@ -93,6 +94,8 @@ const SITUACOES_COMPROMISSO = ['Agendado', 'Confirmado', 'Realizado', 'Cancelado
 const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contratos: SITUACOES_CONTRATO, demandas: SITUACOES_DEMANDA, tarefas: SITUACOES_TAREFA };
 /** Contrato como fica guardado: sem as pessoas, que são lidas na hora (como as junções do banco); os participantes, pelo id. */
 type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
+/** Modelo de checklist como fica guardado: a árvore é nula no modelo de antes (a leitura a monta pelos itens). */
+type ModeloGuardado = Omit<ModeloDeLista, 'arvore'> & { arvore: NoDoModelo[] | null };
 
 interface Banco {
   pessoas: Pessoa[];
@@ -151,10 +154,13 @@ interface Banco {
   contratosDoClienteFechado?: Record<string, string>;
   /** Se as colunas do cliente ao contrato já foram preparadas (a migração roda uma vez só). */
   colunasDoClienteAoContrato?: boolean;
-  /** Cada lista é de uma demanda ou de uma tarefa (demanda_listas no banco). */
-  listas?: (Omit<ListaDoCartao, 'itens'> & { demanda_id?: string; tarefa_id?: string; criado_em: string })[];
+  /** Cada lista é de uma demanda, de uma tarefa ou de um contrato (demanda_listas no banco). */
+  listas?: (Omit<ListaDoCartao, 'itens' | 'grupos'> & { demanda_id?: string; tarefa_id?: string; contrato_id?: string; criado_em: string })[];
   itensDeLista?: (ItemDaLista & { lista_id: string })[];
-  modelos?: ModeloDeLista[];
+  /** Os grupos dos checklists (demanda_lista_grupos no banco, #309). */
+  gruposDeLista?: (GrupoDaLista & { lista_id: string })[];
+  /** A árvore é nula no modelo de antes (lista_modelos.arvore no banco). */
+  modelos?: ModeloGuardado[];
   /** Órgãos e dias sem expediente do escritório (orgaos e dias_sem_expediente no banco). */
   orgaos?: Orgao[];
   diasLancados?: DiaLancado[];
@@ -422,18 +428,29 @@ if (!bd.listas) {
   const d = bd.demandas.find(x => x.titulo === 'Registro de marca'), lista = novoId();
   bd.listas = d ? [{ id: lista, demanda_id: d.id, nome: 'Pessoa jurídica', ordem: 1, criado_em: agora() }] : [];
   bd.itensDeLista = d ? [
-    { id: novoId(), lista_id: lista, texto: 'Comprovante de inscrição e de situação cadastral', prazo: null, feito_em: agora(), feito_por: 'u-ana', ordem: 1 },
-    { id: novoId(), lista_id: lista, texto: 'Quadro de sócios e administradores', prazo: dataDaqui(3), feito_em: null, feito_por: null, ordem: 2 },
-    { id: novoId(), lista_id: lista, texto: 'Atos constitutivos', prazo: null, feito_em: null, feito_por: null, ordem: 3 }
+    { id: novoId(), lista_id: lista, texto: 'Comprovante de inscrição e de situação cadastral', prazo: null, feito_em: agora(), feito_por: 'u-ana', ordem: 1, grupo_id: null, criado_em: agora() },
+    { id: novoId(), lista_id: lista, texto: 'Quadro de sócios e administradores', prazo: dataDaqui(3), feito_em: null, feito_por: null, ordem: 2, grupo_id: null, criado_em: agora() },
+    { id: novoId(), lista_id: lista, texto: 'Atos constitutivos', prazo: null, feito_em: null, feito_por: null, ordem: 3, grupo_id: null, criado_em: agora() }
   ] : [];
 }
 bd.itensDeLista ??= [];
-// Dois modelos de exemplo, com os documentos do modelo do Trello do escritório.
+bd.gruposDeLista ??= [];
+// Itens guardados na sessão antes dos grupos (no banco, a coluna nasce vazia).
+bd.itensDeLista.forEach(i => { i.grupo_id ??= null; i.criado_em ??= ''; });
+// Três modelos de exemplo: dois com os documentos do modelo do Trello do escritório (sem grupos, como os de antes) e um com
+// grupos e subgrupos (#309).
 bd.modelos ??= [
-  { id: novoId(), nome: 'Documentos de pessoa física', itens: ['Documento pessoal', 'Comprovante de residência'], criado_por: 'u-ana', atualizado_em: agora() },
+  { id: novoId(), nome: 'Documentos de pessoa física', itens: ['Documento pessoal', 'Comprovante de residência'], arvore: null, criado_por: 'u-ana', atualizado_em: agora() },
   { id: novoId(), nome: 'Documentos de pessoa jurídica', itens: ['Comprovante de inscrição e de situação cadastral', 'Quadro de sócios e administradores', 'Atos constitutivos'],
-    criado_por: 'u-ana', atualizado_em: agora() }
+    arvore: null, criado_por: 'u-ana', atualizado_em: agora() },
+  { id: novoId(), nome: 'Benefício previdenciário', ...modeloDaArvore([
+    { texto: 'Documentos pessoais', filhos: [{ texto: 'RG' }, { texto: 'CPF' }] },
+    { texto: 'Benefício', filhos: [
+      { texto: 'Aposentadoria por idade', filhos: [{ texto: 'CNIS' }, { texto: 'Carteira de trabalho' }] },
+      { texto: 'Auxílio-doença', filhos: [{ texto: 'Laudo médico' }] }] }]), criado_por: 'u-ana', atualizado_em: agora() }
 ];
+// Modelos guardados na sessão antes da árvore: são os de antes.
+bd.modelos.forEach(m => { m.arvore ??= null; });
 // Três órgãos de exemplo, com o que cada um costuma seguir. Nenhum dia lançado: os testes lançam os seus.
 bd.orgaos ??= [
   { id: novoId(), ...padraoDoOrgao('TJMG'), nome: 'Tribunal de Justiça de Minas Gerais' },
@@ -1223,20 +1240,23 @@ const tarefasNaOrdemDoQuadro = (lista: TarefaGuardada[]) => lista
   .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
   .slice(0, TAREFAS_LIGADAS).map(tarefaLigada('', null));
 // ---------- modelos de lista ----------
-/** Como o gatilho preparar e o índice de nome único: nome limpo e sem repetir; itens limpos, sem linhas vazias. */
-function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>>, id?: string) {
-  const m: Partial<Pick<ModeloDeLista, 'nome' | 'itens'>> = {};
+/** Como o gatilho preparar (20261119142702): a árvore limpa e, em "itens", as folhas dela. */
+function modeloDaArvore(arvore: NoDoModelo[]): Pick<ModeloGuardado, 'arvore' | 'itens'> {
+  const limpa = limparArvore(arvore);
+  if (typeof limpa === 'string') throw new Error(limpa);
+  return { arvore: limpa, itens: itensDaArvore(limpa) };
+}
+/** Como o gatilho preparar e o índice de nome único: nome limpo e sem repetir; a árvore limpa, com as folhas em "itens". */
+function prepararModelo(campos: Partial<Pick<ModeloDeLista, 'nome' | 'arvore'>>, id?: string) {
+  const m: Partial<Pick<ModeloGuardado, 'nome' | 'itens' | 'arvore'>> = {};
   if (campos.nome !== undefined) {
     m.nome = nomeDaLista(campos.nome);
     if (bd.modelos!.some(x => x.id !== id && normal(x.nome) === normal(m.nome))) throw new Error('Já existe um modelo de checklist com esse nome.');
   }
-  if (campos.itens !== undefined) {
-    m.itens = campos.itens.map(i => i.trim()).filter(Boolean);
-    if (m.itens.length > ITENS_DO_MODELO) throw new Error(`Um modelo pode ter até ${ITENS_DO_MODELO} itens.`);
-    if (m.itens.some(i => i.length > TAMANHO_ITEM)) throw new Error(`Cada item do modelo pode ter até ${TAMANHO_ITEM} caracteres.`);
-  }
-  return m;
+  return campos.arvore === undefined ? m : { ...m, ...modeloDaArvore(campos.arvore) };
 }
+/** O modelo lido: a árvore nula vira a dos itens; a defasada (a versão anterior mudou os itens) é ajustada a eles. */
+const modeloLido = (m: ModeloGuardado): ModeloDeLista => ({ ...m, arvore: arvoreDoModelo(m) });
 // Processos guardados na sessão antes de existirem os campos (no banco, a coluna nasce vazia).
 bd.processos!.forEach(p => { p.campos ??= {}; });
 // ---------- compromissos ----------
@@ -1976,15 +1996,65 @@ function conferirDia(d: Omit<DiaLancado, 'id'>) {
     || !/^\d{4}-\d{2}-\d{2}$/.test(d.data) || ano < ANOS_DO_CALENDARIO.de || ano > ANOS_DO_CALENDARIO.ate) throw new Error(FORMATO_INVALIDO);
   if (d.orgao_id !== null && !bd.orgaos!.some(o => o.id === d.orgao_id)) throw new Error('Não foi possível concluir agora. Tente de novo.');
 }
-// ---------- listas das demandas e das tarefas ----------
-/** De cada cartão com listas: o campo que liga a lista a ele e como achá-lo (erro se não existe). */
-const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id'; achar: (id: string) => unknown }> = {
-  demandas: { campo: 'demanda_id', achar: acharDemanda },
-  tarefas: { campo: 'tarefa_id', achar: acharTarefa },
+// ---------- listas das demandas, das tarefas e dos contratos ----------
+/** De cada cartão com listas: o campo que liga a lista a ele, como achá-lo (erro se não existe) e se quem está logado pode mexer
+ *  nos checklists dele (como privado.altero_a_lista, 20261119142702: no contrato, quem só foi mencionado lê, mas não mexe). */
+const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id' | 'contrato_id'; achar: (id: string) => unknown; altero: (id: string) => boolean }> = {
+  demandas: { campo: 'demanda_id', achar: acharDemanda, altero: () => true },
+  tarefas: { campo: 'tarefa_id', achar: acharTarefa, altero: () => true },
+  contratos: { campo: 'contrato_id', achar: acharContrato, altero: alteroContratoDoId },
 };
-const itemLido = ({ lista_id: _l, ...i }: NonNullable<Banco['itensDeLista']>[number]): ItemDaLista => i;
-const listaLida = ({ demanda_id: _d, tarefa_id: _t, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDoCartao =>
-  ({ ...l, itens: bd.itensDeLista!.filter(i => i.lista_id === l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido) });
+type ItemGuardado = NonNullable<Banco['itensDeLista']>[number];
+type GrupoGuardado = NonNullable<Banco['gruposDeLista']>[number];
+const itemLido = ({ lista_id: _l, ...i }: ItemGuardado): ItemDaLista => i;
+const grupoLido = ({ lista_id: _l, ...g }: GrupoGuardado): GrupoDaLista => g;
+const itensDaLista = (id: string) => bd.itensDeLista!.filter(i => i.lista_id === id);
+const gruposDaLista = (id: string) => bd.gruposDeLista!.filter(g => g.lista_id === id);
+const listaLida = ({ demanda_id: _d, tarefa_id: _t, contrato_id: _k, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDoCartao =>
+  ({ ...l, itens: itensDaLista(l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido), grupos: gruposDaLista(l.id).map(grupoLido) });
+/** Se quem está logado pode mexer no checklist (pelo cartão dele). Quem não pode: criar é recusado (SEM_PERMISSAO, como a regra
+ *  RLS "tudo"); mudar e excluir não acham a linha e não mudam nada, sem erro, como no banco. */
+function alteroALista(listaId: string | undefined) {
+  const l = bd.listas!.find(x => x.id === listaId);
+  return !l?.contrato_id || CARTAO_DA_LISTA.contratos.altero(l.contrato_id);
+}
+/** A recusa de checklist_reordenar a quem não pode mexer no checklist. */
+const NAO_ALTERA_O_CHECKLIST = 'Você não pode alterar este checklist.';
+const listaDoItem = (id: string) => bd.itensDeLista!.find(i => i.id === id)?.lista_id;
+const listaDoGrupo = (id: string) => bd.gruposDeLista!.find(g => g.id === id)?.lista_id;
+/** Como o gatilho que confere a árvore (20261119142702): a mudança só fica se a árvore do checklist continua certa; senão,
+ *  tudo volta como estava e o erro é o do banco. */
+function conferirArvore(listaId: string, mudar: () => void) {
+  const [itens, grupos] = [bd.itensDeLista!.map(i => ({ ...i })), bd.gruposDeLista!.map(g => ({ ...g }))];
+  mudar();
+  const erro = erroDaArvore({ grupos: gruposDaLista(listaId), itens: itensDaLista(listaId) });
+  if (!erro) return;
+  [bd.itensDeLista, bd.gruposDeLista] = [itens, grupos];
+  throw new Error(erro);
+}
+/** Como o "on delete cascade": excluir o cartão exclui as listas dele, com os grupos e os itens. */
+function excluirListasDoCartao(campo: 'demanda_id' | 'tarefa_id' | 'contrato_id', id: string) {
+  const listas = new Set(bd.listas!.filter(l => l[campo] === id).map(l => l.id));
+  bd.listas = bd.listas!.filter(l => !listas.has(l.id));
+  bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
+  bd.gruposDeLista = bd.gruposDeLista!.filter(g => !listas.has(g.lista_id));
+}
+/** O grupo e o que fica dentro dele, em qualquer nível. */
+function gruposDentro(id: string): Set<string> {
+  const dentro = new Set([id]);
+  for (let crescendo = true; crescendo;) {
+    const antes = dentro.size;
+    bd.gruposDeLista!.forEach(g => { if (g.pai_id && dentro.has(g.pai_id)) dentro.add(g.id); });
+    crescendo = dentro.size > antes;
+  }
+  return dentro;
+}
+function nomeDoGrupoDoChecklist(nome: string) {
+  const n = nome.trim();
+  if (!n) throw new Error('Dê um nome ao grupo.');
+  if (n.length > TAMANHO_LISTA) throw new Error(`O nome do grupo pode ter até ${TAMANHO_LISTA} caracteres.`);
+  return n;
+}
 /** Como as regras do banco: nome e texto sem espaços nas pontas e não vazios, no tamanho de cada um. */
 function nomeDaLista(nome: string) {
   const n = nome.trim();
@@ -2584,6 +2654,7 @@ export const SD: Dados = {
       bd.historicoParcelas = bd.historicoParcelas!.filter(h => h.contrato_id !== id);
       bd.historicoContratos = bd.historicoContratos!.filter(h => h.contrato_id !== id);
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.contrato_id !== id);
+      excluirListasDoCartao('contrato_id', id);
       soltarDasAnotacoes('contratos', id);
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'contratos' && c.cartao_id === id));
       bd.demandas!.forEach(d => { if (d.contrato_id === id) d.contrato_id = null; });
@@ -2666,9 +2737,7 @@ export const SD: Dados = {
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'demandas' && c.cartao_id === id));
       // Como o "on delete set null" do banco: as tarefas da demanda ficam, só desligadas dela.
       bd.tarefas!.forEach(t => { if (t.demanda_id === id) Object.assign(t, { demanda_id: null, demanda_codigo: null }); });
-      const listas = new Set(bd.listas!.filter(l => l.demanda_id === id).map(l => l.id));
-      bd.listas = bd.listas!.filter(l => !listas.has(l.id));
-      bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
+      excluirListasDoCartao('demanda_id', id);
       auditar('demandas', 'exclusao', d); excluidas++;
     });
     gravar();
@@ -2732,9 +2801,7 @@ export const SD: Dados = {
       bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'tarefas' && c.cartao_id === id));
       bd.tempos = bd.tempos!.filter(r => r.tarefa_id !== id);
       soltarDasAnotacoes('tarefas', id);
-      const listas = new Set(bd.listas!.filter(l => l.tarefa_id === id).map(l => l.id));
-      bd.listas = bd.listas!.filter(l => !listas.has(l.id));
-      bd.itensDeLista = bd.itensDeLista!.filter(i => !listas.has(i.lista_id));
+      excluirListasDoCartao('tarefa_id', id);
       auditar('tarefas', 'exclusao', t); excluidas++;
     });
     gravar();
@@ -2826,40 +2893,93 @@ export const SD: Dados = {
     gravar(); return espera(undefined);
   },
 
-  // ---------- listas das demandas e das tarefas (como supabase/migrations/20261027000018_listas_das_demandas.sql e a migração 20261030130000) ----------
+  // ---------- listas das demandas, das tarefas e dos contratos (como supabase/migrations/20261027000018_listas_das_demandas.sql, a migração
+  // 20261030130000 e a 20261119142702, dos grupos) ----------
   listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
-  async listaCriar(modulo, id, nome, itens = []) {
-    const { campo, achar } = CARTAO_DA_LISTA[modulo];
+  // Como checklist_criar: a lista, os grupos e os itens de uma vez; se a árvore não serve, nada fica.
+  async listaCriar(modulo, id, nome, arvore = []) {
+    const { campo, achar, altero } = CARTAO_DA_LISTA[modulo];
     achar(id);
+    if (!altero(id)) return erro(SEM_PERMISSAO);
     const ordem = Math.max(0, ...bd.listas!.filter(l => l[campo] === id).map(l => l.ordem)) + 1;
     const l = { id: novoId(), [campo]: id, nome: nomeDaLista(nome), ordem, criado_em: agora() };
-    bd.listas!.push(l);
-    itens.forEach((texto, i) => bd.itensDeLista!.push({ id: novoId(), lista_id: l.id, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem: i + 1 }));
+    const plano = planoDoChecklist(arvore), chaves = new Map(plano.grupos.map(g => [g.chave, novoId()]));
+    const idDoPai = (chave: string | null) => chave === null ? null : chaves.get(chave)!;
+    const grupos = plano.grupos.map(g => ({ id: chaves.get(g.chave)!, lista_id: l.id, nome: nomeDoGrupoDoChecklist(g.nome), pai_id: idDoPai(g.pai), ordem: g.ordem, criado_em: agora() }));
+    const itens = plano.itens.map(i => ({ id: novoId(), lista_id: l.id, texto: textoDoItem(i.texto), prazo: null, feito_em: null, feito_por: null, ordem: i.ordem,
+      grupo_id: idDoPai(i.pai), criado_em: agora() }));
+    const erroDoPlano = erroDaArvore({ grupos, itens });
+    if (erroDoPlano) return erro(erroDoPlano);
+    bd.listas!.push(l); bd.gruposDeLista!.push(...grupos); bd.itensDeLista!.push(...itens);
     gravar(); return espera(listaLida(l));
   },
   async listaAtualizar(id, { nome, ordem }) {
     const l = bd.listas!.find(x => x.id === id); if (!l) return erro('Checklist não encontrado.');
+    if (!alteroALista(id)) return;
     Object.assign(l, nome === undefined ? {} : { nome: nomeDaLista(nome) }, ordem === undefined ? {} : { ordem }); gravar();
   },
   async listaExcluir(id) {
-    bd.listas = bd.listas!.filter(l => l.id !== id); bd.itensDeLista = bd.itensDeLista!.filter(i => i.lista_id !== id); gravar();
+    if (!alteroALista(id)) return;
+    bd.listas = bd.listas!.filter(l => l.id !== id);
+    bd.itensDeLista = bd.itensDeLista!.filter(i => i.lista_id !== id);
+    bd.gruposDeLista = bd.gruposDeLista!.filter(g => g.lista_id !== id);
+    gravar();
   },
-  async itemCriar(listaId, texto) {
+  async grupoDoChecklistCriar(listaId, nome, { pai_id, ordem }) {
     if (!bd.listas!.some(l => l.id === listaId)) return erro('Checklist não encontrado.');
-    const ordem = Math.max(0, ...bd.itensDeLista!.filter(i => i.lista_id === listaId).map(i => i.ordem)) + 1;
-    const item = { id: novoId(), lista_id: listaId, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem };
-    bd.itensDeLista!.push(item); gravar();
-    return espera(itemLido(item));
+    if (!alteroALista(listaId)) return erro(SEM_PERMISSAO);
+    const g = { id: novoId(), lista_id: listaId, nome: nomeDoGrupoDoChecklist(nome), pai_id, ordem, criado_em: agora() };
+    conferirArvore(listaId, () => { bd.gruposDeLista!.push(g); });
+    gravar(); return espera(grupoLido(g));
+  },
+  async grupoDoChecklistAtualizar(id, { nome }) {
+    const g = bd.gruposDeLista!.find(x => x.id === id); if (!g) return erro('Grupo não encontrado.');
+    if (!alteroALista(g.lista_id)) return;
+    g.nome = nomeDoGrupoDoChecklist(nome); gravar();
+  },
+  // Como o "on delete cascade": os subgrupos e os itens de dentro vão junto.
+  async grupoDoChecklistExcluir(id) {
+    if (!alteroALista(listaDoGrupo(id))) return;
+    const fora = gruposDentro(id);
+    bd.gruposDeLista = bd.gruposDeLista!.filter(g => !fora.has(g.id));
+    bd.itensDeLista = bd.itensDeLista!.filter(i => !i.grupo_id || !fora.has(i.grupo_id));
+    gravar();
+  },
+  // Sem "onde", como a versão anterior: no fim do checklist, depois da maior posição de grupos e itens, no primeiro nível.
+  async itemCriar(listaId, texto, onde) {
+    if (!bd.listas!.some(l => l.id === listaId)) return erro('Checklist não encontrado.');
+    if (!alteroALista(listaId)) return erro(SEM_PERMISSAO);
+    const { pai_id, ordem } = onde ?? { pai_id: null, ordem: Math.max(0, ...[...itensDaLista(listaId), ...gruposDaLista(listaId)].map(x => x.ordem)) + 1 };
+    const item = { id: novoId(), lista_id: listaId, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem, grupo_id: pai_id, criado_em: agora() };
+    conferirArvore(listaId, () => { bd.itensDeLista!.push(item); });
+    gravar(); return espera(itemLido(item));
   },
   // Como o gatilho preparar: marcar anota agora e quem marcou; mexer num item já feito não troca isso; desmarcar apaga os dois.
   async itemAtualizar(id, { feito, texto, ...campos }) {
     const item = bd.itensDeLista!.find(x => x.id === id); if (!item) return erro('Item não encontrado.');
+    // No banco, a linha que a regra esconde não volta, e o .single() de supabase.ts recusa.
+    if (!alteroALista(item.lista_id)) return erro(NAO_DEU);
     Object.assign(item, campos, texto === undefined ? {} : { texto: textoDoItem(texto) });
     if (feito === false) Object.assign(item, { feito_em: null, feito_por: null });
     if (feito && !item.feito_em) Object.assign(item, { feito_em: agora(), feito_por: eu });
     gravar(); return espera(itemLido(item));
   },
-  async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
+  async itemExcluir(id) {
+    if (!alteroALista(listaDoItem(id))) return;
+    bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar();
+  },
+  // Como checklist_reordenar: tudo de uma vez; um id que não é do checklist, ou uma árvore que não serve, desfaz tudo.
+  async listaReordenar(listaId, posicoes) {
+    if (!alteroALista(listaId)) return erro(NAO_ALTERA_O_CHECKLIST);
+    const [grupos, itens] = [gruposDaLista(listaId), itensDaLista(listaId)];
+    const doChecklist = (p: (typeof posicoes)[number]) => (p.tipo === 'grupo' ? grupos : itens).some(x => x.id === p.id);
+    if (!posicoes.every(doChecklist)) return erro(CHECKLIST_MUDOU);
+    conferirArvore(listaId, () => posicoes.forEach(p => {
+      if (p.tipo === 'grupo') Object.assign(grupos.find(g => g.id === p.id)!, { pai_id: p.pai_id, ordem: p.ordem });
+      else Object.assign(itens.find(i => i.id === p.id)!, { grupo_id: p.pai_id, ordem: p.ordem });
+    }));
+    gravar();
+  },
 
   // ---------- compromissos (como supabase/migrations/20261102141258_compromissos.sql) ----------
   compromissosListar(f = {}) {
@@ -3944,11 +4064,11 @@ export const SD: Dados = {
   },
   async diasExcluir(ids) { const fora = new Set(ids); bd.diasLancados = bd.diasLancados!.filter(d => !fora.has(d.id)); gravar(); },
 
-  // ---------- modelos de lista (como supabase/migrations/20261027000019_modelos_de_lista.sql) ----------
-  modelosListar: () => espera([...bd.modelos!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))),
-  async modeloCriar(nome, itens) {
-    const m = { id: novoId(), ...prepararModelo({ nome, itens }), criado_por: eu, atualizado_em: agora() } as ModeloDeLista;
-    bd.modelos!.push(m); gravar(); return espera(m);
+  // ---------- modelos de lista (como supabase/migrations/20261027000019_modelos_de_lista.sql e a 20261119142702, da árvore) ----------
+  modelosListar: () => espera([...bd.modelos!].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map(modeloLido)),
+  async modeloCriar(nome, arvore) {
+    const m = { id: novoId(), ...prepararModelo({ nome, arvore }), criado_por: eu, atualizado_em: agora() } as ModeloGuardado;
+    bd.modelos!.push(m); gravar(); return espera(modeloLido(m));
   },
   async modeloAtualizar(id, campos) {
     const m = bd.modelos!.find(x => x.id === id); if (!m) return erro('Modelo não encontrado.');

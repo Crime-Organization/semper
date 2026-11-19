@@ -2,6 +2,7 @@
 // então qualquer tela pergunta com: const ok = await confirmar('Título', 'Texto').
 // A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Campo } from './base';
 import { CampoData } from './base/CampoData';
 import { criarLoja } from './loja';
 import { estiloBotao } from './base/botao';
@@ -55,6 +56,25 @@ export function pedirTexto(titulo: string, valor = '', { multilinha = false, max
   });
 }
 
+/** O id do campo de escolha da janela de escolherNaJanela (só uma janela dessas fica aberta por vez). */
+const ESCOLHA = 'janela-escolha';
+/** Uma opção de escolherNaJanela: o valor devolvido e o nome que a pessoa lê. */
+export interface OpcaoDaJanela { valor: string; nome: string }
+/**
+ * Pede para escolher uma opção numa lista (um select com rótulo), como "Mover para pasta" e "Mover para grupo". Devolve o
+ * valor escolhido, ou null se a pessoa desistiu. "acao" é o nome do botão que confirma (de início, "Mover").
+ */
+export function escolherNaJanela({ titulo, rotulo, opcoes, atual, acao = 'Mover' }: { titulo: string; rotulo: string; opcoes: OpcaoDaJanela[]; atual: string; acao?: string }) {
+  return janela<string>({
+    titulo,
+    corpo: <Campo rotulo={rotulo} para={ESCOLHA}>
+      <select id={ESCOLHA} name="escolha" className="campo" defaultValue={atual}>
+        {opcoes.map(o => <option key={o.valor} value={o.valor}>{o.nome}</option>)}
+      </select>
+    </Campo>,
+    acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: acao, tipo: 'pri', valor: campos => String(campos.get('escolha') ?? atual) }]
+  });
+}
 
 /** A data da janela de pedirData: o campo de data de sempre (com o calendário pequeno, #357), que avisa cada mudança. */
 function DataDaJanela({ titulo, inicial, aoMudar }: { titulo: string; inicial: string; aoMudar: (texto: string) => void }) {

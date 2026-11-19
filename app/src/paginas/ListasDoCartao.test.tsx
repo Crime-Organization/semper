@@ -21,8 +21,8 @@ vi.mock('../dados', () => ({
     Pick<DadosListas & DadosModelos & DadosSessao, 'listasDoCartao' | 'listaAtualizar' | 'itemAtualizar' | 'modelosListar' | 'salvarPreferencia'>
 }));
 
-const item = (id: string, texto: string): ItemDaLista => ({ id, texto, prazo: null, feito_em: null, feito_por: null, ordem: 1 });
-const checklist = (): ListaDoCartao => ({ id: 'l1', nome: 'Pessoa jurídica', ordem: 1, itens: [item('i1', 'Atos constitutivos'), item('i2', 'Quadro de sócios')] });
+const item = (id: string, texto: string): ItemDaLista => ({ id, texto, prazo: null, feito_em: null, feito_por: null, ordem: 1, grupo_id: null, criado_em: '' });
+const checklist = (): ListaDoCartao => ({ id: 'l1', nome: 'Pessoa jurídica', ordem: 1, itens: [item('i1', 'Atos constitutivos'), item('i2', 'Quadro de sócios')], grupos: [] });
 const montar = (somenteLer = false) =>
   render(<MemoryRouter><Avisos /><ListasDoCartao modulo="demandas" id="d1" somenteLer={somenteLer} /></MemoryRouter>);
 const secao = () => screen.findByRole('region', { name: 'Checklist Pessoa jurídica' });
