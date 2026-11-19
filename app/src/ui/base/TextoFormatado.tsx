@@ -147,6 +147,12 @@ export interface AlvoDaFormatacao {
   /** Põe na caixa o resultado de um botão, com o trecho escolhido, de modo que o Ctrl+Z o desfaça. */
   trocar: (r: Escolha) => void;
   focar: () => void;
+  /**
+   * O botão de marca (B, I) com o cursor parado, sem trecho escolhido, quando a caixa sabe fazê-lo do seu jeito (o editor ao
+   * vivo liga a marca para o que se digitar, sem pôr "****" à mostra, #368). Diz se fez. Sem isso, valem os sinais com o cursor
+   * entre eles (alternarMarca).
+   */
+  marcarNoCursor?: (marca: MarcaDoBotao) => boolean;
 }
 
 /**
@@ -165,7 +171,11 @@ export function barraDeFormatacao(alvo: AlvoDaFormatacao) {
     alvo.trocar(r);
     return true;
   }
-  const marcar = (marca: MarcaDoBotao) => aplicar(e => alternarMarca(e, marca));
+  function marcar(marca: MarcaDoBotao): boolean {
+    const escolha = alvo.escolha();
+    if (escolha && escolha.inicio === escolha.fim && alvo.marcarNoCursor) return alvo.marcarNoCursor(marca);
+    return aplicar(e => alternarMarca(e, marca), escolha);
+  }
   /** Sobre um link, tira o link; fora dele, pede o endereço (a escolha fica guardada enquanto a janela está aberta). */
   async function link() {
     const escolha = alvo.escolha();
