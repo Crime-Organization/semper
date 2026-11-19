@@ -4,7 +4,8 @@
 // Para quem pode alterar o cartão (#356), cada bolinha já é a ação, sem ficha nem menu no meio: a do responsável abre direto a
 // busca para trocá-lo (sem responsável, ela aparece vazia, tracejada, para escolher um); a de um participante o tira na hora,
 // com o aviso no pé da tela e o Desfazer; e, depois dos participantes, a bolinha com "+" abre a busca só na equipe
-// (BuscaNaEquipe) para pôr mais alguém. Quem só lê vê as bolinhas com o nome na dica, sem ação.
+// (BuscaNaEquipe) para pôr mais alguém. A bolinha cuja ação seria recusada (no contrato, sair dele sem poder) fica desligada, com
+// o motivo na dica (`impedeTirar`, `impedeTrocar`). Quem só lê vê as bolinhas com o nome na dica, sem ação.
 import { useRef, type ReactNode } from 'react';
 import type { Membro } from '../dados';
 import { Avatar } from './Avatar';
@@ -54,6 +55,13 @@ export interface MudarAEquipe {
   cheia?: string;
   /** Uma mudança ainda grava: as bolinhas ficam desligadas até ela terminar, para uma não apagar a outra. */
   ocupado?: boolean;
+  /**
+   * Por que a bolinha deste participante não o tira (no contrato, quem sairia deixaria de poder alterá-lo): ela fica desligada,
+   * com o motivo na dica, em vez de oferecer uma ação que seria recusada. undefined: tira.
+   */
+  impedeTirar?: (p: PessoaDaEquipe) => string | undefined;
+  /** Por que a bolinha do responsável não abre a troca (no contrato, quem a passasse adiante ficaria de fora): o motivo na dica. */
+  impedeTrocar?: string;
   aoPor: (m: Membro) => unknown;
   aoTirar: (p: PessoaDaEquipe) => unknown;
   aoTrocarResponsavel: (m: Membro) => unknown;
@@ -63,7 +71,7 @@ interface Props {
   /** null: o cartão está sem responsável (aparece a bolinha vazia). */
   responsavel: PessoaDaEquipe | null;
   participantes: PessoaDaEquipe[];
-  /** Sem isto, as bolinhas são só para ver (quem só lê o cartão, o cartão arquivado, o contrato). */
+  /** Sem isto, as bolinhas são só para ver (quem só lê o cartão, o cartão arquivado). */
   mudar?: MudarAEquipe;
 }
 
@@ -77,28 +85,36 @@ export function EquipeDoCartao({ responsavel, participantes, mudar }: Props) {
   const mais = useRef<HTMLButtonElement>(null);
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
   const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.cheia;
+  // A bolinha do responsável que não pode ser passada adiante diz só quem ele é e o motivo, sem o "clique para trocar".
+  const impedeTrocar = responsavel ? mudar?.impedeTrocar : undefined;
+  const motivoDoResponsavel = mudar?.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
+  // Desligada, a bolinha de um participante diz quem ele é e por quê; ligada, a ação ("Tirar Ana Souza").
+  const motivoDoParticipante = (p: PessoaDaEquipe) => mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.impedeTirar?.(p);
   return <div className="equipe-cartao" role="group" aria-label="Equipe">
     {mudar
-      ? <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={mudar.ocupado} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
+      ? <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={!!motivoDoResponsavel} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
         bolinha={{
-          tamanho: TAMANHO_BOLINHA, motivoDesligado: mudar.ocupado ? GRAVANDO_A_EQUIPE : undefined, classe: 'equipe-bolinha' + (responsavel ? '' : ' vazia'),
+          tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoResponsavel, classe: 'equipe-bolinha' + (responsavel ? '' : ' vazia'),
           conteudo: <Bolinha p={responsavel} />,
-          dica: responsavel ? `${quemE(responsavel)}. Clique para trocar.` : `${SEM_RESPONSAVEL}. Clique para escolher.`,
-          rotulo: responsavel ? `${nomeDaBolinha(responsavel)}. ${TROCAR_O_RESPONSAVEL}` : `${SEM_RESPONSAVEL}. Escolher o responsável`,
+          dica: responsavel ? (impedeTrocar ? quemE(responsavel) : `${quemE(responsavel)}. Clique para trocar.`) : `${SEM_RESPONSAVEL}. Clique para escolher.`,
+          rotulo: responsavel ? (impedeTrocar ? nomeDaBolinha(responsavel) : `${nomeDaBolinha(responsavel)}. ${TROCAR_O_RESPONSAVEL}`) : `${SEM_RESPONSAVEL}. Escolher o responsável`,
           semCandidatos: responsavel ? { dica: `${quemE(responsavel)}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: nomeDaBolinha(responsavel) }
             : { dica: `${SEM_RESPONSAVEL}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: SEM_RESPONSAVEL }
         }} />
       : <SoParaVer dica={responsavel ? quemE(responsavel) : SEM_RESPONSAVEL} rotulo={responsavel ? nomeDaBolinha(responsavel) : SEM_RESPONSAVEL} vazia={!responsavel}><Bolinha p={responsavel} /></SoParaVer>}
     {(participantes.length > 0 || mudar) && <span className="equipe-traco" aria-hidden="true" />}
     {participantes.length > 0 && <span className="equipe-participantes">
-      {participantes.map(p => mudar
-        ? <button key={p.id} type="button" className="equipe-bolinha" aria-label={mudar.tirar(p)} {...propsDaDica(mudar.ocupado ? GRAVANDO_A_EQUIPE : mudar.tirar(p))}
-          aria-disabled={mudar.ocupado || undefined} onClick={() => {
-            if (mudar.ocupado) return;
+      {participantes.map(p => {
+        if (!mudar) return <SoParaVer key={p.id} dica={quemE(p)} rotulo={nomeDaBolinha(p)}><Bolinha p={p} /></SoParaVer>;
+        const motivo = motivoDoParticipante(p), impede = mudar.ocupado ? undefined : motivo;
+        return <button key={p.id} type="button" className="equipe-bolinha" aria-label={impede ? nomeDaBolinha(p) : mudar.tirar(p)}
+          {...propsDaDica(impede ? `${quemE(p)} · ${impede}` : motivo ?? mudar.tirar(p))} aria-description={impede}
+          aria-disabled={!!motivo || undefined} onClick={() => {
+            if (motivo) return;
             focarNoMais();
             void mudar.aoTirar(p);
-          }}><Bolinha p={p} /></button>
-        : <SoParaVer key={p.id} dica={quemE(p)} rotulo={nomeDaBolinha(p)}><Bolinha p={p} /></SoParaVer>)}
+          }}><Bolinha p={p} /></button>;
+      })}
     </span>}
     {mudar && <BuscaNaEquipe bolinha={{ tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoMais }} desligado={!!motivoDoMais} adicionar={mudar.por}
       buscar={mudar.candidatos} aoEscolher={m => void mudar.aoPor(m)} botao={mais} />}

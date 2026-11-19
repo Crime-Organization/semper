@@ -17,7 +17,7 @@ import { ProcessosDoCartao } from './ProcessosDoCartao';
 import { ParcelasDoContrato } from './financeiro/Parcelas';
 import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeDoContratoNoTopo } from './EquipeDoContratoNoTopo';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -95,11 +95,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const comPercentual = (papel: string, pct: number | null) => pct === null ? papel : `${papel} · ${fmtPercentual(pct)}`;
   const pessoaLigada = (pessoa: PessoaResumida, chave: string, detalhe: string): ItemLigado => ({ id: chave + pessoa.id, para: '/pessoas/?id=' + pessoa.id,
     codigo: pessoa.codigo, titulo: pessoa.nome, detalhe, selo: pessoa.arquivado_em ? 'Arquivada' : undefined });
-  const responsavel = naEquipe(ctx.equipe, k.responsavel_id, 'Advogado responsável');
   const participante = (p: Participacao) => pessoaLigada(p.pessoa, 'participante-', comPercentual('Participante', p.percentual));
-  const membroDe = (p: Participacao) => ctx.equipe.find(m => m.pessoa_id === p.pessoa.id);
-  const daEquipe = (p: Participacao) => !!membroDe(p);
-  const participantesDaEquipe = k.participantes.filter(daEquipe).map(p => naEquipe(ctx.equipe, membroDe(p)!.id, comPercentual('Participante', p.percentual)));
+  const daEquipe = (p: Participacao) => ctx.equipe.some(m => m.pessoa_id === p.pessoa.id);
   const partes: ItemLigado[] = [
     ...k.clientes.map(c => pessoaLigada(c, 'cliente-', 'Cliente')),
     ...k.participantes.filter(p => !daEquipe(p)).map(participante),
@@ -109,6 +106,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // valores), com ele ativo. Depois, as seções e os contadores leem de novo.
   const podeLigar = !k.arquivado_em && (podeAlterar || semValores);
   const depoisDeLigar = () => { aoMudar(); setVersaoHist(v => v + 1); };
+  // Depois de mudar a equipe nas bolinhas: a lista (a coluna do responsável), o cartão e o histórico leem de novo.
+  const depoisDaEquipe = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
 
   async function arquivar() {
@@ -161,7 +160,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>
 
     <div className="cartao-acoes">
-      <EquipeDoCartao responsavel={responsavel} participantes={participantesDaEquipe} />
+      {/* Quem altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. */}
+      <EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />
     </div>
     {!podeAlterar && <Nota>{semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}

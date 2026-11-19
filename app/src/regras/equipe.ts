@@ -77,6 +77,13 @@ export function candidatosAoContrato(equipe: Membro[], termo: string, noContrato
   return peloNome(equipe.filter(m => constaNosContratos(m) && !!m.pessoa_id && !noContrato.includes(m.pessoa_id)), termo);
 }
 
+/**
+ * Quem pode assumir o contrato pela bolinha do responsável (#356), com a mesma busca pelo nome: as opções do lápis
+ * (opcoesDeResponsavel: os advogados que constam nos contratos), menos o responsável de agora (`atual`, o id do usuário).
+ */
+export const responsaveisAoContrato = (equipe: Membro[], termo: string, atual: string): Membro[] =>
+  peloNome(opcoesDeResponsavel(equipe).filter(m => m.id !== atual), termo);
+
 /** Um participante na lista do contrato: o nome, o integrante da equipe (se é) e, se ele não poderia entrar hoje, o porquê. */
 export interface ParticipanteNaLista { nome: string; membro?: Membro; situacao: string | null }
 

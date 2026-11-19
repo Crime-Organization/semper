@@ -5,7 +5,7 @@
 // da Ana, que a criou, com o Mateus de participante; a demanda "Busca de anterioridade" não tem colaboradores e não tem o Bruno
 // (estagiário, não é administrador); a "Reunião de equipe" é do Mateus, sem participantes. Quem está logado é o Mateus (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, entrarComo } from './ajudantes';
+import { abrirSecao, adicionarParticipante, entrarComo } from './ajudantes';
 
 /** O cartão aberto (a janela com o título); a busca do "+" e a da troca do responsável também são janelas, sem título. */
 const cartaoAberto = (page: Page) => page.getByRole('dialog').filter({ has: page.getByRole('heading', { level: 2 }) });
@@ -218,5 +218,80 @@ test.describe('Equipe no topo dos outros cartões', () => {
     await expect(mateus).toHaveAttribute('data-dica', 'Mateus Freitas Gonçalves · Responsável');
     await mateus.click();
     await expect(page.getByRole('dialog', { name: 'Trocar o responsável' })).toHaveCount(0);
+  });
+});
+
+// No contrato, cada participante tem o seu % da divisão: quem entra pela bolinha com "+" fica com 0% (decisão do dono, 18/11), e o
+// % se muda em Editar. Na semente, o contrato de MARIA APARECIDA EXEMPLO é da Ana (advogada, administradora), sem participantes.
+test.describe('Equipe no topo do cartão do contrato', () => {
+  const abrirContrato = (page: Page) => abrirPelaTabela(page, '/contratos/', 'MARIA APARECIDA EXEMPLO');
+  /** O nome da bolinha do responsável do contrato, para quem pode trocá-lo. */
+  const doAdvogado = (nome: string) => `${nome}, Advogado responsável. Trocar o responsável`;
+
+  test('quando põe o Bruno pela bolinha com "+", então ele entra com 0% na divisão, e a mudança fica no histórico', async ({ page }) => {
+    // Dado
+    let cartao = await abrirContrato(page);
+    // Quando
+    await porPelaBolinha(page, cartao, 'Pôr participante', 'bru', 'Bruno Exemplo Souza');
+    // Então
+    await expect(page.getByText('Bruno Exemplo Souza agora participa do contrato, com 0% na divisão. O % se muda em Editar.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 0%' })).toBeVisible();
+    cartao = await fecharEAbrir(cartao, () => abrirContrato(page));
+    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 0%' })).toBeVisible();
+    await abrirSecao(cartao, 'Honorários');
+    await expect(cartao.getByText('BRUNO EXEMPLO SOUZA (0%)')).toBeVisible();
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText('Participantes: BRUNO EXEMPLO SOUZA (0%)')).toBeVisible();
+  });
+
+  test('dado um participante com 10% posto em Editar, quando clica na bolinha dele e desfaz, então ele volta com os 10%', async ({ page }) => {
+    // Dado
+    const cartao = await abrirContrato(page);
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await adicionarParticipante(cartao, 'bru', 'Bruno Exemplo Souza');
+    await cartao.getByRole('textbox', { name: '% do participante 1' }).fill('10');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Quando
+    await cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 10%' }).click();
+    // Então
+    await expect(page.getByText('Bruno Exemplo Souza saiu do contrato.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Tirar Bruno/ })).toHaveCount(0);
+    // O aviso de salvar a edição ainda pode estar na tela: o Desfazer da saída é o do aviso mais novo, o último.
+    await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).last().click();
+    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 10%' })).toBeVisible();
+  });
+
+  test('quando clica na bolinha do responsável, então a busca mostra só os outros advogados, e o escolhido passa a responder pelo contrato', async ({ page }) => {
+    // Dado
+    let cartao = await abrirContrato(page);
+    // Quando
+    await cartao.getByRole('button', { name: doAdvogado('Ana Teste Lima') }).click();
+    const painel = page.getByRole('dialog', { name: 'Trocar o responsável' });
+    // Então: o Bruno é estagiário, e a Carla, desativada, não é advogada
+    await expect(painel.getByRole('list', { name: 'Equipe' }).getByRole('button')).toHaveText(['Mateus Freitas Gonçalves']);
+    await painel.getByRole('button', { name: 'Mateus Freitas Gonçalves' }).click();
+    await expect(page.getByText('Advogado responsável pelo contrato: Mateus Freitas Gonçalves.')).toBeVisible();
+    cartao = await fecharEAbrir(cartao, () => abrirContrato(page));
+    await expect(cartao.getByRole('button', { name: doAdvogado('Mateus Freitas Gonçalves') })).toBeVisible();
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(cartao.getByText('Responsável: Ana Teste Lima → Mateus Freitas Gonçalves')).toBeVisible();
+  });
+
+  test('dado o Bruno, participante que não cadastrou o contrato nem o administra, quando chega à própria bolinha, então ela vem desligada e a dica diz por quê', async ({ page }) => {
+    // Dado
+    const cartao = await abrirContrato(page);
+    await porPelaBolinha(page, cartao, 'Pôr participante', 'bru', 'Bruno Exemplo Souza');
+    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 0%' })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    const doBruno = await abrirContrato(page);
+    const propria = doBruno.getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 0%' });
+    // Quando
+    await propria.focus();
+    // Então: sem a saída que pergunta antes (o contrato não a tem), a ação nem é oferecida
+    const motivo = 'Você não pode sair deste contrato: sem estar nele, deixaria de poder alterá-lo. Peça a quem o cadastrou ou a um administrador.';
+    await expect(propria).toHaveAttribute('aria-disabled', 'true');
+    await expect(propria).toHaveAccessibleDescription(motivo);
+    await expect(propria).toHaveAttribute('data-dica', `Bruno Exemplo Souza · Participante · 0% · ${motivo}`);
+    await expect(doBruno.getByRole('button', { name: /^Sair do contrato/ })).toHaveCount(0);
   });
 });
