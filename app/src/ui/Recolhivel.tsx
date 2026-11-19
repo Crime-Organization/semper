@@ -3,11 +3,11 @@
 // Toda seção começa recolhida. Com "preferencia", a escolha de cada usuário (aberta ou fechada) fica guardada e vale
 // na próxima vez. Toda seção tem ícone.
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
-// primeira mostra, logo acima dela e alinhado às setas, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas
-// abertas), que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
+// primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
+// só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BotaoLink, Contador } from './base';
-import { Icone, type NomeIcone } from './Icone';
+import { BotaoLink, Contador, propsDaDica } from './base';
+import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import type { NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
@@ -21,8 +21,13 @@ interface EstadoDoGrupo { primeira: string | null; todasAbertas: boolean; defini
 const InscricaoNoGrupo = createContext<Inscricao | null>(null);
 const EstadoDoGrupo = createContext<EstadoDoGrupo | null>(null);
 
-/** Põe as seções de dentro num grupo, com o botão de expandir e recolher todas acima da primeira. */
-export function GrupoDeSecoes({ children }: { children: ReactNode }) {
+/**
+ * Põe as seções de dentro num grupo, com o botão de expandir e recolher todas acima da primeira. Com `proprio={false}`, as seções
+ * ficam no grupo de fora (se houver), como se este não existisse: o mesmo lugar na árvore serve aos dois casos, e trocar um pelo
+ * outro não desmonta as seções (elas só mudam de grupo, abertas ou fechadas como estavam).
+ */
+export function GrupoDeSecoes({ proprio = true, children }: { proprio?: boolean; children: ReactNode }) {
+  const inscricaoDeFora = useContext(InscricaoNoGrupo), estadoDeFora = useContext(EstadoDoGrupo);
   const secoes = useRef(new Map<string, { aberta: boolean; definir: (aberta: boolean) => void }>());
   // Cada inscrição ou mudança redesenha o grupo (o estado das seções fica na referência).
   const [, setVersao] = useState(0);
@@ -43,17 +48,22 @@ export function GrupoDeSecoes({ children }: { children: ReactNode }) {
     todasAbertas: todas.length > 0 && todas.every(s => s.aberta),
     definirTodas: aberta => secoes.current.forEach(s => s.definir(aberta))
   };
-  return <InscricaoNoGrupo.Provider value={inscricao}>
-    <EstadoDoGrupo.Provider value={estado}>{children}</EstadoDoGrupo.Provider>
+  return <InscricaoNoGrupo.Provider value={proprio ? inscricao : inscricaoDeFora}>
+    <EstadoDoGrupo.Provider value={proprio ? estado : estadoDeFora}>{children}</EstadoDoGrupo.Provider>
   </InscricaoNoGrupo.Provider>;
 }
 
-/** O botão que abre ou fecha todas as seções do grupo, à direita, na coluna das setas. */
+/**
+ * O botão que abre ou fecha todas as seções do grupo, à direita, acima da primeira. Desde a #366, só o ícone das duas setas
+ * (para baixo: abre; para cima: fecha), redondo como os botões do cartão, sem texto: o nome ("Expandir tudo" ou "Recolher
+ * tudo") vai para o leitor de tela e para a dica, que aparece ao passar o mouse e no foco do teclado.
+ */
 function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
   const rotulo = estado.todasAbertas ? 'Recolher tudo' : 'Expandir tudo';
   return <div className="secoes-todas">
-    <button type="button" className="recolher-todas" onClick={() => estado.definirTodas(!estado.todasAbertas)}>
-      {rotulo}<Icone nome={estado.todasAbertas ? 'recolher' : 'expandir'} tam={16} />
+    <button type="button" className="cartao-botao recolher-todas" aria-label={rotulo} aria-expanded={estado.todasAbertas}
+      {...propsDaDica(rotulo)} onClick={() => estado.definirTodas(!estado.todasAbertas)}>
+      <Icone nome={estado.todasAbertas ? 'recolher' : 'expandir'} tam={ICONE_DO_TOPO} />
     </button>
   </div>;
 }

@@ -14,7 +14,7 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import type { AnotacaoLigada, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
 import type { ItemParaPedir, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
@@ -156,13 +156,13 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, prazo_aviso, lembrete_antes, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
-  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo), anotacoes(id, codigo, titulo)), '
+  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo), anotacoes(id, codigo, titulo), processos(id, codigo, titulo, tipo)), '
   + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
   + 'demanda:demandas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'tarefa:tarefas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero, data, hora, arquivado_em, etapa:quadro_colunas(marco, nome))';
 /** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
-const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo', anotacoes: 'titulo' };
+const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo', anotacoes: 'titulo', processos: 'titulo' };
 type CartaoDaMensagem = Record<string, string>;
 type EtapaDaLinha = { etapa: { marco: string | null; nome: string } | null; arquivado_em: string | null };
 type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora: string | null } & EtapaDaLinha;
@@ -208,7 +208,8 @@ function mensagemLida(l: LinhaDaMensagem): Mensagem {
   const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
   const cartao = modulo && c?.[modulo];
   if (!c || !modulo || !cartao) return { ...m, comentario: null };
-  return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]] } };
+  return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]],
+    tipo_do_processo: modulo === 'processos' ? cartao.tipo as TipoProcesso : null } };
 }
 /**
  * As mensagens do pedido para participar (#363), da tabela própria. O processo vem com o tipo (a página do cartão depende dele); para
@@ -225,7 +226,7 @@ const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem =
 const CAIXAS = ['mensagens', 'mensagens_de_participacao'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
 
 /** Quem vê o cartão sem estar nele não altera: nenhuma linha muda, e o quadro precisa voltar o cartão. */
 const conferirQueMudou = (linha: unknown) => { if (!linha) throw new Error('Você não tem permissão para fazer isso.'); };
@@ -363,6 +364,8 @@ const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes
 const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, pasta_id, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
 const CAMPOS_PASTA = 'id, nome, pasta_mae_id, criada_por, criada_em';
 const CAMPOS_ANOTACAO_LIGADA = 'id, codigo, titulo, criado_por, criado_em, atualizado_em, arquivado_em';
+/** As mesmas, com o texto: só para a seção "Anotações" aberta, na coluna do cartão (#360). */
+const CAMPOS_ANOTACAO_LIGADA_COM_TEXTO = `${CAMPOS_ANOTACAO_LIGADA}, texto`;
 /**
  * Para cada módulo: a coluna do item em anotacao_ligacoes, e de onde ler o item com os campos do nome (regras/anotacao.ts). As
  * leituras passam pelas regras de cada tabela: o que quem lê não pode abrir não vem. O contrato vem pela view, que diz quem o alcança.
@@ -376,6 +379,16 @@ const LIGACAO_DA_ANOTACAO: Record<ModuloDaAnotacao, { coluna: string; tabela: st
   compromissos: { coluna: 'compromisso_id', tabela: 'compromissos', campos: 'id, codigo, tipo, titulo, data, arquivado_em' }
 };
 const MODULOS_LIGADOS = Object.keys(LIGACAO_DA_ANOTACAO) as ModuloDaAnotacao[];
+/**
+ * As anotações ligadas ao item que quem lê vê (a regra de leitura delas), filtradas pela ligação ao item (com outro nome, como nas
+ * etiquetas), com os campos pedidos: sem o texto, para o número do cartão; com ele, só para a seção "Anotações" aberta (#360).
+ */
+async function anotacoesLigadasAoItem<T>(campos: string, modulo: ModuloDaAnotacao, itemId: string): Promise<T[]> {
+  const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+  const { data } = await rodar(sb.from('anotacoes').select(`${campos}, filtro:anotacao_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
+    .order('atualizado_em', { ascending: false }).order('id').limit(ANOTACOES_LIGADAS));
+  return (data as (T & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a as T);
+}
 // Ordem das anotações ("nome" é o título). Não há quadro: a ordem manual é a das atualizadas por último. O id no fim desempata a paginação.
 const ORDENS_ANOTACAO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('atualizado_em', { ascending: false }),
@@ -447,7 +460,7 @@ function juntarOsAchados(...listas: { id: string; criado_em: string }[][]): Livr
 }
 
 // ---------- andamentos e prazos do processo ----------
-const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, categoria, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
 const CAMPOS_PRAZO = 'id, processo_id, descricao, final, intimacao, dias, contagem, disponibilizacao, sem_recesso, andamento_id, tarefa_id, concluido_em, '
   + 'criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
 /** O banco devolve a hora com os segundos ("14:30:00"); a tela e o formulário usam hh:mm. */
@@ -1267,13 +1280,8 @@ export const SD: Dados = {
     const visiveis = ligacoes.flatMap(l => achados.filter(x => x.modulo === l.modulo && x.id === l.id));
     return { visiveis, ocultos: ligacoes.length - visiveis.length };
   },
-  async anotacoesDoItem(modulo, itemId) {
-    // As anotações que quem lê vê (a regra de leitura delas), filtradas pela ligação ao item (com outro nome, como nas etiquetas).
-    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
-    const { data } = await rodar(sb.from('anotacoes').select(`${CAMPOS_ANOTACAO_LIGADA}, filtro:anotacao_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
-      .order('atualizado_em', { ascending: false }).order('id').limit(ANOTACOES_LIGADAS));
-    return (data as (AnotacaoLigada & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a);
-  },
+  anotacoesDoItem: (modulo, itemId) => anotacoesLigadasAoItem<AnotacaoLigada>(CAMPOS_ANOTACAO_LIGADA, modulo, itemId),
+  anotacoesDoItemComTexto: (modulo, itemId) => anotacoesLigadasAoItem<AnotacaoLigadaComTexto>(CAMPOS_ANOTACAO_LIGADA_COM_TEXTO, modulo, itemId),
   itensParaLigar: (modulo, termo) => PARA_LIGAR[modulo](termo),
   async anotacoesParaLigar(modulo, itemId, termo) {
     // As que já estão ligadas a este item ficam fora da busca (as que quem lê não vê nem viriam). Um item com muitas anotações

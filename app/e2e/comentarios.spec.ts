@@ -89,7 +89,9 @@ test.describe('Comentários com @', () => {
   });
 
   // Desde o pedido do dono de 18/11, os comentários na coluna da direita são uma seção que recolhe, aberta de início, com o
-  // "Recolher tudo" / "Expandir tudo" no topo da coluna (antes, um bloco fixo, que não recolhia).
+  // "Recolher tudo" / "Expandir tudo" no topo da coluna (antes, um bloco fixo, que não recolhia). Desde a #360, a coluna também tem
+  // "Anotações" e "Histórico de alterações", que começam recolhidas: o botão começa como "Expandir tudo" e, depois de abrir as três,
+  // o "Recolher tudo" fecha todas, os comentários também.
   test('quando o cartão abre no centro, então os comentários ficam na coluna da direita, abertos, e o "Recolher tudo" do topo dela os recolhe', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
@@ -105,7 +107,9 @@ test.describe('Comentários com @', () => {
       const [fora, lado] = await Promise.all([janela.boundingBox(), caixa.boundingBox()]);
       return lado!.x > fora!.x + fora!.width / 2;
     }).toBe(true);
-    // Quando
+    // Quando: o botão do topo da coluna (o do corpo do cartão vem antes, na ordem da página) abre todas e, depois, recolhe todas
+    await janela.getByRole('button', { name: 'Expandir tudo' }).last().click();
+    await expect(janela.getByRole('button', { name: /^Histórico de alterações/ })).toHaveAttribute('aria-expanded', 'true');
     await janela.getByRole('button', { name: 'Recolher tudo' }).last().click();
     // Então
     await expect(secao).toHaveAttribute('aria-expanded', 'false');

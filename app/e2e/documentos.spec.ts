@@ -517,22 +517,56 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     // Dado
     await page.setViewportSize({ width: 1440, height: 900 });
     const janela = await criarAnotacao(page, 'Anotação no centro', { texto: 'Um texto.' });
+    const secoes = janela.getByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
+    const expandir = janela.getByRole('button', { name: 'Expandir tudo' });
+    // A folga entre o "Expandir tudo" e o título de "Comentários", logo abaixo dele, depois que a janela termina de entrar
+    const folga = async () => {
+      await page.evaluate(() => Promise.all(document.getAnimations()
+        .filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished)));
+      const [b, s] = [(await expandir.boundingBox())!, (await secoes.nth(0).boundingBox())!];
+      return s.y - (b.y + b.height);
+    };
+    // Ao lado, as seções ficam embaixo do texto, onde o vão entre as partes é o da anotação, e não o do cartão
+    const folgaAoLado = await folga();
     // Quando
     await janela.getByRole('button', { name: 'Abrir no centro da tela' }).click();
     // Então: as seções ficam à direita do texto
     const texto = (await janela.getByRole('textbox', { name: 'Texto', exact: true }).boundingBox())!;
-    const secoes = janela.getByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
     expect((await secoes.nth(0).boundingBox())!.x).toBeGreaterThan(texto.x + texto.width);
+    // E o "Expandir tudo" fica tão perto de "Comentários" quanto ficava ao lado (#366)
+    expect(Math.abs((await folga()) - folgaAoLado)).toBeLessThan(1);
     // Quando: "Expandir tudo", acima de "Comentários"
-    const expandir = janela.getByRole('button', { name: 'Expandir tudo' });
     expect((await expandir.boundingBox())!.y).toBeLessThan((await secoes.nth(0).boundingBox())!.y);
+    // Desde a #366: só o ícone, sem texto, no alto da coluna, encostado à direita como as setas das seções e logo abaixo dos
+    // botões da janela (o formato e o X), sem passar por baixo deles
+    expect(await expandir.innerText()).toBe('');
+    const [botao, secao, fechar, formato] = await Promise.all([expandir.boundingBox(), secoes.nth(0).boundingBox(),
+      janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox()]);
+    expect(Math.abs((botao!.x + botao!.width) - (secao!.x + secao!.width))).toBeLessThan(2);
+    expect(botao!.y).toBeGreaterThanOrEqual(Math.max(fechar!.y + fechar!.height, formato!.y + formato!.height));
+    // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai de "Comentários" e volta para ele)
+    const dicaVisivel = (b: typeof expandir) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
+    await secoes.nth(0).focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(expandir).toBeFocused();
+    await expect.poll(() => dicaVisivel(expandir)).toBe('1');
+    // E some quando o foco sai dele
+    await expandir.blur();
+    await expect.poll(() => dicaVisivel(expandir)).toBe('0');
+    // E aparece ao passar o mouse
+    await expandir.hover();
+    await expect.poll(() => dicaVisivel(expandir)).toBe('1');
     await expandir.click();
     // Então
     await expect(secoes.nth(0)).toHaveAttribute('aria-expanded', 'true');
     await expect(secoes.nth(1)).toHaveAttribute('aria-expanded', 'true');
     await expect(secoes.nth(2)).toHaveAttribute('aria-expanded', 'true');
+    // E a dica do "Recolher tudo" também aparece, com tudo aberto
+    const recolher = janela.getByRole('button', { name: 'Recolher tudo' });
+    await recolher.hover();
+    await expect.poll(() => dicaVisivel(recolher)).toBe('1');
     // Quando
-    await janela.getByRole('button', { name: 'Recolher tudo' }).click();
+    await recolher.click();
     // Então: todas recolhem, os comentários também
     await expect(secoes.nth(0)).toHaveAttribute('aria-expanded', 'false');
     await expect(secoes.nth(1)).toHaveAttribute('aria-expanded', 'false');
@@ -750,6 +784,35 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     expect(ligada.y).toBeGreaterThan(comentarios.y);
     // E a página não rola de lado
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  });
+});
+
+test.describe('O "Expandir tudo" só com o ícone num celular de toque (#366)', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test('dada uma anotação aberta num celular, quando a pessoa toca nas duas setas, então todas as seções abrem e a dica não fica parada por cima delas', async ({ page }) => {
+    // Dado
+    const anotacao = await criarAnotacao(page, 'Anotação no celular', { texto: 'Um texto.' });
+    expect(await page.evaluate(() => matchMedia('(hover: none)').matches)).toBe(true);
+    const secoes = anotacao.getByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
+    // Quando
+    await anotacao.getByRole('button', { name: 'Expandir tudo' }).tap();
+    // Então: todas abrem, e a dica do "Recolher tudo" não aparece só porque o dedo tocou ali
+    await expect(secoes.nth(0)).toHaveAttribute('aria-expanded', 'true');
+    await expect(secoes.nth(1)).toHaveAttribute('aria-expanded', 'true');
+    await expect(secoes.nth(2)).toHaveAttribute('aria-expanded', 'true');
+    const recolher = anotacao.getByRole('button', { name: 'Recolher tudo' });
+    await expect(recolher).toBeVisible();
+    // (o celular de verdade deixa o :hover preso no botão depois do toque; o toque do Playwright não deixa, então o ponteiro
+    // fica em cima dele, como o dedo deixaria)
+    await recolher.hover();
+    // (sem esperar a espera da dica passar: as transições terminam na hora, e fica o valor final)
+    expect(await recolher.evaluate(e => {
+      e.getAnimations({ subtree: true }).forEach(a => a.finish());
+      return getComputedStyle(e, '::after').opacity;
+    })).toBe('0');
+    // E a página não rola de lado
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
 });
 

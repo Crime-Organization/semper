@@ -2,8 +2,9 @@
 // vê e quem altera. Tudo puro, sem tela nem banco. As regras do banco são as mesmas (supabase/migrations/…_anotacoes.sql);
 // o banco fictício (dados/falso.ts) usa estas funções para se comportar igual.
 import type { Anotacao, AnotacaoParaLigar, Compromisso, Contrato, DadosAnotacao, Demanda, ItemDaAnotacao, ItemParaLigar, Membro, ModuloDaAnotacao, Pessoa, Processo, Tarefa } from '../dados/tipos';
-import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
+import { INICIO_DA_ANOTACAO, ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import { TIPOS_COMPROMISSO } from './compromisso';
+import { blocosDoTexto, textoDosPedacos, type TipoBloco } from './formatacao';
 import { clientesPorExtenso } from './contrato';
 import { ativoNaEquipe } from './equipe';
 import { fmtData } from './pessoa';
@@ -316,6 +317,26 @@ export function tituloDaCopia(titulo: string) {
     base += segment;
   }
   return base.trimEnd() + SUFIXO_DA_COPIA;
+}
+
+/** O que não entra no começo da anotação: a divisória (não tem texto) e a tabela (as células, soltas, não diriam nada). */
+const FORA_DO_INICIO: ReadonlySet<TipoBloco> = new Set(['divisoria', 'tabela']);
+/** O sinal de que o texto continua depois do começo mostrado. */
+export const CONTINUA = '…';
+/**
+ * O começo do texto da anotação, como a coluna do cartão de um item o mostra (#360): as primeiras linhas que têm o que ler, sem
+ * os sinais do Markdown (# do título, - da lista, ** do negrito, o endereço do link…), uma por linha, até o limite de linhas e
+ * de caracteres (sem partir um caractere ao meio). Se o texto continua, termina com "…". Texto vazio: "".
+ */
+export function inicioDaAnotacao(texto: string, limite: { linhas: number; caracteres: number } = INICIO_DA_ANOTACAO): string {
+  const linhas = blocosDoTexto(texto).filter(b => !FORA_DO_INICIO.has(b.tipo))
+    .flatMap(b => b.linhas.map(l => textoDosPedacos(l).trim())).filter(Boolean);
+  let inicio = '', cortado = linhas.length > limite.linhas, cabem = limite.caracteres;
+  for (const { segment } of GRAFEMAS.segment(linhas.slice(0, limite.linhas).join('\n'))) {
+    if (!cabem--) { cortado = true; break; }
+    inicio += segment;
+  }
+  return cortado ? inicio.trimEnd() + CONTINUA : inicio;
 }
 /** Quem duplica: quem é, o que pode na anotação original e a equipe do escritório. */
 export interface QuemCopia {

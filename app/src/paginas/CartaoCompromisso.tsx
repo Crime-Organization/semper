@@ -29,6 +29,7 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
@@ -193,13 +194,15 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
-    <AnotacoesDoCartao modulo="compromissos" id={c.id} somenteLer={somenteLer} />
-
-    <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={equipeEditaTudo(ctx.escritorio) ? undefined : motivoSemMencaoNoCompromisso(c, c.processo)} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="compromissos.cartao.historico" contador={historico}>
-      <HistoricoDoCartao carregar={() => SD.compromissoHistorico(c.id)} campos={CAMPOS_COMPROMISSO} valor={valorLegivelCompromisso} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
+        histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="compromissos" cartaoId={c.id} motivoSemMencao={equipeEditaTudo(ctx.escritorio) ? undefined : motivoSemMencaoNoCompromisso(c, c.processo)} />
+      <AnotacoesDoCartao modulo="compromissos" id={c.id} somenteLer={somenteLer} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="compromissos.coluna.historico" contador={historico}>
+        <HistoricoDoCartao carregar={() => SD.compromissoHistorico(c.id)} campos={CAMPOS_COMPROMISSO} valor={valorLegivelCompromisso} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criado em {dataCurta(c.criado_em)}{c.criado_por ? ' por ' + nomeDe(c.criado_por) : ''}</span>

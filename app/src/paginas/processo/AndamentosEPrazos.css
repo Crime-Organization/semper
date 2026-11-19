@@ -16,3 +16,22 @@
 .acomp-form-linha:has(.campo-quando) { grid-template-columns: repeat(auto-fit, minmax(min(var(--largura-minima-do-quando), 100%), 1fr)) }
 /* A busca da tarefa para ligar ao prazo (#341), aberta, ocupa a linha toda das ações. */
 .acomp-acoes > .busca-existente { flex: 1 1 100% }
+/* A linha do tempo dos andamentos (#362, na coluna da direita do cartão): uma bolinha na altura do topo de cada caixa, ligada à
+   da caixa de baixo por um traço (a última não tem traço). O "⋯" de cada caixa ("Mudar" e "Excluir") fica à direita do topo, sem
+   descer de linha quando os selos quebram, e só aparece ao passar o mouse, no foco do teclado e com o menu aberto; na tela de toque,
+   sempre. */
+.acomp-lista.linha-do-tempo { gap: var(--vao-da-linha-do-tempo); padding-left: var(--recuo-da-linha-do-tempo) }
+.acomp-lista.linha-do-tempo > li { position: relative; background: var(--superficie) }
+.acomp-lista.linha-do-tempo > li::before { content: ''; position: absolute; top: var(--topo-da-bolinha); left: calc(-1 * var(--recuo-da-linha-do-tempo) - 1px);
+  width: var(--bolinha-da-linha-do-tempo); height: var(--bolinha-da-linha-do-tempo); box-sizing: border-box; border-radius: 50%;
+  background: var(--superficie); border: var(--traco-da-linha-do-tempo) solid var(--gray) }
+.acomp-lista.linha-do-tempo > li:not(:last-child)::after { content: ''; position: absolute; top: calc(var(--topo-da-bolinha) + var(--bolinha-da-linha-do-tempo));
+  bottom: calc(-1 * (var(--vao-da-linha-do-tempo) + var(--topo-da-bolinha)) - 1px);
+  left: calc(-1 * var(--recuo-da-linha-do-tempo) - 1px + (var(--bolinha-da-linha-do-tempo) - var(--traco-da-linha-do-tempo)) / 2);
+  width: var(--traco-da-linha-do-tempo); background: var(--line2) }
+.acomp-topo:has(> .andamento-mais) { flex-wrap: nowrap; align-items: flex-start }
+.acomp-topo-info { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; flex: 1; min-width: 0 }
+.acomp-topo > .andamento-mais { width: var(--botao-da-linha); height: var(--botao-da-linha); flex-shrink: 0; opacity: 0; transition: opacity .15s ease-out }
+.acomp-lista > li:is(:hover, :focus-within) .andamento-mais, .andamento-mais[aria-expanded="true"] { opacity: 1 }
+@media (hover: none) { .acomp-topo > .andamento-mais { opacity: 1 } }
+.acomp-acoes:empty { display: none }

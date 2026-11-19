@@ -1,6 +1,7 @@
 // Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo, o nome
 // e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
-// numa seção que recolhe (prazos, andamentos, dados, clientes, tarefas, histórico).
+// numa seção que recolhe (prazos, dados, clientes, demandas, contratos, tarefas, compromissos). Na coluna da direita (no centro) ou
+// no pé do cartão (ao lado), desde a #362: comentários, andamentos (a linha do tempo), anotações e histórico de alterações.
 // Desde a #346, quem altera o processo muda o nome do cartão no próprio lugar, como na anotação (o lápis não o repete). Sem
 // nome, o título mostra os clientes (ou o número); o campo abre em branco, e apagar o nome volta a mostrá-los. O número
 // abaixo do título não vira campo: muda pelo lápis, com a conferência do CNJ.
@@ -10,10 +11,11 @@ import { TAMANHO_PROCESSO } from '../dados/limites';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
 import { linhasDosCampos, nomesNoHistorico, valorNoHistorico } from '../regras/camposDeProcesso';
 import { CAMPOS_NO_HISTORICO } from '../regras/andamentos';
-import { advogadoNaAdaptacao, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
+import { advogadoNaAdaptacao, equipeEditaTudo, equipeVeTudo, SO_LEITURA_DO_PROCESSO, SEM_COMPROMISSO_VISIVEL, SO_LEITURA_DO_PROCESSO_ADVOGADO, soLeOCartao } from '../regras/equipeVeTudo';
 import {
-  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
+  alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
+import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -26,6 +28,7 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
@@ -37,7 +40,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
-import { AndamentosEPrazos } from './processo/AndamentosEPrazos';
+import { AndamentosDoProcesso, PrazosDoProcesso, useAcompanhamento } from './processo/AndamentosEPrazos';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -78,6 +81,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   useEffect(() => { void lerCampos(); }, [lerCampos]);
   // Depois de desfazer: mostra o processo como ficou.
   useMudancas(() => { void carregar(); void lerCampos(); setVersaoHist(v => v + 1); });
+  // Os prazos (no corpo) e os andamentos (na coluna) leem juntos; cada mudança neles relê o histórico.
+  const acompanhamento = useAcompanhamento(id, () => setVersaoHist(v => v + 1));
 
   // O que cada seção tem, para o número ao lado do título.
   const modulos = ctx.escritorio?.modulos;
@@ -190,7 +195,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
 
-    <AndamentosEPrazos processo={p} soLeitura={!podeAlterar} aoMudar={() => setVersaoHist(v => v + 1)} />
+    <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} />
 
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
@@ -239,11 +244,18 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    <AnotacoesDoCartao modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico" contador={quantos.historico}>
-      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem dos outros cartões (#360), com os
+        andamentos entre os comentários e as anotações (#362). Quem só lê o processo também comenta, como nos outros cartões; com as
+        chaves da equipe, todos podem ser mencionados. A escolha de deixar cada seção aberta tem chave da coluna (".coluna."). */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="processos" cartaoId={p.id}
+        motivoSemMencao={equipeVeTudo(ctx.escritorio) || equipeEditaTudo(ctx.escritorio) ? undefined : motivoSemMencaoNoProcesso(p)} />
+      <AndamentosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} />
+      <AnotacoesDoCartao modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.coluna.historico" contador={quantos.historico}>
+        <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criado em {dataCurta(p.criado_em)}{p.criado_por ? ' por ' + nomeDe(p.criado_por) : ''}</span>

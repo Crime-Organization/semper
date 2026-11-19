@@ -23,6 +23,7 @@ import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { colunaComMarco } from '../regras/quadro';
@@ -231,13 +232,15 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>
 
-    <AnotacoesDoCartao modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} />
-
-    <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaDemanda(d)} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.cartao.historico" contador={historico}>
-      <HistoricoDoCartao carregar={() => SD.demandaHistorico(d.id)} campos={CAMPOS_DEMANDA} valor={valorLegivelDemanda} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
+        histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="demandas" cartaoId={d.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaDemanda(d)} />
+      <AnotacoesDoCartao modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="demandas.coluna.historico" contador={historico}>
+        <HistoricoDoCartao carregar={() => SD.demandaHistorico(d.id)} campos={CAMPOS_DEMANDA} valor={valorLegivelDemanda} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criada em {dataDaCriacao(d.criado_em)}{d.criado_por ? ' por ' + nomeDe(d.criado_por) : ''}</span>

@@ -1,7 +1,7 @@
 // Andamentos e prazos de um processo: o que cada tipo pede, a conferência dos formulários, a situação de cada prazo e a
 // tarefa que nasce de uma intimação ou de um prazo. Tudo puro, sem tela nem banco. As datas são "aaaa-mm-dd".
 // A contagem dos dias em si está em regras/prazos.ts; os dias sem expediente de cada órgão, em regras/calendario.ts.
-import type { AndamentoDeProcesso, DadosAndamento, DadosPrazo, DadosTarefa, MudancaNoAndamento, Processo, PrazoDeProcesso, TipoDeAndamento } from '../dados/tipos';
+import type { AndamentoDeProcesso, CategoriaDeAndamento, DadosAndamento, DadosPrazo, DadosTarefa, MudancaNoAndamento, Processo, PrazoDeProcesso, TipoDeAndamento } from '../dados/tipos';
 import { ANOS_DO_CALENDARIO, TAMANHO_ANDAMENTO, TAMANHO_PRAZO, TAMANHO_TAREFA } from '../dados/limites';
 import { anoAceito, dataExiste } from './calendario';
 import { fmtData } from './pessoa';
@@ -16,19 +16,72 @@ export const TIPOS_DE_ANDAMENTO: Record<TipoDeAndamento, { nome: string; lancado
   audiencia: { nome: 'Audiência', lancado: 'Audiência lançada.', rotuloData: 'Data da audiência', marcado: true },
   pericia: { nome: 'Perícia', lancado: 'Perícia lançada.', rotuloData: 'Data da perícia', marcado: true }
 };
-export const TIPOS_DE_ANDAMENTO_EM_ORDEM = Object.keys(TIPOS_DE_ANDAMENTO) as TipoDeAndamento[];
 
-/** O que a pessoa preenche no formulário do andamento. */
-export interface FormDoAndamento { tipo: TipoDeAndamento; data: string; hora: string; local: string; texto: string }
-export const andamentoNovo = (hoje: string): FormDoAndamento => ({ tipo: 'andamento', data: hoje, hora: '', local: '', texto: '' });
+/**
+ * A lista pronta dos tipos de andamento (#362, decisão do dono: a mesma para todos os escritórios), na ordem da tela: o nome, o
+ * aviso de quando é lançado e o tipo de sempre com que cada um combina (é ele que diz se o andamento fica "a tratar" ou tem hora e
+ * local). Tipo novo = uma entrada nova aqui e o valor novo na regra processo_andamentos_categoria_da_lista do banco
+ * (supabase/migrations/20261119103649_andamentos_tipo_e_comentarios_de_processos.sql), onde também está o par que combina.
+ */
+export const CATEGORIAS_DE_ANDAMENTO: Record<CategoriaDeAndamento, { nome: string; lancado: string; tipo: TipoDeAndamento }> = {
+  despacho: { nome: 'Despacho', lancado: 'Despacho lançado.', tipo: 'andamento' },
+  decisao: { nome: 'Decisão', lancado: 'Decisão lançada.', tipo: 'andamento' },
+  sentenca: { nome: 'Sentença', lancado: 'Sentença lançada.', tipo: 'andamento' },
+  intimacao: { nome: 'Intimação', lancado: 'Intimação lançada.', tipo: 'intimacao' },
+  peticao: { nome: 'Petição', lancado: 'Petição lançada.', tipo: 'andamento' },
+  audiencia: { nome: 'Audiência', lancado: 'Audiência lançada.', tipo: 'audiencia' }
+};
+
+/**
+ * O que a lista "Tipo" do formulário pode mostrar: os seis da lista pronta e, só ao mudar um andamento de antes que não tem tipo da
+ * lista, o tipo de sempre que ele já tem (a perícia ou o andamento comum), para ele não mudar sem querer. Quem lança um andamento
+ * novo escolhe sempre um dos seis (decisão do dono). Cada escolha diz o que vai para o banco.
+ */
+export type EscolhaDoTipo = CategoriaDeAndamento | TipoDeAndamento;
+interface Escolha { nome: string; lancado: string; tipo: TipoDeAndamento; categoria: CategoriaDeAndamento | null }
+const comoEscolha = (categoria: CategoriaDeAndamento): Escolha => ({ ...CATEGORIAS_DE_ANDAMENTO[categoria], categoria });
+const deAntes = (tipo: Extract<TipoDeAndamento, 'pericia' | 'andamento'>): Escolha => ({ nome: TIPOS_DE_ANDAMENTO[tipo].nome, lancado: TIPOS_DE_ANDAMENTO[tipo].lancado, tipo, categoria: null });
+export const ESCOLHAS_DO_TIPO: Record<EscolhaDoTipo, Escolha> = {
+  despacho: comoEscolha('despacho'), decisao: comoEscolha('decisao'), sentenca: comoEscolha('sentenca'),
+  intimacao: comoEscolha('intimacao'), peticao: comoEscolha('peticao'), audiencia: comoEscolha('audiencia'),
+  pericia: deAntes('pericia'), andamento: deAntes('andamento')
+};
+/** A lista pronta, na ordem da tela: é o que o formulário oferece a quem lança um andamento. */
+export const LISTA_PRONTA_DE_ANDAMENTOS = Object.keys(CATEGORIAS_DE_ANDAMENTO) as CategoriaDeAndamento[];
+/** O que a lista "Tipo" oferece: a lista pronta e, ao mudar um andamento de antes, o tipo que ele já tem, se não estiver nela. */
+export const escolhasDoFormulario = (f: Pick<FormDoAndamento, 'tipoDeAntes'>): EscolhaDoTipo[] =>
+  f.tipoDeAntes && !(LISTA_PRONTA_DE_ANDAMENTOS as EscolhaDoTipo[]).includes(f.tipoDeAntes) ? [...LISTA_PRONTA_DE_ANDAMENTOS, f.tipoDeAntes] : LISTA_PRONTA_DE_ANDAMENTOS;
+/**
+ * A escolha que o formulário mostra: o tipo da lista, quando há; senão, o tipo de sempre do andamento de antes que está sendo
+ * mudado. O andamento novo começa sem escolha (null), e a pessoa precisa escolher.
+ */
+export const escolhaDoTipo = (f: Pick<FormDoAndamento, 'categoria' | 'tipoDeAntes'>): EscolhaDoTipo | null => f.categoria ?? f.tipoDeAntes;
+/** O par que a escolha grava: o tipo de sempre e o da lista. */
+export const tipoDaEscolha = (e: EscolhaDoTipo): Pick<FormDoAndamento, 'tipo' | 'categoria'> => ({ tipo: ESCOLHAS_DO_TIPO[e].tipo, categoria: ESCOLHAS_DO_TIPO[e].categoria });
+/** O nome na caixa do andamento: o tipo da lista, quando há; senão, o tipo de sempre (os andamentos de antes continuam iguais). */
+export const nomeDoAndamento = (a: Pick<AndamentoDeProcesso, 'tipo' | 'categoria'>) =>
+  a.categoria ? CATEGORIAS_DE_ANDAMENTO[a.categoria].nome : TIPOS_DE_ANDAMENTO[a.tipo].nome;
+/** O aviso de quando o andamento é lançado, com o mesmo nome da caixa. */
+export const avisoDoLancamento = (f: Pick<FormDoAndamento, 'tipo' | 'categoria'>) =>
+  f.categoria ? CATEGORIAS_DE_ANDAMENTO[f.categoria].lancado : TIPOS_DE_ANDAMENTO[f.tipo].lancado;
+
+/**
+ * O que a pessoa preenche no formulário do andamento. tipoDeAntes é o tipo de sempre do andamento de antes, sem tipo da lista, que
+ * está sendo mudado (é o que a lista "Tipo" mostra para ele); no andamento novo e nos que têm tipo da lista, é null.
+ */
+export interface FormDoAndamento {
+  tipo: TipoDeAndamento; categoria: CategoriaDeAndamento | null; tipoDeAntes: TipoDeAndamento | null; data: string; hora: string; local: string; texto: string;
+}
+export const andamentoNovo = (hoje: string): FormDoAndamento => ({ tipo: 'andamento', categoria: null, tipoDeAntes: null, data: hoje, hora: '', local: '', texto: '' });
 export const formDoAndamento = (a: AndamentoDeProcesso): FormDoAndamento =>
-  ({ tipo: a.tipo, data: a.data, hora: a.hora ?? '', local: a.local ?? '', texto: a.texto });
+  ({ tipo: a.tipo, categoria: a.categoria, tipoDeAntes: a.categoria ? null : a.tipo, data: a.data, hora: a.hora ?? '', local: a.local ?? '', texto: a.texto });
 
 /** Data que o banco aceita: existe e está nos anos do calendário. */
 const dataBoa = (iso: string) => dataExiste(iso) && anoAceito(iso);
 
 export function errosDoAndamento(f: FormDoAndamento): Partial<Record<keyof FormDoAndamento, string>> {
   const erros: Partial<Record<keyof FormDoAndamento, string>> = {};
+  if (!escolhaDoTipo(f)) erros.tipo = 'Escolha o tipo do andamento.';
   if (!dataBoa(f.data)) erros.data = 'Informe uma data válida.';
   if (!f.texto.trim()) erros.texto = 'Escreva o que aconteceu.';
   else if (f.texto.trim().length > TAMANHO_ANDAMENTO.texto) erros.texto = `Use até ${TAMANHO_ANDAMENTO.texto} caracteres.`;
@@ -39,7 +92,19 @@ export function errosDoAndamento(f: FormDoAndamento): Partial<Record<keyof FormD
 /** O que vai para o banco. Hora e local só valem em audiência e perícia. */
 export function dadosDoAndamento(f: FormDoAndamento): DadosAndamento {
   const marcado = TIPOS_DE_ANDAMENTO[f.tipo].marcado;
-  return { tipo: f.tipo, data: f.data, hora: marcado && f.hora ? f.hora : null, local: marcado && f.local.trim() ? f.local.trim() : null, texto: f.texto.trim() };
+  return { tipo: f.tipo, categoria: f.categoria, data: f.data, hora: marcado && f.hora ? f.hora : null, local: marcado && f.local.trim() ? f.local.trim() : null, texto: f.texto.trim() };
+}
+
+/** Se o tipo da lista combina com o tipo de sempre (como a regra processo_andamentos_categoria_do_tipo do banco). Sem tipo da lista, sempre. */
+export const categoriaCombina = (a: Pick<AndamentoDeProcesso, 'tipo' | 'categoria'>) => !a.categoria || CATEGORIAS_DE_ANDAMENTO[a.categoria].tipo === a.tipo;
+/**
+ * O andamento depois de uma mudança, como o gatilho acertar_categoria do banco: quem muda só o tipo de sempre (a versão anterior
+ * do site, que não conhece o tipo da lista) deixa sem tipo da lista o andamento cujo tipo da lista não combina mais.
+ */
+export function comCategoriaAcertada<A extends Pick<AndamentoDeProcesso, 'tipo' | 'categoria'>>(antes: A, mudanca: Partial<NoInfer<A>>): A {
+  const novo = { ...antes, ...mudanca };
+  const soOTipo = mudanca.tipo !== undefined && mudanca.tipo !== antes.tipo && mudanca.categoria === undefined;
+  return soOTipo && !categoriaCombina(novo) ? { ...novo, categoria: null } : novo;
 }
 
 /** O que muda ao salvar a edição: quem deixa de ser intimação deixa de estar "tratada" (o banco não aceita as duas coisas). */
@@ -59,9 +124,12 @@ export const quandoDoAndamento = (a: Pick<AndamentoDeProcesso, 'data' | 'hora' |
 
 /** Quantos caracteres do texto da intimação entram no título da tarefa. */
 const TEXTO_NO_TITULO = 120;
-/** A linha do andamento no histórico do processo (igual à função privado.linha_do_andamento do banco). */
-export const linhaDoAndamento = (a: Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em'>) =>
-  `${TIPOS_DE_ANDAMENTO[a.tipo].nome} de ${quandoDoAndamento(a)}: ${a.texto}${a.tratada_em ? ' (tratada)' : ''}`;
+/**
+ * A linha do andamento no histórico do processo (igual à função privado.linha_do_andamento do banco, a de sete argumentos, de
+ * 20261119103649_andamentos_tipo_e_comentarios_de_processos.sql): começa pelo tipo da lista, quando há.
+ */
+export const linhaDoAndamento = (a: Pick<AndamentoDeProcesso, 'tipo' | 'categoria' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em'>) =>
+  `${nomeDoAndamento(a)} de ${quandoDoAndamento(a)}: ${a.texto}${a.tratada_em ? ' (tratada)' : ''}`;
 
 // ---------- prazos ----------
 /** Como a data do prazo é definida: calculada pelo calendário ou digitada à mão. */

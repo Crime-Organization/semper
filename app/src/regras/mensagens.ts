@@ -1,25 +1,30 @@
 // Caixa de mensagens (#112): para onde cada mensagem leva e como ela aparece. A tela só chama estas funções.
 import { MAIOR_CONTADOR_DE_MENSAGENS, TRECHO_DA_MENSAGEM } from '../dados/limites';
-import type { AvisoDePrazo, ModuloComentado, ModuloDoPrazo, PrazoDaMensagem, PrazoParado } from '../dados/tipos';
+import type { AvisoDePrazo, ModuloComentado, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, TipoProcesso } from '../dados/tipos';
 import { rotuloDoPrazo, situacaoDoPrazoNoProcesso, diasAte, type SituacaoDoPrazoNoProcesso } from './andamentos';
 import { prazoComHora, rotuloDoLembrete } from './lembrete';
+import { TIPOS_PROCESSO } from './processo';
 
 /** O parâmetro do endereço que diz qual comentário mostrar quando o cartão abre. */
 export const PARAMETRO_DO_COMENTARIO = 'comentario';
 
-/** A página de cada módulo e o nome do cartão dele. Módulo novo com comentários = uma entrada nova. */
-export const CARTAO_DO_MODULO: Record<ModuloComentado, { pagina: string; nome: string }> = {
-  pessoas: { pagina: '/pessoas/', nome: 'Pessoa' },
-  contratos: { pagina: '/contratos/', nome: 'Contrato' },
-  demandas: { pagina: '/demandas/', nome: 'Demanda' },
-  tarefas: { pagina: '/tarefas/', nome: 'Tarefa' },
-  compromissos: { pagina: '/agenda/', nome: 'Compromisso' },
-  anotacoes: { pagina: '/documentos/', nome: 'Anotação' }
+/**
+ * A página de cada módulo e o nome do cartão dele. Módulo novo com comentários = uma entrada nova. A página do processo depende do
+ * tipo dele (#362); sem o tipo, o painel de Processos.
+ */
+export const CARTAO_DO_MODULO: Record<ModuloComentado, { pagina: (tipoDoProcesso: TipoProcesso | null) => string; nome: string }> = {
+  pessoas: { pagina: () => '/pessoas/', nome: 'Pessoa' },
+  contratos: { pagina: () => '/contratos/', nome: 'Contrato' },
+  demandas: { pagina: () => '/demandas/', nome: 'Demanda' },
+  tarefas: { pagina: () => '/tarefas/', nome: 'Tarefa' },
+  compromissos: { pagina: () => '/agenda/', nome: 'Compromisso' },
+  anotacoes: { pagina: () => '/documentos/', nome: 'Anotação' },
+  processos: { pagina: t => t ? TIPOS_PROCESSO[t].caminho : '/processos/', nome: 'Processo' }
 };
 
 /** O endereço que abre o cartão no comentário da mensagem. */
-export function enderecoDoComentario(modulo: ModuloComentado, cartaoId: string, comentarioId: string) {
-  return `${CARTAO_DO_MODULO[modulo].pagina}?${new URLSearchParams({ id: cartaoId, [PARAMETRO_DO_COMENTARIO]: comentarioId })}`;
+export function enderecoDoComentario(modulo: ModuloComentado, cartaoId: string, comentarioId: string, tipoDoProcesso: TipoProcesso | null = null) {
+  return `${CARTAO_DO_MODULO[modulo].pagina(tipoDoProcesso)}?${new URLSearchParams({ id: cartaoId, [PARAMETRO_DO_COMENTARIO]: comentarioId })}`;
 }
 
 /** O começo do comentário, numa linha só, para a lista. */

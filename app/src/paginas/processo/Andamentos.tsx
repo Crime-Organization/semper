@@ -1,28 +1,37 @@
-// Os andamentos no cartão do processo, dos mais novos aos mais antigos. A intimação fica "a tratar" até virar tarefa ou até
-// alguém marcar que ela não precisa de tarefa; dela também nasce um prazo, já com a data da intimação.
-import { useId, useState, type FormEvent } from 'react';
+// Os andamentos no cartão do processo, dos mais novos aos mais antigos, numa linha do tempo (desde a #362, na coluna da direita).
+// Cada andamento tem o tipo da lista pronta (despacho, decisão, sentença, intimação, petição, audiência; os de antes, o tipo de
+// sempre), escolhido ao lançar. "Mudar" e "Excluir" ficam no menu "⋯" à direita da caixa, que aparece ao passar o mouse e no foco
+// do teclado; quem só lê o processo não o vê. A intimação fica "a tratar" até virar tarefa ou até alguém marcar que ela não precisa
+// de tarefa; dela também nasce um prazo, já com a data da intimação.
+import { useId, useState, type FormEvent, type MouseEvent } from 'react';
 import { Link } from 'react-router';
 import { SD, type AndamentoDeProcesso, type DadosPrazo, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { ANDAMENTOS_DO_PROCESSO, TAMANHO_ANDAMENTO } from '../../dados/limites';
 import {
-  andamentoNovo, aTratar, dadosDoAndamento, errosDoAndamento, formDoAndamento, mudancaDoAndamento, prazoNovo, quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO, TIPOS_DE_ANDAMENTO_EM_ORDEM,
-  type FormDoAndamento
+  andamentoNovo, aTratar, avisoDoLancamento, dadosDoAndamento, errosDoAndamento, ESCOLHAS_DO_TIPO, escolhaDoTipo, escolhasDoFormulario, formDoAndamento, mudancaDoAndamento,
+  nomeDoAndamento, prazoNovo, quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO, tipoDaEscolha, type EscolhaDoTipo, type FormDoAndamento
 } from '../../regras/andamentos';
 import { falha, feito } from '../../ui/avisos';
 import { Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
-import { Botao, BotaoDuplo } from '../../ui/Botoes';
+import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { MenuFlutuante } from '../../ui/Menu';
 import { useCtx } from '../../ui/sessao';
 import { dataHora, hojeISO } from '../../ui/util';
 import { FormDoPrazo } from './FormDoPrazo';
 import { arquivarTarefaCriada, criarTarefaLigada, quemRecebe } from './tarefaDoProcesso';
 
 /** O que o formulário grava: para desfazer uma mudança sem mexer no que veio depois (tarefa). tratada_em volta só se a mudança a limpou. */
-const comoEstava = ({ tipo, data, hora, local, texto, tratada_em }: AndamentoDeProcesso, mudouOTipo: boolean) =>
-  ({ tipo, data, hora, local, texto, ...(mudouOTipo ? { tratada_em } : {}) });
+const comoEstava = ({ tipo, categoria, data, hora, local, texto, tratada_em }: AndamentoDeProcesso, mudouOTipo: boolean) =>
+  ({ tipo, categoria, data, hora, local, texto, ...(mudouOTipo ? { tratada_em } : {}) });
+
+/** O que a lista "Tipo" mostra enquanto o andamento novo ainda não tem tipo (escolher é obrigatório). */
+const SEM_TIPO = 'Escolha o tipo';
 
 /** O que está aberto no cartão: o formulário de novo andamento, a mudança de um andamento ou o prazo que nasce de uma intimação. */
 type Aberto = { o: 'novo' } | { o: 'mudar'; id: string } | { o: 'prazo'; id: string } | null;
+/** O nome do andamento para o leitor de tela e para o menu "⋯": "Despacho de 10/11/2026". */
+const nomeCompleto = (a: AndamentoDeProcesso) => `${nomeDoAndamento(a)} de ${quandoDoAndamento(a)}`;
 
 function FormDoAndamentoNaTela({ inicial, mudando, aoSalvar, aoCancelar }: { inicial: FormDoAndamento; mudando?: boolean; aoSalvar: (f: FormDoAndamento) => Promise<void>; aoCancelar: () => void }) {
   const id = useId();
@@ -41,9 +50,10 @@ function FormDoAndamentoNaTela({ inicial, mudando, aoSalvar, aoCancelar }: { ini
   }
   return <form className="acomp-form" noValidate aria-label={mudando ? 'Mudar andamento' : 'Novo andamento'} onSubmit={salvar}>
     <div className="acomp-form-linha">
-      <Campo rotulo="Tipo" para={id + 'tipo'}>
-        <select {...propsDoCampo(id + 'tipo')} value={f.tipo} onChange={e => mudar({ tipo: e.target.value as FormDoAndamento['tipo'] })}>
-          {TIPOS_DE_ANDAMENTO_EM_ORDEM.map(t => <option key={t} value={t}>{TIPOS_DE_ANDAMENTO[t].nome}</option>)}
+      <Campo rotulo="Tipo" para={id + 'tipo'} obrigatorio erro={erros.tipo}>
+        <select {...propsDoCampo(id + 'tipo', { erro: erros.tipo })} value={escolhaDoTipo(f) ?? ''} onChange={e => mudar(tipoDaEscolha(e.target.value as EscolhaDoTipo))}>
+          {!escolhaDoTipo(f) && <option value="" disabled>{SEM_TIPO}</option>}
+          {escolhasDoFormulario(inicial).map(t => <option key={t} value={t}>{ESCOLHAS_DO_TIPO[t].nome}</option>)}
         </select>
       </Campo>
       <Campo rotulo={tipo.rotuloData} para={id + 'data'} obrigatorio erro={erros.data}>
@@ -83,11 +93,13 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
   const ctx = useCtx();
   const hoje = hojeISO();
   const [aberto, setAberto] = useState<Aberto>(null);
+  /** O menu "⋯" aberto: o botão que o abriu e o andamento dele. */
+  const [menu, setMenu] = useState<{ botao: HTMLElement; andamento: AndamentoDeProcesso } | null>(null);
   const nomeDe = (id: string | null) => ctx.equipe.find(m => m.id === id)?.nome || 'Usuário removido';
 
   async function lancar(f: FormDoAndamento) {
     const novo = await SD.processoAndamentoCriar(p.id, dadosDoAndamento(f));
-    feito(TIPOS_DE_ANDAMENTO[f.tipo].lancado, 'lançamento do andamento', async () => { await SD.processoAndamentoExcluir(novo.id); });
+    feito(avisoDoLancamento(f), 'lançamento do andamento', async () => { await SD.processoAndamentoExcluir(novo.id); });
     setAberto(null); await aoMudar();
   }
   async function mudar(a: AndamentoDeProcesso, f: FormDoAndamento) {
@@ -128,20 +140,27 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
     setAberto(null); await aoMudar();
   }
 
+  const abrirMenu = (e: MouseEvent<HTMLButtonElement>, a: AndamentoDeProcesso) => setMenu({ botao: e.currentTarget, andamento: a });
+  const doMenu = (acao: (a: AndamentoDeProcesso) => unknown) => () => { const a = menu!.andamento; setMenu(null); void acao(a); };
+
   return <div className="acomp">
     {!andamentos.length && aberto?.o !== 'novo' && <Nota>Nenhum andamento lançado.</Nota>}
     {aberto?.o === 'novo'
       ? <FormDoAndamentoNaTela inicial={andamentoNovo(hoje)} aoSalvar={lancar} aoCancelar={() => setAberto(null)} />
       : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> Novo andamento</button></div>}
-    <ul className="acomp-lista" aria-label="Andamentos do processo">
+    <ul className="acomp-lista linha-do-tempo" aria-label="Andamentos do processo">
       {andamentos.map(a => {
         if (aberto?.o === 'mudar' && aberto.id === a.id) return <li key={a.id}><FormDoAndamentoNaTela mudando inicial={formDoAndamento(a)} aoSalvar={f => mudar(a, f)} aoCancelar={() => setAberto(null)} /></li>;
         const nascidos = prazos.filter(z => z.andamento_id === a.id);
-        return <li key={a.id}>
+        return <li key={a.id} aria-label={nomeCompleto(a)}>
           <div className="acomp-topo">
-            <Selo tipo="arq">{TIPOS_DE_ANDAMENTO[a.tipo].nome}</Selo>
-            <b>{quandoDoAndamento(a)}</b>
-            {aTratar(a) && <Selo tipo="pend">A tratar</Selo>}
+            <div className="acomp-topo-info">
+              <Selo tipo="arq">{nomeDoAndamento(a)}</Selo>
+              <b>{quandoDoAndamento(a)}</b>
+              {aTratar(a) && <Selo tipo="pend">A tratar</Selo>}
+            </div>
+            {!somenteLer && <button type="button" className="icone-btn andamento-mais" aria-label={`Ações do andamento: ${nomeCompleto(a)}`} aria-haspopup="menu"
+              aria-expanded={menu?.andamento.id === a.id} onClick={e => abrirMenu(e, a)}><Icone nome="pontos" tam={15} /></button>}
           </div>
           <p className="acomp-texto">{a.texto}</p>
           <p className="nota">Lançado por {nomeDe(a.criado_por)} em {dataHora(a.criado_em)}.{nascidos.length ? ` Prazo: ${nascidos.map(z => z.descricao).join(', ')}.` : ''}</p>
@@ -152,8 +171,6 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
             {!somenteLer && a.tipo === 'intimacao' && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => setAberto({ o: 'prazo', id: a.id })}>Lançar prazo</button>}
             {!somenteLer && aTratar(a) && <Botao forma="mini" onClick={() => marcarTratada(a, true)}>Não precisa de tarefa</Botao>}
             {!somenteLer && a.tipo === 'intimacao' && a.tratada_em && !a.tarefa_id && <Botao forma="mini" onClick={() => marcarTratada(a, false)}>Voltar a tratar</Botao>}
-            {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o andamento de ${quandoDoAndamento(a)}`} onClick={() => setAberto({ o: 'mudar', id: a.id })}><Icone nome="editar" tam={13} /> Mudar</button>}
-            {!somenteLer && <BotaoDuplo pequeno variante="perigo" confirmar="Confirmar: excluir este andamento" aoConfirmar={() => excluir(a)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
           </div>
           {aberto?.o === 'prazo' && aberto.id === a.id && <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao, a)} orgao={orgao} siglaDoProcesso={p.orgao}
             aoSalvar={lancarPrazo} aoCancelar={() => setAberto(null)} />}
@@ -161,5 +178,10 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
       })}
     </ul>
     {andamentos.length >= ANDAMENTOS_DO_PROCESSO && <Nota>Mostrando os {ANDAMENTOS_DO_PROCESSO} andamentos mais novos.</Nota>}
+    {/* Excluir não pede confirmação: o aviso no pé da tela tem o Desfazer, que devolve o andamento como estava. */}
+    {menu && <MenuFlutuante botao={menu.botao} aoFechar={() => setMenu(null)} rotulo={`Ações do andamento: ${nomeCompleto(menu.andamento)}`}>
+      <button type="button" role="menuitem" onClick={doMenu(a => setAberto({ o: 'mudar', id: a.id }))}><Icone nome="editar" tam={15} /> Mudar</button>
+      <button type="button" role="menuitem" className="perigo" onClick={doMenu(excluir)}><Icone nome="lixeira" tam={15} /> Excluir</button>
+    </MenuFlutuante>}
   </div>;
 }

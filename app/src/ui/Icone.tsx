@@ -72,6 +72,11 @@ const ICONES = {
   anexo: '<path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.1-8.1a3.3 3.3 0 014.7 4.7l-8.1 8.1a1.7 1.7 0 01-2.4-2.4l7.4-7.4"/>'
 };
 export type NomeIcone = keyof typeof ICONES;
+/**
+ * Tamanho dos ícones dos botões redondos do cartão (os do topo e os do painel). A anotação usa o mesmo nos dela, e o "Expandir
+ * tudo" das seções também (#366).
+ */
+export const ICONE_DO_TOPO = 18;
 
 export function Icone({ nome, tam = 17 }: { nome: NomeIcone; tam?: number }) {
   return <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"

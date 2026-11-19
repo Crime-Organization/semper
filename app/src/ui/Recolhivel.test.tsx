@@ -4,7 +4,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { iniciarPreferencias, lerPreferencia } from './preferencias';
-import { Recolhivel } from './Recolhivel';
+import { GrupoDeSecoes, Recolhivel } from './Recolhivel';
 
 describe('Seção recolhível', () => {
   it('quando começa fechada, então só o título aparece', () => {
@@ -79,5 +79,37 @@ describe('O número ao lado do título', () => {
     render(<Recolhivel titulo="Tarefas" icone="tarefas"><p>nada</p></Recolhivel>);
     // Então
     expect(screen.getByRole('button', { name: 'Tarefas' })).toBeInTheDocument();
+  });
+});
+
+describe('Um grupo dentro de outro (#360)', () => {
+  it('dado um grupo que não é próprio, dentro do grupo do cartão, quando abre, então as seções dele entram no de fora: um botão só, que abre todas', async () => {
+    // Dado
+    render(<GrupoDeSecoes>
+      <Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel>
+      <GrupoDeSecoes proprio={false}><Recolhivel titulo="Histórico" icone="relogio"><p>As mudanças</p></Recolhivel></GrupoDeSecoes>
+    </GrupoDeSecoes>);
+    // Então
+    expect(screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ })).toHaveLength(1);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
+    // Então
+    expect(screen.getByText('Os dados')).toBeInTheDocument();
+    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+  });
+
+  it('dado um grupo próprio dentro do do cartão, quando abre, então cada um tem o seu botão, que abre só as dele', async () => {
+    // Dado
+    render(<GrupoDeSecoes>
+      <Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel>
+      <GrupoDeSecoes><Recolhivel titulo="Histórico" icone="relogio"><p>As mudanças</p></Recolhivel></GrupoDeSecoes>
+    </GrupoDeSecoes>);
+    const botoes = screen.getAllByRole('button', { name: 'Expandir tudo' });
+    expect(botoes).toHaveLength(2);
+    // Quando
+    await userEvent.click(botoes[1]);
+    // Então
+    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+    expect(screen.queryByText('Os dados')).not.toBeInTheDocument();
   });
 });

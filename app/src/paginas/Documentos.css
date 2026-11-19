@@ -100,7 +100,10 @@ span.pasta-abrir { cursor: default }
 /* ---------- A anotação aberta e a nova, na janela do cartão ----------
    Larga e limpa, na medida de um documento, com bastante ar entre o topo, o título e o texto. A classe é só dela: a .nota é a
    da peça <Nota>, que vale no sistema todo. */
-.anotacao-aberta { width: 100%; max-width: var(--medida-documento); margin-inline: auto; display: flex; flex-direction: column; gap: 22px }
+.anotacao-aberta { --anotacao-vao: 22px; width: 100%; max-width: var(--medida-documento); margin-inline: auto; display: flex; flex-direction: column; gap: var(--anotacao-vao) }
+/* Ao lado (e na janela estreita), as seções da coluna ficam aqui, com o vão da anotação, e não o do cartão: o "Expandir tudo"
+   delas (#366) desconta este vão, para ficar com o vão de sempre entre botões redondos até a primeira seção. */
+.anotacao-aberta > .cartao-coluna-lugar > .cartao-coluna-secoes > .secoes-todas:first-child { margin-bottom: calc(var(--botao-redondo-vao) - var(--anotacao-vao)) }
 /* O topo numa linha só: o caminho da pasta à esquerda; a equipe, a etiqueta e o ⋯ à direita. Sem espaço, as ações descem. */
 .anotacao-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-height: var(--botao-redondo) }
 /* Ao lado (e na janela estreita), a etiqueta e o ⋯ vão para a linha dos botões da janela, por cima do topo: ele reserva o lugar deles

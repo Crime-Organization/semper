@@ -24,6 +24,7 @@ import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -247,13 +248,15 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>
 
-    <AnotacoesDoCartao modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} />
-
-    <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, t.demanda)} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.cartao.historico" contador={historico}>
-      <HistoricoDoCartao carregar={() => SD.tarefaHistorico(t.id)} campos={CAMPOS_TAREFA} valor={valorLegivelTarefa} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
+        histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="tarefas" cartaoId={t.id} motivoSemMencao={veTudo ? undefined : motivoSemMencaoNaTarefa(t, t.demanda)} />
+      <AnotacoesDoCartao modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="tarefas.coluna.historico" contador={historico}>
+        <HistoricoDoCartao carregar={() => SD.tarefaHistorico(t.id)} campos={CAMPOS_TAREFA} valor={valorLegivelTarefa} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criada em {dataDaCriacao(t.criado_em)}{t.criado_por ? ' por ' + nomeDe(t.criado_por) : ''}</span>

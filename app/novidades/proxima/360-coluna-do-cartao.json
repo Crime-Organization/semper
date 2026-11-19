@@ -1,0 +1,5 @@
+{
+  "titulo": "Comentários, anotações e histórico na coluna do cartão",
+  "texto": "Com o cartão aberto no centro, a coluna da direita mostra, nesta ordem, os comentários (abertos), as anotações ligadas e o histórico de alterações (recolhidos), cada um com o seu número. Cada anotação aparece como um comentário, com o título e o começo do texto num fundo creme; um clique a abre. Com o cartão ao lado, ou numa tela estreita, as três seções ficam no pé do cartão, na mesma ordem.",
+  "ondeAchar": "Em qualquer cartão (Pessoas, Contratos, Demandas, Tarefas, Processos e Agenda): a coluna da direita, no centro, ou o pé do cartão, ao lado."
+}

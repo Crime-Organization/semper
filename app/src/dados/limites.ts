@@ -208,6 +208,11 @@ export const ITENS_DA_ANOTACAO = 50;
 export const TAMANHO_NOME_DO_ARQUIVO = 120;
 /** Quantas anotações entram na seção "Anotações" do cartão de um item (as atualizadas mais recentemente). */
 export const ANOTACOES_LIGADAS = 200;
+/**
+ * O começo do texto de cada anotação na coluna do cartão de um item (#360): até quantas linhas (as que têm o que ler) e até
+ * quantos caracteres, como um comentário curto, e não o texto inteiro.
+ */
+export const INICIO_DA_ANOTACAO = { linhas: 3, caracteres: 220 };
 /** Quantas alterações do histórico aparecem no cartão da anotação. */
 export const HISTORICO_DA_ANOTACAO = 100;
 /** Quantos itens a busca para ligar oferece enquanto se digita, no cartão da anotação. */
