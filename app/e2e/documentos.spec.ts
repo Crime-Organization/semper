@@ -3,7 +3,8 @@
 // Desde os pedidos do dono de 18/11, a página é como o Obsidian: o explorador (as pastas com as anotações dentro) à esquerda, que
 // se recolhe, e a tabela no centro. A anotação abre na janela do cartão, como os outros cartões (ao lado, de início, ou no centro),
 // com as etiquetas no topo e o texto já na caixa de escrever, salvando sozinho; os comentários, "Ligada a" e o histórico ficam
-// embaixo do texto (ao lado) ou na coluna da direita da janela (no centro). A anotação nova abre na janela do cadastro.
+// embaixo do texto (ao lado) ou na coluna da direita da janela (no centro). A anotação nova abre na janela do cadastro. No
+// explorador, a anotação se arrasta para uma pasta (#370).
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -1517,6 +1518,161 @@ async function arrastar(caixa: Locator, de: string, ate: string) {
 }
 /** O botão Negrito da barra de formatação. */
 const negrito = (onde: Locator) => onde.getByRole('button', { name: 'Negrito (Ctrl+B)' });
+
+// O pedido do dono (#370): no explorador, arrastar uma anotação e soltá-la numa pasta, ou em "Sem pasta", para tirá-la delas. Com
+// o mouse, com o dedo, e pelo ⋯ da anotação ("Mover para pasta"), para quem usa o teclado.
+test.describe('Arrastar a anotação para uma pasta, no explorador (#370)', () => {
+  /** O meio de um elemento na tela. */
+  async function meio(alvo: Locator) {
+    const caixa = (await alvo.boundingBox())!;
+    return { x: caixa.x + caixa.width / 2, y: caixa.y + caixa.height / 2 };
+  }
+  /** Arrasta com o mouse a anotação do explorador até a linha da pasta (ou de "Sem pasta"), aos poucos, como uma pessoa. */
+  async function arrastar(page: Page, titulo: string, destino: string) {
+    const de = await meio(arvore(page).getByRole('link', { name: titulo }));
+    await page.mouse.move(de.x, de.y);
+    await page.mouse.down();
+    await page.mouse.move(de.x + 10, de.y - 4, { steps: 3 });
+    const para = await meio(arvore(page).getByRole('button', { name: destino, exact: true }));
+    await page.mouse.move(para.x, para.y, { steps: 8 });
+    await page.mouse.up();
+  }
+  /** A anotação dentro da pasta, no explorador. */
+  const naPasta = (page: Page, pasta: string, titulo: string) =>
+    arvore(page).getByRole('listitem').filter({ has: page.getByRole('button', { name: pasta, exact: true }) }).getByRole('link', { name: titulo });
+
+  test('dada uma anotação fora das pastas, quando a pessoa a arrasta com o mouse até uma pasta, então ela vai para a pasta, que abre para mostrá-la, e o Desfazer a devolve', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await criarPasta(page, 'Escritório');
+    await criarAnotacao(page, 'Ata solta');
+    await page.goto('/documentos/');
+    await expect(arvore(page).getByRole('link', { name: 'Ata solta' })).toBeVisible();
+    // Quando
+    await arrastar(page, 'Ata solta', 'Escritório');
+    // Então: ela está na pasta, no explorador e na tabela, e soltá-la não a abriu
+    await expect(page.getByText('Anotação levada para a pasta Escritório.')).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'O que está em Escritório' })).toHaveAttribute('aria-expanded', 'true');
+    await expect(naPasta(page, 'Escritório', 'Ata solta')).toBeVisible();
+    await expect(titulosNaTabela(page).filter({ hasText: 'Ata solta' })).toContainText('Escritório');
+    await expect(anotacaoAberta(page)).toHaveCount(0);
+    // Quando
+    await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).last().click();
+    // Então
+    await expect(titulosNaTabela(page).filter({ hasText: 'Ata solta' })).not.toContainText('Escritório');
+    await expect(naPasta(page, 'Escritório', 'Ata solta')).toHaveCount(0);
+  });
+
+  test('dada uma anotação numa pasta, quando a pessoa a arrasta, então a linha do alto vira "Sem pasta", e soltá-la ali a tira das pastas', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await criarPasta(page, 'Escritório');
+    await criarAnotacao(page, 'Ata da pasta', { endereco: '/documentos/nova/?pasta=' + await idDaPasta(page, 'Escritório') });
+    await page.goto('/documentos/');
+    await arvore(page).getByRole('button', { name: 'O que está em Escritório' }).click();
+    // Quando: começa a arrastar
+    const de = await meio(arvore(page).getByRole('link', { name: 'Ata da pasta' }));
+    await page.mouse.move(de.x, de.y);
+    await page.mouse.down();
+    await page.mouse.move(de.x + 10, de.y - 4, { steps: 3 });
+    // Então
+    await expect(arvore(page).getByRole('button', { name: 'Sem pasta' })).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'Todos os documentos' })).toHaveCount(0);
+    // Quando
+    const para = await meio(arvore(page).getByRole('button', { name: 'Sem pasta' }));
+    await page.mouse.move(para.x, para.y, { steps: 8 });
+    await page.mouse.up();
+    // Então
+    await expect(page.getByText('Anotação levada para fora das pastas.')).toBeVisible();
+    await expect(arvore(page).getByRole('button', { name: 'Todos os documentos' })).toBeVisible();
+    await expect(naPasta(page, 'Escritório', 'Ata da pasta')).toHaveCount(0);
+    await expect(titulosNaTabela(page).filter({ hasText: 'Ata da pasta' })).not.toContainText('Escritório');
+  });
+
+  test('dada uma anotação, quando a pessoa usa só o teclado, então o ⋯ dela tem "Mover para pasta", que a leva para a pasta escolhida', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await criarPasta(page, 'Modelos');
+    await criarAnotacao(page, 'Minuta');
+    await page.goto('/documentos/');
+    // Quando
+    await arvore(page).getByRole('button', { name: 'Ações da anotação Minuta' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menuitem', { name: 'Mover para pasta' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    const janela = page.getByRole('dialog', { name: 'Mover "Minuta" para a pasta' });
+    await janela.getByRole('combobox', { name: 'Pasta' }).selectOption({ label: 'Modelos' });
+    await janela.getByRole('button', { name: 'Mover' }).press('Enter');
+    // Então
+    await expect(page.getByText('Anotação levada para a pasta Modelos.')).toBeVisible();
+    await expect(naPasta(page, 'Modelos', 'Minuta')).toBeVisible();
+    // O foco fica na anotação, no lugar novo (e não no começo da página)
+    await expect(naPasta(page, 'Modelos', 'Minuta')).toBeFocused();
+  });
+
+  test('dada uma anotação aberta, quando a pessoa usa "Mover para pasta" no ⋯ dela, então o caminho no topo mostra a pasta nova', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await criarPasta(page, 'Modelos');
+    const anotacao = await criarAnotacao(page, 'Minuta aberta');
+    // Quando
+    await noMenu(page, anotacao, 'Mover para pasta');
+    const janela = page.getByRole('dialog', { name: 'Mover "Minuta aberta" para a pasta' });
+    await janela.getByRole('combobox', { name: 'Pasta' }).selectOption({ label: 'Modelos' });
+    await janela.getByRole('button', { name: 'Mover' }).click();
+    // Então
+    await expect(page.getByText('Anotação levada para a pasta Modelos.')).toBeVisible();
+    await expect(caminho(anotacao).getByRole('link')).toHaveText(['Modelos']);
+  });
+
+  test('dado o celular, quando a pessoa segura o dedo numa anotação da gaveta e o leva até uma pasta, então ela vai para a pasta', async ({ browser, baseURL }) => {
+    // Dado: um celular, com toque
+    const contexto = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
+    const page = await contexto.newPage();
+    await page.goto('/documentos/');
+    const gaveta = page.getByRole('button', { name: 'Pastas e anotações' });
+    await gaveta.click();
+    await arvore(page).getByRole('button', { name: 'Nova pasta' }).click();
+    await page.getByRole('textbox', { name: 'Nova pasta' }).fill('Modelos');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByText('Pasta "Modelos" criada.')).toBeVisible();
+    // A pasta nova fica escolhida, e escolher uma pasta fecha a gaveta (como em qualquer pasta)
+    await expect(gaveta).toHaveAttribute('aria-expanded', 'false');
+    await criarAnotacao(page, 'Nota do celular');
+    await page.goto('/documentos/');
+    await page.getByRole('button', { name: 'Pastas e anotações' }).click();
+    // Quando: segura o dedo na anotação e o leva até a pasta (o toque de verdade, pelo Chromium)
+    const toque = await contexto.newCDPSession(page);
+    const tocar = (type: 'touchStart' | 'touchMove' | 'touchEnd', pontos: { x: number; y: number }[]) => toque.send('Input.dispatchTouchEvent', { type, touchPoints: pontos });
+    const de = await meio(arvore(page).getByRole('link', { name: 'Nota do celular' }));
+    const para = await meio(arvore(page).getByRole('button', { name: 'Modelos', exact: true }));
+    await tocar('touchStart', [de]);
+    await expect(arvore(page).getByRole('button', { name: 'Sem pasta' })).toBeVisible();
+    const passos = 8;
+    for (let i = 1; i <= passos; i++) await tocar('touchMove', [{ x: de.x + (para.x - de.x) * i / passos, y: de.y + (para.y - de.y) * i / passos }]);
+    await tocar('touchEnd', []);
+    // Então
+    await expect(page.getByText('Anotação levada para a pasta Modelos.')).toBeVisible();
+    await expect(naPasta(page, 'Modelos', 'Nota do celular')).toBeVisible();
+    await contexto.close();
+  });
+
+  test('dada uma anotação que um usuário comum só lê, quando ele a vê no explorador, então não há o ⋯ e arrastá-la não muda a pasta', async ({ page }) => {
+    // Dado: o Mateus cria a pasta e uma anotação ligada à demanda em que o Bruno está; o Bruno só a lê
+    await page.goto('/documentos/');
+    await criarPasta(page, 'Modelos');
+    await abrirComoQuemSoLe(page, 'Lida pelo Bruno', 'Texto');
+    await page.goto('/documentos/');
+    await expect(arvore(page).getByRole('link', { name: 'Lida pelo Bruno' })).toBeVisible();
+    // Então
+    await expect(arvore(page).getByRole('button', { name: 'Ações da anotação Lida pelo Bruno' })).toHaveCount(0);
+    // Quando
+    await arrastar(page, 'Lida pelo Bruno', 'Modelos');
+    // Então: nada mudou
+    await expect(page.getByText(/Anotação levada/)).toHaveCount(0);
+    await expect(naPasta(page, 'Modelos', 'Lida pelo Bruno')).toHaveCount(0);
+  });
+});
 
 test.describe('Formatar o texto de uma anotação já criada (#364): o clique escolhe a palavra que a pessoa vê', () => {
   // Antes da #368, os sinais escondidos (**, o "- " da bolinha, o endereço do link) apareciam na linha do cursor e empurravam o

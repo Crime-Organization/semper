@@ -69,17 +69,25 @@ span.pasta-abrir { cursor: default }
   background: none; color: var(--muted); cursor: pointer }
 .pasta-mais:hover { background: var(--line2); color: var(--ink) }
 .pasta-mais:disabled { opacity: .45; cursor: default; background: none; color: var(--muted) }
-/* O ⋯ de cada pasta aparece ao passar o mouse ou com o foco; no toque, fica sempre à vista. */
-.pasta-linha .pasta-mais { opacity: 0; transition: opacity .15s ease-out }
-.pasta-linha:hover .pasta-mais, .pasta-linha:focus-within .pasta-mais, .pasta-linha .pasta-mais[aria-expanded="true"] { opacity: 1 }
-@media (hover: none) { .pasta-linha .pasta-mais { opacity: 1 } }
-/* Cada anotação, uma linha só (o título longo termina em "…"), recuada sob a pasta dela, na altura do ícone da pasta. A aberta tem o
-   fundo da pasta escolhida. */
-.explorador-anotacao { display: flex; align-items: center; min-height: 32px; padding: 0 8px 0 calc(24px + var(--nivel, 0) * var(--recuo-da-pasta)); border-radius: 6px;
-  font-size: var(--texto-tabela); color: var(--text); text-decoration: none; transition: background-color .15s ease-out }
+/* O ⋯ de cada pasta (e de cada anotação que a pessoa altera) aparece ao passar o mouse ou com o foco; no toque, fica sempre à vista. */
+:is(.pasta-linha, .explorador-item) .pasta-mais { opacity: 0; transition: opacity .15s ease-out }
+:is(.pasta-linha, .explorador-item):is(:hover, :focus-within) .pasta-mais, :is(.pasta-linha, .explorador-item) .pasta-mais[aria-expanded="true"] { opacity: 1 }
+@media (hover: none) { :is(.pasta-linha, .explorador-item) .pasta-mais { opacity: 1 } }
+/* A pasta (ou "Sem pasta") por cima da qual a anotação arrastada passa (#370), com o tracejado do alvo do quadro. */
+.pasta-linha.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px; background: var(--soft) }
+.pastas-arvore.arrastando, .pastas-arvore.arrastando * { cursor: grabbing }
+/* Cada anotação, uma linha só (o título longo termina em "…"), recuada sob a pasta dela, na altura do ícone da pasta, com o ⋯ à
+   direita para quem a altera. A aberta tem o fundo da pasta escolhida. O título não se seleciona nem abre o menu do navegador ao
+   segurar o dedo: segurar começa o arrasto (#370). A arrastada fica apagada no lugar de onde saiu. */
+.explorador-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-radius: 6px; transition: background-color .15s ease-out, opacity .15s ease-out }
+.explorador-item:hover { background: var(--soft) }
+.explorador-item.atual { background: var(--line) }
+.explorador-item.arrastando { opacity: .45 }
+.explorador-anotacao { display: flex; align-items: center; min-width: 0; min-height: 32px; padding: 0 8px 0 calc(24px + var(--nivel, 0) * var(--recuo-da-pasta)); border-radius: 6px;
+  font-size: var(--texto-tabela); color: var(--text); text-decoration: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none }
 .explorador-anotacao > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.explorador-anotacao:hover { background: var(--soft); color: var(--ink) }
-.explorador-anotacao.atual { background: var(--line); color: var(--ink); font-weight: 700 }
+.explorador-anotacao:hover { color: var(--ink) }
+.explorador-anotacao.atual { color: var(--ink); font-weight: 700 }
 .explorador-anotacao:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
 .pastas-arvore .carregando { margin: 8px 10px }
 .pastas-vazio { margin: 8px 10px; font-size: var(--texto-miudo); line-height: 1.45; color: var(--muted) }

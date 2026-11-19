@@ -119,6 +119,8 @@
   --largura-da-hora: 128px;
   /* O campo da data de início mudada no próprio cartão (dd/mm/aaaa e o botão do calendário) */
   --largura-do-inicio-no-cartao: 160px;
+  /* A largura máxima do nome do item que segue o ponteiro no arrasto (#370): um título comprido termina em reticências */
+  --largura-do-fantasma: 240px;
   /* A sombra do que flutua por cima da página, como o calendário e os menus (vale nos dois temas: sombra é sempre escura) */
   --sombra-flutuante: 0 12px 36px rgba(0,0,0,.2);
 }
@@ -576,6 +578,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Fora da ordem manual, a coluna de destino inteira fica marcada (o lugar do cartão vem da ordem escolhida). */
 .coluna.recebendo { outline: 2px dashed var(--accent); outline-offset: -2px }
 .kmarcador-col { flex: 0 0 4px; align-self: stretch; border-radius: 4px; background: var(--accent) }
+/* O nome do item que segue o ponteiro no arrasto (ui/arrastar.tsx, #370): um pouco abaixo e à direita dele, para o dedo não o
+   cobrir; o ponteiro passa através, até o alvo. A camada 95 fica por cima das gavetas (40), das janelas (80), do calendário (85)
+   e dos avisos do pé (90), e abaixo só da faixa do banco (1000). */
+.arrasto-fantasma {
+  --longe-do-ponteiro-x: 14px; --longe-do-ponteiro-y: 10px;   /* quanto o nome fica à direita e abaixo do ponteiro */
+  position: fixed; z-index: 95; top: 0; left: 0; transform: translate(calc(var(--x) + var(--longe-do-ponteiro-x)), calc(var(--y) + var(--longe-do-ponteiro-y))); max-width: var(--largura-do-fantasma);
+  padding: 6px 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--superficie); color: var(--ink); box-shadow: var(--sombra-flutuante);
+  font-size: var(--texto-tabela); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none }
 /* Grupo de colunas: aberto, emoldura as colunas; fechado, vira uma faixa estreita com o nome na vertical. */
 .grupo-colunas { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 100%; padding: 8px; border: 1px solid var(--line2); border-radius: 14px }
 .grupo-topo { display: flex; align-items: center; gap: 8px; flex-shrink: 0 }

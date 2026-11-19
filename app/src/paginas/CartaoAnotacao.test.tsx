@@ -13,6 +13,7 @@ import type { Anotacao, DadosAnotacoes, DadosComentarios, DadosEtiquetas, DadosP
 import { acharEditor, escreverNoEditor, textoDoEditor } from '../testes/editorAoVivo';
 import { Avisos } from '../ui/avisos';
 import { lojaDeEtiquetas } from '../ui/Etiquetas';
+import { lojaDePastas } from '../ui/pastasDoEscritorio';
 import { ESPERA_PARA_SALVAR } from '../ui/tempos';
 import { Janelas } from '../ui/janela';
 import { BotoesNoPainel, ColunaDoCartao } from '../ui/PainelCartao';
@@ -565,5 +566,41 @@ describe('Ligar um item pela seção "Ligada a" (#341)', () => {
     await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
     // Então
     expect(anotacaoDesligar).toHaveBeenCalledWith('a1', 'pessoas', 'p1');
+  });
+});
+
+// O pedido do dono (#370): a anotação vai para outra pasta também pelo ⋯ do cartão, em "Mover para pasta".
+describe('Mover a anotação para outra pasta pelo ⋯ do cartão (#370)', () => {
+  const PASTA = (id: string, nome: string, pasta_mae_id: string | null = null) => ({ id, nome, pasta_mae_id, criada_por: 'u-mateus', criada_em: '2026-11-18T12:00:00Z' });
+  beforeEach(() => {
+    zerarBanco();
+    lojaDePastas.mudar({ dono: 'u-mateus', lista: [PASTA('esc', 'Escritório'), PASTA('pops', 'POPs', 'esc')] });
+  });
+
+  it('dado quem altera a anotação ativa, quando escolhe "Mover para pasta" no ⋯ e a pasta na janela, então a anotação vai para ela, com o aviso e o Desfazer', async () => {
+    // Dado
+    abrirCartao();
+    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).toEqual(['Mover para pasta', 'Duplicar', 'Baixar .md', 'Arquivar']);
+    // Quando
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Mover para pasta' }));
+    const janela = await screen.findByRole('dialog', { name: 'Mover "Lista do protocolo" para a pasta' });
+    await userEvent.selectOptions(within(janela).getByRole('combobox', { name: 'Pasta' }), 'Escritório › POPs');
+    await userEvent.click(within(janela).getByRole('button', { name: 'Mover' }));
+    await responder();
+    // Então
+    expect(anotacaoAtualizar).toHaveBeenCalledWith('a1', { pasta_id: 'pops' });
+    const aviso = (await screen.findByText('Anotação levada para a pasta Escritório › POPs.')).closest('div')!;
+    expect(within(aviso).getByRole('button', { name: 'Desfazer' })).toBeInTheDocument();
+  });
+
+  it('dada a anotação arquivada, quando quem altera abre o ⋯, então não há "Mover para pasta"', async () => {
+    // Dado
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(banco.texto), arquivado_em: '2026-11-18T12:00:00Z', arquivado_por: 'u-mateus' }));
+    abrirCartao();
+    // Quando
+    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    // Então
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).not.toContain('Mover para pasta');
   });
 });

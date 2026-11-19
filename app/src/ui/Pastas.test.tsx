@@ -1,15 +1,18 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// As pastas dos documentos na tela (#342): a árvore, o caminho acima do título e a escolha da pasta.
-import { act, render, screen, within } from '@testing-library/react';
+// As pastas dos documentos na tela (#342): a árvore, o caminho acima do título e a escolha da pasta; desde a #370, arrastar a
+// anotação para uma pasta.
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Pasta } from '../dados';
 import { Avisos } from './avisos';
 import { Janelas } from './janela';
-import { ArvoreDePastas, CaminhoDaPasta, PREFERENCIA_DA_NAVEGACAO, useNavegacaoRecolhida, type AnotacoesDaArvore } from './Pastas';
+import { ALVO_SEM_PASTA } from '../regras/explorador';
+import { ArvoreDePastas, CaminhoDaPasta, levarAnotacaoParaPasta, PREFERENCIA_DA_NAVEGACAO, useNavegacaoRecolhida, type AnotacoesDaArvore } from './Pastas';
 import { iniciarPreferencias, lerPreferencia } from './preferencias';
+import { SEGURAR_PARA_ARRASTAR } from './tempos';
 
 vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-bruno' }, ehAdmin: false }) }));
 
@@ -315,5 +318,187 @@ describe('O caminho da pasta acima do título', () => {
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Escritório › POPs › Financeiro' }));
     // Então
     expect(aoMudar).toHaveBeenCalledWith('fin');
+  });
+});
+
+// O pedido do dono (#370): no explorador, arrastar uma anotação e soltá-la numa pasta, ou em "Sem pasta", para tirá-la delas.
+describe('Arrastar a anotação para uma pasta, no explorador (#370)', () => {
+  /** O elemento debaixo do ponteiro (o jsdom não desenha a página: o teste diz por cima de quem o ponteiro está). */
+  let debaixo: Element | null = null;
+  beforeEach(() => {
+    iniciarPreferencias({});
+    vi.spyOn(SD, 'salvarPreferencia').mockResolvedValue();
+    debaixo = null;
+    document.elementFromPoint = () => debaixo;
+  });
+  const nota = (id: string, titulo: string, pasta_id: string | null) => ({ id, titulo, pasta_id });
+  const LISTA = [nota('a1', 'Ata de outubro', 'esc'), nota('a2', 'Rascunho solto', null)];
+  /** O explorador, em que a pessoa pode mover as anotações que quem chama diz (de início, todas). */
+  function explorador(pode: (id: string) => boolean = () => true) {
+    const aoMover = vi.fn();
+    render(<><MemoryRouter><ArvoreDePastas pastas={PASTAS} escolhida={null} aoEscolher={() => undefined} anotacoes={{
+      lista: LISTA, aberta: null, endereco: id => '/documentos/?id=' + id, nova: '/documentos/nova/', ordem: 'nome', aoOrdenar: () => undefined, mover: { pode, aoMover }
+    }} /></MemoryRouter><Janelas /></>);
+    return aoMover;
+  }
+  const ponteiro = { pointerId: 1, isPrimary: true, button: 0 };
+  /** Aperta o botão do mouse (ou põe o dedo) sobre o item, sem soltar. */
+  const apertar = (item: Element, pointerType = 'mouse') => fireEvent.pointerDown(item, { ...ponteiro, pointerType, clientX: 10, clientY: 10 });
+  /** Leva o ponteiro para cima do elemento. */
+  function passarPor(alvo: Element) {
+    debaixo = alvo;
+    fireEvent.pointerMove(window, { ...ponteiro, clientX: 60, clientY: 80 });
+  }
+  const soltar = () => fireEvent.pointerUp(window, { ...ponteiro, clientX: 60, clientY: 80 });
+  /** A linha da pasta (o botão com o nome dela, a seta e o ⋯), que recebe a anotação. */
+  const linha = (nome: string) => arvore().getByRole('button', { name: nome }).parentElement!;
+
+  it('dada uma anotação sem pasta, quando a pessoa a arrasta com o mouse e solta numa pasta, então a pasta se destaca enquanto ela passa por cima e quem chama recebe a pasta', () => {
+    // Dado
+    const aoMover = explorador();
+    // Quando
+    apertar(arvore().getByRole('link', { name: 'Rascunho solto' }));
+    passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+    // Então: a pasta se destaca, e o nome da anotação segue o ponteiro
+    expect(linha('Escritório')).toHaveClass('recebendo');
+    expect(screen.getAllByText('Rascunho solto')).toHaveLength(2);
+    // Quando
+    soltar();
+    // Então
+    expect(aoMover).toHaveBeenCalledWith('a2', 'esc');
+    expect(linha('Escritório')).not.toHaveClass('recebendo');
+    expect(screen.getAllByText('Rascunho solto')).toHaveLength(1);
+  });
+
+  it('dada uma anotação numa pasta, quando a pessoa a arrasta, então a linha do alto vira "Sem pasta", e soltá-la ali a tira das pastas', async () => {
+    // Dado
+    const aoMover = explorador();
+    await userEvent.click(arvore().getByRole('button', { name: 'O que está em Escritório' }));
+    // Quando
+    apertar(arvore().getByRole('link', { name: 'Ata de outubro' }));
+    passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+    // Então: a pasta em que ela já está não se destaca
+    expect(linha('Escritório')).not.toHaveClass('recebendo');
+    expect(arvore().queryByRole('button', { name: 'Todos os documentos' })).toBeNull();
+    // Quando
+    passarPor(arvore().getByRole('button', { name: 'Sem pasta' }));
+    // Então
+    expect(linha('Sem pasta')).toHaveClass('recebendo');
+    // Quando
+    soltar();
+    // Então
+    expect(aoMover).toHaveBeenCalledWith('a1', null);
+    expect(arvore().getByRole('button', { name: 'Todos os documentos' })).toBeTruthy();
+  });
+
+  it('dada uma anotação arrastada, quando a pessoa aperta Esc, então nada muda; e um clique sem arrastar não move nada', () => {
+    // Dado
+    const aoMover = explorador();
+    const rascunho = arvore().getByRole('link', { name: 'Rascunho solto' });
+    apertar(rascunho);
+    passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+    // Quando
+    fireEvent.keyDown(document, { key: 'Escape' });
+    soltar();
+    // Então
+    expect(aoMover).not.toHaveBeenCalled();
+    expect(linha('Escritório')).not.toHaveClass('recebendo');
+    // Quando: aperta e solta quase no mesmo lugar, como num clique
+    apertar(rascunho);
+    debaixo = arvore().getByRole('button', { name: 'Escritório' });
+    fireEvent.pointerMove(window, { ...ponteiro, clientX: 12, clientY: 11 });
+    soltar();
+    // Então
+    expect(aoMover).not.toHaveBeenCalled();
+  });
+
+  it('dado o celular, quando a pessoa segura o dedo na anotação, então começa o arrasto e ela vai para a pasta; mexer o dedo antes rola a lista, sem arrastar', () => {
+    vi.useFakeTimers();
+    try {
+      // Dado
+      const aoMover = explorador();
+      const rascunho = arvore().getByRole('link', { name: 'Rascunho solto' });
+      // Quando: põe o dedo e já o mexe (está rolando a lista)
+      apertar(rascunho, 'touch');
+      passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+      act(() => { vi.advanceTimersByTime(SEGURAR_PARA_ARRASTAR); });
+      soltar();
+      // Então
+      expect(aoMover).not.toHaveBeenCalled();
+      // Quando: segura o dedo parado, e então o leva até a pasta
+      apertar(rascunho, 'touch');
+      act(() => { vi.advanceTimersByTime(SEGURAR_PARA_ARRASTAR); });
+      passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+      soltar();
+      // Então
+      expect(aoMover).toHaveBeenCalledWith('a2', 'esc');
+    } finally { vi.runOnlyPendingTimers(); vi.useRealTimers(); }
+  });
+
+  it('dada uma anotação que a pessoa só lê, quando tenta arrastá-la, então nada muda, e ela não tem o ⋯', () => {
+    // Dado
+    const aoMover = explorador(id => id !== 'a2');
+    // Quando
+    apertar(arvore().getByRole('link', { name: 'Rascunho solto' }));
+    passarPor(arvore().getByRole('button', { name: 'Escritório' }));
+    soltar();
+    // Então
+    expect(aoMover).not.toHaveBeenCalled();
+    expect(linha('Escritório')).not.toHaveClass('recebendo');
+    expect(arvore().queryByRole('button', { name: 'Ações da anotação Rascunho solto' })).toBeNull();
+  });
+
+  it('quando a pessoa usa "Mover para pasta" no ⋯ da anotação (pelo teclado), então escolhe a pasta numa janela e quem chama a recebe', async () => {
+    // Dado
+    const aoMover = explorador();
+    // Quando: o foco chega ao ⋯ e o Enter o abre
+    arvore().getByRole('button', { name: 'Ações da anotação Rascunho solto' }).focus();
+    await userEvent.keyboard('{Enter}');
+    // O menu abre com o foco no item, e o Enter o escolhe
+    expect(screen.getByRole('menuitem', { name: 'Mover para pasta' })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    const janela = screen.getByRole('dialog', { name: 'Mover "Rascunho solto" para a pasta' });
+    const pasta = within(janela).getByRole('combobox', { name: 'Pasta' });
+    expect(pasta).toHaveFocus();
+    expect(pasta).toHaveValue(ALVO_SEM_PASTA);
+    await userEvent.selectOptions(pasta, 'Escritório › POPs');
+    within(janela).getByRole('button', { name: 'Mover' }).focus();
+    await userEvent.keyboard('{Enter}');
+    // Então: quem chama recebe a pasta, e o foco fica na anotação (e não no começo da página)
+    expect(aoMover).toHaveBeenCalledWith('a2', 'pops');
+    await waitFor(() => expect(arvore().getByRole('link', { name: 'Rascunho solto' })).toHaveFocus());
+  });
+
+  it('dada a janela "Mover para pasta" aberta pelo ⋯, quando a pessoa desiste com Esc, então nada muda e o foco volta ao ⋯', async () => {
+    // Dado
+    const aoMover = explorador();
+    const mais = arvore().getByRole('button', { name: 'Ações da anotação Rascunho solto' });
+    mais.focus();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByRole('dialog', { name: 'Mover "Rascunho solto" para a pasta' })).toBeTruthy();
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(aoMover).not.toHaveBeenCalled();
+    await waitFor(() => expect(mais).toHaveFocus());
+  });
+});
+
+describe('Levar a anotação para outra pasta (#370)', () => {
+  it('quando a anotação vai para outra pasta, então o aviso diz para onde, e o Desfazer a devolve à pasta de antes', async () => {
+    // Dado
+    const atualizar = vi.spyOn(SD, 'anotacaoAtualizar').mockResolvedValue({ id: 'a1', codigo: 'DOC-1' });
+    render(<Avisos />);
+    // Quando
+    await act(() => levarAnotacaoParaPasta('a1', 'esc', 'pops', PASTAS));
+    // Então
+    expect(atualizar).toHaveBeenCalledWith('a1', { pasta_id: 'pops' });
+    expect(screen.getByText('Anotação levada para a pasta Escritório › POPs.')).toBeTruthy();
+    // Quando
+    await userEvent.click(within(screen.getByText('Anotação levada para a pasta Escritório › POPs.')).getByRole('button', { name: 'Desfazer' }));
+    // Então
+    expect(atualizar).toHaveBeenLastCalledWith('a1', { pasta_id: 'esc' });
   });
 });

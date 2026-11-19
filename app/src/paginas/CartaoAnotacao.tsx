@@ -23,7 +23,7 @@ import {
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
 import { nomeDaEtiqueta } from '../regras/etiquetas';
-import { caminhoDaPasta, textoDoCaminho } from '../regras/pastas';
+import { caminhoDaPasta } from '../regras/pastas';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
 import { ICONE_DO_TOPO, MenuDoCartao, NoTopoDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -36,7 +36,7 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
-import { CaminhoDaPasta } from '../ui/Pastas';
+import { CaminhoDaPasta, escolherPastaDaAnotacao, levarAnotacaoParaPasta } from '../ui/Pastas';
 import { usePastas } from '../ui/pastasDoEscritorio';
 import { Recolhivel } from '../ui/Recolhivel';
 import { decidirGravacao, juntarTextoNoHistorico } from '../regras/salvamento';
@@ -293,12 +293,7 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
     const antes = a!.pasta_id, id = a!.id;
     setA(atual => atual && { ...atual, pasta_id: pastaId });
     try {
-      await SD.anotacaoAtualizar(id, { pasta_id: pastaId });
-      const onde = pastaId ? `para a pasta ${textoDoCaminho(pastas ?? [], pastaId)}` : 'para fora das pastas';
-      feito(`Anotação levada ${onde}.`, 'mudança da pasta da anotação', async () => {
-        await SD.anotacaoAtualizar(id, { pasta_id: antes });
-        return { tipo: 'anotacaoAtualizada', id };
-      });
+      await levarAnotacaoParaPasta(id, antes, pastaId, pastas ?? []);
       depois();
     } catch (e) {
       setA(atual => atual && { ...atual, pasta_id: antes });
@@ -349,12 +344,19 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       navegar(ENDERECO_DA_ANOTACAO + copia.id);
     } catch (e) { falha(e); }
   }
-  const acoesDoMenu: AcaoDoTopo[] = [{ rotulo: 'Duplicar', icone: 'copiar', aoClicar: duplicar }, { rotulo: 'Baixar .md', icone: 'baixar', aoClicar: baixar }];
-
+  /** "Mover para pasta", no ⋯ (#370): a mesma janela do ⋯ da anotação no explorador. */
+  async function moverParaPasta() {
+    const destino = await escolherPastaDaAnotacao(pastas ?? [], a!.pasta_id, a!.titulo);
+    if (destino !== undefined) await mudarPasta(destino);
+  }
   const lidos = itens && typeof itens !== 'string' ? itens : null;
   const totalLigados = lidos ? lidos.visiveis.length + lidos.ocultos : undefined;
   // O título e o texto se mudam no próprio lugar só por quem altera, e só com a anotação ativa (a arquivada fica como está).
   const mudaNoLugar = podeAlterar && !a.arquivado_em;
+  const acoesDoMenu: AcaoDoTopo[] = [
+    ...(mudaNoLugar ? [{ rotulo: 'Mover para pasta', icone: 'seta', aoClicar: moverParaPasta } satisfies AcaoDoTopo] : []),
+    { rotulo: 'Duplicar', icone: 'copiar', aoClicar: duplicar }, { rotulo: 'Baixar .md', icone: 'baixar', aoClicar: baixar }
+  ];
   // "Sair sem salvar" descarta o que está em edição: o título e o texto voltam ao gravado.
   function descartarEdicao() {
     setRascunhos({});

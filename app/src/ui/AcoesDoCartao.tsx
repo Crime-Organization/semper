@@ -6,7 +6,7 @@
 // - no cartão que se muda todo no próprio lugar, sem lápis (a anotação), o menu ⋯ (MenuDoCartao) com as mesmas ações; ele e os
 //   outros botões do topo desse cartão (a etiqueta da anotação) vão para o mesmo lugar dos de cima, com NoTopoDoCartao.
 // O formulário em etapas fica para criar; para editar, o cartão mostra todos os campos de uma vez.
-import { useContext, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { falha } from './avisos';
 import { Botao } from './Botoes';
@@ -128,10 +128,21 @@ export function MenuDoCartao({ arquivado, aoArquivar, excluir, extras = [] }: Pr
   if (arquivado && excluir) {
     itens.push({ rotulo: 'Excluir', icone: 'lixeira', perigo: true, antes: () => confirmarExclusao(excluir), aoClicar: excluir.aoConfirmar });
   }
+  // O foco volta ao ⋯ ao escolher um item (o menu some, e o foco iria para o começo da página): a pergunta ou a janela que o
+  // item abre o devolvem para lá ao fechar. Se a janela fechou com o ⋯ ainda desligado (a ação rodando), o foco volta a ele quando
+  // a ação termina, a não ser que já esteja em outro lugar.
+  const devolverFoco = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (ocupado || !devolverFoco.current) return;
+    if (!document.activeElement || document.activeElement === document.body) devolverFoco.current.focus();
+    devolverFoco.current = null;
+  }, [ocupado]);
   async function fazer(i: ItemDoMenu) {
+    botao?.focus();
+    devolverFoco.current = botao;
     setBotao(null);
     // O ⋯ desliga só depois da pergunta: desligado com ela aberta, o foco não teria para onde voltar ao cancelar.
-    if (i.antes && !await i.antes()) return;
+    if (i.antes && !await i.antes()) { devolverFoco.current = null; return; }
     setOcupado(true);
     try { await i.aoClicar(); } catch (e) { falha(e); } finally { setOcupado(false); }
   }

@@ -1,8 +1,9 @@
 // Pastas dos documentos na tela (#342), como no Obsidian: a árvore à esquerda (abre e fecha cada pasta; cria, renomeia, move e
 // apaga pelo ⋯ de cada uma), que desde o pedido de 18/11 é o explorador, com as anotações dentro das pastas (no celular, numa
 // gaveta); o caminho no topo da anotação ("Escritório › POPs › Financeiro", cada pedaço leva à pasta) e a escolha da pasta da anotação. As regras (árvore,
-// caminho, nome, ciclo) ficam em regras/pastas.ts; a lista do escritório, em pastasDoEscritorio.ts.
-import { useId, useState, type CSSProperties } from 'react';
+// caminho, nome, ciclo) ficam em regras/pastas.ts; a lista do escritório, em pastasDoEscritorio.ts. Desde a #370, quem altera a
+// anotação a arrasta, no explorador, para uma pasta (ou para "Sem pasta"), ou a leva pelo ⋯ dela, em "Mover para pasta".
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { SD, type Ordem, type Pasta } from '../dados';
 import { TAMANHO_PASTA } from '../dados/limites';
@@ -10,7 +11,10 @@ import {
   arvoreDePastas, caminhoDaPasta, destinosDaPasta, enderecoDaPasta, erroAoMoverPasta, erroDoNomeDaPasta, pastasDescendentes, pastasEmOrdem,
   textoDoCaminho, type NoDaPasta
 } from '../regras/pastas';
-import { anotacoesPorPasta, ORDENS_DO_EXPLORADOR, pastasParaMostrar, type AnotacaoDoExplorador } from '../regras/explorador';
+import {
+  ALVO_SEM_PASTA, anotacoesPorPasta, avisoDaMudancaDePasta, mudaDePasta, ORDENS_DO_EXPLORADOR, pastaDoAlvo, pastasParaMostrar, type AnotacaoDoExplorador
+} from '../regras/explorador';
+import { ATRIBUTO_DO_ALVO, FantasmaDoArrasto, useArrastar } from './arrastar';
 import { avisar, falha, feito } from './avisos';
 import { Campo, Carregando, Nota } from './base';
 import { Icone, type NomeIcone } from './Icone';
@@ -44,8 +48,64 @@ export function useNavegacaoRecolhida() {
 }
 /** O valor do seletor que mostra todos os documentos, de todas as pastas. */
 const TODAS = '';
-/** O id do campo da pasta de destino, na janela de mover. */
+/** O atributo com o id da anotação no link dela, no explorador: por ele o foco a acha depois de ela mudar de pasta. */
+const ATRIBUTO_DA_ANOTACAO = 'data-anotacao';
+/** O id do campo da pasta de destino, na janela de mover (uma pasta ou uma anotação; só uma janela dessas fica aberta). */
 const DESTINO = 'pasta-destino';
+
+interface EscolhaNaJanela {
+  titulo: string;
+  /** O rótulo do campo da pasta. */
+  rotulo: string;
+  /** A primeira opção, a de fora de todas as pastas: o valor dela e o nome que a pessoa lê. */
+  raiz: { valor: string; nome: string };
+  /** As pastas que se podem escolher, na ordem da árvore, e todas as do escritório (para o caminho de cada uma). */
+  destinos: NoDaPasta<Pasta>[];
+  pastas: Pasta[];
+  /** A opção já escolhida ao abrir (a pasta de agora). */
+  atual: string;
+}
+
+/**
+ * A janela de escolher para qual pasta algo vai: a de mover uma pasta e a de mover uma anotação (#370). Devolve o valor da opção
+ * escolhida, ou null se a pessoa desistiu.
+ */
+function escolherPastaNaJanela({ titulo, rotulo, raiz, destinos, pastas, atual }: EscolhaNaJanela) {
+  return janela<string>({
+    titulo,
+    corpo: <Campo rotulo={rotulo} para={DESTINO}>
+      <select id={DESTINO} name="destino" className="campo" defaultValue={atual}>
+        <option value={raiz.valor}>{raiz.nome}</option>
+        {destinos.map(n => <option key={n.pasta.id} value={n.pasta.id}>{textoDoCaminho(pastas, n.pasta.id)}</option>)}
+      </select>
+    </Campo>,
+    acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Mover', tipo: 'pri', valor: campos => String(campos.get('destino') ?? raiz.valor) }]
+  });
+}
+
+/**
+ * A janela "Mover para pasta" da anotação (#370; o ⋯ dela, no explorador e no cartão), a mesma de mover uma pasta: devolve a
+ * pasta escolhida (null: sem pasta), ou undefined se a pessoa desistiu ou deixou a mesma.
+ */
+export async function escolherPastaDaAnotacao(pastas: Pasta[], atual: string | null, titulo: string): Promise<string | null | undefined> {
+  const alvo = await escolherPastaNaJanela({
+    titulo: `Mover "${titulo}" para a pasta`, rotulo: 'Pasta', raiz: { valor: ALVO_SEM_PASTA, nome: 'Sem pasta' },
+    destinos: pastasEmOrdem(pastas), pastas, atual: atual ?? ALVO_SEM_PASTA
+  });
+  return alvo === null || !mudaDePasta(atual, alvo) ? undefined : pastaDoAlvo(alvo);
+}
+
+/**
+ * Leva a anotação para outra pasta (null: para fora das pastas) e avisa no pé da tela, com o Desfazer, que a devolve à pasta de
+ * antes. A anotação aberta e as listas se atualizam no desfazer, pelo aviso de mudança ('anotacaoAtualizada').
+ */
+export async function levarAnotacaoParaPasta(id: string, antes: string | null, destino: string | null, pastas: Pasta[]) {
+  await SD.anotacaoAtualizar(id, { pasta_id: destino });
+  feito(avisoDaMudancaDePasta(pastas, destino), 'mudança da pasta da anotação', async () => {
+    await SD.anotacaoAtualizar(id, { pasta_id: antes });
+    return { tipo: 'anotacaoAtualizada', id };
+  });
+}
 
 /** O que se faz com uma pasta: criar (outra dentro dela, ou no primeiro nível), renomear, mover e apagar. Cada um com o desfazer. */
 function useAcoesDasPastas(pastas: Pasta[], escolhida: string | null, aoEscolher: (id: string | null) => void) {
@@ -75,16 +135,9 @@ function useAcoesDasPastas(pastas: Pasta[], escolhida: string | null, aoEscolher
     } catch (e) { falha(e); }
   }
   async function mover(p: Pasta) {
-    const destinos = destinosDaPasta(pastas, p.id);
-    const destino = await janela<string>({
-      titulo: `Mover a pasta "${p.nome}"`,
-      corpo: <Campo rotulo="Para dentro de" para={DESTINO}>
-        <select id={DESTINO} name="destino" className="campo" defaultValue={p.pasta_mae_id ?? TODAS}>
-          <option value={TODAS}>Nenhuma (primeiro nível)</option>
-          {destinos.map(n => <option key={n.pasta.id} value={n.pasta.id}>{textoDoCaminho(pastas, n.pasta.id)}</option>)}
-        </select>
-      </Campo>,
-      acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Mover', tipo: 'pri', valor: campos => String(campos.get('destino') ?? TODAS) }]
+    const destino = await escolherPastaNaJanela({
+      titulo: `Mover a pasta "${p.nome}"`, rotulo: 'Para dentro de', raiz: { valor: TODAS, nome: 'Nenhuma (primeiro nível)' },
+      destinos: destinosDaPasta(pastas, p.id), pastas, atual: p.pasta_mae_id ?? TODAS
     });
     if (destino === null) return;
     const mae = destino || null;
@@ -134,6 +187,31 @@ function MenuDaPasta({ pasta, acoes }: { pasta: Pasta; acoes: AcoesDasPastas }) 
   </>;
 }
 
+/**
+ * O ⋯ de uma anotação no explorador (só para quem a altera): por ele, pelo teclado ou pelo toque, a anotação vai para outra pasta.
+ * Antes de abrir a janela, o foco volta ao ⋯: a janela o devolve para lá se a pessoa desistir (se mover, a árvore o leva à anotação
+ * no lugar novo).
+ */
+function MenuDaAnotacao({ titulo, aoMover }: { titulo: string; aoMover: () => unknown }) {
+  const [botao, setBotao] = useState<HTMLElement | null>(null);
+  function mover() {
+    botao?.focus();
+    setBotao(null);
+    void aoMover();
+  }
+  return <>
+    <button type="button" className="pasta-mais" aria-label={`Ações da anotação ${titulo}`} title="Ações da anotação" aria-haspopup="menu" aria-expanded={!!botao}
+      onClick={e => { const alvo = e.currentTarget; setBotao(b => b ? null : alvo); }}>
+      <Icone nome="pontos" tam={16} />
+    </button>
+    {botao && <MenuFlutuante botao={botao} aoFechar={() => setBotao(null)}>
+      <button type="button" role="menuitem" onClick={mover}>
+        <Icone nome="seta" tam={15} /> Mover para pasta
+      </button>
+    </MenuFlutuante>}
+  </>;
+}
+
 /** O sinal da escolha atual no menu (o lugar fica reservado nas outras, para os nomes ficarem alinhados). */
 const Marca = ({ ligada }: { ligada: boolean }) => <span className="kmenu-marca">{ligada && <Icone nome="check" tam={15} />}</span>;
 
@@ -155,6 +233,12 @@ export interface AnotacoesDaArvore {
    * houver mais, diz no pé quantas mostra, para ninguém achar que as outras sumiram.
    */
   total?: number;
+  /**
+   * Levar a anotação para outra pasta (#370): quem a altera (pode) a arrasta até uma pasta, ou até "Sem pasta" (a linha do alto,
+   * que muda de nome durante o arrasto), ou usa "Mover para pasta" no ⋯ dela. Quem só lê não arrasta nem vê o ⋯. Sem isto,
+   * nenhuma se move.
+   */
+  mover?: { pode: (id: string) => boolean; aoMover: (id: string, pasta: string | null) => void };
 }
 
 interface PropsDaArvore {
@@ -205,21 +289,57 @@ export function ArvoreDePastas({ pastas, escolhida, aoEscolher, anotacoes, naveg
   }
   const alternar = (id: string) => guardar(abertas.includes(id) ? abertas.filter(x => x !== id) : [...abertas, id]);
   const arvore = arvoreDePastas(lista);
-  const porPasta = anotacoesPorPasta(anotacoes?.lista ?? [], lista);
+  const daArvore = anotacoes?.lista ?? [];
+  const porPasta = anotacoesPorPasta(daArvore, lista);
   const temAberta = !!anotacoes?.aberta;
 
+  // ---------- levar a anotação para outra pasta (#370) ----------
+  const anotacao = (id: string) => daArvore.find(a => a.id === id);
+  /** Leva a anotação e abre a pasta de destino (e as de cima), para ela continuar à vista. */
+  function levar(id: string, destino: string | null) {
+    anotacoes?.mover?.aoMover(id, destino);
+    const faltam = pastasParaMostrar(lista, destino).filter(p => !abertas.includes(p));
+    if (faltam.length) guardar([...abertas, ...faltam]);
+  }
+  const { arrasto, alca } = useArrastar({
+    aceita: (id, alvo) => { const a = anotacao(id); return !!a && mudaDePasta(a.pasta_id, alvo); },
+    aoSoltar: (id, alvo) => levar(id, pastaDoAlvo(alvo))
+  });
+  // Movida pelo ⋯ (o caminho do teclado), a anotação é desenhada de novo no lugar novo, e o ⋯ em que estava o foco some: o foco
+  // vai para o link dela, ali, para quem usa o teclado ou o leitor de tela não voltar ao começo da página.
+  const arvoreRef = useRef<HTMLElement>(null);
+  const focarNaAnotacao = useRef<string | null>(null);
+  useEffect(() => {
+    if (!focarNaAnotacao.current) return;
+    const link = arvoreRef.current?.querySelector<HTMLElement>(`[${ATRIBUTO_DA_ANOTACAO}="${focarNaAnotacao.current}"]`);
+    if (!link) return;
+    link.focus();
+    focarNaAnotacao.current = null;
+  });
+  async function moverPeloMenu(a: AnotacaoDoExplorador) {
+    const destino = await escolherPastaDaAnotacao(lista, a.pasta_id, a.titulo);
+    if (destino === undefined) return;
+    focarNaAnotacao.current = a.id;
+    levar(a.id, destino);
+  }
+  /** As classes da linha que recebe a anotação arrastada: destacada enquanto ela passa por cima. */
+  const recebe = (classes: string, alvo: string) => classes + (arrasto?.alvo === alvo ? ' recebendo' : '');
+
   const linhasDasAnotacoes = (pastaId: string | null, nivel: number) => anotacoes && (porPasta.get(pastaId) ?? []).map(a => {
-    const atual = a.id === anotacoes.aberta;
+    const atual = a.id === anotacoes.aberta, pode = !!anotacoes.mover?.pode(a.id);
     return <li key={'a-' + a.id}>
-      <Link className={atual ? 'explorador-anotacao atual' : 'explorador-anotacao'} style={comNivel(nivel)} to={anotacoes.endereco(a.id)} replace
-        aria-current={atual ? 'page' : undefined}><span>{a.titulo}</span></Link>
+      <div className={'explorador-item' + (atual ? ' atual' : '') + (arrasto?.id === a.id ? ' arrastando' : '')}>
+        <Link className={atual ? 'explorador-anotacao atual' : 'explorador-anotacao'} style={comNivel(nivel)} to={anotacoes.endereco(a.id)} replace
+          aria-current={atual ? 'page' : undefined} draggable={false} {...{ [ATRIBUTO_DA_ANOTACAO]: a.id }} {...(pode ? alca(a.id) : {})}><span>{a.titulo}</span></Link>
+        {pode && <MenuDaAnotacao titulo={a.titulo} aoMover={() => moverPeloMenu(a)} />}
+      </div>
     </li>;
   });
   const no = (n: NoDaPasta<Pasta>) => {
     const temDentro = n.filhas.length > 0 || (porPasta.get(n.pasta.id)?.length ?? 0) > 0;
     const aberta = abertas.includes(n.pasta.id), atual = !temAberta && n.pasta.id === escolhida;
     return <li key={n.pasta.id}>
-      <div className={atual ? 'pasta-linha atual' : 'pasta-linha'} style={comNivel(n.nivel)}>
+      <div className={recebe(atual ? 'pasta-linha atual' : 'pasta-linha', n.pasta.id)} style={comNivel(n.nivel)} {...{ [ATRIBUTO_DO_ALVO]: n.pasta.id }}>
         {temDentro
           ? <button type="button" className="pasta-abrir" aria-expanded={aberta} aria-label={`O que está em ${n.pasta.nome}`} title={aberta ? 'Fechar' : 'Abrir'}
             onClick={() => alternar(n.pasta.id)}><Icone nome={aberta ? 'abaixo' : 'direita'} tam={14} /></button>
@@ -236,7 +356,10 @@ export function ArvoreDePastas({ pastas, escolhida, aoEscolher, anotacoes, naveg
   // Com uma anotação aberta, o destaque é só dela: a pasta escolhida (ou "Todos os documentos") volta a se destacar ao fechá-la.
   const todos = !temAberta && escolhida === null;
 
-  return <nav className="pastas-arvore" aria-label="Pastas e anotações">
+  // Enquanto a anotação é arrastada, a linha do alto vira "Sem pasta": soltá-la ali a tira das pastas.
+  const raiz = arrasto ? { icone: 'pasta' as const, nome: 'Sem pasta' } : { icone: 'documentos' as const, nome: 'Todos os documentos' };
+
+  return <nav ref={arvoreRef} className={'pastas-arvore' + (arrasto ? ' arrastando' : '')} aria-label="Pastas e anotações">
     <div className="pastas-cabeca">
       {/* No explorador, só a barra (como no Obsidian): o título da página já diz onde se está. */}
       {!anotacoes && <span className="rotulo-caps">Pastas</span>}
@@ -263,10 +386,10 @@ export function ArvoreDePastas({ pastas, escolhida, aoEscolher, anotacoes, naveg
       </button>)}
     </MenuFlutuante>}
     <ul className="pastas-lista" id={idDaLista}>
-      <li><div className={todos ? 'pasta-linha atual' : 'pasta-linha'} style={comNivel(0)}>
+      <li><div className={recebe(todos ? 'pasta-linha atual' : 'pasta-linha', ALVO_SEM_PASTA)} style={comNivel(0)} {...{ [ATRIBUTO_DO_ALVO]: ALVO_SEM_PASTA }}>
         <span className="pasta-abrir" aria-hidden="true" />
         <button type="button" className="pasta-nome" aria-current={todos ? 'true' : undefined} onClick={() => aoEscolher(null)}>
-          <Icone nome="documentos" tam={16} /><span>Todos os documentos</span>
+          <Icone nome={raiz.icone} tam={16} /><span>{raiz.nome}</span>
         </button>
       </div></li>
       {arvore.map(no)}
@@ -277,6 +400,7 @@ export function ArvoreDePastas({ pastas, escolhida, aoEscolher, anotacoes, naveg
       Mostrando {anotacoes.lista.length} de {anotacoes.total} anotações. Use a busca, no alto da página, ou a tabela de cada pasta, para achar as outras.
     </Nota>}
     {pastas !== null && !lista.length && !anotacoes?.lista?.length && <p className="pastas-vazio">Nenhuma pasta ainda. Use o botão de nova pasta, no alto, para criar a primeira.</p>}
+    <FantasmaDoArrasto arrasto={arrasto}>{arrasto && anotacao(arrasto.id)?.titulo}</FantasmaDoArrasto>
   </nav>;
 }
 

@@ -3,7 +3,8 @@
 // Desde os pedidos do dono de 18/11, a página é como o Obsidian:
 // - à esquerda, o explorador (#342): a árvore das pastas com as anotações dentro, e a barra com recolher a navegação, nova
 //   anotação, nova pasta, ordenar e recolher tudo. A busca e os filtros da página valem também para ele. Recolhida (a escolha
-//   fica guardada para cada pessoa), sobra só o botão de mostrá-la, e a tabela ocupa a largura toda;
+//   fica guardada para cada pessoa), sobra só o botão de mostrá-la, e a tabela ocupa a largura toda. Quem altera uma anotação a
+//   arrasta ali para outra pasta, ou usa "Mover para pasta" no ⋯ dela (#370);
 // - no centro, a tabela da pasta escolhida (?pasta=), com as arquivadas embaixo.
 // A anotação abre na janela do cartão (PainelCartao), como os cartões dos outros módulos, no centro ou ao lado (?id=, para recarregar e
 // mandar o link; abrir e fechar não criam entrada no histórico); a anotação nova abre na janela do cadastro (/documentos/nova/, App.tsx). No celular, o explorador vira uma
@@ -21,7 +22,7 @@ import { PARAMETRO_DO_COMENTARIO } from '../regras/mensagens';
 import { PARAMETRO_DA_PASTA, pastasDescendentes, textoDoCaminho } from '../regras/pastas';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
-import { falha, feito, useMudancas } from '../ui/avisos';
+import { falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, prepararEditorAoVivo, Vazio } from '../ui/base';
 import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
@@ -29,7 +30,7 @@ import { useOrdem } from '../ui/ordem';
 import { PaginaModulo, type Filtro } from '../ui/PaginaModulo';
 import { PainelCartao } from '../ui/PainelCartao';
 import { Paginacao } from '../ui/Paginacao';
-import { ArvoreDePastas, useNavegacaoRecolhida } from '../ui/Pastas';
+import { ArvoreDePastas, levarAnotacaoParaPasta, useNavegacaoRecolhida } from '../ui/Pastas';
 import { usePastas, useProcurarPastas } from '../ui/pastasDoEscritorio';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
@@ -156,6 +157,23 @@ export default function Documentos() {
     return () => { vivo = false; };
   }, [termo, ligada, autor, periodo, etiqueta, ordemDaArvore, recarga]);
 
+  // Levar a anotação para outra pasta, pelo explorador (#370): só quem a altera. Ela muda de lugar na árvore na hora; depois de
+  // gravar, a página e a anotação aberta leem de novo (o aviso de mudança). Se falhar, ela volta para onde estava.
+  const chavesDaEquipe = { equipeEditaTudo: equipeEditaTudo(ctx.escritorio) };
+  const naArvore = (id: string) => daArvore?.linhas.find(a => a.id === id);
+  const mudarNaArvore = (id: string, pasta_id: string | null) => setDaArvore(p => p && { ...p, linhas: p.linhas.map(a => a.id === id ? { ...a, pasta_id } : a) });
+  const mover = {
+    pode: (id: string) => { const a = naArvore(id); return !!a && !a.arquivado_em && alteraAAnotacao(a, ctx.perfil, chavesDaEquipe); },
+    aoMover: async (id: string, destino: string | null) => {
+      const antes = naArvore(id)?.pasta_id ?? null;
+      mudarNaArvore(id, destino);
+      try {
+        await levarAnotacaoParaPasta(id, antes, destino, pastas ?? []);
+        sinalizarMudanca({ tipo: 'anotacaoAtualizada', id });
+      } catch (e) { mudarNaArvore(id, antes); falha(e); }
+    }
+  };
+
   const filtrado = !!(f.termo || f.ligadaA || f.autor || f.periodo || f.etiqueta);
   const mudarFiltro = (campos: Partial<FiltroDaPagina>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
@@ -199,7 +217,7 @@ export default function Documentos() {
     <div className={'documentos-corpo' + (navegacao.recolhida ? ' sem-navegacao' : '') + (gaveta ? ' gaveta-aberta' : '')}>
       <div className="documentos-explorador" id={EXPLORADOR}>
         <ArvoreDePastas pastas={pastas} escolhida={pasta} aoEscolher={escolherPasta} navegacao={{ recolhida: navegacao.recolhida, aoAlternar: navegacao.alternar }} anotacoes={{
-          lista: daArvore?.linhas ?? null, total: daArvore?.total, aberta: aberto, endereco, nova: cadastro, ordem: ordemDaArvore, aoOrdenar: ordenarArvore
+          lista: daArvore?.linhas ?? null, total: daArvore?.total, aberta: aberto, endereco, nova: cadastro, ordem: ordemDaArvore, aoOrdenar: ordenarArvore, mover
         }} />
       </div>
       {/* No celular, o véu atrás da gaveta: o clique nele fecha. */}
