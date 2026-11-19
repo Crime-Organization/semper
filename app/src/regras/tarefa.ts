@@ -111,16 +111,70 @@ export const camposDaTarefa = (t: Tarefa): CamposTarefa => ({
 });
 
 // ---------- etapas do cadastro ----------
-export type EtapaTarefa = 'tarefa' | 'pessoas' | 'ligacoes';
-export interface DefinicaoEtapaTarefa { id: EtapaTarefa; titulo: string; texto: string; campos: (keyof CamposTarefa)[] }
-/** As etapas do cadastro de tarefa, na ordem, como nos cadastros de pessoa, de contrato e de demanda. */
+export type EtapaTarefa = 'tarefa' | 'pessoas';
+export interface DefinicaoEtapaTarefa {
+  id: EtapaTarefa; titulo: string; texto: string; campos: (keyof CamposTarefa)[];
+  /** O título da seção no lápis do cartão, quando lá só sobra parte dos campos (o cartão muda o resto no próprio lugar). */
+  tituloNoLapis?: string;
+}
+/**
+ * As etapas do cadastro de tarefa, na ordem: o cadastro mais curto do sistema (#299), com duas. A primeira tem a tarefa, o prazo (com a
+ * hora e o lembrete num campo só) e as ligações, que são opcionais; ligar a demanda antes já traz as pessoas dela para a etapa
+ * seguinte. A etapa das pessoas é a mesma de antes.
+ */
 export const ETAPAS_TAREFA: DefinicaoEtapaTarefa[] = [
-  { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito e, se houver, o prazo, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio'] },
+  { id: 'tarefa', titulo: 'A tarefa', texto: 'O que precisa ser feito, o prazo e, se houver, a demanda, o contrato ou o processo de que ela faz parte.',
+    campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio', 'demandaId', 'contratoId', 'processoId'], tituloNoLapis: 'Demanda, contrato e processo' },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem faz a tarefa, quem da equipe ajuda e, se houver, as pessoas do cadastro ligadas a ela.',
-    campos: ['responsavelId', 'participantes', 'pessoas'] },
-  { id: 'ligacoes', titulo: 'Demanda, contrato e processo', texto: 'Se a tarefa é parte de uma demanda, vem de um contrato ou cuida de um processo, ligue aqui. Não é obrigatório.',
-    campos: ['demandaId', 'contratoId', 'processoId'] }
+    campos: ['responsavelId', 'participantes', 'pessoas'] }
 ];
+/**
+ * A ordem das seções no lápis do cartão: as pessoas antes da demanda, do contrato e do processo, como era antes de a #299 juntar as
+ * ligações à primeira etapa do cadastro (no lápis, a primeira etapa fica só com elas).
+ */
+export const ORDEM_NO_LAPIS_TAREFA: Record<EtapaTarefa, number> = { pessoas: 1, tarefa: 2 };
+/** As etapas na ordem do lápis do cartão (ORDEM_NO_LAPIS_TAREFA); o cadastro continua na ordem de ETAPAS_TAREFA. */
+export const naOrdemDoLapisTarefa = <E extends { id: EtapaTarefa }>(etapas: readonly E[]) =>
+  etapas.toSorted((a, b) => ORDEM_NO_LAPIS_TAREFA[a.id] - ORDEM_NO_LAPIS_TAREFA[b.id]);
+
+// ---------- a demanda ligada no cadastro ----------
+/** A demanda que se liga à tarefa, como chega do banco: os clientes e o contrato dela. */
+export interface DemandaParaLigar { id: string; clientes: string[]; contratoId: string | null }
+/** O que a demanda ligada trouxe para a tarefa (as pessoas e o contrato que estavam vazios), para desfazer ao tirá-la. */
+export interface TrazidoDaDemanda { demandaId: string; pessoas: string[]; contratoId: string }
+/**
+ * Ao ligar a demanda (com a resposta do banco): os clientes dela entram nas pessoas, e o contrato dela no contrato, só se a tarefa
+ * ainda não tem. Decide com os campos de agora, e não com os de quando a demanda foi escolhida: a pessoa pode ter escolhido alguém
+ * ou um contrato enquanto a resposta vinha. Se a demanda já foi tirada ou trocada nesse meio-tempo, a resposta não vale (null).
+ */
+export function oQueADemandaTraz(c: CamposTarefa, d: DemandaParaLigar): { mudancas: Partial<CamposTarefa>; trazido: TrazidoDaDemanda } | null {
+  if (c.demandaId !== d.id) return null;
+  const pessoas = !c.pessoas.some(Boolean) && d.clientes.length ? d.clientes : [];
+  const contratoId = !c.contratoId && d.contratoId ? d.contratoId : '';
+  return {
+    mudancas: { ...(pessoas.length ? { pessoas } : {}), ...(contratoId ? { contratoId } : {}) },
+    trazido: { demandaId: d.id, pessoas, contratoId }
+  };
+}
+/**
+ * Ao tirar a demanda: sai também o que ela trouxe e a pessoa não mudou (os clientes dela que continuam nas pessoas, o contrato dela
+ * se ainda é o mesmo). Assim, a próxima demanda ligada traz os dela, e a tarefa não fica com os clientes de uma e a demanda de outra.
+ * `ficam` diz, linha a linha das pessoas, quais continuam (para a tela acompanhar os nomes).
+ */
+export function semADemanda(c: CamposTarefa, trazido: TrazidoDaDemanda | null): { mudancas: Partial<CamposTarefa>; ficam: boolean[] } {
+  const daDemanda = trazido && trazido.demandaId === c.demandaId ? trazido : null;
+  const ficam = c.pessoas.map(p => !daDemanda || !p || !daDemanda.pessoas.includes(p));
+  const pessoas = c.pessoas.filter((_, i) => ficam[i]);
+  return {
+    mudancas: {
+      demandaId: '',
+      ...(ficam.includes(false) ? { pessoas: pessoas.length ? pessoas : [''] } : {}),
+      ...(daDemanda?.contratoId && c.contratoId === daDemanda.contratoId ? { contratoId: '' } : {})
+    },
+    ficam
+  };
+}
+
 /** Erros só dos campos de uma etapa (o que impede de seguir para a próxima). */
 export function errosDaEtapaTarefa(etapa: EtapaTarefa, c: CamposTarefa): Partial<Record<keyof CamposTarefa, string>> {
   const campos = ETAPAS_TAREFA.find(e => e.id === etapa)!.campos, erros = validarTarefa(c);

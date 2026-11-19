@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, FORMATOS_DA_DATA, isoDoTexto, limitarDia, mesAoAbrir, mesForaDosLimites,
+  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, errosJuntos, FORMATOS_DA_DATA, isoDoTexto, limitarDia, mesAoAbrir, mesForaDosLimites,
   nomeDoDia, numeroDoDia, SEMANAS_NO_CALENDARIO, semanasDoMes, somarMeses, textoDaDataDigitada, tituloDoMes
 } from './campoData';
 
@@ -161,5 +161,25 @@ describe('Calendário pequeno dos campos de data (#357)', () => {
       expect(diaEmFoco('2026-12-01', '2026-11-20', '2026-11-18')).toBe('2026-12-01');
       expect(diaEmFoco('2026-12-01', null, '2026-11-18', { min: '2026-12-05' })).toBe('2026-12-05');
     });
+  });
+});
+
+describe('O erro do campo de data e hora (#299)', () => {
+  it('dado nenhuma parte com erro, quando o campo junta os erros, então fica sem erro', () => {
+    // Então
+    expect(errosJuntos(undefined, null, '')).toBeUndefined();
+  });
+
+  it('dada uma parte com erro, quando o campo junta os erros, então a mensagem fica como veio', () => {
+    // Então
+    expect(errosJuntos(undefined, 'Informe o prazo para pôr a hora')).toBe('Informe o prazo para pôr a hora');
+  });
+
+  it('dadas a data e a hora com erro, quando o campo junta os erros, então mostra as duas, em frases, cada uma uma vez', () => {
+    // Então
+    expect(errosJuntos('Informe a data.', 'Informe a hora.')).toBe('Informe a data. Informe a hora.');
+    expect(errosJuntos('Informe o prazo para pôr a hora', 'Informe o prazo para marcar o lembrete'))
+      .toBe('Informe o prazo para pôr a hora. Informe o prazo para marcar o lembrete.');
+    expect(errosJuntos('Informe a data.', 'Informe a data.')).toBe('Informe a data.');
   });
 });

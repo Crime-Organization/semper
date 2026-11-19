@@ -12,6 +12,7 @@ import {
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { datasForaDoLapisDoCompromisso, semOsCampos } from '../regras/datasNoCartao';
+import { errosJuntos } from '../regras/campoData';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -19,7 +20,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
+import { Aviso, Campo, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -260,10 +261,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       {comTitulo && <Campo rotulo="Título" para="titulo" obrigatorio={!doProcesso} erro={erros.titulo} dica={doProcesso ? 'Opcional. Sem ele, o cartão mostra o tipo e as pessoas.' : undefined}>
         <input type="text" {...propsDoCampo('titulo', { dica: doProcesso, erro: erros.titulo })} maxLength={TAMANHO_COMPROMISSO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
       </Campo>}
-      {mostra('data') && <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
-        <CampoData {...propsDoCampo('data', { erro: erros.data })} valor={c.data} aoMudar={data => mudar({ data })} hora={{ valor: c.hora, aoMudar: hora => mudar({ hora }) }} />
+      {/* A data e a hora num campo só (#299). No lápis que só pede a hora (a data o cartão muda no lugar), a hora fica sozinha. */}
+      {mostra('data') && <Campo rotulo="Data" para="data" obrigatorio erro={errosJuntos(erros.data, erros.hora)}
+        dica={exigeHora ? 'Com a hora, no horário de Brasília.' : 'A hora é opcional, no horário de Brasília. Sem ela, vale o dia inteiro.'}>
+        <CampoDataHora {...propsDoCampo('data', { dica: true, erro: errosJuntos(erros.data, erros.hora) })} aria-invalid={erros.data ? true : undefined} valor={c.data}
+          aoMudar={data => mudar({ data })} hora={c.hora} aoMudarHora={hora => mudar({ hora })} horaObrigatoria={exigeHora} horaComErro={!!erros.hora} />
       </Campo>}
-      {mostra('hora') && <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
+      {!mostra('data') && mostra('hora') && <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
         <input type="time" {...propsDoCampo('hora', { dica: true, erro: erros.hora })} value={c.hora} onChange={e => mudar({ hora: e.target.value })} />
       </Campo>}
       {mostra('horaFim') && <Campo rotulo="Até" para="horaFim" erro={erros.horaFim} dica="Opcional. A hora em que deve terminar.">

@@ -12,7 +12,7 @@ import {
   camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, semSairDaDemanda, validarDemanda,
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
-import { CampoDoInicio, CampoDoLembrete, CampoDaHora, CampoDoPrazo } from './CamposDoLembrete';
+import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -244,9 +244,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
             aoMudar={descricao => mudar({ descricao })} />
         </Campo>
       </>}
-      <CampoDoPrazo rotulo="Prazo de entrega" valor={c.prazo} erro={erros.prazo} hora={c.hora} aoMudar={prazo => mudar({ prazo })} aoMudarHora={hora => mudar({ hora })} />
-      <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
-      <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
+      <CampoDoPrazo rotulo="Prazo de entrega" prazo={c.prazo} hora={c.hora} lembrete={c.lembrete} erros={erros} aoMudar={mudar} />
       {/* A data de início só ao mudar uma demanda que já existe: a nova começa no dia em que é criada (#357). */}
       {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
     </>,

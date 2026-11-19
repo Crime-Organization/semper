@@ -149,11 +149,16 @@ describe('Hora e lembrete do prazo (#286)', () => {
     await screen.findByLabelText('Hora');
     return gravar;
   }
-  /** Passa pelas outras etapas e salva. */
+  /** Passa pela etapa das pessoas e salva: o cadastro de tarefa tem duas etapas (#299). */
   async function salvar() {
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Próxima' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Salvar alterações' }));
+  }
+  /** O botão do lembrete, com o sino, ao lado do prazo (#299). */
+  const sino = () => screen.getByRole('button', { name: /^Lembrete:/ });
+  async function marcarLembrete(nome: string) {
+    await userEvent.click(sino());
+    await userEvent.click(screen.getByRole('menuitemradio', { name: nome }));
   }
 
   it('dado uma tarefa com prazo, quando marca a hora e o lembrete e salva, então os dois são gravados', async () => {
@@ -161,33 +166,54 @@ describe('Hora e lembrete do prazo (#286)', () => {
     const gravar = await abrir(tarefa({ prazo: '2030-11-15' }));
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
-    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), '1 hora antes');
+    await marcarLembrete('1 hora antes');
     await salvar();
     // Então
     await waitFor(() => expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ prazo: '2030-11-15', prazo_hora: '14:00', lembrete: 60 })));
   });
 
-  it('dado uma tarefa salva com hora e lembrete, quando abre para atualizar, então os campos vêm preenchidos, com as opções combinadas', async () => {
+  it('dado uma tarefa salva com hora e lembrete, quando abre para atualizar, então o prazo e a hora vêm no mesmo campo e o sino mostra o lembrete, com as opções combinadas', async () => {
     // Quando
     await abrir(tarefa({ prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 1440 }));
     // Então
+    expect(screen.getByRole('textbox', { name: 'Prazo' })).toHaveValue('15/11/2030');
     expect(screen.getByLabelText('Hora')).toHaveValue('14:00');
-    expect(screen.getByLabelText('Lembrete')).toHaveValue('1440');
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(expect.arrayContaining(['Sem lembrete', 'Na hora do prazo', '30 minutos antes', '1 hora antes', '1 dia antes']));
+    expect(sino()).toHaveAccessibleName('Lembrete: 1 dia antes');
+    // Quando
+    await userEvent.click(sino());
+    // Então
+    expect(screen.getAllByRole('menuitemradio').map(o => o.textContent)).toEqual(['Na hora do prazo', '30 minutos antes', '1 hora antes', '1 dia antes', 'Sem lembrete']);
+    expect(screen.getByRole('menuitemradio', { name: '1 dia antes' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText(/Sem hora, o lembrete conta o prazo às 9h/)).toBeInTheDocument();
   });
 
-  it('dado uma tarefa sem prazo, quando marca hora e lembrete e segue, então pede o prazo e não grava', async () => {
+  it('dado uma tarefa sem prazo, quando marca a hora e segue, então pede o prazo, o sino fica desligado e não grava', async () => {
     // Dado
     const gravar = await abrir(tarefa({ prazo: null }));
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
-    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), 'Na hora do prazo');
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     // Então
     expect(await screen.findByText('Informe o prazo para pôr a hora')).toBeInTheDocument();
-    expect(screen.getByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
+    expect(screen.getByLabelText('Hora')).toHaveAttribute('aria-invalid', 'true');
+    expect(sino()).toHaveAttribute('aria-disabled', 'true');
     expect(gravar).not.toHaveBeenCalled();
+  });
+
+  it('dado uma tarefa com lembrete, quando a pessoa apaga o prazo e segue, então pede o prazo e o sino continua ligado para tirar o lembrete', async () => {
+    // Dado
+    const gravar = await abrir(tarefa({ prazo: '2030-11-15', lembrete: 30 }));
+    // Quando
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Prazo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    // Então
+    expect(await screen.findByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
+    expect(sino()).not.toHaveAttribute('aria-disabled');
+    expect(gravar).not.toHaveBeenCalled();
+    // Quando
+    await marcarLembrete('Sem lembrete');
+    // Então
+    expect(screen.queryByText('Informe o prazo para marcar o lembrete')).not.toBeInTheDocument();
   });
 });
 
@@ -210,7 +236,12 @@ describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
     await screen.findByLabelText(/Responsável/);
     // Então
     for (const rotulo of ['Prazo', 'Hora', 'Lembrete', 'Data de início']) expect(screen.queryByLabelText(rotulo)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Lembrete/ })).not.toBeInTheDocument();
+    // As ligações ficam na primeira etapa do cadastro (#299): no lápis, a seção tem o nome delas.
+    expect(screen.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'A tarefa' })).not.toBeInTheDocument();
+    // E as pessoas continuam antes das ligações, como antes da #299.
+    expect(screen.getAllByRole('heading', { level: 3 }).map(t => t.textContent)).toEqual(['Pessoas', 'Demanda, contrato e processo']);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então

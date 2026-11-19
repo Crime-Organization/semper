@@ -1,7 +1,8 @@
-// Cadastro de tarefa (novo ou atualizar), por etapas como o de demanda: a tarefa (título, descrição, prazo, hora e lembrete), as pessoas
-// (responsável, participantes da equipe e pessoas do cadastro) e as ligações (demanda, contrato e processo), que são opcionais.
+// Cadastro de tarefa (novo ou atualizar), o mais curto do sistema (#299), em duas etapas: a tarefa (título, descrição, o prazo com a hora e
+// o lembrete num campo só, e as ligações opcionais: demanda, contrato e processo) e as pessoas (responsável, participantes da equipe e pessoas do cadastro).
 // Vindo do cartão de uma pessoa (?pessoa=), de uma demanda (?demanda=) ou de um contrato (?contrato=), ele já vem
-// escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios.
+// escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios; ao tirá-la, saem
+// de novo, se a pessoa não os mudou (regras/tarefa.ts: oQueADemandaTraz e semADemanda).
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosTarefa, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
@@ -9,10 +10,10 @@ import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { camposForaDoLapis, DATAS_NO_LUGAR, etapasDoLapis, semOsCampos } from '../regras/datasNoCartao';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TAREFA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
-import { CampoDoInicio, CampoDoLembrete, CampoDaHora, CampoDoPrazo } from './CamposDoLembrete';
+import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import {
-  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa, TAREFA_VAZIA, validarTarefa,
-  type CamposTarefa, type EtapaTarefa
+  camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, primeiraEtapaComErroTarefa, semADemanda,
+  semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
 } from '../regras/tarefa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
@@ -84,15 +85,33 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     setChaves(lista.length ? lista.map((_, i) => i) : [0]);
     proximaChave.current = lista.length + 1;
   }
-  const semPessoas = (x: CamposTarefa) => !x.pessoas.some(Boolean);
-  // Ao ligar uma demanda: as pessoas e o contrato dela entram na tarefa, se a tarefa ainda não tem.
+  // Os campos de agora, para a resposta da demanda, que chega depois de a pessoa talvez ter mudado alguma coisa.
+  const camposAgora = useRef(c);
+  camposAgora.current = c;
+  // O que a demanda ligada trouxe (as pessoas e o contrato), para tirar junto com ela.
+  const trazido = useRef<TrazidoDaDemanda | null>(null);
+  // Ao ligar uma demanda: as pessoas e o contrato dela entram na tarefa, se a tarefa ainda não tem (decidido com os campos de agora).
   async function ligarDemanda(id: string) {
     mudar({ demandaId: id });
+    camposAgora.current = { ...camposAgora.current, demandaId: id };
     const d = await SD.demandaObter(id).catch(() => null);
     if (!d) return;
     setConhecidos(x => ({ ...x, [d.id]: [d.codigo, d.titulo].filter(Boolean).join(' · '), ...(d.contrato_id && d.contrato_codigo ? { [d.contrato_id]: d.contrato_codigo } : {}) }));
-    if (semPessoas(c) && d.clientes.length) { porPessoas(d.clientes); mudar({ pessoas: d.clientes.map(p => p.id) }); }
-    if (!c.contratoId && d.contrato_id) mudar({ contratoId: d.contrato_id });
+    const r = oQueADemandaTraz(camposAgora.current, { id: d.id, clientes: d.clientes.map(p => p.id), contratoId: d.contrato_id });
+    if (!r) return;
+    trazido.current = r.trazido;
+    if (r.mudancas.pessoas) porPessoas(d.clientes);
+    mudar(r.mudancas);
+  }
+  // Ao tirar a demanda: sai também o que ela trouxe e a pessoa não mudou.
+  function tirarDemanda() {
+    const { mudancas, ficam } = semADemanda(c, trazido.current);
+    trazido.current = null;
+    if (ficam.includes(false)) {
+      const restam = pessoas.filter((_, i) => ficam[i]);
+      if (restam.length) { setPessoas(restam); setChaves(chaves.filter((_, i) => ficam[i])); } else porPessoas([]);
+    }
+    mudar(mudancas);
   }
 
   useEffect(() => {
@@ -263,11 +282,14 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
             aoMudar={descricao => mudar({ descricao })} />
         </Campo>
       </>}
-      <CampoDoPrazo rotulo="Prazo" valor={c.prazo} erro={erros.prazo} hora={c.hora} aoMudar={prazo => mudar({ prazo })} aoMudarHora={hora => mudar({ hora })} />
-      <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
-      <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
-      {/* A data de início só ao mudar uma tarefa que já existe: a nova começa no dia em que é criada (#357). */}
-      {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
+      {/* No lápis do cartão, as datas também não se repetem: o cartão as muda no próprio lugar (#361). */}
+      {!edicao && <>
+        <CampoDoPrazo rotulo="Prazo" prazo={c.prazo} hora={c.hora} lembrete={c.lembrete} erros={erros} aoMudar={mudar} />
+        {/* A data de início só ao mudar uma tarefa que já existe: a nova começa no dia em que é criada (#357). */}
+        {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
+      </>}
+      {/* As ligações, opcionais, na mesma etapa (#299): ligar a demanda traz as pessoas dela para a etapa seguinte. */}
+      {ligacoes()}
     </>,
     pessoas: () => <>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem faz a tarefa: qualquer um da equipe.">
@@ -293,10 +315,13 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           <Icone nome="mais" tam={13} /> Adicionar pessoa
         </button></div>
       </CampoDeVarios>
-    </>,
-    ligacoes: () => <>
+    </>
+  };
+  /** A demanda, o contrato e o processo da tarefa: opcionais, no fim da primeira etapa. */
+  function ligacoes() {
+    return <>
       {c.demandaId
-        ? <Escolhido rotulo="Demanda" texto={rotuloDemanda || 'Demanda ligada'} tirar="Tirar a demanda" aoTirar={() => mudar({ demandaId: '' })} />
+        ? <Escolhido rotulo="Demanda" texto={rotuloDemanda || 'Demanda ligada'} tirar="Tirar a demanda" aoTirar={tirarDemanda} />
         : <Campo rotulo="Demanda" para="demanda" dica="Busque pelo código, pelo título ou pelo cliente. Deixe vazio se a tarefa é avulsa.">
           <CampoComSugestoes id="demanda" aria-describedby="demanda-dica" placeholder="Buscar demanda…" valor={buscaDemanda} aoMudar={digitarDemanda}
             sugestoes={demandas.map(d => ({ valor: rotuloDaDemanda(d) }))} />
@@ -311,14 +336,14 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       {comProcessos && <EscolhaDeProcessos rotulo="Processo" dica="O processo de que a tarefa cuida. Busque pelo número, pelo nome ou pelo cliente." maximo={1}
         escolhidos={processo ? [processo] : []} ocultos={c.processoId && !processo ? 1 : 0}
         aoMudar={lista => { setProcesso(lista[0] ?? null); mudar({ processoId: lista[0]?.id ?? '' }); }} />}
-    </>
-  };
+    </>;
+  }
 
   // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé, menos a que só tem o que o cartão muda no lugar.
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar tarefa" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {etapasDoLapis(ETAPAS_TAREFA, camposForaDoLapis(DATAS_NO_LUGAR.tarefas)).map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
+      {naOrdemDoLapisTarefa(etapasDoLapis(ETAPAS_TAREFA, camposForaDoLapis(DATAS_NO_LUGAR.tarefas))).map(e => <SecaoDoFormulario key={e.id} titulo={e.tituloNoLapis ?? e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />

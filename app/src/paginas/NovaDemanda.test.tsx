@@ -151,37 +151,59 @@ describe('Hora e lembrete do prazo (#286)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Salvar alterações' }));
   }
 
+  /** O botão do lembrete, com o sino, ao lado do prazo (#299). */
+  const sino = () => screen.getByRole('button', { name: /^Lembrete:/ });
+  async function marcarLembrete(nome: string) {
+    await userEvent.click(sino());
+    await userEvent.click(screen.getByRole('menuitemradio', { name: nome }));
+  }
+
   it('dado uma demanda com prazo, quando marca a hora e o lembrete e salva, então os dois são gravados', async () => {
     // Dado
     const gravar = await abrir(demanda({ prazo: '2030-11-15' }));
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
-    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), '1 hora antes');
+    await marcarLembrete('1 hora antes');
     await salvar();
     // Então
     await waitFor(() => expect(gravar).toHaveBeenCalledWith('d1', expect.objectContaining({ prazo: '2030-11-15', prazo_hora: '14:00', lembrete: 60 })));
   });
 
-  it('dado uma demanda salva com hora e lembrete, quando abre para atualizar, então os campos vêm preenchidos, com as opções combinadas', async () => {
+  it('dado uma demanda salva com hora e lembrete, quando abre para atualizar, então o prazo e a hora vêm no mesmo campo e o sino mostra o lembrete, com as opções combinadas', async () => {
     // Quando
     await abrir(demanda({ prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 1440 }));
     // Então
+    expect(screen.getByRole('textbox', { name: 'Prazo de entrega' })).toHaveValue('15/11/2030');
     expect(screen.getByLabelText('Hora')).toHaveValue('14:00');
-    expect(screen.getByLabelText('Lembrete')).toHaveValue('1440');
-    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(expect.arrayContaining(['Sem lembrete', 'Na hora do prazo', '30 minutos antes', '1 hora antes', '1 dia antes']));
+    expect(sino()).toHaveAccessibleName('Lembrete: 1 dia antes');
+    // Quando
+    await userEvent.click(sino());
+    // Então
+    expect(screen.getAllByRole('menuitemradio').map(o => o.textContent)).toEqual(['Na hora do prazo', '30 minutos antes', '1 hora antes', '1 dia antes', 'Sem lembrete']);
     expect(screen.getByText(/Sem hora, o lembrete conta o prazo às 9h/)).toBeInTheDocument();
   });
 
-  it('dado uma demanda sem prazo, quando marca hora e lembrete e segue, então pede o prazo e não grava', async () => {
+  it('dado uma demanda sem prazo, quando marca a hora e segue, então pede o prazo, o sino fica desligado e não grava', async () => {
     // Dado
     const gravar = await abrir(demanda({ prazo: null }));
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
-    await userEvent.selectOptions(screen.getByLabelText('Lembrete'), 'Na hora do prazo');
     await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     // Então
     expect(await screen.findByText('Informe o prazo para pôr a hora')).toBeInTheDocument();
-    expect(screen.getByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
+    expect(sino()).toHaveAttribute('aria-disabled', 'true');
+    expect(gravar).not.toHaveBeenCalled();
+  });
+
+  it('dado uma demanda com lembrete, quando a pessoa apaga o prazo e segue, então pede o prazo para o lembrete e não grava', async () => {
+    // Dado
+    const gravar = await abrir(demanda({ prazo: '2030-11-15', lembrete: 0 }));
+    // Quando
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Prazo de entrega' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    // Então
+    expect(await screen.findByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
+    expect(sino()).not.toHaveAttribute('aria-disabled');
     expect(gravar).not.toHaveBeenCalled();
   });
 });
@@ -204,6 +226,7 @@ describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
     await screen.findByLabelText(/Responsável/);
     // Então
     for (const rotulo of ['Prazo de entrega', 'Hora', 'Lembrete', 'Data de início']) expect(screen.queryByLabelText(rotulo)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Lembrete/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'A demanda' })).not.toBeInTheDocument();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));

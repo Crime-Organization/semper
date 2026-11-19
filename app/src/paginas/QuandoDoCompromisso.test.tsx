@@ -14,6 +14,20 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new 
 afterEach(() => vi.useRealTimers());
 
 describe('Data e horário do compromisso no próprio lugar (#361)', () => {
+  it('dado quem muda o compromisso, quando abre a data, então a hora fica ao lado da data, no mesmo campo, e não embaixo do calendário (#299)', async () => {
+    // Dado
+    render(<QuandoDoCompromisso c={reuniao} aoSalvar={vi.fn()} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /^Data e horário/ }));
+    // Então
+    expect(within(screen.getByRole('dialog', { name: 'Calendário' })).queryByLabelText(/Hora/)).not.toBeInTheDocument();
+    expect(within(formulario()).getByRole('textbox', { name: 'Data' })).toHaveValue('20/11/2026');
+    expect(within(formulario()).getByLabelText('Hora do compromisso')).toHaveValue('14:00');
+    // A reunião exige a hora: o leitor de tela avisa.
+    expect(within(formulario()).getByLabelText('Hora do compromisso')).toHaveAttribute('aria-required', 'true');
+    expect(within(formulario()).getAllByLabelText(/^Hora/)).toHaveLength(1);
+  });
+
   it('dado quem muda o compromisso, quando escolhe outro dia, a hora e o fim e salva, então grava como o banco guarda', async () => {
     // Dado
     const aoSalvar = vi.fn();

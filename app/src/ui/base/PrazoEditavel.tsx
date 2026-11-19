@@ -1,13 +1,11 @@
 // O prazo de tarefas e demandas no grupo das datas do cartão (#361): o prazo com a hora e, embaixo, o sino com o lembrete. Quem
-// pode alterar o cartão clica e muda ali mesmo: o campo do prazo abre com o calendário pequeno (#357), com a hora logo abaixo dele,
-// e ao lado ficam a hora e o sino do lembrete. Enquanto a #299 (prazo e hora num campo só, lembrete num botão) não chega, são os
-// campos de hoje, em tamanho de cartão. As conferências e o que se grava ficam em regras/datasNoCartao.ts.
-// A hora aparece em dois lugares: no calendário (que só existe no computador, enquanto ele está aberto) e ao lado do prazo (no
-// celular, o calendário é o do aparelho, sem hora). Por isso a de fora tem um nome só dela ("Hora do prazo").
+// pode alterar o cartão clica e muda ali mesmo, com as mesmas peças do cadastro (#299): o prazo e a hora num campo só
+// (<CampoDataHora>, com o calendário pequeno da #357 aberto logo de cara) e o lembrete no botão com o sino, ao lado, em tamanho de
+// cartão. As conferências e o que se grava ficam em regras/datasNoCartao.ts.
 import { camposDoPrazo, lembreteDoPrazo, resumoDoPrazo, textoDoPrazo, type CamposDoPrazo, type ErrosDosCampos, type PrazoGravado } from '../../regras/datasNoCartao';
-import { LEMBRETES, lerLembrete, OPCOES_DE_LEMBRETE, SEM_LEMBRETE } from '../../regras/lembrete';
 import { Icone } from '../Icone';
-import { CampoData } from './CampoData';
+import { BotaoDoLembrete } from './BotaoDoLembrete';
+import { CampoDataHora } from './CampoDataHora';
 import { DadoEditavel } from './GrupoDeDatas';
 
 /** O tamanho do sino, ao lado do lembrete. */
@@ -33,20 +31,12 @@ export function PrazoEditavel({ nome, valor, conferir, aoSalvar, aoMudarRascunho
     </span>}
   </>;
   return <DadoEditavel nome={nome} titulo={`Mudar o ${nome.toLowerCase()}`} resumo={resumoDoPrazo(valor)} lido={lido} inicial={() => camposDoPrazo(valor)}
-    conferir={conferir} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} campos={({ rascunho, mudar, marcar }) => <>
-      <CampoData aria-label={nome} className="data-editavel-campo" {...marcar('prazo')} valor={rascunho.prazo} abrirAoAparecer
-        aoMudar={prazo => mudar({ prazo })} hora={{ valor: rascunho.hora, aoMudar: hora => mudar({ hora }) }} />
-      <label className="dado-editavel-legenda">Hora
-        <input type="time" aria-label={`Hora do ${nome.toLowerCase()}`} className="data-editavel-campo dado-editavel-hora" {...marcar('hora')}
-          value={rascunho.hora} onChange={e => mudar({ hora: e.target.value })} />
-      </label>
-      <span className="dado-editavel-sino">
-        <Icone nome="sino" tam={TAMANHO_DO_SINO} />
-        <select aria-label="Lembrete" className="data-editavel-campo" {...marcar('lembrete')} value={rascunho.lembrete ?? ''}
-          onChange={e => mudar({ lembrete: lerLembrete(e.target.value) })}>
-          <option value="">{SEM_LEMBRETE}</option>
-          {OPCOES_DE_LEMBRETE.map(l => <option key={l} value={l}>{LEMBRETES[l].nome}</option>)}
-        </select>
-      </span>
-    </>} />;
+    conferir={conferir} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} campos={({ rascunho, mudar, marcar }) => {
+      const doPrazo = marcar('prazo'), daHora = marcar('hora'), doLembrete = marcar('lembrete');
+      return <CampoDataHora discreto aria-label={nome} {...doPrazo} valor={rascunho.prazo} abrirAoAparecer aoMudar={prazo => mudar({ prazo })}
+        hora={rascunho.hora} aoMudarHora={hora => mudar({ hora })} rotuloDaHora={`Hora do ${nome.toLowerCase()}`} horaComErro={!!daHora['aria-invalid']}
+        descricaoDaHora={daHora['aria-describedby']}
+        junto={<BotaoDoLembrete valor={rascunho.lembrete} prazo={rascunho.prazo} comErro={!!doLembrete['aria-invalid']}
+          aria-describedby={doLembrete['aria-describedby']} aoMudar={l => mudar({ lembrete: l })} />} />;
+    }} />;
 }

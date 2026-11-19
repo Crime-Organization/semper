@@ -11,5 +11,8 @@
 .acomp-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
 .acomp-form { display: flex; flex-direction: column; gap: 16px }
 .acomp-form-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px }
+/* Com a data e a hora num campo só (a audiência e a perícia, #299), cada coluna tem a largura mínima dele: no cartão estreito, o tipo e a
+   data ficam um embaixo do outro, e a data não é cortada; na tela mais estreita que essa largura, a coluna fica com a largura toda. */
+.acomp-form-linha:has(.campo-quando) { grid-template-columns: repeat(auto-fit, minmax(min(var(--largura-minima-do-quando), 100%), 1fr)) }
 /* A busca da tarefa para ligar ao prazo (#341), aberta, ocupa a linha toda das ações. */
 .acomp-acoes > .busca-existente { flex: 1 1 100% }

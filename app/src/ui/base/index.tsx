@@ -13,6 +13,8 @@ export { TextoEditavel } from './TextoEditavel';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
+export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';

@@ -23,35 +23,57 @@ async function apertarT(page: Page, cartao: Locator) {
 }
 
 test.describe('Cadastro de tarefas', () => {
-  test('quando chega à etapa das ligações, então as buscas têm a altura dos outros campos', async ({ page }) => {
+  test('quando a primeira etapa aparece, então as buscas das ligações já estão nela, com a altura dos outros campos (#299)', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');
     const titulo = page.getByLabel('Título');
     const altura = await alturaParada(titulo);
-    await titulo.fill('Mandar a notificação');
     // Quando
-    await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('button', { name: 'Próxima' }).click();
+    await titulo.fill('Mandar a notificação');
     // Então
     expect(await alturaParada(page.getByRole('combobox', { name: 'Demanda' }))).toBe(altura);
     expect(await alturaParada(page.getByRole('combobox', { name: 'Contrato' }))).toBe(altura);
   });
 
-  test('quando a pessoa cadastra uma tarefa pelas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
-    // Dado
+  test('dada uma demanda ligada por engano, quando a pessoa a tira e liga outra, então as pessoas e o contrato são os da demanda certa (#299)', async ({ page }) => {
+    // Dado: a demanda errada traz o cliente e o contrato dela
     await page.goto('/tarefas/nova/');
-    await expect(page.getByText('Etapa 1 de 3')).toBeVisible();
-    // Quando
     await page.getByLabel('Título').fill('Mandar a notificação');
-    await page.getByLabel('Prazo').fill('10112030');
-    await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
-    await page.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
-    await page.getByRole('textbox', { name: 'Pessoa ligada', exact: true }).fill('luciana');
-    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
-    await page.getByRole('button', { name: 'Próxima' }).click();
+    await page.getByRole('combobox', { name: 'Demanda' }).fill('Registro');
+    await page.getByRole('option', { name: /D3A1F09C · Registro de marca/ }).click();
+    await expect(page.getByText(/MA96-0001/)).toBeVisible();
+    // Quando: tira a demanda errada e liga a certa
+    await page.getByRole('button', { name: 'Tirar a demanda' }).click();
+    // Então: o contrato que veio com ela sai junto
+    await expect(page.getByRole('combobox', { name: 'Contrato' })).toBeVisible();
+    // Quando
     await page.getByRole('combobox', { name: 'Demanda' }).fill('Notificar');
     await page.getByRole('option', { name: /Notificar o devedor/ }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então: as pessoas são as da demanda certa, e não as da tirada
+    const pessoas = page.getByRole('group', { name: 'Pessoas ligadas' });
+    await expect(pessoas).toContainText('MARIA APARECIDA EXEMPLO');
+    await expect(pessoas).not.toContainText('JOSÉ DA SILVA TESTE');
+  });
+
+  test('quando a pessoa cadastra uma tarefa pelas duas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/nova/');
+    await expect(page.getByText('Etapa 1 de 2')).toBeVisible();
+    // Quando: na primeira etapa, a tarefa, o prazo e a demanda (que traz os clientes dela para as pessoas)
+    await page.getByLabel('Título').fill('Mandar a notificação');
+    await page.getByRole('textbox', { name: 'Prazo' }).fill('10112030');
+    await page.getByRole('combobox', { name: 'Demanda' }).fill('Notificar');
+    await page.getByRole('option', { name: /Notificar o devedor/ }).click();
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    await expect(page.getByRole('group', { name: 'Pessoas ligadas' })).toContainText('MARIA APARECIDA EXEMPLO');
+    // Quando: na etapa das pessoas, igual à de antes
+    await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    await page.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
+    await page.getByRole('button', { name: 'Adicionar pessoa' }).click();
+    await page.getByRole('textbox', { name: 'Pessoa ligada 2', exact: true }).fill('luciana');
+    await page.getByRole('button', { name: /LUCIANA ROCHA AMOSTRA/ }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então
     const cartao = page.getByRole('dialog');
@@ -87,12 +109,13 @@ test.describe('Cadastro de tarefas', () => {
     await page.getByRole('dialog').getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await cadastro.getByLabel('Título').fill('Anexar os documentos');
+    // Então: a demanda e o contrato já na primeira etapa (#299)
+    await expect(cadastro.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
+    await expect(cadastro.getByText(/MA96-0001/)).toBeVisible();
+    // Quando
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(cadastro.getByRole('group', { name: 'Pessoas ligadas' })).toContainText('JOSÉ DA SILVA TESTE');
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
-    await expect(cadastro.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
-    await expect(cadastro.getByText(/MA96-0001/)).toBeVisible();
   });
 });
 
@@ -113,8 +136,6 @@ test.describe('Tarefa nascida no cartão da demanda (#279)', () => {
     await cartao.getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await cadastro.getByLabel('Título').fill('Conferir a procuração');
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(cadastro.getByText(/D3A1F09C · Registro de marca/)).toBeVisible();
   });
@@ -131,12 +152,11 @@ test.describe('Tarefa nascida no cartão da demanda (#279)', () => {
     await cartao.getByRole('link', { name: 'Nova tarefa desta demanda' }).click();
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await cadastro.getByLabel('Título').fill('Pesquisar marcas parecidas');
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
     // Então: a demanda aparece pelo nome, e o contrato pelo código (e não só "Contrato ligado")
     await expect(cadastro.getByText(/· Busca de anterioridade/)).toBeVisible();
     await expect(cadastro.getByText('Contrato ligado')).toHaveCount(0);
     // Quando
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar tarefa' }).click();
     await expect(page.getByText(/Tarefa \w+ cadastrada\./)).toBeVisible();
     cartao = await abrirDemanda(page, 'Busca de anterioridade');
@@ -216,7 +236,6 @@ test.describe('Cadastro numa janela', () => {
     const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
     await expect(page.getByRole('list', { name: 'Para fazer', exact: true })).toBeVisible();
     await cadastro.getByLabel('Título').fill('Ligar para o cliente');
-    await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Próxima' }).click();
     await cadastro.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então
@@ -894,7 +913,6 @@ test.describe('Descrição com negrito, itálico e listas (#293)', () => {
     await expect(descricao).toHaveValue('Juntar **procuração** e *comprovante*\n- RG\n- CPF');
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
-    await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então
     const cartao = page.getByRole('dialog');
@@ -919,7 +937,6 @@ test.describe('Descrição com o Markdown completo (#344)', () => {
     await page.getByLabel('Título').fill('Preparar o protocolo');
     // Quando
     await page.getByRole('textbox', { name: 'Descrição' }).fill(['- [ ] Imprimir a petição', '- [x] Assinar', '1. Guia', '2. Cópias', 'Rodar `npm run teste`'].join('\n'));
-    await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então

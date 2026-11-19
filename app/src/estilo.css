@@ -119,6 +119,10 @@
   --folga-do-calendario: 12px;
   /* O campo da hora logo abaixo do calendário (hh:mm e o botão do relógio do navegador) */
   --largura-da-hora: 128px;
+  /* O campo de data e hora (#299): abaixo desta largura, a caixa da data e da hora fica sozinha na linha e o que vem junto (o botão
+     do lembrete) desce; acima, ela não passa da largura máxima, para a data e a hora não ficarem longe uma da outra */
+  --largura-minima-do-quando: 280px;
+  --largura-maxima-do-quando: 360px;
   /* O campo da data de início mudada no próprio cartão (dd/mm/aaaa e o botão do calendário) */
   --largura-do-inicio-no-cartao: 160px;
   /* A sombra do que flutua por cima da página, como o calendário e os menus (vale nos dois temas: sombra é sempre escura) */
@@ -992,6 +996,31 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .campo-data-calendario .campo-data-hora input { width: var(--largura-da-hora); height: var(--campo-discreto); padding: 0 10px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); color: var(--ink); font-size: var(--texto-corrido); font-variant-numeric: tabular-nums }
 .campo-data-calendario .campo-data-hora input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .campo-data-acoes { display: flex; gap: 4px; margin-left: auto }
+/* ---------- campo de data e hora numa caixa só e o botão do lembrete (#299, ui/base/CampoDataHora.tsx e BotaoDoLembrete.tsx) ----------
+   A caixa tem a borda, o fundo e o foco de um campo; a data e a hora, dentro dela, não têm borda própria, e um fio as separa. Vale no
+   cadastro (dentro de .pergunta) e no grupo das datas do cartão (.discreto, um pouco mais baixo, como os outros campos do cartão). */
+.campo-data-e-hora { display: flex; flex-wrap: wrap; align-items: center; gap: 10px }
+.campo-quando { flex: 1 1 var(--largura-minima-do-quando); max-width: var(--largura-maxima-do-quando); display: flex; min-width: 0; height: var(--altura-campo); border: 1px solid var(--line2); border-radius: 10px; background: var(--superficie) }
+.campo-quando:focus-within { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
+.pergunta.erro .campo-quando, .campo-quando:has([aria-invalid="true"]) { border-color: var(--erro); outline-color: var(--erro) }
+.campo-data-e-hora .campo-quando > .campo-data, .campo-quando > input[type="date"] { flex: 1; width: auto; min-width: 0 }
+.campo-data-e-hora .campo-quando input { height: 100%; border: 0; border-radius: 0; background: transparent; color: var(--ink) }
+.campo-data-e-hora .campo-quando input:focus { outline: 0 }
+.campo-data-e-hora .campo-quando > input[type="time"] { flex: 0 0 var(--largura-da-hora); width: var(--largura-da-hora); padding: 0 12px; border-left: 1px solid var(--line2); border-radius: 0 10px 10px 0; font-variant-numeric: tabular-nums }
+.campo-data-e-hora .campo-quando > input[type="date"] { border-radius: 10px 0 0 10px }
+.botao-do-lembrete { height: var(--altura-campo); padding: 0 16px; border-radius: 10px; background: var(--superficie); color: var(--muted); font-weight: 700 }
+.botao-do-lembrete[data-escolhido] { color: var(--ink) }
+.botao-do-lembrete[data-escolhido] svg { color: var(--accent-ink) }
+.botao-do-lembrete[data-erro] { border-color: var(--erro) }
+.botao-do-lembrete[aria-disabled="true"] { color: var(--faint); cursor: not-allowed }
+.botao-do-lembrete[aria-disabled="true"]:hover { background: var(--superficie) }
+/* No cartão: a altura e o texto dos outros campos do cartão (.data-editavel-campo). */
+.campo-data-e-hora.discreto { gap: var(--vao-dos-campos); flex: 1 1 100% }
+.campo-data-e-hora.discreto .campo-quando, .campo-data-e-hora.discreto .botao-do-lembrete { height: var(--campo-discreto); border-radius: 8px; font-size: var(--texto-corrido) }
+.campo-data-e-hora.discreto .campo-quando input { font-size: var(--texto-corrido) }
+.campo-data-e-hora.discreto .campo-quando > .campo-data > input[type="text"] { padding-left: 10px }
+.campo-data-e-hora.discreto .campo-quando > input[type="time"] { padding: 0 10px; border-radius: 0 8px 8px 0 }
+.campo-data-e-hora.discreto .botao-do-lembrete { padding: 0 12px }
 .escolhas { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px }
 .escolhas.coluna-unica { grid-template-columns: 1fr }
 .escolhas label { position: relative; display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px 16px; border: 1px solid var(--line2); border-radius: 12px; background: var(--superficie); cursor: pointer; font-size: 15px; color: var(--ink); user-select: none; transition: border-color .15s, background .15s }
