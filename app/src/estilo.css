@@ -241,8 +241,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .editor-de-texto-situacao { margin: 0; min-height: 18px; font-size: var(--texto-miudo); color: var(--muted); text-align: right }
 .editor-de-texto-situacao:is(.naoSalvo, .conflito) { color: var(--erro); font-weight: 700 }
 /* O editor ao vivo (<EditorAoVivo>, #364), como o do Obsidian: o texto já formatado enquanto se escreve, na letra da nota e com os
-   mesmos tamanhos e cores do texto formatado (.texto-formatado). Os sinais do Markdown (**, ##, "- ") ficam escondidos e, na linha
-   do cursor, aparecem apagados. Escrevendo, nada em volta do texto (#367: nem o contorno de foco de :focus-visible, nem o fio
+   mesmos tamanhos e cores do texto formatado (.texto-formatado). Os sinais do Markdown (**, ##, "- ") ficam sempre escondidos,
+   também na linha do cursor (#368). Escrevendo, nada em volta do texto (#367: nem o contorno de foco de :focus-visible, nem o fio
    verde à esquerda que havia): como numa folha, só o cursor, na cor de destaque, mostra onde se escreve. Vale também para o
    lugar do texto enquanto o editor chega (.editor-ao-vivo-chegando), que recebe o foco do Enter no título. Os outros campos do
    sistema guardam o contorno de sempre. */
@@ -253,7 +253,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .editor-ao-vivo .cm-editor .cm-line { padding: 0 }
 .editor-ao-vivo .cm-editor .cm-placeholder { color: var(--faint) }
 .editor-ao-vivo-chegando { min-height: var(--altura-do-texto); font-size: var(--texto-nota); line-height: 1.65 }
-.ao-vivo-simbolo { color: var(--faint); font-weight: 400; font-style: normal }
 .ao-vivo-negrito { font-weight: 800; color: var(--ink) }
 .ao-vivo-italico { font-style: italic }
 .ao-vivo-tachado { text-decoration: line-through; color: var(--muted) }

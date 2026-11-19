@@ -11,11 +11,6 @@ export const ESPERA_AO_DIGITAR = 300;
 /** O texto da anotação salva sozinho: depois desta pausa sem digitar, o que mudou é gravado (como no Obsidian). */
 export const ESPERA_PARA_SALVAR = 1.5 * SEGUNDO;
 /**
- * O editor ao vivo espera este tempo depois de um clique antes de mostrar os sinais escondidos da linha (que empurram o texto):
- * assim o segundo clique de um clique duplo ainda cai na palavra que a pessoa viu. É o tempo do clique duplo do Windows.
- */
-export const ESPERA_DO_CLIQUE_DUPLO = 0.5 * SEGUNDO;
-/**
  * O histórico da anotação junta numa linha só as gravações seguidas do texto pela mesma pessoa, quando cada uma veio até este
  * tempo depois da anterior: uma sessão de escrita aparece como um "Texto alterado", e não como dezenas.
  */

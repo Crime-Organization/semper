@@ -38,9 +38,18 @@ async function porNoTexto(caixa: Locator, texto: string) {
   await caixa.page().keyboard.insertText(texto);
 }
 /**
- * O texto guardado de uma anotação, no banco fictício: o Markdown, com os sinais (**, ##, "- [ ] ") que o editor ao vivo esconde
- * fora da linha do cursor.
+ * O texto guardado de uma anotação, no banco fictício: o Markdown, com os sinais (**, ##, "- [ ] ") que o editor ao vivo esconde.
  */
+/**
+ * O estilo da letra (normal, itálico) de cada pedaço de texto da caixa que faz parte de "texto", sem repetir, como a tela os
+ * desenha: se um pedaço do link virasse itálico, ele apareceria aqui como "italic".
+ */
+const estilosDoTexto = (caixa: Locator, texto: string) => caixa.evaluate((el, t) => {
+  const estilos = new Set<string>(), andar = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  for (let n = andar.nextNode(); n; n = andar.nextNode())
+    if (n.textContent && t.includes(n.textContent) && n.parentElement) estilos.add(getComputedStyle(n.parentElement).fontStyle);
+  return [...estilos];
+}, texto);
 const textoGuardado = (page: Page, titulo: string) => page.evaluate(([chave, t]) =>
   (JSON.parse(sessionStorage.getItem(chave)!) as { anotacoes: { titulo: string; texto: string }[] }).anotacoes.find(a => a.titulo === t)?.texto, [CHAVE, titulo]);
 /** A anotação nova, em branco: na janela do cadastro (ou na página, quando aberta direto pelo endereço). */
@@ -572,8 +581,9 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     await page.keyboard.press('Enter');
     await page.keyboard.press('Enter');   // no item vazio, o Enter acaba a lista (a linha fica sem o "- ")
     await page.keyboard.type('- [ ] Ligar ao cliente');
-    // Então: na linha do cursor, os sinais aparecem para editar
-    await expect(caixa).toContainText('- [ ] Ligar ao cliente');
+    // Então: também na linha do cursor a formatação fica desenhada (#368): a caixinha já aparece, sem o "- [ ] " escrito
+    await expect(caixa.getByRole('checkbox', { name: 'Ligar ao cliente' })).toBeVisible();
+    await expect(caixa).not.toContainText('- [');
     // Então: nas outras linhas, os sinais somem e o texto aparece formatado
     await expect(caixa).toContainText('PendênciasLevar o RG');
     await expect(caixa).not.toContainText('**');
@@ -591,6 +601,60 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     await expect(caixa).not.toContainText('- [');
     await expect(anotacao.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Salvo');
     await expect.poll(() => textoGuardado(page, 'Escrita ao vivo')).toContain('- [x] Ligar ao cliente');
+  });
+
+  test('dada uma lista, quando a pessoa cola um link com "_" num item, então a bolinha continua, o link não fica em itálico e o Backspace no começo tira a bolinha (#368)', async ({ page }) => {
+    // Dado
+    const anotacao = await criarAnotacao(page, 'Links em lista');
+    const caixa = caixaDoTexto(anotacao);
+    const link = 'https://site.com/37174467/Cap_1_-_Livro_IG-libre.pdf?x=1&nome=a_b_c';
+    await caixa.click();
+    await page.keyboard.type('- ');
+    // Quando: o link entra de uma vez, como no Ctrl+V
+    await page.keyboard.insertText(link);
+    // Então: a linha continua um item (sem o "- " escrito), e o link fica inteiro, sem itálico em nenhum pedaço dele
+    await expect(caixa.getByRole('img', { name: 'Item da lista' })).toBeVisible();
+    await expect(caixa).toContainText(link);
+    await expect(caixa).not.toContainText('- https');
+    expect(await estilosDoTexto(caixa, link)).toEqual(['normal']);
+    // Quando: escolhe o item todo (Shift+Home, que passa pela bolinha) e cola outro link por cima. O link comprido quebra em
+    // duas linhas na tela: o primeiro Shift+Home vai até a quebra, o segundo até o começo do item.
+    const novo = 'https://site.com/Cap_2_-_Livro.pdf';
+    await page.keyboard.press('Shift+Home');
+    await page.keyboard.press('Shift+Home');
+    await page.keyboard.insertText(novo);
+    // Então: a bolinha continua
+    await expect(caixa.getByRole('img', { name: 'Item da lista' })).toBeVisible();
+    await expect(caixa).toContainText(novo);
+    // Quando: volta ao começo do item e tecla Backspace
+    await page.keyboard.press('Home');
+    await page.keyboard.press('Backspace');
+    // Então: a bolinha sai, e o link fica como texto comum
+    await expect(caixa.getByRole('img', { name: 'Item da lista' })).toHaveCount(0);
+    await caixa.press('ControlOrMeta+s');
+    await expect(anotacao.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Salvo');
+    await expect.poll(() => textoGuardado(page, 'Links em lista')).toBe(novo);
+  });
+
+  test('dada uma linha vazia, quando a pessoa aperta Ctrl+B e digita, então sai em negrito, sem divisória e sem "*" à mostra; Ctrl+B de novo desliga (#368)', async ({ page }) => {
+    // Dado
+    const anotacao = await criarAnotacao(page, 'Negrito sem escolha');
+    const caixa = caixaDoTexto(anotacao);
+    await caixa.click();
+    await page.keyboard.type('Pendências');
+    await page.keyboard.press('Enter');
+    // Quando
+    await page.keyboard.press('ControlOrMeta+b');
+    await page.keyboard.type('RG');
+    await page.keyboard.press('ControlOrMeta+b');
+    await page.keyboard.type(' e CPF');
+    // Então
+    await expect(caixa).toContainText('PendênciasRG e CPF');
+    await expect(caixa).not.toContainText('*');
+    await expect(caixa.getByRole('separator')).toHaveCount(0);
+    await caixa.press('ControlOrMeta+s');
+    await expect(anotacao.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Salvo');
+    await expect.poll(() => textoGuardado(page, 'Negrito sem escolha')).toBe('Pendências\n**RG** e CPF');
   });
 
   // A regra mudou (pedido de 18/11): o livro (o modo de ler) saiu; a formatação já aparece enquanto se escreve.
@@ -1455,9 +1519,9 @@ async function arrastar(caixa: Locator, de: string, ate: string) {
 const negrito = (onde: Locator) => onde.getByRole('button', { name: 'Negrito (Ctrl+B)' });
 
 test.describe('Formatar o texto de uma anotação já criada (#364): o clique escolhe a palavra que a pessoa vê', () => {
-  // Os sinais escondidos (**, o "- " da bolinha, o endereço do link) aparecem na linha do cursor e empurram o texto. Se
-  // aparecessem já no primeiro clique, o segundo clique (ou o fim do arrasto) cairia em outra palavra, e a formatação ia para o
-  // lugar errado: "só consigo formatar na hora de criar, não na hora de editar".
+  // Antes da #368, os sinais escondidos (**, o "- " da bolinha, o endereço do link) apareciam na linha do cursor e empurravam o
+  // texto, e o segundo clique (ou o fim do arrasto) caía em outra palavra: "só consigo formatar na hora de criar, não na hora de
+  // editar". Agora eles nunca aparecem; estes testes conferem que o clique continua escolhendo a palavra que a pessoa vê.
 
   test('dado um negrito na linha, quando a pessoa clica em outra linha e depois clica duas vezes em "hoje" e em B, então "hoje" fica em negrito', async ({ page }) => {
     // Dado

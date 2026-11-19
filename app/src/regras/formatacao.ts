@@ -118,8 +118,13 @@ const ESPACO = /\s/;
 /**
  * Cada sinal da linha: uma sequência de "*", de "_", de "~" ou de crases seguidos, um "[" ou um "](endereço)". O "](endereço)"
  * é lido inteiro, então um "*" ou um "_" no endereço nunca vira marca; o endereço para no espaço e nos parênteses.
+ *
+ * Um endereço escrito solto no texto ("https://…" ou "http://…", colado de uma página, #368) também é lido inteiro e fica como
+ * texto: os "_", "*" e "~" dele ("Cap_1_-_Livro_IG.pdf") nunca viram itálico nem negrito. Ele começa fora de uma palavra e para
+ * no espaço, nos "<", ">", crases e colchetes; a pontuação do fim ("." "," ")" "*" "_"…) fica fora dele, para "**https://a.b**"
+ * continuar em negrito e "(veja https://a.b)." fechar o parêntese.
  */
-const SINAL = /\*+|_+|~+|`+|\[|\]\(([^()\s]*)\)/g;
+const SINAL = /\*+|_+|~+|`+|\[|\]\(([^()\s]*)\)|(?<![\p{L}\p{N}])(https?:\/\/[^\s<>`[\]]*[^\s<>`[\]*_~.,:;!?'")])/gu;
 
 /** Uma sequência de marcas na linha e o que ela fez: quantos caracteres sobraram como texto, que destaques fechou e abriu. */
 interface Sequencia { tipo: 'marca'; inicio: number; fim: number; ch: string; sobra: number; abre: boolean; fecha: boolean; fechaAqui: Marca[]; abreAqui: Marca[] }
@@ -203,7 +208,9 @@ function acharLinks(linha: string, sinais: Sinal[]): ParDeLink[] {
   return pares;
 }
 
-const sinaisDaLinha = (linha: string) => juntarCrases(linha, [...linha.matchAll(SINAL)].map(m => lerSinal(linha, m)));
+/** Os sinais da linha, com as crases juntadas. O endereço solto (o grupo 2 de SINAL) não é sinal: só não deixa ler marcas nele. */
+const sinaisDaLinha = (linha: string) =>
+  juntarCrases(linha, [...linha.matchAll(SINAL)].filter(m => m[2] === undefined).map(m => lerSinal(linha, m)));
 
 /** Onde fica, na linha, um link de verdade: do "[" até depois do ")" e, dentro, o texto dele. */
 interface LinkNaLinha { inicio: number; fim: number; textoInicio: number; textoFim: number }
@@ -271,8 +278,8 @@ const TAMANHO_DA_MARCA: Record<Exclude<Marca, 'codigo'>, number> = { negrito: 2,
 const tamanhoDasMarcas = (marcas: Marca[]) => marcas.reduce((n, m) => n + TAMANHO_DA_MARCA[m as Exclude<Marca, 'codigo'>], 0);
 
 /**
- * A mesma leitura de pedacosDaLinha, com as posições: onde ficam os sinais do Markdown (que o editor ao vivo esconde fora da
- * linha do cursor) e os trechos com destaque ou link. Os sinais que sobram como texto ("2 * 3", um "[" sem par) não entram. Um
+ * A mesma leitura de pedacosDaLinha, com as posições: onde ficam os sinais do Markdown (que o editor ao vivo sempre esconde,
+ * também na linha do cursor, #368) e os trechos com destaque ou link. Os sinais que sobram como texto ("2 * 3", um "[" sem par) não entram. Um
  * link sem texto ("[](u)") fica escrito inteiro, como link, para não sumir.
  */
 export function marcasNaLinha(linha: string): MarcasNaLinha {
@@ -530,13 +537,13 @@ export function alternarMarca({ texto, inicio, fim }: Escolha, marca: MarcaDoBot
 }
 
 /** Os sinais que abrem e fecham um mesmo destaque numa linha (os "**" de um negrito, por exemplo). */
-interface ParDeSinais { abre: Intervalo; fecha: Intervalo }
+export interface ParDeSinais { abre: Intervalo; fecha: Intervalo }
 
 /**
  * Onde abre e onde fecha cada trecho da linha com a marca dada, pela mesma leitura que a mostra (marcasDaLinha): só os sinais
  * que viraram marca, nunca os que sobram como texto. Em cada sequência, os sinais que fecham vêm primeiro e os que abrem, no fim.
  */
-function paresDaMarca(linha: string, marca: MarcaDoBotao): ParDeSinais[] {
+export function paresDaMarca(linha: string, marca: MarcaDoBotao): ParDeSinais[] {
   const pares: ParDeSinais[] = [], abertas: { marca: Marca; onde: Intervalo }[] = [];
   for (const s of marcasDaLinha(linha)) {
     if (s.tipo === 'codigo') {

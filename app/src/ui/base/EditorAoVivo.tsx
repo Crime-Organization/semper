@@ -1,6 +1,6 @@
 // O editor ao vivo (#364), como o do Obsidian: a caixa de escrever das anotações, em que a formatação aparece enquanto a pessoa
-// escreve (títulos grandes, negrito, listas, caixinhas, citações, links), e os sinais do Markdown (**, ##, "- ") só aparecem na
-// linha do cursor, para editar. O texto continua sendo o mesmo Markdown guardado de antes. Por baixo é o CodeMirror (o editor que
+// escreve (títulos grandes, negrito, listas, caixinhas, citações, links), e os sinais do Markdown (**, ##, "- ") ficam sempre
+// escondidos, também na linha do cursor (#368): o cursor pula por cima deles. O texto continua sendo o mesmo Markdown guardado de antes. Por baixo é o CodeMirror (o editor que
 // o Obsidian usa), que só é baixado quando um editor aparece na tela: o resto do site não fica mais pesado. Enquanto ele chega,
 // o texto aparece formatado no lugar.
 import { lazy, Suspense, useRef, type RefObject } from 'react';

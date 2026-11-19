@@ -14,6 +14,17 @@ function Nota({ inicial = '', aoMudar = vi.fn(), maximo }: { inicial?: string; a
   const [valor, setValor] = useState(inicial);
   return <EditorAoVivo id="texto" rotulo="Texto" valor={valor} maximo={maximo} aoMudar={t => { setValor(t); aoMudar(t); }} />;
 }
+/**
+ * Escreve no lugar do cursor (ou por cima do trecho escolhido), como o teclado ("input.type") ou o Ctrl+V ("input.paste"),
+ * uma letra de cada vez, para o editor tratar cada uma.
+ */
+function digitar(caixa: HTMLElement, texto: string, evento = 'input.type') {
+  const v = editorDe(caixa);
+  for (const letra of evento === 'input.paste' ? [texto] : texto.split('')) act(() => {
+    const { from, to } = v.state.selection.main;
+    v.dispatch({ changes: { from, to, insert: letra }, selection: { anchor: from + letra.length }, userEvent: evento });
+  });
+}
 /** Escolhe um trecho do texto no editor (como a pessoa que arrasta o mouse por cima). */
 function escolher(caixa: HTMLElement, inicio: number, fim: number) {
   const v = editorDe(caixa);
@@ -85,61 +96,142 @@ describe('O editor ao vivo (a formatação aparece enquanto se escreve, como no 
     expect(textoDoEditor(caixa)).toBe('*Levar* o RG');
   });
 
-  it('dado o foco fora do editor, então os sinais do Markdown ficam escondidos; com o cursor na linha, eles aparecem', async () => {
+  // A regra mudou (#368, pedido do dono): antes, os sinais apareciam na linha do cursor; agora a formatação fica sempre desenhada.
+  it('dado um negrito, um título e um item, quando o cursor vai para cada linha, então os sinais continuam escondidos', async () => {
     // Dado
-    render(<Nota inicial={'Levar o **RG**\nfim'} />);
+    render(<Nota inicial={'## Pendências\nLevar o **RG**\n- https://site.com/Cap_1_-_Livro.pdf'} />);
     const caixa = await acharEditor();
-    // Então: sem o foco, a linha mostra só o texto formatado
-    expect(caixa).toHaveTextContent('Levar o RG');
-    expect(caixa.textContent).not.toContain('**');
-    // Quando: o cursor vai para a linha do negrito
-    escolher(caixa, 2, 2);
-    // Então
-    expect(caixa.textContent).toContain('Levar o **RG**');
+    // Quando: o cursor passa pelo título, pelo negrito e pelo item
+    for (const posicao of [5, 22, 40]) {
+      escolher(caixa, posicao, posicao);
+      // Então
+      expect(caixa).toHaveTextContent('PendênciasLevar o RGhttps://site.com/Cap_1_-_Livro.pdf');
+      expect(caixa.textContent).not.toContain('**');
+      expect(caixa.textContent).not.toContain('## ');
+      expect(caixa.textContent).not.toContain('- ');
+    }
   });
 
-  it('dado o negrito escondido numa linha, quando a pessoa aperta o mouse nela (o 1º clique de um clique duplo), então os sinais só aparecem depois do gesto, e o texto não anda debaixo do mouse', async () => {
-    // Dado: o cursor fora do editor; a linha mostra "Contrato de honorarios assinado", sem os "**"
-    render(<Nota inicial={'Contrato de **honorarios** assinado\nfim'} />);
-    const caixa = await acharEditor();
-    const v = editorDe(caixa);
-    // Quando: o botão do mouse desce na 1ª linha e o cursor vai para "assinado" (como o clique põe)
-    act(() => {
-      fireEvent.mouseDown(caixa, { button: 0, detail: 1 });
-      v.focus();
-      v.dispatch({ selection: { anchor: 29 }, userEvent: 'select.pointer' });
-    });
-    // Então: enquanto o botão está apertado, os "**" continuam escondidos (o 2º clique cai na palavra que a pessoa viu)
-    expect(caixa.textContent).not.toContain('**');
-    // Quando: o botão sobe, e o 2º clique vem logo (o clique duplo escolhe "assinado")
-    act(() => { fireEvent.mouseUp(window, { button: 0 }); });
-    act(() => {
-      fireEvent.mouseDown(caixa, { button: 0, detail: 2 });
-      v.dispatch({ selection: { anchor: 27, head: 35 }, userEvent: 'select.pointer' });
-      fireEvent.mouseUp(window, { button: 0 });
-    });
-    // Então: ainda escondidos logo depois do clique duplo…
-    expect(caixa.textContent).not.toContain('**');
-    // … e, acabado o gesto, aparecem na linha do cursor, para editar
-    await waitFor(() => expect(caixa.textContent).toContain('Contrato de **honorarios** assinado'));
-  });
-
-  it('dado um gesto do mouse que acabou de escolher uma palavra, quando a pessoa tecla algo, então os sinais aparecem na hora', async () => {
+  it('dado o cursor no começo do texto de um item, quando a pessoa tecla Backspace, então a bolinha sai e o texto fica', async () => {
     // Dado
-    render(<Nota inicial={'Levar o **RG** hoje\nfim'} />);
+    const aoMudar = vi.fn();
+    render(<Nota inicial={'Levar:\n- Procuração'} aoMudar={aoMudar} />);
     const caixa = await acharEditor();
-    const v = editorDe(caixa);
-    act(() => {
-      fireEvent.mouseDown(caixa, { button: 0, detail: 1 });
-      v.focus();
-      v.dispatch({ selection: { anchor: 16 }, userEvent: 'select.pointer' });
-      fireEvent.mouseUp(window, { button: 0 });
-    });
-    expect(caixa.textContent).not.toContain('**');
+    escolher(caixa, 9, 9);
     // Quando
-    act(() => { fireEvent.keyDown(caixa, { key: 'ArrowLeft' }); });
+    await userEvent.keyboard('{Backspace}');
     // Então
-    expect(caixa.textContent).toContain('Levar o **RG** hoje');
+    expect(aoMudar).toHaveBeenLastCalledWith('Levar:\nProcuração');
+    expect(editorDe(caixa).state.selection.main.head).toBe(7);
+  });
+
+  it('dado o cursor logo depois de um negrito, quando a pessoa tecla Backspace, então sai a última letra, e o resto continua em negrito', async () => {
+    // Dado
+    render(<Nota inicial="Levar o **RG**" />);
+    const caixa = await acharEditor();
+    escolher(caixa, 14, 14);
+    // Quando
+    await userEvent.keyboard('{Backspace}');
+    // Então
+    expect(textoDoEditor(caixa)).toBe('Levar o **R**');
+    expect(caixa.textContent).not.toContain('**');
+  });
+
+  it('dado o cursor logo depois de um negrito, quando a pessoa digita, então a letra entra no negrito, sem os "**" aparecerem', async () => {
+    // Dado
+    render(<Nota inicial="Levar o **contrato**" />);
+    const caixa = await acharEditor();
+    // Quando
+    escreverNoEditor(caixa, 's');
+    // Então
+    expect(textoDoEditor(caixa)).toBe('Levar o **contratos**');
+    expect(caixa).toHaveTextContent('Levar o contratos');
+  });
+
+  it('dada uma linha vazia, quando a pessoa clica em Negrito e digita "RG", então "RG" sai em negrito, sem divisória e sem "*" à mostra', async () => {
+    // Dado
+    render(<Nota inicial={'Pendências\n'} />);
+    const caixa = await acharEditor();
+    escolher(caixa, 11, 11);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Negrito (Ctrl+B)' }));
+    // Então: nada entra no texto antes de a pessoa escrever
+    expect(textoDoEditor(caixa)).toBe('Pendências\n');
+    // Quando
+    digitar(caixa, 'RG');
+    // Então
+    expect(textoDoEditor(caixa)).toBe('Pendências\n**RG**');
+    expect(caixa).toHaveTextContent('PendênciasRG');
+    expect(caixa.textContent).not.toContain('*');
+  });
+
+  it('dado o cursor logo depois de um negrito, quando a pessoa aperta Ctrl+B e digita " hoje", então " hoje" sai sem negrito, sem "****" no texto', async () => {
+    // Dado
+    render(<Nota inicial="Levar o **RG**" />);
+    const caixa = await acharEditor();
+    escolher(caixa, 14, 14);
+    // Quando
+    await userEvent.keyboard('{Control>}b{/Control}');
+    digitar(caixa, ' hoje');
+    // Então
+    expect(textoDoEditor(caixa)).toBe('Levar o **RG** hoje');
+    expect(caixa).toHaveTextContent('Levar o RG hoje');
+    expect(caixa.textContent).not.toContain('*');
+  });
+
+  it('dado o texto todo de um item escolhido junto com a bolinha, quando a pessoa cola um link novo, então a bolinha continua', async () => {
+    // Dado
+    render(<Nota inicial="- https://velho.com" />);
+    const caixa = await acharEditor();
+    escolher(caixa, 19, 0);   // do fim para o começo, como o Shift+Home
+    // Quando
+    digitar(caixa, 'https://novo.com/Cap_1_-_Livro.pdf', 'input.paste');
+    // Então
+    expect(textoDoEditor(caixa)).toBe('- https://novo.com/Cap_1_-_Livro.pdf');
+    expect(screen.getByRole('img', { name: 'Item da lista' })).toBeInTheDocument();
+  });
+
+  it('dado um título, uma citação e um item, quando aparecem, então o leitor de tela diz o que cada linha é, sem letras a mais na tela', async () => {
+    // Quando
+    render(<Nota inicial={'## Pendências\n> Nota\n- RG'} />);
+    const caixa = await acharEditor();
+    // Então
+    expect(screen.getByRole('img', { name: 'Título 2' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Citação' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Item da lista' })).toBeInTheDocument();
+    expect(caixa).toHaveTextContent(/^PendênciasNotaRG$/);
+  });
+
+  it('dado o cursor no começo de um item, quando a pessoa tecla Backspace, então o leitor de tela avisa que o item foi tirado', async () => {
+    // Dado
+    render(<Nota inicial={'Levar:\n- Procuração'} />);
+    const caixa = await acharEditor();
+    escolher(caixa, 9, 9);
+    // Quando
+    await userEvent.keyboard('{Backspace}');
+    // Então
+    expect(screen.getByText('Item de lista tirado')).toBeInTheDocument();
+  });
+
+  it('dado um clique antes da bolinha de um item, quando o cursor vai para lá, então ele fica no começo do texto do item', async () => {
+    // Dado
+    render(<Nota inicial={'Antes\n- RG'} />);
+    const caixa = await acharEditor();
+    // Quando
+    escolher(caixa, 6, 6);
+    // Então: o que a pessoa digitar entra no item, e não antes do "- "
+    expect(editorDe(caixa).state.selection.main.head).toBe(8);
+  });
+
+  it('dado o cursor no fim de uma palavra em negrito, quando a pessoa tecla a seta para a direita, então ele passa os "**" escondidos e anda uma letra', async () => {
+    // Dado
+    render(<Nota inicial="**RG** hoje" />);
+    const caixa = await acharEditor();
+    escolher(caixa, 4, 4);
+    // Quando
+    await userEvent.keyboard('{ArrowRight}');
+    // Então: depois do espaço (sem parar, sem nada mudar na tela, entre o "G" e os "**")
+    expect(editorDe(caixa).state.selection.main.head).toBe(7);
   });
 
   it('dada uma lista de tarefas, quando a pessoa clica na caixinha, então ela é marcada no texto, como no texto formatado', async () => {

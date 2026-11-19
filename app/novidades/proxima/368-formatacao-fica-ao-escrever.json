@@ -1,0 +1,5 @@
+{
+  "titulo": "A formatação das anotações fica enquanto você escreve",
+  "texto": "Listas, títulos, negrito e links continuam formatados também na linha em que você está escrevendo, sem os sinais aparecerem. Links colados não ficam mais em itálico, e o Backspace no começo de um item tira a bolinha.",
+  "ondeAchar": "Em Documentos, ao escrever o texto de uma anotação."
+}

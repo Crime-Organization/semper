@@ -704,3 +704,22 @@ describe('A marca num trecho de várias linhas que já tem a marca em parte (#36
     expect(pedacos.map(p => p.texto).join('')).not.toContain('**');
   });
 });
+
+describe('O endereço colado no texto (#368)', () => {
+  it('dado um endereço com "_" e "*", quando lê, então ele fica inteiro, sem itálico nem negrito, e o "." do fim fica fora dele', () => {
+    // Quando
+    const p = pedacosDaLinha('veja https://a.b/Cap_1_-_Livro*IG*.pdf?nome=a_b.');
+    // Então
+    expect(p).toEqual([so('veja https://a.b/Cap_1_-_Livro*IG*.pdf?nome=a_b.')]);
+  });
+
+  it('dado um endereço em negrito, quando lê, então o endereço fica em negrito, e os "**" do fim não entram nele', () => {
+    // Então
+    expect(pedacosDaLinha('**https://a.b/x_y**')).toEqual([{ texto: 'https://a.b/x_y', marcas: ['negrito'] }]);
+  });
+
+  it('dado "_" numa palavra sem endereço, quando lê, então o itálico continua valendo', () => {
+    // Então
+    expect(pedacosDaLinha('o _prazo_ é hoje')).toEqual([so('o '), { texto: 'prazo', marcas: ['italico'] }, so(' é hoje')]);
+  });
+});
