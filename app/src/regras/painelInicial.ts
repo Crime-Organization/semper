@@ -6,7 +6,7 @@ import type {
   AndamentoNoPainel, AnotacaoLista, Coluna, CompromissoLista, Modulo, PainelDeProcessos, ParcelaDoEscritorio, PrazoNaAgenda, PrazoNoPainel, ProcessoNoPainel, TipoProcesso
 } from '../dados/tipos';
 import { ORIGENS_DE_PRAZO } from './agenda';
-import { rotuloDoPrazo, TIPOS_DE_ANDAMENTO } from './andamentos';
+import { nomeDoAndamento, rotuloDoPrazo } from './andamentos';
 import { fmtHora } from './compromisso';
 import { compararPeloPrazo, type ComPrazo } from './ordemPorPrazo';
 import { enderecoDoProcesso, linhaDoProcesso } from './painelProcessos';
@@ -182,10 +182,10 @@ export interface ProcessoDoPainel { id: string; tipo: TipoProcesso; titulo: stri
  * mais recentes, na ordem em que vieram (os atualizados por último primeiro). Sem repetidos, até ITENS_POR_BLOCO.
  */
 export function processosDoPainel(recentes: ProcessoNoBloco[], prazos: Pick<PrazoNoPainel, 'final' | 'descricao' | 'processo'>[],
-  marcados: Pick<AndamentoNoPainel, 'data' | 'tipo' | 'processo'>[], limite = ITENS_POR_BLOCO): ProcessoDoPainel[] {
+  marcados: Pick<AndamentoNoPainel, 'data' | 'tipo' | 'categoria' | 'processo'>[], limite = ITENS_POR_BLOCO): ProcessoDoPainel[] {
   const eventos = [
     ...prazos.map(z => ({ processo: z.processo, evento: { data: z.final, rotulo: 'Prazo: ' + z.descricao } })),
-    ...marcados.map(a => ({ processo: a.processo, evento: { data: a.data, rotulo: TIPOS_DE_ANDAMENTO[a.tipo].nome } }))
+    ...marcados.map(a => ({ processo: a.processo, evento: { data: a.data, rotulo: nomeDoAndamento(a) } }))
   ].toSorted((a, b) => a.evento.data.localeCompare(b.evento.data));
   const vistos = new Map<string, ProcessoDoPainel>();
   const pegar = (p: ProcessoNoBloco, proximo: EventoDoProcesso | null) => {

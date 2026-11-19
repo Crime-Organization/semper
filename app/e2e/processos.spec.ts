@@ -873,6 +873,19 @@ test.describe('Painel de Processos', () => {
     await expect(page.getByRole('button', { name: 'Criar tarefa da intimação: Intimação do painel' })).toBeVisible();
   });
 
+  test('quando lança um despacho, então os últimos andamentos do painel mostram "Despacho", o tipo da lista pronta (#371)', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartaoJudicial(page);
+    await lancarAndamento(cartao, 'Despacho', 'Despacho do painel');
+    // Quando
+    await page.goto('/processos/');
+    // Então
+    // (o despacho não é audiência, perícia nem intimação: só aparece nos últimos andamentos)
+    const linha = page.getByRole('link', { name: /Despacho do painel/ });
+    await expect(linha).toContainText('Despacho ·');
+    await expect(linha).not.toContainText('Andamento ·');
+  });
+
   test('quando o administrador muda os dias de parado, então a lista acompanha', async ({ page }) => {
     // Dado
     const cartao = await abrirCartaoJudicial(page);

@@ -3677,6 +3677,18 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(ids).not.toContain(excluido.id);
       });
 
+      it('quando lista os últimos andamentos, então cada um traz o tipo da lista pronta, ou nada se não tem (#371)', async () => {
+        // Dado
+        const { id } = await novoProcesso();
+        const despacho = await SD.processoAndamentoCriar(id, { ...andamento('andamento', HOJE), categoria: 'despacho' });
+        const deAntes = await SD.processoAndamentoCriar(id, andamento('andamento', HOJE));
+        // Quando
+        const ultimos = (await painel()).ultimos;
+        // Então
+        expect(ultimos.find(a => a.id === despacho.id)?.categoria).toBe('despacho');
+        expect(ultimos.find(a => a.id === deAntes.id)?.categoria).toBeNull();
+      });
+
       it('quando o processo passa dos dias sem andamento, então aparece parado; com andamento novo, sai', async () => {
         // Dado
         await SD.processosDiasParadoSalvar(10);

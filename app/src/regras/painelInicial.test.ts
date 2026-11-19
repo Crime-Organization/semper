@@ -206,7 +206,7 @@ describe('Painel da página inicial', () => {
       // Dado
       const recentes = [processo('r1', { titulo: 'Recente' }), processo('p2'), processo('r2')];
       const prazos = [doProcesso('z1', '2026-11-25', processo('p1')), doProcesso('z2', '2026-11-20', processo('p2'))];
-      const marcados = [{ data: '2026-11-22', tipo: 'audiencia' as const, processo: processo('p3', { tipo: 'administrativo' }) }];
+      const marcados = [{ data: '2026-11-22', tipo: 'audiencia' as const, categoria: 'audiencia' as const, processo: processo('p3', { tipo: 'administrativo' }) }];
       // Quando
       const lista = processosDoPainel(recentes, prazos, marcados);
       // Então

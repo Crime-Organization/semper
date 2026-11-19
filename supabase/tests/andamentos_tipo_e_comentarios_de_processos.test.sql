@@ -75,6 +75,11 @@ select is((select categoria from public.processo_andamentos where id = 'ad000000
 reset role;
 select is(pg_temp.ultima_linha('73000000-0000-0000-0000-000000000001'), '{"de": null, "para": "Despacho de 10/11/2026: Cite-se"}'::jsonb,
   'A linha do histórico começa pelo tipo da lista (igual a linhaDoAndamento do site)');
+-- E quando ela abre o painel de Processos (#371), então os últimos andamentos trazem o tipo da lista
+select pg_temp.entrar(2); set local role authenticated;
+select is((select x ->> 'categoria' from jsonb_array_elements(public.painel_de_processos('2026-11-19', '2026-11-30', '2026-11-30', false, 10, 10) -> 'ultimos') x
+           where x ->> 'id' = 'ad000000-0000-0000-0000-000000000001'), 'despacho', 'O painel traz o tipo da lista de cada andamento');
+reset role;
 
 -- Quando ela lança sem o tipo da lista, como a versão anterior do site
 select pg_temp.entrar(2); set local role authenticated;

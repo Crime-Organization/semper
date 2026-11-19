@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router';
 import { SD, type AndamentoNoPainel, type Coluna, type PainelDeProcessos, type ProcessoNoPainel } from '../dados';
 import { DIAS_PARADO } from '../dados/limites';
-import { quandoDoAndamento, tarefaDaIntimacao, TIPOS_DE_ANDAMENTO } from '../regras/andamentos';
+import { nomeDoAndamento, quandoDoAndamento, tarefaDaIntimacao } from '../regras/andamentos';
 import { enderecoDaFase, enderecoDoProcesso, erroDosDiasParado, fasesDoTipo, gruposDePrazos, ITENS_POR_LISTA, linhaDoProcesso, processoParaTarefa, rotuloNoPainel, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { fmtData } from '../regras/pessoa';
 import { SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
@@ -85,7 +85,7 @@ export default function PainelProcessos() {
 
   const responsavel = (p: ProcessoNoPainel) => ctx.equipe.find(m => m.id === p.responsavel_id)?.nome || 'Usuário removido';
   const andamentoLigado = (a: AndamentoNoPainel): ItemLigado => ({
-    id: a.id, para: enderecoDoProcesso(a.processo), codigo: TIPOS_DE_ANDAMENTO[a.tipo].nome + ' · ' + quandoDoAndamento(a), titulo: linhaDoProcesso(a.processo), detalhe: a.texto
+    id: a.id, para: enderecoDoProcesso(a.processo), codigo: nomeDoAndamento(a) + ' · ' + quandoDoAndamento(a), titulo: linhaDoProcesso(a.processo), detalhe: a.texto
   });
   const grupos = gruposDePrazos(painel.prazos, hoje);
   const meus = alcance === 'meus' ? eu : null;

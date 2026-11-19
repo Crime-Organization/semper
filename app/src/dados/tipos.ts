@@ -1457,7 +1457,7 @@ export type DemandaDoProcesso = DemandaLigada & Pick<Demanda, 'contrato_id' | 'c
 /** O processo como aparece no painel. Os clientes vêm só pelo id. */
 export type ProcessoNoPainel = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'responsavel_id' | 'colaboradores'> & { clientes: string[] };
 export type PrazoNoPainel = Pick<PrazoDeProcesso, 'id' | 'descricao' | 'final' | 'tarefa_id'> & { processo: ProcessoNoPainel };
-export type AndamentoNoPainel = Pick<AndamentoDeProcesso, 'id' | 'tipo' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em' | 'tarefa_id' | 'criado_em'> & { processo: ProcessoNoPainel };
+export type AndamentoNoPainel = Pick<AndamentoDeProcesso, 'id' | 'tipo' | 'categoria' | 'data' | 'hora' | 'local' | 'texto' | 'tratada_em' | 'tarefa_id' | 'criado_em'> & { processo: ProcessoNoPainel };
 /** Quantos processos há numa coluna do quadro (etapa_id vazio: fora do quadro). */
 export interface FaseNoPainel { tipo: TipoProcesso; etapa_id: string | null; n: number }
 /** O painel de Processos. Só traz o que quem está logado pode ver, sem arquivados nem excluídos. Cada lista vem cortada em
