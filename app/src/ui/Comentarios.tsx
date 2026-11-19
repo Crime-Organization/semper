@@ -1,7 +1,8 @@
 // Comentários do cartão, com @ (veja regras/comentarios.ts): a caixa para escrever, com a lista do @, e os comentários do
-// mais novo para o mais antigo. Quem escreveu edita e apaga; administradores também apagam. No painel ao lado, ficam numa
-// seção recolhível do cartão; na janela no centro, numa seção recolhível da coluna da direita, aberta de início (o PainelCartao diz onde ela está).
-import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+// mais novo para o mais antigo. Quem escreveu edita e apaga; administradores também apagam. É a primeira seção da coluna da direita
+// do cartão (NaColunaDoCartao, #360: depois vêm "Anotações" e "Histórico de alterações"), recolhível e aberta de início; ao lado,
+// as seções da coluna ficam embaixo do cartão, na mesma ordem.
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { SD, type Comentario, type Membro, type ModuloComentado } from '../dados';
 import { ACHADOS_DA_MENCAO, TAMANHO_COMENTARIO } from '../dados/limites';
 import { inserirMencao, mencaoSendoDigitada, membrosParaMencionar, MOTIVO_SEM_MENCAO, trechosDoComentario } from '../regras/comentarios';
@@ -10,10 +11,13 @@ import { Avatar } from './Avatar';
 import { falha } from './avisos';
 import { Botao, BotaoDuplo } from './Botoes';
 import { Carregando, estiloBotao, Nota } from './base';
-import { ColunaDoCartao, NaColunaDoCartao, useDentroDaColuna } from './PainelCartao';
+import { ComoComentario, nomeDoAutor } from './ComoComentario';
+import { NaColunaDoCartao, useDentroDaColuna } from './PainelCartao';
 import { Recolhivel } from './Recolhivel';
 import { useCtx } from './sessao';
-import { dataHora, relativo } from './util';
+
+/** O tamanho da bolinha de cada pessoa na lista do @. */
+const BOLINHA_DA_MENCAO = 22;
 
 export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
   modulo: ModuloComentado; cartaoId: string;
@@ -22,7 +26,6 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
   /** Regra a mais de quem pode ser mencionado, que depende do cartão (ex.: só quem vê a demanda). */
   motivoSemMencao?: (m: Membro) => string | null;
 }) {
-  const coluna = useContext(ColunaDoCartao);
   const dentroDaColuna = useDentroDaColuna();
   const [lista, setLista] = useState<Comentario[] | null>(null);
   const [rascunho, setRascunho] = useState('');
@@ -71,13 +74,11 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
         {lista.map(c => <ItemComentario key={c.id} c={c} citado={c.id === citado} modulo={modulo} motivoSemMencao={motivoSemMencao} aoEditar={editar} aoExcluir={excluir} />)}
       </ol>}
   </div>;
-  // Na coluna da direita (a da janela no centro, ou o grupo da coluna da anotação, também ao lado), a seção abre aberta e não guarda
-  // a escolha, com o "Expandir tudo" / "Recolher tudo" do grupo da coluna acima dela; no painel ao lado, é uma seção recolhível
-  // como as outras do cartão, aberta ou fechada como a pessoa deixou. O que se escrevia fica aqui (rascunho), e não na seção:
-  // trocar o formato da janela não o perde.
-  if (dentroDaColuna) return <Recolhivel titulo="Comentários" icone="comentario" contador={lista?.length} abertaAoIniciar>{conteudo}</Recolhivel>;
-  if (coluna) return <NaColunaDoCartao><Recolhivel titulo="Comentários" icone="comentario" contador={lista?.length} abertaAoIniciar>{conteudo}</Recolhivel></NaColunaDoCartao>;
-  return <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length} abertaAoIniciar={!!citado}>{conteudo}</Recolhivel>;
+  // Sempre no grupo da coluna (o cartão a põe em NaColunaDoCartao com as outras seções dela; sozinha, ela vai para lá por conta
+  // própria): a seção abre aberta, nos dois formatos da janela, e não guarda a escolha, com o "Expandir tudo" / "Recolher tudo" do
+  // grupo da coluna acima dela. O que se escrevia fica aqui (rascunho), e não na seção: trocar o formato da janela não o perde.
+  const secao = <Recolhivel titulo="Comentários" icone="comentario" contador={lista?.length} abertaAoIniciar>{conteudo}</Recolhivel>;
+  return dentroDaColuna ? secao : <NaColunaDoCartao>{secao}</NaColunaDoCartao>;
 }
 
 const idDoComentario = (id: string) => 'comentario-' + id;
@@ -87,18 +88,13 @@ function ItemComentario({ c, citado, modulo, motivoSemMencao, aoEditar, aoExclui
 }) {
   const ctx = useCtx();
   const [editando, setEditando] = useState<string | null>(null);
-  const autor = ctx.equipe.find(m => m.id === c.autor_id), nome = autor?.nome ?? 'Usuário removido';
+  const nome = nomeDoAutor(ctx.equipe, c.autor_id);
   const meu = c.autor_id === ctx.perfil.id, podeApagar = meu || ctx.ehAdmin;
   async function salvar() {
     if (editando !== null && await aoEditar(c.id, editando)) setEditando(null);
   }
   return <li id={idDoComentario(c.id)} className={'comentario' + (citado ? ' comentario-citado' : '')} aria-current={citado || undefined} aria-label={`Comentário de ${nome}`}>
-    <Avatar p={autor} tam={28} />
-    <div className="comentario-miolo">
-      <div className="comentario-cabeca">
-        <b>{nome}</b>
-        <span className="nota" title={dataHora(c.criado_em)}>{relativo(c.criado_em)}{c.editado_em && ' (editado)'}</span>
-      </div>
+    <ComoComentario autorId={c.autor_id} quando={c.criado_em} depoisDoQuando={c.editado_em ? ' (editado)' : undefined}>
       {editando !== null
         ? <CaixaComentario modulo={modulo} motivoSemMencao={motivoSemMencao} rotulo="Editar o comentário" botao="Salvar" valor={editando} aoMudar={setEditando} aoEnviar={salvar}
           aoCancelar={() => setEditando(null)} focar />
@@ -109,7 +105,7 @@ function ItemComentario({ c, citado, modulo, motivoSemMencao, aoEditar, aoExclui
         {meu && <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => setEditando(c.texto)}>Editar</button>}
         <BotaoDuplo forma="link" variante="perigo" confirmar="Confirmar exclusão" aoConfirmar={() => aoExcluir(c.id)}>Excluir</BotaoDuplo>
       </div>}
-    </div>
+    </ComoComentario>
   </li>;
 }
 
@@ -176,7 +172,7 @@ function CaixaComentario({ modulo, motivoSemMencao, rotulo, botao, valor, aoMuda
         return <li key={m.id} id={`${listaId}-${i}`} role="option" aria-selected={i === destaque} aria-disabled={!!porque}
           // Clicar não tira o foco da caixa de texto (senão a lista fecharia antes da escolha).
           onMouseDown={e => { e.preventDefault(); escolher(m); }}>
-          <Avatar p={m} tam={22} /><span><b>{m.nome}</b> <small>@{m.usuario}{porque ? ' · ' + porque : ''}</small></span>
+          <Avatar p={m} tam={BOLINHA_DA_MENCAO} /><span><b>{m.nome}</b> <small>@{m.usuario}{porque ? ' · ' + porque : ''}</small></span>
         </li>;
       })}
     </ul>}

@@ -14,7 +14,7 @@ import { normal } from '../regras/texto';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
-import type { AnotacaoLigada, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
 import type { ItemParaPedir, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
@@ -363,6 +363,8 @@ const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes
 const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, pasta_id, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
 const CAMPOS_PASTA = 'id, nome, pasta_mae_id, criada_por, criada_em';
 const CAMPOS_ANOTACAO_LIGADA = 'id, codigo, titulo, criado_por, criado_em, atualizado_em, arquivado_em';
+/** As mesmas, com o texto: só para a seção "Anotações" aberta, na coluna do cartão (#360). */
+const CAMPOS_ANOTACAO_LIGADA_COM_TEXTO = `${CAMPOS_ANOTACAO_LIGADA}, texto`;
 /**
  * Para cada módulo: a coluna do item em anotacao_ligacoes, e de onde ler o item com os campos do nome (regras/anotacao.ts). As
  * leituras passam pelas regras de cada tabela: o que quem lê não pode abrir não vem. O contrato vem pela view, que diz quem o alcança.
@@ -376,6 +378,16 @@ const LIGACAO_DA_ANOTACAO: Record<ModuloDaAnotacao, { coluna: string; tabela: st
   compromissos: { coluna: 'compromisso_id', tabela: 'compromissos', campos: 'id, codigo, tipo, titulo, data, arquivado_em' }
 };
 const MODULOS_LIGADOS = Object.keys(LIGACAO_DA_ANOTACAO) as ModuloDaAnotacao[];
+/**
+ * As anotações ligadas ao item que quem lê vê (a regra de leitura delas), filtradas pela ligação ao item (com outro nome, como nas
+ * etiquetas), com os campos pedidos: sem o texto, para o número do cartão; com ele, só para a seção "Anotações" aberta (#360).
+ */
+async function anotacoesLigadasAoItem<T>(campos: string, modulo: ModuloDaAnotacao, itemId: string): Promise<T[]> {
+  const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
+  const { data } = await rodar(sb.from('anotacoes').select(`${campos}, filtro:anotacao_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
+    .order('atualizado_em', { ascending: false }).order('id').limit(ANOTACOES_LIGADAS));
+  return (data as (T & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a as T);
+}
 // Ordem das anotações ("nome" é o título). Não há quadro: a ordem manual é a das atualizadas por último. O id no fim desempata a paginação.
 const ORDENS_ANOTACAO: Record<Ordem, (q: Livre) => Livre> = {
   manual: q => q.order('atualizado_em', { ascending: false }),
@@ -1267,13 +1279,8 @@ export const SD: Dados = {
     const visiveis = ligacoes.flatMap(l => achados.filter(x => x.modulo === l.modulo && x.id === l.id));
     return { visiveis, ocultos: ligacoes.length - visiveis.length };
   },
-  async anotacoesDoItem(modulo, itemId) {
-    // As anotações que quem lê vê (a regra de leitura delas), filtradas pela ligação ao item (com outro nome, como nas etiquetas).
-    const { coluna } = LIGACAO_DA_ANOTACAO[modulo];
-    const { data } = await rodar(sb.from('anotacoes').select(`${CAMPOS_ANOTACAO_LIGADA}, filtro:anotacao_ligacoes!inner(id)`).eq(`filtro.${coluna}`, itemId)
-      .order('atualizado_em', { ascending: false }).order('id').limit(ANOTACOES_LIGADAS));
-    return (data as (AnotacaoLigada & { filtro: unknown })[]).map(({ filtro: _filtro, ...a }) => a);
-  },
+  anotacoesDoItem: (modulo, itemId) => anotacoesLigadasAoItem<AnotacaoLigada>(CAMPOS_ANOTACAO_LIGADA, modulo, itemId),
+  anotacoesDoItemComTexto: (modulo, itemId) => anotacoesLigadasAoItem<AnotacaoLigadaComTexto>(CAMPOS_ANOTACAO_LIGADA_COM_TEXTO, modulo, itemId),
   itensParaLigar: (modulo, termo) => PARA_LIGAR[modulo](termo),
   async anotacoesParaLigar(modulo, itemId, termo) {
     // As que já estão ligadas a este item ficam fora da busca (as que quem lê não vê nem viriam). Um item com muitas anotações

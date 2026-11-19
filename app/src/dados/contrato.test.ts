@@ -5422,6 +5422,32 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(ligadas[0]).toMatchObject({ codigo: b.codigo, arquivado_em: expect.any(String), criado_por: 'u-master' });
       });
 
+      it('dada uma anotação com texto ligada a uma demanda, quando lê as do item para o número, então ela vem sem o texto; quando lê com o texto, então ele vem, para a coluna do cartão mostrar o começo (#360)', async () => {
+        // Dado
+        const d = await demandaNova();
+        const { id } = await anotacao({ texto: '# Plano\nJuntar a procuração.' }, { modulo: 'demandas', id: d.id });
+        // Quando
+        const [leve] = await SD.anotacoesDoItem('demandas', d.id);
+        const [comTexto] = await SD.anotacoesDoItemComTexto('demandas', d.id);
+        // Então
+        expect(leve.id).toBe(id);
+        expect(leve).not.toHaveProperty('texto');
+        expect(comTexto).toEqual({ ...leve, texto: '# Plano\nJuntar a procuração.' });
+      });
+
+      it('dadas duas anotações numa demanda, quando lê as do item com o texto, então vêm na mesma ordem da leitura sem o texto (#360)', async () => {
+        // Dado
+        const d = await demandaNova();
+        const a = await anotacao({ texto: 'Primeira' }, { modulo: 'demandas', id: d.id }), b = await anotacao({ texto: 'Segunda' }, { modulo: 'demandas', id: d.id });
+        await SD.anotacaoAtualizar(a.id, { texto: 'Primeira, mexida' });
+        // Quando
+        const comTexto = await SD.anotacoesDoItemComTexto('demandas', d.id);
+        // Então
+        expect(comTexto.map(x => x.id)).toEqual((await SD.anotacoesDoItem('demandas', d.id)).map(x => x.id));
+        expect(comTexto.map(x => x.texto)).toEqual(['Primeira, mexida', 'Segunda']);
+        expect(b.id).toBe(comTexto[1].id);
+      });
+
       it('dados itens de vários módulos, quando lê os itens da anotação, então cada um vem com o nome certo', async () => {
         // Dado
         const nome = marca(), { id: pessoa } = await criar(nome);

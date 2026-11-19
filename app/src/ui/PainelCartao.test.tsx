@@ -435,3 +435,74 @@ describe('O que vai para a coluna da direita', () => {
     expect(screen.getByRole('textbox', { name: 'Rascunho' })).toHaveValue('Falar com o cliente');
   });
 });
+
+/** O cartão com uma seção no corpo, duas que vão para a coluna e o rodapé, por último, como os cartões dos módulos (#360). */
+function cartaoComColuna() {
+  render(<PainelCartao aoFechar={() => {}}>
+    <Recolhivel titulo="Dados do cadastro" icone="lista"><p>Os dados</p></Recolhivel>
+    <NaColunaDoCartao>
+      <Recolhivel titulo="Anotações" icone="documentos"><p>As anotações</p></Recolhivel>
+      <Recolhivel titulo="Histórico de alterações" icone="relogio"><p>As mudanças</p></Recolhivel>
+    </NaColunaDoCartao>
+    <footer>Cadastrada em 10/11/2026</footer>
+  </PainelCartao>);
+}
+/** Para as seções na ordem em que estão na página. */
+const naFrente = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+const botoesDoGrupo = () => screen.queryAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+
+describe('As seções da coluna sem a coluna (#360)', () => {
+  beforeEach(() => { iniciarPreferencias({}); salvarPreferencia.mockReset(); salvarPreferencia.mockResolvedValue(); });
+
+  it('dado o cartão ao lado, quando abre, então as seções da coluna entram no grupo do cartão: um "Expandir tudo" só, no alto, que abre todas', async () => {
+    // Dado
+    iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' });
+    cartaoComColuna();
+    // Então
+    expect(botoesDoGrupo()).toHaveLength(1);
+    expect(naFrente(botoesDoGrupo()[0], screen.getByRole('button', { name: 'Dados do cadastro' }))).toBe(true);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
+    // Então
+    expect(screen.getByText('Os dados')).toBeInTheDocument();
+    expect(screen.getByText('As anotações')).toBeInTheDocument();
+    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+  });
+
+  it('dado o cartão ao lado com o histórico aberto, quando passa para o centro e volta, então cada grupo tem o seu botão e as seções continuam abertas', async () => {
+    // Dado
+    iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' });
+    cartaoComColuna();
+    await userEvent.click(screen.getByRole('button', { name: 'Histórico de alterações' }));
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir no centro da tela' }));
+    // Então: o do corpo e o do alto da coluna
+    await vi.waitFor(() => expect(botoesDoGrupo()).toHaveLength(2));
+    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir ao lado' }));
+    // Então
+    await vi.waitFor(() => expect(botoesDoGrupo()).toHaveLength(1));
+    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+  });
+
+  describe('na janela estreita', () => {
+    beforeEach(() => {
+      // A janela tem 900px ou menos: a medida de JANELA_ESTREITA vale.
+      vi.stubGlobal('matchMedia', (consulta: string) => ({ matches: true, media: consulta, addEventListener: () => {}, removeEventListener: () => {} }));
+      return () => vi.unstubAllGlobals();
+    });
+
+    it('dado o cartão no centro, quando abre, então não há a coluna: as seções dela ficam no pé do cartão, antes do rodapé, com um "Expandir tudo" só', () => {
+      // Dado
+      iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'centro' });
+      // Quando
+      cartaoComColuna();
+      // Então
+      const historico = screen.getByRole('button', { name: 'Histórico de alterações' });
+      expect(naFrente(screen.getByRole('button', { name: 'Dados do cadastro' }), screen.getByRole('button', { name: 'Anotações' }))).toBe(true);
+      expect(naFrente(historico, screen.getByText('Cadastrada em 10/11/2026'))).toBe(true);
+      expect(botoesDoGrupo()).toHaveLength(1);
+    });
+  });
+});

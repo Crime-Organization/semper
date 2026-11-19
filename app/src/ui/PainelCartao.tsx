@@ -1,15 +1,15 @@
 // Painel do cartão, sobre um véu: abre ao lado (desliza da direita) ou numa janela no centro da tela, como no Trello.
 // Cada usuário escolhe no botão ao lado do "X", e a escolha fica nas preferências dele (vale para os cartões de todos os
 // módulos, em qualquer aparelho). Esc ou clique fora fecham (se não houver janela aberta).
-// Na janela no centro há uma coluna à direita, para os comentários: ColunaDoCartao diz onde ela está (no painel ao lado,
-// não há coluna, e os comentários ficam numa seção do cartão).
+// Na janela no centro há uma coluna à direita: ColunaDoCartao diz onde ela está (no painel ao lado, não há coluna, e o que iria
+// para ela fica no pé do cartão, na mesma ordem).
 // Com "soNoCentro" (o cadastro novo, numa janela sobre a página), é sempre a janela no centro, sem a coluna e sem a
 // troca, e o clique fora não fecha. "rotulo" dá nome à janela para o leitor de tela (padrão: "Cadastro", no cadastro; nos
 // outros cartões, só com o rótulo pedido, como "Anotação").
 // Com "largo" (um texto para ler e escrever, a anotação), a janela no centro ocupa quase toda a tela, com uma margem estreita em
 // volta (no celular, como as outras).
-// O que um cartão põe na coluna da direita (NaColunaDoCartao: os comentários de todos os cartões; na anotação, também "Ligada a"
-// e o histórico) são seções que recolhem, num grupo só delas, com o "Expandir tudo" / "Recolher tudo" no topo da coluna (pedido
+// O que um cartão põe na coluna da direita (NaColunaDoCartao: em todos os cartões, os comentários, as anotações e o histórico, #360;
+// na anotação, os comentários, "Ligada a" e o histórico) são seções que recolhem, num grupo só delas, com o "Expandir tudo" / "Recolher tudo" no topo da coluna (pedido
 // do dono de 18/11).
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
@@ -37,9 +37,10 @@ export const ColunaDoCartao = createContext<HTMLElement | null>(null);
 const DentroDaColuna = createContext(false);
 export const useDentroDaColuna = () => useContext(DentroDaColuna);
 /**
- * Põe o que vem dentro na coluna da direita, quando há uma; sem a coluna, fica ali mesmo, no fluxo do cartão. As seções que
- * recolhem formam um grupo só delas (GrupoDeSecoes), com o "Expandir tudo" / "Recolher tudo" acima da primeira, que abre e
- * fecha só as dela.
+ * Põe o que vem dentro na coluna da direita, quando há uma; sem a coluna (ao lado e na janela estreita), fica ali mesmo, no fluxo
+ * do cartão, antes do rodapé. Na coluna, as seções que recolhem formam um grupo só delas (GrupoDeSecoes), com o "Expandir tudo" /
+ * "Recolher tudo" no alto da coluna, que abre e fecha só as dela; no fluxo, entram no grupo do cartão, e um botão só, no alto
+ * dele, abre e fecha todas (#360).
  * O que vem dentro fica sempre na mesma caixa, um elemento só, que muda de lugar (vai para a coluna ou para o lugar marcado no
  * fluxo): trocar o formato da janela não desmonta nada, e o comentário que se escrevia, a busca aberta e as seções abertas
  * continuam como estavam.
@@ -54,7 +55,7 @@ export function NaColunaDoCartao({ children }: { children: ReactNode }) {
   }, [coluna, caixa]);
   return <>
     <div className="cartao-coluna-lugar" ref={lugar} />
-    {createPortal(<DentroDaColuna.Provider value={true}><GrupoDeSecoes>{children}</GrupoDeSecoes></DentroDaColuna.Provider>, caixa)}
+    {createPortal(<DentroDaColuna.Provider value={true}><GrupoDeSecoes proprio={!!coluna}>{children}</GrupoDeSecoes></DentroDaColuna.Provider>, caixa)}
   </>;
 }
 /**
@@ -81,7 +82,10 @@ function tentarFechar(trava: string | null, fechar: () => void) {
   if (trava) avisar(trava, 'erro');
   else fechar();
 }
-/** Janela estreita: a coluna dos comentários desce para baixo do cartão (a mesma medida de estilo.css). */
+/**
+ * Janela estreita: não há a coluna, e o que iria para ela fica no pé do cartão, antes do rodapé, como ao lado (#360). A mesma medida
+ * de estilo.css, onde a janela no centro passa a ter uma coluna só.
+ */
 const JANELA_ESTREITA = '(max-width: 900px)';
 function useEstreita() {
   const [estreita, setEstreita] = useState(() => window.matchMedia?.(JANELA_ESTREITA).matches ?? false);
@@ -114,10 +118,10 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
   const [on, setOn] = useState(false);
   const [escolhido, setFormato] = useState(formatoGuardado);
   const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
-  const comColuna = formato === 'centro' && !soNoCentro;
   const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const [vaga, setVaga] = useState<HTMLElement | null>(null);
   const estreita = useEstreita();
+  const comColuna = formato === 'centro' && !soNoCentro && !estreita;
   const painel = useRef<HTMLElement>(null);
   const fechar = useRef(aoFechar);
   fechar.current = aoFechar;

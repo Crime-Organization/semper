@@ -1,13 +1,13 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
+import { INICIO_DA_ANOTACAO, ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import type { Anotacao, ItemParaLigar, Membro } from '../dados/tipos';
 /** Um item escolhido para a anotação nova, com o nome que a tela mostra. */
 type ItemComNome = ItemParaLigar & { nome: string };
 import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
   camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
-  SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
+  CONTINUA, inicioDaAnotacao, SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
   edicaoPorSalvar, mencaoNegadaNaAnotacao, mesmoItem, motivoDaListaVazia, motivoSemMencaoNaAnotacao, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
 } from './anotacao';
 
@@ -461,5 +461,46 @@ describe('Lista de documentos vazia', () => {
   ] as const)('dada a lista vazia %s, então o motivo é "%s"', (_caso, motivo, situacao) => {
     // Quando / Então
     expect(motivoDaListaVazia(situacao)).toBe(motivo);
+  });
+});
+
+describe('O começo da anotação na coluna do cartão de um item (#360)', () => {
+  it('dado um texto com título, negrito, link e lista, então o começo tem as primeiras linhas sem os sinais do Markdown, uma por linha', () => {
+    // Dado
+    const texto = '# Plano do caso\n\nJuntar a **procuração** e o [comprovante](https://exemplo.com).\n- Pedir o RG';
+    // Quando / Então
+    expect(inicioDaAnotacao(texto)).toBe('Plano do caso\nJuntar a procuração e o comprovante.\nPedir o RG');
+  });
+
+  it('dado um texto com mais linhas do que cabem, então o começo para no limite e termina com "…"', () => {
+    // Dado
+    const texto = Array.from({ length: INICIO_DA_ANOTACAO.linhas + 2 }, (_v, i) => `Linha ${i + 1}`).join('\n');
+    // Quando
+    const inicio = inicioDaAnotacao(texto);
+    // Então
+    expect(inicio.split('\n')).toHaveLength(INICIO_DA_ANOTACAO.linhas);
+    expect(inicio).toMatch(new RegExp(`^Linha 1\n.*Linha ${INICIO_DA_ANOTACAO.linhas}${CONTINUA}$`, 's'));
+  });
+
+  it('dado um texto longo numa linha só, então o começo é cortado nos caracteres do limite, sem partir um emoji, e termina com "…"', () => {
+    // Dado: o emoji de família, que é um caractere para quem lê, cai bem no limite
+    const texto = 'a'.repeat(4) + '👨‍👩‍👧' + 'b'.repeat(10);
+    // Quando
+    const inicio = inicioDaAnotacao(texto, { linhas: 3, caracteres: 5 });
+    // Então
+    expect(inicio).toBe('aaaa👨‍👩‍👧' + CONTINUA);
+  });
+
+  it('dado um texto com linhas em branco, divisória e tabela, então elas não entram no começo', () => {
+    // Dado
+    const texto = '\n\n---\n| Prazo | Dia |\n|---|---|\n| Recurso | 15 |\n\nLigar ao cliente';
+    // Quando / Então
+    expect(inicioDaAnotacao(texto)).toBe('Ligar ao cliente');
+  });
+
+  it('dado um texto vazio, então o começo é vazio', () => {
+    // Quando / Então
+    expect(inicioDaAnotacao('')).toBe('');
+    expect(inicioDaAnotacao('  \n\n')).toBe('');
   });
 });

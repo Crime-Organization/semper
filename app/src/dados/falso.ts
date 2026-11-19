@@ -47,7 +47,7 @@ import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLu
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import type { Anotacao, AnotacaoLigada, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
 import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
@@ -1573,6 +1573,11 @@ const anotacaoLista = (a: Anotacao): AnotacaoLista => comEtq('anotacoes', (x: An
 const anotacaoLigada = (a: Anotacao): AnotacaoLigada => ({
   id: a.id, codigo: a.codigo, titulo: a.titulo, criado_por: a.criado_por, criado_em: a.criado_em, atualizado_em: a.atualizado_em, arquivado_em: a.arquivado_em
 });
+const anotacaoLigadaComTexto = (a: Anotacao): AnotacaoLigadaComTexto => ({ ...anotacaoLigada(a), texto: a.texto });
+/** As anotações ligadas ao item que quem está logado vê, as atualizadas mais recentemente primeiro (com e sem o texto, #360). */
+const anotacoesLigadasAoItem = (modulo: ModuloDaAnotacao, itemId: string) => bd.anotacoes!
+  .filter(a => vejoAnotacao(a) && ligacoesDaAnotacao(a.id).some(l => l.modulo === modulo && l.item_id === itemId))
+  .sort(ORDENS_ANOTACAO.recentes).slice(0, ANOTACOES_LIGADAS);
 // Como a coluna "busca" do banco: o código, o título e o texto, sem acento.
 const buscaAnotacao = (a: Anotacao) => normal([a.codigo, a.titulo, a.texto].join(' '));
 function filtrarAnotacoes(f: FiltroAnotacoes = {}) {
@@ -3015,9 +3020,8 @@ export const SD: Dados = {
     const visiveis = ligacoes.flatMap(l => vejoOItem(l.modulo, l.item_id) ? [ITEM_NO_FALSO[l.modulo](l.item_id)!.item] : []);
     return espera({ visiveis, ocultos: ligacoes.length - visiveis.length });
   },
-  anotacoesDoItem: (modulo, itemId) => espera(bd.anotacoes!
-    .filter(a => vejoAnotacao(a) && ligacoesDaAnotacao(a.id).some(l => l.modulo === modulo && l.item_id === itemId))
-    .sort(ORDENS_ANOTACAO.recentes).slice(0, ANOTACOES_LIGADAS).map(anotacaoLigada)),
+  anotacoesDoItem: (modulo, itemId) => espera(anotacoesLigadasAoItem(modulo, itemId).map(anotacaoLigada)),
+  anotacoesDoItemComTexto: (modulo, itemId) => espera(anotacoesLigadasAoItem(modulo, itemId).map(anotacaoLigadaComTexto)),
   // A listagem de cada módulo, no banco fictício, ainda mostra tudo: aqui ficam só os itens que as regras do módulo deixam ver.
   itensParaLigar: async (modulo, termo) => (await PARA_LIGAR[modulo](termo)).filter(i => vejoOItem(i.modulo, i.id)).slice(0, ITENS_PARA_LIGAR),
   // Como em supabase.ts: as ativas que quem lê altera (privado.altero_a_anotacao), fora as já ligadas a este item, pela busca.

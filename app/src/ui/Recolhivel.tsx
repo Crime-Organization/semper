@@ -21,8 +21,13 @@ interface EstadoDoGrupo { primeira: string | null; todasAbertas: boolean; defini
 const InscricaoNoGrupo = createContext<Inscricao | null>(null);
 const EstadoDoGrupo = createContext<EstadoDoGrupo | null>(null);
 
-/** Põe as seções de dentro num grupo, com o botão de expandir e recolher todas acima da primeira. */
-export function GrupoDeSecoes({ children }: { children: ReactNode }) {
+/**
+ * Põe as seções de dentro num grupo, com o botão de expandir e recolher todas acima da primeira. Com `proprio={false}`, as seções
+ * ficam no grupo de fora (se houver), como se este não existisse: o mesmo lugar na árvore serve aos dois casos, e trocar um pelo
+ * outro não desmonta as seções (elas só mudam de grupo, abertas ou fechadas como estavam).
+ */
+export function GrupoDeSecoes({ proprio = true, children }: { proprio?: boolean; children: ReactNode }) {
+  const inscricaoDeFora = useContext(InscricaoNoGrupo), estadoDeFora = useContext(EstadoDoGrupo);
   const secoes = useRef(new Map<string, { aberta: boolean; definir: (aberta: boolean) => void }>());
   // Cada inscrição ou mudança redesenha o grupo (o estado das seções fica na referência).
   const [, setVersao] = useState(0);
@@ -43,8 +48,8 @@ export function GrupoDeSecoes({ children }: { children: ReactNode }) {
     todasAbertas: todas.length > 0 && todas.every(s => s.aberta),
     definirTodas: aberta => secoes.current.forEach(s => s.definir(aberta))
   };
-  return <InscricaoNoGrupo.Provider value={inscricao}>
-    <EstadoDoGrupo.Provider value={estado}>{children}</EstadoDoGrupo.Provider>
+  return <InscricaoNoGrupo.Provider value={proprio ? inscricao : inscricaoDeFora}>
+    <EstadoDoGrupo.Provider value={proprio ? estado : estadoDeFora}>{children}</EstadoDoGrupo.Provider>
   </InscricaoNoGrupo.Provider>;
 }
 

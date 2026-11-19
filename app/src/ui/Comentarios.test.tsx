@@ -7,6 +7,7 @@ import type { Comentario, DadosComentarios, Membro } from '../dados';
 import { SecaoComentarios } from './Comentarios';
 import { ColunaDoCartao } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
+import { GrupoDeSecoes, Recolhivel } from './Recolhivel';
 
 // A seção usa só as operações de comentários; o mock declara exatamente essas.
 const SD = vi.hoisted(() => ({
@@ -29,8 +30,8 @@ const caixa = () => screen.getByRole('textbox', { name: 'Escrever um comentário
 
 describe('Comentários do cartão', () => {
   beforeEach(() => {
-    // Dado que a pessoa deixou a seção de comentários aberta (toda seção começa recolhida; a escolha fica guardada).
-    iniciarPreferencias({ 'cartao.comentarios': true });
+    // Os comentários abrem abertos em todos os formatos da janela (#360): nenhuma preferência guardada.
+    iniciarPreferencias({});
     sessao.ehAdmin = false;
     Object.values(SD).forEach(f => f.mockReset());
     SD.comentariosListar.mockResolvedValue([
@@ -138,6 +139,36 @@ describe('Comentários do cartão', () => {
   });
 });
 
+describe('Comentários no cartão ao lado (#360)', () => {
+  beforeEach(() => {
+    // Dado que, antes da #360, a pessoa deixara os comentários recolhidos no painel ao lado (a escolha não vale mais)
+    iniciarPreferencias({ 'cartao.comentarios': false });
+    Object.values(SD).forEach(f => f.mockReset());
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Primeiro contato', '2026-10-28T15:00:00Z')]);
+  });
+
+  it('dado o cartão ao lado (sem a coluna), quando abre, então os comentários vêm abertos, embaixo do cartão, no grupo do cartão: um "Expandir tudo" só, no alto dele', async () => {
+    // Quando: o cartão, com o grupo das seções dele (o do painel), uma seção fechada e, embaixo, os comentários
+    render(<ColunaDoCartao.Provider value={null}><GrupoDeSecoes><main>
+      <Recolhivel titulo="Dados do cartão" icone="lista"><p>Dados</p></Recolhivel>
+      <SecaoComentarios modulo="tarefas" cartaoId="t1" />
+    </main></GrupoDeSecoes></ColunaDoCartao.Provider>);
+    // Então
+    const secao = await screen.findByRole('button', { name: /^Comentários\s*1$/ });
+    expect(secao).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('main')).toHaveTextContent('Primeiro contato');
+    const doGrupo = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    expect(doGrupo).toHaveLength(1);
+    expect(within(screen.getByRole('main')).getAllByRole('button')[0]).toBe(doGrupo[0]);
+    // Quando: o botão do alto do cartão
+    await userEvent.click(doGrupo[0]);
+    // Então: abre também a seção de cima, e o mesmo botão passa a recolher todas, os comentários também
+    expect(screen.getByText('Dados')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Recolher tudo' }));
+    expect(secao).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
 describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11)', () => {
   /** A coluna da direita, como a da janela no centro, fora do cartão. */
   let coluna: HTMLElement;
@@ -176,8 +207,7 @@ describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11
   });
 
   it('dado um comentário começado no painel ao lado, quando a janela passa para o centro, então ele continua na caixa, agora na coluna', async () => {
-    // Dado: ao lado (sem a coluna), com a seção aberta
-    iniciarPreferencias({ 'cartao.comentarios': true });
+    // Dado: ao lado (sem a coluna), com a seção aberta, como ela abre
     const { rerender } = render(<ColunaDoCartao.Provider value={null}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
     await userEvent.type(await screen.findByRole('textbox', { name: 'Escrever um comentário' }), 'Falar com o cliente');
     // Quando

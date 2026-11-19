@@ -16,6 +16,9 @@
   --accent-ink: #2B6119;
   --accent-deep: #1F4712;
   --accent-tint: #EEF5EA;
+  /* A anotação ligada, na coluna do cartão de um item (#360): um papel creme, para não se misturar aos comentários (--soft) e
+     nunca verde (o verde é do foco e do comentário citado). */
+  --fundo-da-anotacao: #FAF6EA; --borda-da-anotacao: #ECE3CB;
   /* Gráficos do Financeiro: entrada e saída (par que se distingue também para quem não vê vermelho e verde) e, nas
      barras de contratos, o recebido (a cor da entrada) e o que falta receber (o mesmo verde, claro). */
   --grafico-entrada: #2E6B1C; --grafico-saida: #C77A2E; --grafico-aberto: #C5E0B6;
@@ -130,6 +133,7 @@
     --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
     --erro-forte: #C2412D; --erro-borda: #6E2A22;
     --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+    --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
     --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -142,6 +146,7 @@
   --superficie: #22211D; --soft2: #181715; --sel: #ECEAE3; --sel-txt: #1A1916; --dark-borda: #34322D;
   --erro-forte: #C2412D; --erro-borda: #6E2A22;
   --accent-bright: #6CBF47; --accent-ink: #8BD06A; --accent-deep: #A9DE8F; --accent-tint: #1D2A17;
+  --fundo-da-anotacao: #2A261C; --borda-da-anotacao: #3D3727;
   --grafico-entrada: #58A83A; --grafico-saida: #A04E1C; --grafico-aberto: #2F4A25;
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
@@ -657,12 +662,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    da janela (o formato e o X), com o vão de sempre entre botões redondos, sem disputar a linha deles nem passar por baixo deles. */
 .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child {
   margin-top: calc(var(--cartao-botoes-margem) + var(--botao-redondo) + var(--botao-redondo-vao) - var(--cartao-topo)) }
-/* Janela estreita: a coluna dos comentários desce para baixo do cartão (e o "Expandir tudo" dela fica no lugar de sempre). */
+/* Janela estreita: uma coluna só. A da direita não é desenhada (PainelCartao, JANELA_ESTREITA): o que iria para ela fica no pé do
+   cartão, antes do rodapé, no grupo do cartão, como ao lado (#360). */
 @media (max-width: 900px) {
   .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto; max-height: var(--janela-altura) }
-  .cartao-painel.centro :is(.cartao-corpo, .cartao-coluna) { overflow: visible; max-height: none }
-  .cartao-coluna { border-left: 0; border-top: 1px solid var(--line) }
-  .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { margin-top: 0 }
+  .cartao-painel.centro .cartao-corpo { overflow: visible; max-height: none }
 }
 /* O botão de formato e o "X" ficam presos ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
 /* Os botões redondos do cartão (os do painel, Arquivar, Editar…): o tamanho de cada um e o espaço entre eles. A cabeça do
@@ -701,11 +705,22 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* O texto da linha ocupa o que sobra; a bolinha das iniciais (também um span) fica do tamanho dela. */
 .lista-sugestoes li > span:not(.avatar) { flex: 1; min-width: 0; overflow-wrap: anywhere }
 .lista-sugestoes small { color: var(--muted) }
-.lista-comentarios { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px }
-.comentario { display: flex; gap: 10px; align-items: flex-start }
+.lista-comentarios, .anotacoes-na-coluna { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px }
+.comentario, .anotacao-na-coluna { display: flex; gap: 10px; align-items: flex-start }
 .comentario-miolo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px }
 .comentario-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; font-size: 14px; color: var(--ink) }
-.comentario-texto { margin: 0; padding: 10px 12px; background: var(--soft); border-radius: 10px; font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere }
+.comentario-texto, .anotacao-na-coluna-balao { margin: 0; padding: 10px 12px; background: var(--soft); border-radius: 10px; font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere }
+/* A anotação ligada, na coluna do cartão de um item (paginas/AnotacoesDoCartao.tsx, #360): como um comentário, mas o balão, de papel
+   creme com borda fina, tem o título e o começo do texto, e o item todo é o link que abre a anotação. */
+.anotacao-na-coluna { color: inherit; text-decoration: none; border-radius: 10px }
+.anotacao-na-coluna-balao { display: flex; flex-direction: column; gap: 4px; background: var(--fundo-da-anotacao); border: 1px solid var(--borda-da-anotacao); white-space: normal }
+/* Só onde há mouse: no toque, a borda verde ficaria presa depois do toque. */
+@media (hover: hover) { .anotacao-na-coluna:hover .anotacao-na-coluna-balao { border-color: var(--accent) } }
+.anotacao-na-coluna:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.anotacao-na-coluna-titulo { display: flex; align-items: center; gap: 6px; color: var(--ink); overflow-wrap: anywhere }
+.anotacao-na-coluna-titulo > svg { flex-shrink: 0; color: var(--muted) }
+.anotacao-na-coluna-inicio { white-space: pre-line; color: var(--text2) }
+.anotacao-na-coluna .selo { align-self: center }
 .mencao { color: var(--accent-ink); font-weight: 700; background: var(--accent-tint); border-radius: 4px; padding: 0 2px }
 /* O comentário que a mensagem abriu. */
 .comentario-citado .comentario-texto { background: var(--accent-tint); outline: 1px solid var(--accent); outline-offset: -1px }

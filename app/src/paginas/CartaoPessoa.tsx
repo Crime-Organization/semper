@@ -19,6 +19,7 @@ import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '..
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
@@ -258,8 +259,6 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa' }} />}
     </Recolhivel>}
 
-    <AnotacoesDoCartao modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} />
-
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
@@ -275,11 +274,15 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <Sigilos p={p} versao={versaoSig} aoMudar={() => setVersaoSig(v => v + 1)} />
     </Recolhivel>
 
-    <SecaoComentarios modulo="pessoas" cartaoId={p.id} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.cartao.historico" contador={quantos.historico}>
-      <HistoricoPessoa id={p.id} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
+        histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="pessoas" cartaoId={p.id} />
+      <AnotacoesDoCartao modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="pessoas.coluna.historico" contador={quantos.historico}>
+        <HistoricoPessoa id={p.id} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Cadastrada em {dataCurta(p.criado_em)}{p.criado_por ? ' por ' + nomeDe(p.criado_por) : ''}</span>

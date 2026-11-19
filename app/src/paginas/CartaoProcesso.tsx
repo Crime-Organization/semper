@@ -26,6 +26,7 @@ import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
@@ -239,11 +240,14 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    <AnotacoesDoCartao modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} />
-
-    <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.cartao.historico" contador={quantos.historico}>
-      <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
-    </Recolhivel>
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo): o processo não tem comentários, e a coluna fica com as
+        anotações e o histórico, na mesma ordem dos outros cartões (#360); a escolha de deixar o histórico aberto tem chave nova (".coluna."). */}
+    <NaColunaDoCartao>
+      <AnotacoesDoCartao modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="processos.coluna.historico" contador={quantos.historico}>
+        <HistoricoDoCartao carregar={() => SD.processoHistorico(p.id)} campos={{ ...CAMPOS_PROCESSO, ...CAMPOS_NO_HISTORICO, ...nomesNoHistorico(campos) }} valor={valorNoHistorico(campos, valorLegivelProcesso)} versao={versaoHist} />
+      </Recolhivel>
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criado em {dataCurta(p.criado_em)}{p.criado_por ? ' por ' + nomeDe(p.criado_por) : ''}</span>

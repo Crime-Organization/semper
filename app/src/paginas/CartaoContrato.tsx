@@ -20,6 +20,7 @@ import './Financeiro.css';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
+import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
@@ -244,13 +245,15 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)} />
-
-    <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso={oculto ? undefined : 'Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir.'} />
-
-    {!oculto && <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.cartao.historico" contador={historico}>
-      <HistoricoContrato id={k.id} versao={versaoHist} />
-    </Recolhivel>}
+    {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
+        histórico (#360). A escolha de deixar o histórico aberto tem chave nova (".coluna."): na coluna, ele começa recolhido. */}
+    <NaColunaDoCartao>
+      <SecaoComentarios modulo="contratos" cartaoId={k.id} aviso={oculto ? undefined : 'Quem você mencionar passa a ver este contrato, com os valores, enquanto a menção existir.'} />
+      <AnotacoesDoCartao modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)} />
+      {!oculto && <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="contratos.coluna.historico" contador={historico}>
+        <HistoricoContrato id={k.id} versao={versaoHist} />
+      </Recolhivel>}
+    </NaColunaDoCartao>
 
     <footer className="cartao-rodape">
       <span>Criado em {dataCurta(k.criado_em)}{k.criado_por ? ' por ' + nomeDe(k.criado_por) : ''}</span>

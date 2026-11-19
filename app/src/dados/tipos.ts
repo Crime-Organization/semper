@@ -1280,8 +1280,10 @@ export interface Anotacao {
 export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes' | 'pasta_id'>>;
 /** Linha da tabela de anotações, com as etiquetas dela. */
 export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'ligada_a' | 'pasta_id' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'> & ComEtiquetas;
-/** Anotação como aparece no cartão de um item ligado a ela. */
+/** Anotação como aparece no cartão de um item ligado a ela (sem o texto: é a leitura do número, ao abrir o cartão). */
 export type AnotacaoLigada = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
+/** A anotação ligada com o texto, de que a seção "Anotações" aberta, na coluna do cartão, mostra o começo (#360). */
+export type AnotacaoLigadaComTexto = AnotacaoLigada & Pick<Anotacao, 'texto'>;
 /** Um item ligado a uma anotação, como aparece no cartão dela. */
 export interface ItemDaAnotacao {
   modulo: ModuloDaAnotacao; id: string; codigo: string; nome: string; arquivado_em: string | null;
@@ -1350,6 +1352,11 @@ export interface DadosAnotacoes {
   anotacaoItens(id: string): Promise<{ visiveis: ItemDaAnotacao[]; ocultos: number }>;
   /** As anotações ligadas ao item que quem lê pode ver, as atualizadas mais recentemente primeiro. */
   anotacoesDoItem(modulo: ModuloDaAnotacao, itemId: string): Promise<AnotacaoLigada[]>;
+  /**
+   * As mesmas, na mesma ordem, com o texto, de que a seção "Anotações" aberta mostra o começo (#360). Só se lê com a seção aberta:
+   * o texto pode ser longo, e a leitura de cima, a do número com a seção fechada, continua leve.
+   */
+  anotacoesDoItemComTexto(modulo: ModuloDaAnotacao, itemId: string): Promise<AnotacaoLigadaComTexto[]>;
   /** Itens do módulo para ligar, pela busca, entre os que quem lê pode ver (ativos). */
   itensParaLigar(modulo: ModuloDaAnotacao, termo: string): Promise<ItemDaAnotacao[]>;
   /**
