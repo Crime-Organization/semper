@@ -105,6 +105,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !p.arquivado_em;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
+  // O cadastro da tarefa que nasce ligada a este processo (#376).
+  const novaTarefa = '/tarefas/nova/?processo=' + p.id;
   async function entrar(como: ComoEntrarNoProcesso) {
     try {
       await SD.processoMeIncluir(p!.id, como);
@@ -225,9 +227,11 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas" contador={quantos.tarefas}>
+    {/* O "+ Nova tarefa" (#376), com as condições do ligar: a tarefa nasce com o processo e os clientes dele, e a tela volta aqui. */}
+    {ctx.escritorio?.modulos?.tarefas && <Recolhivel titulo="Tarefas" icone="tarefas" preferencia="processos.cartao.tarefas" contador={quantos.tarefas}
+      novo={podeLigar ? { para: novaTarefa, rotulo: 'Nova tarefa deste processo' } : undefined}>
       <CartoesLigados modulo="tarefas" carregar={() => SD.tarefasDoProcesso(p.id)} vazio="Nenhuma tarefa ligada a este processo. Elas nascem das intimações e dos prazos." versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados>
+      {podeLigar && <AcoesDosLigados novo={{ para: novaTarefa, rotulo: 'Nova tarefa' }}>
         <LigarDoModulo modulo="tarefas" filtro={{ sem: 'processos' }}
           aoEscolher={t => ligarEAvisar(() => ligarNoItem('processo da tarefa', t.id, p.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este processo.' }, depoisDeLigar)} />

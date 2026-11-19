@@ -94,6 +94,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   // não tem (mais de um é a #283). Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !t.arquivado_em, modulos = ctx.escritorio?.modulos;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
+  // O cadastro do processo que nasce gravado nesta tarefa (#376).
+  const novoProcesso = '/processos/novo/?tarefa=' + t.id;
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
@@ -226,11 +228,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>
 
-    {(comProcessos || t.processo_id) && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={t.processo_id ? 1 : 0}>
-      <ProcessosDoCartao carregar={processoDaTarefa} versao={versaoHist} somenteLer={!!t.arquivado_em || !podeAlterar || !comProcessos} maximo={1}
+    {/* O "+ Novo processo" (#376), como o ligar: só enquanto a tarefa não tem processo, nem um que a pessoa não pode abrir. */}
+    {(comProcessos || t.processo_id) && <Recolhivel titulo="Processo" icone="processos" preferencia="tarefas.cartao.processo" contador={t.processo_id ? 1 : 0}
+      novo={podeLigar && comProcessos && !t.processo_id ? { para: novoProcesso, rotulo: 'Novo processo desta tarefa' } : undefined}>
+      <ProcessosDoCartao carregar={processoDaTarefa} versao={versaoHist} somenteLer={!podeLigar || !comProcessos} maximo={1}
         vazio="Esta tarefa não está ligada a um processo."
         ligar={processoId => SD.tarefaAtualizar(t.id, { processo_id: processoId })} desligar={() => SD.tarefaAtualizar(t.id, { processo_id: null })}
-        aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} />
+        aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>

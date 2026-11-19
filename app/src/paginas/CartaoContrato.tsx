@@ -108,6 +108,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // valores), com ele ativo. Depois, as seções e os contadores leem de novo.
   const podeLigar = !k.arquivado_em && (podeAlterar || semValores);
   const depoisDeLigar = () => { aoMudar(); setVersaoHist(v => v + 1); };
+  // O cadastro do processo que nasce ligado a este contrato (#376).
+  const novoProcesso = '/processos/novo/?contrato=' + k.id;
   // Depois de mudar a equipe nas bolinhas: a lista (a coluna do responsável), o cartão e o histórico leem de novo.
   const depoisDaEquipe = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   const percentuaisParticipantes = textoDosParticipantes(k.participantes.map(p => ({ nome: p.pessoa.nome, percentual: p.percentual }))) ?? '—';
@@ -195,11 +197,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>}
 
     {modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="contratos.cartao.processos"
-      contador={processosLidos ? processosLidos.visiveis.length + processosLidos.ocultos : undefined}>
-      {/* Ligar um processo não mexe em valores: na fase de adaptação, quem não é parte também liga. */}
-      <ProcessosDoCartao carregar={processosDoContrato} versao={versaoHist} somenteLer={!!k.arquivado_em || !(podeAlterar || semValores)}
+      contador={processosLidos ? processosLidos.visiveis.length + processosLidos.ocultos : undefined}
+      novo={podeLigar ? { para: novoProcesso, rotulo: 'Novo processo deste contrato' } : undefined}>
+      {/* Ligar ou criar um processo não mexe em valores: na fase de adaptação, quem não é parte também liga e cria (#376). */}
+      <ProcessosDoCartao carregar={processosDoContrato} versao={versaoHist} somenteLer={!podeLigar}
         vazio="Nenhum processo ligado a este contrato." ligar={processoId => SD.contratoProcessoLigar(k.id, processoId)}
-        desligar={processoId => SD.contratoProcessoDesligar(k.id, processoId)} aoMudar={() => setVersaoHist(v => v + 1)} />
+        desligar={processoId => SD.contratoProcessoDesligar(k.id, processoId)} aoMudar={() => setVersaoHist(v => v + 1)}
+        novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
     </Recolhivel>}
 
     <Recolhivel titulo="Partes" icone="pessoas" preferencia="contratos.cartao.partes" contador={partes.length}>
