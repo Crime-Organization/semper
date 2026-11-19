@@ -1,0 +1,5 @@
+{
+  "titulo": "Criar contrato e processo direto do cartão, e voltar a ele",
+  "texto": "Nas seções Contratos e Processos do cartão da pessoa e Processos do cartão da demanda, o \"+\" do título e o \"+ Novo …\" de baixo abrem o cadastro já ligado. Ao salvar, a tela volta ao cartão de onde você saiu, com o item novo na seção. Em item arquivado, esses botões não aparecem.",
+  "ondeAchar": "No cartão de uma pessoa (seções Contratos e Processos) e no cartão de uma demanda (seção Processos)."
+}

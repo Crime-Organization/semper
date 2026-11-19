@@ -3,7 +3,8 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
-import { ItensLigados } from './ItensLigados';
+import { AcoesDosLigados, CriarNoCartao, ItensLigados } from './ItensLigados';
+import { Recolhivel } from './Recolhivel';
 
 describe('Itens ligados a um cadastro', () => {
   it('quando há itens, então cada um é um link para o item, com o código, o título e o detalhe', () => {
@@ -46,5 +47,46 @@ describe('O atalho para criar um item ligado', () => {
     // Então
     expect(screen.getByText('Nenhuma tarefa ligada a este contrato.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveTextContent('Nova tarefa deste contrato');
+  });
+});
+
+describe('O cartão só para ler (#376)', () => {
+  const NOVA = { para: '/tarefas/nova/?contrato=k1', rotulo: 'Nova tarefa deste contrato' };
+  const tudo = <>
+    <Recolhivel titulo="Tarefas" icone="tarefas" novo={NOVA}><p>dentro</p></Recolhivel>
+    <ItensLigados vazio="Nenhuma tarefa." novo={NOVA} itens={[]} />
+    <AcoesDosLigados novo={{ para: NOVA.para, rotulo: 'Nova tarefa' }}><button type="button">Ligar tarefa existente</button></AcoesDosLigados>
+  </>;
+
+  it('dado o cartão que deixa criar, quando aparece, então o "+" do título, o da lista e o "+ Nova tarefa" de baixo levam ao cadastro', () => {
+    // Quando
+    render(<MemoryRouter><CriarNoCartao pode>{tudo}</CriarNoCartao></MemoryRouter>);
+    // Então
+    expect(screen.getAllByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Nova tarefa' })).toHaveAttribute('href', NOVA.para);
+  });
+
+  it('dado o cartão arquivado (ou de quem só lê), quando aparece, então nenhum atalho de criar aparece, e o resto continua', () => {
+    // Quando
+    render(<MemoryRouter><CriarNoCartao pode={false}>{tudo}</CriarNoCartao></MemoryRouter>);
+    // Então
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Tarefas' })).toBeInTheDocument();
+    expect(screen.getByText('Nenhuma tarefa.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ligar tarefa existente' })).toBeInTheDocument();
+  });
+
+  it('dado o cartão arquivado e uma seção que só tinha o "+ Novo …" embaixo, quando aparece, então não sobra a linha vazia dos botões', () => {
+    // Quando
+    const { container } = render(<MemoryRouter><CriarNoCartao pode={false}><AcoesDosLigados novo={NOVA} /></CriarNoCartao></MemoryRouter>);
+    // Então
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('dado uma seção fora de qualquer cartão, quando tem o atalho, então ele aparece (cada seção decide)', () => {
+    // Quando
+    render(<MemoryRouter><Recolhivel titulo="Tarefas" icone="tarefas" novo={NOVA}><p>dentro</p></Recolhivel></MemoryRouter>);
+    // Então
+    expect(screen.getByRole('link', { name: 'Nova tarefa deste contrato' })).toHaveAttribute('href', NOVA.para);
   });
 });

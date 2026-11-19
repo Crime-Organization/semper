@@ -1,7 +1,7 @@
 // Os processos ligados a um cartão (demanda, contrato, tarefa, compromisso), cada um num quadrinho que abre o processo.
 // Quem pode alterar o cartão liga um processo que já existe ("+ Ligar processo", com busca) e desliga pelo "X", com o
 // Desfazer no pé da tela, como os vínculos entre pessoas (#294).
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { plural } from './importarPessoas/textos';
 import { cabeOutroProcesso, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
@@ -9,7 +9,7 @@ import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { nomeDoEscolhido, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { Icone } from '../ui/Icone';
-import { ItensLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, ItensLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarProcesso } from '../ui/LigarProcesso';
 
 /** O processo no cartão. A tarefa só traz o número e o tipo; a demanda e o contrato trazem também o nome e a situação. */
@@ -37,11 +37,11 @@ interface Props {
   maximo?: number;
   /** Quando o processo não pode sair (a audiência e a perícia precisam dele): o motivo, no lugar do "X". */
   semDesligar?: string;
-  /** Outros botões ao lado de "Ligar processo" (o "Criar processo" da demanda). */
-  outrasAcoes?: ReactNode;
+  /** O atalho para criar um processo já ligado, ao lado de "Ligar processo" (o "+ Novo processo" da demanda, #376). Com a lista cheia, não aparece. */
+  novo?: NovoLigado;
 }
 
-export function ProcessosDoCartao({ carregar, versao, somenteLer, ligar, desligar, aoMudar, vazio, maximo, semDesligar, outrasAcoes }: Props) {
+export function ProcessosDoCartao({ carregar, versao, somenteLer, ligar, desligar, aoMudar, vazio, maximo, semDesligar, novo }: Props) {
   const [lista, setLista] = useState<ProcessosLidos | string | null>(null);
   const [colunas, setColunas] = useState<Coluna[]>([]);
   useEffect(() => {
@@ -86,9 +86,8 @@ export function ProcessosDoCartao({ carregar, versao, somenteLer, ligar, desliga
         </button>
     }))} />
     {!somenteLer && semDesligar && lista.visiveis.length > 0 && <Nota>{semDesligar}</Nota>}
-    {(podeLigar || (!somenteLer && outrasAcoes)) && <div className="ligados-acoes">
-      {podeLigar && <LigarProcesso ligados={lista.visiveis.map(p => p.id)} aoEscolher={p => aoLigar(p.id)} />}
-      {!somenteLer && outrasAcoes}
-    </div>}
+    {podeLigar && <AcoesDosLigados novo={novo}>
+      <LigarProcesso ligados={lista.visiveis.map(p => p.id)} aoEscolher={p => aoLigar(p.id)} />
+    </AcoesDosLigados>}
   </>;
 }

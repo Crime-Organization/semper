@@ -22,7 +22,7 @@ import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { Icone } from '../ui/Icone';
-import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
+import { CriarNoCartao, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
@@ -37,7 +37,7 @@ import { SeloDoPrazo } from './Demandas';
 import { oferecerProcesso } from './concluirDemanda';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
-import { ProcessosDaDemanda } from './ProcessosDaDemanda';
+import { novoProcessoDaDemanda, ProcessosDaDemanda } from './ProcessosDaDemanda';
 import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
@@ -143,7 +143,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Para quem só lê a demanda, ou com ela arquivada, nenhuma seção mostra o "+ Novo …" (#376).
+  return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
     <header className="cartao-cabeca">
       <div className="linha">
@@ -211,7 +212,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}>
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}
+      novo={novoProcessoDaDemanda(d.id, 'Novo processo desta demanda')}>
       <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
@@ -247,5 +249,5 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(d.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }

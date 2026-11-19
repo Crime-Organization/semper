@@ -15,9 +15,9 @@ import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
-import { ItensLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -33,7 +33,8 @@ import { ParcelasDaPessoa } from './financeiro/Parcelas';
 import './Financeiro.css';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
-import { ProcessosDaPessoa } from './ProcessosDaPessoa';
+import { cadastroComVolta } from '../regras/origemDoCadastro';
+import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
 
@@ -174,7 +175,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Na pessoa arquivada, nenhuma seção mostra o "+ Novo …" (#376).
+  return <CriarNoCartao pode={podeLigar}>
     <header className="cartao-cabeca">
       <div className="linha">
         <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
@@ -230,7 +232,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     </section>}
 
     {comContratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="pessoas.cartao.contratos"
-      contador={Array.isArray(contratos) ? contratos.length : undefined}>
+      contador={Array.isArray(contratos) ? contratos.length : undefined} novo={novoContrato(p.id, 'Novo contrato com esta pessoa como cliente')}>
       {contratos === null ? <Carregando />
         : typeof contratos === 'string' ? <Aviso tipo="erro">{contratos}</Aviso>
         : <ContratosDaPessoa lista={contratos} pessoaId={p.id} />}
@@ -245,7 +247,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {podeLigar && <LigarAPessoa modulo="demandas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/demandas/nova/?cliente=' + id, rotulo: 'Nova demanda' }} />}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}>
+    {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="pessoas.cartao.processos" contador={quantos.processos}
+      novo={novoProcessoDaPessoa(id, 'Novo processo com esta pessoa como cliente')}>
       <ProcessosDaPessoa pessoaId={id} perfilId={perfilDaPessoa} versao={versaoHist} somenteLer={!podeLigar} aoMudar={depoisDeLigar} />
     </Recolhivel>}
 
@@ -289,7 +292,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <span>Atualizada {relativo(p.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }
 
 function Grupo({ titulo, linhas }: { titulo: string; linhas: [string, ReactNode][] }) {
@@ -314,9 +317,11 @@ function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pes
       id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, selo: k.arquivado_em ? 'Arquivado' : undefined,
       detalhe: k.papeis.map(x => PAPEIS_NO_CONTRATO[x]).join(', ') + ' · ' + situacao(k.etapa_id)
     }))} />
-    <div><BotaoLink forma="mini" to={'/contratos/novo/?cliente=' + pessoaId}><Icone nome="mais" tam={13} /> Novo contrato com esta pessoa como cliente</BotaoLink></div>
+    <AcoesDosLigados novo={novoContrato(pessoaId, 'Novo contrato')} />
   </>;
 }
+/** O contrato novo com a pessoa como cliente: o cadastro volta a este cartão depois de gravar (#376). */
+const novoContrato = (pessoaId: string, rotulo: string) => ({ para: cadastroComVolta('/contratos/novo/', 'cliente', pessoaId), rotulo });
 
 // ---------- responsáveis ----------
 function Responsaveis({ p, aoMudar }: { p: Pessoa; aoMudar: (resp: string[]) => void }) {

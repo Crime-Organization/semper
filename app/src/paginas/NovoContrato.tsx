@@ -27,6 +27,7 @@ import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { mudancasNosProcessos } from '../regras/processo';
+import { cartaoDeOrigem } from '../regras/origemDoCadastro';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { ParticipantesDoContrato } from './ParticipantesDoContrato';
 import './Contratos.css';
@@ -300,7 +301,9 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           return { tipo: 'contratoCriado', id: r.id };
         });
         saidaLiberada.current = true;
-        navegar('/contratos/?id=' + r.id);
+        // Aberto pelo "+ Novo contrato" de um cartão (#376), volta a ele, onde o contrato já aparece ligado. Se a pessoa tirou
+        // o cliente que veio pronto, o contrato não aparece lá: vai ao cartão dele.
+        navegar(cartaoDeOrigem(params, { cliente: id => c.clientes.includes(id) }) ?? '/contratos/?id=' + r.id);
       }
     } catch (err) {
       falha(err);

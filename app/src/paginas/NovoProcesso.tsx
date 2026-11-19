@@ -13,6 +13,7 @@ import {
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
+import { cartaoDeOrigem } from '../regras/origemDoCadastro';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
@@ -291,13 +292,20 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'processoCriado', id: r.id };
         });
+        let ligouDemanda = false;
         if (demanda) {
           // O processo já existe: se a ligação falhar, ele continua, e a pessoa fica sabendo.
-          try { await SD.processoDemandaLigar(r.id, demanda.id); }
+          try { await SD.processoDemandaLigar(r.id, demanda.id); ligouDemanda = true; }
           catch { avisar(`Não foi possível ligar o processo à demanda ${demanda.codigo}.`, 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(caminho + '?id=' + r.id);
+        // Aberto pelo "+ Novo processo" de um cartão (#376), volta a ele, onde o processo já aparece ligado (a demanda vem antes
+        // do cliente). Se o processo não ficou ligado à origem (ligação que falhou, cliente trocado), vai ao cartão dele.
+        const voltaPara = cartaoDeOrigem(params, {
+          demanda: id => ligouDemanda && demanda?.id === id,
+          cliente: id => c.clientes.includes(id)
+        });
+        navegar(voltaPara ?? caminho + '?id=' + r.id);
       }
     } catch (err) {
       falha(err);

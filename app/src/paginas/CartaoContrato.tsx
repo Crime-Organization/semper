@@ -34,7 +34,7 @@ import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContr
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
-import { AcoesDosLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem } from './ligarNoCartao';
 
@@ -143,7 +143,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
+  return <CriarNoCartao pode={podeLigar}>
     <header className="cartao-cabeca">
       <div className="linha">
         {!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}<span className="codigo">{k.codigo}</span>
@@ -265,7 +266,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(k.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }
 
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;
