@@ -42,7 +42,7 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
 import { AndamentosDoProcesso, PrazosDoProcesso, useAcompanhamento } from './processo/AndamentosEPrazos';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
-import { AcoesDosLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
@@ -104,6 +104,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !p.arquivado_em;
+  // Criar um compromisso já ligado (#273, #376): quem altera o processo e, na fase de adaptação, o advogado (ele marca audiência
+  // em qualquer processo). Nunca com o processo arquivado. O "+" do título e o "+ Novo compromisso" de baixo seguem esta regra.
+  const podeCriarCompromisso = !p.arquivado_em && (podeAlterar || advogado);
+  const novoCompromisso = '/agenda/novo/?processo=' + p.id;
   // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
   const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
@@ -157,7 +161,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     if (salvou) { aoMudar(); void carregar(); void lerCampos(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
+  return <CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
     <header className="cartao-cabeca">
       <div className="linha">
@@ -242,13 +247,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       </AcoesDosLigados>}
     </Recolhivel>}
 
-    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeAlterar || advogado ? { para: '/agenda/novo/?processo=' + p.id, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
+    {ctx.escritorio?.modulos?.compromissos && <Recolhivel titulo="Compromissos" icone="calendario" preferencia="processos.cartao.compromissos" contador={quantos.compromissos} novo={podeCriarCompromisso ? { para: novoCompromisso, rotulo: 'Nova audiência ou compromisso deste processo' } : undefined}>
       {/* Lê a lista uma vez: muda a chave quando algo foi ligado ou desfeito. */}
       <CompromissosLigados key={`${podeAlterar}:${versaoHist}`} carregar={() => SD.compromissosDoProcesso(p.id)} vazio={podeAlterar ? 'Nenhum compromisso ligado a este processo.' : SEM_COMPROMISSO_VISIVEL} />
-      {podeLigar && <AcoesDosLigados novo={{ para: '/agenda/novo/?processo=' + p.id, rotulo: 'Novo compromisso' }}>
-        <LigarDoModulo modulo="compromissos" filtro={{ sem: 'processos' }} aviso="Quem está neste processo passa a ver o compromisso que você ligar."
+      {podeCriarCompromisso && <AcoesDosLigados novo={{ para: novoCompromisso, rotulo: 'Novo compromisso' }}>
+        {podeLigar && <LigarDoModulo modulo="compromissos" filtro={{ sem: 'processos' }} aviso="Quem está neste processo passa a ver o compromisso que você ligar."
           aoEscolher={c => ligarEAvisar(() => ligarNoItem('processo do compromisso', c.id, p.id),
-            { feito: `Compromisso ligado: ${nomeDoCompromisso(c)}.`, oQue: 'ligação do compromisso', ja: 'Este compromisso já estava ligado a este processo.' }, depoisDeLigar)} />
+            { feito: `Compromisso ligado: ${nomeDoCompromisso(c)}.`, oQue: 'ligação do compromisso', ja: 'Este compromisso já estava ligado a este processo.' }, depoisDeLigar)} />}
       </AcoesDosLigados>}
     </Recolhivel>}
 
@@ -270,5 +275,5 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(p.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }

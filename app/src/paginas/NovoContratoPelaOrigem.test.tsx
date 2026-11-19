@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O contrato nascido no cartão de uma demanda (?demanda=) ou de um processo (?processo=), #376: herda os clientes da origem (e o
 // responsável, se for advogado), nasce ligado a ela e volta ao cartão de onde a pessoa partiu. A ligação que falha depois de gravar
-// só avisa: o contrato fica, uma vez só.
+// avisa: o contrato fica, uma vez só, e a tela vai ao cartão dele.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -82,7 +82,7 @@ describe('Contrato nascido no cartão de uma demanda (#376)', () => {
     expect(avisar).not.toHaveBeenCalled();
   });
 
-  it('dada uma demanda que outra pessoa ligou a outro contrato com o cadastro aberto, quando o contrato é criado, então ele fica gravado uma vez, avisa que a demanda não foi ligada e volta ao cartão da demanda', async () => {
+  it('dada uma demanda que outra pessoa ligou a outro contrato com o cadastro aberto, quando o contrato é criado, então ele fica gravado uma vez, avisa que a demanda não foi ligada e abre o cartão do contrato novo (no da demanda, ele não estaria)', async () => {
     // Dado
     vi.spyOn(SD, 'demandaObter').mockResolvedValueOnce(demanda()).mockResolvedValue(demanda({ contrato_id: 'k-outro' }));
     const ligar = vi.spyOn(SD, 'demandaAtualizar').mockResolvedValue({ id: 'd1', codigo: 'D1' });
@@ -90,7 +90,7 @@ describe('Contrato nascido no cartão de uma demanda (#376)', () => {
     // Quando
     await preencherESalvar();
     // Então
-    await screen.findByText('Cartão da demanda');
+    await screen.findByText('Cartão do contrato novo');
     expect(criar).toHaveBeenCalledTimes(1);
     expect(ligar).not.toHaveBeenCalled();
     expect(feito).toHaveBeenCalledWith('Contrato AT01-0001-2026 cadastrado.', 'cadastro do contrato', expect.any(Function));
@@ -155,7 +155,7 @@ describe('Contrato nascido no cartão de um processo (#376)', () => {
     expect(roteador.state.location.search).toBe('?id=pr1');
   });
 
-  it('dado um processo, quando a ligação falha depois de gravar, então o contrato fica, avisa qual ligação faltou e volta ao cartão do processo', async () => {
+  it('dado um processo, quando a ligação falha depois de gravar, então o contrato fica, avisa qual ligação faltou e abre o cartão dele (no do processo, ele não estaria)', async () => {
     // Dado
     vi.spyOn(SD, 'processoObter').mockResolvedValue(processo);
     vi.spyOn(SD, 'contratoProcessoLigar').mockRejectedValue(new Error('Você não está neste processo.'));
@@ -164,7 +164,7 @@ describe('Contrato nascido no cartão de um processo (#376)', () => {
     // Quando
     await preencherESalvar();
     // Então
-    await screen.findByText('Cartão do processo');
+    await screen.findByText('Cartão do contrato novo');
     expect(criar).toHaveBeenCalledTimes(1);
     expect(avisar).toHaveBeenCalledWith('Não foi possível ligar o processo PR1 ao contrato novo: Você não está neste processo. Ligue pelo cartão.', 'erro');
   });

@@ -105,6 +105,15 @@ export function aoSalvarPelaOrigem(origem: OrigemDoItem | null, semLigar: string
   return { liga, volta: origem && liga ? origem.cartao : doCriado };
 }
 
+/**
+ * Se o processo de origem ficou mesmo ligado ao item novo: ele continua entre os processos escolhidos no cadastro (a pessoa pode
+ * tê-lo tirado) e a gravação dele deu certo. As ligações vêm de um Promise.allSettled, na mesma ordem dos processos.
+ */
+export function processoDeOrigemLigado(origemId: string, processos: readonly { id: string }[], ligacoes: readonly PromiseSettledResult<unknown>[]) {
+  const i = processos.findIndex(p => p.id === origemId);
+  return i >= 0 && ligacoes[i]?.status === 'fulfilled';
+}
+
 // ---------- o que impediria a ligação, avisado antes de salvar ----------
 /** A demanda que nasce de uma tarefa com contrato e ganha outro contrato: a tarefa não pode ficar nela (#283, um contrato só). */
 export const CONTRATO_FORA_DA_TAREFA = 'A tarefa de origem é de outro contrato. Com este, ela não fica ligada à demanda nova.';

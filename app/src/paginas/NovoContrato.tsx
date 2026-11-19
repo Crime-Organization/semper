@@ -32,9 +32,9 @@ import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProce
 import { mudancasNosProcessos } from '../regras/processo';
 import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDasTarefasParaOContratoNovo, OBJETOS_AINDA_VIRAM_DEMANDAS, origemDaDemanda, origemDoProcesso,
-  textoDaOrigem, type OrigemDoItem
+  processoDeOrigemLigado, textoDaOrigem, type OrigemDoItem
 } from '../regras/nascerLigado';
-import { cartaoDeOrigem } from '../regras/origemDoCadastro';
+import { cartaoDeOrigem, depoisDeCriar } from '../regras/origemDoCadastro';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { ligarNoItem } from './ligarNoCartao';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
@@ -365,12 +365,16 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         // volta, cadastroComVolta), volta a ela, se a pessoa não tirou o cliente que veio pronto (senão o contrato não aparece lá).
         const doCriado = cartaoDeOrigem(params, { cliente: id => c.clientes.includes(id) }) ?? '/contratos/?id=' + r.id;
         const { liga, volta } = aoSalvarPelaOrigem(origem, demandaFora, doCriado);
+        // A demanda de origem pela ligação dela; o processo de origem, se continuou entre os escolhidos e a ligação dele deu certo.
+        let ficouLigado = !!origem && processoDeOrigemLigado(origem.id, processos, ligacoes);
         if (liga && demanda) {
-          try { await ligarNoItem('contrato da demanda', demanda.id, r.id); }
+          try { await ligarNoItem('contrato da demanda', demanda.id, r.id); ficouLigado = true; }
           catch (e) { avisar(avisoDaLigacaoQueFalhou('demanda no contrato', demanda.codigo, e), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'contrato', r.id, volta), { replace: !!origem || !!daAnotacao });
+        // Se não ficou ligado à origem, o contrato não apareceria lá: vai ao cartão dele.
+        const aposLigar = liga ? depoisDeCriar(volta, ficouLigado, '/contratos/?id=' + r.id) : volta;
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'contrato', r.id, aposLigar), { replace: !!origem || !!daAnotacao });
       }
     } catch (err) {
       falha(err);

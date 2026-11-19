@@ -43,7 +43,7 @@ import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
-import { AcoesDosLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
@@ -155,7 +155,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Nenhum "+ Novo …" com a tarefa arquivada nem para quem só lê (#376), em seção nenhuma.
+  return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     <header className="cartao-cabeca">
       <div className="linha">
@@ -270,5 +271,5 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(t.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }

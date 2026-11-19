@@ -29,8 +29,10 @@ import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { mudancasNosProcessos } from '../regras/processo';
 import {
-  aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDoContratoDaTarefa, origemDaTarefa, origemDoProcesso, textoDaOrigem, type OrigemDoItem
+  aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDoContratoDaTarefa, origemDaTarefa, origemDoProcesso, processoDeOrigemLigado, textoDaOrigem,
+  type OrigemDoItem
 } from '../regras/nascerLigado';
+import { depoisDeCriar } from '../regras/origemDoCadastro';
 import { ligarTarefaNaDemanda } from './ligarNoCartao';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { gravarProcessos } from './ProcessosDoCartao';
@@ -278,13 +280,17 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         ligacoes.forEach((x, i) => { if (x.status === 'rejected') avisar(avisoDaLigacaoQueFalhou('processo na demanda', processos[i].codigo, x.reason), 'erro'); });
         // Vinda de um cartão, volta a ele, com a demanda nova na seção. Sem origem, ou com a tarefa de outro contrato (que não
         // fica nela, como o cadastro já avisou), abre o cartão da demanda.
-        const { liga, volta } = aoSalvarPelaOrigem(origem, contratoForaDaTarefa, '/demandas/?id=' + r.id);
+        const doCriado = '/demandas/?id=' + r.id;
+        const { liga, volta } = aoSalvarPelaOrigem(origem, contratoForaDaTarefa, doCriado);
+        // A tarefa de origem pela ligação dela; o processo de origem, se continuou entre os escolhidos e a ligação dele deu certo.
+        let ficouLigada = !!origem && processoDeOrigemLigado(origem.id, processos, ligacoes);
         if (liga && tarefa) {
-          try { await ligarTarefaNaDemanda(tarefa.id, r.id); }
+          try { await ligarTarefaNaDemanda(tarefa.id, r.id); ficouLigada = true; }
           catch (e) { avisar(avisoDaLigacaoQueFalhou('tarefa na demanda', tarefa.codigo, e), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'demanda', r.id, volta), { replace: !!origem || !!daAnotacao });
+        // Se não ficou ligada à origem, a demanda não apareceria lá: vai ao cartão dela.
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'demanda', r.id, depoisDeCriar(volta, ficouLigada, doCriado)), { replace: !!origem || !!daAnotacao });
       }
     } catch (err) {
       falha(err);

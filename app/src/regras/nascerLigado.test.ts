@@ -4,7 +4,8 @@ import { CLIENTES_MAXIMOS, ITENS_DA_ANOTACAO } from '../dados/limites';
 import { RecusaDaLigacao } from './ligarExistente';
 import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, CONTRATO_FORA_DA_TAREFA, motivoDasTarefasParaOContratoNovo, motivoDoContratoDaTarefa,
-  origemDaAnotacao, origemDaDemanda, origemDaTarefa, origemDoProcesso, origemRecusada, TAREFA_DA_DEMANDA_EM_CONTRATO, textoDaOrigem
+  origemDaAnotacao, origemDaDemanda, origemDaTarefa, origemDoProcesso, origemRecusada, processoDeOrigemLigado, TAREFA_DA_DEMANDA_EM_CONTRATO,
+  textoDaOrigem
 } from './nascerLigado';
 describe('Os clientes que o item novo herda da origem', () => {
   it('dadas as pessoas da origem, quando o cadastro abre, então elas vêm na mesma ordem, sem repetir', () => {
@@ -120,6 +121,27 @@ describe('Ao salvar o item nascido de uma origem', () => {
   it('dado um cadastro sem origem, quando salva, então abre o cartão do item novo', () => {
     // Dado / Quando / Então
     expect(aoSalvarPelaOrigem(null, '', doCriado)).toEqual({ liga: false, volta: doCriado });
+  });
+});
+
+describe('O processo de origem depois de gravar o item novo', () => {
+  const processos = [{ id: 'p1' }, { id: 'p-origem' }];
+  const certo: PromiseSettledResult<unknown> = { status: 'fulfilled', value: undefined };
+  const falhou: PromiseSettledResult<unknown> = { status: 'rejected', reason: new Error('sem acesso') };
+
+  it('dado o processo de origem entre os escolhidos, quando a ligação dele dá certo, então ele ficou ligado', () => {
+    // Dado / Quando / Então
+    expect(processoDeOrigemLigado('p-origem', processos, [falhou, certo])).toBe(true);
+  });
+
+  it('dado o processo de origem entre os escolhidos, quando a ligação dele falha, então ele não ficou ligado', () => {
+    // Dado / Quando / Então
+    expect(processoDeOrigemLigado('p-origem', processos, [certo, falhou])).toBe(false);
+  });
+
+  it('dado que a pessoa tirou o processo de origem no cadastro, quando os outros ficam ligados, então ele não ficou', () => {
+    // Dado / Quando / Então
+    expect(processoDeOrigemLigado('p-origem', [{ id: 'p1' }], [certo])).toBe(false);
   });
 });
 

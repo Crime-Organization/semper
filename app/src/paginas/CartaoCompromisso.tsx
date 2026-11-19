@@ -26,7 +26,7 @@ import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
 import { Icone } from '../ui/Icone';
-import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
+import { CriarNoCartao, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
@@ -125,7 +125,8 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
 
-  return <>
+  // Nenhum "+ Novo …" com o compromisso arquivado nem para quem só lê (#376), em seção nenhuma.
+  return <CriarNoCartao pode={!somenteLer}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
     <header className="cartao-cabeca">
       <div className="linha">
@@ -210,5 +211,5 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(c.atualizado_em)}</span>
     </footer>
     </>}
-  </>;
+  </CriarNoCartao>;
 }

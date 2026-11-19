@@ -58,9 +58,8 @@ async function secao(cartao: Locator, titulo: string) {
 /** O número ao lado do título da seção (0 quando não há). */
 const contador = async (cartao: Locator, titulo: string) => Number((await tituloDaSecao(cartao, titulo).innerText()).replace(/\D/g, '') || 0);
 
-/** No cadastro de demanda aberto: dá o título, passa pelas etapas e salva. */
-async function salvarDemanda(page: Page, titulo: string) {
-  const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+/** No cadastro de demanda aberto (na janela ou, aberto pelo endereço, na página): dá o título, passa pelas etapas e salva. */
+async function salvarDemanda(page: Page, titulo: string, cadastro: Locator | Page = page.getByRole('dialog', { name: 'Cadastro' })) {
   await cadastro.getByLabel('Título').fill(titulo);
   await cadastro.getByRole('button', { name: 'Próxima' }).click();
   await cadastro.getByRole('button', { name: 'Próxima' }).click();
@@ -190,6 +189,58 @@ test.describe('Criar no cartão a demanda ou o contrato já ligados (#376)', () 
   });
 });
 
+test.describe('O item que não fica ligado à origem abre o cartão dele, e não o da origem (#376)', () => {
+  test('dada uma tarefa que já está em outra demanda, quando cria a demanda por ela, então avisa que não ligou e vai ao cartão da demanda nova', async ({ page }) => {
+    // Dado: "Pedir documentos ao cliente" já é da demanda "Registro de marca" (como se outra aba a tivesse ligado depois de abrir o cadastro)
+    const id = await idDe(page, 'tarefas', 'titulo', 'Pedir documentos ao cliente');
+    await page.goto('/demandas/nova/?tarefa=' + id);
+    await expect(page.getByText(/Esta demanda nasce da tarefa \w+ \(Pedir documentos ao cliente\)/)).toBeVisible();
+    // Quando: aberto pelo endereço, o cadastro ocupa a página
+    await salvarDemanda(page, 'Conferir os documentos', page);
+    // Então
+    await expect(page.getByText(/Não foi possível ligar a tarefa \w+ à demanda nova/)).toBeVisible();
+    await expect(page).toHaveURL(/\/demandas\/\?id=/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Conferir os documentos', level: 2 })).toBeVisible();
+  });
+
+  test('dado o "+ Nova demanda" de um processo, quando a pessoa tira o processo no cadastro e salva, então vai ao cartão da demanda nova', async ({ page }) => {
+    // Dado
+    const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
+    const cartao = await abrirCartao(page, 'processos', id, /JOSÉ DA SILVA TESTE|0001234/);
+    const demandas = await secao(cartao, 'Demandas');
+    await demandas.getByRole('link', { name: 'Nova demanda', exact: true }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByLabel('Título').fill('Acompanhar o recurso');
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    // Quando
+    await cadastro.getByRole('button', { name: /^Tirar o processo/ }).click();
+    await cadastro.getByRole('button', { name: 'Salvar demanda' }).click();
+    // Então
+    await expect(page).toHaveURL(/\/demandas\/\?id=/);
+    await expect(page.getByRole('dialog').getByRole('heading', { name: 'Acompanhar o recurso', level: 2 })).toBeVisible();
+  });
+
+  test('dado o "+ Novo contrato" de um processo, quando a pessoa tira o processo no cadastro e salva, então vai ao cartão do contrato novo', async ({ page }) => {
+    // Dado
+    const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
+    const cartao = await abrirCartao(page, 'processos', id, /JOSÉ DA SILVA TESTE|0001234/);
+    const contratos = await secao(cartao, 'Contratos');
+    await contratos.getByRole('link', { name: 'Novo contrato', exact: true }).click();
+    const cadastro = page.getByRole('dialog', { name: 'Cadastro' });
+    await cadastro.getByRole('button', { name: 'Próxima' }).click();
+    // Quando
+    await cadastro.getByRole('group', { name: 'Processos do contrato' }).getByRole('button', { name: /^Tirar o processo/ }).click();
+    await cadastro.getByRole('button', { name: 'Voltar' }).click();
+    await salvarContrato(page, 'Recurso de apelação');
+    // Então
+    await expect(page).toHaveURL(/\/contratos\/\?id=/);
+    const doContrato = page.getByRole('dialog');
+    await expect(doContrato.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
+    await expect(tituloDaSecao(doContrato, 'Processos')).toHaveText(/0$/);
+  });
+});
+
 test.describe('Os atalhos de criar já ligado seguem as condições do "Ligar existente" (#376)', () => {
   test('dada a conta comum que não está na tarefa, quando abre a seção Demanda, então não há como criar a demanda por ela', async ({ page }) => {
     // Dado
@@ -203,16 +254,40 @@ test.describe('Os atalhos de criar já ligado seguem as condições do "Ligar ex
     await expect(atalhosDeCriar(cartao, 'Nova demanda desta tarefa', 'Nova demanda')).toHaveCount(0);
   });
 
-  test('dado um processo arquivado, quando abre as seções Demandas e Contratos, então não há como criar a demanda nem o contrato por ele', async ({ page }) => {
+  test('dado um processo arquivado, quando abre as seções Demandas, Contratos, Tarefas e Compromissos, então não há como criar nada por ele', async ({ page }) => {
     // Dado
     const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
     await arquivar(page, 'processos', id);
     // Quando
     const cartao = await abrirCartao(page, 'processos', id, /JOSÉ DA SILVA TESTE|0001234/);
-    for (const titulo of ['Demandas', 'Contratos']) await abrirSecao(cartao, titulo);
+    for (const titulo of ['Demandas', 'Contratos', 'Tarefas', 'Compromissos']) await abrirSecao(cartao, titulo);
     // Então
     await expect(atalhosDeCriar(cartao, 'Nova demanda deste processo', 'Nova demanda')).toHaveCount(0);
     await expect(atalhosDeCriar(cartao, 'Novo contrato deste processo', 'Novo contrato')).toHaveCount(0);
+    await expect(atalhosDeCriar(cartao, 'Nova tarefa deste processo', 'Nova tarefa')).toHaveCount(0);
+    await expect(atalhosDeCriar(cartao, 'Nova audiência ou compromisso deste processo', 'Novo compromisso')).toHaveCount(0);
+  });
+
+  test('dada a fase de adaptação, quando um advogado que não está no processo abre a seção Compromissos, então cria o compromisso pelos dois atalhos, mas não liga um existente', async ({ page }) => {
+    // Dado: Bruno, aqui como advogado, não está no processo; com a chave da equipe, ele marca audiência em qualquer processo (#273)
+    const id = await idDe(page, 'processos', 'numero', '0001234-97.2026.8.13.0024');
+    await page.evaluate(() => {
+      const falso = (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void; mudarFuncao(i: string, f: string): void } }).SEMPER_FALSO;
+      falso.equipeVeTudo(true);
+      falso.mudarFuncao('u-bruno', 'advogado');
+    });
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    const cartao = await abrirCartao(page, 'processos', id, /JOSÉ DA SILVA TESTE|0001234/);
+    await abrirSecao(cartao, 'Compromissos');
+    // Então: os dois atalhos de criar, com a mesma regra; o "Ligar existente" fica para quem altera o processo
+    await expect(atalhosDeCriar(cartao, 'Nova audiência ou compromisso deste processo', 'Novo compromisso')).toHaveCount(2);
+    await expect(cartao.getByRole('button', { name: 'Ligar compromisso existente' })).toHaveCount(0);
+    // E as outras seções não deixam criar
+    for (const titulo of ['Demandas', 'Contratos', 'Tarefas']) await abrirSecao(cartao, titulo);
+    await expect(atalhosDeCriar(cartao, 'Nova demanda deste processo', 'Nova demanda')).toHaveCount(0);
+    await expect(atalhosDeCriar(cartao, 'Novo contrato deste processo', 'Novo contrato')).toHaveCount(0);
+    await expect(atalhosDeCriar(cartao, 'Nova tarefa deste processo', 'Nova tarefa')).toHaveCount(0);
   });
 
   test('dada uma demanda arquivada e sem contrato, quando abre a seção Contrato, então não há como criar o contrato por ela', async ({ page }) => {

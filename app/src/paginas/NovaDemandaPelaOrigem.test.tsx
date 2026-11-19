@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // A demanda nascida no cartão de uma tarefa (?tarefa=) ou de um processo (?processo=), #376: herda o que a origem tem, nasce ligada a
-// ela e volta ao cartão de onde a pessoa partiu. A ligação que falha depois de gravar só avisa: a demanda fica, uma vez só.
+// ela e volta ao cartão de onde a pessoa partiu. A ligação que falha depois de gravar avisa: a demanda fica, uma vez só, e a tela vai ao cartão dela.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
@@ -128,7 +128,7 @@ describe('Demanda nascida no cartão de uma tarefa (#376)', () => {
     expect(roteador.state.location.search).toBe('?id=d-nova');
   });
 
-  it('dada uma tarefa que outra pessoa pôs noutra demanda com o cadastro aberto, quando a demanda é criada, então ela fica gravada uma vez, avisa que a tarefa não foi ligada e volta ao cartão da tarefa', async () => {
+  it('dada uma tarefa que outra pessoa pôs noutra demanda com o cadastro aberto, quando a demanda é criada, então ela fica gravada uma vez, avisa que a tarefa não foi ligada e abre o cartão da demanda nova (no da tarefa, ela não estaria)', async () => {
     // Dado
     vi.spyOn(SD, 'tarefaObter').mockResolvedValueOnce(tarefa()).mockResolvedValue(tarefa({ demanda_id: 'd-outra' }));
     vi.spyOn(SD, 'demandaObter').mockResolvedValue(demandaNova);
@@ -137,7 +137,7 @@ describe('Demanda nascida no cartão de uma tarefa (#376)', () => {
     // Quando
     await salvar();
     // Então
-    await screen.findByText('Cartão da tarefa');
+    await screen.findByText('Cartão da demanda nova');
     expect(criar).toHaveBeenCalledTimes(1);
     expect(ligar).not.toHaveBeenCalled();
     expect(avisar).toHaveBeenCalledWith('Não foi possível ligar a tarefa T1 à demanda nova: Esta tarefa já está em outra demanda.', 'erro');
@@ -161,7 +161,7 @@ describe('Demanda nascida no cartão de um processo (#376)', () => {
     expect(roteador.state.location.search).toBe('?id=pr1');
   });
 
-  it('dado um processo, quando a ligação falha depois de gravar, então a demanda fica, avisa qual ligação faltou e volta ao cartão do processo', async () => {
+  it('dado um processo, quando a ligação falha depois de gravar, então a demanda fica, avisa qual ligação faltou e abre o cartão dela (no do processo, ela não estaria)', async () => {
     // Dado
     vi.spyOn(SD, 'processoObter').mockResolvedValue(processo);
     vi.spyOn(SD, 'processoDemandaLigar').mockRejectedValue(new Error('Você não está neste processo.'));
@@ -169,7 +169,7 @@ describe('Demanda nascida no cartão de um processo (#376)', () => {
     // Quando
     await salvar();
     // Então
-    await screen.findByText('Cartão do processo');
+    await screen.findByText('Cartão da demanda nova');
     expect(criar).toHaveBeenCalledTimes(1);
     expect(feito).toHaveBeenCalledWith('Demanda DNOVA cadastrada.', 'cadastro da demanda', expect.any(Function));
     expect(avisar).toHaveBeenCalledWith('Não foi possível ligar o processo PR1 à demanda nova: Você não está neste processo. Ligue pelo cartão.', 'erro');
