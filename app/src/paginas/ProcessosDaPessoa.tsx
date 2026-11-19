@@ -1,11 +1,12 @@
 // Os processos ligados ao cartão da pessoa, cada um num quadrinho que abre o cartão dele, com o papel dela, o tipo e a
 // situação. Embaixo, "Ligar processo existente" (ela entra como cliente de um processo que já existe, #341) e o atalho para um
-// processo novo com ela como cliente.
+// processo novo com ela como cliente, que também fica no "+" do título da seção (#376). Com a pessoa arquivada, nenhum dos dois.
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { nomeDoProcesso, PAPEIS_NO_PROCESSO, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
+import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { Aviso, Carregando } from '../ui/base';
-import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
+import { ItensLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarAPessoa } from './PessoasNosItens';
 
 interface Props {
@@ -13,13 +14,14 @@ interface Props {
   perfilId: string | null;
   /** Muda quando o cartão muda (ao ligar, ao desfazer): a lista lê de novo. */
   versao?: number;
-  /** A pessoa arquivada: sem ligar. */
+  /** A pessoa arquivada: sem ligar e sem criar. */
   somenteLer?: boolean;
   /** Depois de ligar: o cartão atualiza a lista e o contador. */
   aoMudar?: () => void;
 }
 
-const NOVO_PROCESSO = (pessoaId: string) => ({ para: '/processos/novo/?cliente=' + pessoaId, rotulo: 'Novo processo com esta pessoa como cliente' });
+/** O processo novo com a pessoa como cliente: o cadastro volta ao cartão dela depois de gravar (#376). */
+export const novoProcessoDaPessoa = (pessoaId: string, rotulo: string): NovoLigado => ({ para: cadastroComVolta('/processos/novo/', 'cliente', pessoaId), rotulo });
 
 export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer = false, aoMudar = () => {} }: Props) {
   const [lista, setLista] = useState<ProcessoLigado[] | string | null>(null);
@@ -41,7 +43,6 @@ export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer =
       id: p.id, para: TIPOS_PROCESSO[p.tipo].caminho + '?id=' + p.id, codigo: p.codigo, titulo: nomeDoProcesso(p), selo: p.arquivado_em ? 'Arquivado' : undefined,
       detalhe: [TIPOS_PROCESSO[p.tipo].nome, p.numero, p.papeis.map(x => PAPEIS_NO_PROCESSO[x]).join(', '), situacao(p.etapa_id)].filter(Boolean).join(' · ')
     }))} />
-    {somenteLer ? <AcoesDosLigados novo={NOVO_PROCESSO(pessoaId)} />
-      : <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} novo={NOVO_PROCESSO(pessoaId)} />}
+    {!somenteLer && <LigarAPessoa modulo="processos" pessoaId={pessoaId} depois={aoMudar} novo={novoProcessoDaPessoa(pessoaId, 'Novo processo')} />}
   </>;
 }

@@ -34,6 +34,7 @@ import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDasTarefasParaOContratoNovo, OBJETOS_AINDA_VIRAM_DEMANDAS, origemDaDemanda, origemDoProcesso,
   textoDaOrigem, type OrigemDoItem
 } from '../regras/nascerLigado';
+import { cartaoDeOrigem } from '../regras/origemDoCadastro';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { ligarNoItem } from './ligarNoCartao';
 import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
@@ -360,8 +361,10 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         });
         ligacoes.forEach((x, i) => { if (x.status === 'rejected') avisar(avisoDaLigacaoQueFalhou('processo no contrato', processos[i].codigo, x.reason), 'erro'); });
         // Vindo de um cartão, volta a ele, com o contrato novo na seção. Sem origem, ou com a demanda que não pode ficar nele
-        // (como o cadastro já avisou), abre o cartão do contrato.
-        const { liga, volta } = aoSalvarPelaOrigem(origem, demandaFora, '/contratos/?id=' + r.id);
+        // (como o cadastro já avisou), abre o cartão do contrato. Aberto pelo "+ Novo contrato" do cartão da pessoa (a marca da
+        // volta, cadastroComVolta), volta a ela, se a pessoa não tirou o cliente que veio pronto (senão o contrato não aparece lá).
+        const doCriado = cartaoDeOrigem(params, { cliente: id => c.clientes.includes(id) }) ?? '/contratos/?id=' + r.id;
+        const { liga, volta } = aoSalvarPelaOrigem(origem, demandaFora, doCriado);
         if (liga && demanda) {
           try { await ligarNoItem('contrato da demanda', demanda.id, r.id); }
           catch (e) { avisar(avisoDaLigacaoQueFalhou('demanda no contrato', demanda.codigo, e), 'erro'); }

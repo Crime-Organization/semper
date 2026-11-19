@@ -8,7 +8,7 @@
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { BotaoLink, Contador, propsDaDica } from './base';
 import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
-import type { NovoLigado } from './ItensLigados';
+import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
 /** A inscrição, que não muda enquanto o painel está aberto (a seção se inscreve uma vez e mantém a ordem). */
@@ -82,12 +82,16 @@ interface Props {
   foraDoExpandirTudo?: boolean;
   /** Abre a seção ao aparecer, sem mudar a escolha guardada (ex.: a mensagem que leva a um comentário). */
   abertaAoIniciar?: boolean;
-  /** O atalho para criar um item já ligado (ex.: "Nova tarefa deste contrato"): um "+" no título, logo depois do número. */
+  /**
+   * O atalho para criar um item já ligado (ex.: "Nova tarefa deste contrato"): um "+" no título, logo depois do número. No cartão
+   * só para ler, ele não aparece (veja CriarNoCartao, em ItensLigados.tsx).
+   */
   novo?: NovoLigado;
   children: ReactNode;
 }
 
-export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, abertaAoIniciar = false, novo, children }: Props) {
+export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandirTudo = false, abertaAoIniciar = false, novo: pedido, children }: Props) {
+  const novo = useNovoNoCartao(pedido);
   const [aberto, setAberto] = useState(() => abertaAoIniciar || (preferencia ? lerPreferencia(preferencia, false) : false));
   const id = useId();
   const inscricao = useContext(InscricaoNoGrupo);

@@ -2,7 +2,8 @@
 // nome e órgão), as pessoas (clientes, polo e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
 // Vindo do "+ Novo processo" de uma demanda, de um contrato ou de uma tarefa (?demanda=, ?contrato=, ?tarefa=; #376), ele traz o que
-// a origem tem (NASCE_DE) e, ao salvar, nasce ligado a ela; do contrato e da tarefa, a tela volta ao cartão de origem.
+// a origem tem (NASCE_DE) e, ao salvar, nasce ligado a ela; do contrato e da tarefa, a tela volta ao cartão de origem. Da demanda e
+// da pessoa, volta só quando o cadastro foi aberto pelo "+ Novo processo" do cartão (a marca da volta, cadastroComVolta).
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
@@ -16,7 +17,9 @@ import {
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
 import { enderecoDoItem } from '../regras/anotacao';
-import { depoisDeCriar, origemNoEndereco, processoDaTarefa, processoDoContrato, recusaDaOrigem, type RecusaDaOrigem } from '../regras/origemDoCadastro';
+import {
+  cartaoDeOrigem, depoisDeCriar, origemNoEndereco, processoDaTarefa, processoDoContrato, recusaDaOrigem, type RecusaDaOrigem
+} from '../regras/origemDoCadastro';
 import { ligarContratoNoProcesso, ligarNoItem } from './ligarNoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
@@ -68,7 +71,10 @@ const AVISO_DA_RECUSA: Record<RecusaDaOrigem, (f: FalaDaOrigem, codigo: string) 
   arquivada: (f, codigo) => <>{f.nome} <b>{codigo}</b> está {f.arquivada}: este processo não fica ligado a {f.pronome}.</>,
   ocupada: (f, codigo) => <>{f.nome} <b>{codigo}</b> já tem um processo: este processo novo não fica ligado a {f.pronome}.</>
 };
-/** Como o processo nasce de cada origem. Da demanda, como antes da #376: com o nome dela, e a tela vai ao processo novo. */
+/**
+ * Como o processo nasce de cada origem. Da demanda, com o nome dela; a tela vai ao processo novo, a não ser que o cadastro tenha vindo
+ * do "+ Novo processo" do cartão da demanda (a marca da volta, cartaoDeOrigem): aí volta a ela.
+ */
 const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
   demanda: {
     ler: async (id, ativos, eu) => {
@@ -364,7 +370,14 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           catch (e) { avisar(`Não foi possível ligar o processo ${como.aOrigem} ${lida.codigo}. ${e instanceof Error ? e.message : ''}`.trim(), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(depoisDeCriar(lida?.cartao ?? null, ligado, caminho + '?id=' + r.id));
+        // Aberto pelo "+ Novo processo" de um cartão (#376), volta a ele, onde o processo já aparece ligado. Pela marca da volta
+        // (cadastroComVolta), o da demanda (que vem antes do cliente) ou o da pessoa; sem ela, o do contrato ou o da tarefa (NASCE_DE).
+        // Se o processo não ficou ligado à origem (ligação que falhou, cliente trocado), vai ao cartão dele.
+        const pelaMarca = cartaoDeOrigem(params, {
+          demanda: id => ligado && origem?.tipo === 'demanda' && origem.id === id,
+          cliente: id => c.clientes.includes(id)
+        });
+        navegar(pelaMarca ?? depoisDeCriar(lida?.cartao ?? null, ligado, caminho + '?id=' + r.id));
       }
     } catch (err) {
       falha(err);
