@@ -16,7 +16,7 @@ import { opcoesDeResponsavel } from '../regras/equipe';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo, SecaoDoFormulario } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, idsDoCampoDeVarios, Nota, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { Icone } from '../ui/Icone';
@@ -73,6 +73,8 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [chaves, setChaves] = useState<number[]>([1]);
   const [chavesPart, setChavesPart] = useState<number[]>([]);
   const proximaChave = useRef(2);
+  const { grupo: grupoDosObjetos, focarNoGrupo: focarNosObjetos } = useFocoNoGrupo();
+  const { grupo: grupoDosClientes, focarNoGrupo: focarNosClientes } = useFocoNoGrupo();
   // A pessoa de cada linha de participante, com o nome do cadastro (para mostrar quem já não está na equipe).
   const [participantes, setParticipantes] = useState<Escolhida[]>([]);
   const [sugeridos, setSugeridos] = useState<string[]>([]);
@@ -178,6 +180,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   function tirarObjeto(i: number) {
     setC(atual => ({ ...atual, objetos: atual.objetos.toSpliced(i, 1) }));
     setChaves(atual => atual.toSpliced(i, 1));
+    focarNosObjetos();
   }
   // As sugestões de cada linha: os objetos do escritório, menos os que já estão nas outras linhas.
   const sugestoesDoObjeto = (i: number) => {
@@ -208,6 +211,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     setC(atual => ({ ...atual, clientes: atual.clientes.toSpliced(i, 1) }));
     setClientes(atual => atual.toSpliced(i, 1));
     setChavesCli(atual => atual.toSpliced(i, 1));
+    focarNosClientes();
   }
   const outroCliente = (i: number) => (p: PessoaLista) => c.clientes.some((x, j) => j !== i && x === p.id) ? 'já é cliente' : null;
 
@@ -305,7 +309,6 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   }
 
   // ---------- pedaços do formulário ----------
-  const req = <span className="req" aria-hidden="true">*</span>;
   const texto = (nome: CampoTexto, props: InputHTMLAttributes<HTMLInputElement> = {}, dica = false) =>
     <input type="text" {...propsDoCampo(nome, { dica, erro: erros[nome] })} value={c[nome]} onChange={e => mudar({ [nome]: e.target.value })} {...props} />;
   // Valor em reais: ao sair do campo, fica no formato 1.500,00 (se der para ler).
@@ -334,7 +337,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
 
   const CONTEUDO: Record<EtapaContrato, () => ReactNode> = {
     partes: () => <>
-      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes}>
+      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes} grupo={grupoDosClientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chavesCli[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
@@ -364,20 +367,18 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         Depois de dado, ele não muda.</Nota>}
     </>,
     objetos: () => <>
-      <div className={'pergunta' + (erros.objetos ? ' erro' : '')} role="group" aria-labelledby="objetos-rotulo">
-        <span className="rot" id="objetos-rotulo">Objetos do contrato{req}</span>
-        <p className="dica">Um por linha. Enter abre a linha seguinte; os já usados no escritório aparecem como sugestão.</p>
+      <CampoDeVarios rotulo="Objetos do contrato" obrigatorio id="objetos" erro={erros.objetos} grupo={grupoDosObjetos}
+        dica="Um por linha. Enter abre a linha seguinte; os já usados no escritório aparecem como sugestão.">
         <div className="lista-objetos">{c.objetos.map((o, i) => <div className="linha-campo" key={chaves[i]}>
           <CampoComSugestoes type="text" id={idObjeto(i)} aria-label={`Objeto ${i + 1}`} maxLength={TAMANHO_CONTRATO.objeto}
             placeholder={i === 0 ? 'Ex.: Registro da marca no INPI' : undefined} valor={o} aoMudar={v => mudarObjeto(i, v)} sugestoes={sugestoesDoObjeto(i)}
-            aria-invalid={erros.objetos ? true : undefined} aria-describedby={erros.objetos ? 'objetos-erro' : undefined} onKeyDown={e => teclarObjeto(e, i)} />
+            aria-invalid={erros.objetos ? true : undefined} aria-describedby={erros.objetos ? idsDoCampoDeVarios('objetos').erro : undefined} onKeyDown={e => teclarObjeto(e, i)} />
           {c.objetos.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o objeto ${i + 1}`} onClick={() => tirarObjeto(i)}><Icone nome="fechar" tam={15} /></button>}
         </div>)}</div>
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.objetos.length >= OBJETOS_MAXIMOS} onClick={() => acrescentarObjeto()}>
           <Icone nome="mais" tam={13} /> Adicionar objeto
         </button></div>
-        {erros.objetos && <span className="msg-erro" id="objetos-erro" role="alert">{erros.objetos}</span>}
-      </div>
+      </CampoDeVarios>
       {!edicao?.semValores && <Escolhas rotulo="Categoria de honorário" obrigatorio erro={erros.categoria}>{radios('categoria', Object.entries(CATEGORIAS))}</Escolhas>}
     </>,
     honorarios: () => <>

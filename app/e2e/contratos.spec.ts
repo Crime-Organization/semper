@@ -299,6 +299,19 @@ test.describe('Participantes só da equipe (#348)', () => {
 });
 
 test.describe('Objetos do contrato', () => {
+  test('dado que falta o objeto, quando a pessoa tenta seguir, então o grupo dos objetos (no plural) fica marcado e cada linha diz o erro (#359)', async ({ page }) => {
+    // Dado
+    await page.goto('/contratos/novo/');
+    await escolherPessoa(page, 'Cliente', 'luciana', 'LUCIANA ROCHA AMOSTRA');
+    await proxima(page, 'O que foi contratado');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então
+    const objetos = page.getByRole('region', { name: 'O que foi contratado' }).getByRole('group', { name: 'Objetos do contrato' });
+    await expect(objetos.getByRole('alert')).toHaveText('Informe ao menos um objeto do contrato.');
+    await expect(objetos.getByRole('combobox', { name: 'Objeto 1' })).toHaveAccessibleDescription('Informe ao menos um objeto do contrato.');
+  });
+
   test('quando a pessoa acrescenta objetos e tira um, então a seção dos objetos mostra os que ficaram, na ordem', async ({ page }) => {
     // Dado
     await preencherObrigatorios(page);

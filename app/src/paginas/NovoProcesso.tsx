@@ -19,7 +19,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -80,6 +80,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [clientes, setClientes] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDosClientes, focarNoGrupo: focarNosClientes } = useFocoNoGrupo();
   const [focarCliente, setFocarCliente] = useState<number | null>(null);
   // As listas ampliadas pelo escritório e o que já foi digitado em outros processos.
   const [opcoes, setOpcoes] = useState<OpcaoDeProcesso[]>([]);
@@ -194,6 +195,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     setClientes(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, clientes: atual.clientes.toSpliced(i, 1) }));
+    focarNosClientes();
   }
   // Na busca de cada linha, quem já é cliente em outra linha aparece desligado.
   const outroCliente = (i: number) => (p: PessoaLista) => c.clientes.some((x, j) => j !== i && x === p.id) ? 'já é cliente' : null;
@@ -331,7 +333,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>}
     </>,
     pessoas: () => <>
-      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes}>
+      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes} grupo={grupoDosClientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}

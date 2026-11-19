@@ -19,7 +19,7 @@ import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -61,6 +61,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const [clientes, setClientes] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDosClientes, focarNoGrupo: focarNosClientes } = useFocoNoGrupo();
   const [focarCliente, setFocarCliente] = useState<number | null>(null);
   // Os contratos que se pode ligar (os ativos mais recentes) e o texto digitado na busca.
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
@@ -154,6 +155,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     setClientes(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, clientes: atual.clientes.toSpliced(i, 1) }));
+    focarNosClientes();
   }
   // Na busca de cada linha, quem já é cliente em outra linha aparece desligado.
   const outroCliente = (i: number) => (p: PessoaLista) => c.clientes.some((x, j) => j !== i && x === p.id) ? 'já é cliente' : null;
@@ -258,7 +260,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       </Campo>
       <EscolhaDaEquipe rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha na demanda (e passa a vê-la)." adicionar="Adicionar colaborador"
         equipe={ctx.equipe} escolhidos={c.colaboradores} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={colaboradores => mudar({ colaboradores })} />
-      <CampoDeVarios rotulo="Clientes" erro={erros.clientes}>
+      <CampoDeVarios rotulo="Clientes" erro={erros.clientes} grupo={grupoDosClientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}

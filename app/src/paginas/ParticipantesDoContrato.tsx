@@ -7,6 +7,7 @@ import { PARTICIPANTES_MAXIMOS } from '../dados/limites';
 import type { CamposContrato } from '../regras/contrato';
 import { candidatosAoContrato, participanteNaLista } from '../regras/equipe';
 import { Avatar } from '../ui/Avatar';
+import { CampoDeVarios, idsDoCampoDeVarios } from '../ui/base';
 import { BOLINHA_DA_EQUIPE, BuscaNaEquipe } from '../ui/BuscaNaEquipe';
 import { Icone } from '../ui/Icone';
 
@@ -41,10 +42,10 @@ export function ParticipantesDoContrato({ equipe, linhas, nomes, chaves, indicad
     setTimeout(() => (botao.current ?? grupo.current)?.focus(), 0);
   };
 
-  return <div ref={grupo} tabIndex={-1} className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={id + 'r'}>
-    <span className="rot" id={id + 'r'}>Participantes</span>
-    <p className="dica" id={id + 'd'}>Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o líquido.</p>
-    {linhas.length > 0 && <ul className="lista-participantes" ref={lista} aria-labelledby={id + 'r'}>
+  const ids = idsDoCampoDeVarios(id);
+  return <CampoDeVarios rotulo="Participantes" erro={erro} id={id} grupo={grupo}
+    dica="Quem da equipe trabalha no caso com o responsável, cada um com o seu % sobre o líquido.">
+    {linhas.length > 0 && <ul className="lista-participantes" ref={lista} aria-labelledby={ids.rotulo}>
       {linhas.map((p, i) => {
         const { nome, membro, situacao } = participanteNaLista(equipe, p.pessoaId, nomes[i] ?? '');
         return <li className="linha-participante" key={chaves[i]}>
@@ -54,7 +55,7 @@ export function ParticipantesDoContrato({ equipe, linhas, nomes, chaves, indicad
           </span>
           <label>%
             <input type="text" inputMode="decimal" placeholder="0" aria-label={`% do participante ${i + 1}`} value={p.percentual}
-              aria-invalid={erro ? true : undefined} onChange={e => aoMudarPercentual(i, e.target.value)} />
+              aria-invalid={erro ? true : undefined} aria-describedby={erro ? ids.erro : undefined} onChange={e => aoMudarPercentual(i, e.target.value)} />
           </label>
           <button type="button" className="icone-btn" aria-label={`Tirar ${nome}`} title={`Tirar ${nome}`} onClick={() => tirar(i)}>
             <Icone nome="fechar" tam={15} />
@@ -63,7 +64,6 @@ export function ParticipantesDoContrato({ equipe, linhas, nomes, chaves, indicad
       })}
     </ul>}
     <BuscaNaEquipe buscar={termo => candidatosAoContrato(equipe, termo, noContrato)} aoEscolher={aoAdicionar} adicionar="Adicionar participante"
-      descricao={id + 'd'} botao={botao} focoReserva={grupo} focarAoEscolher={focarNoNovo} desligado={linhas.length >= PARTICIPANTES_MAXIMOS} />
-    {erro && <span className="msg-erro" role="alert">{erro}</span>}
-  </div>;
+      descricao={ids.dica} botao={botao} focoReserva={grupo} focarAoEscolher={focarNoNovo} desligado={linhas.length >= PARTICIPANTES_MAXIMOS} />
+  </CampoDeVarios>;
 }

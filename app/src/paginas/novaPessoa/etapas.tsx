@@ -5,7 +5,7 @@ import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
 import { AO_ENTRAR, DOCUMENTO_INVALIDO, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
 import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
-import { Campo, Dica, Escolhas, estiloBotao, SecaoDoFormulario } from '../../ui/base';
+import { Campo, CampoDeVarios, Escolhas, estiloBotao, SecaoDoFormulario } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { EscolhaDaEquipe } from '../../ui/EscolhaDaEquipe';
 import { SEGUNDO } from '../../ui/tempos';
@@ -141,22 +141,17 @@ function EtapaEndereco() {
 }
 
 function EtapaContato() {
-  const { c, mudar, equipe, pc, erro, erroDe, data, lista, acrescentar, nivel } = useFormulario();
+  const { c, mudar, equipe, erroDe, data, lista, acrescentar, grupoDe, nivel } = useFormulario();
   return <SecaoDoFormulario nivel={nivel} titulo="Contato">
-    {/* Telefones e e-mails são listas com um botão de acrescentar: ficam com a marcação própria. */}
-    <div className={pc('telefones')}>
-      <span className="rot">Telefones<span className="req">*</span></span>
-      <Dica>Com DDD. Ex.: (38) 99999-0000</Dica>
+    {/* Telefones e e-mails são listas com um botão de acrescentar: o rótulo no plural, uma vez só, sobre as linhas. */}
+    <CampoDeVarios rotulo="Telefones" obrigatorio dica="Com DDD. Ex.: (38) 99999-0000" erro={erroDe('telefones')} id="telefones" grupo={grupoDe('telefones')}>
       {lista('telefones', true)}
       <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('telefones')}>+ Adicionar outro telefone</button></div>
-      {erro('telefones')}
-    </div>
-    <div className={pc('emails')}>
-      <span className="rot">E-mails</span>
+    </CampoDeVarios>
+    <CampoDeVarios rotulo="E-mails" erro={erroDe('emails')} id="emails" grupo={grupoDe('emails')}>
       {lista('emails', false)}
       <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
-      {erro('emails')}
-    </div>
+    </CampoDeVarios>
     <EscolhaDaEquipe rotulo="Profissionais responsáveis" dica="Eles aparecem no cartão da pessoa." adicionar="Adicionar responsável"
       equipe={equipe} escolhidos={c.resp} aoMudar={resp => mudar({ resp })} />
     <Campo rotulo="Base legal para o tratamento dos dados (LGPD)" para="lgpdBase">

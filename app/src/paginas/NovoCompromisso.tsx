@@ -19,7 +19,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -63,6 +63,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDasPessoas, focarNoGrupo: focarNasPessoas } = useFocoNoGrupo();
   const [focarPessoa, setFocarPessoa] = useState<number | null>(null);
   // Os processos que combinam com o texto digitado na busca (a busca é no banco) e o nome do escolhido.
   const [processos, setProcessos] = useState<ProcessoParaLigar[]>([]);
@@ -170,6 +171,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     setPessoas(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, pessoas: atual.pessoas.toSpliced(i, 1) }));
+    focarNasPessoas();
   }
   // Na busca de cada linha, quem já está em outra linha aparece desligado.
   const outraPessoa = (i: number) => (p: PessoaLista) => c.pessoas.some((x, j) => j !== i && x === p.id) ? 'já está ligada' : null;
@@ -289,7 +291,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </Campo>
     </>,
     pessoas: () => <>
-      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas}>
+      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`}</span>} escolhida={pessoas[i]}

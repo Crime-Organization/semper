@@ -6,6 +6,7 @@ import { useId, useRef, type ReactNode } from 'react';
 import type { Membro } from '../dados/tipos';
 import { candidatosDaEquipe } from '../regras/equipe';
 import { Avatar } from './Avatar';
+import { CampoDeVarios, idsDoCampoDeVarios } from './base';
 import { BOLINHA_DA_EQUIPE, BuscaNaEquipe } from './BuscaNaEquipe';
 import { Icone } from './Icone';
 
@@ -37,10 +38,9 @@ export function EscolhaDaEquipe({ rotulo, dica, erro, equipe, escolhidos, fora =
   };
 
   const membro = (x: string) => equipe.find(m => m.id === x);
-  return <div ref={grupo} tabIndex={-1} className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={id + 'r'}>
-    <span className="rot" id={id + 'r'}>{rotulo}</span>
-    {dica && <p className="dica" id={id + 'd'}>{dica}</p>}
-    {escolhidos.length > 0 && <ul className="equipe-escolhida" aria-labelledby={id + 'r'}>
+  const ids = idsDoCampoDeVarios(id);
+  return <CampoDeVarios rotulo={rotulo} dica={dica} erro={erro} id={id} grupo={grupo}>
+    {escolhidos.length > 0 && <ul className="equipe-escolhida" aria-labelledby={ids.rotulo}>
       {escolhidos.map(x => {
         const m = membro(x), nome = m?.nome || 'Usuário removido';
         return <li key={x} className="escolhida">
@@ -52,7 +52,6 @@ export function EscolhaDaEquipe({ rotulo, dica, erro, equipe, escolhidos, fora =
       })}
     </ul>}
     <BuscaNaEquipe buscar={termo => candidatosDaEquipe(equipe, termo, jaNaLista)} aoEscolher={m => aoMudar([...escolhidos, m.id])}
-      adicionar={adicionar} descricao={dica ? id + 'd' : undefined} botao={botao} focoReserva={grupo} />
-    {erro && <span className="msg-erro" role="alert">{erro}</span>}
-  </div>;
+      adicionar={adicionar} descricao={dica ? ids.dica : undefined} botao={botao} focoReserva={grupo} />
+  </CampoDeVarios>;
 }

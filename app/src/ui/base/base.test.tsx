@@ -4,11 +4,11 @@
 // de uma tela por elas não muda a aparência.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, TituloSecao, Vazio } from '.';
+import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, idsDoCampoDeVarios, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, TituloSecao, useFocoNoGrupo, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -156,6 +156,74 @@ describe('Seções do formulário (#359)', () => {
     const grupo = screen.getByRole('group', { name: 'Pessoas ligadas' });
     expect(grupo).toHaveClass('pergunta', 'erro');
     expect(within(grupo).getByRole('alert')).toHaveTextContent('Escolha a pessoa ou tire a linha.');
+  });
+
+  it('dado um id para o campo de vários itens, quando as linhas apontam para a dica e o erro, então o leitor de tela lê os dois em cada linha', () => {
+    // Dado
+    const ids = idsDoCampoDeVarios('objetos');
+    // Quando
+    render(<CampoDeVarios rotulo="Objetos do contrato" id="objetos" dica="Um por linha." erro="Informe pelo menos um objeto.">
+      <ul aria-labelledby={ids.rotulo}><li><input aria-label="Objeto 1" aria-describedby={`${ids.dica} ${ids.erro}`} /></li></ul>
+    </CampoDeVarios>);
+    // Então
+    expect(screen.getByRole('list', { name: 'Objetos do contrato' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Objeto 1' })).toHaveAccessibleDescription('Um por linha. Informe pelo menos um objeto.');
+  });
+
+  it('dado o grupo de vários itens com a referência, quando o código pede o foco (ao tirar a última linha), então o grupo o recebe', async () => {
+    // Dado
+    function Lista() {
+      const grupo = useRef<HTMLDivElement>(null);
+      return <CampoDeVarios rotulo="Participantes" grupo={grupo}>
+        <button type="button" onClick={() => grupo.current?.focus()}>Tirar o último</button>
+      </CampoDeVarios>;
+    }
+    render(<Lista />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o último' }));
+    // Então
+    expect(screen.getByRole('group', { name: 'Participantes' })).toHaveFocus();
+  });
+
+  it('dada a seção com a referência do título, quando o código pede o foco (a etapa trocou), então o título o recebe e fora disso não entra na ordem do foco', async () => {
+    // Dado
+    function Etapa() {
+      const titulo = useRef<HTMLHeadingElement>(null);
+      return <>
+        <SecaoDoFormulario titulo="Arquivo" focoNoTitulo={titulo}><button type="button" onClick={() => titulo.current?.focus()}>Seguir</button></SecaoDoFormulario>
+        <SecaoDoFormulario titulo="Conferir"><p>Sem foco no título.</p></SecaoDoFormulario>
+      </>;
+    }
+    render(<Etapa />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Seguir' }));
+    // Então
+    expect(screen.getByRole('heading', { name: 'Arquivo', level: 2 })).toHaveFocus();
+    expect(screen.getByRole('heading', { name: 'Conferir', level: 2 })).not.toHaveAttribute('tabindex');
+  });
+
+  it('dado um grupo com o useFocoNoGrupo, quando a pessoa tira uma linha pelo botão dela, então o foco vai ao grupo e não se perde', async () => {
+    // Dado
+    function Lista() {
+      const [linhas, setLinhas] = useState(['Telefone 1', 'Telefone 2']);
+      const { grupo, focarNoGrupo } = useFocoNoGrupo();
+      return <CampoDeVarios rotulo="Telefones" grupo={grupo}>
+        {linhas.map((l, i) => <button key={l} type="button" onClick={() => { setLinhas(linhas.toSpliced(i, 1)); focarNoGrupo(); }}>{`Tirar o ${l}`}</button>)}
+      </CampoDeVarios>;
+    }
+    render(<Lista />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o Telefone 2' }));
+    // Então
+    expect(screen.queryByRole('button', { name: 'Tirar o Telefone 2' })).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByRole('group', { name: 'Telefones' })).toHaveFocus());
+  });
+
+  it('dado o grupo de vários itens sem a referência, quando aparece, então ele não entra na ordem do foco', () => {
+    // Quando
+    render(<CampoDeVarios rotulo="Clientes"><input aria-label="Cliente" /></CampoDeVarios>);
+    // Então
+    expect(screen.getByRole('group', { name: 'Clientes' })).not.toHaveAttribute('tabindex');
   });
 });
 

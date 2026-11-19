@@ -20,7 +20,7 @@ import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -63,6 +63,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDasPessoas, focarNoGrupo: focarNasPessoas } = useFocoNoGrupo();
   const [focarPessoa, setFocarPessoa] = useState<number | null>(null);
   // As demandas e os contratos que se pode ligar (os ativos mais recentes) e o texto digitado em cada busca.
   const [demandas, setDemandas] = useState<DemandaLista[]>([]);
@@ -172,6 +173,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     setPessoas(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, pessoas: atual.pessoas.toSpliced(i, 1) }));
+    focarNasPessoas();
   }
   // Na busca de cada linha, quem já está em outra linha aparece desligado.
   const outraPessoa = (i: number) => (p: PessoaLista) => c.pessoas.some((x, j) => j !== i && x === p.id) ? 'já está na tarefa' : null;
@@ -277,7 +279,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       </Campo>
       <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la)." adicionar="Adicionar participante"
         equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
-      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas}>
+      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
             <BuscaPessoa rotulo={<span className="sr">{c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`}</span>} escolhida={pessoas[i]}

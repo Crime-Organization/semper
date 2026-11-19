@@ -7,7 +7,7 @@ import { TAMANHO_NOME_DA_EQUIPE } from '../dados/limites';
 import { erroDoNomeDaEquipe, FUNCOES, podeExcluir } from '../regras/equipe';
 import { avisar, falha } from '../ui/avisos';
 import { Avatar } from '../ui/Avatar';
-import { BotaoLink, Campo, estiloBotao, Nota, propsDoCampo, Selo } from '../ui/base';
+import { BotaoLink, Campo, estiloBotao, Nota, propsDoCampo, SecaoDoFormulario, Selo } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { useCtx } from '../ui/sessao';
 import { dataHora, PAPEIS } from '../ui/util';
@@ -62,54 +62,54 @@ export function UsuarioDaEquipe({ u, gerir, socios, aoTrocarFuncao, aoTrocarPape
       <div className="usuario-cabeca"><Avatar p={u} tam={44} /><div><h2>{u.nome}</h2>{!u.reservada && <span className="sub">@{u.usuario} · {u.email}</span>}</div></div>
     </header>
 
-    <section className="bloco separada" aria-label="Nome do usuário">
-      <form className="usuario-nome" onSubmit={salvarNome} noValidate>
-        <Campo rotulo="Nome" para={id + 'nome'}>
-          <input type="text" {...propsDoCampo(id + 'nome')} value={nome} maxLength={TAMANHO_NOME_DA_EQUIPE.maximo} disabled={!podeRenomear} onChange={e => setNome(e.target.value)} />
-        </Campo>
-        {podeRenomear && <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={!mudouNome || ocupado}>{ocupado ? 'Salvando…' : 'Salvar nome'}</button>}
-      </form>
-      {!podeRenomear && <Nota>{u.papel === 'master' ? 'Só o próprio master muda o nome dele.' : 'Só o master muda o nome de um administrador.'}</Nota>}
-    </section>
+    {/* As seções com título (Sócio, Acesso, Excluir) são do formulário, como no lápis do cartão: o título maior que os rótulos (#359). */}
+    <div className="edicao-cartao">
+      <section className="bloco separada" aria-label="Nome do usuário">
+        <form className="usuario-nome" onSubmit={salvarNome} noValidate>
+          <Campo rotulo="Nome" para={id + 'nome'}>
+            <input type="text" {...propsDoCampo(id + 'nome')} value={nome} maxLength={TAMANHO_NOME_DA_EQUIPE.maximo} disabled={!podeRenomear} onChange={e => setNome(e.target.value)} />
+          </Campo>
+          {podeRenomear && <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={!mudouNome || ocupado}>{ocupado ? 'Salvando…' : 'Salvar nome'}</button>}
+        </form>
+        {!podeRenomear && <Nota>{u.papel === 'master' ? 'Só o próprio master muda o nome dele.' : 'Só o master muda o nome de um administrador.'}</Nota>}
+      </section>
 
-    <section className="bloco separada" aria-label="Função e papel">
-      <div className="usuario-campos">
-        <Campo rotulo="Função" para={id + 'funcao'} dica="Só advogados são responsáveis por contratos.">
-          <select {...propsDoCampo(id + 'funcao')} value={u.funcao} onChange={e => aoTrocarFuncao(e.target.value as Funcao)}>
-            {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
-          </select>
-        </Campo>
-        <Campo rotulo="Papel no sistema" para={id + 'papel'} dica="Quem administra o sistema.">
-          <select {...propsDoCampo(id + 'papel')} value={u.papel} disabled={!(gerir && ctx.ehMaster)} onChange={e => aoTrocarPapel(e.target.value as Papel)}>
-            {(u.papel === 'master' ? ['master'] as Papel[] : ['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
-          </select>
-        </Campo>
-      </div>
-    </section>
+      <section className="bloco separada" aria-label="Função e papel">
+        <div className="usuario-campos">
+          <Campo rotulo="Função" para={id + 'funcao'} dica="Só advogados são responsáveis por contratos.">
+            <select {...propsDoCampo(id + 'funcao')} value={u.funcao} onChange={e => aoTrocarFuncao(e.target.value as Funcao)}>
+              {(Object.keys(FUNCOES) as Funcao[]).map(f => <option key={f} value={f}>{FUNCOES[f]}</option>)}
+            </select>
+          </Campo>
+          <Campo rotulo="Papel no sistema" para={id + 'papel'} dica="Quem administra o sistema.">
+            <select {...propsDoCampo(id + 'papel')} value={u.papel} disabled={!(gerir && ctx.ehMaster)} onChange={e => aoTrocarPapel(e.target.value as Papel)}>
+              {(u.papel === 'master' ? ['master'] as Papel[] : ['usuario', 'admin'] as Papel[]).map(p => <option key={p} value={p}>{PAPEIS[p]}</option>)}
+            </select>
+          </Campo>
+        </div>
+      </section>
 
-    {socios && u.pessoa_id && <section className="bloco separada" aria-labelledby={id + 'socio'}>
-      <h3 id={id + 'socio'}>Sócio</h3>
-      <SocioNaEquipe usuario={u} socios={socios} aoMudar={aoMudar} />
-    </section>}
+      {socios && u.pessoa_id && <SecaoDoFormulario titulo="Sócio" nivel={3}>
+        <SocioNaEquipe usuario={u} socios={socios} aoMudar={aoMudar} />
+      </SecaoDoFormulario>}
 
-    {!u.reservada && <section className="bloco separada" aria-labelledby={id + 'acesso'}>
-      <h3 id={id + 'acesso'}>Acesso</h3>
-      <p className="usuario-acesso">E-mail de acesso: <b>{u.email}</b> · {u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</p>
-      {gerir && <div className="financeiro-acoes">
-        <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={aoTrocarEmail}>Trocar e-mail</button>
-        {u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => aoDefinirAtivo(false)}>Desativar</BotaoDuplo>
-          : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => aoDefinirAtivo(true)}>Reativar</BotaoDuplo>}
-      </div>}
-    </section>}
+      {!u.reservada && <SecaoDoFormulario titulo="Acesso" nivel={3}>
+        <p className="usuario-acesso">E-mail de acesso: <b>{u.email}</b> · {u.ultimo_acesso ? 'Último acesso: ' + dataHora(u.ultimo_acesso) : 'Nunca entrou'}</p>
+        {gerir && <div className="financeiro-acoes">
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Trocar e-mail de ${u.nome}`} onClick={aoTrocarEmail}>Trocar e-mail</button>
+          {u.ativo ? <BotaoDuplo forma="mini" variante="perigo" confirmar="Confirmar desativação" aoConfirmar={() => aoDefinirAtivo(false)}>Desativar</BotaoDuplo>
+            : <BotaoDuplo forma="mini" confirmar="Confirmar reativação" aoConfirmar={() => aoDefinirAtivo(true)}>Reativar</BotaoDuplo>}
+        </div>}
+      </SecaoDoFormulario>}
 
-    {excluivel && <section className="bloco separada" aria-labelledby={id + 'excluir'}>
-      <h3 id={id + 'excluir'}>Excluir da equipe</h3>
-      <Nota>Apaga o acesso, a foto e o perfil profissional. O nome continua nos registros antigos, marcado como excluído, e o que estava sob a responsabilidade da pessoa continua no nome dela. Não tem desfazer.</Nota>
-      <div className="financeiro-acoes">
-        {/* A janela de confirmação já segura o segundo clique; a janela do usuário fecha quando a exclusão termina. */}
-        <button type="button" className={estiloBotao({ forma: 'mini', variante: 'perigo' })} onClick={() => void aoExcluir()}>Excluir</button>
-      </div>
-    </section>}
+      {excluivel && <SecaoDoFormulario titulo="Excluir da equipe" nivel={3}>
+        <Nota>Apaga o acesso, a foto e o perfil profissional. O nome continua nos registros antigos, marcado como excluído, e o que estava sob a responsabilidade da pessoa continua no nome dela. Não tem desfazer.</Nota>
+        <div className="financeiro-acoes">
+          {/* A janela de confirmação já segura o segundo clique; a janela do usuário fecha quando a exclusão termina. */}
+          <button type="button" className={estiloBotao({ forma: 'mini', variante: 'perigo' })} onClick={() => void aoExcluir()}>Excluir</button>
+        </div>
+      </SecaoDoFormulario>}
+    </div>
 
     <div className="financeiro-acoes">
       <BotaoLink forma="mini" to={'/equipe/perfil/?id=' + u.id} aria-label={`Perfil profissional de ${u.nome}`}>Perfil profissional</BotaoLink>
