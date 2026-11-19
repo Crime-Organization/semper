@@ -3,7 +3,7 @@
 // e a caixa de escrever com a barra de botões e os atalhos Ctrl+B e Ctrl+I. As marcas são lidas em regras/formatacao.ts; aqui só
 // há elementos do React, nunca HTML solto, então o que alguém escrever parecido com código de página aparece como texto, e o
 // endereço de um link só sai de linkPermitido (http, https e mailto).
-import { Fragment, useRef, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useRef, type ComponentProps, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import {
   TAMANHO_DO_ENDERECO, alternarCodigo, alternarInicioDeLinha, alternarItemDeTarefa, alternarLista, alternarMarca, alternarTitulo,
   blocosDoTexto, linkPermitido, porLink, textoDosPedacos as textoDaLinha, tirarLink,
@@ -135,6 +135,13 @@ const BOTOES: { rotulo: string; icone: NomeIcone; fazer: (e: Escolha) => Escolha
 ];
 /** O tamanho dos ícones da barra. */
 const TAMANHO_DO_ICONE = 15;
+/**
+ * Na caixa estreita (o celular, #374), os botões com o alvo do dedo inteiro (o --alvo-de-toque) não cabem numa linha: a barra vira
+ * duas linhas equilibradas (a de cima com um botão a mais, se a conta não fecha), e nenhum botão fica sozinho embaixo.
+ */
+const LINHAS_NA_CAIXA_ESTREITA = 2;
+/** Quantos botões vão em cada linha da barra na caixa estreita (a --botoes-por-linha do estilo.css), para tantos botões. */
+const porLinha = (botoes: number) => ({ '--botoes-por-linha': Math.ceil(botoes / LINHAS_NA_CAIXA_ESTREITA) }) as CSSProperties;
 
 /** O que a barra de formatação precisa da caixa onde se escreve (a caixa de texto comum ou o editor ao vivo). */
 export interface AlvoDaFormatacao {
@@ -196,12 +203,15 @@ export function barraDeFormatacao(alvo: AlvoDaFormatacao) {
     alvo.focar();
   }
   const botao = estiloBotao({ forma: 'mini' }, 'caixa-formatada-botao');
-  const barra = <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={alvo.id}>
-    <button type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>
-    <button type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>
-    {BOTOES.map(({ rotulo, icone, fazer }) =>
-      <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>)}
-    <button type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
+  const botoes = [
+    <button key="negrito" type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>,
+    <button key="italico" type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>,
+    ...BOTOES.map(({ rotulo, icone, fazer }) =>
+      <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>),
+    <button key="link" type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
+  ];
+  const barra = <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={alvo.id} style={porLinha(botoes.length)}>
+    {botoes}
   </div>;
   return { barra, marcar };
 }

@@ -3,7 +3,7 @@
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
 // devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Page } from '@playwright/test';
-import { abrirSecao, alturaParada, entrarComo } from './ajudantes';
+import { abrirSecao, alturaParada, barraDeFormatacao, barraEquilibradaNoCelular, entrarComo } from './ajudantes';
 
 /** Abre o cartão de uma demanda pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirDemanda(page: Page, titulo: string, ...secoes: string[]) {
@@ -432,3 +432,16 @@ test.describe('Seções e campos do formulário (#359)', () => {
     await expect(pessoas.getByRole('group', { name: 'Clientes' })).toBeVisible();
   });
 });
+
+for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, height: 640 }]) {
+  test(`dado o cadastro de demanda num celular de ${width}px, quando a pessoa chega à descrição, então a barra de formatação fica em duas linhas equilibradas, sem botão sozinho embaixo e com o alvo do dedo de 44px por 44px (#374)`, async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width, height });
+    await page.goto('/demandas/nova/');
+    // Quando: a pessoa rola até a descrição, que fica no meio da tela
+    const barra = barraDeFormatacao(page);
+    await barra.evaluate(b => b.scrollIntoView({ block: 'center' }));
+    // Então
+    await barraEquilibradaNoCelular(barra);
+  });
+}

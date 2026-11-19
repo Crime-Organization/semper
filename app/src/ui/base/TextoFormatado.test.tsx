@@ -92,6 +92,14 @@ describe('Caixa com a barra B, I e lista (#293)', () => {
       'Negrito (Ctrl+B)', 'Itálico (Ctrl+I)', 'Cabeçalho', 'Lista', 'Lista numerada', 'Lista de tarefas', 'Citação', 'Código', 'Link'
     ]);
   });
+
+  it('dada a barra, quando aparece, então diz ao estilo quantos botões vão em cada uma das duas linhas da caixa estreita do celular, a de cima com um a mais se a conta não fecha (#374)', () => {
+    // Quando
+    render(<Caixa />);
+    // Então: nove botões, 5 em cima e 4 embaixo
+    expect(screen.getAllByRole('button')).toHaveLength(9);
+    expect(screen.getByRole('toolbar', { name: 'Formatação do texto' }).style.getPropertyValue('--botoes-por-linha')).toBe('5');
+  });
 });
 
 describe('Títulos e links no texto (#303)', () => {
