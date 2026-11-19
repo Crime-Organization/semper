@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AcoesDeQuemLe, AcoesDoCartao, MenuDoCartao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
 import { falha } from './avisos';
-import { Janelas } from './janela';
+import { confirmar, Janelas } from './janela';
 
 vi.mock('./avisos', async original => ({ ...await original<typeof import('./avisos')>(), falha: vi.fn() }));
 
@@ -227,5 +227,20 @@ describe('O menu ⋯ do cartão sem lápis (a anotação em Documentos)', () => 
     await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
     // Então
     expect(itens()).toEqual(['Baixar .md']);
+  });
+
+  // #370: o "Mover para pasta" da anotação abre uma janela pelo ⋯; ao fechá-la, o foco se perdia (ia para o começo da página).
+  it('dada uma ação a mais que abre uma janela, quando a pessoa a escolhe pelo teclado e fecha a janela, então o foco volta ao ⋯', async () => {
+    // Dado
+    const perguntar: AcaoDoTopo = { rotulo: 'Mover para pasta', icone: 'seta', aoClicar: () => confirmar('Mover a anotação', 'Para onde?') };
+    render(<><MenuDoCartao arquivado={false} extras={[perguntar]} /><Janelas /></>);
+    const mais = screen.getByRole('button', { name: 'Mais ações' });
+    mais.focus();
+    await userEvent.keyboard('{Enter}');
+    // Quando
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
+    // Então
+    await waitFor(() => expect(mais).toHaveFocus());
   });
 });
