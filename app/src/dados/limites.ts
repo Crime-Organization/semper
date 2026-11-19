@@ -196,7 +196,7 @@ export const PROCESSOS_PARA_LIGAR = 50;
 /**
  * Tamanhos do título e do texto da anotação, em caracteres (exigidos pelo banco: o título em
  * supabase/migrations/20261117143714_anotacoes.sql; o texto pela regra anotacoes_texto_tamanho, de
- * 20261119000000_comentarios_das_anotacoes.sql). O texto cabe um artigo longo (uns 40 mil caracteres) com folga (#364).
+ * 20261119020000_comentarios_das_anotacoes.sql). O texto cabe um artigo longo (uns 40 mil caracteres) com folga (#364).
  */
 export const TAMANHO_ANOTACAO = { titulo: 300, texto: 200000 };
 /** A quantos itens uma anotação pode ser ligada (exigido pelo banco, mesma migração: ele recusa o 51º). */
