@@ -166,7 +166,7 @@ test.describe('Ordem e filtro pela data de início (#357)', () => {
 });
 
 test.describe('Calendário pequeno nos cadastros (#357)', () => {
-  test('dado o cadastro de tarefa, quando a pessoa clica no prazo, escolhe o dia no calendário e a hora logo abaixo, então os dois vão para o formulário', async ({ page }) => {
+  test('dado o cadastro de tarefa, quando a pessoa clica no prazo, escolhe o dia no calendário e a hora ao lado, no mesmo campo, então os dois vão para o formulário', async ({ page }) => {
     // Dado
     const dia = dia10DoMesSeguinte();
     await page.goto('/tarefas/nova/');
@@ -176,16 +176,14 @@ test.describe('Calendário pequeno nos cadastros (#357)', () => {
     await expect(calendario(page)).toBeVisible();
     await calendario(page).getByRole('button', { name: 'Próximo mês' }).click();
     await calendario(page).getByRole('button', { name: dia.nome }).click();
-    // Então: a hora fica logo abaixo do calendário, com o foco
-    const hora = calendario(page).getByLabel('Hora');
+    // Então: o calendário fecha e o foco passa para a hora, ao lado da data, no mesmo campo (#299)
+    await expect(calendario(page)).toHaveCount(0);
+    const hora = page.getByLabel('Hora', { exact: true });
     await expect(hora).toBeFocused();
     await hora.fill('14:30');
-    await calendario(page).getByRole('button', { name: 'Pronto' }).click();
-    await expect(calendario(page)).toHaveCount(0);
     await expect(page.getByLabel('Prazo')).toHaveValue(dia.texto);
-    await expect(page.getByLabel('Hora', { exact: true })).toHaveValue('14:30');
+    await expect(hora).toHaveValue('14:30');
     // E quando salva, então o cartão mostra o prazo com a hora
-    await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     await expect(page.getByRole('dialog').getByText(new RegExp(`Prazo: ${escapar(dia.texto)}`))).toBeVisible();
@@ -205,9 +203,10 @@ test.describe('Calendário pequeno nos cadastros (#357)', () => {
     await expect(calendario(page).getByRole('grid', { name: seguinte.mes })).toBeVisible();
     // Quando
     await page.keyboard.press('Enter');
-    // Então: o dia escolhido vai para o campo; com hora, o calendário continua aberto e o foco desce para ela
+    // Então: o dia escolhido vai para o campo, o calendário fecha e o foco passa para a hora, ao lado da data (#299)
     await expect(data).toHaveValue(seguinte.texto);
-    await expect(calendario(page).getByLabel('Hora')).toBeFocused();
+    await expect(calendario(page)).toHaveCount(0);
+    await expect(page.getByLabel('Hora', { exact: true })).toBeFocused();
   });
 });
 
@@ -225,7 +224,9 @@ test.describe('Dado um celular (#357)', () => {
     // E quando escolhe uma data nele e salva a tarefa
     await prazo.fill('2030-11-10');
     await expect(prazo).toHaveValue('2030-11-10');
-    await page.getByRole('button', { name: 'Próxima' }).click();
+    // A hora fica ao lado, no mesmo campo, e o sino do lembrete logo depois (#299)
+    await expect(page.getByLabel('Hora', { exact: true })).toHaveAttribute('type', 'time');
+    await expect(page.getByRole('button', { name: 'Lembrete: Sem lembrete' })).toBeEnabled();
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então o cartão mostra o prazo escolhido
@@ -264,7 +265,7 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     return cartao;
   }
 
-  test('dada uma tarefa, quando a pessoa clica no prazo, escolhe o dia e a hora no calendário e o lembrete no sino, então salva na hora, fica ao fechar e abrir e no histórico', async ({ page }) => {
+  test('dada uma tarefa, quando a pessoa clica no prazo, escolhe o dia no calendário, a hora ao lado e o lembrete no sino, então salva na hora, fica ao fechar e abrir e no histórico', async ({ page }) => {
     // Dado: o tempo, a criação, o início e o prazo no mesmo grupo
     let cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
     const grupo = cartao.getByRole('group', { name: 'Tempo e datas' });
@@ -272,18 +273,21 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     await expect(grupo.getByRole('timer')).toBeVisible();
     // Quando: clica no prazo
     await cartao.getByRole('button', { name: /^Prazo: / }).click();
-    // Então: abre o calendário, com a hora, e o sino do lembrete
+    // Então: abre o calendário; a hora fica ao lado do prazo, no mesmo campo (#299), e o sino do lembrete ao lado
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
     await expect(calendario(page)).toBeVisible();
-    await expect(calendario(page).getByLabel('Hora')).toBeVisible();
-    await expect(formulario.getByLabel('Lembrete')).toBeVisible();
-    // Quando: escreve um dia de outro mês, escolhe outro no calendário, a hora logo abaixo, e o lembrete
+    await expect(calendario(page).getByLabel('Hora')).toHaveCount(0);
+    await expect(formulario.getByLabel('Hora do prazo')).toBeVisible();
+    await expect(formulario.getByRole('button', { name: 'Lembrete: Sem lembrete' })).toBeVisible();
+    // Quando: escreve um dia de outro mês, escolhe outro no calendário (o foco vai para a hora), a hora e o lembrete
     await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('15/12/2030');
     await calendario(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
-    await calendario(page).getByLabel('Hora').fill('14:30');
-    await calendario(page).getByRole('button', { name: 'Pronto' }).click();
-    await expect(formulario.getByLabel('Hora')).toHaveValue('14:30');
-    await formulario.getByLabel('Lembrete').selectOption({ label: '1 hora antes' });
+    await expect(calendario(page)).toHaveCount(0);
+    await expect(formulario.getByLabel('Hora do prazo')).toBeFocused();
+    await formulario.getByLabel('Hora do prazo').fill('14:30');
+    await formulario.getByRole('button', { name: /^Lembrete:/ }).click();
+    await page.getByRole('menuitemradio', { name: '1 hora antes' }).click();
+    await expect(formulario.getByRole('button', { name: 'Lembrete: 1 hora antes' })).toBeVisible();
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();

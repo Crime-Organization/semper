@@ -13,7 +13,7 @@ import { dadosDoRecebimento, errosDoFormDeRecebimento, linhasDaDivisao, maiorPar
 import { fmtData } from '../../regras/pessoa';
 import { BANCOS, codigoDeBancoValido, contaDeDestino, FORMAS_DE_PAGAMENTO } from '../../regras/recebimento';
 import { falha, feito } from '../../ui/avisos';
-import { Aviso, Campo, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, Segmentos, Vazio } from '../../ui/base';
+import { Aviso, Campo, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, SecaoDoFormulario, Segmentos, Vazio } from '../../ui/base';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO } from '../../ui/util';
 import { DadosDoContrato, ReceitasETextos } from './DetalheFinanceiro';
@@ -153,19 +153,17 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
     </div>
   </section>;
 
-  return <form className="financeiro-form entrada-completa" noValidate aria-label="Nova entrada" onSubmit={enviar}>
-    <section className="financeiro-grupo" aria-labelledby={id + 'g1'}>
-      <span className="rotulo-caps" id={id + 'g1'}>Contrato</span>
+  return <form className="financeiro-form entrada-completa edicao-cartao" noValidate aria-label="Nova entrada" onSubmit={enviar}>
+    <SecaoDoFormulario titulo="Contrato" nivel={3}>
       <Campo rotulo="Buscar o contrato" para={id + 'contrato'}>
         <input type="text" list={id + 'contratos'} placeholder="Código ou cliente" autoComplete="off" {...propsDoCampo(id + 'contrato')} value={contrato}
           onChange={e => { setContrato(e.target.value); limparContrato(); }} />
         <datalist id={id + 'contratos'}>{contratos.map(c => <option key={c.contratoId} value={`${c.codigo} · ${c.cliente}`} />)}</datalist>
       </Campo>
       {k && k.id === contratoId && <DadosDoContrato titulo="Confira os dados do contrato" k={k} parcela={parcela} parcelas={parcelas.filter(p => p.contrato_id === k.id)} />}
-    </section>
+    </SecaoDoFormulario>
 
-    <section className="financeiro-grupo" aria-labelledby={id + 'g2'}>
-      <span className="rotulo-caps" id={id + 'g2'}>O que o cliente pagou</span>
+    <SecaoDoFormulario titulo="O que o cliente pagou" nivel={3}>
       <div className="financeiro-form-linha">
         <Campo rotulo="Parcela" para={id + 'parcela'}>
           <select {...propsDoCampo(id + 'parcela')} value={parcela?.id ?? ''} disabled={!doContrato.length} onChange={e => { setParcelaId(e.target.value); mudar({ valor: '', taxa: '' }); }}>
@@ -197,10 +195,9 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
         </Campo>}
       </div>
       <Nota>Tipo do recebimento: num contrato misto, escolha o deste pagamento. Banco onde recebeu: onde o valor todo entrou (fica só como registro).</Nota>
-    </section>
+    </SecaoDoFormulario>
 
-    <section className="financeiro-grupo" aria-labelledby={id + 'g3'}>
-      <span className="rotulo-caps" id={id + 'g3'}>Envio ao escritório</span>
+    <SecaoDoFormulario titulo="Envio ao escritório" nivel={3}>
       <div className="financeiro-form-linha">
         <Campo rotulo="Conta" para={id + 'conta'} erro={erros.contaId}>
           <select {...propsDoCampo(id + 'conta', { erro: erros.contaId })} value={form.contaId} disabled={!prep} onChange={e => mudar({ contaId: e.target.value })}>
@@ -222,18 +219,17 @@ export function NovaEntrada({ parcelas, parcelaInicial, aoRegistrar }: { parcela
         </div>}
         {percentualRuim && <Aviso tipo="erro">Cada percentual precisa ficar entre 0 e 100.</Aviso>}
       </div>}
-    </section>
+    </SecaoDoFormulario>
 
     {previa && 'erro' in previa && previa.erro && <Aviso tipo="info">{previa.erro}</Aviso>}
-    {previa && 'divisao' in previa && <section className="financeiro-grupo" aria-labelledby={id + 'g4'}>
-      <span className="rotulo-caps" id={id + 'g4'}>Como vai ficar a divisão</span>
+    {previa && 'divisao' in previa && <SecaoDoFormulario titulo="Como vai ficar a divisão" nivel={3}>
       {previa.aviso && <Aviso tipo="info">{previa.aviso}</Aviso>}
       <Divisao rotulo="Como vai ficar a divisão" linhas={linhasDaDivisao(previa.divisao, previa.aliquota, x => nomes.get(x) ?? '', prep!.responsavel_socio, ehAdmin)} />
       <dl className="entrada-receitas">
         <div><dt>Receita bruta</dt><dd className="num">{fmtCentavos(dadosDoRecebimento(form, !!conta?.tem_das).valor)}</dd></div>
         <div><dt>Receita líquida do responsável</dt><dd className="num">{fmtCentavos(previa.divisao.responsavelFica)}</dd></div>
       </dl>
-    </section>}
+    </SecaoDoFormulario>}
     {(erro || (atual && 'erro' in atual)) && <Aviso tipo="erro">{erro || (atual && 'erro' in atual ? atual.erro : '')}</Aviso>}
     <div className="financeiro-acoes">
       <button type="submit" className={estiloBotao({ variante: 'principal' })} disabled={ocupado || !parcela}>{ocupado ? 'Registrando…' : 'Registrar entrada'}</button>

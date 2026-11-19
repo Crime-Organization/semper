@@ -4,7 +4,7 @@
 import { useId, useRef, type ReactNode } from 'react';
 import type { ProcessoLigado } from '../dados/tipos';
 import { cabeOutroProcesso, detalheDoProcesso, nomeDoProcesso } from '../regras/processo';
-import { Nota } from './base';
+import { CampoDeVarios, idsDoCampoDeVarios, Nota } from './base';
 import { Icone } from './Icone';
 import { LigarProcesso } from './LigarProcesso';
 
@@ -29,10 +29,8 @@ export function EscolhaDeProcessos({ rotulo, dica, escolhidos, ocultos = 0, aoMu
   const grupo = useRef<HTMLDivElement>(null);
   // Depois de tirar, o foco vai ao grupo: o botão de tirar sumiu, e o teclado não se perde.
   const tirar = (x: string) => { aoMudar(escolhidos.filter(p => p.id !== x)); setTimeout(() => grupo.current?.focus(), 0); };
-  return <div ref={grupo} tabIndex={-1} className="pergunta" role="group" aria-labelledby={id + 'r'}>
-    <span className="rot" id={id + 'r'}>{rotulo}</span>
-    {dica && <p className="dica">{dica}</p>}
-    {escolhidos.length > 0 && <ul className="processos-escolhidos" aria-labelledby={id + 'r'}>
+  return <CampoDeVarios rotulo={rotulo} dica={dica} id={id} grupo={grupo}>
+    {escolhidos.length > 0 && <ul className="processos-escolhidos" aria-labelledby={idsDoCampoDeVarios(id).rotulo}>
       {escolhidos.map(p => <li key={p.id} className="escolhida">
         <span><b>{nomeDoEscolhido(p)}</b><small>{detalheDoProcesso(p)}</small></span>
         <button type="button" className="icone-btn" aria-label={`Tirar o processo ${nomeDoEscolhido(p)}`} title="Tirar o processo" onClick={() => tirar(p.id)}>
@@ -42,5 +40,5 @@ export function EscolhaDeProcessos({ rotulo, dica, escolhidos, ocultos = 0, aoMu
     </ul>}
     {ocultos > 0 && <Nota>Também há processo ligado que você não tem acesso para abrir. Ele continua ligado.</Nota>}
     {cabeOutroProcesso(escolhidos.length + ocultos, maximo) && <LigarProcesso ligados={escolhidos.map(p => p.id)} aoEscolher={p => aoMudar([...escolhidos, p])} />}
-  </div>;
+  </CampoDeVarios>;
 }

@@ -195,6 +195,42 @@ test.describe('Validações das etapas', () => {
     // Então
     await expect(page.getByText('Confira os telefones: use DDD + número.')).toBeVisible();
     await expect(page.getByText('Confira o formato do e-mail.')).toBeVisible();
+    // e cada linha fica marcada, com a dica e o erro lidos pelo leitor de tela (#359)
+    const telefone = page.getByRole('textbox', { name: 'Telefone' });
+    await expect(telefone).toHaveAttribute('aria-invalid', 'true');
+    await expect(telefone).toHaveAccessibleDescription('Com DDD. Ex.: (38) 99999-0000 Confira os telefones: use DDD + número.');
+    await expect(page.getByRole('textbox', { name: 'E-mail' })).toHaveAccessibleDescription('Confira o formato do e-mail.');
+  });
+
+  test('dados dois telefones, quando a pessoa tira o segundo, então cada linha tem o próprio nome e o foco vai à lista Telefones (#359)', async ({ page }) => {
+    // Dado
+    await ateEndereco(page);
+    await proxima(page);
+    await proxima(page);
+    await etapa(page, 'Contato');
+    await page.getByRole('button', { name: '+ Adicionar outro telefone' }).click();
+    const telefones = page.getByRole('group', { name: 'Telefones' });
+    await expect(telefones.getByRole('textbox', { name: 'Telefone 2', exact: true })).toBeFocused();
+    // Quando
+    await telefones.getByRole('button', { name: 'Tirar o telefone 2' }).click();
+    // Então
+    await expect(telefones.getByRole('textbox')).toHaveCount(1);
+    await expect(telefones.getByRole('textbox', { name: 'Telefone', exact: true })).toBeVisible();
+    await expect(telefones).toBeFocused();
+  });
+
+  test('dada a etapa Contato, quando aparece, então Telefones e E-mails são campos de vários itens, no plural, dentro da seção (#359)', async ({ page }) => {
+    // Dado
+    await ateEndereco(page);
+    await proxima(page);
+    // Quando
+    await proxima(page);
+    // Então: cada lista tem o rótulo no plural uma vez só, e cada linha, o próprio nome
+    const contato = page.getByRole('region', { name: 'Contato' });
+    await expect(contato.getByRole('heading', { name: 'Contato', level: 2 })).toBeVisible();
+    await expect(contato.getByRole('group', { name: 'Telefones' }).getByRole('textbox', { name: 'Telefone' })).toBeVisible();
+    await expect(contato.getByRole('group', { name: 'E-mails' }).getByRole('textbox', { name: 'E-mail' })).toBeVisible();
+    await expect(contato.getByRole('group', { name: 'Profissionais responsáveis' })).toBeVisible();
   });
 
   test('quando a base legal é consentimento e a data não existe, então o contato pede a data', async ({ page }) => {

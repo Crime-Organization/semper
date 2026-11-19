@@ -17,12 +17,12 @@ const EQUIPE: Membro[] = [
 type Linha = CamposContrato['participantes'][number];
 
 /** A peça com as linhas guardadas, como no cadastro do contrato. */
-function Formulario({ inicio = [] as Linha[], nomes: nomesIniciais = [] as string[], indicador = '', aoMudar = vi.fn() }) {
+function Formulario({ inicio = [] as Linha[], nomes: nomesIniciais = [] as string[], indicador = '', erro = '', aoMudar = vi.fn() }) {
   const [linhas, setLinhas] = useState(inicio);
   const [nomes, setNomes] = useState(nomesIniciais);
   const [chaves, setChaves] = useState(inicio.map((_, i) => i));
   const mudar = (novas: Linha[]) => { setLinhas(novas); aoMudar(novas); };
-  return <ParticipantesDoContrato equipe={EQUIPE} linhas={linhas} nomes={nomes} chaves={chaves} indicadorId={indicador}
+  return <ParticipantesDoContrato equipe={EQUIPE} linhas={linhas} nomes={nomes} chaves={chaves} indicadorId={indicador} erro={erro || undefined}
     aoAdicionar={m => { mudar([...linhas, { pessoaId: m.pessoa_id!, percentual: '' }]); setNomes([...nomes, m.nome]); setChaves([...chaves, chaves.length + 10]); }}
     aoTirar={i => { mudar(linhas.toSpliced(i, 1)); setNomes(nomes.toSpliced(i, 1)); setChaves(chaves.toSpliced(i, 1)); }}
     aoMudarPercentual={(i, percentual) => mudar(linhas.map((p, j) => j === i ? { ...p, percentual } : p))} />;
@@ -94,5 +94,18 @@ describe('Participantes do contrato: quem saiu da equipe', () => {
     expect(aoMudar).toHaveBeenLastCalledWith([{ pessoaId: 'p-ana', percentual: '10' }]);
     expect(screen.getByRole('textbox', { name: '% do participante 1' })).toHaveValue('10');
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Adicionar participante' })).toHaveFocus());
+  });
+});
+
+describe('Participantes do contrato: o erro (#359)', () => {
+  it('dado um erro nos participantes, quando a pessoa está no % de uma linha, então o leitor de tela lê o campo como inválido e diz o erro', () => {
+    // Dado
+    const erro = 'A soma dos % passa de 100.';
+    // Quando
+    render(<Formulario inicio={[{ pessoaId: 'p-ana', percentual: '120' }]} nomes={['ANA TESTE LIMA']} erro={erro} />);
+    // Então
+    const percentual = screen.getByRole('textbox', { name: '% do participante 1' });
+    expect(percentual).toBeInvalid();
+    expect(percentual).toHaveAccessibleDescription(erro);
   });
 });

@@ -2,8 +2,8 @@
 // Hora e lembrete nos prazos de tarefas e demandas (#286).
 import { describe, expect, it } from 'vitest';
 import {
-  CONFERENCIAS_DO_LEMBRETE, DICA_DO_LEMBRETE, HORA_PADRAO_DO_LEMBRETE, horaCurta, horaELembreteAoGravar, horaELembreteDoCartao, instanteDoLembrete, lembreteChegou, LEMBRETES, lerLembrete,
-  momentoDoPrazo, OPCOES_DE_LEMBRETE, prazoComHora, rotuloDoLembrete, SEM_LEMBRETE, textoDoLembrete, TOLERANCIA_DO_LEMBRETE_EM_MINUTOS
+  CONFERENCIAS_DO_LEMBRETE, HORA_PADRAO_DO_LEMBRETE, horaCurta, horaELembreteAoGravar, horaELembreteDoCartao, instanteDoLembrete, lembreteChegou, lembreteDesligado, LEMBRETES, lerLembrete,
+  momentoDoPrazo, NOTA_DO_LEMBRETE, OPCOES_DE_LEMBRETE, prazoComHora, rotuloDoLembrete, SEM_LEMBRETE, textoDoLembrete, TOLERANCIA_DO_LEMBRETE_EM_MINUTOS
 } from './lembrete';
 
 describe('As opções de lembrete', () => {
@@ -39,12 +39,25 @@ describe('As opções de lembrete', () => {
     expect(rotuloDoLembrete(undefined)).toBe('Lembrete');
   });
 
-  it('quando a dica do formulário é mostrada, então ela diz que, sem hora, o lembrete conta o prazo às 9h', () => {
+  it('quando a nota do lembrete é mostrada, então ela diz que, sem hora, o lembrete conta o prazo às 9h', () => {
     // Então
     expect(HORA_PADRAO_DO_LEMBRETE).toBe('09:00');
     expect(horaCurta(HORA_PADRAO_DO_LEMBRETE)).toBe('9h');
     expect(horaCurta('14:30:00')).toBe('14h30');
-    expect(DICA_DO_LEMBRETE).toContain('Sem hora, o lembrete conta o prazo às 9h.');
+    expect(NOTA_DO_LEMBRETE).toContain('Sem hora, o lembrete conta o prazo às 9h.');
+    expect(NOTA_DO_LEMBRETE).not.toContain('Opcional');
+  });
+});
+
+describe('O botão do lembrete, com o sino (#299)', () => {
+  it.each([
+    { caso: 'sem prazo e sem lembrete', prazo: '', lembrete: null, desligado: true },
+    { caso: 'com o prazo só de espaços', prazo: '  ', lembrete: null, desligado: true },
+    { caso: 'com prazo', prazo: '15/11/2030', lembrete: null, desligado: false },
+    { caso: 'sem prazo, mas com um lembrete já marcado (para dar para tirá-lo)', prazo: '', lembrete: 60 as const, desligado: false }
+  ])('dado o formulário $caso, quando o botão aparece, então ele fica desligado? $desligado', ({ prazo, lembrete, desligado }) => {
+    // Então
+    expect(lembreteDesligado(prazo, lembrete)).toBe(desligado);
   });
 });
 

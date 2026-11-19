@@ -15,7 +15,7 @@ import {
 } from '../regras/importacao';
 import { normal } from '../regras/texto';
 import { falha } from '../ui/avisos';
-import { Progresso } from '../ui/base';
+import { Progresso, SecaoDoFormulario } from '../ui/base';
 import { esquecerGravacao, gravacao, gravarImportacao, type EstadoGravacao } from '../ui/gravacaoDaImportacao';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
@@ -180,12 +180,8 @@ function Importacao() {
       <span>Etapa {indice + 1} de {ORDEM_DAS_ETAPAS.length}</span>
       <Progresso rotulo="Etapas da importação" valor={indice} maximo={ORDEM_DAS_ETAPAS.length - 1} />
     </div>
-    <section className="etapa ativa" aria-labelledby="etapa-importacao">
-      <header>
-        <h2 id="etapa-importacao" ref={tituloDaEtapa} tabIndex={-1}>{def.titulo}</h2>
-        {def.explicacao && <p>{def.explicacao}</p>}
-      </header>
+    <SecaoDoFormulario titulo={def.titulo} texto={def.explicacao} focoNoTitulo={tituloDaEtapa}>
       <ImportacaoCtx.Provider value={tela}><Atual /></ImportacaoCtx.Provider>
-    </section>
+    </SecaoDoFormulario>
   </div>;
 }

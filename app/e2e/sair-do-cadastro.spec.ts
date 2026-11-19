@@ -79,7 +79,6 @@ test.describe('Sair de um cadastro sem salvar', () => {
     await abrirTarefaPreenchida(page, 'Tarefa salva sem pergunta');
     // Quando
     await cadastro(page).getByRole('button', { name: 'Próxima' }).click();
-    await cadastro(page).getByRole('button', { name: 'Próxima' }).click();
     await cadastro(page).getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então
     await expect(page.getByRole('dialog').getByRole('heading', { name: 'Tarefa salva sem pergunta', level: 2 })).toBeVisible();

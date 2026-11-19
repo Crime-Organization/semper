@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Membro, Tarefa } from '../dados/tipos';
 import {
-  CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, errosDaEtapaTarefa, motivoSemMencaoNaTarefa, papeisNaTarefa, primeiraEtapaComErroTarefa, semSairDaTarefa,
-  TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
+  CAMPOS_TAREFA, valorLegivelTarefa, camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, errosDaEtapaTarefa, ETAPAS_TAREFA, motivoSemMencaoNaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz,
+  papeisNaTarefa, primeiraEtapaComErroTarefa, semADemanda, semSairDaTarefa, TAREFA_VAZIA, tarefasDaDemandaConcluidas, validarTarefa, veATarefa
 } from './tarefa';
 
 const completa = { ...TAREFA_VAZIA, titulo: 'Emitir a GRU', responsavelId: 'u-ana' };
@@ -114,6 +114,73 @@ describe('Cadastro de tarefa', () => {
     // Então
     expect(primeira).toBe(0);
     expect(daEtapaPessoas).toEqual({});
+  });
+
+  it('quando a pessoa percorre o cadastro, então há duas etapas (a tarefa, com o prazo e as ligações, e as pessoas), e a das pessoas é a de antes (#299)', () => {
+    // Então
+    expect(ETAPAS_TAREFA.map(e => e.id)).toEqual(['tarefa', 'pessoas']);
+    expect(ETAPAS_TAREFA[0].campos).toEqual(expect.arrayContaining(['titulo', 'prazo', 'hora', 'lembrete', 'demandaId', 'contratoId', 'processoId']));
+    expect(ETAPAS_TAREFA[1]).toMatchObject({ titulo: 'Pessoas', campos: ['responsavelId', 'participantes', 'pessoas'] });
+  });
+
+  it('dado o lápis do cartão, quando ele mostra as seções, então as pessoas vêm antes da demanda, do contrato e do processo, como antes da #299', () => {
+    // Quando
+    const noLapis = naOrdemDoLapisTarefa(ETAPAS_TAREFA).map(e => e.id);
+    // Então
+    expect(noLapis).toEqual(['pessoas', 'tarefa']);
+    // O cadastro continua na ordem dele.
+    expect(ETAPAS_TAREFA.map(e => e.id)).toEqual(['tarefa', 'pessoas']);
+  });
+});
+
+describe('A demanda ligada no cadastro da tarefa (#299)', () => {
+  const demandaA = { id: 'd-a', clientes: ['p-maria', 'p-joao'], contratoId: 'k-a' };
+
+  it('dada a tarefa sem pessoas e sem contrato, quando a demanda chega, então os clientes e o contrato dela entram, e fica guardado o que ela trouxe', () => {
+    // Quando
+    const r = oQueADemandaTraz({ ...completa, demandaId: 'd-a' }, demandaA);
+    // Então
+    expect(r).toEqual({ mudancas: { pessoas: ['p-maria', 'p-joao'], contratoId: 'k-a' }, trazido: { demandaId: 'd-a', pessoas: ['p-maria', 'p-joao'], contratoId: 'k-a' } });
+  });
+
+  it('dada a tarefa em que a pessoa já escolheu alguém e um contrato enquanto a resposta vinha, quando a demanda chega, então nada do que ela escolheu muda', () => {
+    // Quando
+    const r = oQueADemandaTraz({ ...completa, demandaId: 'd-a', pessoas: ['p-ana'], contratoId: 'k-outro' }, demandaA);
+    // Então
+    expect(r).toEqual({ mudancas: {}, trazido: { demandaId: 'd-a', pessoas: [], contratoId: '' } });
+  });
+
+  it('dada a demanda tirada ou trocada enquanto a resposta vinha, quando a resposta chega, então ela não vale', () => {
+    // Então
+    expect(oQueADemandaTraz({ ...completa, demandaId: '' }, demandaA)).toBeNull();
+    expect(oQueADemandaTraz({ ...completa, demandaId: 'd-b' }, demandaA)).toBeNull();
+  });
+
+  it('dada a demanda que trouxe clientes e contrato, quando a pessoa a tira, então saem os clientes e o contrato que vieram dela; quem a pessoa pôs fica', () => {
+    // Dado
+    const c = { ...completa, demandaId: 'd-a', pessoas: ['p-maria', 'p-ana', 'p-joao'], contratoId: 'k-a' };
+    // Quando
+    const r = semADemanda(c, { demandaId: 'd-a', pessoas: ['p-maria', 'p-joao'], contratoId: 'k-a' });
+    // Então
+    expect(r).toEqual({ mudancas: { demandaId: '', pessoas: ['p-ana'], contratoId: '' }, ficam: [false, true, false] });
+  });
+
+  it('dada a demanda que trouxe só os clientes, quando a pessoa a tira, então as pessoas ficam vazias e o contrato que a pessoa trocou continua', () => {
+    // Dado
+    const c = { ...completa, demandaId: 'd-a', pessoas: ['p-maria'], contratoId: 'k-outro' };
+    // Quando
+    const r = semADemanda(c, { demandaId: 'd-a', pessoas: ['p-maria'], contratoId: 'k-a' });
+    // Então
+    expect(r).toEqual({ mudancas: { demandaId: '', pessoas: [''] }, ficam: [false] });
+  });
+
+  it('dada a demanda que já vinha na tarefa salva (nada foi trazido agora), quando a pessoa a tira, então só a demanda sai', () => {
+    // Dado
+    const c = { ...completa, demandaId: 'd-a', pessoas: ['p-maria'], contratoId: 'k-a' };
+    // Quando
+    const r = semADemanda(c, null);
+    // Então
+    expect(r).toEqual({ mudancas: { demandaId: '' }, ficam: [true] });
   });
 });
 

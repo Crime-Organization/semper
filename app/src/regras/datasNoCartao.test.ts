@@ -97,13 +97,14 @@ describe('O lápis de um item já existente sem as datas (#361)', () => {
     expect(semOsCampos(dados, DATAS_NO_LUGAR.tarefas.dados)).toEqual({ responsavel_id: 'u1', participantes: [] });
   });
 
-  it('dadas as etapas da tarefa e da demanda, quando o lápis as mostra, então a primeira (só título, descrição e datas) some; a do compromisso fica, pelo tipo', () => {
+  it('dadas as etapas da tarefa e da demanda, quando o lápis as mostra, então a primeira da demanda (só título, descrição e datas) some, a da tarefa fica pelas ligações e a do compromisso, pelo tipo', () => {
     // Quando
     const daTarefa = etapasDoLapis(ETAPAS_TAREFA, camposForaDoLapis(DATAS_NO_LUGAR.tarefas)).map(e => e.id);
     const daDemanda = etapasDoLapis(ETAPAS_DEMANDA, camposForaDoLapis(DATAS_NO_LUGAR.demandas)).map(e => e.id);
     const doCompromisso = etapasDoLapis(ETAPAS_COMPROMISSO, camposForaDoLapis(DATAS_NO_LUGAR.compromissos)).map(e => e.id);
     // Então
-    expect(daTarefa).toEqual(['pessoas', 'ligacoes']);
+    // A primeira etapa da tarefa também tem as ligações (#299): no lápis, ela fica só com elas.
+    expect(daTarefa).toEqual(['tarefa', 'pessoas']);
     expect(daDemanda).not.toContain('demanda');
     expect(doCompromisso).toEqual(ETAPAS_COMPROMISSO.map(e => e.id));
   });

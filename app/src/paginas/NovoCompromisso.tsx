@@ -12,6 +12,7 @@ import {
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { datasForaDoLapisDoCompromisso, semOsCampos } from '../regras/datasNoCartao';
+import { errosJuntos } from '../regras/campoData';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -19,7 +20,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -63,6 +64,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [pessoas, setPessoas] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDasPessoas, focarNoGrupo: focarNasPessoas } = useFocoNoGrupo();
   const [focarPessoa, setFocarPessoa] = useState<number | null>(null);
   // Os processos que combinam com o texto digitado na busca (a busca é no banco) e o nome do escolhido.
   const [processos, setProcessos] = useState<ProcessoParaLigar[]>([]);
@@ -170,6 +172,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
     setPessoas(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, pessoas: atual.pessoas.toSpliced(i, 1) }));
+    focarNasPessoas();
   }
   // Na busca de cada linha, quem já está em outra linha aparece desligado.
   const outraPessoa = (i: number) => (p: PessoaLista) => c.pessoas.some((x, j) => j !== i && x === p.id) ? 'já está ligada' : null;
@@ -258,10 +261,13 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       {comTitulo && <Campo rotulo="Título" para="titulo" obrigatorio={!doProcesso} erro={erros.titulo} dica={doProcesso ? 'Opcional. Sem ele, o cartão mostra o tipo e as pessoas.' : undefined}>
         <input type="text" {...propsDoCampo('titulo', { dica: doProcesso, erro: erros.titulo })} maxLength={TAMANHO_COMPROMISSO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
       </Campo>}
-      {mostra('data') && <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
-        <CampoData {...propsDoCampo('data', { erro: erros.data })} valor={c.data} aoMudar={data => mudar({ data })} hora={{ valor: c.hora, aoMudar: hora => mudar({ hora }) }} />
+      {/* A data e a hora num campo só (#299). No lápis que só pede a hora (a data o cartão muda no lugar), a hora fica sozinha. */}
+      {mostra('data') && <Campo rotulo="Data" para="data" obrigatorio erro={errosJuntos(erros.data, erros.hora)}
+        dica={exigeHora ? 'Com a hora, no horário de Brasília.' : 'A hora é opcional, no horário de Brasília. Sem ela, vale o dia inteiro.'}>
+        <CampoDataHora {...propsDoCampo('data', { dica: true, erro: errosJuntos(erros.data, erros.hora) })} aria-invalid={erros.data ? true : undefined} valor={c.data}
+          aoMudar={data => mudar({ data })} hora={c.hora} aoMudarHora={hora => mudar({ hora })} horaObrigatoria={exigeHora} horaComErro={!!erros.hora} />
       </Campo>}
-      {mostra('hora') && <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
+      {!mostra('data') && mostra('hora') && <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
         <input type="time" {...propsDoCampo('hora', { dica: true, erro: erros.hora })} value={c.hora} onChange={e => mudar({ hora: e.target.value })} />
       </Campo>}
       {mostra('horaFim') && <Campo rotulo="Até" para="horaFim" erro={erros.horaFim} dica="Opcional. A hora em que deve terminar.">
@@ -289,10 +295,10 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </Campo>
     </>,
     pessoas: () => <>
-      <div className={'pergunta' + (erros.pessoas ? ' erro' : '')} role="group" aria-label="Pessoas ligadas">
+      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
-            <BuscaPessoa rotulo={c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`} escolhida={pessoas[i]}
+            <BuscaPessoa rotulo={<span className="sr">{c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`}</span>} escolhida={pessoas[i]}
               aoEscolher={escolherPessoa(i)} desativar={outraPessoa(i)} focar={chaves[i] === focarPessoa} />
           </div>
           {c.pessoas.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar a pessoa ${i + 1}`} onClick={() => tirarPessoa(i)}>
@@ -302,8 +308,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.pessoas.length >= CLIENTES_MAXIMOS} onClick={acrescentarPessoa}>
           <Icone nome="mais" tam={13} /> Adicionar pessoa
         </button></div>
-        {erros.pessoas && <span className="msg-erro" role="alert">{erros.pessoas}</span>}
-      </div>
+      </CampoDeVarios>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pelo compromisso: qualquer um da equipe.">
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId}
           onChange={e => mudar({ responsavelId: e.target.value, participantes: c.participantes.filter(x => x !== e.target.value) })}>
@@ -331,10 +336,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar compromisso" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {ETAPAS_COMPROMISSO.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
-        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+      {ETAPAS_COMPROMISSO.map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
-      </section>)}
+      </SecaoDoFormulario>)}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
@@ -354,10 +358,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </div>
 
       <form className="form-grade" noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-        <section className="etapa ativa" key={etapa.id} aria-labelledby="etapa-titulo">
-          <header><h2 id="etapa-titulo">{etapa.titulo}</h2><p>{etapa.texto}</p></header>
+        <SecaoDoFormulario key={etapa.id} titulo={etapa.titulo} texto={etapa.texto}>
           {CONTEUDO[etapa.id]()}
-        </section>
+        </SecaoDoFormulario>
 
         <div className="navegar">
           <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>

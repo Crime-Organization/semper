@@ -114,12 +114,12 @@ export function FormularioDoPerfil({ perfilId, nome, podePublicar }: Props) {
     <section className="cartao form-grade" aria-labelledby="tPerfForm">
       <h3 className="perfil-bloco" id="tPerfForm">Formação e experiência</h3>
       <div className="grade-form">
-        <LinhasRepetidas rotulo="Formação" erro={erros.formacao} item="formação" artigo="a" maximo={LINHAS_DO_PERFIL}
+        <LinhasRepetidas rotulo="Formações" erro={erros.formacao} item="formação" artigo="a" maximo={LINHAS_DO_PERFIL}
           linhas={c.formacao} nova={{ curso: '', instituicao: '', ano: '' }} aoMudar={l => mudar('formacao', l)}
           colunas={[{ campo: 'curso', rotulo: 'Curso', maximo: TAMANHO_PERFIL.item, tamanho: { m: 5 } },
             { campo: 'instituicao', rotulo: 'Instituição', maximo: TAMANHO_PERFIL.item, tamanho: { p: 8, m: 5 } },
             { campo: 'ano', rotulo: 'Ano', maximo: TAMANHO_PERFIL.item, tamanho: { p: 4, m: 2 } }]} />
-        <LinhasRepetidas rotulo="Experiência" erro={erros.experiencia} item="experiência" artigo="a" maximo={LINHAS_DO_PERFIL}
+        <LinhasRepetidas rotulo="Experiências" erro={erros.experiencia} item="experiência" artigo="a" maximo={LINHAS_DO_PERFIL}
           linhas={c.experiencia} nova={{ cargo: '', lugar: '', periodo: '' }} aoMudar={l => mudar('experiencia', l)}
           colunas={[{ campo: 'cargo', rotulo: 'Cargo', maximo: TAMANHO_PERFIL.item, tamanho: { m: 5 } },
             { campo: 'lugar', rotulo: 'Onde', maximo: TAMANHO_PERFIL.item, tamanho: { p: 7, m: 4 } },

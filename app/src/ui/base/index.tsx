@@ -1,7 +1,7 @@
 // Peças básicas do SEMPER (o design system em código; veja DESIGN.md). Cada uma gera o mesmo HTML e as mesmas
 // classes que as telas já usam, com as cores e os tamanhos de estilo.css: trocar a marcação de uma tela por elas
 // não muda a aparência. Comportamento (ocupado, dois cliques) fica em ../Botoes.tsx, que aceita o mesmo estilo.
-import { useId, type ComponentProps, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useId, useRef, type ComponentProps, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import { Link } from 'react-router';
 import { avisoDoBanco } from '../../regras/qualBanco';
 import { estiloBotao, type EstiloBotao } from './botao';
@@ -13,6 +13,8 @@ export { TextoEditavel } from './TextoEditavel';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
+export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';
@@ -80,6 +82,78 @@ export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }:
     <div className={arranjo ? 'escolhas ' + arranjo : 'escolhas'}>{children}</div>
     {erro && <span className="msg-erro" role="alert">{erro}</span>}
   </div>;
+}
+
+/** Os ids do rótulo, da dica e do erro de um <CampoDeVarios>, para as linhas de dentro se ligarem a eles (aria-labelledby, aria-describedby). */
+export const idsDoCampoDeVarios = (id: string) => ({ rotulo: id + '-rotulo', dica: id + '-dica', erro: id + '-erro' });
+
+interface PropsCampoDeVarios {
+  /** O rótulo, no plural ("Clientes", "Pessoas ligadas"): o campo aceita mais de um item. */
+  rotulo: ReactNode;
+  obrigatorio?: boolean;
+  dica?: ReactNode;
+  erro?: ReactNode;
+  /** A base dos ids (veja idsDoCampoDeVarios), quando as linhas precisam apontar para o rótulo, a dica ou o erro. */
+  id?: string;
+  /** O grupo, para receber o foco quando a linha que o tinha some (ao tirar um item): com ele, o grupo aceita o foco pelo código. */
+  grupo?: Ref<HTMLDivElement>;
+  /** As linhas (uma busca por item, com o botão de tirar) e o botão de acrescentar. */
+  children: ReactNode;
+}
+/**
+ * Campo que aceita mais de um item (os clientes de uma demanda, as pessoas ligadas a uma tarefa): o rótulo no plural,
+ * uma vez só, e as linhas embaixo. Cada linha tem o próprio nome para o leitor de tela ("Cliente 2"), sem repetir na tela.
+ */
+export function CampoDeVarios({ rotulo, obrigatorio, dica, erro, id, grupo, children }: PropsCampoDeVarios) {
+  const automatico = useId();
+  const ids = idsDoCampoDeVarios(id ?? automatico);
+  return <div ref={grupo} tabIndex={grupo ? -1 : undefined} className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={ids.rotulo}>
+    <span className="rot" id={ids.rotulo}>{rotulo}{obrigatorio && <span className="req" aria-hidden="true">*</span>}</span>
+    {dica && <p className="dica" id={ids.dica}>{dica}</p>}
+    {children}
+    {erro && <span className="msg-erro" id={ids.erro} role="alert">{erro}</span>}
+  </div>;
+}
+
+/**
+ * O grupo de um <CampoDeVarios> (passe `grupo` a ele) e a função que o foca depois de tirar uma linha: o botão de tirar some
+ * com a linha, e o foco iria parar no começo da página. Com o grupo focado, o leitor de tela diz em que lista a pessoa está.
+ */
+export function useFocoNoGrupo() {
+  const grupo = useRef<HTMLDivElement>(null);
+  // setTimeout 0: espera o React desenhar a lista sem a linha tirada.
+  const focarNoGrupo = () => { setTimeout(() => grupo.current?.focus(), 0); };
+  return { grupo, focarNoGrupo };
+}
+
+/**
+ * O nível do título de uma seção do formulário: 2 no cadastro (abaixo do título da página, o h1) e 3 no lápis do cartão
+ * (abaixo do título do cartão, o h2).
+ */
+export type NivelDaSecao = 2 | 3;
+const TITULO_DA_SECAO: Record<NivelDaSecao, 'h2' | 'h3'> = { 2: 'h2', 3: 'h3' };
+interface PropsSecaoDoFormulario {
+  titulo: ReactNode;
+  /** A frase que explica a seção, embaixo do título (no cadastro por etapas). */
+  texto?: ReactNode;
+  nivel?: NivelDaSecao;
+  /** O título, para receber o foco pelo código quando a seção troca (as etapas da importação): com ele, o título aceita o foco. */
+  focoNoTitulo?: Ref<HTMLHeadingElement>;
+  /** Os campos da seção. */
+  children: ReactNode;
+}
+/**
+ * Uma seção de formulário de cadastro ou de edição (uma etapa do cadastro; todas juntas no lápis do cartão): o título,
+ * maior que os rótulos, e os campos agrupados embaixo dele, recuados, para a seção não se confundir com o primeiro campo
+ * (#359). O leitor de tela a anuncia como uma região com o nome da seção.
+ */
+export function SecaoDoFormulario({ titulo, texto, nivel = 2, focoNoTitulo, children }: PropsSecaoDoFormulario) {
+  const id = useId();
+  const Titulo = TITULO_DA_SECAO[nivel];
+  return <section className="etapa ativa" aria-labelledby={id}>
+    <header><Titulo id={id} ref={focoNoTitulo} tabIndex={focoNoTitulo ? -1 : undefined}>{titulo}</Titulo>{texto && <p>{texto}</p>}</header>
+    <div className="etapa-campos">{children}</div>
+  </section>;
 }
 
 /** Colunas (de 12) que um campo ocupa na grade de formulário (.grade-form, em estilo.css): p no estreito, m a partir de 560px, g a partir de 860px. */

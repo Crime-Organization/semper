@@ -9,7 +9,7 @@ import {
   type FormDoAndamento
 } from '../../regras/andamentos';
 import { falha, feito } from '../../ui/avisos';
-import { Campo, CampoData, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
+import { Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { useCtx } from '../../ui/sessao';
@@ -47,13 +47,14 @@ function FormDoAndamentoNaTela({ inicial, mudando, aoSalvar, aoCancelar }: { ini
         </select>
       </Campo>
       <Campo rotulo={tipo.rotuloData} para={id + 'data'} obrigatorio erro={erros.data}>
-        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} hora={{ valor: f.hora, aoMudar: hora => mudar({ hora }) }} />
+        {/* A audiência e a perícia têm hora: a data e a hora num campo só (#299). Os outros tipos não guardam hora. */}
+        {tipo.marcado
+          ? <CampoDataHora formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })}
+            hora={f.hora} aoMudarHora={hora => mudar({ hora })} />
+          : <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} />}
       </Campo>
     </div>
     {tipo.marcado && <div className="acomp-form-linha">
-      <Campo rotulo="Hora" para={id + 'hora'}>
-        <input type="time" {...propsDoCampo(id + 'hora')} value={f.hora} onChange={e => mudar({ hora: e.target.value })} />
-      </Campo>
       <Campo rotulo="Local" para={id + 'local'} erro={erros.local}>
         <input type="text" {...propsDoCampo(id + 'local', { erro: erros.local })} maxLength={TAMANHO_ANDAMENTO.local} value={f.local} onChange={e => mudar({ local: e.target.value })} />
       </Campo>

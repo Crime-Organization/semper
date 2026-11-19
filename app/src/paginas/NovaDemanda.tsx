@@ -12,14 +12,14 @@ import {
   camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, semSairDaDemanda, validarDemanda,
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
-import { CampoDoInicio, CampoDoLembrete, CampoDaHora, CampoDoPrazo } from './CamposDoLembrete';
+import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, CaixaFormatada, Campo, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, propsDoCampo, SecaoDoFormulario, useFocoNoGrupo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -61,6 +61,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const [clientes, setClientes] = useState<Escolhida[]>([null]);
   const [chaves, setChaves] = useState<number[]>([0]);
   const proximaChave = useRef(1);
+  const { grupo: grupoDosClientes, focarNoGrupo: focarNosClientes } = useFocoNoGrupo();
   const [focarCliente, setFocarCliente] = useState<number | null>(null);
   // Os contratos que se pode ligar (os ativos mais recentes) e o texto digitado na busca.
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
@@ -154,6 +155,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     setClientes(atual => atual.toSpliced(i, 1));
     setChaves(atual => atual.toSpliced(i, 1));
     setC(atual => ({ ...atual, clientes: atual.clientes.toSpliced(i, 1) }));
+    focarNosClientes();
   }
   // Na busca de cada linha, quem já é cliente em outra linha aparece desligado.
   const outroCliente = (i: number) => (p: PessoaLista) => c.clientes.some((x, j) => j !== i && x === p.id) ? 'já é cliente' : null;
@@ -242,9 +244,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
             aoMudar={descricao => mudar({ descricao })} />
         </Campo>
       </>}
-      <CampoDoPrazo rotulo="Prazo de entrega" valor={c.prazo} erro={erros.prazo} hora={c.hora} aoMudar={prazo => mudar({ prazo })} aoMudarHora={hora => mudar({ hora })} />
-      <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
-      <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
+      <CampoDoPrazo rotulo="Prazo de entrega" prazo={c.prazo} hora={c.hora} lembrete={c.lembrete} erros={erros} aoMudar={mudar} />
       {/* A data de início só ao mudar uma demanda que já existe: a nova começa no dia em que é criada (#357). */}
       {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
     </>,
@@ -258,10 +258,10 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       </Campo>
       <EscolhaDaEquipe rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha na demanda (e passa a vê-la)." adicionar="Adicionar colaborador"
         equipe={ctx.equipe} escolhidos={c.colaboradores} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={colaboradores => mudar({ colaboradores })} />
-      <div className={'pergunta' + (erros.clientes ? ' erro' : '')} role="group" aria-label="Clientes">
+      <CampoDeVarios rotulo="Clientes" erro={erros.clientes} grupo={grupoDosClientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
-            <BuscaPessoa rotulo={c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`} escolhida={clientes[i]}
+            <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
@@ -271,8 +271,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.clientes.length >= CLIENTES_MAXIMOS} onClick={acrescentarCliente}>
           <Icone nome="mais" tam={13} /> Adicionar cliente
         </button></div>
-        {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
-      </div>
+      </CampoDeVarios>
     </>,
     contrato: () => <>
       {c.contratoId
@@ -296,10 +295,9 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar demanda" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {etapasDoLapis(ETAPAS_DEMANDA, camposForaDoLapis(DATAS_NO_LUGAR.demandas)).map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
-        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+      {etapasDoLapis(ETAPAS_DEMANDA, camposForaDoLapis(DATAS_NO_LUGAR.demandas)).map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
-      </section>)}
+      </SecaoDoFormulario>)}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
@@ -319,10 +317,9 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       </div>
 
       <form className="form-grade" noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-        <section className="etapa ativa" key={etapa.id} aria-labelledby="etapa-titulo">
-          <header><h2 id="etapa-titulo">{etapa.titulo}</h2><p>{etapa.texto}</p></header>
+        <SecaoDoFormulario key={etapa.id} titulo={etapa.titulo} texto={etapa.texto}>
           {CONTEUDO[etapa.id]()}
-        </section>
+        </SecaoDoFormulario>
 
         <div className="navegar">
           <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>

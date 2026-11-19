@@ -1,0 +1,5 @@
+{
+  "titulo": "Formulários com as seções bem separadas dos campos",
+  "texto": "Nos cadastros e no lápis dos cartões, o nome de cada seção (como \"Pessoas\") aparece maior, e os campos dela ficam juntos logo abaixo, um pouco para dentro, com um fio à esquerda. Os campos que aceitam mais de um item têm o nome no plural, como \"Clientes\" e \"Pessoas ligadas\".",
+  "ondeAchar": "Em qualquer cadastro novo (ex.: Demandas, botão \"+\") e no lápis de um cartão. Também na Nova entrada do Financeiro e na janela de um usuário, em Equipe e acessos."
+}

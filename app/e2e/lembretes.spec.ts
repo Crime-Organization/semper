@@ -25,10 +25,12 @@ test.describe('Hora e lembrete no prazo da tarefa', () => {
     await page.getByLabel('Título').fill(TITULO);
     await page.getByLabel('Prazo').fill('05112026');
     await page.getByLabel('Hora').fill('14:00');
-    await page.getByLabel('Lembrete').selectOption({ label: '1 hora antes' });
-    await expect(page.getByText('Sem hora, o lembrete conta o prazo às 9h.', { exact: false })).toBeVisible();
+    // O lembrete fica no botão com o sino, ao lado do prazo e da hora (#299)
+    await page.getByRole('button', { name: /^Lembrete:/ }).click();
+    await expect(page.getByRole('menu', { name: 'Lembrete' }).getByText('Sem hora, o lembrete conta o prazo às 9h.', { exact: false })).toBeVisible();
+    await page.getByRole('menuitemradio', { name: '1 hora antes' }).click();
+    await expect(page.getByRole('button', { name: 'Lembrete: 1 hora antes' })).toBeVisible();
     // Quando
-    await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Salvar tarefa' }).click();
     // Então: o cartão
@@ -59,17 +61,16 @@ test.describe('Hora e lembrete no prazo da tarefa', () => {
     await expect(page.getByRole('dialog').getByRole('heading', { name: TITULO })).toBeVisible();
   });
 
-  test('quando a hora é posta sem o prazo, então a etapa pede o prazo e não segue', async ({ page }) => {
+  test('quando a hora é posta sem o prazo, então a etapa pede o prazo e não segue, e o sino fica desligado', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');
     await page.getByLabel('Título').fill(TITULO);
     await page.getByLabel('Hora').fill('14:00');
-    await page.getByLabel('Lembrete').selectOption({ label: 'Na hora do prazo' });
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     // Então
     await expect(page.getByText('Informe o prazo para pôr a hora')).toBeVisible();
-    await expect(page.getByText('Informe o prazo para marcar o lembrete')).toBeVisible();
+    await expect(page.getByRole('button', { name: /^Lembrete:/ })).toBeDisabled();
     await expect(page.getByRole('heading', { name: 'A tarefa', level: 2 })).toBeVisible();
   });
 });
@@ -82,7 +83,8 @@ test.describe('Lembrete no prazo da demanda', () => {
     await page.goto('/demandas/nova/');
     await page.getByLabel('Título').fill(TITULO);
     await page.getByLabel('Prazo de entrega').fill('06112026');
-    await page.getByLabel('Lembrete').selectOption({ label: '1 dia antes' });
+    await page.getByRole('button', { name: /^Lembrete:/ }).click();
+    await page.getByRole('menuitemradio', { name: '1 dia antes' }).click();
     // Quando
     await page.getByRole('button', { name: 'Próxima' }).click();
     await page.getByRole('button', { name: 'Próxima' }).click();
@@ -119,8 +121,9 @@ test.describe('Lembrete marcado pelo sino no cartão (#361)', () => {
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
     await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('06/11/2026');
     await page.keyboard.press('Escape');
-    await formulario.getByLabel('Hora').fill('10:00');
-    await formulario.getByLabel('Lembrete').selectOption({ label: '30 minutos antes' });
+    await formulario.getByLabel('Hora do prazo').fill('10:00');
+    await formulario.getByRole('button', { name: /^Lembrete:/ }).click();
+    await page.getByRole('menuitemradio', { name: '30 minutos antes' }).click();
     await formulario.getByRole('button', { name: 'Salvar' }).click();
     await expect(cartao.getByRole('button', { name: /^Prazo: / })).toContainText('Lembrete: 30 minutos antes');
     // Quando: a rotina roda antes e na hora do lembrete (9h30)

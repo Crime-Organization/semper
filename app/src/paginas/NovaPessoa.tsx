@@ -18,13 +18,18 @@ import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useTitulo } from '../ui/util';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
-import { Aviso, CampoData, Carregando, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, CampoData, Carregando, estiloBotao, idsDoCampoDeVarios, propsDoCampo, useFocoNoGrupo } from '../ui/base';
 import { DOCUMENTO_INVALIDO, fluxo, maiusculas, MSG, type CamposCadastro, type Etapa, type Linha } from '../regras/cadastro';
 import { ETAPAS } from './novaPessoa/etapas';
-import { FormularioCtx, type Formulario, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
+import { FormularioCtx, type Formulario, type ListaDoContato, type OpcoesTexto, type Retorno } from './novaPessoa/formulario';
 import './NovaPessoa.css';
 
 type Campos = CamposCadastro;
+/** O nome de cada linha das listas do contato para o leitor de tela ("Telefone 2") e o do botão de tirar ("Tirar o telefone 2"). */
+const LINHA_DA_LISTA: Record<ListaDoContato, { nome: string; tirar: string }> = {
+  telefones: { nome: 'Telefone', tirar: 'Tirar o telefone' },
+  emails: { nome: 'E-mail', tirar: 'Tirar o e-mail' }
+};
 
 let seq = 0;
 const linha = (v = ''): Linha => ({ k: ++seq, v });
@@ -61,6 +66,8 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const botaoAvancar = useRef<HTMLButtonElement>(null);
   const botaoCNPJ = useRef<HTMLButtonElement>(null);
   const botaoCEP = useRef<HTMLButtonElement>(null);
+  // Ao tirar um telefone ou um e-mail, o foco vai ao grupo da lista (o botão de tirar some com a linha).
+  const gruposDasListas: Record<ListaDoContato, ReturnType<typeof useFocoNoGrupo>> = { telefones: useFocoNoGrupo(), emails: useFocoNoGrupo() };
   const verificacao = useRef<{ doc: string | null; promessa: Promise<boolean> | null }>({ doc: null, promessa: null });
   useTitulo(edicao ? null : alvo ? 'Atualizar cadastro' : 'Cadastro de pessoa');
 
@@ -392,8 +399,6 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   }
 
   // ---------- pedaços do formulário ----------
-  const pc = (campo: string, extra = '') => 'pergunta' + (erros[campo] ? ' erro' : '') + (extra ? ' ' + extra : '');
-  const erro = (campo: string) => <span className="msg-erro">{erros[campo] || MSG[campo]}</span>;
   const erroDe = (campo: string) => erros[campo];
   const texto = (campo: keyof Campos, props: OpcoesTexto = {}) =>
     <input type="text" {...propsDoCampo(campo, { dica: true, erro: erros[campo] })} className={props.maiusculas ? 'caixa-alta' : undefined} maxLength={props.maximo} placeholder={props.placeholder}
@@ -407,21 +412,33 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const ufs = (campo: keyof Campos) => <select id={campo} value={c[campo] as string} onChange={e => mudarTexto(campo, e.target.value)}>
     <option value="">—</option>{UFS.map(u => <option key={u}>{u}</option>)}
   </select>;
-  const lista = (campo: 'telefones' | 'emails', tel: boolean) => <div className="lista-tel">
+  // Cada linha aponta para a dica e o erro do grupo (os ids de idsDoCampoDeVarios, com o nome da lista como base):
+  // voltando a uma linha depois do erro, o leitor de tela lê de novo a mensagem.
+  const descricaoDaLinha = (campo: ListaDoContato, tel: boolean) => {
+    const ids = idsDoCampoDeVarios(campo);
+    return [tel ? ids.dica : '', erros[campo] ? ids.erro : ''].filter(Boolean).join(' ') || undefined;
+  };
+  const tirarDaLista = (campo: ListaDoContato, k: number) => {
+    mudarLista(campo, cRef.current[campo].filter(y => y.k !== k));
+    gruposDasListas[campo].focarNoGrupo();
+  };
+  const lista = (campo: ListaDoContato, tel: boolean) => <div className="lista-tel">
     {c[campo].map((x, i) => <div className="item-lista" key={x.k}>
       <div className="linha-campo">
-        <input type={tel ? 'tel' : 'email'} className={tel ? 'tel' : 'email'} inputMode={tel ? 'tel' : undefined} aria-label={tel ? 'Telefone' : 'E-mail'}
+        <input type={tel ? 'tel' : 'email'} className={tel ? 'tel' : 'email'} inputMode={tel ? 'tel' : undefined}
+          aria-label={c[campo].length === 1 ? LINHA_DA_LISTA[campo].nome : `${LINHA_DA_LISTA[campo].nome} ${i + 1}`}
+          aria-invalid={erros[campo] ? true : undefined} aria-describedby={descricaoDaLinha(campo, tel)}
           placeholder={tel ? '(00) 00000-0000' : 'email@exemplo.com'} value={x.v}
           onChange={e => mudarLista(campo, cRef.current[campo].map(y => y.k === x.k ? { ...y, v: tel ? MASCARAS.telefone(e.target.value) : e.target.value } : y))}
           onBlur={tel ? e => conferirTelefone(x.k, completarCelular(x.k, e.target.value)) : undefined} />
-        {i > 0 && <button type="button" className="icone-btn" aria-label="Remover" onClick={() => mudarLista(campo, cRef.current[campo].filter(y => y.k !== x.k))}><Icone nome="fechar" tam={15} /></button>}
+        {i > 0 && <button type="button" className="icone-btn" aria-label={`${LINHA_DA_LISTA[campo].tirar} ${i + 1}`} onClick={() => tirarDaLista(campo, x.k)}><Icone nome="fechar" tam={15} /></button>}
       </div>
       {tel && noveTel[x.k] && <div className="aviso-tel">Acrescentei o 9 do celular (estava {noveTel[x.k]}).</div>}
       {tel && (avisosTel[x.k]?.length ?? 0) > 0 && <div className="aviso-tel">Já existe cadastro com este telefone: {avisosTel[x.k].map((a, j) =>
         <Fragment key={a.id}>{j > 0 && ', '}<a href={'/pessoas/?id=' + a.id} target="_blank" rel="noopener">{a.nome}</a></Fragment>)}. Você pode seguir normalmente.</div>}
     </div>)}
   </div>;
-  const acrescentar = (campo: 'telefones' | 'emails') => {
+  const acrescentar = (campo: ListaDoContato) => {
     mudarLista(campo, [...cRef.current[campo], linha()]);
     setTimeout(() => { const els = document.querySelectorAll<HTMLInputElement>(campo === 'telefones' ? '.lista-tel .tel' : '.lista-tel .email'); els[els.length - 1]?.focus(); }, 0);
   };
@@ -431,7 +448,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const voltarLista = idAtualizar ? '/pessoas/?id=' + idAtualizar : '/pessoas/';
   const formulario: Formulario = {
     c, cRef, pj, mudar, marcarErro, verificarDocumento, buscarCNPJ, buscarCEP, retornoCNPJ, retornoCEP, botaoCNPJ, botaoCEP, botaoAvancar,
-    equipe: ctx.equipe, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
+    equipe: ctx.equipe, erroDe, texto, data, radios, ufs, lista, acrescentar, grupoDe: campo => gruposDasListas[campo].grupo, retorno, nivel: edicao ? 3 : 2
   };
   const Atual = ETAPAS[etapa].Componente;
 

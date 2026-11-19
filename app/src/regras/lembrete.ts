@@ -51,8 +51,15 @@ export const horaCurta = (hora: string) => {
   const [h, m] = fmtHora(hora).split(':');
   return `${Number(h)}h${m && m !== '00' ? m : ''}`;
 };
-/** A dica do formulário: quem recebe e como conta o prazo sem hora. */
-export const DICA_DO_LEMBRETE = `Opcional. Chega na caixa de Mensagens (e por e-mail) do responsável e de quem está junto. Sem hora, o lembrete conta o prazo às ${horaCurta(HORA_PADRAO_DO_LEMBRETE)}.`;
+/** Quem recebe o lembrete e como ele conta o prazo sem hora: a nota embaixo das opções do botão do lembrete (o sino, #299). */
+export const NOTA_DO_LEMBRETE = `Chega na caixa de Mensagens (e por e-mail) do responsável e de quem está junto. Sem hora, o lembrete conta o prazo às ${horaCurta(HORA_PADRAO_DO_LEMBRETE)}.`;
+/** Por que o botão do lembrete está desligado, e o erro do lembrete marcado sem prazo: sem prazo, não há do que lembrar. */
+export const LEMBRETE_SEM_PRAZO = 'Informe o prazo para marcar o lembrete';
+/**
+ * O botão do lembrete fica desligado? Só sem prazo e sem lembrete. Com um lembrete já marcado, ele continua ligado mesmo sem o
+ * prazo (a pessoa apagou o prazo): assim dá para tirar o lembrete que a conferência do formulário aponta.
+ */
+export const lembreteDesligado = (prazo: string, lembrete: Lembrete | null) => !prazo.trim() && lembrete === null;
 
 /** O prazo com a hora, quando há: "15/11/2030 às 14:00" (sem hora, só a data). */
 export const prazoComHora = (data: string | null | undefined, hora: string | null | undefined) =>
@@ -77,7 +84,7 @@ export interface CamposDoLembrete { prazo: string; hora: string; lembrete: Lembr
 /** Hora e lembrete só valem com o prazo: as conferências do formulário de tarefa e de demanda. */
 export const CONFERENCIAS_DO_LEMBRETE = {
   hora: [(c: CamposDoLembrete) => c.hora && !c.prazo.trim() ? 'Informe o prazo para pôr a hora' : null],
-  lembrete: [(c: CamposDoLembrete) => c.lembrete !== null && !c.prazo.trim() ? 'Informe o prazo para marcar o lembrete' : null]
+  lembrete: [(c: CamposDoLembrete) => c.lembrete !== null && !c.prazo.trim() ? LEMBRETE_SEM_PRAZO : null]
 };
 /**
  * A hora e o lembrete do cartão salvo, para o formulário: sem prazo, os dois vêm vazios. O site antigo, que não conhece as

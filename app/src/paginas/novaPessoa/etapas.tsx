@@ -5,26 +5,28 @@ import type { ComponentType } from 'react';
 import { TAMANHO_PESSOA } from '../../dados/limites';
 import { AO_ENTRAR, DOCUMENTO_INVALIDO, VALIDACAO, type AoEntrar, type CamposCadastro, type Etapa, type ResultadoEtapa } from '../../regras/cadastro';
 import { cnpjValido, cpfValido, dig, ehIndividual, ENTIDADES, ESTADO_CIVIL, LGPD, limparDocumento, NATUREZAS, PORTES } from '../../regras/pessoa';
-import { Campo, Dica, Escolhas, estiloBotao } from '../../ui/base';
+import { Campo, CampoDeVarios, Escolhas, estiloBotao, SecaoDoFormulario } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { EscolhaDaEquipe } from '../../ui/EscolhaDaEquipe';
+import { SEGUNDO } from '../../ui/tempos';
 import { useFormulario } from './formulario';
 
+/** Ao escolher o tipo de cadastro, a etapa seguinte abre logo depois, para a pessoa ver a opção marcada. */
+const ESPERA_ANTES_DE_SEGUIR = 0.2 * SEGUNDO;
+
 function EtapaTipo() {
-  const { botaoAvancar, erroDe, radios } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>Qual é o tipo de cadastro?</h2></header>
+  const { botaoAvancar, erroDe, radios, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo="Qual é o tipo de cadastro?">
     <Escolhas rotulo="Selecione uma opção" obrigatorio erro={erroDe('tipo')}>
       {radios('tipo', [['pf', 'Pessoa física'], ['pj', 'Pessoa jurídica'], ['contato', 'Somente informações de contato']],
-        () => setTimeout(() => botaoAvancar.current?.click(), 200))}
+        () => setTimeout(() => botaoAvancar.current?.click(), ESPERA_ANTES_DE_SEGUIR))}
     </Escolhas>
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaIdentificacao() {
-  const { c, pj, mudar, buscarCNPJ, retornoCNPJ, botaoCNPJ, erroDe, texto, retorno } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>{pj ? 'Dados da empresa' : c.tipo === 'pf' ? 'Dados pessoais' : 'Identificação'}</h2></header>
+  const { c, pj, mudar, buscarCNPJ, retornoCNPJ, botaoCNPJ, erroDe, texto, retorno, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo={pj ? 'Dados da empresa' : c.tipo === 'pf' ? 'Dados pessoais' : 'Identificação'}>
     <Campo rotulo="Nome" para="nome" obrigatorio erro={erroDe('nome')}
       dica={pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}>
       {texto('nome', { maximo: TAMANHO_PESSOA.nome, maiusculas: true })}
@@ -47,13 +49,12 @@ function EtapaIdentificacao() {
         </select>
       </Campo>
     </>}
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaPessoaFisica() {
-  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios, ufs } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>Pessoa física</h2><p>Dados pessoais para a qualificação.</p></header>
+  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios, ufs, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo="Pessoa física" texto="Dados pessoais para a qualificação.">
     <Escolhas rotulo="Gênero" obrigatorio erro={erroDe('genero')}>{radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}</Escolhas>
     {/* A nacionalidade tem um campo depois das opções (a outra nacionalidade): fica com a marcação própria. */}
     <div className="pergunta">
@@ -81,22 +82,20 @@ function EtapaPessoaFisica() {
       <Campo rotulo="Município de nascimento" para="nascMun">{texto('nascMun', { maximo: TAMANHO_PESSOA.municipio })}</Campo>
       <Campo rotulo="UF de nascimento" para="nascUf">{ufs('nascUf')}</Campo>
     </div>
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaEntidade() {
-  const { c, radios } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>{NATUREZAS[c.natureza] || 'Tipo de entidade'}</h2><p>Em qual tipo a pessoa jurídica se enquadra?</p></header>
+  const { c, radios, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo={NATUREZAS[c.natureza] || 'Tipo de entidade'} texto="Em qual tipo a pessoa jurídica se enquadra?">
     {/* Sem rótulo próprio: o título da etapa já diz o que escolher. */}
     <div className="pergunta"><div className="escolhas coluna-unica">{radios('entidade', (ENTIDADES[c.natureza] || []).map(t => [t, t] as [string, string]))}</div></div>
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaEmpresa() {
-  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>Pessoa jurídica</h2><p>Dados da empresa ou entidade.</p></header>
+  const { c, cRef, marcarErro, verificarDocumento, erroDe, texto, data, radios, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo="Pessoa jurídica" texto="Dados da empresa ou entidade.">
     {ehIndividual(c.entidade) && <Escolhas rotulo="Gênero do(a) titular" obrigatorio erro={erroDe('genero')}
       dica="No MEI e no empresário individual, a empresa é a própria pessoa: a qualificação concorda com ela (empresário ou empresária, inscrito ou inscrita).">
       {radios('genero', [['m', 'Masculino'], ['f', 'Feminino']])}
@@ -116,13 +115,12 @@ function EtapaEmpresa() {
       dica={'Nome completo. Havendo mais de um, separe com "e/ou". Em MEI ou empresário individual, deixe em branco.'}>
       {texto('representantes', { maximo: TAMANHO_PESSOA.representantes, maiusculas: true })}
     </Campo>
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaEndereco() {
-  const { buscarCEP, retornoCEP, botaoCEP, erroDe, texto, ufs, retorno } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>Endereço</h2></header>
+  const { buscarCEP, retornoCEP, botaoCEP, erroDe, texto, ufs, retorno, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo="Endereço">
     <Campo rotulo="CEP" para="cep" dica="Clique em Buscar para preencher o endereço." erro={erroDe('cep')} depois={retorno(retornoCEP)}>
       <div className="linha-campo">
         {texto('cep', { mascara: 'cep', placeholder: '00000-000', numerico: true })}
@@ -139,27 +137,21 @@ function EtapaEndereco() {
       <Campo rotulo="Município" para="municipio">{texto('municipio', { maximo: TAMANHO_PESSOA.municipio })}</Campo>
       <Campo rotulo="UF" para="uf">{ufs('uf')}</Campo>
     </div>
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 function EtapaContato() {
-  const { c, mudar, equipe, pc, erro, erroDe, data, lista, acrescentar } = useFormulario();
-  return <section className="etapa ativa">
-    <header><h2>Contato</h2></header>
-    {/* Telefones e e-mails são listas com um botão de acrescentar: ficam com a marcação própria. */}
-    <div className={pc('telefones')}>
-      <span className="rot">Telefone<span className="req">*</span></span>
-      <Dica>Com DDD. Ex.: (38) 99999-0000</Dica>
+  const { c, mudar, equipe, erroDe, data, lista, acrescentar, grupoDe, nivel } = useFormulario();
+  return <SecaoDoFormulario nivel={nivel} titulo="Contato">
+    {/* Telefones e e-mails são listas com um botão de acrescentar: o rótulo no plural, uma vez só, sobre as linhas. */}
+    <CampoDeVarios rotulo="Telefones" obrigatorio dica="Com DDD. Ex.: (38) 99999-0000" erro={erroDe('telefones')} id="telefones" grupo={grupoDe('telefones')}>
       {lista('telefones', true)}
       <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('telefones')}>+ Adicionar outro telefone</button></div>
-      {erro('telefones')}
-    </div>
-    <div className={pc('emails')}>
-      <span className="rot">E-mail</span>
+    </CampoDeVarios>
+    <CampoDeVarios rotulo="E-mails" erro={erroDe('emails')} id="emails" grupo={grupoDe('emails')}>
       {lista('emails', false)}
       <div><button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => acrescentar('emails')}>+ Adicionar outro e-mail</button></div>
-      {erro('emails')}
-    </div>
+    </CampoDeVarios>
     <EscolhaDaEquipe rotulo="Profissionais responsáveis" dica="Eles aparecem no cartão da pessoa." adicionar="Adicionar responsável"
       equipe={equipe} escolhidos={c.resp} aoMudar={resp => mudar({ resp })} />
     <Campo rotulo="Base legal para o tratamento dos dados (LGPD)" para="lgpdBase">
@@ -168,7 +160,7 @@ function EtapaContato() {
       </select>
     </Campo>
     {c.lgpdBase === 'consentimento' && <Campo rotulo="Data do consentimento" para="lgpdData" erro={erroDe('lgpdData')}>{data('lgpdData')}</Campo>}
-  </section>;
+  </SecaoDoFormulario>;
 }
 
 export interface DefEtapa {

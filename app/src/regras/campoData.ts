@@ -120,3 +120,15 @@ export function diaEmFoco(mes: string, escolhido: string | null, hoje: string, l
   const candidato = escolhido && doMes(escolhido, mes) ? escolhido : doMes(hoje, mes) ? hoje : primeiroDoMes(mes);
   return limitarDia(candidato, limites);
 }
+
+/** A mensagem termina com ponto (ou outra pontuação final)? */
+const FIM_DE_FRASE = /[.!?]$/;
+/**
+ * O erro do campo de data e hora (#299), que mostra um só para as partes dele (a data, a hora, o lembrete): todas as mensagens, cada
+ * uma uma vez. Uma só fica como veio; mais de uma vira frases seguidas, com ponto. Sem nenhuma, undefined (o campo sem erro).
+ */
+export function errosJuntos(...erros: (string | null | undefined)[]): string | undefined {
+  const mensagens = [...new Set(erros.filter((e): e is string => !!e))];
+  if (mensagens.length < 2) return mensagens[0];
+  return mensagens.map(m => FIM_DE_FRASE.test(m) ? m : m + '.').join(' ');
+}
