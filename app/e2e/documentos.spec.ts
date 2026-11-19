@@ -23,7 +23,7 @@ const fecharAnotacao = (page: Page) => anotacaoAberta(page).getByRole('button', 
 /** Escreve um comentário na anotação aberta (a seção já vem aberta) e espera ele aparecer na lista. */
 async function comentar(page: Page, texto: string) {
   await coluna(page).getByRole('textbox', { name: 'Escrever um comentário' }).fill(texto);
-  await coluna(page).getByRole('button', { name: 'Comentar' }).click();
+  await coluna(page).getByRole('button', { name: 'Comentar', exact: true }).click();
   await expect(coluna(page).getByRole('list', { name: 'Comentários do cartão' }).getByText(texto)).toBeVisible();
 }
 /** A caixa de escrever da anotação: o editor ao vivo (#364), um texto de várias linhas com o nome "Texto". */
@@ -346,7 +346,8 @@ test.describe('A página Documentos', () => {
     // Então: a tabela e o explorador mostram só ela
     await expect(titulosNaTabela(page)).toHaveCount(1);
     await expect(titulosNaTabela(page)).toContainText('Parecer sobre a ação');
-    await expect(page.getByRole('navigation', { name: 'Pastas e anotações' }).getByRole('link')).toHaveText(['Parecer sobre a ação']);
+    // (na árvore: a barra do explorador também tem um link, o "Nova anotação", só de ícone)
+    await expect(page.getByRole('navigation', { name: 'Pastas e anotações' }).getByRole('list').first().getByRole('link')).toHaveText(['Parecer sobre a ação']);
     // Quando: busca pelo título
     await page.getByRole('searchbox').fill('rascunho');
     // Então
@@ -529,11 +530,12 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     await expect(page.getByRole('option', { name: /Ana Teste Lima/ })).toHaveAttribute('aria-disabled', 'false');
     // Quando: comenta chamando a Ana
     await caixa.press('Escape');
-    await comentar(page, 'Veja isto, @ana.lima');
+    // (com mais texto depois da menção, como em mensagens.spec.ts: terminado em "@ana.lima", a lista do @ segue aberta por cima do botão)
+    await comentar(page, 'Veja isto, @ana.lima até amanhã');
     // Então: a seção conta o comentário, e ele continua lá ao reabrir a anotação
     await expect(coluna(page).getByRole('button', { name: /^Comentários/ })).toHaveText(/^Comentários\s*1$/);
     await abrirAnotacao(page, 'Anotação para comentar');
-    await expect(coluna(page).getByRole('list', { name: 'Comentários do cartão' }).getByText('Veja isto, @ana.lima')).toBeVisible();
+    await expect(coluna(page).getByRole('list', { name: 'Comentários do cartão' }).getByText('Veja isto, @ana.lima até amanhã')).toBeVisible();
   });
 
   test('dado o texto mudado, quando a pessoa para de digitar, então ele é salvo sozinho, e continua assim ao reabrir', async ({ page }) => {
@@ -1036,8 +1038,9 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     // Quando
     await anotacao.getByRole('heading', { name: 'Lida pelo Bruno', level: 2 }).click();
     await anotacao.getByText('Só para ler.').click();
-    // Então
-    await expect(anotacao.getByRole('textbox')).toHaveCount(0);
+    // Então: o único campo é a caixa de comentar (quem vê a anotação comenta, #364); nem o título nem o texto viram campo
+    await expect(anotacao.getByRole('textbox')).toHaveCount(1);
+    await expect(anotacao.getByRole('textbox')).toHaveAccessibleName('Escrever um comentário');
     await expect(anotacao.getByRole('button', { name: 'Lida pelo Bruno' })).toHaveCount(0);
     await expect(anotacao.getByRole('button', { name: 'Etiquetas', exact: true })).toHaveCount(0);
     await expect(anotacao.getByRole('toolbar', { name: 'Formatação do texto' })).toHaveCount(0);
@@ -1062,12 +1065,19 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
   });
 
   test('dado o título mudado e ainda em edição, quando a pessoa usa o Voltar do navegador, então o SEMPER pergunta e respeita a resposta: "Sair sem salvar" sai sem gravar o título', async ({ page }) => {
-    // Dado: aberta pela tabela, depois de ver a tabela sem nenhuma aberta. Abrir não cria entrada no histórico (como nos outros
-    // módulos): o Voltar sai da página de agora para a de antes, aqui a tabela.
+    // Dado: aberta pela tabela, depois de chegar a Documentos pelo menu, vindo de Tarefas. Abrir não cria entrada no histórico
+    // (como nos outros módulos): o Voltar sai da página de agora para a de antes, aqui Tarefas. As duas vêm pelo menu, dentro do
+    // SEMPER: um Voltar para uma página carregada à parte (page.goto) recarregaria o site, e aí quem pergunta é o navegador.
     await criarAnotacao(page, 'Título que fica');
     await fecharAnotacao(page);
     await expect(page).not.toHaveURL(/\?id=/);
-    let anotacao = await abrirAnotacao(page, 'Título que fica');
+    await abrir(page, 'Tarefas');
+    await expect(page).toHaveURL(url => url.pathname === '/tarefas/');
+    await expect(page.getByRole('heading', { name: /Tarefas/, level: 1 })).toBeVisible();
+    await abrir(page, 'Documentos');
+    await page.getByRole('row').filter({ hasText: 'Título que fica' }).click();
+    let anotacao = anotacaoAberta(page);
+    await expect(anotacao.getByRole('heading', { name: 'Título que fica', level: 2 })).toBeVisible();
     await anotacao.getByRole('button', { name: 'Título que fica' }).click();
     const campo = anotacao.getByRole('textbox', { name: 'Título' });
     await campo.fill('Título descartado');
@@ -1086,14 +1096,14 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await page.evaluate(() => history.back());
     await expect(pergunta).toBeVisible();
     await pergunta.getByRole('button', { name: 'Sair sem salvar' }).click();
-    // Então: volta à tabela, e o título descartado não é gravado
-    await expect(page).not.toHaveURL(/\?id=/);
+    // Então: volta a Tarefas, e o título descartado não é gravado
+    await expect(page).toHaveURL(url => url.pathname === '/tarefas/');
     await expect(page.getByRole('heading', { name: 'Título descartado', level: 2 })).toHaveCount(0);
     await esperarDesenhar(page);
     await expect(page.getByText('Anotação atualizada.')).toHaveCount(0);
-    await expect(page.getByRole('row').filter({ hasText: 'Título descartado' })).toHaveCount(0);
     anotacao = await abrirAnotacao(page, 'Título que fica');
     await expect(anotacao.getByRole('heading', { name: 'Título que fica', level: 2 })).toBeVisible();
+    await expect(page.getByRole('row').filter({ hasText: 'Título descartado' })).toHaveCount(0);
   });
 
   test('dada uma anotação aberta pela tabela e depois pela árvore, quando a pessoa fecha a janela, então um Voltar só sai de Documentos, como nos outros módulos', async ({ page }) => {

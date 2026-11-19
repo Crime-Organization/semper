@@ -192,14 +192,15 @@ test.describe('Equipe no topo dos outros cartões', () => {
     await page.goto('/documentos/nova/');
     await page.getByRole('textbox', { name: 'Título' }).fill('Roteiro da reunião');
     await page.getByRole('button', { name: 'Salvar anotação' }).click();
-    const anotacao = page.getByRole('article', { name: /^Anotação / });
+    // A janela da anotação salva (o artigo da nota em branco, que some logo depois de salvar, também se chama "Anotação …")
+    const anotacao = page.getByRole('dialog', { name: 'Anotação', exact: true });
     await expect(anotacao.getByRole('heading', { name: 'Roteiro da reunião', level: 2 })).toBeVisible();
     // Quando
     await porPelaBolinha(page, anotacao, 'Compartilhar com mais alguém', 'bru', 'Bruno Exemplo Souza');
     // Então
     await expect(anotacao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole('article', { name: /^Anotação / }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: 'Anotação', exact: true }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toBeVisible();
   });
 
   test('dado um cartão que a pessoa só lê, quando abre, então as bolinhas mostram o nome na dica, sem "+" e sem como trocar o responsável', async ({ page }) => {
