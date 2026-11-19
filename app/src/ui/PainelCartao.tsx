@@ -8,7 +8,7 @@
 // outros cartões, só com o rótulo pedido, como "Anotação").
 // Com "largo" (um texto para ler e escrever, a anotação), a janela no centro ocupa quase toda a tela, com uma margem estreita em
 // volta (no celular, como as outras).
-// O que um cartão põe na coluna da direita (NaColunaDoCartao: em todos os cartões, os comentários, as anotações e o histórico, #360;
+// O que um cartão põe na coluna da direita (NaColunaDoCartao: em todos os cartões, os comentários, as anotações e o histórico, #360, e no processo também os andamentos, #362;
 // na anotação, os comentários, "Ligada a" e o histórico) são seções que recolhem, num grupo só delas, com o "Expandir tudo" / "Recolher tudo" no topo da coluna (pedido
 // do dono de 18/11).
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,

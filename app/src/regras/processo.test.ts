@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Processo } from '../dados/tipos';
 import {
   aoMudarNumero, cabeOutroProcesso, detalheDoProcesso, ehOpcaoPronta, mudancasNosProcessos, processosParaOferecer, camposDoProcesso, dadosDoProcesso, errosDaEtapaProcesso, linhasDoProcesso, nomeDoProcesso, opcaoNaLista, opcoesDoCampo, OPCOES_PRONTAS, numeroParaComparar, orgaoDoNumero, orgaoIndicadoNoProcesso, papeisNoProcesso, primeiraEtapaComErroProcesso, processoVazio,
-  semSairDoProcesso, validarProcesso, valorLegivelProcesso, type CamposProcesso
+  semSairDoProcesso, validarProcesso, valorLegivelProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, type CamposProcesso
 } from './processo';
 
 const NUMERO_VALIDO = '0001234-97.2026.8.13.0024';
@@ -290,5 +290,23 @@ describe('Ligar um processo que já existe a outro cartão (#294)', () => {
     expect(cabeOutroProcesso(0, 1)).toBe(true);
     expect(cabeOutroProcesso(1, 1)).toBe(false);
     expect(cabeOutroProcesso(5)).toBe(true);
+  });
+});
+
+describe('Menções nos comentários do processo (#362)', () => {
+  const PROCESSO = { criado_por: 'u-criou', responsavel_id: 'u-resp', colaboradores: ['u-colab'] };
+
+  it.each([
+    ['quem criou', { id: 'u-criou', nome: 'A' }], ['o responsável', { id: 'u-resp', nome: 'B' }], ['um colaborador', { id: 'u-colab', nome: 'C' }],
+    ['um administrador de fora', { id: 'u-adm', nome: 'D', papel: 'admin' as const }]
+  ])('quando menciona %s, então pode', (_caso, membro) => {
+    // Então
+    expect(motivoSemMencaoNoProcesso(PROCESSO)(membro)).toBeNull();
+  });
+
+  it('quando menciona quem não está no processo, então não pode, e a lista do @ diz por quê; a recusa é a mesma do banco', () => {
+    // Então
+    expect(motivoSemMencaoNoProcesso(PROCESSO)({ id: 'u-fora', nome: 'Eli' })).toBe('não participa; inclua como colaborador');
+    expect(mencaoNegadaNoProcesso('Eli')).toBe('Não é possível mencionar Eli neste processo: inclua essa pessoa como colaboradora antes.');
   });
 });

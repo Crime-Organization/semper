@@ -779,14 +779,14 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Andamentos');
-    await lancarAndamento(cartao, 'Andamento', 'Juntada');
+    await lancarAndamento(cartao, 'Petição', 'Juntada');
     // Quando
     await cartao.getByRole('button', { name: 'Arquivar' }).click();
     await expect(page.getByText('Processo arquivado.', { exact: false }).first()).toBeVisible();
-    // Então
+    // Então: "Mudar" e "Excluir" ficam no menu "⋯" de cada andamento (#362), que não aparece
     await expect(cartao.getByRole('list', { name: 'Andamentos do processo' })).toContainText('Juntada');
     await expect(cartao.getByRole('button', { name: 'Novo andamento' })).toHaveCount(0);
-    await expect(cartao.getByRole('button', { name: /^Mudar o andamento/ })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: /^Ações do andamento/ })).toHaveCount(0);
   });
 });
 
@@ -876,7 +876,7 @@ test.describe('Painel de Processos', () => {
   test('quando o administrador muda os dias de parado, então a lista acompanha', async ({ page }) => {
     // Dado
     const cartao = await abrirCartaoJudicial(page);
-    await lancarAndamento(cartao, 'Andamento', 'Andamento antigo', dias(-10));
+    await lancarAndamento(cartao, 'Despacho', 'Andamento antigo', dias(-10));
     await page.goto('/processos/');
     await expect(page.getByText('Sem andamento há mais de 60 dias.', { exact: false })).toBeVisible();
     const form = page.getByRole('form', { name: 'Dias para considerar parado' });

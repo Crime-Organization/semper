@@ -107,6 +107,13 @@
   --recuo-do-botao-do-calendario: 6px;
   /* O botão "⋯" de cada linha de uma lista dentro do cartão (cada item de um checklist, #358): um pouco menor que o .icone-btn */
   --botao-da-linha: 30px;
+  /* A linha do tempo dos andamentos do processo (#362): o recuo à esquerda das caixas, a bolinha de cada uma, a espessura do
+     traço e a altura da bolinha, a partir do topo da caixa (no meio da primeira linha, a do tipo e da data) */
+  --recuo-da-linha-do-tempo: 22px;
+  --bolinha-da-linha-do-tempo: 12px;
+  --traco-da-linha-do-tempo: 2px;
+  --topo-da-bolinha: 18px;
+  --vao-da-linha-do-tempo: 10px;
   /* A caixa de marcar de cada item de um checklist (#358) e o alvo do dedo em volta dela, centrado na caixa e sem a linha
      crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
   --caixa-de-marcar: 18px;

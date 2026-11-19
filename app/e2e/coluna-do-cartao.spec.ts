@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // A coluna da direita do cartão (#360): com o cartão no centro da tela, ela tem, nesta ordem, "Comentários" (aberta), "Anotações" e
-// "Histórico de alterações" (recolhidas), cada uma com o seu número, e o "Expandir tudo" / "Recolher tudo" no alto dela abrange as
-// três. Cada anotação ligada aparece como um comentário (o título e o começo do texto, num fundo diferente) e abre com um clique. Com
-// o cartão ao lado e na janela estreita, não há a coluna: as três ficam no pé do cartão, na mesma ordem, antes do rodapé, e o
+// "Histórico de alterações" (recolhidas; no processo, os andamentos vêm depois dos comentários, #362), cada uma com o seu número, e
+// o "Expandir tudo" / "Recolher tudo" no alto dela abrange as seções da coluna (três; no processo, quatro). Cada anotação ligada aparece como um comentário (o título e o
+// começo do texto, num fundo diferente) e abre com um clique. Com o cartão ao lado e na janela estreita, não há a coluna: as seções dela ficam no pé do cartão, na mesma ordem, antes do rodapé, e o
 // "Expandir tudo" do alto do cartão (o único) abre também elas. Na semente do banco fictício, JOSÉ DA SILVA TESTE tem um
 // comentário da Ana e é o cliente do processo judicial; não há anotações. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -104,18 +104,17 @@ test.describe('A coluna da direita do cartão (#360)', () => {
       .toHaveText([/^Comentários\s*\d+$/, /^Ligada a\s*1$/, /^Histórico de alterações\s*\d+$/]);
   });
 
-  test('dado o cartão de um processo, que não tem comentários, quando abre no centro, então as anotações e o histórico continuam na coluna, nesta ordem', async ({ page }) => {
+  test('dado o cartão de um processo, quando abre no centro, então a coluna tem os comentários (abertos), os andamentos (#362), as anotações e o histórico, nesta ordem', async ({ page }) => {
     // Dado
     const cartao = await abrirProcesso(page);
     // Quando
     await noCentro(page);
     // Então
-    const secoes = cartao.getByRole('button', { name: SECOES });
-    await expect(secoes).toHaveText(ORDEM.slice(1));
-    for (const s of await secoes.all()) {
-      await expect.poll(() => naMetadeDireita(cartao, s)).toBe(true);
-      await expect(s).toHaveAttribute('aria-expanded', 'false');
-    }
+    const secoes = cartao.getByRole('button', { name: /^(Comentários|Andamentos|Anotações|Histórico de alterações)/ });
+    await expect(secoes).toHaveText([ORDEM[0], /^Andamentos\s*\d+$/, ...ORDEM.slice(1)]);
+    for (const s of await secoes.all()) await expect.poll(() => naMetadeDireita(cartao, s)).toBe(true);
+    await expect(secoes.nth(0)).toHaveAttribute('aria-expanded', 'true');
+    for (const s of (await secoes.all()).slice(1)) await expect(s).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('dado o cartão de uma pessoa ao lado, quando abre, então as três seções ficam no pé do cartão, na mesma ordem, depois das outras e antes do rodapé', async ({ page }) => {

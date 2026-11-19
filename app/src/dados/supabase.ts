@@ -156,13 +156,13 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, prazo_aviso, lembrete_antes, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
-  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo), anotacoes(id, codigo, titulo)), '
+  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo), anotacoes(id, codigo, titulo), processos(id, codigo, titulo, tipo)), '
   + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
   + 'demanda:demandas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'tarefa:tarefas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero, data, hora, arquivado_em, etapa:quadro_colunas(marco, nome))';
 /** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
-const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo', anotacoes: 'titulo' };
+const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo', anotacoes: 'titulo', processos: 'titulo' };
 type CartaoDaMensagem = Record<string, string>;
 type EtapaDaLinha = { etapa: { marco: string | null; nome: string } | null; arquivado_em: string | null };
 type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora: string | null } & EtapaDaLinha;
@@ -208,7 +208,8 @@ function mensagemLida(l: LinhaDaMensagem): Mensagem {
   const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
   const cartao = modulo && c?.[modulo];
   if (!c || !modulo || !cartao) return { ...m, comentario: null };
-  return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]] } };
+  return { ...m, comentario: { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo, cartao_id: cartao.id, cartao_codigo: cartao.codigo, cartao_nome: cartao[NOME_DO_CARTAO_DA_MENSAGEM[modulo]],
+    tipo_do_processo: modulo === 'processos' ? cartao.tipo as TipoProcesso : null } };
 }
 /**
  * As mensagens do pedido para participar (#363), da tabela própria. O processo vem com o tipo (a página do cartão depende dele); para
@@ -225,7 +226,7 @@ const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem =
 const CAIXAS = ['mensagens', 'mensagens_de_participacao'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
 
 /** Quem vê o cartão sem estar nele não altera: nenhuma linha muda, e o quadro precisa voltar o cartão. */
 const conferirQueMudou = (linha: unknown) => { if (!linha) throw new Error('Você não tem permissão para fazer isso.'); };
@@ -459,7 +460,7 @@ function juntarOsAchados(...listas: { id: string; criado_em: string }[][]): Livr
 }
 
 // ---------- andamentos e prazos do processo ----------
-const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
+const CAMPOS_ANDAMENTO = 'id, processo_id, tipo, categoria, data, hora, local, texto, tratada_em, tarefa_id, criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
 const CAMPOS_PRAZO = 'id, processo_id, descricao, final, intimacao, dias, contagem, disponibilizacao, sem_recesso, andamento_id, tarefa_id, concluido_em, '
   + 'criado_por, criado_em, atualizado_em, tarefa:tarefas(id, codigo)';
 /** O banco devolve a hora com os segundos ("14:30:00"); a tela e o formulário usam hh:mm. */

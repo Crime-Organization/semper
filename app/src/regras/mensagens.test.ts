@@ -18,6 +18,17 @@ describe('Caixa de mensagens', () => {
     expect(endereco).toBe(esperado);
   });
 
+  it.each([
+    ['judicial', '/processos/judicial/?id=c1&comentario=m1'],
+    ['administrativo', '/processos/administrativo/?id=c1&comentario=m1'],
+    [null, '/processos/?id=c1&comentario=m1']
+  ] as const)('dado um comentário num processo %s, quando a pessoa abre a mensagem, então vai para a página do tipo dele (#362)', (tipo, esperado) => {
+    // Quando
+    const endereco = enderecoDoComentario('processos', 'c1', 'm1', tipo);
+    // Então
+    expect(endereco).toBe(esperado);
+  });
+
   it('dado um comentário em várias linhas, quando vira trecho, então fica numa linha só', () => {
     // Então
     expect(trechoDaMensagem('  Ligar\n\namanhã   cedo ')).toBe('Ligar amanhã cedo');

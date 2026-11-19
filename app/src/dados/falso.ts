@@ -17,7 +17,7 @@ import { compararPeloInicio, INICIO_VAZIO, inicioDoCriadoEm, inicioNosLimites } 
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
-import { linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
+import { CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { resumoDaConferencia } from '../regras/conferencia';
 import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato, partesDoRecebimento, periodoDoSocio } from '../regras/parcelas';
@@ -33,7 +33,7 @@ import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromi
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
-import { alteraOProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
+import { alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -1408,6 +1408,8 @@ const vejoAnotacao = (a: Anotacao) => veAAnotacao(a, membroLogado(), chavesDaEqu
 const alteroAnotacao = (a: Anotacao) => alteraAAnotacao(a, membroLogado(), chavesDaEquipe());
 /** Como a regra de leitura das etiquetas da anotação: segue quem vê a anotação. */
 const vejoAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && vejoAnotacao(a));
+/** Se quem está logado vê o processo (como a regra de leitura dele, que a dos comentários consulta, #362). */
+const vejoProcessoDoId = (id: string) => bd.processos!.some(p => p.id === id) && vejoNoModulo('processos', id);
 /** Como privado.altero_a_anotacao, que as regras de aplicar e tirar etiquetas usam: a anotação ativa, por quem a altera. */
 const alteroAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe()));
 /** Quem pode tirar a etiqueta do cartão: nas anotações, só quem as altera; nos outros módulos, como antes. */
@@ -1748,6 +1750,8 @@ function conferirAndamento(a: AndamentoGuardado) {
   if (!a.texto || a.texto.length > TAMANHO_ANDAMENTO.texto || !anoAceito(a.data) || !dataExiste(a.data)) throw new Error(FORMATO_INVALIDO);
   if (!marcado && (a.hora || a.local)) throw new Error(FORMATO_INVALIDO);
   if (a.tipo !== 'intimacao' && a.tratada_em) throw new Error(FORMATO_INVALIDO);
+  // O tipo da lista pronta (#362): vazio, ou um da lista que combina com o tipo de sempre (as duas regras check do banco).
+  if (a.categoria && (!(a.categoria in CATEGORIAS_DE_ANDAMENTO) || !categoriaCombina(a))) throw new Error(FORMATO_INVALIDO);
   if (a.local && a.local.length > TAMANHO_ANDAMENTO.local) throw new Error(FORMATO_INVALIDO);
   if (a.tarefa_id && !bd.tarefas!.some(t => t.id === a.tarefa_id)) throw new Error('Tarefa não encontrada neste escritório.');
 }
@@ -2084,6 +2088,10 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const anotacao = modulo === 'anotacoes' ? bd.anotacoes!.find(a => a.id === cartaoId) : null;
   const foraDaAnotacao = anotacao ? primeiro(mencoes.filter(m => motivoSemMencaoNaAnotacao(anotacao, chavesDaEquipe())(m))) : null;
   if (foraDaAnotacao) throw new Error(mencaoNegadaNaAnotacao(foraDaAnotacao.nome));
+  // No processo (#362): só quem está nele e os administradores (como privado.mencao_no_processo; as chaves da equipe abrem a todos).
+  const processo = modulo === 'processos' && !bd.equipeVeTudo && !bd.equipeEditaTudo ? bd.processos!.find(p => p.id === cartaoId) : null;
+  const foraDoProcesso = processo ? primeiro(mencoes.filter(m => motivoSemMencaoNoProcesso(processo)(m))) : null;
+  if (foraDoProcesso) throw new Error(mencaoNegadaNoProcesso(foraDoProcesso.nome));
   // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
   return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
 }
@@ -2100,16 +2108,19 @@ const CARTAO_ALCANCADO: Record<ModuloComentado, (id: string) => boolean> = {
   tarefas: id => bd.tarefas!.some(t => t.id === id) && vejoNoModulo('tarefas', id),
   compromissos: id => bd.compromissos!.some(c => c.id === id) && vejoNoModulo('compromissos', id),
   // Como a regra de leitura e a de incluir: a consulta à anotação passa pela regra de leitura dela (quem a vê lê e comenta).
-  anotacoes: id => vejoAnotacaoDoId(id)
+  anotacoes: id => vejoAnotacaoDoId(id),
+  // Como a regra de leitura do processo: quem o vê lê e comenta, mesmo só lendo o processo (#362).
+  processos: id => vejoProcessoDoId(id)
 };
 /** O código e o nome do cartão do comentário, para a caixa de mensagens. */
-const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: string; nome: string | null } | undefined> = {
+const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: string; nome: string | null; tipo_do_processo?: Processo['tipo'] } | undefined> = {
   pessoas: id => bd.pessoas.find(p => p.id === id),
   contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k && { codigo: k.codigo, nome: k.servico }; },
   demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d && { codigo: d.codigo, nome: d.titulo }; },
   tarefas: id => { const t = bd.tarefas!.find(x => x.id === id); return t && { codigo: t.codigo, nome: t.titulo }; },
   compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return c && { codigo: c.codigo, nome: c.titulo }; },
-  anotacoes: id => { const a = bd.anotacoes!.find(x => x.id === id); return a && { codigo: a.codigo, nome: a.titulo }; }
+  anotacoes: id => { const a = bd.anotacoes!.find(x => x.id === id); return a && { codigo: a.codigo, nome: a.titulo }; },
+  processos: id => { const p = bd.processos!.find(x => x.id === id); return p && { codigo: p.codigo, nome: p.titulo ?? null, tipo_do_processo: p.tipo }; }
 };
 /** Se quem está logado vê o cartão (como a regra de leitura dos comentários, que passa pela do cartão). */
 const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
@@ -2121,7 +2132,8 @@ const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
     return !!t && (!!bd.equipeVeTudo || vejoTarefa(t));
   },
   compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); },
-  anotacoes: id => vejoAnotacaoDoId(id)
+  anotacoes: id => vejoAnotacaoDoId(id),
+  processos: id => vejoProcessoDoId(id)
 };
 /** Como o gatilho privado.mensagens_do_comentario: quem foi marcado recebe a mensagem, menos quem escreveu; quem deixou de ser marcado perde a dele. */
 function mensagensDoComentario(c: NonNullable<Banco['comentarios']>[number]) {
@@ -2234,7 +2246,8 @@ function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
       ? { ...p.prazo, data: p.data ?? m.prazo_data!, aviso, antecedencia: aviso === 'lembrete' ? m.lembrete_antes ?? null : null } : null };
   }
   const c = bd.comentarios!.find(x => x.id === m.comentario_id)!, cartao = VEJO_O_CARTAO[c.modulo](c.cartao_id) ? CARTAO_DA_MENSAGEM[c.modulo](c.cartao_id) : undefined;
-  return { id, tipo, criado_em, lido_em, prazo: null, pedido: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome } : null };
+  return { id, tipo, criado_em, lido_em, prazo: null, pedido: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome,
+    tipo_do_processo: cartao.tipo_do_processo ?? null } : null };
 }
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
 /** Cada objeto salvo entra na lista do escritório, uma vez só (ignorando maiúsculas e acentos). */
@@ -3095,7 +3108,7 @@ export const SD: Dados = {
     .slice(0, ANDAMENTOS_DO_PROCESSO).map(comTarefa)),
   async processoAndamentoCriar(processoId, dados) {
     if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
-    const a: AndamentoGuardado = { tratada_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
+    const a: AndamentoGuardado = { tratada_em: null, tarefa_id: null, excluido_em: null, categoria: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };
     conferirAndamento(a);
     bd.andamentos!.push(a);
     historicoDoAcompanhamento(processoId, 'andamento', null, linhaDoAndamento(a));
@@ -3105,7 +3118,8 @@ export const SD: Dados = {
   async processoAndamentoAtualizar(id, dados) {
     const a = bd.andamentos!.find(x => x.id === id);
     if (!a || !processoAtivo(a.processo_id)) return erro(SEM_MUDANCA);
-    const novo = { ...a, ...dados, atualizado_em: agora() };
+    // Como o gatilho acertar_categoria: quem muda só o tipo de sempre perde o tipo da lista que não combina mais.
+    const novo = { ...comCategoriaAcertada(a, dados), atualizado_em: agora() };
     if (a.tarefa_id && novo.tarefa_id && novo.tarefa_id !== a.tarefa_id) return erro(TAREFA_JA_LIGADA);
     // Como o gatilho do banco: a tarefa desligada sem mexer na marcação faz a intimação voltar a ficar a tratar.
     if (a.tarefa_id && !novo.tarefa_id && novo.tratada_em === a.tratada_em) novo.tratada_em = null;
@@ -3796,6 +3810,7 @@ export const SD: Dados = {
       bd.contratoProcessos = bd.contratoProcessos!.filter(l => l.processo_id !== id);
       soltarDasAnotacoes('processos', id);
       bd.andamentos = bd.andamentos!.filter(a => a.processo_id !== id);
+      bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'processos' && c.cartao_id === id));
       bd.prazos = bd.prazos!.filter(z => z.processo_id !== id);
       bd.tarefas!.forEach(t => { if (t.processo_id === id) t.processo_id = null; });
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(a => !(a.modulo === 'processos' && a.cartao_id === id));

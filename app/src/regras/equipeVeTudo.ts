@@ -36,8 +36,8 @@ export const SO_LEITURA_DO_CARTAO = 'Por enquanto, toda a equipe vê este cartã
 export const SO_LEITURA_PELO_CONTRATO = 'Você vê este cartão porque está no contrato ligado a ele. Você pode ler e comentar, mas não alterar.';
 /** O que a tela diz a quem não está na demanda ou na tarefa, sem a chave e sem estar no contrato dela. */
 export const SO_LEITURA_FORA_DO_CARTAO = 'Você não participa deste cartão. Você pode ler e comentar, mas não alterar.';
-/** O processo ainda não tem comentários. */
-export const SO_LEITURA_DO_PROCESSO = 'Por enquanto, toda a equipe vê este processo. Você pode ler, mas não alterar.';
+/** O que a tela diz a quem vê o processo pela chave da equipe sem estar nele: lê e comenta, mas não altera (#362). */
+export const SO_LEITURA_DO_PROCESSO = 'Por enquanto, toda a equipe vê este processo. Você pode ler e comentar, mas não alterar.';
 /** Quem está fora do processo não vê os compromissos dos outros: "nenhum" faria alguém marcar a mesma audiência de novo. */
 export const SEM_COMPROMISSO_VISIVEL = 'Nenhum compromisso que você possa ver. Quem está no processo pode ter marcado audiências: entre nele para vê-las antes de marcar outra.';
 /** Ao advogado que ainda não está no processo. */

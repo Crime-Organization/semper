@@ -96,7 +96,7 @@ function ItemDaMencao(props: PropsDoItem) {
   }
   return <LinhaDaMensagem {...props} rotulo={`Mensagem ${situacaoDa(m)} de ${nome}`} marcarLida={`Marcar como lida a mensagem de ${nome}`}>
     <Avatar p={autor} tam={32} />
-    <LinkDaMensagem {...props} para={enderecoDoComentario(c.modulo, c.cartao_id, c.id)}>
+    <LinkDaMensagem {...props} para={enderecoDoComentario(c.modulo, c.cartao_id, c.id, c.tipo_do_processo)}>
       <span className="mensagem-titulo"><b>{nome}</b> citou você em {CARTAO_DO_MODULO[c.modulo].nome.toLowerCase()} <b>{c.cartao_nome || c.cartao_codigo}</b></span>
       <span className="mensagem-trecho">{trechoDaMensagem(c.texto)}</span>
     </LinkDaMensagem>

@@ -1,6 +1,6 @@
 // Regras do processo (módulo Processos): os dois tipos, as listas prontas, o cadastro por etapas e o que aparece no cartão.
 // Tudo puro, sem tela nem banco. O número no padrão do CNJ fica em regras/numeroCNJ.ts.
-import type { CampoDeOpcao, DadosProcesso, GratuidadeProcesso, MeioProcesso, Modulo, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista, TipoProcesso } from '../dados/tipos';
+import type { CampoDeOpcao, Membro, DadosProcesso, GratuidadeProcesso, MeioProcesso, Modulo, PapelNoProcesso, PoloProcesso, Processo, ProcessoLista, TipoProcesso } from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_PROCESSO, VALOR_CAUSA_LIMITE } from '../dados/limites';
 import { clientesPorExtenso, dinheiroNoCampo, fmtDinheiro, lerDinheiro } from './contrato';
@@ -288,6 +288,15 @@ const CONFERE_PAPEL: Record<PapelNoProcesso, (p: PessoasDoProcesso, pessoaId: st
 /** Quem altera o processo (como a regra do banco): os administradores, quem criou, o responsável e os colaboradores. */
 export const alteraOProcesso = (p: { criado_por: string | null; responsavel_id: string; colaboradores: string[] }, m: { id: string; papel: string }) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === p.criado_por || m.id === p.responsavel_id || p.colaboradores.includes(m.id);
+/**
+ * Por que o membro não pode ser mencionado no processo (null se pode, #362): só quem o vê por estar nele (quem o criou, o
+ * responsável e os colaboradores) e os administradores, como o gatilho privado.mencao_no_processo do banco. Com as chaves da
+ * equipe ("equipe_ve_tudo" ou "equipe_edita_tudo"), o cartão não passa esta regra: todos podem ser mencionados.
+ */
+export const motivoSemMencaoNoProcesso = (p: { criado_por: string | null; responsavel_id: string; colaboradores: string[] }) =>
+  (m: Membro) => alteraOProcesso(p, { id: m.id, papel: m.papel ?? 'usuario' }) ? null : 'não participa; inclua como colaborador';
+/** A mensagem de quando alguém que não está no processo aparece num comentário dele (a mesma do banco). */
+export const mencaoNegadaNoProcesso = (nome: string) => `Não é possível mencionar ${nome} neste processo: inclua essa pessoa como colaboradora antes.`;
 
 export const papeisNoProcesso = (p: PessoasDoProcesso, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNoProcesso[]).filter(papel => CONFERE_PAPEL[papel](p, pessoaId, perfilId));

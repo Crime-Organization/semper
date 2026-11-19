@@ -1,14 +1,18 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { TAMANHO_ANDAMENTO, TAMANHO_PRAZO, TAMANHO_TAREFA } from '../dados/limites';
+import type { CategoriaDeAndamento } from '../dados/tipos';
 import {
-  alertaDosPrazos, andamentoNovo, aTratar, comoFoiContado, dadosDoAndamento, dadosDoPrazo, errosDoAndamento, errosDoPrazo, formDoAndamento, formDoPrazo, linhaDoAndamento, linhaDoPrazo,
+  alertaDosPrazos, andamentoNovo, aTratar, avisoDoLancamento, CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, ESCOLHAS_DO_TIPO, escolhasDoFormulario,
+  escolhaDoTipo, LISTA_PRONTA_DE_ANDAMENTOS, nomeDoAndamento, tipoDaEscolha, comoFoiContado, dadosDoAndamento, dadosDoPrazo, errosDoAndamento, errosDoPrazo, formDoAndamento, formDoPrazo, linhaDoAndamento, linhaDoPrazo,
   mudancaDoAndamento, naOrdemDosPrazos, porDataDoAndamento, prazoNovo, quandoDoAndamento, rotuloDoPrazo, situacaoDoPrazoNoProcesso, tarefaDaIntimacao, tarefaDoPrazo
 } from './andamentos';
 
 const HOJE = '2026-11-10';
+/** Um andamento novo em que a pessoa já escolheu o despacho. */
+const DESPACHO_NOVO = { ...andamentoNovo('2026-11-10'), ...tipoDaEscolha('despacho') };
 const andamento = (extra = {}) => ({
-  id: 'a1', processo_id: 'p1', tipo: 'intimacao' as const, data: '2026-11-09', hora: null, local: null, texto: 'Intimação para contestar', tratada_em: null,
+  id: 'a1', processo_id: 'p1', tipo: 'intimacao' as const, categoria: null as CategoriaDeAndamento | null, data: '2026-11-09', hora: null, local: null, texto: 'Intimação para contestar', tratada_em: null,
   tarefa_id: null, tarefa: null, criado_por: 'u1', criado_em: '2026-11-09T10:00:00Z', atualizado_em: '2026-11-09T10:00:00Z', ...extra
 });
 const prazo = (extra = {}) => ({
@@ -18,32 +22,32 @@ const prazo = (extra = {}) => ({
 const PROCESSO = { id: 'p1', numero: '0001234-97.2026.8.13.0024', titulo: null, cliente_nome: 'JOSÉ DA SILVA', responsavel_id: 'u1', colaboradores: ['u2', 'saiu'], clientes: [{ id: 'c1' }] };
 
 describe('Formulário do andamento', () => {
-  it('quando está em branco, então pede o texto e aceita a data de hoje', () => {
+  it('quando está em branco, então pede o tipo e o texto, e aceita a data de hoje', () => {
     // Então
-    expect(errosDoAndamento(andamentoNovo(HOJE))).toEqual({ texto: 'Escreva o que aconteceu.' });
+    expect(errosDoAndamento(andamentoNovo(HOJE))).toEqual({ tipo: 'Escolha o tipo do andamento.', texto: 'Escreva o que aconteceu.' });
   });
 
   it.each([['data que não existe', { data: '2026-02-31' }, 'data'], ['data vazia', { data: '' }, 'data'], ['ano fora do calendário', { data: '1999-01-01' }, 'data'],
-    ['texto longo', { texto: 'x'.repeat(TAMANHO_ANDAMENTO.texto + 1) }, 'texto'], ['local longo', { tipo: 'audiencia' as const, local: 'x'.repeat(TAMANHO_ANDAMENTO.local + 1) }, 'local']
+    ['texto longo', { texto: 'x'.repeat(TAMANHO_ANDAMENTO.texto + 1) }, 'texto'], ['local longo', { ...tipoDaEscolha('audiencia'), local: 'x'.repeat(TAMANHO_ANDAMENTO.local + 1) }, 'local']
   ])('quando tem %s, então avisa no campo', (_caso, mudanca, campo) => {
     // Então
-    expect(Object.keys(errosDoAndamento({ ...andamentoNovo(HOJE), texto: 'ok', ...mudanca }))).toEqual([campo]);
+    expect(Object.keys(errosDoAndamento({ ...DESPACHO_NOVO, texto: 'ok', ...mudanca }))).toEqual([campo]);
   });
 
   it('quando o tipo não é audiência nem perícia, então hora e local não vão para o banco, nem travam', () => {
     // Dado
-    const f = { ...andamentoNovo(HOJE), tipo: 'andamento' as const, hora: '10:00', local: 'x'.repeat(TAMANHO_ANDAMENTO.local + 1), texto: ' ok ' };
+    const f = { ...DESPACHO_NOVO, hora: '10:00', local: 'x'.repeat(TAMANHO_ANDAMENTO.local + 1), texto: ' ok ' };
     // Então
     expect(errosDoAndamento(f)).toEqual({});
-    expect(dadosDoAndamento(f)).toEqual({ tipo: 'andamento', data: HOJE, hora: null, local: null, texto: 'ok' });
+    expect(dadosDoAndamento(f)).toEqual({ tipo: 'andamento', categoria: 'despacho', data: HOJE, hora: null, local: null, texto: 'ok' });
   });
 
   it('quando é audiência, então hora e local vão limpos, e voltam ao abrir de novo', () => {
     // Quando
-    const d = dadosDoAndamento({ tipo: 'audiencia', data: HOJE, hora: '14:30', local: ' Fórum ', texto: 'Conciliação' });
+    const d = dadosDoAndamento({ tipo: 'audiencia', categoria: 'audiencia', tipoDeAntes: null, data: HOJE, hora: '14:30', local: ' Fórum ', texto: 'Conciliação' });
     // Então
-    expect(d).toEqual({ tipo: 'audiencia', data: HOJE, hora: '14:30', local: 'Fórum', texto: 'Conciliação' });
-    expect(formDoAndamento(andamento(d))).toEqual({ tipo: 'audiencia', data: HOJE, hora: '14:30', local: 'Fórum', texto: 'Conciliação' });
+    expect(d).toEqual({ tipo: 'audiencia', categoria: 'audiencia', data: HOJE, hora: '14:30', local: 'Fórum', texto: 'Conciliação' });
+    expect(formDoAndamento(andamento(d))).toEqual({ tipo: 'audiencia', categoria: 'audiencia', tipoDeAntes: null, data: HOJE, hora: '14:30', local: 'Fórum', texto: 'Conciliação' });
   });
 
   it('quando deixa de ser intimação, então deixa de estar tratada; continuando intimação, nada muda nisso', () => {
@@ -77,6 +81,96 @@ describe('Lista de andamentos', () => {
     expect(linhaDoAndamento(a)).toBe('Audiência de 10/11/2026 às 14:30 em Fórum: Texto');
     expect(linhaDoAndamento(andamento({ tipo: 'andamento', data: '2026-11-10', texto: 'y'.repeat(200) }))).toBe('Andamento de 10/11/2026: ' + 'y'.repeat(200));
     expect(linhaDoAndamento(andamento({ data: '2026-11-10', texto: 'T', tratada_em: 'x' }))).toBe('Intimação de 10/11/2026: T (tratada)');
+  });
+
+  it('dado um andamento com tipo da lista pronta, quando vai para o histórico, então a linha começa por ele, como no banco (#362)', () => {
+    // Então
+    expect(linhaDoAndamento(andamento({ tipo: 'andamento', categoria: 'sentenca', data: '2026-11-10', texto: 'Procedente' }))).toBe('Sentença de 10/11/2026: Procedente');
+    expect(linhaDoAndamento(andamento({ tipo: 'andamento', categoria: 'peticao', data: '2026-11-10', texto: 'Réplica' }))).toBe('Petição de 10/11/2026: Réplica');
+  });
+});
+
+describe('Tipo do andamento na lista pronta (#362)', () => {
+  it('dado um andamento novo, quando a lista "Tipo" é mostrada, então tem só os seis tipos combinados com o dono, nesta ordem, sem nenhum escolhido', () => {
+    // Dado
+    const novo = andamentoNovo(HOJE);
+    // Então
+    expect(Object.values(CATEGORIAS_DE_ANDAMENTO).map(c => c.nome)).toEqual(['Despacho', 'Decisão', 'Sentença', 'Intimação', 'Petição', 'Audiência']);
+    expect(escolhasDoFormulario(novo)).toEqual(LISTA_PRONTA_DE_ANDAMENTOS);
+    expect(escolhasDoFormulario(novo).map(e => ESCOLHAS_DO_TIPO[e].nome)).toEqual(['Despacho', 'Decisão', 'Sentença', 'Intimação', 'Petição', 'Audiência']);
+    expect(escolhaDoTipo(novo)).toBeNull();
+  });
+
+  it.each([
+    ['perícia', 'pericia', 'Perícia'], ['andamento sem tipo', 'andamento', 'Andamento']
+  ] as const)('dado um(a) %s de antes, quando é mudado, então a lista mostra os seis e o tipo que ele já tem, com o nome da caixa', (_caso, tipo, nome) => {
+    // Dado
+    const a = andamento({ tipo, categoria: null });
+    // Quando
+    const f = formDoAndamento(a);
+    // Então
+    expect(escolhaDoTipo(f)).toBe(tipo);
+    expect(escolhasDoFormulario(f)).toEqual([...LISTA_PRONTA_DE_ANDAMENTOS, tipo]);
+    expect(ESCOLHAS_DO_TIPO[tipo].nome).toBe(nome);
+    expect(nomeDoAndamento(a)).toBe(nome);
+    expect(errosDoAndamento(f)).toEqual({});
+  });
+
+  it('dada uma intimação de antes, sem tipo da lista, quando é mudada, então a lista mostra só os seis, já em "Intimação"', () => {
+    // Quando
+    const f = formDoAndamento(andamento());
+    // Então
+    expect(escolhaDoTipo(f)).toBe('intimacao');
+    expect(escolhasDoFormulario(f)).toEqual(LISTA_PRONTA_DE_ANDAMENTOS);
+  });
+
+  it.each([
+    ['despacho', { tipo: 'andamento', categoria: 'despacho' }], ['sentenca', { tipo: 'andamento', categoria: 'sentenca' }],
+    ['intimacao', { tipo: 'intimacao', categoria: 'intimacao' }], ['audiencia', { tipo: 'audiencia', categoria: 'audiencia' }],
+  ] as const)('quando escolhe %s, então grava o tipo de sempre que combina e o da lista', (escolha, esperado) => {
+    // Quando
+    const par = tipoDaEscolha(escolha);
+    // Então
+    expect(par).toEqual(esperado);
+    expect(escolhaDoTipo({ ...par, tipoDeAntes: null })).toBe(escolha);
+    expect(categoriaCombina(par)).toBe(true);
+  });
+
+  it('dado um andamento de antes, sem tipo da lista, quando abre o formulário e a caixa, então aparece pelo tipo de sempre', () => {
+    // Então
+    expect(escolhaDoTipo(formDoAndamento(andamento()))).toBe('intimacao');
+    expect(escolhaDoTipo(formDoAndamento(andamento({ tipo: 'andamento' })))).toBe('andamento');
+    expect(nomeDoAndamento(andamento({ tipo: 'andamento' }))).toBe('Andamento');
+    expect(nomeDoAndamento(andamento({ tipo: 'pericia' }))).toBe('Perícia');
+  });
+
+  it('dado um andamento com tipo da lista, quando aparece e é lançado, então mostra o nome dele e o aviso certo', () => {
+    // Então
+    expect(nomeDoAndamento(andamento({ tipo: 'andamento', categoria: 'decisao' }))).toBe('Decisão');
+    expect(avisoDoLancamento({ tipo: 'andamento', categoria: 'despacho' })).toBe('Despacho lançado.');
+    expect(avisoDoLancamento({ tipo: 'andamento', categoria: 'decisao' })).toBe('Decisão lançada.');
+    expect(avisoDoLancamento({ tipo: 'andamento', categoria: null })).toBe('Andamento lançado.');
+    expect(ESCOLHAS_DO_TIPO.andamento.nome).toBe(nomeDoAndamento({ tipo: 'andamento', categoria: null }));
+  });
+
+  it('quando o par não combina, então não vale (como a regra do banco)', () => {
+    // Então
+    expect(categoriaCombina({ tipo: 'intimacao', categoria: 'despacho' })).toBe(false);
+    expect(categoriaCombina({ tipo: 'andamento', categoria: 'audiencia' })).toBe(false);
+    expect(categoriaCombina({ tipo: 'pericia', categoria: null })).toBe(true);
+  });
+
+  it('dado um despacho, quando a versão anterior do site muda só o tipo de sempre, então ele fica sem tipo da lista; mudando os dois, fica o novo', () => {
+    // Dado
+    const despacho = andamento({ tipo: 'andamento', categoria: 'despacho' });
+    // Quando
+    const soOTipo = comCategoriaAcertada(despacho, { tipo: 'intimacao' });
+    const osDois = comCategoriaAcertada(despacho, { tipo: 'intimacao', categoria: 'intimacao' });
+    const outroCampo = comCategoriaAcertada(despacho, { texto: 'Novo texto' });
+    // Então
+    expect(soOTipo).toMatchObject({ tipo: 'intimacao', categoria: null });
+    expect(osDois).toMatchObject({ tipo: 'intimacao', categoria: 'intimacao' });
+    expect(outroCampo).toMatchObject({ tipo: 'andamento', categoria: 'despacho', texto: 'Novo texto' });
   });
 });
 

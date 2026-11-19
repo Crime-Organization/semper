@@ -736,9 +736,16 @@ export interface Processo {
 /** O que aparece de uma tarefa ligada; null quando quem está logado não pode vê-la. */
 export type TarefaDoAcompanhamento = { id: string; codigo: string } | null;
 export type TipoDeAndamento = 'andamento' | 'intimacao' | 'audiencia' | 'pericia';
+/**
+ * O tipo do andamento na lista pronta (#362), igual para todos os escritórios: o nome de cada um e com que tipo de sempre ele
+ * combina ficam em CATEGORIAS_DE_ANDAMENTO (regras/andamentos.ts). Vazio: os andamentos de antes, a perícia e o andamento sem tipo.
+ */
+export type CategoriaDeAndamento = 'despacho' | 'decisao' | 'sentenca' | 'intimacao' | 'peticao' | 'audiencia';
 /** O que aconteceu ou vai acontecer no processo, lançado à mão. */
 export interface AndamentoDeProcesso {
   id: string; processo_id: string; tipo: TipoDeAndamento;
+  /** O tipo da lista pronta (#362); null nos andamentos de antes, na perícia e no andamento sem tipo. */
+  categoria: CategoriaDeAndamento | null;
   /** aaaa-mm-dd */
   data: string;
   /** hh:mm, só de audiência e perícia. */
@@ -750,7 +757,8 @@ export interface AndamentoDeProcesso {
   tarefa_id: string | null; tarefa: TarefaDoAcompanhamento;
   criado_por: string | null; criado_em: string; atualizado_em: string;
 }
-export type DadosAndamento = Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto'>;
+/** O andamento novo. Sem o tipo da lista pronta (categoria ausente), ele fica sem ele, como no banco (#362). */
+export type DadosAndamento = Pick<AndamentoDeProcesso, 'tipo' | 'data' | 'hora' | 'local' | 'texto'> & Partial<Pick<AndamentoDeProcesso, 'categoria'>>;
 export type MudancaNoAndamento = Partial<DadosAndamento & Pick<AndamentoDeProcesso, 'tratada_em' | 'tarefa_id'>>;
 /** Prazo do processo. O último dia (final) é o que vale; o resto diz como ele foi contado (vazio: digitado à mão). */
 export interface PrazoDeProcesso {
@@ -1076,7 +1084,7 @@ export interface DadosEquipe {
 }
 
 /** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
-export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos' | 'anotacoes';
+export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos' | 'anotacoes' | 'processos';
 export interface Comentario {
   id: string;
   autor_id: string | null;   // null: o usuário foi removido do sistema
@@ -1106,6 +1114,8 @@ export interface ComentarioDaMensagem {
   cartao_id: string;
   cartao_codigo: string;
   cartao_nome: string | null;
+  /** Só no comentário de um processo (#362): a página do cartão depende do tipo dele. Nos outros módulos, null. */
+  tipo_do_processo: TipoProcesso | null;
 }
 /** A menção, o aviso de prazo e, do pedido para participar (#363), o pedido (para quem aprova) e a resposta (para quem pediu). */
 export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta';

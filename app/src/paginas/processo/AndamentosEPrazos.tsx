@@ -1,6 +1,8 @@
-// No cartão do processo: o alerta dos prazos vencidos e dos que vencem hoje, e as seções de prazos e de andamentos.
-// Lê tudo ao abrir o cartão, para o alerta e os contadores aparecerem mesmo com as seções fechadas.
-import { useCallback, useEffect, useRef, useState } from 'react';
+// No cartão do processo: o alerta dos prazos vencidos e dos que vencem hoje, a seção de prazos (no corpo do cartão) e a de
+// andamentos (desde a #362, na coluna da direita, entre os comentários e as anotações; ao lado, no pé do cartão).
+// As duas seções leem juntas, uma vez, ao abrir o cartão (useAcompanhamento): o alerta e os contadores aparecem mesmo com as
+// seções fechadas, e a intimação dos andamentos sabe dos prazos que nasceram dela.
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SD, type AndamentoDeProcesso, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { alertaDosPrazos, aTratar } from '../../regras/andamentos';
 import { falha, useMudancas } from '../../ui/avisos';
@@ -12,16 +14,21 @@ import { Prazos } from './Prazos';
 import './AndamentosEPrazos.css';
 
 interface Lido { andamentos: AndamentoDeProcesso[]; prazos: PrazoDeProcesso[]; orgaos: Orgao[] }
+/** O que as duas seções recebem: o que foi lido (null: lendo; texto: o erro da primeira leitura) e como reler. */
+export interface Acompanhamento { lido: Lido | string | null; mudou: () => Promise<void> }
 
-export function AndamentosEPrazos({ processo: p, aoMudar, soLeitura = false }: { processo: Processo; aoMudar: () => void; soLeitura?: boolean }) {
+/** Lê os andamentos, os prazos e os órgãos do processo; aoMudar avisa o cartão (o histórico) depois de cada mudança. */
+export function useAcompanhamento(processoId: string, aoMudar: () => void): Acompanhamento {
   const [lido, setLido] = useState<Lido | string | null>(null);
   // Só vale a leitura mais recente: uma resposta atrasada não pode trocar o que já está na tela por algo mais velho.
   const ultimaLeitura = useRef(0);
   const jaLeu = useRef(false);
+  const avisar = useRef(aoMudar);
+  avisar.current = aoMudar;
   const carregar = useCallback(async () => {
     const esta = ++ultimaLeitura.current;
     try {
-      const [andamentos, prazos, orgaos] = await Promise.all([SD.processoAndamentos(p.id), SD.processoPrazos(p.id), SD.orgaosListar()]);
+      const [andamentos, prazos, orgaos] = await Promise.all([SD.processoAndamentos(processoId), SD.processoPrazos(processoId), SD.orgaosListar()]);
       if (esta !== ultimaLeitura.current) return;
       jaLeu.current = true;
       setLido({ andamentos, prazos, orgaos });
@@ -30,27 +37,51 @@ export function AndamentosEPrazos({ processo: p, aoMudar, soLeitura = false }: {
       // Numa releitura que falhou, a tela fica com o que já tinha (e o formulário aberto não some).
       if (jaLeu.current) falha(e); else setLido((e as Error).message);
     }
-  }, [p.id]);
+  }, [processoId]);
   useEffect(() => { void carregar(); }, [carregar]);
   // Depois de desfazer: mostra como ficou.
-  useMudancas(() => { void carregar(); aoMudar(); });
+  useMudancas(() => { void carregar(); avisar.current(); });
+  const mudou = useCallback(async () => { avisar.current(); await carregar(); }, [carregar]);
+  return { lido, mudou };
+}
 
+/** O que a seção mostra enquanto lê (o carregando), se a primeira leitura falhou (o erro) e, com tudo lido, o conteúdo dela. */
+function ConformeLido({ lido, children }: { lido: Acompanhamento['lido']; children: (l: Lido) => ReactNode }) {
   if (lido === null) return <Carregando />;
   if (typeof lido === 'string') return <Aviso tipo="erro">{lido}</Aviso>;
-  const { andamentos, prazos, orgaos } = lido;
-  const mudou = async () => { aoMudar(); await carregar(); };
-  const somenteLer = !!p.arquivado_em || soLeitura;
-  const orgao = orgaos.find(o => o.sigla === p.orgao) ?? null;
-  const alerta = alertaDosPrazos(prazos, hojeISO());
-  const abertos = prazos.filter(z => !z.concluido_em).length, aTratarAgora = andamentos.filter(aTratar).length;
+  return children(lido);
+}
 
+/** O órgão do processo, para a contagem dos prazos. */
+const orgaoDe = (p: Processo, orgaos: Orgao[]) => orgaos.find(o => o.sigla === p.orgao) ?? null;
+
+/**
+ * O alerta dos prazos e a seção de prazos, no corpo do cartão. A seção aparece já enquanto lê (com o "carregando" dentro), para ficar
+ * em primeiro lugar no grupo do cartão: o "Expandir tudo" fica acima dela, e não da seção seguinte.
+ */
+export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false }: { processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean }) {
+  const prazos = lido && typeof lido !== 'string' ? lido.prazos : null;
+  const alerta = prazos && alertaDosPrazos(prazos, hojeISO());
   return <>
     {alerta && <Aviso tipo="erro">{alerta}</Aviso>}
-    <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={abertos}>
-      <Prazos processo={p} prazos={prazos} orgao={orgao} somenteLer={somenteLer} aoMudar={mudou} />
-    </Recolhivel>
-    <Recolhivel titulo={aTratarAgora ? `Andamentos (${aTratarAgora} a tratar)` : 'Andamentos'} icone="relogio" preferencia="processos.cartao.andamentos" contador={andamentos.length}>
-      <Andamentos processo={p} andamentos={andamentos} prazos={prazos} orgao={orgao} somenteLer={somenteLer} aoMudar={mudou} />
+    <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={prazos?.filter(z => !z.concluido_em).length}>
+      <ConformeLido lido={lido}>
+        {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={!!p.arquivado_em || soLeitura} aoMudar={mudou} />}
+      </ConformeLido>
     </Recolhivel>
   </>;
+}
+
+/**
+ * A seção dos andamentos, na coluna da direita (#362): a linha do tempo, com o número mesmo fechada e, no título, quantas intimações
+ * estão a tratar. Como as outras seções da coluna, começa recolhida, e a escolha fica guardada com a chave da coluna.
+ */
+export function AndamentosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false }: { processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean }) {
+  const andamentos = lido && typeof lido !== 'string' ? lido.andamentos : null;
+  const aTratarAgora = andamentos?.filter(aTratar).length ?? 0;
+  return <Recolhivel titulo={aTratarAgora ? `Andamentos (${aTratarAgora} a tratar)` : 'Andamentos'} icone="relogio" preferencia="processos.coluna.andamentos" contador={andamentos?.length}>
+    <ConformeLido lido={lido}>
+      {l => <Andamentos processo={p} andamentos={l.andamentos} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={!!p.arquivado_em || soLeitura} aoMudar={mudou} />}
+    </ConformeLido>
+  </Recolhivel>;
 }

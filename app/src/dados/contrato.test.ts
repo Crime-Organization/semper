@@ -1224,6 +1224,60 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
         });
       });
+
+      describe('Nos processos (#362)', () => {
+        const processoNovo = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
+          const { id: cliente } = await criar(marca());
+          return SD.processoCriar({ tipo: 'judicial', numero: marca(), responsavel_id: 'u-ana', clientes: [cliente], ...extra });
+        };
+
+        it('quando alguém comenta num processo, então o comentário vem no topo, só dele, e quem foi mencionado recebe a mensagem, que leva à página do tipo', async () => {
+          // Dado: dois processos, a Ana responsável pelos dois
+          const { id } = await processoNovo({ tipo: 'administrativo' }), { id: outro } = await processoNovo();
+          await SD.comentarioCriar('processos', id, 'Primeiro');
+          // Quando
+          const novo = await SD.comentarioCriar('processos', id, '  Veja a decisão, @ana.lima  ');
+          // Então
+          expect((await SD.comentariosListar('processos', id)).map(c => c.texto)).toEqual(['Veja a decisão, @ana.lima', 'Primeiro']);
+          expect(novo).toMatchObject({ autor_id: 'u-master', mencoes: ['u-ana'] });
+          expect(await SD.comentariosListar('processos', outro)).toEqual([]);
+          const entrarComo = (quem: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(quem);
+          entrarComo('u-ana');
+          const mensagem = (await SD.mensagensListar()).find(m => m.comentario?.id === novo.id);
+          entrarComo('u-master');
+          expect(mensagem?.comentario).toMatchObject({ modulo: 'processos', cartao_id: id, tipo_do_processo: 'administrativo' });
+        });
+
+        it('quando o comentário menciona quem não está no processo, então salvar é recusado com a mensagem do banco; quem está nele pode', async () => {
+          // Dado
+          const { id } = await processoNovo({ responsavel_id: 'u-master' });
+          // Quando
+          const [deFora, administradora] = await Promise.allSettled([
+            SD.comentarioCriar('processos', id, 'Veja isto, @bruno.souza'), SD.comentarioCriar('processos', id, 'Veja isto, @ana.lima')
+          ]);
+          // Então
+          expect(deFora).toMatchObject({ status: 'rejected', reason: { message: 'Não é possível mencionar Bruno Exemplo Souza neste processo: inclua essa pessoa como colaboradora antes.' } });
+          expect(administradora).toMatchObject({ status: 'fulfilled', value: { mencoes: ['u-ana'] } });
+          // Quando: o Bruno entra como colaborador
+          await SD.processoAtualizar(id, { colaboradores: ['u-bruno'] });
+          // Então
+          await expect(SD.comentarioCriar('processos', id, 'Agora sim, @bruno.souza')).resolves.toMatchObject({ mencoes: ['u-bruno'] });
+        });
+
+        it('quando o processo é arquivado, então os comentários ficam; quando é excluído, então vão junto', async () => {
+          // Dado
+          const { id } = await processoNovo();
+          await SD.comentarioCriar('processos', id, 'Comentário que vai junto');
+          // Quando
+          await SD.processosArquivar([id], true);
+          // Então
+          expect((await SD.comentariosListar('processos', id)).map(c => c.texto)).toEqual(['Comentário que vai junto']);
+          // Quando
+          await SD.processosExcluir([id]);
+          // Então
+          expect(await SD.comentariosListar('processos', id)).toEqual([]);
+        });
+      });
     });
 
     describe('Demandas', () => {
@@ -2175,6 +2229,58 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(await SD.processoAndamentos(p.id)).toEqual([]);
         expect(await SD.tarefaObter(t2.id)).toMatchObject({ processo_id: null, processo: null });
+      });
+
+      describe('Tipo da lista pronta (#362)', () => {
+        it('quando lança um despacho, então ele volta com o tipo, e o histórico começa por ele; sem o tipo, fica vazio, como os de antes', async () => {
+          // Dado
+          const { id } = await novoProcesso();
+          // Quando
+          const despacho = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, categoria: 'despacho', texto: 'Cite-se' });
+          const semTipo = await SD.processoAndamentoCriar(id, ANDAMENTO);
+          // Então
+          expect(despacho).toMatchObject({ tipo: 'andamento', categoria: 'despacho' });
+          expect(semTipo).toMatchObject({ tipo: 'andamento', categoria: null });
+          expect(await historico(id)).toContainEqual({ andamento: { de: null, para: 'Despacho de 10/11/2026: Cite-se' } });
+        });
+
+        it.each([
+          ['despacho numa intimação', { tipo: 'intimacao' as const, categoria: 'despacho' as const }],
+          ['audiência num andamento comum', { categoria: 'audiencia' as const }],
+          ['um tipo fora da lista', { categoria: 'citacao' as unknown as 'despacho' }]
+        ])('quando o tipo da lista é %s, então é recusado', async (_caso, extra) => {
+          // Dado
+          const { id } = await novoProcesso();
+          // Quando
+          const salvar = SD.processoAndamentoCriar(id, { ...ANDAMENTO, ...extra });
+          // Então
+          await expect(salvar).rejects.toThrow(INVALIDO);
+        });
+
+        it('quando muda o despacho para sentença, então o tipo muda e o histórico mostra os dois; desfazer volta o despacho', async () => {
+          // Dado
+          const { id } = await novoProcesso();
+          const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, categoria: 'despacho', texto: 'Texto' });
+          // Quando
+          const mudado = await SD.processoAndamentoAtualizar(a.id, { categoria: 'sentenca' });
+          // Então
+          expect(mudado.categoria).toBe('sentenca');
+          expect(await historico(id)).toContainEqual({ andamento: { de: 'Despacho de 10/11/2026: Texto', para: 'Sentença de 10/11/2026: Texto' } });
+          // Quando
+          await SD.processoAndamentoAtualizar(a.id, { tipo: 'andamento', categoria: 'despacho' });
+          // Então
+          expect((await SD.processoAndamentos(id))[0].categoria).toBe('despacho');
+        });
+
+        it('quando a versão anterior do site muda só o tipo de sempre de um despacho para intimação, então a mudança vale e o andamento fica sem tipo da lista', async () => {
+          // Dado
+          const { id } = await novoProcesso();
+          const a = await SD.processoAndamentoCriar(id, { ...ANDAMENTO, categoria: 'despacho' });
+          // Quando
+          const mudado = await SD.processoAndamentoAtualizar(a.id, { tipo: 'intimacao' });
+          // Então
+          expect(mudado).toMatchObject({ tipo: 'intimacao', categoria: null });
+        });
       });
     });
 
@@ -7171,6 +7277,18 @@ describe('Menções sem revelar o item a quem não o vê (banco fictício, #365)
     expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(tentativas.map(() => RECUSA));
     entrarComo('u-master');
     expect(await SD.comentariosListar('demandas', demanda.id)).toEqual([]);
+  });
+
+  it('dado Bruno fora de um processo, quando comenta nele com ou sem menção, então recebe sempre a recusa de quem não tem permissão, sem nome (#362)', async () => {
+    // Dado
+    const { id: cliente } = await SD.pessoaCriar({ tipo: 'pf', nome: 'CLIENTE DO PROCESSO SEM O BRUNO' });
+    const processo = await SD.processoCriar({ tipo: 'judicial', numero: '0009999-11.2026.8.13.0024', responsavel_id: 'u-ana', clientes: [cliente] });
+    entrarComo('u-bruno');
+    // Quando
+    const tentativas = await Promise.allSettled([processo.id, 'nao-existe'].flatMap(id => TEXTOS.map(texto => SD.comentarioCriar('processos', id, texto))));
+    // Então
+    expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(tentativas.map(() => RECUSA));
+    expect(await SD.comentariosListar('processos', processo.id)).toEqual([]);
   });
 
   it('dado Bruno fora de um contrato, quando comenta nele com uma menção a quem não é advogado, então recebe a recusa de quem não tem permissão, sem nome', async () => {
