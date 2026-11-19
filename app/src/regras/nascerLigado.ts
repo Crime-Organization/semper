@@ -26,20 +26,24 @@ export type Nascimento = 'demanda da tarefa' | 'demanda do processo' | 'contrato
 /** O que nasce já ligado à anotação, pelo "+ Novo…" da seção "Ligada a" (a pessoa nova tem o cadastro dela: regras/origemDaPessoa.ts). */
 export type QueNasceNaAnotacao = 'tarefa' | 'demanda' | 'compromisso' | 'contrato';
 /**
- * A origem como o cadastro a usa: o aviso do topo e o cartão para onde volta. Arquivada, ela não passa nada nem é ligada. Cheia (a
- * anotação já ligada a ITENS_DA_ANOTACAO itens, o máximo do banco), ela também não é ligada.
+ * A origem como o cadastro a usa: o aviso do topo e o cartão para onde volta. Arquivada, ela não passa nada nem é ligada. Sem acesso
+ * (a anotação que a pessoa só lê: ela não liga itens nela) ou cheia (a anotação já ligada a ITENS_DA_ANOTACAO itens, o máximo do
+ * banco), ela também não é ligada.
  */
-export interface OrigemDoItem { nascimento: Nascimento; id: string; codigo: string; nome: string; cartao: string; arquivada: boolean; cheia?: boolean }
+export interface OrigemDoItem {
+  nascimento: Nascimento; id: string; codigo: string; nome: string; cartao: string; arquivada: boolean; semAcesso?: boolean; cheia?: boolean
+}
 /** Um texto em volta do código e do nome da origem: "<antes> <b>código</b> (nome)<depois>". */
 export type TextoEmVolta = readonly [antes: string, depois: string];
 /** Por que a origem não aceita o item novo, na ordem em que se confere; sem nenhuma, ele nasce ligado a ela. */
-const RECUSAS = ['arquivada', 'cheia'] as const;
+const RECUSAS = ['arquivada', 'semAcesso', 'cheia'] as const;
 type EstadoDaOrigem = typeof RECUSAS[number] | 'nasce';
-type TextosDaOrigem = Record<'nasce' | 'arquivada', TextoEmVolta> & Partial<Record<'cheia', TextoEmVolta>>;
+type TextosDaOrigem = Record<'nasce' | 'arquivada', TextoEmVolta> & Partial<Record<'semAcesso' | 'cheia', TextoEmVolta>>;
 /** Os textos do item que nasce de uma anotação: "Esta tarefa", "a tarefa nova" e como ele fica ("ligada"). */
 const daAnotacao = (este: string, oNovo: string, comoFica: string): TextosDaOrigem => ({
   nasce: [`${este} nasce da anotação`, ` e fica ${comoFica} a ela.`],
   arquivada: ['A anotação', ` está arquivada: ${oNovo} não fica ${comoFica} a ela.`],
+  semAcesso: ['Você só pode ler a anotação', `: ${oNovo} não fica ${comoFica} a ela.`],
   cheia: ['A anotação', ` já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo: ${oNovo} não fica ${comoFica} a ela.`]
 });
 const TEXTOS_DA_ORIGEM: Record<Nascimento, TextosDaOrigem> = {
@@ -57,9 +61,9 @@ const TEXTOS_DA_ORIGEM: Record<Nascimento, TextosDaOrigem> = {
   'contrato da anotação': daAnotacao('Este contrato', 'o contrato novo', 'ligado')
 };
 const estadoDaOrigem = (o: OrigemDoItem): EstadoDaOrigem => RECUSAS.find(r => o[r]) ?? 'nasce';
-/** A origem não aceita o item novo (arquivada ou cheia): o aviso do topo diz isso, e o item nasce sem a ligação. */
+/** A origem não aceita o item novo (arquivada, sem acesso ou cheia): o aviso do topo diz isso, e o item nasce sem a ligação. */
 export const origemRecusada = (o: OrigemDoItem) => estadoDaOrigem(o) !== 'nasce';
-/** O aviso do topo do cadastro: de onde o item nasce ou, com a origem arquivada (ou cheia), que ela não vale. */
+/** O aviso do topo do cadastro: de onde o item nasce ou, com a origem arquivada (sem acesso ou cheia), que ela não vale. */
 export const textoDaOrigem = (o: OrigemDoItem): TextoEmVolta => {
   const textos = TEXTOS_DA_ORIGEM[o.nascimento];
   return textos[estadoDaOrigem(o)] ?? textos.nasce;
@@ -83,15 +87,16 @@ export const origemDoProcesso = (
 
 /**
  * A anotação como origem da tarefa, da demanda, do compromisso ou do contrato novo. `itens`: a quantos itens ela já está ligada
- * (os que a pessoa vê e os que não vê), para saber se ela ainda aceita mais um.
+ * (os que a pessoa vê e os que não vê), para saber se ela ainda aceita mais um; `ligaNela`: se a pessoa liga itens nela
+ * (ligaNaAnotacao, em regras/anotacao.ts: quem só a lê, não).
  */
-export const origemDaAnotacao = (a: Arquivavel & { titulo: string }, itens: number, nasce: QueNasceNaAnotacao): OrigemDoItem => ({
+export const origemDaAnotacao = (a: Arquivavel & { titulo: string }, itens: number, nasce: QueNasceNaAnotacao, ligaNela: boolean): OrigemDoItem => ({
   nascimento: `${nasce} da anotação`, id: a.id, codigo: a.codigo, nome: a.titulo, cartao: cartaoDeOrigem({ modulo: 'anotacoes', id: a.id }),
-  arquivada: !!a.arquivado_em, cheia: itens >= ITENS_DA_ANOTACAO
+  arquivada: !!a.arquivado_em, semAcesso: !a.arquivado_em && !ligaNela, cheia: itens >= ITENS_DA_ANOTACAO
 });
 
 /**
- * Ao salvar: se o item novo é ligado à origem e para onde a tela vai. Liga com a origem ativa (e não cheia) e sem `semLigar` (o motivo, já
+ * Ao salvar: se o item novo é ligado à origem e para onde a tela vai. Liga com a origem que aceita o item (ativa, com acesso e não cheia) e sem `semLigar` (o motivo, já
  * mostrado no cadastro, de a ligação ser recusada); aí volta ao cartão de origem, onde o item aparece. Senão, abre o cartão do
  * item novo (`doCriado`), já que no da origem ele não estaria.
  */

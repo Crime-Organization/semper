@@ -1,10 +1,10 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { CLIENTES_MAXIMOS } from '../dados/limites';
+import { CLIENTES_MAXIMOS, ITENS_DA_ANOTACAO } from '../dados/limites';
 import { RecusaDaLigacao } from './ligarExistente';
 import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, CONTRATO_FORA_DA_TAREFA, motivoDasTarefasParaOContratoNovo, motivoDoContratoDaTarefa,
-  origemDaDemanda, origemDaTarefa, origemDoProcesso, TAREFA_DA_DEMANDA_EM_CONTRATO, textoDaOrigem
+  origemDaAnotacao, origemDaDemanda, origemDaTarefa, origemDoProcesso, origemRecusada, TAREFA_DA_DEMANDA_EM_CONTRATO, textoDaOrigem
 } from './nascerLigado';
 describe('Os clientes que o item novo herda da origem', () => {
   it('dadas as pessoas da origem, quando o cadastro abre, então elas vêm na mesma ordem, sem repetir', () => {
@@ -147,5 +147,50 @@ describe('O aviso da ligação que falhou depois de gravar', () => {
     const aviso = avisoDaLigacaoQueFalhou('tarefa na demanda', 'T1', undefined);
     // Então
     expect(aviso).toBe('Não foi possível ligar a tarefa T1 à demanda nova. Ligue pelo cartão.');
+  });
+});
+
+describe('A anotação como origem do item novo (o "+ Novo…" da seção "Ligada a")', () => {
+  const anotacao = (arquivado_em: string | null = null) => ({ id: 'an1', codigo: 'AN-0001', titulo: 'Reunião com o cliente', arquivado_em });
+
+  it('dada uma anotação ativa, com lugar e que a pessoa altera, quando a tarefa nasce dela, então fica ligada e a tela volta à anotação', () => {
+    // Dado
+    const origem = origemDaAnotacao(anotacao(), 2, 'tarefa', true);
+    // Quando
+    const salvar = aoSalvarPelaOrigem(origem, '', '/tarefas/?id=t9');
+    // Então
+    expect(textoDaOrigem(origem)).toEqual(['Esta tarefa nasce da anotação', ' e fica ligada a ela.']);
+    expect(origemRecusada(origem)).toBe(false);
+    expect(salvar).toEqual({ liga: true, volta: '/documentos/?id=an1' });
+  });
+
+  it.each([
+    ['arquivada', anotacao('2026-11-01'), 0, true, 'A anotação', ' está arquivada: o contrato novo não fica ligado a ela.'],
+    ['só para ler', anotacao(), 0, false, 'Você só pode ler a anotação', ': o contrato novo não fica ligado a ela.'],
+    ['cheia', anotacao(), ITENS_DA_ANOTACAO, true, 'A anotação', ` já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo: o contrato novo não fica ligado a ela.`]
+  ])('dada uma anotação %s, quando o contrato nasce dela, então o aviso diz que ele não fica ligado e a tela vai ao contrato novo',
+    (_caso, a, itens, ligaNela, antes, depois) => {
+      // Dado
+      const origem = origemDaAnotacao(a, itens, 'contrato', ligaNela);
+      // Quando
+      const salvar = aoSalvarPelaOrigem(origem, '', '/contratos/?id=k9');
+      // Então
+      expect(origemRecusada(origem)).toBe(true);
+      expect(textoDaOrigem(origem)).toEqual([antes, depois]);
+      expect(salvar).toEqual({ liga: false, volta: '/contratos/?id=k9' });
+    });
+
+  it('dada uma anotação arquivada que a pessoa também não altera, quando o aviso é montado, então ele diz que ela está arquivada', () => {
+    // Dado / Quando
+    const origem = origemDaAnotacao(anotacao('2026-11-01'), 0, 'demanda', false);
+    // Então
+    expect(textoDaOrigem(origem)[1]).toBe(' está arquivada: a demanda nova não fica ligada a ela.');
+  });
+
+  it('dado um compromisso que não conseguiu ser ligado, quando o aviso do pé é montado, então ele diz a anotação e o compromisso novo', () => {
+    // Dado / Quando
+    const aviso = avisoDaLigacaoQueFalhou('anotação: compromisso', 'AN-0001', undefined);
+    // Então
+    expect(aviso).toBe('Não foi possível ligar a anotação AN-0001 ao compromisso novo. Ligue pelo cartão.');
   });
 });

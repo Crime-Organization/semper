@@ -10,6 +10,8 @@ import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Anotacao, DadosAnotacoes, DadosComentarios, DadosDemandas, DadosEtiquetas, DadosPastas, DadosSessao, Demanda, Etiqueta, Pasta } from '../dados';
+import { ITENS_DA_ANOTACAO } from '../dados/limites';
+import { NOVO_ESPERA_A_ANOTACAO } from '../regras/novoNaAnotacao';
 import { acharEditor, editorDe, escreverNoEditor, textoDoEditor } from '../testes/editorAoVivo';
 import { Avisos } from '../ui/avisos';
 import { SEM_SAIR_DA_TELA } from '../ui/AvisoAoSair';
@@ -572,6 +574,67 @@ describe('Ligar um item pela seção "Ligada a" (#341)', () => {
   });
 });
 
+// O "+ Novo…" de "Ligada a" (#376): ao lado de "Ligar a outro item", com as mesmas condições (quem liga itens e a anotação com lugar).
+describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
+  beforeEach(() => {
+    iniciarPreferencias({});
+    anotacaoObter.mockReset();
+    anotacaoItens.mockReset();
+    anotacaoItens.mockResolvedValue({ visiveis: [], ocultos: 0 });
+  });
+  // A anotação cheia de um caso não passa para os casos seguintes.
+  afterEach(() => { anotacaoItens.mockResolvedValue({ visiveis: [], ocultos: 0 }); });
+  /** Abre o cartão e a seção "Ligada a". */
+  async function abrirLigadaA() {
+    abrirCartao();
+    const secao = await screen.findByRole('button', { name: /^Ligada a/ });
+    if (secao.getAttribute('aria-expanded') === 'false') await userEvent.click(secao);
+  }
+
+  it('dado quem altera a anotação, quando abre "Ligada a", então o "+ Novo…" fica ao lado de "Ligar a outro item" e abre o menu', async () => {
+    // Dado
+    anotacaoObter.mockImplementation(async () => anotacao(''));
+    // Quando
+    await abrirLigadaA();
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo…' }));
+    // Então
+    expect(screen.getByRole('button', { name: /^Ligar a (outro|um) item/ })).toBeInTheDocument();
+    // (o escritório destes casos não tem módulos ligados: só as pessoas, que existem sempre)
+    expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).toEqual(['Pessoa']);
+  });
+
+  it('dada a anotação de outra pessoa, que esta só lê, quando abre "Ligada a", então não há "+ Novo…"', async () => {
+    // Dado
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(''), criado_por: 'u-bruno', responsavel_id: 'u-bruno' }));
+    // Quando
+    await abrirLigadaA();
+    // Então
+    expect(await screen.findByText('Esta anotação não está ligada a nenhum item.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+  });
+
+  it('dada a anotação arquivada, quando abre "Ligada a", então não há "+ Novo…"', async () => {
+    // Dado
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(''), arquivado_em: '2026-11-15T12:00:00Z', arquivado_por: 'u-mateus' }));
+    // Quando
+    await abrirLigadaA();
+    // Então
+    expect(await screen.findByText('Esta anotação não está ligada a nenhum item.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+  });
+
+  it('dada a anotação já ligada ao máximo de itens, quando abre "Ligada a", então não há "+ Novo…", e a nota diz o máximo', async () => {
+    // Dado
+    anotacaoObter.mockImplementation(async () => anotacao(''));
+    anotacaoItens.mockResolvedValue({ visiveis: [], ocultos: ITENS_DA_ANOTACAO });
+    // Quando
+    await abrirLigadaA();
+    // Então
+    expect(await screen.findByText(`A anotação já está ligada a ${ITENS_DA_ANOTACAO} itens, o máximo.`)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Novo…' })).not.toBeInTheDocument();
+  });
+});
+
 // A anotação nova (#369, pedido do dono): sem tela própria, ela abre nesta mesma janela, com o cursor no título, e vai ao banco
 // sozinha quando a pessoa escreve algo no título ou no texto. A regra mudou: antes, "Salvar anotação" e Ctrl+Enter a criavam.
 describe('A anotação nova, na mesma janela da anotação aberta (#369)', () => {
@@ -901,6 +964,24 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     // Então
     expect(await screen.findByText(/O item de onde você veio não foi encontrado/)).toBeInTheDocument();
     expect(screen.getByText('Ainda não está ligada a nenhum item.')).toBeInTheDocument();
+  });
+
+  it('dada a anotação nova, quando ainda não foi ao banco, então o "+ Novo…" espera; quando a pessoa escreve o título, então ele abre o menu (#376)', async () => {
+    // Dado
+    abrirNova();
+    const esperando = screen.getByRole('button', { name: 'Novo…' });
+    expect(esperando).toHaveAttribute('aria-disabled', 'true');
+    expect(esperando).toHaveAccessibleDescription(NOVO_ESPERA_A_ANOTACAO);
+    await userEvent.click(esperando);
+    expect(screen.queryByRole('menu', { name: 'Novo item ligado a esta anotação' })).not.toBeInTheDocument();
+    // Quando: o título, que saiu da edição com o clique, volta a ela com um clique em "Sem título"
+    await userEvent.click(screen.getByRole('button', { name: 'Sem título' }));
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    // Então
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Novo…' })).not.toHaveAttribute('aria-disabled'));
+    await userEvent.click(screen.getByRole('button', { name: 'Novo…' }));
+    expect(screen.getByRole('menu', { name: 'Novo item ligado a esta anotação' })).toBeInTheDocument();
   });
 });
 

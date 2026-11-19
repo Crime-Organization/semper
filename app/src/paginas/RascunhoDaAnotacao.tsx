@@ -25,6 +25,7 @@ import { LigarItem } from '../ui/LigarItem';
 import { CaminhoDaPasta } from '../ui/Pastas';
 import { useCtx } from '../ui/sessao';
 import { desfazerNoItem } from './equipeNoCartao';
+import { NovoNaAnotacao } from './NovoNaAnotacao';
 
 /** De onde a anotação nova vem: a pasta em que ela nasce e o item a que ela nasce ligada (null: nenhum). */
 export interface AnotacaoNova { pasta: string | null; origem: ItemParaLigar | null }
@@ -172,6 +173,8 @@ export function LigadosDoRascunho({ rascunho }: { rascunho: RascunhoDaAnotacao }
       ? <Nota>A anotação já vai ligada a {ITENS_DA_ANOTACAO} itens, o máximo.</Nota>
       : <div className="ligados-acoes">
         <LigarItem modulos={modulos} ligados={itens} rotulo={itens.length ? 'Ligar a outro item' : 'Ligar a um item'} aoEscolher={rascunho.ligar} />
+        {/* O "+ Novo…" espera a anotação ir ao banco: só então há a que ligar o item novo. */}
+        <NovoNaAnotacao modulos={modulos} anotacaoId={null} />
       </div>}
   </>;
 }

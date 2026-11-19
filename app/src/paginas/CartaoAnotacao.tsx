@@ -55,6 +55,7 @@ import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
 import { plural } from './importarPessoas/textos';
+import { NovoNaAnotacao } from './NovoNaAnotacao';
 import { LigadosDoRascunho, TopoDoRascunho, useRascunhoDaAnotacao, type AnotacaoNova } from './RascunhoDaAnotacao';
 import './Documentos.css';
 
@@ -614,6 +615,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
             }))} />
             {podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && <div className="ligados-acoes">
               <LigarItem modulos={modulos} ligados={itens.visiveis} aoEscolher={ligar} />
+              <NovoNaAnotacao modulos={modulos} anotacaoId={a.id} itens={itens.visiveis} />
             </div>}
             {podeLigar && (totalLigados ?? 0) >= ITENS_DA_ANOTACAO && <Nota>A anotação já está ligada a {ITENS_DA_ANOTACAO} itens, o máximo.</Nota>}
           </>}

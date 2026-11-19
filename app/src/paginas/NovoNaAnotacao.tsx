@@ -26,11 +26,11 @@ interface Props {
   modulos: readonly ModuloDaAnotacao[];
   /** A anotação gravada; null na anotação nova, que ainda não foi ao banco (o botão espera). */
   anotacaoId: string | null;
-  /** Os itens já ligados (os que a pessoa vê): com uma pessoa só, ela já vem no cadastro. */
-  itens: readonly Pick<ItemDaAnotacao, 'modulo' | 'id' | 'arquivado_em'>[];
+  /** Os itens já ligados (os que a pessoa vê): com uma pessoa só, ela já vem no cadastro. Na anotação nova, nenhum conta. */
+  itens?: readonly Pick<ItemDaAnotacao, 'modulo' | 'id' | 'arquivado_em'>[];
 }
 
-export function NovoNaAnotacao({ modulos, anotacaoId, itens }: Props) {
+export function NovoNaAnotacao({ modulos, anotacaoId, itens = [] }: Props) {
   const navegar = useNavigate();
   const [botao, setBotao] = useState<HTMLButtonElement | null>(null);
   const idDoMotivo = useId();

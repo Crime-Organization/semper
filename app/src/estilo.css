@@ -226,10 +226,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .btn-sm { height: 36px; padding: 0 16px; font-size: 14px }
 .btn:disabled { opacity: .5; cursor: not-allowed }
 .mini { display: inline-flex; align-items: center; gap: 6px; height: var(--botao-mini); padding: 0 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; color: var(--ink) }
-.mini:hover:not(:disabled) { background: var(--soft) }
+.mini:hover:not(:disabled, [aria-disabled="true"]) { background: var(--soft) }
 .mini.perigo { border-color: var(--erro-borda); color: var(--erro) }
 .mini.perigo.confirmar, .btn.perigo.confirmar, .btn.perigo.confirmar:hover:not(:disabled) { background: var(--erro-forte); border-color: var(--erro-forte); color: #fff }
-.mini:disabled { opacity: .45; cursor: not-allowed }
+/* Desligado, mas no Tab (aria-disabled: o motivo chega ao teclado e ao leitor de tela), com a mesma cara do desligado de verdade. */
+.mini:disabled, .mini[aria-disabled="true"] { opacity: .45; cursor: not-allowed }
 /* Texto com negrito, itálico e listas (ui/base/TextoFormatado, #293): o texto formatado e a caixa com a barra B, I e lista. */
 .texto-formatado { font-size: 15px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere }
 .texto-formatado > p { margin: 0; white-space: pre-wrap }

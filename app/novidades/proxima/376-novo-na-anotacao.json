@@ -1,0 +1,5 @@
+{
+  "titulo": "Criar tarefa, demanda, compromisso, pessoa ou contrato direto da anotação",
+  "texto": "Na anotação, o botão \"+ Novo…\" abre o cadastro do item escolhido já ligado a ela. Se a anotação tem uma pessoa só, ela já vem no cadastro. Ao salvar, você volta à anotação, com o item novo em \"Ligada a\".",
+  "ondeAchar": "Em Documentos, na anotação aberta: seção \"Ligada a\", botão \"+ Novo…\", ao lado de \"Ligar a outro item\"."
+}
