@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { useContext, useEffect } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosSessao } from '../dados';
-import { BotoesNoPainel, ColunaDoCartao, PainelCartao, PREFERENCIA_FORMATO, useTravarPainel } from './PainelCartao';
+import { BotoesNoPainel, ColunaDoCartao, NaColunaDoCartao, PainelCartao, PREFERENCIA_FORMATO, useTravarPainel } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
 import { Recolhivel } from './Recolhivel';
 
@@ -105,6 +105,18 @@ describe('Nome da janela no centro', () => {
     render(<PainelCartao soNoCentro aoFechar={() => {}}><h1>Nova pessoa</h1></PainelCartao>);
     // Então
     expect(screen.getByRole('dialog', { name: 'Cadastro' })).toBeInTheDocument();
+  });
+
+  it('dado um cartão (não um cadastro) com o rótulo "Anotação", então a janela ao lado tem esse nome; sem o rótulo, nenhum', () => {
+    // Quando
+    const { unmount } = render(<PainelCartao rotulo="Anotação" aoFechar={() => {}}><h2>Ata</h2></PainelCartao>);
+    // Então
+    expect(screen.getByRole('dialog', { name: 'Anotação' })).toBeInTheDocument();
+    // Quando
+    unmount();
+    render(<PainelCartao aoFechar={() => {}}><h2>Ata</h2></PainelCartao>);
+    // Então
+    expect(screen.getByRole('dialog')).not.toHaveAccessibleName();
   });
 
   it('dado o rótulo "Importar pessoas", então a janela tem esse nome', () => {
@@ -252,7 +264,7 @@ describe('Expandir tudo com uma seção dentro de outra', () => {
   });
 });
 
-describe('Janela sem a coluna dos comentários e larga (a anotação, #340)', () => {
+describe('Janela larga (a anotação, #340)', () => {
   /** Diz, como texto, onde o cartão pode pôr os comentários e os botões dele (o que o PainelCartao oferece a quem está dentro). */
   function OndeFica() {
     const coluna = useContext(ColunaDoCartao), botoes = useContext(BotoesNoPainel);
@@ -260,30 +272,30 @@ describe('Janela sem a coluna dos comentários e larga (a anotação, #340)', ()
   }
   beforeEach(() => { iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'centro' }); });
 
-  it('dado um cartão no centro sem pedir nada, quando abre, então tem a coluna da direita, com os botões no cartão, e não fica largo', () => {
+  it('dado um cartão no centro sem pedir nada, quando abre, então tem a coluna da direita, com os botões no cartão, e não fica largo', async () => {
     // Quando
     render(<PainelCartao aoFechar={() => {}}><OndeFica /></PainelCartao>);
     // Então
-    expect(screen.getByText('Com a coluna; botões no cartão')).toBeInTheDocument();
+    expect(await screen.findByText('Com a coluna; botões no cartão')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).not.toHaveClass('largo');
     expect(screen.getByRole('dialog')).not.toHaveClass('sem-coluna');
   });
 
-  it('dado um cartão sem coluna e largo, quando abre no centro, então não há a coluna, os botões dele vão para a linha do painel e a janela fica larga', () => {
+  it('dado um cartão largo, quando abre no centro, então a janela fica larga, com a coluna da direita e os botões no cartão, e a troca de formato continua', async () => {
     // Quando
-    render(<PainelCartao semColuna largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
+    render(<PainelCartao largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
     // Então
-    expect(screen.getByText('Sem a coluna; botões no painel')).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toHaveClass('centro', 'sem-coluna', 'largo');
-    // E a troca de formato continua (não é uma janela só do centro)
+    expect(await screen.findByText('Com a coluna; botões no cartão')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toHaveClass('centro', 'largo');
+    expect(screen.getByRole('dialog')).not.toHaveClass('sem-coluna');
     expect(screen.getByRole('button', { name: 'Abrir ao lado' })).toBeInTheDocument();
   });
 
-  it('dado um cartão sem coluna, quando abre ao lado, então também não há a coluna, e os botões ficam na linha do painel, como nos outros', () => {
+  it('dado um cartão largo, quando abre ao lado, então não há a coluna, e os botões ficam na linha do painel, como nos outros', () => {
     // Dado
     iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' });
     // Quando
-    render(<PainelCartao semColuna largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
+    render(<PainelCartao largo aoFechar={() => {}}><OndeFica /></PainelCartao>);
     // Então
     expect(screen.getByText('Sem a coluna; botões no painel')).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toHaveClass('lado');
@@ -319,5 +331,70 @@ describe('O foco ao abrir o painel', () => {
     await proximoQuadro();
     // Então: mesmo depois do quadro em que o painel aparece
     expect(screen.getByRole('textbox', { name: 'Título' })).toHaveFocus();
+  });
+});
+
+describe('O que vai para a coluna da direita', () => {
+  it('dada uma coluna (a da janela no centro), quando as seções pedem para ir para ela, então aparecem nela, e não no fluxo', () => {
+    // Dado
+    const coluna = document.createElement('aside');
+    document.body.append(coluna);
+    // Quando
+    render(<ColunaDoCartao.Provider value={coluna}><main><p>Texto da anotação</p><NaColunaDoCartao><section>Ligada a</section></NaColunaDoCartao></main></ColunaDoCartao.Provider>);
+    // Então
+    expect(coluna).toHaveTextContent('Ligada a');
+    expect(screen.getByRole('main')).not.toHaveTextContent('Ligada a');
+    coluna.remove();
+  });
+
+  it('dada a coluna, quando as seções que recolhem vão para ela, então formam um grupo só delas, com o "Expandir tudo" no topo da coluna, que abre só as dela', async () => {
+    // Dado: uma seção no cartão e duas na coluna
+    const coluna = document.createElement('aside');
+    coluna.setAttribute('aria-label', 'Coluna da direita');
+    document.body.append(coluna);
+    render(<ColunaDoCartao.Provider value={coluna}><main>
+      <Recolhivel titulo="Etapas" icone="lista"><p>Etapas do cartão</p></Recolhivel>
+      <NaColunaDoCartao>
+        <Recolhivel titulo="Ligada a" icone="vinculo"><p>Itens ligados</p></Recolhivel>
+        <Recolhivel titulo="Histórico" icone="relogio"><p>Mudanças</p></Recolhivel>
+      </NaColunaDoCartao>
+    </main></ColunaDoCartao.Provider>);
+    const naColuna = within(screen.getByRole('complementary', { name: 'Coluna da direita' }));
+    expect(naColuna.getAllByRole('button')[0]).toHaveAccessibleName('Expandir tudo');
+    // Quando
+    await userEvent.click(naColuna.getByRole('button', { name: 'Expandir tudo' }));
+    // Então: as da coluna abrem; a do cartão, não
+    expect(naColuna.getByText('Itens ligados')).toBeInTheDocument();
+    expect(naColuna.getByText('Mudanças')).toBeInTheDocument();
+    expect(screen.queryByText('Etapas do cartão')).not.toBeInTheDocument();
+    expect(naColuna.getByRole('button', { name: 'Recolher tudo' })).toBeInTheDocument();
+    coluna.remove();
+  });
+
+  it('dado o cartão sem coluna, quando as seções pedem para ir para ela, então ficam ali mesmo, no fluxo', () => {
+    // Quando
+    render(<main><NaColunaDoCartao><section>Ligada a</section></NaColunaDoCartao></main>);
+    // Então
+    expect(screen.getByRole('main')).toHaveTextContent('Ligada a');
+  });
+
+  it('dado algo escrito numa seção da coluna, quando a pessoa troca o formato da janela, então a seção muda de lugar sem perder o que estava escrito', async () => {
+    // Dado: ao lado, a seção no fluxo do cartão, com um texto começado
+    iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'lado' });
+    render(<PainelCartao aoFechar={() => {}}><p>Texto do cartão</p><NaColunaDoCartao><input aria-label="Rascunho" /></NaColunaDoCartao></PainelCartao>);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Rascunho' }), 'Falar com o cliente');
+    // Quando: abre no centro
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir no centro da tela' }));
+    // Então: a caixa foi para a coluna da direita, com o texto
+    const naColuna = await vi.waitFor(() => {
+      const caixa = screen.getByRole('textbox', { name: 'Rascunho' });
+      expect(screen.getByText('Texto do cartão').parentElement).not.toContainElement(caixa);
+      return caixa;
+    });
+    expect(naColuna).toHaveValue('Falar com o cliente');
+    // E: de volta ao lado, o texto continua
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir ao lado' }));
+    await vi.waitFor(() => expect(screen.getByText('Texto do cartão').parentElement).toContainElement(screen.getByRole('textbox', { name: 'Rascunho' })));
+    expect(screen.getByRole('textbox', { name: 'Rascunho' })).toHaveValue('Falar com o cliente');
   });
 });

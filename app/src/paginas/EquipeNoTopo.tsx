@@ -1,8 +1,8 @@
 // A equipe no topo dos cartões de tarefa, demanda, processo, compromisso e anotação (#132), com a bolinha "+" e as ações de cada
-// bolinha para quem pode alterar o cartão (#356). O cartão diz se a pessoa muda a equipe (as mesmas regras que mostram o lápis) e
+// bolinha para quem pode alterar o cartão (#356): a do responsável troca, a de um participante o tira na hora. O cartão diz se a pessoa muda a equipe (as mesmas regras que mostram o lápis) e
 // como ela sai dele (as do lápis do módulo); esta peça grava (equipeNoCartao.ts) e avisa o cartão para ler de novo.
 import { useRef, useState } from 'react';
-import { EQUIPE_DO_MODULO, planoDaMudanca, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe, type SaidaDaPessoa } from '../regras/equipeNoCartao';
+import { EQUIPE_DO_MODULO, planoDaMudanca, tirarPelaBolinha, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe, type SaidaDaPessoa } from '../regras/equipeNoCartao';
 import { candidatosDaEquipe } from '../regras/equipe';
 import { falha } from '../ui/avisos';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
@@ -30,11 +30,12 @@ interface Props {
 export function EquipeNoTopo({ modulo, id, equipe, mudar }: Props) {
   const ctx = useCtx();
   const m = EQUIPE_DO_MODULO[modulo], eu = ctx.perfil.id;
-  const responsavel = naEquipe(ctx.equipe, equipe.responsavel_id, 'Responsável');
+  // Sem responsável gravado (o usuário foi excluído), a bolinha dele aparece vazia, para escolher outro.
+  const responsavel = equipe.responsavel_id ? naEquipe(ctx.equipe, equipe.responsavel_id, 'Responsável') : null;
   const participantes = equipe.lista.map(x => naEquipe(ctx.equipe, x, m.papel));
   // Uma mudança de cada vez: cada uma lê a equipe e grava a lista inteira, e duas ao mesmo tempo leriam a mesma equipe, com a
   // segunda apagando o que a primeira pôs. A referência barra o segundo clique antes de a tela se desenhar de novo; o estado
-  // desliga o "+" e as ações das fichas enquanto grava.
+  // desliga as bolinhas enquanto grava.
   const gravando = useRef(false);
   const [ocupado, setOcupado] = useState(false);
   if (!mudar) return <EquipeDoCartao responsavel={responsavel} participantes={participantes} />;
@@ -65,7 +66,7 @@ export function EquipeNoTopo({ modulo, id, equipe, mudar }: Props) {
     por: m.por,
     candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, noCartao),
     responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavel_id]),
-    tirar: p => p.id === eu ? m.sair : m.tirar,
+    tirar: p => tirarPelaBolinha(modulo, p, eu),
     cheia: equipe.lista.length >= m.maximo ? m.cheia : undefined,
     ocupado,
     aoPor: x => pedir({ tipo: 'por', id: x.id, nome: x.nome }),

@@ -129,7 +129,7 @@ test.describe('Cadastro de contratos', () => {
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
     // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
     expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);
-    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 10%' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('img', { name: 'Bruno Exemplo Souza, Participante · 10%' })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /RAIMUNDO NONATO ENSAIO/ })).toContainText('Indicador · 10%');
   });
 
@@ -189,7 +189,7 @@ test.describe('Função na equipe', () => {
     // Quando
     await page.getByRole('dialog').getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
-    await expect(page.getByRole('dialog').getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('group', { name: 'Equipe' }).getByRole('img', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
   });
 });
 
@@ -294,7 +294,7 @@ test.describe('Participantes só da equipe (#348)', () => {
     await expect(responsavel).toHaveText('75%');
     await salvarContrato(page);
     const cartao = page.getByRole('dialog');
-    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima, Participante · 5%' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('img', { name: 'Ana Teste Lima, Participante · 5%' })).toBeVisible();
   });
 });
 
@@ -378,7 +378,7 @@ test.describe('Contrato salvo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao).toContainText(`MA96-0001-${ANO}`);
-    await expect(cartao.getByRole('button', { name: 'Ana Teste Lima, Advogado responsável' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('img', { name: 'Ana Teste Lima, Advogado responsável' })).toBeVisible();
     await cartao.getByRole('button', { name: /Histórico de alterações/ }).click();
     await expect(cartao.getByText('Situação: Assinado / em andamento → Encerrado')).toBeVisible();
     await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
@@ -492,7 +492,7 @@ test.describe('Ligações em quadrinhos', () => {
     await abrirSecao(cartao, 'Partes');
     await expect(cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ })).toContainText('Cliente');
     // O responsável é da equipe: fica em bolinha ao lado das ações, fora das partes (as pessoas de fora do escritório).
-    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('img', { name: 'Bruno Exemplo Souza, Advogado responsável' })).toBeVisible();
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
     // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
     expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);

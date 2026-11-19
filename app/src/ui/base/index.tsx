@@ -10,10 +10,19 @@ export { estiloBotao, type EstiloBotao, type FormaBotao, type VarianteBotao } fr
 export { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } from './TituloEditavel';
 export { TextoEditavel } from './TextoEditavel';
+export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
+export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
 export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { DataEditavel } from './DataEditavel';
 export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';
+
+/**
+ * A dica que aparece junto de um botão pequeno, só de ícone ou de iniciais (as bolinhas da equipe), ao passar o mouse e no foco
+ * do teclado, e não só ao passar o mouse, como o title do navegador. O estilo desenha o texto ([data-dica], em estilo.css); o
+ * nome para o leitor de tela continua no aria-label de quem usa.
+ */
+export const propsDaDica = (texto: string) => ({ 'data-dica': texto });
 
 /** Link com cara de botão (ex.: "Nova pessoa" no cabeçalho do módulo). */
 export function BotaoLink({ forma, variante, pequeno, className, ...resto }: ComponentProps<typeof Link> & EstiloBotao) {

@@ -89,6 +89,15 @@ export const alteraAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'p
  */
 export const veAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'papel'>, chaves: ChavesDaEquipe, vejoUmItemQueAbre = false) =>
   alteraAAnotacao(a, m, chaves) || chaves.equipeVeTudo || vejoUmItemQueAbre;
+/**
+ * Por que o membro não pode ser mencionado nos comentários da anotação (null se pode), como o gatilho privado.mencao_na_anotacao:
+ * só quem a vê sem depender de um item ligado (quem a altera, ou toda a equipe com uma das chaves). Quem a vê só por um item ligado
+ * fica de fora: nem o banco nem a tela sabem o que outra pessoa vê nos outros módulos.
+ */
+export const motivoSemMencaoNaAnotacao = (a: QuemEstaNaAnotacao, chaves: ChavesDaEquipe) =>
+  (m: Pick<Membro, 'id' | 'papel'>) => veAAnotacao(a, m, chaves) ? null : 'não participa; inclua como participante';
+/** A mensagem de quando alguém que não pode ser mencionado aparece num comentário da anotação (a mesma do banco). */
+export const mencaoNegadaNaAnotacao = (nome: string) => `Não é possível mencionar ${nome} nesta anotação: inclua essa pessoa como participante antes.`;
 /** Ligar e desligar itens: quem altera, e só com a anotação ativa (a arquivada fica como está). */
 export const ligaNaAnotacao = (a: QuemEstaNaAnotacao & Pick<Anotacao, 'arquivado_em'>, m: Pick<Membro, 'id' | 'papel'>, chaves: Pick<ChavesDaEquipe, 'equipeEditaTudo'>) =>
   !a.arquivado_em && alteraAAnotacao(a, m, chaves);

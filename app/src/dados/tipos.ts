@@ -1076,7 +1076,7 @@ export interface DadosEquipe {
 }
 
 /** Módulos cujos cartões têm comentários (cada um com a sua coluna na tabela comentarios). */
-export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos';
+export type ModuloComentado = 'pessoas' | 'contratos' | 'demandas' | 'tarefas' | 'compromissos' | 'anotacoes';
 export interface Comentario {
   id: string;
   autor_id: string | null;   // null: o usuário foi removido do sistema
@@ -1330,6 +1330,12 @@ export interface DadosAnotacoes {
    */
   anotacaoDuplicar(id: string, dados: DadosAnotacao & Pick<Anotacao, 'titulo' | 'responsavel_id'>): Promise<{ id: string; codigo: string }>;
   anotacaoAtualizar(id: string, dados: DadosAnotacao): Promise<{ id: string; codigo: string }>;
+  /**
+   * Grava o texto da anotação só se ela ainda está como foi lida (trava otimista do texto que salva sozinho): `esperado` é o
+   * atualizado_em da leitura. Devolve o atualizado_em novo, ou null se a anotação mudou depois dessa leitura (nada é gravado:
+   * quem chama lê de novo e decide). Quem não altera, ou não vê, a anotação recebe o erro de permissão.
+   */
+  anotacaoGravarTexto(id: string, texto: string, esperado: string): Promise<string | null>;
   anotacoesArquivar(ids: string[], arquivar?: boolean): Promise<number>;
   /** Só anotações arquivadas são excluídas (por quem criou ou um administrador). */
   anotacoesExcluir(ids: string[]): Promise<Exclusao>;

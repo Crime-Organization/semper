@@ -26,9 +26,9 @@ export const ITEM_DE_LISTA = '- ';
 /** O começo de uma linha da lista de tarefas: a caixinha vazia ("- [ ]") ou marcada ("- [x]" ou "- [X]"), e um espaço ou o fim. */
 const ITEM_DE_TAREFA = /^- \[([ xX])\](?: |$)/;
 /** Onde fica, na linha da tarefa, o caractere entre os colchetes (" " ou "x"). */
-const POSICAO_DA_CAIXINHA = 3;
+export const POSICAO_DA_CAIXINHA = 3;
 /** O que fica entre os colchetes da caixinha marcada e da vazia. */
-const CAIXINHA: Record<'marcada' | 'vazia', string> = { marcada: 'x', vazia: ' ' };
+export const CAIXINHA: Record<'marcada' | 'vazia', string> = { marcada: 'x', vazia: ' ' };
 /** A linha que abre e fecha o bloco de código que o botão Código põe. */
 const CERCA_DE_CODIGO = '```';
 /** A linha que abre um bloco de código: três crases ou mais e, se quiser, o nome da linguagem (sem crases). */
@@ -128,7 +128,7 @@ interface Colchete { tipo: 'colchete'; inicio: number; fim: number; endereco?: s
 /** Uma sequência de crases, que abre ou fecha um código com outra do mesmo tamanho. */
 interface Crase { tipo: 'crase'; inicio: number; fim: number }
 /** Um código em linha, das crases que abrem às que fecham, com o texto de dentro, literal. */
-interface Codigo { tipo: 'codigo'; inicio: number; fim: number; texto: string }
+interface Codigo { tipo: 'codigo'; inicio: number; fim: number; texto: string; crases: number }
 type Sinal = Sequencia | Colchete | Codigo;
 
 /** Como ler cada sinal pelo primeiro caractere; o que não está aqui é uma sequência de marcas. */
@@ -177,7 +177,7 @@ function juntarCrases(linha: string, lidos: (Sequencia | Colchete | Crase)[]): S
     while (lista.proxima < lista.onde.length && lista.onde[lista.proxima] <= i) lista.proxima++;
     const j = lista.onde.at(lista.proxima);
     if (j === undefined) continue;   // sem par: as crases ficam como texto
-    sinais.push({ tipo: 'codigo', inicio: s.inicio, fim: lidos[j].fim, texto: textoDoCodigo(linha.slice(s.fim, lidos[j].inicio)) });
+    sinais.push({ tipo: 'codigo', inicio: s.inicio, fim: lidos[j].fim, texto: textoDoCodigo(linha.slice(s.fim, lidos[j].inicio)), crases: s.fim - s.inicio });
     i = j;
   }
   return sinais;
@@ -224,32 +224,7 @@ function linksDaLinha(linha: string): LinkNaLinha[] {
  * começa dentro do link e termina fora. "[" ou "](endereço)" sem par, ou com endereço não permitido, ficam como texto.
  */
 export function pedacosDaLinha(linha: string): Pedaco[] {
-  const sinais = sinaisDaLinha(linha);
-  acharLinks(linha, sinais);
-  const abertas: Sequencia[] = [];
-  let barreira = 0;   // dentro de um link, só as marcas abertas a partir daqui podem fechar
-  for (const s of sinais) {
-    if (s.tipo === 'codigo') continue;   // o código fica entre as marcas, sem mudá-las: "**`a`**" é um código em negrito
-    if (s.tipo === 'colchete') {
-      if (s.link && s.endereco === undefined) barreira = abertas.length;
-      else if (s.link) { abertas.splice(barreira); barreira = 0; }   // as abertas no link e não fechadas lá ficam como texto
-      continue;
-    }
-    for (let i = abertas.length - 1; s.fecha && s.sobra && i >= barreira; i--) {
-      const a = abertas[i];
-      if (a.ch !== s.ch) continue;
-      while (a.sobra && s.sobra) {
-        const usa = a.sobra >= 2 && s.sobra >= 2 ? 2 : 1, marca = MARCA_DO_PAR[s.ch][usa];
-        if (!marca) break;
-        a.sobra -= usa;
-        s.sobra -= usa;
-        a.abreAqui.unshift(marca);   // o par achado depois fica por fora
-        s.fechaAqui.push(marca);
-      }
-      abertas.splice(a.sobra ? i + 1 : i);   // as que ficaram dentro do par não fecham mais
-    }
-    if (s.abre && s.sobra) abertas.push(s);
-  }
+  const sinais = marcasDaLinha(linha);
   // Monta os pedaços: em cada sequência, primeiro fecha, depois o que sobrou como texto, depois abre. O começo e o fim de um
   // link cortam o pedaço; um link sem texto ("[](u)") mostra o endereço, para não sumir.
   const pedacos: Pedaco[] = [], ativas: Marca[] = [];
@@ -282,6 +257,93 @@ export function pedacosDaLinha(linha: string): Pedaco[] {
   return pedacos;
 }
 
+/** O texto de uma linha lida, sem os sinais nem os destaques, como a pessoa o lê (o nome de uma caixinha, por exemplo). */
+export const textoDosPedacos = (pedacos: Pedaco[]) => pedacos.map(p => p.texto).join('');
+
+/** Um trecho de uma linha, da posição "inicio" até antes de "fim". */
+export interface Intervalo { inicio: number; fim: number }
+/** Um trecho da linha com destaques ou num link (o endereço já conferido). */
+export interface TrechoMarcado extends Intervalo { marcas: Marca[]; link?: string }
+/** Onde ficam, numa linha, os sinais do Markdown ("**", "`", "[", "](endereço)") e os trechos destacados. */
+export interface MarcasNaLinha { simbolos: Intervalo[]; trechos: TrechoMarcado[] }
+/** Quantos caracteres cada destaque escrito com sinais repetidos usa no texto. */
+const TAMANHO_DA_MARCA: Record<Exclude<Marca, 'codigo'>, number> = { negrito: 2, italico: 1, tachado: 2 };
+const tamanhoDasMarcas = (marcas: Marca[]) => marcas.reduce((n, m) => n + TAMANHO_DA_MARCA[m as Exclude<Marca, 'codigo'>], 0);
+
+/**
+ * A mesma leitura de pedacosDaLinha, com as posições: onde ficam os sinais do Markdown (que o editor ao vivo esconde fora da
+ * linha do cursor) e os trechos com destaque ou link. Os sinais que sobram como texto ("2 * 3", um "[" sem par) não entram. Um
+ * link sem texto ("[](u)") fica escrito inteiro, como link, para não sumir.
+ */
+export function marcasNaLinha(linha: string): MarcasNaLinha {
+  const simbolos: Intervalo[] = [], trechos: TrechoMarcado[] = [], ativas: Marca[] = [];
+  let desde = 0, link: string | undefined, abreLink: Intervalo | undefined;
+  const destacar = (inicio: number, fim: number, marcas = ativas) => {
+    if (fim > inicio && (marcas.length || link)) trechos.push(link ? { inicio, fim, marcas: [...marcas], link } : { inicio, fim, marcas: [...marcas] });
+  };
+  for (const s of marcasDaLinha(linha)) {
+    destacar(desde, s.inicio);
+    desde = s.fim;
+    if (s.tipo === 'codigo') {
+      simbolos.push({ inicio: s.inicio, fim: s.inicio + s.crases }, { inicio: s.fim - s.crases, fim: s.fim });
+      destacar(s.inicio + s.crases, s.fim - s.crases, [...ativas, 'codigo']);
+      continue;
+    }
+    if (s.tipo === 'colchete') {
+      if (!s.link) { destacar(s.inicio, s.fim); continue; }
+      if (s.endereco === undefined) { link = s.link; abreLink = { inicio: s.inicio, fim: s.fim }; continue; }
+      if (abreLink && abreLink.fim === s.inicio) destacar(abreLink.inicio, s.fim);   // sem texto: o link fica escrito
+      else if (abreLink) simbolos.push(abreLink, { inicio: s.inicio, fim: s.fim });
+      link = undefined;
+      abreLink = undefined;
+      continue;
+    }
+    const fecha = tamanhoDasMarcas(s.fechaAqui), abre = tamanhoDasMarcas(s.abreAqui);
+    if (fecha) simbolos.push({ inicio: s.inicio, fim: s.inicio + fecha });
+    for (const m of s.fechaAqui) ativas.splice(ativas.lastIndexOf(m), 1);
+    destacar(s.inicio + fecha, s.fim - abre);
+    if (abre) simbolos.push({ inicio: s.fim - abre, fim: s.fim });
+    ativas.push(...s.abreAqui);
+  }
+  destacar(desde, linha.length);
+  return { simbolos: simbolos.sort((a, b) => a.inicio - b.inicio), trechos };
+}
+
+/**
+ * Os sinais da linha já lidos: os links achados e, em cada sequência de marcas, os destaques que ela fecha e abre e quantos
+ * caracteres sobram como texto (veja pedacosDaLinha). Os pedaços para ler e as marcas do editor ao vivo saem daqui, então os
+ * dois nunca discordam.
+ */
+function marcasDaLinha(linha: string): Sinal[] {
+  const sinais = sinaisDaLinha(linha);
+  acharLinks(linha, sinais);
+  const abertas: Sequencia[] = [];
+  let barreira = 0;   // dentro de um link, só as marcas abertas a partir daqui podem fechar
+  for (const s of sinais) {
+    if (s.tipo === 'codigo') continue;   // o código fica entre as marcas, sem mudá-las: "**`a`**" é um código em negrito
+    if (s.tipo === 'colchete') {
+      if (s.link && s.endereco === undefined) barreira = abertas.length;
+      else if (s.link) { abertas.splice(barreira); barreira = 0; }   // as abertas no link e não fechadas lá ficam como texto
+      continue;
+    }
+    for (let i = abertas.length - 1; s.fecha && s.sobra && i >= barreira; i--) {
+      const a = abertas[i];
+      if (a.ch !== s.ch) continue;
+      while (a.sobra && s.sobra) {
+        const usa = a.sobra >= 2 && s.sobra >= 2 ? 2 : 1, marca = MARCA_DO_PAR[s.ch][usa];
+        if (!marca) break;
+        a.sobra -= usa;
+        s.sobra -= usa;
+        a.abreAqui.unshift(marca);   // o par achado depois fica por fora
+        s.fechaAqui.push(marca);
+      }
+      abertas.splice(a.sobra ? i + 1 : i);   // as que ficaram dentro do par não fecham mais
+    }
+    if (s.abre && s.sobra) abertas.push(s);
+  }
+  return sinais;
+}
+
 /**
  * O começo de linha de cada bloco de uma linha só (a linha vira um título, um item ou uma linha da citação), com o bloco que ela
  * forma, já com os pedaços do resto da linha. Vale o primeiro que servir. "#### x", "#tag" e ">50%" ficam como texto.
@@ -295,7 +357,7 @@ const INICIO_DO_BLOCO: { inicio: RegExp; bloco: (m: RegExpExecArray, linhas: Ped
 ];
 
 /** O começo de linha que põe a linha num bloco ("" no texto comum, e nas linhas de código, divisória e tabela). */
-function comecoDaLinha(linha: string): string {
+export function comecoDaLinha(linha: string): string {
   for (const { inicio } of INICIO_DO_BLOCO) {
     const m = inicio.exec(linha);
     if (m) return m[0];
@@ -304,7 +366,7 @@ function comecoDaLinha(linha: string): string {
 }
 
 /** Um bloco lido e a linha logo depois dele. */
-interface Lido { bloco: Bloco; proxima: number }
+export interface Lido { bloco: Bloco; proxima: number }
 /** Quem lê um bloco a partir da linha i, ou null se o bloco não começa ali. */
 type Leitor = (linhas: string[], i: number) => Lido | null;
 
@@ -374,7 +436,8 @@ const lerTabela: Leitor = (linhas, i) => {
 /** Quem lê cada bloco, na ordem em que se tenta; a linha que nenhum lê é texto comum. */
 const LEITORES: Leitor[] = [lerCodigo, lerDivisoria, lerInicioDeLinha, lerTabela];
 
-function lerBloco(linhas: string[], i: number): Lido {
+/** O bloco que começa na linha i (a primeira é a 0) e a linha logo depois dele, como a leitura do texto o vê. */
+export function lerBloco(linhas: string[], i: number): Lido {
   for (const ler of LEITORES) {
     const lido = ler(linhas, i);
     if (lido) return lido;
@@ -449,24 +512,128 @@ function bordas(linha: string) {
 
 /**
  * Põe a marca em volta do trecho escolhido, ou a tira se ele já está marcado (por fora ou por dentro da escolha). Os espaços
- * das pontas ficam fora da marca, e um trecho de várias linhas ganha a marca em cada linha (a marca vale numa linha só). Sem
+ * das pontas ficam fora da marca, e um trecho de várias linhas ganha a marca em cada linha (veja alternarMarcaEmLinhas). Sem
  * trecho escolhido, põe as duas marcas e deixa o cursor entre elas, para a pessoa escrever. Se o trecho já tem a marca, conta
  * os caracteres seguidos dela (TEM_A_MARCA).
  */
 export function alternarMarca({ texto, inicio, fim }: Escolha, marca: MarcaDoBotao): Escolha {
   const m = MARCA_NO_TEXTO[marca], t = m.length, ch = m.charAt(0), escolhido = texto.slice(inicio, fim), tem = TEM_A_MARCA[marca];
+  if (escolhido.includes('\n')) return alternarMarcaEmLinhas({ texto, inicio, fim }, marca);
   const seguidos = (s: string, de: number, passo: 1 | -1) => { let n = 0; while (s.charAt(de + n * passo) === ch) n++; return n; };
   if (tem(seguidos(texto, inicio - 1, -1)) && tem(seguidos(texto, fim, 1)))
     return { texto: texto.slice(0, inicio - t) + escolhido + texto.slice(fim + t), inicio: inicio - t, fim: fim - t };
   const naFrente = seguidos(escolhido, 0, 1), atras = seguidos(escolhido, escolhido.length - 1, -1);
   if (naFrente + atras < escolhido.length && tem(naFrente) && tem(atras))
     return { texto: texto.slice(0, inicio) + escolhido.slice(t, -t) + texto.slice(fim), inicio, fim: fim - 2 * t };
-  if (escolhido.includes('\n')) {
-    const novo = escolhido.split('\n').map(l => { const b = bordas(l); return b.miolo ? b.antes + m + b.miolo + m + b.depois : l; }).join('\n');
-    return { texto: texto.slice(0, inicio) + novo + texto.slice(fim), inicio, fim: inicio + novo.length };
-  }
   const b = bordas(escolhido), comeco = inicio + b.antes.length + t;
   return { texto: texto.slice(0, inicio) + b.antes + m + b.miolo + m + b.depois + texto.slice(fim), inicio: comeco, fim: comeco + b.miolo.length };
+}
+
+/** Os sinais que abrem e fecham um mesmo destaque numa linha (os "**" de um negrito, por exemplo). */
+interface ParDeSinais { abre: Intervalo; fecha: Intervalo }
+
+/**
+ * Onde abre e onde fecha cada trecho da linha com a marca dada, pela mesma leitura que a mostra (marcasDaLinha): só os sinais
+ * que viraram marca, nunca os que sobram como texto. Em cada sequência, os sinais que fecham vêm primeiro e os que abrem, no fim.
+ */
+function paresDaMarca(linha: string, marca: MarcaDoBotao): ParDeSinais[] {
+  const pares: ParDeSinais[] = [], abertas: { marca: Marca; onde: Intervalo }[] = [];
+  for (const s of marcasDaLinha(linha)) {
+    if (s.tipo === 'codigo') {
+      if (marca === 'codigo') pares.push({ abre: { inicio: s.inicio, fim: s.inicio + s.crases }, fecha: { inicio: s.fim - s.crases, fim: s.fim } });
+      continue;
+    }
+    if (s.tipo === 'colchete') continue;
+    let p = s.inicio;
+    for (const m of s.fechaAqui) {
+      const fecha = { inicio: p, fim: p + tamanhoDasMarcas([m]) }, i = abertas.map(a => a.marca).lastIndexOf(m);
+      p = fecha.fim;
+      const [aberta] = i >= 0 ? abertas.splice(i, 1) : [];
+      if (aberta && m === marca) pares.push({ abre: aberta.onde, fecha });
+    }
+    let q = s.fim - tamanhoDasMarcas(s.abreAqui);
+    for (const m of s.abreAqui) {
+      const onde = { inicio: q, fim: q + tamanhoDasMarcas([m]) };
+      abertas.push({ marca: m, onde });
+      q = onde.fim;
+    }
+  }
+  return pares;
+}
+
+/** Se a posição fica no intervalo. */
+const dentro = (p: number, i: Intervalo) => p >= i.inicio && p < i.fim;
+
+/**
+ * Se o pedaço [a, b) da linha já está todo com a marca: cada letra dele (sem contar os espaços nem os sinais do Markdown) fica
+ * dentro de um trecho marcado. Pedaço sem letra nenhuma devolve null (não conta).
+ */
+function todoMarcado(linha: string, a: number, b: number, pares: ParDeSinais[]): boolean | null {
+  const sinais = marcasNaLinha(linha).simbolos;
+  let letras = 0;
+  for (let p = a; p < b; p++) {
+    if (ESPACO.test(linha.charAt(p)) || sinais.some(s => dentro(p, s))) continue;
+    letras++;
+    if (!pares.some(par => p >= par.abre.fim && p < par.fecha.inicio)) return false;
+  }
+  return letras ? true : null;
+}
+
+/**
+ * Põe (ou tira) a marca no pedaço [a, b) da linha. Um trecho com a mesma marca que só em parte cai no pedaço entra inteiro, e
+ * os sinais dela que ficam lá dentro saem: assim nunca sobram "****" encaixados. Ao tirar, o que estava marcado fora do pedaço
+ * continua marcado. Devolve a linha nova e onde ficou o trecho mexido.
+ */
+function marcarPedaco(linha: string, a: number, b: number, marca: MarcaDoBotao, pares: ParDeSinais[], por: boolean) {
+  const m = MARCA_NO_TEXTO[marca];
+  let de = a, ate = b, cresceu = true;
+  while (cresceu) {
+    cresceu = false;
+    for (const p of pares) {
+      if (p.abre.inicio >= ate || p.fecha.fim <= de || (p.abre.inicio >= de && p.fecha.fim <= ate)) continue;
+      de = Math.min(de, p.abre.inicio);
+      ate = Math.max(ate, p.fecha.fim);
+      cresceu = true;
+    }
+  }
+  const sinais = pares.filter(p => p.abre.inicio >= de && p.fecha.fim <= ate).flatMap(p => [p.abre, p.fecha]);
+  const limpo = (x: number, y: number) => {
+    let fica = '';
+    for (let k = x; k < y; k++) if (!sinais.some(s => dentro(k, s))) fica += linha.charAt(k);
+    return fica;
+  };
+  const envolver = (trecho: string) => { const e = bordas(trecho); return e.miolo ? e.antes + m + e.miolo + m + e.depois : trecho; };
+  const novo = por ? envolver(limpo(de, ate)) : envolver(limpo(de, a)) + limpo(a, b) + envolver(limpo(b, ate));
+  return { linha: linha.slice(0, de) + novo + linha.slice(ate), de, ate: de + novo.length };
+}
+
+/**
+ * A marca num trecho de várias linhas (a marca vale numa linha só): cada linha ganha a sua, em volta do pedaço escolhido dela,
+ * sem o começo de linha ("- ", "## "…). Se todos os pedaços já estão com a marca, ela sai de todos; senão, todos ficam com ela,
+ * e o que já estava marcado é juntado, sem sinais sobrando. O trecho mexido continua escolhido.
+ */
+function alternarMarcaEmLinhas({ texto, inicio, fim }: Escolha, marca: MarcaDoBotao): Escolha {
+  const { de, ate } = linhasDaEscolha(texto, inicio, fim);
+  let desde = de;
+  const linhas = texto.slice(de, ate).split('\n').map(l => {
+    const comeco = comecoDaLinha(l).length, resto = l.slice(comeco), pares = paresDaMarca(resto, marca);
+    const a = Math.min(Math.max(inicio - desde - comeco, 0), resto.length), b = Math.min(Math.max(fim - desde - comeco, 0), resto.length);
+    desde += l.length + 1;
+    return { comeco: l.slice(0, comeco), resto, a, b, pares, marcado: b > a ? todoMarcado(resto, a, b, pares) : null };
+  });
+  const comLetras = linhas.filter(l => l.marcado !== null);
+  if (!comLetras.length) return { texto, inicio, fim };
+  const por = comLetras.some(l => !l.marcado);
+  let novo = '', escolhaDe = -1, escolhaAte = -1;
+  linhas.forEach((l, n) => {
+    if (n) novo += '\n';
+    if (l.marcado === null) { novo += l.comeco + l.resto; return; }
+    const r = marcarPedaco(l.resto, l.a, l.b, marca, l.pares, por), base = de + novo.length + l.comeco.length;
+    if (escolhaDe < 0) escolhaDe = base + r.de;
+    escolhaAte = base + r.ate;
+    novo += l.comeco + r.linha;
+  });
+  return { texto: texto.slice(0, de) + novo + texto.slice(ate), inicio: escolhaDe, fim: escolhaAte };
 }
 
 /** Onde começam e terminam (sem a quebra) as linhas que a escolha toca, inteiras. */

@@ -19,6 +19,9 @@
     "converter-planilha": "rolldown ferramentas/planilha-do-site/converter.ts --platform node --format esm --file ferramentas/planilha-do-site/.saida/converter.mjs --logLevel warn && node ferramentas/planilha-do-site/.saida/converter.mjs"
   },
   "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
     "@fontsource/lato": "^5.3.0",
     "@jsquash/avif": "^2.1.1",
     "@supabase/auth-js": "^2.118.0",

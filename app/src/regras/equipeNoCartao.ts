@@ -21,9 +21,7 @@ export interface EquipeDoModulo {
   papel: string;
   /** O botão redondo com "+": "Pôr participante". */
   por: string;
-  /** O item do menu da bolinha de outra pessoa: "Tirar da tarefa". */
-  tirar: string;
-  /** O item do menu da própria bolinha: "Sair da tarefa". */
+  /** O que a própria bolinha faz (tirarPelaBolinha) e o aviso de sair: "Sair da tarefa". */
   sair: string;
   /** "na tarefa": "Ana já estava na tarefa." */
   noItem: string;
@@ -41,23 +39,23 @@ export interface EquipeDoModulo {
 
 export const EQUIPE_DO_MODULO: Record<ModuloDaEquipe, EquipeDoModulo> = {
   tarefas: {
-    papel: 'Participante', por: 'Pôr participante', tirar: 'Tirar da tarefa', sair: 'Sair da tarefa', noItem: 'na tarefa', doItem: 'da tarefa',
+    papel: 'Participante', por: 'Pôr participante', sair: 'Sair da tarefa', noItem: 'na tarefa', doItem: 'da tarefa',
     peloItem: 'pela tarefa', maximo: COLABORADORES_MAXIMOS, cheia: `Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`, oQue: 'mudança na equipe da tarefa'
   },
   demandas: {
-    papel: 'Colaborador', por: 'Pôr colaborador', tirar: 'Tirar da demanda', sair: 'Sair da demanda', noItem: 'na demanda', doItem: 'da demanda',
+    papel: 'Colaborador', por: 'Pôr colaborador', sair: 'Sair da demanda', noItem: 'na demanda', doItem: 'da demanda',
     peloItem: 'pela demanda', maximo: COLABORADORES_MAXIMOS, cheia: `Uma demanda pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`, oQue: 'mudança na equipe da demanda'
   },
   processos: {
-    papel: 'Colaborador', por: 'Pôr colaborador', tirar: 'Tirar do processo', sair: 'Sair do processo', noItem: 'no processo', doItem: 'do processo',
+    papel: 'Colaborador', por: 'Pôr colaborador', sair: 'Sair do processo', noItem: 'no processo', doItem: 'do processo',
     peloItem: 'pelo processo', maximo: COLABORADORES_MAXIMOS, cheia: `Um processo pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`, oQue: 'mudança na equipe do processo'
   },
   compromissos: {
-    papel: 'Participante', por: 'Pôr participante', tirar: 'Tirar do compromisso', sair: 'Sair do compromisso', noItem: 'no compromisso', doItem: 'do compromisso',
+    papel: 'Participante', por: 'Pôr participante', sair: 'Sair do compromisso', noItem: 'no compromisso', doItem: 'do compromisso',
     peloItem: 'pelo compromisso', maximo: COLABORADORES_MAXIMOS, cheia: `Um compromisso pode ter até ${COLABORADORES_MAXIMOS} participantes.`, oQue: 'mudança na equipe do compromisso'
   },
   anotacoes: {
-    papel: 'Compartilhada', por: 'Compartilhar com mais alguém', tirar: 'Parar de compartilhar', sair: 'Sair da anotação', noItem: 'na anotação', doItem: 'da anotação',
+    papel: 'Compartilhada', por: 'Compartilhar com mais alguém', sair: 'Sair da anotação', noItem: 'na anotação', doItem: 'da anotação',
     peloItem: 'pela anotação', maximo: COLABORADORES_MAXIMOS, cheia: `Uma anotação pode ser compartilhada com até ${COLABORADORES_MAXIMOS} pessoas.`, oQue: 'mudança na equipe da anotação'
   }
 };
@@ -128,6 +126,13 @@ export const saidaPelaBolinhaFalhou = (modulo: ModuloDaEquipe) => {
   const m = EQUIPE_DO_MODULO[modulo];
   return `A equipe foi gravada, mas você continua ${m.noItem}. Para sair, use "${m.sair}" de novo na sua bolinha.`;
 };
+
+/**
+ * O que a bolinha de quem está na lista diz, na dica e para o leitor de tela, a quem pode mudar a equipe: o clique tira a pessoa
+ * na hora ("Tirar Ana Souza"); na própria bolinha, sai do cartão ("Sair da tarefa (Ana Souza)").
+ */
+export const tirarPelaBolinha = (modulo: ModuloDaEquipe, p: { id: string; nome: string }, eu: string) =>
+  p.id === eu ? `${EQUIPE_DO_MODULO[modulo].sair} (${p.nome})` : `Tirar ${p.nome}`;
 
 /**
  * O que o Desfazer grava, com a equipe lida de novo (`atual`): volta só o que esta mudança fez, e o que outra pessoa mudou depois

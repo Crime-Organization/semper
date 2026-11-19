@@ -1,35 +1,39 @@
-// Anotação nova (#303), desde a #339 como uma nota em branco do Obsidian, no mesmo visual do cartão: o cursor já no título
-// ("Sem título"), o texto logo abaixo, sem rótulos (com o Markdown completo da #344 e a barra de botões), uma linha discreta com
-// o responsável e o compartilhamento, e "Ligar a um item", que junta os itens antes de salvar. Vindo do cartão de um item
-// (?pessoa=, ?processo=, ?contrato=, ?demanda=, ?tarefa= ou ?compromisso=), ele já vem na lista. Salvar (ou Ctrl+Enter) cria
-// a anotação ligada a todos os itens da lista: vinda do cartão de um item, a janela fecha e volta a ele; senão, abre o cartão
-// da nova. Para mudar uma anotação que já existe, o título e o texto se mudam no próprio cartão (o antigo ?id= leva a ele).
-// Desde a #342, acima do título fica a pasta (vinda da página Documentos, com ?pasta=, já vem escolhida) e, à esquerda dele, o
-// círculo das etiquetas: escolher ou criar etiquetas ali mesmo, e a anotação já nasce com elas.
+// Anotação nova (#303), como uma nota em branco do Obsidian, na janela do cadastro (como os outros cadastros, pedido do dono de
+// 18/11) e no mesmo desenho da anotação aberta: no topo, numa linha só, a pasta (vinda da página com ?pasta=, já escolhida) e a
+// equipe em bolinhas (quem escreve já é o responsável) e o ícone de etiqueta, que abre a escolha das etiquetas; logo abaixo, os
+// selos das etiquetas escolhidas (sem etiquetas, a linha some); o cursor já no título ("Sem título"); o texto, no editor ao vivo
+// da #364 (a formatação aparece enquanto se escreve, como no Obsidian), com o Markdown completo da #344 e a barra de botões; e
+// "Ligada a", que junta os itens antes de salvar. Vindo do cartão de um item (?pessoa=, ?processo=, ?contrato=, ?demanda=, ?tarefa= ou ?compromisso=), ele já vem na
+// lista. Salvar (ou Ctrl+Enter) cria a anotação ligada a todos os itens da lista e a abre na janela do cartão, no lugar da nota em
+// branco: o Voltar do navegador volta para onde a pessoa estava (o cartão do item, por exemplo). O X da janela fecha a nota.
+// Para mudar uma anotação que já existe, tudo se muda na própria anotação (o antigo ?id= leva a ela).
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Etiqueta, type ItemDaAnotacao, type ModuloDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import {
-  comMaisUmItem, dadosDaAnotacao, DICA_DO_TEXTO, errosDaAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligacoesDaAnotacaoNova, mesmoItem,
+  comMaisUmItem, dadosDaAnotacao, DICA_DO_TEXTO, errosDaAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligacoesDaAnotacaoNova,
   MODULOS_DA_ANOTACAO, semOItem, type CamposAnotacao
 } from '../regras/anotacao';
+import { candidatosDaEquipe } from '../regras/equipe';
+import { AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, MUDANCAS, type EquipeGravada, type TipoDeMudanca } from '../regras/equipeNoCartao';
 import { etiquetasQueExistem } from '../regras/etiquetas';
 import { PARAMETRO_DA_PASTA } from '../regras/pastas';
+import { ICONE_DO_TOPO } from '../ui/AcoesDoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { avisar, falha, feito } from '../ui/avisos';
-import { Aviso, CaixaFormatada, CampoDoTitulo, estiloBotao, Nota, Selo } from '../ui/base';
-import { CirculoDeEtiquetas, SelosDasEtiquetas } from '../ui/Etiquetas';
+import { Aviso, CampoDoTitulo, EditorAoVivo, estiloBotao, Nota } from '../ui/base';
+import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { BotaoDasEtiquetas, SelosDasEtiquetas } from '../ui/Etiquetas';
 import { buscarEtiquetas, lojaDeEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
 import { CaminhoDaPasta } from '../ui/Pastas';
 import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
+import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
-import { useTitulo } from '../ui/util';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
-import { CamposDaEquipeDaAnotacao } from './EquipeDaAnotacao';
 import './Documentos.css';
 
 /** Como ler o item de cada módulo, para mostrar a que a anotação nova fica ligada. */
@@ -41,13 +45,13 @@ const OBTER_ITEM: Record<ModuloDaAnotacao, (id: string) => Promise<ItemDaAnotaca
   tarefas: id => SD.tarefaObter(id).then(x => x && itemDaAnotacao('tarefas', x)),
   compromissos: id => SD.compromissoObter(id).then(x => x && itemDaAnotacao('compromissos', x))
 };
-/** Há uma página antes desta na história da aba (a janela do cadastro aberta de dentro do sistema). */
-const vemDeOutraPagina = () => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0;
 /** O id do campo do título e o do texto (o foco vai a eles). */
 const TITULO = 'titulo', TEXTO = 'texto';
 const focar = (id: string) => document.getElementById(id)?.focus({ preventScroll: true });
 /** O tamanho do X que tira um item da lista dos que a anotação vai ligar. */
 const TAMANHO_DO_X = 14;
+/** As palavras da equipe da anotação (o papel de quem está na lista, o "+", a lista cheia). */
+const EQUIPE = EQUIPE_DO_MODULO.anotacoes;
 
 export default function NovaAnotacao() {
   const ctx = useCtx();
@@ -70,16 +74,18 @@ export default function NovaAnotacao() {
   const pastas = usePastas({ precisa: pasta });
   // A pasta do endereço que não existe mais (apagada por um colega) não vai para a anotação.
   if (pasta && pastas && !pastas.some(p => p.id === pasta)) setPasta(null);
-  // A etiqueta marcada e depois excluída (no próprio painel do círculo, ou por um colega) some da tela e não vai para a anotação:
-  // senão, a pessoa não teria como desmarcá-la, e o salvar falharia sempre.
+  // A etiqueta marcada e depois excluída (no próprio painel, ou por um colega) some da tela e não vai para a anotação: senão, a
+  // pessoa não teria como desmarcá-la, e o salvar falharia sempre.
   const etiquetasMarcadas = etiquetasQueExistem(etiquetas, lojaDeEtiquetas.usar());
   const marcarEtiqueta = (e: Etiqueta, marcada: boolean) => setEtiquetas(atual => marcada ? [...atual.filter(x => x !== e.id), e.id] : atual.filter(x => x !== e.id));
   const [origem, setOrigem] = useState<ItemDaAnotacao | null | undefined>(undefined);   // undefined: lendo ou sem origem
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  useTitulo('Nova anotação');
 
   const mudar = (campos: Partial<CamposAnotacao>) => setC(atual => ({ ...atual, ...campos }));
+  /** A equipe como está na tela agora, para o Desfazer, que pode vir depois de outras mudanças. */
+  const equipeNaTela = useRef(c);
+  equipeNaTela.current = c;
   useEffect(() => {
     if (!moduloDeOrigem || !idDeOrigem) return;
     OBTER_ITEM[moduloDeOrigem](idDeOrigem).then(i => {
@@ -106,7 +112,7 @@ export default function NovaAnotacao() {
     return () => document.removeEventListener('keydown', teclar);
   }, []);
 
-  // O endereço antigo de atualizar (/documentos/nova/?id=…) leva ao cartão, onde a anotação se muda no próprio lugar.
+  // O endereço antigo de atualizar (/documentos/nova/?id=…) leva à anotação, onde ela se muda no próprio lugar.
   const idAntigo = params.get('id');
   if (idAntigo) return <Navigate to={ENDERECO_DA_ANOTACAO + idAntigo} replace />;
 
@@ -136,10 +142,8 @@ export default function NovaAnotacao() {
         return { tipo: 'anotacaoCriada', id: r.id };
       });
       saidaLiberada.current = true;
-      // Vinda do cartão de um item (que continua na lista), a janela fecha e o cartão dele mostra a anotação nova; senão, abre o
-      // cartão dela.
-      const voltaAoItem = !!origem && itens.some(i => mesmoItem(i, origem)) && vemDeOutraPagina();
-      if (voltaAoItem) navegar(-1); else navegar(ENDERECO_DA_ANOTACAO + r.id);
+      // A anotação salva toma o lugar da nota em branco (o Voltar não traz a nota em branco de volta, e sim de onde se veio).
+      navegar(ENDERECO_DA_ANOTACAO + r.id, { replace: true });
     } catch (err) {
       falha(err);
       setOcupado(false);
@@ -150,31 +154,65 @@ export default function NovaAnotacao() {
   }
   salvarPeloAtalho.current = () => void salvar();
 
+  /**
+   * A equipe nas mesmas bolinhas da anotação aberta, com as mesmas regras (MUDANCAS) e o mesmo aviso no pé da tela com o
+   * Desfazer (desfazerMudanca, sobre a equipe como estiver na hora), só que guardada na tela até salvar.
+   */
+  function pedir(tipo: TipoDeMudanca, id: string, nome: string) {
+    const antes: EquipeGravada = { responsavel_id: c.responsavelId, lista: c.participantes };
+    const r = MUDANCAS[tipo]('anotacoes', antes, id, nome);
+    if ('aviso' in r) { avisar(r.aviso, r.tipo); return; }
+    mudar({ responsavelId: r.gravar.responsavel_id ?? c.responsavelId, participantes: r.gravar.lista });
+    feito(AVISO_DA_MUDANCA[tipo]('anotacoes', nome), EQUIPE.oQue, async () => {
+      const agora = equipeNaTela.current;
+      const volta = desfazerMudanca('anotacoes', { tipo, id, nome }, antes, { responsavel_id: agora.responsavelId, lista: agora.participantes });
+      if (!volta) return;
+      if ('aviso' in volta) throw new Error(volta.aviso);
+      mudar({ responsavelId: volta.responsavel_id ?? agora.responsavelId, participantes: volta.lista });
+    });
+  }
+  const responsavel = c.responsavelId ? naEquipe(ctx.equipe, c.responsavelId, 'Responsável') : null;
+  const participantes = c.participantes.map(x => naEquipe(ctx.equipe, x, EQUIPE.papel));
+
   const cheia = itens.length >= ITENS_DA_ANOTACAO;
-  return <div className="passos anotacao-nova">
+  return <article className="anotacao-aberta anotacao-nova" aria-label="Anotação nova">
     <AvisoAoSair estado={{ c, itens, pasta, etiquetas: etiquetasMarcadas }} liberada={saidaLiberada} ocupado={ocupado} />
-    <header className="cartao-cabeca">
-      <div className="linha"><Selo tipo="escuro">Anotação</Selo><span className="codigo">Nova</span></div>
+    <header className="anotacao-topo">
       {/* Sem link nos pedaços do caminho: abrir a pasta agora perderia a anotação que ainda não foi salva. */}
       <CaminhoDaPasta pastas={pastas} pastaId={pasta} aoMudar={setPasta} />
-      <div className="anotacao-titulo">
-        <CirculoDeEtiquetas ids={etiquetas} aoMarcar={marcarEtiqueta} />
-        <CampoDoTitulo id={TITULO} aria-label="Título" placeholder="Sem título" maxLength={TAMANHO_ANOTACAO.titulo} value={c.titulo}
-          aria-invalid={erros.titulo ? true : undefined} onChange={e => mudar({ titulo: e.target.value })}
-          // Enter no título desce para o texto, como numa nota.
-          onKeyDown={e => { if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); focar(TEXTO); } }} />
+      <div className="anotacao-topo-acoes">
+        <EquipeDoCartao responsavel={responsavel} participantes={participantes} mudar={{
+          por: EQUIPE.por,
+          candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, [c.responsavelId, ...c.participantes]),
+          responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [c.responsavelId]),
+          // Na anotação ainda por salvar, ninguém "sai": quem escreve é sempre dela.
+          tirar: p => `Tirar ${p.nome}`,
+          cheia: c.participantes.length >= EQUIPE.maximo ? EQUIPE.cheia : undefined,
+          aoPor: m => pedir('por', m.id, m.nome),
+          aoTirar: p => pedir('tirar', p.id, p.nome),
+          aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome)
+        }} />
+        {/* As etiquetas com que a anotação nasce: a mesma escolha da anotação aberta, guardada na tela até salvar. */}
+        <BotaoDasEtiquetas ids={etiquetasMarcadas} aoMarcar={marcarEtiqueta} rotulo="Etiquetas" className="cartao-botao" comDica>
+          <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
+        </BotaoDasEtiquetas>
       </div>
-      <SelosDasEtiquetas ids={etiquetas} aoTirar={e => marcarEtiqueta(e, false)} />
     </header>
+    {/* As etiquetas escolhidas, numa linha entre o topo e o título (sem etiquetas, ela não aparece). */}
+    <SelosDasEtiquetas ids={etiquetasMarcadas} rotulo="Etiquetas" aoTirar={e => marcarEtiqueta(e, false)} />
 
-    <CaixaFormatada id={TEXTO} aria-label="Texto" className="texto-editavel-caixa anotacao-caixa" placeholder={DICA_DO_TEXTO} maxLength={TAMANHO_ANOTACAO.texto}
-      valor={c.texto} aoMudar={texto => mudar({ texto })} />
+    <CampoDoTitulo id={TITULO} className="anotacao-titulo" aria-label="Título" placeholder="Sem título" maxLength={TAMANHO_ANOTACAO.titulo} value={c.titulo}
+      aria-invalid={erros.titulo ? true : undefined} onChange={e => mudar({ titulo: e.target.value })}
+      // Enter no título desce para o texto, como numa nota.
+      onKeyDown={e => { if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); focar(TEXTO); } }} />
 
-    {/* A equipe, numa linha discreta abaixo do texto: quem escreve já vem como responsável. */}
-    <CamposDaEquipeDaAnotacao campos={c} aoMudar={mudar} erro={erros.responsavelId} />
+    <div className="editor-de-texto">
+      <EditorAoVivo id={TEXTO} rotulo="Texto" placeholder={DICA_DO_TEXTO} maximo={TAMANHO_ANOTACAO.texto}
+        valor={c.texto} aoMudar={texto => mudar({ texto })} />
+    </div>
 
-    <section className="anotacao-nova-ligada" aria-label="Ligada a">
-      <span className="rotulo-caps">Ligada a{itens.length > 0 && <span className="num"> · {itens.length}</span>}</span>
+    {/* A única seção que recolhe na nota em branco: sem o "Expandir tudo", que abriria e fecharia só ela. */}
+    <Recolhivel titulo="Ligada a" icone="vinculo" contador={itens.length} abertaAoIniciar foraDoExpandirTudo>
       {origem === null && <Aviso tipo="erro">O item de onde você veio não foi encontrado. A anotação será salva sem ligação a ele.</Aviso>}
       {/* Sem link para o item: abrir outro cartão agora perderia a anotação que ainda não foi salva. */}
       <ItensLigados rotulo="Itens ligados" vazio="Ainda não está ligada a nenhum item." itens={itens.map(i => ({
@@ -189,7 +227,7 @@ export default function NovaAnotacao() {
           <LigarItem modulos={modulos} ligados={itens} rotulo={itens.length ? 'Ligar a outro item' : 'Ligar a um item'}
             aoEscolher={i => setItens(atual => comMaisUmItem(atual, i))} />
         </div>}
-    </section>
+    </Recolhivel>
 
     <div className="anotacao-nova-salvar">
       <span className="texto-editavel-atalho" aria-hidden="true">Ctrl+Enter salva</span>
@@ -197,5 +235,5 @@ export default function NovaAnotacao() {
         {ocupado ? 'Salvando…' : 'Salvar anotação'}
       </button>
     </div>
-  </div>;
+  </article>;
 }

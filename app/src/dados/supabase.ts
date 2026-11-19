@@ -156,13 +156,13 @@ const rpc = (nome: string, args?: Record<string, unknown>) => rodar(sb.rpc(nome,
 // ---------- comentários ----------
 const CAMPOS_COMENTARIO = 'id, autor_id, texto, mencoes, criado_em, editado_em';
 const CAMPOS_MENSAGEM = 'id, tipo, criado_em, lido_em, prazo_data, prazo_aviso, lembrete_antes, comentario:comentarios(id, autor_id, texto, pessoas(id, codigo, nome), contratos:contratos_da_equipe(id, codigo, servico), '
-  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo)), '
+  + 'demandas(id, codigo, titulo), tarefas(id, codigo, titulo), compromissos(id, codigo, titulo), anotacoes(id, codigo, titulo)), '
   + 'processo_prazo:processo_prazos(descricao, final, concluido_em, excluido_em, processo:processos(id, codigo, tipo, arquivado_em)), '
   + 'demanda:demandas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'tarefa:tarefas(id, codigo, titulo, prazo, prazo_hora, arquivado_em, etapa:quadro_colunas(marco, nome)), '
   + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero, data, hora, arquivado_em, etapa:quadro_colunas(marco, nome))';
 /** Em cada módulo, o que dá nome ao cartão do comentário (a ligação tem o nome do módulo). */
-const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo' };
+const NOME_DO_CARTAO_DA_MENSAGEM: Record<ModuloComentado, string> = { pessoas: 'nome', contratos: 'servico', demandas: 'titulo', tarefas: 'titulo', compromissos: 'titulo', anotacoes: 'titulo' };
 type CartaoDaMensagem = Record<string, string>;
 type EtapaDaLinha = { etapa: { marco: string | null; nome: string } | null; arquivado_em: string | null };
 type LinhaDoCartaoDoPrazo = { id: string; codigo: string; titulo: string; prazo: string | null; prazo_hora: string | null } & EtapaDaLinha;
@@ -225,7 +225,7 @@ const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem =
 const CAIXAS = ['mensagens', 'mensagens_de_participacao'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
-const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id' };
+const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id' };
 
 /** Quem vê o cartão sem estar nele não altera: nenhuma linha muda, e o quadro precisa voltar o cartão. */
 const conferirQueMudou = (linha: unknown) => { if (!linha) throw new Error('Você não tem permissão para fazer isso.'); };
@@ -1211,6 +1211,15 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('anotacoes').update(dados).eq('id', id).select('id, codigo').maybeSingle());
     conferirQueMudou(data);
     return data;
+  },
+  async anotacaoGravarTexto(id, texto, esperado) {
+    // A linha só muda se o atualizado_em ainda é o da leitura (o gatilho "carimbo" o troca a cada gravação).
+    const { data } = await rodar(sb.from('anotacoes').update({ texto }).eq('id', id).eq('atualizado_em', esperado).select('atualizado_em').maybeSingle());
+    if (data) return data.atualizado_em as string;
+    // Nenhuma linha mudou: ou a anotação mudou depois da leitura (null, quem chama decide), ou a pessoa não a altera (ou não a vê).
+    const agora = await SD.anotacaoObter(id);
+    if (agora && agora.atualizado_em !== esperado) return null;
+    throw new Error(NAO_MUDOU);
   },
   async anotacoesArquivar(ids, arquivar = true) {
     const { data } = await rodar(sb.from('anotacoes')

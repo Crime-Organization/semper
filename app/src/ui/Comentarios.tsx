@@ -1,8 +1,7 @@
 // Comentários do cartão, com @ (veja regras/comentarios.ts): a caixa para escrever, com a lista do @, e os comentários do
 // mais novo para o mais antigo. Quem escreveu edita e apaga; administradores também apagam. No painel ao lado, ficam numa
-// seção recolhível do cartão; na janela no centro, na coluna da direita (o PainelCartao diz onde ela está).
+// seção recolhível do cartão; na janela no centro, numa seção recolhível da coluna da direita, aberta de início (o PainelCartao diz onde ela está).
 import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { createPortal } from 'react-dom';
 import { SD, type Comentario, type Membro, type ModuloComentado } from '../dados';
 import { ACHADOS_DA_MENCAO, TAMANHO_COMENTARIO } from '../dados/limites';
 import { inserirMencao, mencaoSendoDigitada, membrosParaMencionar, MOTIVO_SEM_MENCAO, trechosDoComentario } from '../regras/comentarios';
@@ -11,8 +10,7 @@ import { Avatar } from './Avatar';
 import { falha } from './avisos';
 import { Botao, BotaoDuplo } from './Botoes';
 import { Carregando, estiloBotao, Nota } from './base';
-import { Icone } from './Icone';
-import { ColunaDoCartao } from './PainelCartao';
+import { ColunaDoCartao, NaColunaDoCartao, useDentroDaColuna } from './PainelCartao';
 import { Recolhivel } from './Recolhivel';
 import { useCtx } from './sessao';
 import { dataHora, relativo } from './util';
@@ -25,7 +23,7 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
   motivoSemMencao?: (m: Membro) => string | null;
 }) {
   const coluna = useContext(ColunaDoCartao);
-  const titulo = useId();
+  const dentroDaColuna = useDentroDaColuna();
   const [lista, setLista] = useState<Comentario[] | null>(null);
   const [rascunho, setRascunho] = useState('');
   const enviando = useRef(false);
@@ -73,10 +71,13 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso }: {
         {lista.map(c => <ItemComentario key={c.id} c={c} citado={c.id === citado} modulo={modulo} motivoSemMencao={motivoSemMencao} aoEditar={editar} aoExcluir={excluir} />)}
       </ol>}
   </div>;
-  // Na janela no centro, a coluna da direita; no painel ao lado, uma seção recolhível como as outras do cartão.
-  return coluna
-    ? createPortal(<section className="bloco comentarios-coluna" aria-labelledby={titulo}><h3 id={titulo}><Icone nome="comentario" tam={14} />Comentários</h3>{conteudo}</section>, coluna)
-    : <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length} abertaAoIniciar={!!citado}>{conteudo}</Recolhivel>;
+  // Na coluna da direita (a da janela no centro, ou o grupo da coluna da anotação, também ao lado), a seção abre aberta e não guarda
+  // a escolha, com o "Expandir tudo" / "Recolher tudo" do grupo da coluna acima dela; no painel ao lado, é uma seção recolhível
+  // como as outras do cartão, aberta ou fechada como a pessoa deixou. O que se escrevia fica aqui (rascunho), e não na seção:
+  // trocar o formato da janela não o perde.
+  if (dentroDaColuna) return <Recolhivel titulo="Comentários" icone="comentario" contador={lista?.length} abertaAoIniciar>{conteudo}</Recolhivel>;
+  if (coluna) return <NaColunaDoCartao><Recolhivel titulo="Comentários" icone="comentario" contador={lista?.length} abertaAoIniciar>{conteudo}</Recolhivel></NaColunaDoCartao>;
+  return <Recolhivel titulo="Comentários" icone="comentario" preferencia="cartao.comentarios" contador={lista?.length} abertaAoIniciar={!!citado}>{conteudo}</Recolhivel>;
 }
 
 const idDoComentario = (id: string) => 'comentario-' + id;

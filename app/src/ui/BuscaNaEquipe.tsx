@@ -1,16 +1,18 @@
 // O botão "+ Adicionar…" que abre uma busca só na equipe (#282). É a metade de baixo de EscolhaDaEquipe e também a busca de
 // participantes do contrato (#348), onde cada escolhido ganha uma linha com o seu %: quem usa diz quem a busca acha
 // (`buscar`) e o que fazer com quem foi escolhido (`aoEscolher`). No topo dos cartões (#356), o botão é a bolinha redonda
-// com "+", ao lado das bolinhas da equipe, e a busca abre por cima, presa a ela (`bolinha`).
-import { useEffect, useRef, useState, type RefObject } from 'react';
+// com "+", ao lado das bolinhas da equipe, e a busca abre por cima, presa a ela (`bolinha`). A bolinha do responsável usa a
+// mesma busca, com a bolinha dele (ou a vazia) no lugar do "+": clicar nela abre direto a troca.
+// A lista dos achados mostra só os nomes, um embaixo do outro e alinhados à esquerda (a bolinha na frente de cada nome
+// atrapalhava a leitura, e a lista centralizava os nomes dentro do painel: veja .achados em estilo.css).
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import type { Membro } from '../dados/tipos';
-import { Avatar } from './Avatar';
-import { estiloBotao, Nota } from './base';
+import { estiloBotao, Nota, propsDaDica } from './base';
 import { Icone } from './Icone';
 import { MenuFlutuante } from './Menu';
 
-/** Tamanho da bolinha ao lado de cada nome da equipe: na busca, na lista de escolhidos (EscolhaDaEquipe) e nas linhas dos
- * participantes do contrato. Um número só, para as bolinhas da busca e da lista terem o mesmo tamanho. */
+/** Tamanho da bolinha ao lado de cada nome escolhido: na lista de escolhidos (EscolhaDaEquipe) e nas linhas dos participantes do
+ * contrato. Um número só, para as bolinhas das duas listas terem o mesmo tamanho. (Na busca, desde a #356, só os nomes.) */
 export const BOLINHA_DA_EQUIPE = 24;
 /** Tamanho do "+" dentro da bolinha redonda do topo do cartão. */
 const MAIS_NA_BOLINHA = 16;
@@ -38,8 +40,15 @@ interface Props {
    * por cima dela. `motivoDesligado` diz, na dica do botão desligado, por que não dá para pôr mais ninguém. Sem ninguém que
    * ainda possa entrar, a bolinha fica desligada, com isso na dica. Desligada, ela continua no Tab (aria-disabled), para o foco
    * não se perder quando a pessoa acabou de tirar alguém e o cartão ainda grava.
+   * Com `conteudo` (a bolinha do responsável, com as iniciais, ou a vazia), ela fica no lugar do "+", com a `dica` e a `classe`
+   * dela, e o `rotulo` dá o nome para o leitor de tela (sem ele, o nome é `adicionar`, que também nomeia o painel).
+   * `semCandidatos` é a dica e o nome dessa bolinha quando não há ninguém que a busca ache (a do responsável, sem outra pessoa
+   * para assumir): no lugar do "clique para trocar", que ali não vale.
    */
-  bolinha?: { tamanho: number; motivoDesligado?: string };
+  bolinha?: {
+    tamanho: number; motivoDesligado?: string; conteudo?: ReactNode; dica?: string; rotulo?: string; classe?: string;
+    semCandidatos?: { dica: string; rotulo: string };
+  };
 }
 
 export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao: botaoDeFora, focoReserva, focarAoEscolher, desligado, bolinha }: Props) {
@@ -63,13 +72,19 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
   }
 
   if (bolinha) {
-    const motivo = desligado ? bolinha.motivoDesligado : podemEntrar.length ? undefined : NINGUEM_MAIS;
-    const desligada = !!desligado || !podemEntrar.length;
+    const semNinguem = !desligado && !podemEntrar.length;
+    const motivo = desligado ? bolinha.motivoDesligado : semNinguem ? NINGUEM_MAIS : undefined;
+    const desligada = !!desligado || semNinguem;
+    const { conteudo = <Icone nome="mais" tam={MAIS_NA_BOLINHA} />, classe = 'equipe-mais' } = bolinha;
+    // Sem ninguém para achar, a bolinha que tem dica própria (a do responsável) diz só isso, sem o "clique para trocar".
+    const semCandidatos = semNinguem ? bolinha.semCandidatos : undefined;
+    // A dica: o que a bolinha é (o responsável) e, desligada, por quê; no "+", o motivo toma o lugar do nome.
+    const dica = semCandidatos?.dica ?? (bolinha.dica ? [bolinha.dica, motivo].filter(Boolean).join(' · ') : motivo ?? adicionar);
     return <>
-      <button ref={botao} type="button" className="equipe-mais" style={{ width: bolinha.tamanho, height: bolinha.tamanho }} aria-label={adicionar}
-        title={motivo ?? adicionar} aria-description={motivo} aria-haspopup="dialog" aria-expanded={!!aberta} aria-disabled={desligada || undefined}
+      <button ref={botao} type="button" className={classe} style={{ width: bolinha.tamanho, height: bolinha.tamanho }} aria-label={semCandidatos?.rotulo ?? bolinha.rotulo ?? adicionar}
+        {...propsDaDica(dica)} aria-description={motivo} aria-haspopup="dialog" aria-expanded={!!aberta} aria-disabled={desligada || undefined}
         onClick={e => { if (desligada) return; const alvo = e.currentTarget; setAberta(a => a ? null : alvo); }}>
-        <Icone nome="mais" tam={MAIS_NA_BOLINHA} />
+        {conteudo}
       </button>
       {/* O painel fecha sozinho no clique fora e no Esc (que devolve o foco à bolinha); sair dele pelo Tab também a devolve. */}
       {aberta && <MenuFlutuante botao={aberta} painel rotulo={adicionar} aoFechar={() => setAberta(null)}>
@@ -146,10 +161,7 @@ function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSa
       (e.key === 'ArrowDown' ? lista[i + 1] : lista[i - 1] ?? campo.current)?.focus();
     }}>
       {achados.length
-        ? achados.map(m => <li key={m.id}><button type="button" onClick={() => aoEscolher(m)}>
-          {/* A bolinha é só para os olhos: o leitor de tela lê o nome uma vez. */}
-          <span className="com-bolinha"><span aria-hidden="true"><Avatar p={m} tam={BOLINHA_DA_EQUIPE} /></span><b>{m.nome}</b></span>
-        </button></li>)
+        ? achados.map(m => <li key={m.id}><button type="button" onClick={() => aoEscolher(m)}>{m.nome}</button></li>)
         : <li className="nota sem-achados">Ninguém da equipe com esse nome.</li>}
     </ul>
   </div>;

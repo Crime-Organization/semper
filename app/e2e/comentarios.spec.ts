@@ -88,17 +88,27 @@ test.describe('Comentários com @', () => {
     await expect(page.getByText('Nenhum comentário ainda.', { exact: false })).toBeVisible();
   });
 
-  test('quando o cartão abre no centro, então os comentários ficam na coluna da direita', async ({ page }) => {
+  // Desde o pedido do dono de 18/11, os comentários na coluna da direita são uma seção que recolhe, aberta de início, com o
+  // "Recolher tudo" / "Expandir tudo" no topo da coluna (antes, um bloco fixo, que não recolhia).
+  test('quando o cartão abre no centro, então os comentários ficam na coluna da direita, abertos, e o "Recolher tudo" do topo dela os recolhe', async ({ page }) => {
     // Dado
     await abrirCartao(page, '/pessoas/', 'JOSÉ DA SILVA TESTE');
     // Quando
     await page.getByRole('button', { name: 'Abrir no centro da tela' }).click();
     // Então
-    const coluna = page.getByRole('region', { name: 'Comentários' });
-    await expect(coluna.getByRole('textbox', { name: 'Escrever um comentário' })).toBeVisible();
+    const janela = page.getByRole('dialog');
+    const secao = janela.getByRole('button', { name: /^Comentários/ });
+    await expect(secao).toHaveAttribute('aria-expanded', 'true');
+    const caixa = janela.getByRole('textbox', { name: 'Escrever um comentário' });
+    await expect(caixa).toBeVisible();
     await expect.poll(async () => {
-      const [janela, lado] = await Promise.all([page.getByRole('dialog').boundingBox(), coluna.boundingBox()]);
-      return lado!.x > janela!.x + janela!.width / 2;
+      const [fora, lado] = await Promise.all([janela.boundingBox(), caixa.boundingBox()]);
+      return lado!.x > fora!.x + fora!.width / 2;
     }).toBe(true);
+    // Quando
+    await janela.getByRole('button', { name: 'Recolher tudo' }).last().click();
+    // Então
+    await expect(secao).toHaveAttribute('aria-expanded', 'false');
+    await expect(caixa).toBeHidden();
   });
 });

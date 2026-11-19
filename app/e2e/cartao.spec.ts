@@ -93,9 +93,11 @@ test.describe('A janela no centro dos outros módulos, depois da janela larga da
     // Então
     await expect.poll(async () => (await posicao(page)).meio).toBe(0);
     await expect.poll(async () => (await posicao(page)).largura).toBe(LARGURA_DA_JANELA);
-    const coluna = page.getByRole('region', { name: 'Comentários' });
-    await expect(coluna.getByRole('textbox', { name: 'Escrever um comentário' })).toBeVisible();
-    const [janela, lado] = await Promise.all([page.getByRole('dialog').boundingBox(), coluna.boundingBox()]);
+    // (os comentários, na coluna, são uma seção que recolhe, aberta de início: pedido de 18/11)
+    await expect(page.getByRole('dialog').getByRole('button', { name: /^Comentários/ })).toHaveAttribute('aria-expanded', 'true');
+    const caixa = page.getByRole('dialog').getByRole('textbox', { name: 'Escrever um comentário' });
+    await expect(caixa).toBeVisible();
+    const [janela, lado] = await Promise.all([page.getByRole('dialog').boundingBox(), caixa.boundingBox()]);
     expect(lado!.x).toBeGreaterThan(janela!.x + janela!.width / 2);
   });
 });

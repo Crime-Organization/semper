@@ -3,7 +3,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AcoesDeQuemLe, AcoesDoCartao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
+import { AcoesDeQuemLe, AcoesDoCartao, MenuDoCartao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
 import { falha } from './avisos';
 import { Janelas } from './janela';
 
@@ -183,5 +183,49 @@ describe('Rodapé da edição', () => {
     // Então
     expect(aoSalvar).toHaveBeenCalledOnce();
     expect(aoCancelar).toHaveBeenCalledOnce();
+  });
+});
+
+describe('O menu ⋯ do cartão sem lápis (a anotação em Documentos)', () => {
+  const baixar = (aoClicar: () => unknown = vi.fn()): AcaoDoTopo => ({ rotulo: 'Baixar .md', icone: 'baixar', aoClicar });
+  const itens = () => screen.getAllByRole('menuitem').map(b => b.textContent?.trim());
+
+  it('dado quem altera a anotação ativa, quando abre o ⋯, então vê as ações a mais e Arquivar, sem Excluir, e cada uma chama a sua ação', async () => {
+    // Dado
+    const aoArquivar = vi.fn(), aoBaixar = vi.fn();
+    render(<MenuDoCartao arquivado={false} aoArquivar={aoArquivar} excluir={{ oQue: 'a anotação', aoConfirmar: vi.fn() }} extras={[baixar(aoBaixar)]} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    // Então
+    expect(itens()).toEqual(['Baixar .md', 'Arquivar']);
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Arquivar' }));
+    expect(aoArquivar).toHaveBeenCalledOnce();
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Baixar .md' }));
+    await waitFor(() => expect(aoBaixar).toHaveBeenCalledOnce());
+  });
+
+  it('dada a anotação arquivada, quando quem pode excluir escolhe Excluir, então a janela pergunta antes, e só a confirmação exclui', async () => {
+    // Dado
+    const aoConfirmar = vi.fn();
+    render(<><MenuDoCartao arquivado aoArquivar={vi.fn()} excluir={{ oQue: 'a anotação', aoConfirmar }} /><Janelas /></>);
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    expect(itens()).toEqual(['Desarquivar', 'Excluir']);
+    // Quando
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }));
+    expect(await screen.findByRole('dialog', { name: 'Excluir a anotação?' })).toBeInTheDocument();
+    expect(aoConfirmar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Excluir definitivamente' }));
+    // Então
+    await waitFor(() => expect(aoConfirmar).toHaveBeenCalledOnce());
+  });
+
+  it('dado quem só lê, quando abre o ⋯, então só há as ações a mais', async () => {
+    // Dado
+    render(<MenuDoCartao arquivado={false} extras={[baixar()]} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    // Então
+    expect(itens()).toEqual(['Baixar .md']);
   });
 });

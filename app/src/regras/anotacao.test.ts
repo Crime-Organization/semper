@@ -8,7 +8,7 @@ import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
   camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
   SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
-  edicaoPorSalvar, mesmoItem, motivoDaListaVazia, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
+  edicaoPorSalvar, mencaoNegadaNaAnotacao, mesmoItem, motivoDaListaVazia, motivoSemMencaoNaAnotacao, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
@@ -110,6 +110,26 @@ describe('Quem vê e quem altera a anotação', () => {
     expect(alteraAAnotacao(anotacao(), membro('u-bruno'), chaves)).toBe(true);
   });
 
+  it.each([
+    ['o responsável', membro('u-ana'), SEM_CHAVES, null],
+    ['um participante', membro('u-carla'), SEM_CHAVES, null],
+    ['quem criou', membro('u-dani'), SEM_CHAVES, null],
+    ['um administrador', membro('u-x', 'admin'), SEM_CHAVES, null],
+    ['outro usuário', membro('u-bruno'), SEM_CHAVES, 'não participa; inclua como participante'],
+    ['outro usuário, com "equipe_ve_tudo"', membro('u-bruno'), { equipeVeTudo: true, equipeEditaTudo: false }, null],
+    ['outro usuário, com "equipe_edita_tudo"', membro('u-bruno'), { equipeVeTudo: false, equipeEditaTudo: true }, null]
+  ] as const)('quando %s é mencionado num comentário da anotação, então o motivo para não poder é %s (#364)', (_caso, m, chaves, motivo) => {
+    // Quando
+    const r = motivoSemMencaoNaAnotacao(anotacao(), chaves)(m);
+    // Então
+    expect(r).toBe(motivo);
+  });
+
+  it('quando alguém que não está na anotação aparece num comentário dela, então a mensagem diz quem e o que fazer (a mesma do banco)', () => {
+    // Então
+    expect(mencaoNegadaNaAnotacao('Eli')).toBe('Não é possível mencionar Eli nesta anotação: inclua essa pessoa como participante antes.');
+  });
+
   it('dada uma anotação arquivada, quando o responsável quer ligar um item, então não pode (mas pode alterar, para desarquivar)', () => {
     // Dado
     const a = anotacao({ arquivado_em: '2026-11-01' });
@@ -183,7 +203,7 @@ describe('O cadastro de anotação', () => {
     // Quando
     const erros = errosDaAnotacao(c);
     // Então
-    expect(erros).toEqual({ titulo: 'Dê um título à anotação.', texto: 'O texto pode ter até 20.000 caracteres.', responsavelId: 'Escolha o responsável.' });
+    expect(erros).toEqual({ titulo: 'Dê um título à anotação.', texto: 'O texto pode ter até 200.000 caracteres.', responsavelId: 'Escolha o responsável.' });
     expect(errosDaAnotacao(campos({ titulo: 'x'.repeat(TAMANHO_ANOTACAO.titulo + 1) })).titulo).toBe('O título pode ter até 300 caracteres.');
   });
 
@@ -348,7 +368,7 @@ describe('O título e o texto editados no próprio lugar (#339)', () => {
   it.each([
     ['o texto vazio', '', ''],
     ['o texto no tamanho máximo', 'x'.repeat(TAMANHO_ANOTACAO.texto), ''],
-    ['o texto maior que o máximo', 'x'.repeat(TAMANHO_ANOTACAO.texto + 1), 'O texto pode ter até 20.000 caracteres.']
+    ['o texto maior que o máximo', 'x'.repeat(TAMANHO_ANOTACAO.texto + 1), 'O texto pode ter até 200.000 caracteres.']
   ])('dado %s, quando a pessoa salva o texto, então o erro é "%s"', (_caso, texto, erro) => {
     // Quando / Então
     expect(erroDoTexto(texto)).toBe(erro);

@@ -55,7 +55,9 @@ import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA
 import type { GrupoDoPedido, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem } from './tipos';
 import { LISTA_CHEIA, RECUSA_DO_PEDIDO } from '../regras/pedidoDeParticipacao';
 import { juntarAsCaixas } from '../regras/mensagens';
-import { ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, modulosLigados, veAAnotacao, type ChavesDaEquipe } from '../regras/anotacao';
+import {
+  ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, mencaoNegadaNaAnotacao, modulosLigados, motivoSemMencaoNaAnotacao, veAAnotacao, type ChavesDaEquipe
+} from '../regras/anotacao';
 import { anoAceito, dataExiste, padraoDoOrgao } from '../regras/calendario';
 import { PRAZO_MAXIMO_DIAS, TIPOS_SEM_EXPEDIENTE } from '../regras/prazos';
 import { DIA, HORA } from '../ui/tempos';
@@ -1599,6 +1601,8 @@ function apagarAnotacao(a: Anotacao) {
   bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l.anotacao_id !== a.id);
   bd.historicoAnotacoes = bd.historicoAnotacoes!.filter(h => h.anotacao_id !== a.id);
   bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(x => !(x.modulo === 'anotacoes' && x.cartao_id === a.id));
+  // Os comentários vão junto, e com eles as mensagens das menções (minhasMensagens só conta as de comentário que existe).
+  bd.comentarios = bd.comentarios!.filter(c => !(c.modulo === 'anotacoes' && c.cartao_id === a.id));
   auditar('anotacoes', 'exclusao', { id: a.id, codigo: a.codigo });
 }
 /**
@@ -2071,6 +2075,10 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const doCompromisso = compromisso ? processoDoCompromisso(compromisso) : null;
   const foraDoCompromisso = compromisso && !bd.equipeEditaTudo ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso))) : null;
   if (foraDoCompromisso) throw new Error(mencaoNegadaNoCompromisso(foraDoCompromisso.nome));
+  // Na anotação: só quem a vê sem depender de um item ligado (como privado.mencao_na_anotacao; as chaves da equipe abrem a todos).
+  const anotacao = modulo === 'anotacoes' ? bd.anotacoes!.find(a => a.id === cartaoId) : null;
+  const foraDaAnotacao = anotacao ? primeiro(mencoes.filter(m => motivoSemMencaoNaAnotacao(anotacao, chavesDaEquipe())(m))) : null;
+  if (foraDaAnotacao) throw new Error(mencaoNegadaNaAnotacao(foraDaAnotacao.nome));
   // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
   return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
 }
@@ -2085,7 +2093,9 @@ const CARTAO_ALCANCADO: Record<ModuloComentado, (id: string) => boolean> = {
   contratos: alcancoContratoDoId,
   demandas: id => bd.demandas!.some(d => d.id === id) && vejoNoModulo('demandas', id),
   tarefas: id => bd.tarefas!.some(t => t.id === id) && vejoNoModulo('tarefas', id),
-  compromissos: id => bd.compromissos!.some(c => c.id === id) && vejoNoModulo('compromissos', id)
+  compromissos: id => bd.compromissos!.some(c => c.id === id) && vejoNoModulo('compromissos', id),
+  // Como a regra de leitura e a de incluir: a consulta à anotação passa pela regra de leitura dela (quem a vê lê e comenta).
+  anotacoes: id => vejoAnotacaoDoId(id)
 };
 /** O código e o nome do cartão do comentário, para a caixa de mensagens. */
 const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: string; nome: string | null } | undefined> = {
@@ -2093,7 +2103,8 @@ const CARTAO_DA_MENSAGEM: Record<ModuloComentado, (id: string) => { codigo: stri
   contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k && { codigo: k.codigo, nome: k.servico }; },
   demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d && { codigo: d.codigo, nome: d.titulo }; },
   tarefas: id => { const t = bd.tarefas!.find(x => x.id === id); return t && { codigo: t.codigo, nome: t.titulo }; },
-  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return c && { codigo: c.codigo, nome: c.titulo }; }
+  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return c && { codigo: c.codigo, nome: c.titulo }; },
+  anotacoes: id => { const a = bd.anotacoes!.find(x => x.id === id); return a && { codigo: a.codigo, nome: a.titulo }; }
 };
 /** Se quem está logado vê o cartão (como a regra de leitura dos comentários, que passa pela do cartão). */
 const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
@@ -2104,7 +2115,8 @@ const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
     const t = bd.tarefas!.find(x => x.id === id);
     return !!t && (!!bd.equipeVeTudo || vejoTarefa(t));
   },
-  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); }
+  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); },
+  anotacoes: id => vejoAnotacaoDoId(id)
 };
 /** Como o gatilho privado.mensagens_do_comentario: quem foi marcado recebe a mensagem, menos quem escreveu; quem deixou de ser marcado perde a dele. */
 function mensagensDoComentario(c: NonNullable<Banco['comentarios']>[number]) {
@@ -2947,6 +2959,18 @@ export const SD: Dados = {
     Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
     auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); gravar();
     return espera({ id, codigo: a.codigo });
+  },
+  async anotacaoGravarTexto(id, texto, esperado) {
+    // Como no banco: quem não vê não acha a linha; mudada depois da leitura, nada muda (null); quem só lê não grava.
+    const a = bd.anotacoes!.find(x => x.id === id);
+    if (!a || !vejoAnotacao(a)) throw new Error(SEM_PERMISSAO);
+    if (a.atualizado_em !== esperado) return espera(null);
+    if (!alteroAnotacao(a)) throw new Error(SEM_PERMISSAO);
+    const novos = prepararAnotacao({ texto }, a);
+    historicoAnotacao(a, novos);
+    Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
+    auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); gravar();
+    return espera(a.atualizado_em);
   },
   async anotacoesArquivar(ids, arquivar = true) {
     let mudaram = 0;

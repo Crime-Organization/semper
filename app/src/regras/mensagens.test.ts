@@ -9,7 +9,8 @@ describe('Caixa de mensagens', () => {
     ['contratos', '/contratos/?id=c1&comentario=m1'],
     ['demandas', '/demandas/?id=c1&comentario=m1'],
     ['tarefas', '/tarefas/?id=c1&comentario=m1'],
-    ['compromissos', '/agenda/?id=c1&comentario=m1']
+    ['compromissos', '/agenda/?id=c1&comentario=m1'],
+    ['anotacoes', '/documentos/?id=c1&comentario=m1']
   ] as const)('dado um comentário em %s, quando a pessoa abre a mensagem, então vai para o cartão no comentário', (modulo, esperado) => {
     // Quando
     const endereco = enderecoDoComentario(modulo, 'c1', 'm1');

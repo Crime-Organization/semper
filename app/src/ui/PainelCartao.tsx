@@ -4,14 +4,17 @@
 // Na janela no centro há uma coluna à direita, para os comentários: ColunaDoCartao diz onde ela está (no painel ao lado,
 // não há coluna, e os comentários ficam numa seção do cartão).
 // Com "soNoCentro" (o cadastro novo, numa janela sobre a página), é sempre a janela no centro, sem a coluna e sem a
-// troca, e o clique fora não fecha. "rotulo" dá nome à janela para o leitor de tela (padrão: "Cadastro").
-// Com "semColuna" (um cartão sem comentários, como a anotação), a janela no centro não tem a coluna da direita, e os botões
-// do cartão (Arquivar, Editar…) ficam na linha dos botões do painel, como no painel ao lado. Com "largo" (um texto para
-// ler e escrever), a janela no centro ocupa quase toda a tela, com uma margem estreita em volta (no celular, como as outras).
+// troca, e o clique fora não fecha. "rotulo" dá nome à janela para o leitor de tela (padrão: "Cadastro", no cadastro; nos
+// outros cartões, só com o rótulo pedido, como "Anotação").
+// Com "largo" (um texto para ler e escrever, a anotação), a janela no centro ocupa quase toda a tela, com uma margem estreita em
+// volta (no celular, como as outras).
+// O que um cartão põe na coluna da direita (NaColunaDoCartao: os comentários de todos os cartões; na anotação, também "Ligada a"
+// e o histórico) são seções que recolhem, num grupo só delas, com o "Expandir tudo" / "Recolher tudo" no topo da coluna (pedido
+// do dono de 18/11).
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
 // As seções que recolhem ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" acima da primeira.
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { avisar } from './avisos';
 import { Icone, type NomeIcone } from './Icone';
@@ -26,8 +29,34 @@ const FORMATOS: Record<FormatoCartao, { outro: FormatoCartao; rotulo: string; ic
   centro: { outro: 'lado', rotulo: 'Abrir ao lado', icone: 'lado' }
 };
 export const PREFERENCIA_FORMATO = 'cartao.formato';
+/** O nome da janela do cadastro novo para o leitor de tela, quando quem a abre não dá outro. */
+const NOME_DO_CADASTRO = 'Cadastro';
 /** A coluna da direita da janela no centro (null no painel ao lado). */
 export const ColunaDoCartao = createContext<HTMLElement | null>(null);
+/** Se a tela está dentro de NaColunaDoCartao (os comentários da anotação, que já vão no grupo da coluna). */
+const DentroDaColuna = createContext(false);
+export const useDentroDaColuna = () => useContext(DentroDaColuna);
+/**
+ * Põe o que vem dentro na coluna da direita, quando há uma; sem a coluna, fica ali mesmo, no fluxo do cartão. As seções que
+ * recolhem formam um grupo só delas (GrupoDeSecoes), com o "Expandir tudo" / "Recolher tudo" acima da primeira, que abre e
+ * fecha só as dela.
+ * O que vem dentro fica sempre na mesma caixa, um elemento só, que muda de lugar (vai para a coluna ou para o lugar marcado no
+ * fluxo): trocar o formato da janela não desmonta nada, e o comentário que se escrevia, a busca aberta e as seções abertas
+ * continuam como estavam.
+ */
+export function NaColunaDoCartao({ children }: { children: ReactNode }) {
+  const coluna = useContext(ColunaDoCartao);
+  const lugar = useRef<HTMLDivElement>(null);
+  const [caixa] = useState(() => Object.assign(document.createElement('div'), { className: 'cartao-coluna-secoes' }));
+  useLayoutEffect(() => {
+    (coluna ?? lugar.current)?.append(caixa);
+    return () => caixa.remove();
+  }, [coluna, caixa]);
+  return <>
+    <div className="cartao-coluna-lugar" ref={lugar} />
+    {createPortal(<DentroDaColuna.Provider value={true}><GrupoDeSecoes>{children}</GrupoDeSecoes></DentroDaColuna.Provider>, caixa)}
+  </>;
+}
 /**
  * O lugar, na linha dos botões do painel (ao lado do formato e do "X"), para os botões do cartão (Arquivar e Editar).
  * Vale no painel ao lado e na janela estreita, onde os botões do painel ficam por cima do cartão; na janela larga
@@ -73,21 +102,19 @@ const formatoGuardado = (): FormatoCartao => {
 interface PropsPainel {
   aoFechar: () => void;
   soNoCentro?: boolean;
-  /** Nome da janela no centro para o leitor de tela (ex.: "Importar pessoas"). */
+  /** Nome da janela para o leitor de tela (ex.: "Importar pessoas", "Anotação"; no cadastro, sem ele, "Cadastro"). */
   rotulo?: string;
   /** A janela no centro fica da altura do que mostra (um formulário curto), em vez de ocupar a tela toda. */
   ajustado?: boolean;
-  /** O cartão não tem comentários: a janela no centro fica sem a coluna da direita. */
-  semColuna?: boolean;
   /** A janela no centro ocupa quase toda a tela (ao lado, o painel continua do tamanho de sempre). */
   largo?: boolean;
   children: ReactNode;
 }
-export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro', ajustado = false, semColuna = false, largo = false, children }: PropsPainel) {
+export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = false, largo = false, children }: PropsPainel) {
   const [on, setOn] = useState(false);
   const [escolhido, setFormato] = useState(formatoGuardado);
   const formato: FormatoCartao = soNoCentro ? 'centro' : escolhido;
-  const comColuna = formato === 'centro' && !soNoCentro && !semColuna;
+  const comColuna = formato === 'centro' && !soNoCentro;
   const [coluna, setColuna] = useState<HTMLElement | null>(null);
   const [vaga, setVaga] = useState<HTMLElement | null>(null);
   const estreita = useEstreita();
@@ -117,7 +144,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
   return createPortal(<>
     {/* No cadastro, um clique fora não fecha (perderia o que foi digitado): só o X ou o Esc. */}
     <div className={'veu' + (on ? ' on' : '')} onClick={() => { if (!soNoCentro) pedirParaFechar(); }} />
-    <aside className={`cartao-painel ${formato}` + (soNoCentro || semColuna ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (largo ? ' largo' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={soNoCentro ? rotulo : undefined} tabIndex={-1} ref={painel}>
+    <aside className={`cartao-painel ${formato}` + (soNoCentro ? ' sem-coluna' : '') + (ajustado ? ' ajustado' : '') + (largo ? ' largo' : '') + (on ? ' on' : '')} role="dialog" aria-modal="true" aria-label={rotulo ?? (soNoCentro ? NOME_DO_CADASTRO : undefined)} tabIndex={-1} ref={painel}>
       <div className="cartao-botoes">
         <span className="cartao-botoes-do-cartao" ref={setVaga} />
         {!soNoCentro && <button type="button" className="cartao-botao cartao-formato" aria-label={rotuloDoFormato} title={rotuloDoFormato} onClick={trocarFormato}><Icone nome={icone} tam={18} /></button>}
@@ -127,7 +154,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo = 'Cadastro'
         <TravaDoPainel.Provider value={travar}>
           <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
             {/* Sem a coluna, os botões do painel ficam por cima do cartão: os do cartão vão para junto deles. */}
-            <BotoesNoPainel.Provider value={formato === 'lado' || estreita || semColuna ? vaga : null}>
+            <BotoesNoPainel.Provider value={formato === 'lado' || estreita ? vaga : null}>
               <GrupoDeSecoes>
                 <div className="cartao-corpo">{children}</div>
               </GrupoDeSecoes>

@@ -317,3 +317,53 @@ describe('Aviso ao sair de uma edição no próprio lugar (#339)', () => {
     expect(aoDescartar).toHaveBeenCalledOnce();
   });
 });
+
+/** O texto que salva sozinho (a anotação): sair grava antes o que falta, e só pergunta se a gravação falhar. */
+function TextoQueSalvaSozinho({ salvarAntes }: { salvarAntes: () => Promise<boolean> }) {
+  const [porSalvar, setPorSalvar] = useState(false);
+  const liberada = useRef(false);
+  return <>
+    {porSalvar && <AvisoAoSair preenchido liberada={liberada} ocupado={false} salvarAntes={salvarAntes} />}
+    <button type="button" onClick={() => setPorSalvar(true)}>Escrever</button>
+    <Link to="/lista">Lista</Link>
+  </>;
+}
+
+describe('Aviso ao sair do texto que salva sozinho (a anotação)', () => {
+  afterEach(() => {
+    if (pergunta()) fireEvent.keyDown(document, { key: 'Escape' });
+    cleanup();
+  });
+  function abrir(salvarAntes: () => Promise<boolean>) {
+    const roteador = createMemoryRouter([
+      { path: '/anotacao', element: <TextoQueSalvaSozinho salvarAntes={salvarAntes} /> },
+      { path: '/lista', element: <p>Página da lista</p> }
+    ], { initialEntries: ['/anotacao'] });
+    render(<><RouterProvider router={roteador} /><Janelas /></>);
+  }
+
+  it('dado um texto ainda por gravar, quando a pessoa sai por um link, então ele é gravado antes e ela sai sem pergunta', async () => {
+    // Dado
+    const salvarAntes = vi.fn(async () => true);
+    abrir(salvarAntes);
+    await userEvent.click(screen.getByRole('button', { name: 'Escrever' }));
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(salvarAntes).toHaveBeenCalledOnce();
+    expect(pergunta()).not.toBeInTheDocument();
+  });
+
+  it('dada a gravação que falha, quando a pessoa sai por um link, então a pergunta de sempre aparece e ela fica, se quiser', async () => {
+    // Dado
+    abrir(async () => false);
+    await userEvent.click(screen.getByRole('button', { name: 'Escrever' }));
+    // Quando
+    await irParaLista();
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar no cadastro' }));
+    // Então
+    expect(screen.queryByText('Página da lista')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Escrever' })).toBeInTheDocument();
+  });
+});

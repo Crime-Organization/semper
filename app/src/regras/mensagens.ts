@@ -13,7 +13,8 @@ export const CARTAO_DO_MODULO: Record<ModuloComentado, { pagina: string; nome: s
   contratos: { pagina: '/contratos/', nome: 'Contrato' },
   demandas: { pagina: '/demandas/', nome: 'Demanda' },
   tarefas: { pagina: '/tarefas/', nome: 'Tarefa' },
-  compromissos: { pagina: '/agenda/', nome: 'Compromisso' }
+  compromissos: { pagina: '/agenda/', nome: 'Compromisso' },
+  anotacoes: { pagina: '/documentos/', nome: 'Anotação' }
 };
 
 /** O endereço que abre o cartão no comentário da mensagem. */
