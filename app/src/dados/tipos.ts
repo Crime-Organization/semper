@@ -1144,8 +1144,11 @@ export interface ComentarioDaMensagem {
   /** Só no comentário de um processo (#362): a página do cartão depende do tipo dele. Nos outros módulos, null. */
   tipo_do_processo: TipoProcesso | null;
 }
-/** A menção, o aviso de prazo e, do pedido para participar (#363), o pedido (para quem aprova) e a resposta (para quem pediu). */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta';
+/**
+ * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
+ * de quem entrou num item (#377).
+ */
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1179,6 +1182,8 @@ export interface Mensagem {
   prazo: PrazoDaMensagem | null;
   /** No pedido para participar e na resposta a ele (#363). */
   pedido: PedidoDaMensagem | null;
+  /** No aviso de quem entrou num item (#377). */
+  inclusao: InclusaoDaMensagem | null;
 }
 
 /** A caixa de mensagens: cada pessoa só lê e marca as suas. */
@@ -1802,6 +1807,29 @@ export interface PedidoDaMensagem {
   respondido_por: string | null;
   /** No processo, o tipo (a página do cartão depende dele); null quando a pessoa não vê o processo. */
   tipo_do_processo: TipoProcesso | null;
+}
+/** Como a pessoa entrou no item: como responsável ou na equipe (participante; colaborador na demanda e no processo). */
+export type EntrouComo = 'responsavel' | 'participante';
+/** O item do aviso, como a caixa o mostra: o nome é o título (no contrato, o serviço; no compromisso, o nome dele). */
+export interface ItemDaInclusao {
+  id: string;
+  codigo: string;
+  nome: string | null;
+  /** No processo, o tipo (a página do cartão depende dele); nos outros módulos, null. */
+  tipo_do_processo: TipoProcesso | null;
+}
+/** O aviso de que alguém pôs a pessoa num item (supabase/migrations/20261119193326_aviso_ao_ser_incluido.sql). */
+export interface InclusaoDaMensagem {
+  modulo: ModuloDoPedido;
+  entrou_como: EntrouComo;
+  /** Quem incluiu; null se não existe mais. */
+  incluido_por: string | null;
+  /**
+   * O item, só enquanto a pessoa faz parte dele (é o responsável ou está na equipe). null: ela foi retirada (ou não o vê mais), e a
+   * caixa não mostra o título, o código nem quem incluiu, mesmo que ela ainda veja o item por outro caminho (a chave "equipe vê
+   * tudo", ser administrador, ter criado o item).
+   */
+  item: ItemDaInclusao | null;
 }
 /** Pedir para participar: as regras ficam no banco (supabase/migrations/20261118220000_pedidos_de_participacao.sql). */
 export interface DadosPedidos {

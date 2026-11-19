@@ -55,6 +55,9 @@ import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO } from './limites';
 import type { GrupoDoPedido, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem } from './tipos';
 import { LISTA_CHEIA, RECUSA_DO_PEDIDO } from '../regras/pedidoDeParticipacao';
+import type { EntrouComo, ItemDaInclusao } from './tipos';
+import { avisoDaMudanca, mudancasDaEquipe, type EquipeDoItem, type SequenciaDeMudancas } from '../regras/inclusao';
+import { AVISO_DESFEITO } from '../ui/tempos';
 import { juntarAsCaixas } from '../regras/mensagens';
 import {
   ABRE_A_ANOTACAO, alteraAAnotacao, excluiAAnotacao, itemDaAnotacao, ligaNaAnotacao, mencaoNegadaNaAnotacao, modulosLigados, motivoSemMencaoNaAnotacao, veAAnotacao, type ChavesDaEquipe
@@ -96,6 +99,10 @@ const SUGESTOES: Partial<Record<Modulo, string[]>> = { pessoas: ETAPAS, contrato
 type ContratoGuardado = Omit<Contrato, 'clientes' | 'cliente_nome' | 'participantes' | 'indicador'> & { clientes: string[]; participantes: ParticipanteGravado[] };
 /** Modelo de checklist como fica guardado: a árvore é nula no modelo de antes (a leitura a monta pelos itens). */
 type ModeloGuardado = Omit<ModeloDeLista, 'arvore'> & { arvore: NoDoModelo[] | null };
+/** O aviso de quem entrou num item (#377), como uma linha de mensagens_de_inclusao: só ids, nada do item. */
+interface MensagemDeInclusaoGuardada {
+  id: string; perfil_id: string; incluido_por: string | null; modulo: ModuloDoPedido; item_id: string; entrou_como: EntrouComo; criado_em: string; lido_em: string | null;
+}
 
 interface Banco {
   pessoas: Pessoa[];
@@ -118,6 +125,10 @@ interface Banco {
   pedidos?: PedidoGuardado[];
   /** As mensagens dos pedidos, como a tabela mensagens_de_participacao. */
   mensagensDePedido?: { id: string; perfil_id: string; pedido_id: string; tipo: 'pedido' | 'resposta'; criado_em: string; lido_em: string | null }[];
+  /** Os avisos de quem entrou num item (#377), como a tabela mensagens_de_inclusao. */
+  mensagensDeInclusao?: MensagemDeInclusaoGuardada[];
+  /** As sequências de mudanças no papel de cada pessoa em cada item (#377), como a tabela privado.mudancas_na_equipe. */
+  mudancasNaEquipe?: (SequenciaDeMudancas & { perfil_id: string; item_id: string })[];
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
   equipeVeTudo?: boolean;
   /** A fase de adaptação: toda a equipe edita tudo, menos o financeiro. */
@@ -605,6 +616,9 @@ bd.anotacoes.forEach(a => { a.pasta_id ??= null; });
 // Pedidos para participar (#363): começam vazios.
 bd.pedidos ??= [];
 bd.mensagensDePedido ??= [];
+// Avisos de quem entrou num item (#377): começam vazios.
+bd.mensagensDeInclusao ??= [];
+bd.mudancasNaEquipe ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
 const gravar = () => { try { sessionStorage.setItem(CHAVE, JSON.stringify(bd)); } catch { /* sem armazenamento */ } };
@@ -1512,7 +1526,7 @@ function mensagemDePedidoLida(m: NonNullable<Banco['mensagensDePedido']>[number]
   const p = bd.pedidos!.find(x => x.id === m.pedido_id)!, i = itemDoPedido(p.modulo, p.item_id);
   const processo = p.modulo === 'processos' && i?.vejo() ? bd.processos!.find(x => x.id === p.item_id) : null;
   const { criado_em: _criado, respondido_em: _respondido, ...pedido } = p;
-  return { id: m.id, tipo: m.tipo, criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null,
+  return { id: m.id, tipo: m.tipo, criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null, inclusao: null,
     pedido: vejoOPedido(p) ? { ...pedido, tipo_do_processo: processo?.tipo ?? null } : null };
 }
 /** Como privado.por_no_item: põe quem pediu no item (lista cheia, quem saiu da equipe e o contrato sem pessoa recusam). */
@@ -1523,6 +1537,62 @@ function porQuemPediu(i: ItemDoPedidoNoFalso, modulo: ModuloDoPedido, perfil: st
   if (i.equipe.includes(perfil) || i.responsavel_id === perfil) return;
   if (i.quantos >= LISTA_CHEIA[modulo].maximo) throw new Error(LISTA_CHEIA[modulo].aviso);
   i.por(perfil);
+}
+// ---------- aviso de quem entra num item (como supabase/migrations/20261119193326_aviso_ao_ser_incluido.sql, #377) ----------
+/** A equipe do item como está agora (como privado.item_do_pedido): o responsável e os perfis (no contrato, os das pessoas). */
+const equipeDoItemNoFalso = (modulo: ModuloDoPedido, id: string): EquipeDoItem | null => {
+  const i = itemDoPedido(modulo, id);
+  return i && { responsavel_id: i.responsavel_id, equipe: [...i.equipe] };
+};
+/** Quem recebe o aviso: ativo, sem a conta reservada e sem quem foi excluído (como a ligação com perfis no banco). */
+const recebeAviso = (perfil: string) => EQUIPE.some(m => m.id === perfil && m.ativo && !m.reservada && !m.excluido);
+/**
+ * Como os gatilhos aviso_de_inclusao: compara a equipe de antes (null: o item é novo) com a de agora e, para cada pessoa cujo papel
+ * mudou, acerta os avisos pela sequência de mudanças (avisoDaMudanca, como privado.mudancas_na_equipe): os da sequência que ela não
+ * leu e que não valem mais saem (o desfazer); o que vale é criado se ela ainda não tem um dele na sequência, e entrar de novo depois
+ * renova o antigo. Só as funções em que a pessoa grava o item chamam (como o "when current_user = 'authenticated'" do banco):
+ * as criações automáticas, a aprovação do pedido (por) e entrar ou sair sozinho não chamam.
+ */
+function avisarInclusao(modulo: ModuloDoPedido, id: string, antes: EquipeDoItem | null) {
+  const depois = equipeDoItemNoFalso(modulo, id);
+  if (!depois) return;
+  const agoraMs = Date.now();
+  // As sequências que acabaram não contam mais (como o delete do começo da função no banco).
+  bd.mudancasNaEquipe = bd.mudancasNaEquipe!.filter(s => agoraMs - s.em < AVISO_DESFEITO);
+  for (const mudanca of mudancasDaEquipe(antes, depois)) {
+    const daPessoa = (s: { perfil_id: string; item_id: string }) => s.perfil_id === mudanca.perfil && s.item_id === id;
+    const { sequencia, aviso } = avisoDaMudanca(mudanca, bd.mudancasNaEquipe.find(daPessoa), agoraMs);
+    bd.mudancasNaEquipe = [...bd.mudancasNaEquipe.filter(s => !daPessoa(s)), { perfil_id: mudanca.perfil, item_id: id, ...sequencia }];
+    const daSequencia = (m: MensagemDeInclusaoGuardada) => daPessoa(m) && Date.parse(m.criado_em) >= sequencia.desde;
+    bd.mensagensDeInclusao = bd.mensagensDeInclusao!.filter(m => !(daSequencia(m) && !m.lido_em && m.entrou_como !== aviso));
+    if (!aviso || mudanca.perfil === eu || !recebeAviso(mudanca.perfil) || bd.mensagensDeInclusao.some(m => daSequencia(m) && m.entrou_como === aviso)) continue;
+    const ja = bd.mensagensDeInclusao.find(m => daPessoa(m) && m.entrou_como === aviso);
+    if (ja) Object.assign(ja, { criado_em: agora(), lido_em: null, incluido_por: eu });
+    else bd.mensagensDeInclusao.push({ id: novoId(), perfil_id: mudanca.perfil, incluido_por: eu, modulo, item_id: id, entrou_como: aviso, criado_em: agora(), lido_em: null });
+  }
+}
+/** O item apagado leva os avisos dele (a chave estrangeira do banco). */
+const minhasMensagensDeInclusao = () => bd.mensagensDeInclusao!.filter(m => m.perfil_id === eu && !!itemDoPedido(m.modulo, m.item_id));
+/** O item de cada módulo, como a ligação do banco o traz. */
+const ITEM_DA_INCLUSAO_NO_FALSO: Record<ModuloDoPedido, (id: string) => ItemDaInclusao | null> = {
+  tarefas: id => { const t = bd.tarefas!.find(x => x.id === id); return t ? { id, codigo: t.codigo, nome: t.titulo, tipo_do_processo: null } : null; },
+  demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d ? { id, codigo: d.codigo, nome: d.titulo, tipo_do_processo: null } : null; },
+  processos: id => { const p = bd.processos!.find(x => x.id === id); return p ? { id, codigo: p.codigo, nome: p.titulo || p.numero, tipo_do_processo: p.tipo } : null; },
+  compromissos: id => {
+    const c = bd.compromissos!.find(x => x.id === id);
+    return c ? { id, codigo: c.codigo, nome: nomeDoCompromisso({ tipo: c.tipo, titulo: c.titulo, pessoa_nome: nomesDosClientes(c.pessoas), processo_numero: c.processo_numero }), tipo_do_processo: null } : null;
+  },
+  anotacoes: id => { const a = bd.anotacoes!.find(x => x.id === id); return a ? { id, codigo: a.codigo, nome: a.titulo, tipo_do_processo: null } : null; },
+  contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k ? { id, codigo: k.codigo, nome: k.servico, tipo_do_processo: null } : null; }
+};
+/**
+ * Como public.ainda_faz_parte e a ligação com o item: o item só vem enquanto quem está logado é o responsável ou está na equipe, e o
+ * vê. Ver por outro caminho (a chave da equipe, ser administrador, ter criado) não conta.
+ */
+function mensagemDeInclusaoLida(m: MensagemDeInclusaoGuardada): Mensagem {
+  const i = itemDoPedido(m.modulo, m.item_id)!, fazParte = i.responsavel_id === eu || i.equipe.includes(eu);
+  return { id: m.id, tipo: 'inclusao', criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null, pedido: null,
+    inclusao: { modulo: m.modulo, entrou_como: m.entrou_como, incluido_por: m.incluido_por, item: fazParte && i.vejo() ? ITEM_DA_INCLUSAO_NO_FALSO[m.modulo](m.item_id) : null } };
 }
 /** Como o gatilho preparar e as regras check da migração: confere só quem está entrando na equipe da anotação. */
 function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao {
@@ -2312,11 +2382,11 @@ function mensagemLida(m: NonNullable<Banco['mensagens']>[number]): Mensagem {
   const { id, tipo, criado_em, lido_em } = m;
   if (tipo === 'prazo') {
     const p = prazoDoAviso(m)!, aviso = m.prazo_aviso ?? 'proximo';
-    return { id, tipo, criado_em, lido_em, comentario: null, pedido: null, prazo: vejoOCartaoDoPrazo(p)
+    return { id, tipo, criado_em, lido_em, comentario: null, pedido: null, inclusao: null, prazo: vejoOCartaoDoPrazo(p)
       ? { ...p.prazo, data: p.data ?? m.prazo_data!, aviso, antecedencia: aviso === 'lembrete' ? m.lembrete_antes ?? null : null } : null };
   }
   const c = bd.comentarios!.find(x => x.id === m.comentario_id)!, cartao = VEJO_O_CARTAO[c.modulo](c.cartao_id) ? CARTAO_DA_MENSAGEM[c.modulo](c.cartao_id) : undefined;
-  return { id, tipo, criado_em, lido_em, prazo: null, pedido: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome,
+  return { id, tipo, criado_em, lido_em, prazo: null, pedido: null, inclusao: null, comentario: cartao ? { id: c.id, autor_id: c.autor_id, texto: c.texto, modulo: c.modulo, cartao_id: c.cartao_id, cartao_codigo: cartao.codigo, cartao_nome: cartao.nome,
     tipo_do_processo: cartao.tipo_do_processo ?? null } : null };
 }
 const comentarioLido = ({ modulo: _modulo, cartao_id: _cartao, ...c }: NonNullable<Banco['comentarios']>[number]): Comentario => c;
@@ -2596,7 +2666,7 @@ export const SD: Dados = {
     conferirContaDeDestino(d.conta_destino_id);
     const ano = new Date().getFullYear(), numero = Math.max(0, ...bd.contratos!.filter(x => x.ano === ano).map(x => x.numero)) + 1;
     const k: ContratoGuardado = { ...contratoNovo(), ...d, id: novoId(), numero, sigla, ano, codigo: numeroContrato(sigla, numero, ano) };
-    bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); auditar('contratos', 'inclusao', k); gravar();
+    bd.contratos!.push(k); guardarObjetos(k.objetos); demandasDoContratoAssinado(k); parcelasDoContratoAssinado(k); avisarInclusao('contratos', k.id, null); auditar('contratos', 'inclusao', k); gravar();
     return espera({ id: k.id, codigo: k.codigo });
   },
   // Como public.pessoa_fechar_contrato: um contrato só (se a pessoa já é cliente de um não arquivado, o que nasceu dela
@@ -2614,6 +2684,8 @@ export const SD: Dados = {
     const etapa = bd.colunas.find(c => c.modulo === 'contratos' && c.marco === 'aguardando_assinatura')?.id ?? null;
     const { id, codigo: numero } = await SD.contratoCriar({ clientes: [pessoaId], responsavel_id: responsavel, objetos: [OBJETO_A_DEFINIR], categoria: 'pro_labore',
       etapa_id: etapa, etapa_ordem: Date.now() / 1000 });
+    // Como no banco: o contrato que o sistema cria (com o responsável que ele escolheu) não avisa ninguém (#377).
+    bd.mensagensDeInclusao = bd.mensagensDeInclusao!.filter(m => m.item_id !== id);
     bd.contratosDoClienteFechado![pessoaId] = id; gravar();
     return espera({ id, codigo: numero, novo: true });
   },
@@ -2627,8 +2699,9 @@ export const SD: Dados = {
     if (!vejoContrato({ ...k, ...d })) return erro('Você não tem permissão para fazer isso.');
     if (d.conta_destino_id !== undefined && d.conta_destino_id !== k.conta_destino_id) conferirContaDeDestino(d.conta_destino_id);
     historicoContrato(k, d);
-    const etapaAntes = k.etapa_id, antes = { etapa_id: k.etapa_id, objetos: [...k.objetos] };
+    const etapaAntes = k.etapa_id, antes = { etapa_id: k.etapa_id, objetos: [...k.objetos] }, equipeAntes = equipeDoItemNoFalso('contratos', id);
     Object.assign(k, d, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('contratos', id, equipeAntes);
     guardarObjetos(k.objetos); demandasDoContratoAssinado(k, antes);
     // Como o gatilho do banco: só quando a coluna muda.
     if (k.etapa_id !== etapaAntes) parcelasDoContratoAssinado(k);
@@ -2706,13 +2779,14 @@ export const SD: Dados = {
   demandaObter: id => { const d = bd.demandas!.find(x => x.id === id && vejoNoModulo('demandas', x.id)); return espera(d ? demandaCompleta(d) : null); },
   async demandaCriar(dados) {
     const d: DemandaGuardada = { ...demandaNova(), ...prepararDemanda({ clientes: [], colaboradores: [], ...dados }) as Partial<DemandaGuardada>, id: novoId(), codigo: codigo() };
-    bd.demandas!.push(d); auditar('demandas', 'inclusao', d); gravar();
+    bd.demandas!.push(d); avisarInclusao('demandas', d.id, null); auditar('demandas', 'inclusao', d); gravar();
     return espera({ id: d.id, codigo: d.codigo });
   },
   async demandaAtualizar(id, dados) {
-    const d = acharDemanda(id), novos = prepararDemanda(dados, d);
+    const d = acharDemanda(id), novos = prepararDemanda(dados, d), antes = equipeDoItemNoFalso('demandas', id);
     historicoDemanda(d, novos);
     Object.assign(d, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('demandas', id, antes);
     auditar('demandas', 'alteracao', d); gravar();
     return espera({ id, codigo: d.codigo });
   },
@@ -2769,13 +2843,14 @@ export const SD: Dados = {
   tarefaObter: id => { const t = bd.tarefas!.find(x => x.id === id && vejoNoModulo('tarefas', x.id)); return espera(t ? tarefaCompleta(t) : null); },
   async tarefaCriar(dados) {
     const t: TarefaGuardada = { ...tarefaNova(), ...prepararTarefa({ pessoas: [], participantes: [], ...dados }) as Partial<TarefaGuardada>, id: novoId(), codigo: codigo() };
-    bd.tarefas!.push(t); auditar('tarefas', 'inclusao', t); gravar();
+    bd.tarefas!.push(t); avisarInclusao('tarefas', t.id, null); auditar('tarefas', 'inclusao', t); gravar();
     return espera({ id: t.id, codigo: t.codigo });
   },
   async tarefaAtualizar(id, dados) {
-    const t = acharTarefa(id), novos = prepararTarefa(dados, t);
+    const t = acharTarefa(id), novos = prepararTarefa(dados, t), antes = equipeDoItemNoFalso('tarefas', id);
     historicoTarefa(t, novos);
     Object.assign(t, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('tarefas', id, antes);
     auditar('tarefas', 'alteracao', t); gravar();
     return espera({ id, codigo: t.codigo });
   },
@@ -3019,13 +3094,14 @@ export const SD: Dados = {
     const pronto = prepararCompromisso({ participantes: [], pessoas: [], processo_id: null, ...dados });
     const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
       arquivado_em: null, arquivado_por: null, ...pronto, id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as CompromissoGuardado;
-    bd.compromissos!.push(c); auditar('compromissos', 'inclusao', { id: c.id, codigo: c.codigo }); gravar();
+    bd.compromissos!.push(c); avisarInclusao('compromissos', c.id, null); auditar('compromissos', 'inclusao', { id: c.id, codigo: c.codigo }); gravar();
     return espera({ id: c.id, codigo: c.codigo });
   },
   async compromissoAtualizar(id, dados) {
-    const c = acharCompromisso(id), novos = prepararCompromisso(dados, c);
+    const c = acharCompromisso(id), novos = prepararCompromisso(dados, c), antes = equipeDoItemNoFalso('compromissos', id);
     historicoCompromisso(c, novos);
     Object.assign(c, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('compromissos', id, antes);
     auditar('compromissos', 'alteracao', { id: c.id, codigo: c.codigo }); gravar();
     return espera({ id, codigo: c.codigo });
   },
@@ -3096,6 +3172,7 @@ export const SD: Dados = {
       bd.etiquetasAplicadas = bd.etiquetasAplicadas!.filter(x => !(x.modulo === 'anotacoes' && x.cartao_id === a.id));
       throw e;
     }
+    avisarInclusao('anotacoes', a.id, null);
     auditar('anotacoes', 'inclusao', { id: a.id, codigo: a.codigo }); gravar();
     return espera({ id: a.id, codigo: a.codigo });
   },
@@ -3112,8 +3189,10 @@ export const SD: Dados = {
     const novos = prepararAnotacao(dados, a);
     // Como no banco, a leitura confere também a linha nova: quem deixaria de ver a anotação não grava (sai por SD.cartaoSair).
     if (!vejoAnotacao({ ...a, ...novos })) throw new Error(SEM_PERMISSAO);
+    const antes = equipeDoItemNoFalso('anotacoes', id);
     historicoAnotacao(a, novos);
     Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('anotacoes', id, antes);
     auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); gravar();
     return espera({ id, codigo: a.codigo });
   },
@@ -3917,14 +3996,15 @@ export const SD: Dados = {
     const p = { titulo: null, colaboradores: [], orgao: null, sistema: null, polo: null, area: null, meio: null, natureza: null, gratuidade: null, comarca: null, vara: null, classe: null, assunto: null,
       juiz: null, distribuicao: null, valor_causa: null, instancia: null, segredo: false, advogado_contrario: null, observacoes: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null,
       ...pronto, id: novoId(), codigo: codigo(), tipo, criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as ProcessoGuardado;
-    bd.processos!.push(p); auditar('processos', 'inclusao', p); gravar();
+    bd.processos!.push(p); avisarInclusao('processos', p.id, null); auditar('processos', 'inclusao', p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
   },
   async processoAtualizar(id, dados) {
-    const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p);
+    const p = acharProcesso(id), novos = prepararProcesso(dados, p.tipo, p), antes = equipeDoItemNoFalso('processos', id);
     if (novos.campos !== undefined) novos.campos = prepararCampos(novos.campos, p.tipo, p.campos);
     historicoProcesso(p, novos);
     Object.assign(p, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('processos', id, antes);
     auditar('processos', 'alteracao', p); gravar();
     return espera({ id, codigo: p.codigo });
   },
@@ -4164,16 +4244,17 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
   mensagensListar: () => espera(juntarAsCaixas([
+    minhasMensagensDeInclusao().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeInclusaoLida),
     minhasMensagensDePedido().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map(mensagemDePedidoLida),
     minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)
   ], MENSAGENS_DA_CAIXA)),
-  mensagensNaoLidas: () => espera(minhasMensagens().filter(m => !m.lido_em).length + minhasMensagensDePedido().filter(m => !m.lido_em).length),
+  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()].filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
-    const m = [...minhasMensagens(), ...minhasMensagensDePedido()].find(x => x.id === id && !x.lido_em);
+    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()].find(x => x.id === id && !x.lido_em);
     if (m) { m.lido_em = agora(); gravar(); }
   },
   async mensagensMarcarTodasLidas() {
-    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido()]) m.lido_em ??= agora();
+    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()]) m.lido_em ??= agora();
     gravar();
   },
 
@@ -4264,6 +4345,7 @@ export const SD: Dados = {
     bd.convites = bd.convites.filter(c => c.pessoa_id !== m.pessoa_id);
     bd.acessos = bd.acessos.filter(a => a.perfil_id !== id);
     bd.mensagens = bd.mensagens?.filter(x => x.perfil_id !== id);
+    bd.mensagensDeInclusao = bd.mensagensDeInclusao!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
     gravar();
   },

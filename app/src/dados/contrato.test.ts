@@ -11,7 +11,7 @@ import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
-import { DIA } from '../ui/tempos';
+import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
 import { INICIO_VAZIO, inicioDoCriadoEm } from '../regras/dataDeInicio';
@@ -7665,5 +7665,288 @@ describe('Menções sem revelar o item a quem não o vê (banco fictício, #365)
     const comentario = await SD.comentarioCriar('demandas', demanda.id, 'Veja, @ana.lima');
     // Então
     expect(comentario.mencoes).toEqual(['u-ana']);
+  });
+});
+
+describe('Aviso ao ser incluído num item (banco fictício, #377)', () => {
+  let SD: Dados;
+  type Falso = { entrarComo(id: string): void; fecharVisibilidade(ligada: boolean): void };
+  const falso = () => (window as unknown as { SEMPER_FALSO: Falso }).SEMPER_FALSO;
+  const entrarComo = (id: string) => falso().entrarComo(id);
+  /** Os avisos de inclusão de quem está logado. */
+  const avisos = async () => (await SD.mensagensListar()).filter(m => m.tipo === 'inclusao');
+  /** Os avisos de outra conta, voltando depois para a Ana. */
+  const avisosDe = async (quem: string) => { entrarComo(quem); const lista = await avisos(); entrarComo('u-ana'); return lista; };
+  const lerTudo = async (quem: string) => { entrarComo(quem); await SD.mensagensMarcarTodasLidas(); entrarComo('u-ana'); };
+  const demanda = (extra: Partial<Parameters<Dados['demandaCriar']>[0]> = {}) => SD.demandaCriar({ titulo: 'Demanda do aviso', responsavel_id: 'u-ana', ...extra });
+  /** O tempo passa (mais que o do desfazer): a próxima mudança começa outra sequência. */
+  const passarOTempo = () => { const t = Date.now(); vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(t + 2 * MINUTO); };
+
+  beforeEach(async () => {
+    sessionStorage.clear();
+    vi.resetModules();
+    SD = (await import('./falso')).SD;
+    entrarComo('u-ana');
+  });
+  afterEach(() => { vi.useRealTimers(); entrarComo('u-master'); });
+
+  it('dado Bruno fora da demanda, quando Ana o inclui como colaborador, então ele recebe o aviso com a demanda, e marcar como lida tira do número', async () => {
+    // Dado
+    const { id, codigo } = await demanda();
+    // Quando
+    await SD.demandaAtualizar(id, { colaboradores: ['u-bruno'] });
+    // Então
+    entrarComo('u-bruno');
+    const [aviso] = await avisos();
+    expect(aviso.inclusao).toEqual({ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: { id, codigo, nome: 'Demanda do aviso', tipo_do_processo: null } });
+    expect(aviso.lido_em).toBeNull();
+    const antes = await SD.mensagensNaoLidas();
+    await SD.mensagemMarcarLida(aviso.id);
+    expect(await SD.mensagensNaoLidas()).toBe(antes - 1);
+  });
+
+  it('dada uma tarefa da Ana, quando ela passa a responsabilidade para Bruno, então ele recebe o aviso de responsável', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-ana' });
+    // Quando
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-bruno' });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => m.inclusao?.entrou_como)).toEqual(['responsavel']);
+  });
+
+  it('dado um item, quando Ana inclui a si mesma, então ela não recebe aviso', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-master' });
+    // Quando
+    await SD.tarefaAtualizar(id, { participantes: ['u-ana'] });
+    // Então
+    expect(await avisos()).toEqual([]);
+  });
+
+  it('dado um item novo, quando Ana o cria com várias pessoas de uma vez, então cada uma recebe o seu, e quem está desativado não', async () => {
+    // Quando
+    const compromisso = await SD.compromissoCriar({ tipo: 'reuniao', titulo: 'Reunião do aviso', data: hojeISO(), hora: '14:30', responsavel_id: 'u-master', participantes: ['u-bruno', 'u-ana'] });
+    const processo = await SD.processoCriar({ tipo: 'judicial', numero: '0007777-11.2026.8.13.0024', responsavel_id: 'u-ana', clientes: ['p-carla'], colaboradores: ['u-master', 'u-bruno', 'u-carla'] });
+    // Então
+    const doMaster = await avisosDe('u-master'), doBruno = await avisosDe('u-bruno');
+    const doMasterPorItem = doMaster.map(m => [m.inclusao?.item?.id, m.inclusao?.entrou_como]);
+    expect(doMasterPorItem).toHaveLength(2);
+    expect(doMasterPorItem).toEqual(expect.arrayContaining([[compromisso.id, 'responsavel'], [processo.id, 'participante']]));
+    expect(doBruno.map(m => m.inclusao?.item?.id)).toHaveLength(2);
+    expect(doBruno.map(m => m.inclusao?.item?.id)).toEqual(expect.arrayContaining([compromisso.id, processo.id]));
+    expect(doBruno.find(m => m.inclusao?.modulo === 'compromissos')?.inclusao?.item?.nome).toBe('Reunião do aviso');
+    expect(doBruno.find(m => m.inclusao?.modulo === 'processos')?.inclusao?.item).toMatchObject({ tipo_do_processo: 'judicial', nome: '0007777-11.2026.8.13.0024' });
+    expect(await avisos()).toEqual([]);
+    expect(await avisosDe('u-carla')).toEqual([]);
+  });
+
+  it('dado o responsável e a lista no mesmo salvamento, então a pessoa recebe um aviso só, o de responsável; e o responsável que passa a participante (um tempo depois), nada', async () => {
+    // Quando
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-bruno', participantes: ['u-bruno'] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => m.inclusao?.entrou_como)).toEqual(['responsavel']);
+    // Quando
+    await lerTudo('u-bruno');
+    passarOTempo();
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-master', participantes: ['u-bruno'] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.entrou_como, !!m.lido_em])).toEqual([['responsavel', true]]);
+  });
+
+  it('dado Bruno incluído e retirado depois de ler, quando abre a caixa, então o aviso continua sem o item, com a visualização aberta ou fechada', async () => {
+    // Dado
+    const { id } = await demanda({ colaboradores: ['u-bruno'] });
+    await lerTudo('u-bruno');
+    // Quando
+    await SD.demandaAtualizar(id, { colaboradores: [] });
+    // Então: ele ainda vê a demanda (a visualização está aberta), mas o aviso não mostra mais o item
+    entrarComo('u-bruno');
+    expect(await SD.demandaObter(id)).not.toBeNull();
+    expect((await avisos()).map(m => m.inclusao)).toEqual([{ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: null }]);
+    falso().fecharVisibilidade(true);
+    expect(await SD.demandaObter(id)).toBeNull();
+    expect((await avisos())[0].inclusao?.item).toBeNull();
+  });
+
+  it('dada a administradora (ou quem criou o item), quando é retirada, então vê o item, mas o aviso não o mostra mais', async () => {
+    // Dado: o master põe a Ana numa demanda dele; a Ana põe o Bruno numa tarefa que o Bruno criou
+    entrarComo('u-master');
+    const { id } = await SD.demandaCriar({ titulo: 'Demanda do master', responsavel_id: 'u-master', colaboradores: ['u-ana'] });
+    entrarComo('u-bruno');
+    const tarefa = await SD.tarefaCriar({ titulo: 'Tarefa do Bruno', responsavel_id: 'u-master' });
+    entrarComo('u-ana');
+    await SD.tarefaAtualizar(tarefa.id, { participantes: ['u-bruno'] });
+    await lerTudo('u-ana');
+    await lerTudo('u-bruno');
+    falso().fecharVisibilidade(true);
+    // Quando
+    entrarComo('u-master');
+    await SD.demandaAtualizar(id, { colaboradores: [] });
+    await SD.tarefaAtualizar(tarefa.id, { participantes: [] });
+    // Então
+    entrarComo('u-ana');
+    expect(await SD.demandaObter(id)).not.toBeNull();
+    expect((await avisos()).map(m => [m.inclusao?.modulo, m.inclusao?.item])).toEqual([['demandas', null]]);
+    entrarComo('u-bruno');
+    expect(await SD.tarefaObter(tarefa.id)).not.toBeNull();
+    expect((await avisos()).map(m => [m.inclusao?.modulo, m.inclusao?.item])).toEqual([['tarefas', null]]);
+  });
+
+  it('dado um pedido para participar, quando é aprovado, então quem pediu recebe só a resposta, sem o aviso de inclusão', async () => {
+    // Dado
+    falso().fecharVisibilidade(true);
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa pedida', responsavel_id: 'u-ana' });
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('tarefas', id);
+    // Quando
+    entrarComo('u-ana');
+    await SD.participacaoResponder(pedido, true);
+    // Então
+    entrarComo('u-bruno');
+    expect((await SD.tarefaObter(id))?.participantes).toContain('u-bruno');
+    expect((await SD.mensagensListar()).map(m => m.tipo)).toEqual(['resposta']);
+  });
+
+  it('dado Bruno incluído, quando Ana desfaz logo em seguida, então o aviso some; passado o tempo do desfazer, ele fica', async () => {
+    // Dado
+    const { id } = await demanda();
+    // Quando
+    await SD.demandaAtualizar(id, { colaboradores: ['u-bruno'] });
+    await SD.demandaAtualizar(id, { colaboradores: [] });
+    // Então
+    expect(await avisosDe('u-bruno')).toEqual([]);
+    // Quando
+    await SD.demandaAtualizar(id, { colaboradores: ['u-bruno'] });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 2 * MINUTO);
+    await SD.demandaAtualizar(id, { colaboradores: [] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.item, m.lido_em])).toEqual([[null, null]]);
+  });
+
+  it('dado Bruno que saiu, quando entra de novo um tempo depois, então é o mesmo aviso, que volta a ser não lido', async () => {
+    // Dado
+    const { id } = await demanda({ colaboradores: ['u-bruno'] });
+    await lerTudo('u-bruno');
+    passarOTempo();
+    await SD.demandaAtualizar(id, { colaboradores: [] });
+    passarOTempo();
+    // Quando
+    await SD.demandaAtualizar(id, { colaboradores: ['u-bruno'] });
+    // Então
+    const lista = await avisosDe('u-bruno');
+    expect(lista).toHaveLength(1);
+    expect(lista[0].lido_em).toBeNull();
+    expect(lista[0].inclusao?.item?.nome).toBe('Demanda do aviso');
+  });
+
+  it('dado Bruno na demanda (com o aviso lido ou sem aviso), quando Ana o tira e desfaz logo, então ele não recebe "incluiu você"', async () => {
+    // Dado: na primeira demanda ele leu o aviso; na segunda, entrou pelo pedido aprovado (sem aviso de inclusão)
+    const lida = await demanda({ colaboradores: ['u-bruno'] });
+    await lerTudo('u-bruno');
+    const semAviso = await demanda();
+    entrarComo('u-bruno');
+    const pedido = await SD.participacaoPedir('demandas', semAviso.id);
+    entrarComo('u-ana');
+    await SD.participacaoResponder(pedido, true);
+    passarOTempo();
+    // Quando
+    for (const { id } of [lida, semAviso]) {
+      await SD.demandaAtualizar(id, { colaboradores: [] });
+      await SD.demandaAtualizar(id, { colaboradores: ['u-bruno'] });
+    }
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.item?.id, !!m.lido_em])).toEqual([[lida.id, true]]);
+  });
+
+  it('dado Bruno participante, quando Ana o põe como responsável e desfaz logo, então o aviso de responsável some e ela não recebe nada', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-master', participantes: ['u-bruno', 'u-ana'] });
+    await lerTudo('u-bruno');
+    passarOTempo();
+    entrarComo('u-master');
+    // Quando
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-bruno', participantes: ['u-ana', 'u-master'] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => m.inclusao?.entrou_como)).toEqual(['responsavel', 'participante']);
+    // Quando
+    entrarComo('u-master');
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-master', participantes: ['u-bruno', 'u-ana'] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.entrou_como, !!m.lido_em])).toEqual([['participante', true]]);
+  });
+
+  it('dado o responsável trocado e desfeito logo, então quem volta a ser o responsável não recebe aviso', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-master' });
+    await lerTudo('u-master');
+    passarOTempo();
+    // Quando
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-master' });
+    // Então: o master fica só com o aviso de quando a tarefa foi criada, já lido
+    expect(await avisosDe('u-bruno')).toEqual([]);
+    expect((await avisosDe('u-master')).map(m => [m.inclusao?.entrou_como, !!m.lido_em])).toEqual([['responsavel', true]]);
+  });
+
+  it('dado Bruno posto como responsável, quando logo passa a participante, então fica com o aviso de participante', async () => {
+    // Dado
+    const { id } = await SD.tarefaCriar({ titulo: 'Tarefa do aviso', responsavel_id: 'u-ana' });
+    passarOTempo();
+    // Quando
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-bruno' });
+    await SD.tarefaAtualizar(id, { responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.entrou_como, m.lido_em])).toEqual([['participante', null]]);
+  });
+
+  it('dado um contrato, quando entra um participante pela pessoa dele, então o usuário dela recebe; mudar só o percentual não avisa; trocar o responsável avisa', async () => {
+    // Dado
+    const { id } = await SD.contratoCriar({ clientes: ['p-carla'], responsavel_id: 'u-ana', objetos: ['Registro de marca'], categoria: 'pro_labore' });
+    // Quando
+    await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: 'p-bruno', percentual: 10 }] });
+    // Então
+    expect((await avisosDe('u-bruno')).map(m => [m.inclusao?.modulo, m.inclusao?.entrou_como, m.inclusao?.item?.id])).toEqual([['contratos', 'participante', id]]);
+    // Quando
+    await lerTudo('u-bruno');
+    await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: 'p-bruno', percentual: 20 }] });
+    await SD.contratoAtualizar(id, { responsavel_id: 'u-master' });
+    // Então
+    expect((await avisosDe('u-bruno')).every(m => m.lido_em)).toBe(true);
+    expect((await avisosDe('u-master')).map(m => m.inclusao?.entrou_como)).toEqual(['responsavel']);
+  });
+
+  it('dado uma pessoa em "Contrato fechado" movida por quem não é advogado, quando o contrato nasce do advogado dela, então ninguém recebe aviso', async () => {
+    // Dado
+    const { id } = await SD.pessoaCriar({ tipo: 'pf', nome: 'CLIENTE DO AVISO' }, ['u-ana']);
+    entrarComo('u-bruno');
+    // Quando
+    const fechado = (await SD.pessoaFecharContrato(id))!;
+    // Então
+    entrarComo('u-ana');
+    expect((await SD.contratoObter(fechado.id))?.responsavel_id).toBe('u-ana');
+    expect(await avisos()).toEqual([]);
+  });
+
+  it('dada uma anotação compartilhada, quando Ana a duplica, então cada pessoa da cópia recebe o aviso dela', async () => {
+    // Dado
+    const original = await SD.anotacaoCriar({ titulo: 'Original', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+    await lerTudo('u-bruno');
+    // Quando
+    const copia = await SD.anotacaoDuplicar(original.id, { titulo: 'Cópia', responsavel_id: 'u-ana', participantes: ['u-bruno', 'u-master'] });
+    // Então
+    expect((await avisosDe('u-bruno')).filter(m => !m.lido_em).map(m => m.inclusao?.item?.id)).toEqual([copia.id]);
+    expect((await avisosDe('u-master')).map(m => m.inclusao?.item?.nome)).toEqual(['Cópia']);
+  });
+
+  it('dado Bruno com avisos, quando é excluído da equipe, então os avisos dele saem', async () => {
+    // Dado
+    await demanda({ colaboradores: ['u-bruno'] });
+    entrarComo('u-master');
+    await SD.equipeDefinirAtivo('u-bruno', false);
+    // Quando
+    await SD.equipeExcluir('u-bruno');
+    // Então
+    expect(await avisosDe('u-bruno')).toEqual([]);
   });
 });

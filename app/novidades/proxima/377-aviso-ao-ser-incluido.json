@@ -1,0 +1,5 @@
+{
+  "titulo": "Aviso quando incluem você num item",
+  "texto": "Quando alguém põe você num contrato, processo, demanda, tarefa, compromisso ou anotação, ou como responsável por um deles, chega uma mensagem com o link do item. Se depois tirarem você, a mensagem diz só que você não faz mais parte.",
+  "ondeAchar": "Em Mensagens, no menu."
+}
