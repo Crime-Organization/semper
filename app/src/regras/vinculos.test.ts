@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Vinculo, VinculoTipo } from '../dados/tipos';
-import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from './vinculos';
+import { exigeDescricao, lerVinculo, opcaoPelaChave, opcoesDeVinculo, pontasDoVinculo, rotuloNaOutraPonta } from './vinculos';
 
 const tipos: VinculoTipo[] = [
   { id: 't1', escritorio_id: null, nome: 'Cônjuge', inverso: 'Cônjuge', ordem: 10 },
@@ -72,5 +72,29 @@ describe('Vínculos entre pessoas', () => {
     const resultado = exigeDescricao(rotulo);
     // Então
     expect(resultado).toBe(exige);
+  });
+});
+
+describe('A pessoa nova cadastrada pelo "+ Nova pessoa vinculada" (#376)', () => {
+  it('dada a escolha "Representante legal de" no cartão do João, quando a pessoa nova é cadastrada, então na ponta dela o vínculo aparece como "Representado(a) por"', () => {
+    // Dado
+    const opcao = opcaoPelaChave(tipos, 't2:de')!;
+    // Quando / Então
+    expect(rotuloNaOutraPonta(tipos, opcao)).toBe('Representado(a) por');
+  });
+
+  it('dada a escolha no sentido contrário ("Representado(a) por"), quando a pessoa nova é cadastrada, então na ponta dela aparece "Representante legal de"', () => {
+    // Dado / Quando / Então
+    expect(rotuloNaOutraPonta(tipos, opcaoPelaChave(tipos, 't2:para')!)).toBe('Representante legal de');
+  });
+
+  it('dado um vínculo simétrico, quando se olha a outra ponta, então o rótulo é o mesmo', () => {
+    // Dado / Quando / Então
+    expect(rotuloNaOutraPonta(tipos, opcaoPelaChave(tipos, 't1:de')!)).toBe('Cônjuge');
+  });
+
+  it('dada uma chave de um tipo que não existe mais, quando se procura a escolha, então não há nenhuma', () => {
+    // Dado / Quando / Então
+    expect(opcaoPelaChave(tipos, 'sumiu:de')).toBeUndefined();
   });
 });

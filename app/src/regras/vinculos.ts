@@ -28,3 +28,13 @@ export const pontasDoVinculo = (opcao: OpcaoVinculo, aberta: string, outra: stri
 
 /** "Outro" pede uma descrição, já que o tipo sozinho não diz nada. */
 export const exigeDescricao = (rotulo: string) => /^outro$/i.test(rotulo.trim());
+
+/** A escolha do formulário pela chave ("tv3:de"), ou undefined se o tipo não existe mais. */
+export const opcaoPelaChave = (tipos: VinculoTipo[], chave: string) => opcoesDeVinculo(tipos).find(o => o.chave === chave);
+
+/** Como o vínculo escolhido no cartão da pessoa aberta aparece na outra ponta: "Pai/mãe de" na aberta é "Filho(a) de" na outra. */
+export function rotuloNaOutraPonta(tipos: VinculoTipo[], opcao: OpcaoVinculo) {
+  const t = tipos.find(x => x.id === opcao.tipoId);
+  if (!t) return opcao.rotulo;
+  return opcao.sentido === 'de' ? t.inverso : t.nome;
+}

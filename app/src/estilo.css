@@ -1011,6 +1011,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .janela-corpo { font-size: 15px; line-height: 1.6; color: var(--text) }
 .janela-corpo p { margin: 0 0 8px }
 .janela-acoes { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap }
+/* No celular, a janela de três botões ou mais os empilha, todos da mesma largura, na ordem de sempre (o principal por último): nenhum
+   fica sozinho numa linha. */
+@media (max-width: 640px) { .janela-acoes:has(> :nth-child(3)) { flex-direction: column } .janela-acoes:has(> :nth-child(3)) > * { width: 100% } }
 /* Janela larga (um texto para ler, como as Novidades): mais larga, e só o corpo rola; o título e o Fechar ficam à vista. */
 .janela.larga { width: min(var(--largura-janela-larga), 100%); overflow: hidden }
 .janela.larga .janela-corpo { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0 calc(-1 * var(--recuo-da-janela)); padding: 0 var(--recuo-da-janela); scrollbar-gutter: stable }

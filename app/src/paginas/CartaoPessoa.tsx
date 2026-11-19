@@ -262,7 +262,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
-        : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
+        : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} podeCriar={podeLigar} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
     <Recolhivel titulo="Dados do cadastro" icone="cadastro" preferencia="pessoas.cartao.dados" contador={quantosPreenchidos(dadosDoCadastro.flatMap(g => g.linhas.map(([, v]) => v)))}>

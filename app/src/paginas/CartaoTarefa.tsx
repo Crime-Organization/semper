@@ -46,7 +46,7 @@ import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
-import { LigarPessoaNoItem } from './PessoasNosItens';
+import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -240,9 +240,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length}>
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).titulo}>
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
-      {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} />}
+      {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).embaixo} />}
     </Recolhivel>
 
     <Recolhivel titulo="Contrato" icone="contratos" preferencia="tarefas.cartao.contrato" contador={contrato ? 1 : 0}>

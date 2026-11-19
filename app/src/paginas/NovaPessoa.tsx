@@ -1,7 +1,9 @@
 // Cadastro de pessoa em etapas (também usado para atualizar: /pessoas/nova/?id=...), com busca de CNPJ e CEP,
-// controle de duplicidade por CPF/CNPJ (oferece atualizar o cadastro existente) e aviso de telefone repetido.
+// controle de duplicidade por CPF/CNPJ (oferece atualizar o cadastro existente) e aviso de telefone repetido. Aberto pelo
+// "+ Nova pessoa" de um cartão (?demanda=, ?processo=, ?vinculo_com=…; veja regras/origemDaPessoa.ts, #376), ao terminar liga a
+// pessoa ao item de origem e volta ao cartão dele; com o CPF/CNPJ já cadastrado, oferece ligar a pessoa que já existe.
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { SD, type DadosPessoa, type Pessoa, type PessoaResumida, type TipoPessoa } from '../dados';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -11,7 +13,13 @@ import {
   fmtCPF, fmtData, fmtTelefone, lerData, limparDocumento, MASCARAS, telefoneNormal, UFS, variantesTelefone
 } from '../regras/pessoa';
 import { consultarCEP, consultarCNPJ } from '../dados/consultas';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
+import {
+  ACOES_DO_EXISTENTE, AVISO_SEM_ORIGEM, cadastradaNaOrigem, casoDoExistente, existenteNaOrigem, faixaDaOrigem, jaEstavaNaOrigem, lerOrigem, naoLigouNaOrigem,
+  ORIGEM_DA_PESSOA, TEXTO_DO_EXISTENTE, type EscolhaDoExistente, type Origem, type SemOrigem
+} from '../regras/origemDaPessoa';
+import { ligarEAvisar, type Desfazer } from './ligarNoCartao';
+import { lerItemDeOrigem, type ItemDeOrigem } from './novaPessoa/origem';
 import { enviarParaPlanilhaAntiga, lembrarDeApagarNaPlanilha } from '../improvisos/planilhaAntiga'; // PROVISORIO-219
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
@@ -42,6 +50,15 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const idAtualizar = edicao?.id ?? params.get('id');
   const etapaInicial = params.get('etapa');
   const membros = ctx.equipe.filter(m => m.ativo);
+  // Aberto pelo "+ Nova pessoa" de um cartão (#376): ao terminar, a pessoa fica ligada ao item de origem e a tela volta a ele. A
+  // descrição do vínculo vem com a navegação (no estado do histórico), e não no endereço: é texto livre.
+  const { state: estadoDaNavegacao } = useLocation();
+  const [origem] = useState<Origem | null>(() => edicao || idAtualizar ? null
+    : lerOrigem(params, (estadoDaNavegacao as { descricao?: string } | null)?.descricao));
+  /** O item de origem já lido, ou por que o cadastro segue sem ligar (não achado, ou arquivado). */
+  const [leituraDaOrigem, setLeituraDaOrigem] = useState<ItemDeOrigem | SemOrigem>('sumiu');
+  /** O item de origem a ligar (null: o cadastro segue sem ligar). */
+  const itemDeOrigemRef = useRef<ItemDeOrigem | null>(null);
 
   // O estado vive também num ref: as consultas e janelas (assíncronas) sempre leem o valor mais novo.
   const [c, setC] = useState<Campos>(() => ({
@@ -62,7 +79,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const [retornoCEP, setRetornoCEP] = useState<Retorno>(null);
   const [ocupado, setOcupado] = useState<false | 'validando' | 'salvando'>(false);
   const ocupadoRef = useRef(false);
-  const [pronto, setPronto] = useState(!idAtualizar);
+  const [pronto, setPronto] = useState(!idAtualizar && !origem);
   const botaoAvancar = useRef<HTMLButtonElement>(null);
   const botaoCNPJ = useRef<HTMLButtonElement>(null);
   const botaoCEP = useRef<HTMLButtonElement>(null);
@@ -147,15 +164,25 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (v === 'ver') { saidaLiberada.current = true; navegar('/pessoas/?id=' + ex.id); }
       return false;
     }
-    const escolha = await janela({
+    // Aberto por um cartão: a pessoa ativa que já existe pode ir para o item de origem como está (#376), sem passar pelo resto do
+    // cadastro; a arquivada, só atualizando o cadastro (que a devolve às ativas). Os casos ficam em regras/origemDaPessoa.ts.
+    const item = itemDeOrigemRef.current;
+    const caso = casoDoExistente(!!(item && origem), !!ex.arquivado_em);
+    const ligada = item && origem ? ORIGEM_DA_PESSOA[origem.modulo].ligada(item.nome) : '';
+    const escolha = await janela<EscolhaDoExistente>({
       titulo: 'Cadastro já existente',
       corpo: <>
         <p>Já existe um cadastro com este {rotulo}: <b>{ex.nome}</b> ({ex.codigo}){ex.arquivado_em ? ', que está arquivado' : ''}.</p>
-        <p>Deseja atualizar as informações dessa pessoa com os dados desta tela? O que ela já tem e você não preencher aqui é mantido, e os dados anteriores ficam no histórico.{ex.arquivado_em ? ' O cadastro volta para as ativas.' : ''}</p>
+        {TEXTO_DO_EXISTENTE[caso](ligada, !!ex.arquivado_em).map(t => <p key={t}>{t}</p>)}
       </>,
-      acoes: [{ rotulo: 'Ver cadastro existente', valor: 'ver' }, { rotulo: 'Cancelar', valor: null }, { rotulo: 'Atualizar este cadastro', valor: 'atualizar', tipo: 'pri' }]
+      acoes: ACOES_DO_EXISTENTE[caso]
     });
     if (escolha === 'ver') { saidaLiberada.current = true; navegar('/pessoas/?id=' + ex.id); return false; }
+    if (escolha === 'ligar' && item && origem) {
+      await ligarEAvisar(() => item.ligar(ex.id), { feito: existenteNaOrigem(origem.modulo, item.nome), oQue: 'ligação da pessoa', ja: jaEstavaNaOrigem(origem.modulo, item.nome) },
+        () => { saidaLiberada.current = true; navegar(item.endereco, { replace: true }); });
+      return false;
+    }
     if (escolha !== 'atualizar') return false;
     try { await entrarAtualizacao(ex.id, true); }
     catch (e) { falha(e); return false; }
@@ -278,6 +305,12 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     if (idAtualizar) entrarAtualizacao(idAtualizar, false).then(() => { if (edicao) prepararTodas(); }).catch(falha).finally(() => setPronto(true));
   // oxlint-disable-next-line react/exhaustive-deps -- carrega o cadastro a atualizar uma vez só, ao abrir o formulário
   }, []);
+  // Aberto por um cartão: o item de origem, antes de mostrar o formulário (a faixa diz onde a pessoa vai entrar).
+  useEffect(() => {
+    if (!origem) return;
+    lerItemDeOrigem(origem).then(x => { itemDeOrigemRef.current = typeof x === 'string' ? null : x; setLeituraDaOrigem(x); })
+      .catch(falha).finally(() => setPronto(true));
+  }, [origem]);
 
   // ---------- coleta e envio ----------
   function coletar(): DadosPessoa {
@@ -333,15 +366,29 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           return { tipo: 'pessoaAtualizada', id: atual.id };
         });
         saidaLiberada.current = true;
-        if (edicao) edicao.aoTerminar(true); else navegar('/pessoas/?id=' + r.id);
+        const item = itemDeOrigemRef.current;
+        if (edicao) edicao.aoTerminar(true);
+        else if (item && origem) {
+          // Aberto por um cartão: a pessoa atualizada vai para o item de origem, e a tela volta a ele.
+          await ligarEAvisar(() => item.ligar(atual.id), { feito: existenteNaOrigem(origem.modulo, item.nome), oQue: 'ligação da pessoa', ja: jaEstavaNaOrigem(origem.modulo, item.nome) }, () => {});
+          navegar(item.endereco, { replace: true });
+        } else navegar('/pessoas/?id=' + r.id);
       } else {
         if (etapaInicial) { dados.etapa_id = etapaInicial; dados.etapa_ordem = ordemNoFim(); }
         const r = await SD.pessoaCriar(dados, resp);
         enviarParaPlanilhaAntiga(dados, resp, ctx); // PROVISORIO-219
+        // Aberto por um cartão (#376): a pessoa já existe; se a ligação falhar, ela continua cadastrada, e a pessoa fica sabendo.
+        const item = itemDeOrigemRef.current;
+        let desfazerLigacao: Desfazer | null = null, naoLigou: string | null = null;
+        if (item && origem) {
+          try { desfazerLigacao = await item.ligar(r.id); }
+          catch (e) { naoLigou = naoLigouNaOrigem(origem.modulo, item.nome, (e as Error).message); }
+        }
         // Cadastrada direto em "Contrato fechado", ela ganha um contrato: desfazer o cadastro apaga o contrato também
-        // (a pessoa com contrato não pode ser excluída).
+        // (a pessoa com contrato não pode ser excluída). A ligação ao item de origem sai antes.
         let contratoNascido: string | null = null;
-        feito('Pessoa cadastrada.', 'cadastro da pessoa', async () => {
+        feito(item && origem && !naoLigou ? cadastradaNaOrigem(origem.modulo, item.nome) : 'Pessoa cadastrada.', 'cadastro da pessoa', async () => {
+          if (desfazerLigacao) await desfazerLigacao();
           if (contratoNascido) { await SD.contratosArquivar([contratoNascido], true); await SD.contratosExcluir([contratoNascido]); }
           await SD.pessoasArquivar([r.id], true);
           const x = await SD.pessoasExcluir([r.id]);
@@ -349,8 +396,10 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           lembrarDeApagarNaPlanilha(ctx); // PROVISORIO-219
           return { tipo: 'pessoaCriada', id: r.id };
         });
+        if (naoLigou) avisar(naoLigou, 'erro');
         saidaLiberada.current = true;
-        navegar('/pessoas/?id=' + r.id);
+        // De volta ao cartão de origem, no lugar do cadastro: o Voltar do navegador não reabre o formulário.
+        if (item) navegar(item.endereco, { replace: true }); else navegar('/pessoas/?id=' + r.id);
         // Cadastrada direto em "Contrato fechado": o contrato dela nasce também.
         if (etapaInicial) void SD.colunasListar('pessoas').then(colunas => contratoDaPessoaFechada({ id: r.id, nome: dados.nome ?? '' }, etapaInicial, colunas, navegar))
           .then(k => { if (k?.novo) contratoNascido = k.id; });
@@ -467,6 +516,9 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       <h1 className="titulo">{alvo ? 'Atualizar cadastro' : 'Nova pessoa'}<span className="ponto">.</span></h1>
     </header>
     {alvo && <Aviso tipo="info" className="faixa-atualizar">Você está atualizando o cadastro de <b>{alvo.nome}</b> ({alvo.codigo}). As informações anteriores ficam guardadas no histórico.</Aviso>}
+    {origem && pronto && (typeof leituraDaOrigem === 'string'
+      ? <Aviso tipo="erro" className="faixa-atualizar">{AVISO_SEM_ORIGEM[leituraDaOrigem]}</Aviso>
+      : <Aviso tipo="info" className="faixa-atualizar">{faixaDaOrigem(origem.modulo, leituraDaOrigem.nome)}</Aviso>)}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>
