@@ -3,9 +3,9 @@
 // O banco fictício sempre entra como administrador; aqui a tarefa é editada também por quem não é.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SD, type Tarefa } from '../dados';
+import { SD, type Processo, type Tarefa } from '../dados';
 import { feito } from '../ui/avisos';
 import NovaTarefa from './NovaTarefa';
 
@@ -247,5 +247,112 @@ describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
     // Então
     await waitFor(() => expect(gravar).toHaveBeenCalled());
     for (const campo of ['prazo', 'prazo_hora', 'lembrete', 'data_inicio']) expect(gravar.mock.calls[0][1]).not.toHaveProperty(campo);
+  });
+});
+
+describe('Tarefa que nasce do "+ Nova tarefa" de um processo (#376)', () => {
+  const PROCESSO = { id: 'p1', codigo: 'ABCD1234', tipo: 'judicial', numero: '0001234-97.2026.8.13.0024', titulo: 'Ação do José', cliente_nome: 'JOSÉ',
+    clientes: [{ id: 'c1', codigo: 'C1', nome: 'JOSÉ', tipo: 'pf', arquivado_em: null }] } as unknown as Processo;
+  /** O cadastro da tarefa, para conferir o que foi gravado. */
+  const criarTarefa = vi.fn<typeof SD.tarefaCriar>();
+  /** O lugar para onde a tela foi depois de salvar. */
+  function Destino() {
+    const { pathname, search } = useLocation();
+    return <p>Foi para {pathname + search}</p>;
+  }
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    sessao.escritorio = { modulos: { processos: true } };
+    Object.assign(Element.prototype, { scrollIntoView: () => undefined });
+    vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'colunasListar').mockResolvedValue([]);
+    vi.spyOn(SD, 'gruposListar').mockResolvedValue([]);
+    vi.spyOn(SD, 'processoObter').mockResolvedValue(PROCESSO);
+    criarTarefa.mockReset().mockResolvedValue({ id: 't9', codigo: 'T9' });
+    vi.spyOn(SD, 'tarefaCriar').mockImplementation(criarTarefa);
+  });
+  /** Abre o cadastro pelo endereço e escreve o título. */
+  async function abrir(endereco: string) {
+    const roteador = createMemoryRouter([{ path: '/tarefas/nova/', element: <NovaTarefa /> }, { path: '*', element: <Destino /> }], { initialEntries: [endereco] });
+    render(<RouterProvider router={roteador} />);
+    await userEvent.type(await screen.findByLabelText(/Título/), 'Protocolar a petição');
+  }
+  /** Abre o cadastro pelo cartão do processo: o processo já vem escolhido, e o aviso do topo diz de onde a tarefa nasce. */
+  async function abrirPeloProcesso() {
+    await abrir('/tarefas/nova/?processo=p1');
+    expect(await screen.findByRole('button', { name: 'Tirar o processo Ação do José' })).toBeInTheDocument();
+    expect(screen.getByText(/Esta tarefa nasce do processo/)).toHaveTextContent('Esta tarefa nasce do processo ABCD1234 (Ação do José) e fica ligada a ele.');
+  }
+  async function salvar() {
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Salvar tarefa' }));
+  }
+
+  it('dado o processo com um cliente, quando a tarefa é criada por ele, então nasce com o processo e o cliente como pessoa, e a tela volta ao processo', async () => {
+    // Dado
+    await abrirPeloProcesso();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    // Então
+    expect(await screen.findByRole('group', { name: 'Pessoas ligadas' })).toHaveTextContent('JOSÉ');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar tarefa' }));
+    // Então
+    expect(await screen.findByText('Foi para /processos/judicial/?id=p1')).toBeInTheDocument();
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ processo_id: 'p1', pessoas: ['c1'] }));
+  });
+
+  it('dado o cadastro aberto pelo processo, quando a pessoa tira o processo e salva, então a tela vai à tarefa nova', async () => {
+    // Dado
+    await abrirPeloProcesso();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o processo Ação do José' }));
+    await salvar();
+    // Então
+    expect(await screen.findByText('Foi para /tarefas/?id=t9')).toBeInTheDocument();
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ processo_id: null }));
+  });
+
+  it('dado o cadastro aberto pelo processo, quando a pessoa tira o processo, então o aviso de onde a tarefa nasce some', async () => {
+    // Dado
+    await abrirPeloProcesso();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o processo Ação do José' }));
+    // Então
+    expect(screen.queryByText(/Esta tarefa nasce do processo/)).not.toBeInTheDocument();
+  });
+
+  it('dado um processo arquivado depois que o cartão abriu, quando a tarefa é criada pelo endereço dele, então o aviso diz que ela não fica ligada e ela nasce com os clientes dele, mas sem o processo', async () => {
+    // Dado
+    vi.spyOn(SD, 'processoObter').mockResolvedValue({ ...PROCESSO, arquivado_em: '2026-11-18T10:00:00Z' });
+    await abrir('/tarefas/nova/?processo=p1');
+    // Então
+    expect(await screen.findByText(/está arquivado/)).toHaveTextContent('O processo ABCD1234 (Ação do José) está arquivado: esta tarefa não fica ligada a ele.');
+    expect(screen.queryByText(/Esta tarefa nasce do processo/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Tirar o processo Ação do José' })).not.toBeInTheDocument();
+    // Quando
+    await salvar();
+    // Então
+    expect(await screen.findByText('Foi para /tarefas/?id=t9')).toBeInTheDocument();
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ processo_id: null, pessoas: ['c1'] }));
+  });
+
+  it('dado um endereço com a pessoa e o processo, quando as duas leituras respondem no mesmo instante, então a pessoa do endereço fica e a tarefa nasce ligada ao processo', async () => {
+    // Dado
+    vi.spyOn(SD, 'pessoaObter').mockResolvedValue({ id: 'x1', codigo: 'X1', nome: 'MARIA', tipo: 'pf', arquivado_em: null } as never);
+    // Quando
+    await abrir('/tarefas/nova/?pessoa=x1&processo=p1');
+    expect(await screen.findByRole('button', { name: 'Tirar o processo Ação do José' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    // Então
+    const pessoas = await screen.findByRole('group', { name: 'Pessoas ligadas' });
+    expect(pessoas).toHaveTextContent('MARIA');
+    expect(pessoas).not.toHaveTextContent('JOSÉ');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar tarefa' }));
+    // Então
+    expect(await screen.findByText('Foi para /processos/judicial/?id=p1')).toBeInTheDocument();
+    expect(criarTarefa).toHaveBeenCalledWith(expect.objectContaining({ processo_id: 'p1', pessoas: ['x1'] }));
   });
 });

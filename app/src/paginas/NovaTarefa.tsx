@@ -3,6 +3,9 @@
 // Vindo do cartão de uma pessoa (?pessoa=), de uma demanda (?demanda=) ou de um contrato (?contrato=), ele já vem
 // escolhido. Ao escolher a demanda, as pessoas e o contrato dela entram na tarefa, se ainda estiverem vazios; ao tirá-la, saem
 // de novo, se a pessoa não os mudou (regras/tarefa.ts: oQueADemandaTraz e semADemanda).
+// Vindo do "+ Nova tarefa" de um processo (?processo=, #376), ela já vem ligada a ele (o aviso do topo diz de onde nasce), com os clientes
+// dele como pessoas (se o endereço não traz outras), e, ao salvar, a tela volta ao cartão do processo (se a pessoa não tirou o processo no
+// cadastro). O processo arquivado depois que o cartão abriu não é ligado: o aviso diz isso antes de gravar.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosTarefa, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
@@ -10,6 +13,8 @@ import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { camposForaDoLapis, DATAS_NO_LUGAR, etapasDoLapis, semOsCampos } from '../regras/datasNoCartao';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, DEMANDAS_PARA_LIGAR, TAMANHO_TAREFA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
+import { enderecoDoItem } from '../regras/anotacao';
+import { depoisDeCriar, tarefaDoProcesso } from '../regras/origemDoCadastro';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import {
   camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, primeiraEtapaComErroTarefa, semADemanda,
@@ -25,7 +30,7 @@ import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, p
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
-import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
+import { EscolhaDeProcessos, nomeDoEscolhido, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
@@ -50,7 +55,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const saidaLiberada = useRef(false);
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
-  const pessoaInicial = params.get('pessoa'), demandaInicial = params.get('demanda'), contratoInicial = params.get('contrato');
+  const pessoaInicial = params.get('pessoa'), demandaInicial = params.get('demanda'), contratoInicial = params.get('contrato'), processoInicial = params.get('processo');
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id }));
@@ -74,6 +79,9 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   // O processo escolhido, para mostrar o nome (o campo guarda só o id).
   const comProcessos = !!ctx.escritorio?.modulos?.processos;
   const [processo, setProcesso] = useState<ProcessoEscolhido | null>(null);
+  // O processo de onde a tarefa nasceu (?processo=): o aviso no topo, o cartão para onde a tela volta ao salvar e, se ele foi
+  // arquivado depois que o cartão abriu (ou o endereço ficou velho), a recusa: aí a tarefa nasce sem ele.
+  const [doProcesso, setDoProcesso] = useState<{ codigo: string; nome: string; cartao: string; arquivado: boolean } | null>(null);
   // O nome da demanda e do contrato que vieram pelo cartão, para quando eles não estão nas listas de busca (ex.: quem não é
   // parte do contrato da demanda vê a ligação pelo código, e não só "Contrato ligado").
   const [conhecidos, setConhecidos] = useState<Record<string, string>>({});
@@ -137,6 +145,17 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       setConhecidos(x => ({ ...x, [k.id]: k.codigo }));
       porPessoas(k.clientes);
       setC(x => ({ ...x, contratoId: k.id, pessoas: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));
+    }).catch(falha);
+    if (processoInicial && comProcessos) SD.processoObter(processoInicial).then(p => {
+      if (!p) return;
+      const arquivado = !!p.arquivado_em;
+      setDoProcesso({ codigo: p.codigo, nome: nomeDoEscolhido(p), cartao: enderecoDoItem({ modulo: 'processos', id: p.id, tipo: p.tipo }), arquivado });
+      // As pessoas só entram se o endereço não as traz por outro parâmetro (como ?pessoa=): as de lá ficam. Do processo arquivado,
+      // como no cadastro de processo, vêm as pessoas, mas não a ligação.
+      const { processoId, pessoas: daOrigem } = tarefaDoProcesso(p, !!(pessoaInicial || demandaInicial || contratoInicial));
+      if (daOrigem) porPessoas(p.clientes);
+      if (!arquivado) setProcesso(p);
+      setC(x => ({ ...x, ...(daOrigem ? { pessoas: daOrigem } : {}), ...(arquivado ? {} : { processoId }) }));
     }).catch(falha);
   // oxlint-disable-next-line react/exhaustive-deps -- carrega uma vez só, ao abrir o formulário
   }, []);
@@ -261,7 +280,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           return { tipo: 'tarefaCriada', id: r.id };
         });
         saidaLiberada.current = true;
-        navegar('/tarefas/?id=' + r.id);
+        // Vinda do processo, volta ao cartão dele, onde a tarefa nova já aparece (a tarefa nasce com o processo gravado).
+        navegar(depoisDeCriar(doProcesso?.cartao ?? null, !!processoInicial && dados.processo_id === processoInicial, '/tarefas/?id=' + r.id));
       }
     } catch (err) {
       falha(err);
@@ -358,6 +378,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       <h1 className="titulo">{alvo ? 'Atualizar tarefa' : 'Nova tarefa'}<span className="ponto">.</span></h1>
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando a tarefa <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
+    {/* De onde a tarefa nasce (?processo=), como no cadastro de processo; some se a pessoa tira o processo no campo dele. */}
+    {doProcesso?.arquivado && <Aviso tipo="erro">O processo <b>{doProcesso.codigo}</b> ({doProcesso.nome}) está arquivado: esta tarefa não fica ligada a ele.</Aviso>}
+    {doProcesso && !doProcesso.arquivado && c.processoId === processoInicial
+      && <Aviso tipo="info">Esta tarefa nasce do processo <b>{doProcesso.codigo}</b> ({doProcesso.nome}) e fica ligada a ele.</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>

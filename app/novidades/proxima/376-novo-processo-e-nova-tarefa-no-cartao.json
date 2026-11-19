@@ -1,0 +1,5 @@
+{
+  "titulo": "Processo e tarefa novos direto do cartão",
+  "texto": "No contrato e na tarefa, o \"+ Novo processo\" abre o cadastro já com os clientes; no processo, o \"+ Nova tarefa\" abre a tarefa já ligada a ele. Ao salvar, você volta ao cartão de onde saiu, com o item novo na lista.",
+  "ondeAchar": "No cartão do contrato (seção Processos), da tarefa (seção Processo) e do processo (seção Tarefas): o \"+\" ao lado do título ou o botão embaixo da lista."
+}

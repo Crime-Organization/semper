@@ -1,10 +1,12 @@
 // Cadastro de processo (novo ou atualizar), por etapas como os de pessoa, contrato e demanda: o processo (tipo, número,
 // nome e órgão), as pessoas (clientes, polo e equipe) e os detalhes, nenhum deles obrigatório. No judicial, o número segue
 // o padrão do CNJ (ou é marcado como antigo) e já indica o órgão. Vindo do cartão de uma pessoa (?cliente=), ela já vem escolhida.
+// Vindo do "+ Novo processo" de uma demanda, de um contrato ou de uma tarefa (?demanda=, ?contrato=, ?tarefa=; #376), ele traz o que
+// a origem tem (NASCE_DE) e, ao salvar, nasce ligado a ela; do contrato e da tarefa, a tela volta ao cartão de origem.
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
-import { SD, type DadosProcesso, type Demanda, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
+import { SD, type DadosProcesso, type CampoDeOpcao, type CampoDeProcesso, type OpcaoDeProcesso, type PessoaLista, type PessoaResumida, type Processo, type SugestoesDeProcesso, type TipoProcesso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
@@ -13,6 +15,9 @@ import {
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
 } from '../regras/processo';
 import { camposDaDemanda } from '../regras/processoDaDemanda';
+import { enderecoDoItem } from '../regras/anotacao';
+import { depoisDeCriar, origemNoEndereco, processoDaTarefa, processoDoContrato, recusaDaOrigem, type RecusaDaOrigem } from '../regras/origemDoCadastro';
+import { ligarContratoNoProcesso, ligarNoItem } from './ligarNoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito } from '../ui/avisos';
@@ -39,6 +44,67 @@ const NADA_SUGERIDO: SugestoesDeProcesso = { orgaos: [], comarcas: [], varas: []
 const emSugestoes = (lista: string[]) => lista.map(valor => ({ valor }));
 const NAO_INFORMADO = 'Não informado';
 
+/** De que cartões o processo novo pode nascer (o nome do parâmetro do endereço), na ordem em que são lidos. */
+const ORIGENS = ['demanda', 'contrato', 'tarefa'] as const;
+type OrigemDoProcesso = typeof ORIGENS[number];
+/**
+ * A origem lida: o aviso no topo do cadastro, o que ela traz (e o nome sugerido), o cartão para onde voltar (null: vai ao processo novo)
+ * e, quando o endereço ficou velho, por que ela não aceita mais o processo ligado (recusaDaOrigem): aí o cadastro ainda traz o que ela tem,
+ * mas diz, antes de gravar, que o processo não fica ligado, e a ligação nem é tentada.
+ */
+interface OrigemLida { codigo: string; aviso: ReactNode; campos: Partial<CamposProcesso>; clientes: PessoaResumida[]; titulo?: string; cartao: string | null; recusa: RecusaDaOrigem | null }
+/** Como os avisos falam da origem: "A tarefa", "arquivada" e "ela" (no fim: "não fica ligado a ela"). */
+interface FalaDaOrigem { nome: string; arquivada: string; pronome: string }
+interface ComoNasce {
+  ler: (id: string, ativos: string[], eu: string) => Promise<OrigemLida | null>;
+  /** A ligação, depois de gravar o processo. */
+  ligar: (processoId: string, origemId: string) => Promise<unknown>;
+  /** Como o aviso de falha fala da origem ("à demanda"). */
+  aOrigem: string;
+  fala: FalaDaOrigem;
+}
+/** O aviso de quando a origem não aceita mais o processo ligado a ela: o cadastro continua, e o processo nasce sem a ligação. */
+const AVISO_DA_RECUSA: Record<RecusaDaOrigem, (f: FalaDaOrigem, codigo: string) => ReactNode> = {
+  arquivada: (f, codigo) => <>{f.nome} <b>{codigo}</b> está {f.arquivada}: este processo não fica ligado a {f.pronome}.</>,
+  ocupada: (f, codigo) => <>{f.nome} <b>{codigo}</b> já tem um processo: este processo novo não fica ligado a {f.pronome}.</>
+};
+/** Como o processo nasce de cada origem. Da demanda, como antes da #376: com o nome dela, e a tela vai ao processo novo. */
+const NASCE_DE: Record<OrigemDoProcesso, ComoNasce> = {
+  demanda: {
+    ler: async (id, ativos, eu) => {
+      const d = await SD.demandaObter(id);
+      return d && { codigo: d.codigo, aviso: <>Este processo nasce da demanda <b>{d.codigo}</b> ({d.titulo}) e fica ligado a ela.</>,
+        campos: camposDaDemanda(d, ativos, eu), clientes: d.clientes, titulo: d.titulo, cartao: null, recusa: recusaDaOrigem({ arquivada: !!d.arquivado_em }) };
+    },
+    ligar: (processoId, demandaId) => SD.processoDemandaLigar(processoId, demandaId),
+    aOrigem: 'à demanda',
+    fala: { nome: 'A demanda', arquivada: 'arquivada', pronome: 'ela' }
+  },
+  contrato: {
+    ler: async (id, ativos, eu) => {
+      const k = await SD.contratoVer(id);
+      return k && { codigo: k.codigo, aviso: <>Este processo nasce do contrato <b>{k.codigo}</b> e fica ligado a ele.</>,
+        campos: processoDoContrato(k, ativos, eu), clientes: k.clientes, cartao: enderecoDoItem({ modulo: 'contratos', id: k.id }),
+        recusa: recusaDaOrigem({ arquivada: !!k.arquivado_em }) };
+    },
+    ligar: (processoId, contratoId) => ligarContratoNoProcesso(processoId, contratoId),
+    aOrigem: 'ao contrato',
+    fala: { nome: 'O contrato', arquivada: 'arquivado', pronome: 'ele' }
+  },
+  tarefa: {
+    ler: async id => {
+      const t = await SD.tarefaObter(id);
+      // A tarefa tem um processo só: a que já ganhou um (ex.: a pessoa voltou pelo navegador depois de criar) não aceita outro.
+      return t && { codigo: t.codigo, aviso: <>Este processo nasce da tarefa <b>{t.codigo}</b> ({t.titulo}) e fica ligado a ela.</>,
+        campos: processoDaTarefa(t), clientes: t.pessoas, cartao: enderecoDoItem({ modulo: 'tarefas', id: t.id }),
+        recusa: recusaDaOrigem({ arquivada: !!t.arquivado_em, ocupada: !!t.processo_id }) };
+    },
+    ligar: (processoId, tarefaId) => ligarNoItem('processo da tarefa', tarefaId, processoId),
+    aOrigem: 'à tarefa',
+    fala: { nome: 'A tarefa', arquivada: 'arquivada', pronome: 'ela' }
+  }
+};
+
 /** Como cada tipo de campo do escritório é preenchido. */
 const CONTROLE_DO_CAMPO: Record<CampoDeProcesso['tipo'], (p: { id: string; campo: CampoDeProcesso; valor: string; erro?: string; aoMudar: (v: string) => void }) => ReactNode> = {
   texto: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} maxLength={TAMANHO_CAMPO.texto} value={valor} onChange={e => aoMudar(e.target.value)} />,
@@ -63,15 +129,15 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), clienteInicial = params.get('cliente');
   const tipoInicial: TipoProcesso = params.get('tipo') === 'administrativo' ? 'administrativo' : 'judicial';
-  // Vindo de uma demanda, o processo já traz os clientes e a equipe dela e nasce ligado a ela.
-  const demandaInicial = params.get('demanda');
-  const [demanda, setDemanda] = useState<Demanda | null>(null);
+  // Vindo de uma demanda, de um contrato ou de uma tarefa, o processo já traz o que ela tem e nasce ligado a ela.
+  const [origem] = useState(() => idAtualizar ? null : origemNoEndereco(params, ORIGENS));
+  const [lida, setLida] = useState<OrigemLida | null>(null);
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposProcesso>(() => ({ ...processoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
   const [alvo, setAlvo] = useState<Processo | null>(null);   // processo sendo atualizado
-  // Vindo de uma demanda, espera os dados dela: o que chegar depois não pode trocar o que a pessoa já escolheu.
-  const [pronto, setPronto] = useState(!idAtualizar && !demandaInicial);
+  // Vindo de outro cartão, espera os dados dele: o que chegar depois não pode trocar o que a pessoa já escolheu.
+  const [pronto, setPronto] = useState(!idAtualizar && !origem);
   const [passo, setPasso] = useState(0);
   // Os erros de uma etapa aparecem depois da primeira tentativa de seguir e, daí em diante, acompanham o que se digita.
   const [conferidas, setConferidas] = useState<ReadonlySet<EtapaProcesso>>(new Set());
@@ -116,19 +182,18 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   // A equipe de quando o cadastro abriu: reler a equipe depois não pode apagar o que já foi digitado.
   const aoAbrir = useRef({ ativos: ctx.equipe.filter(m => m.ativo !== false).map(m => m.id), eu: ctx.perfil.id });
   useEffect(() => {
-    if (!demandaInicial || idAtualizar) return;
-    SD.demandaObter(demandaInicial).then(d => {
-      if (!d) return;
-      setDemanda(d);
-      const campos = camposDaDemanda(d, aoAbrir.current.ativos, aoAbrir.current.eu);
-      setC(x => ({ ...x, ...campos, titulo: x.titulo || d.titulo }));
-      if (d.clientes.length) {
-        setClientes(d.clientes);
-        setChaves(d.clientes.map((_, i) => i));
-        proximaChave.current = d.clientes.length + 1;
+    if (!origem) return;
+    NASCE_DE[origem.tipo].ler(origem.id, aoAbrir.current.ativos, aoAbrir.current.eu).then(l => {
+      if (!l) return;
+      setLida(l);
+      setC(x => ({ ...x, ...l.campos, titulo: x.titulo || (l.titulo ?? '') }));
+      if (l.clientes.length) {
+        setClientes(l.clientes);
+        setChaves(l.clientes.map((_, i) => i));
+        proximaChave.current = l.clientes.length + 1;
       }
     }).catch(falha).finally(() => setPronto(true));
-  }, [demandaInicial, idAtualizar]);
+  }, [origem]);
   useEffect(() => { SD.processoSugestoes(c.tipo).then(setSugestoes).catch(() => {}); }, [c.tipo]);
   // A cada etapa, o foco vai para o primeiro campo dela.
   useEffect(() => {
@@ -291,13 +356,15 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'processoCriado', id: r.id };
         });
-        if (demanda) {
-          // O processo já existe: se a ligação falhar, ele continua, e a pessoa fica sabendo.
-          try { await SD.processoDemandaLigar(r.id, demanda.id); }
-          catch { avisar(`Não foi possível ligar o processo à demanda ${demanda.codigo}.`, 'erro'); }
+        let ligado = false;
+        if (origem && lida && !lida.recusa) {
+          // O processo já existe: se a ligação falhar, ele continua, e a pessoa fica sabendo (e vai ao cartão dele, não ao da origem).
+          const como = NASCE_DE[origem.tipo];
+          try { await como.ligar(r.id, origem.id); ligado = true; }
+          catch (e) { avisar(`Não foi possível ligar o processo ${como.aOrigem} ${lida.codigo}. ${e instanceof Error ? e.message : ''}`.trim(), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(caminho + '?id=' + r.id);
+        navegar(depoisDeCriar(lida?.cartao ?? null, ligado, caminho + '?id=' + r.id));
       }
     } catch (err) {
       falha(err);
@@ -442,7 +509,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       <p className="olho"><Link to={voltar}>Processos</Link></p>
       <h1 className="titulo">{alvo ? 'Atualizar processo' : 'Novo processo'}<span className="ponto">.</span></h1>
     </header>
-    {demanda && <Aviso tipo="info">Este processo nasce da demanda <b>{demanda.codigo}</b> ({demanda.titulo}) e fica ligado a ela.</Aviso>}
+    {lida && origem && (lida.recusa
+      ? <Aviso tipo="erro">{AVISO_DA_RECUSA[lida.recusa](NASCE_DE[origem.tipo].fala, lida.codigo)}</Aviso>
+      : <Aviso tipo="info">{lida.aviso}</Aviso>)}
     {alvo && <Aviso tipo="info">Você está atualizando o processo <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
