@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
 import {
   candidatosAoContrato, candidatosDaEquipe, erroDoNomeDaEquipe, FUNCOES, motivoParaNaoDarAcesso, motivoParaNaoParticipar, nomeNaEquipe, opcoesDeResponsavel,
-  participanteNaLista, podeExcluir
+  participanteNaLista, podeExcluir, responsaveisAoContrato
 } from './equipe';
 
 const EQUIPE: Membro[] = [
@@ -129,6 +129,32 @@ describe('Quem da equipe pode entrar como participante de um contrato (#348)', (
     const achados = candidatosAoContrato(equipe, 'luciana', []);
     // Então
     expect(achados).toEqual([]);
+  });
+});
+
+describe('Quem pode assumir o contrato pela bolinha do responsável (#356)', () => {
+  const reservada: Membro = { id: 'u-res', nome: 'Conta Reservada', funcao: 'advogado', ativo: false, reservada: true, pessoa_id: 'p-res' };
+  const equipe = [...EQUIPE, reservada];
+
+  it('dado um contrato da advogada, quando a busca é montada, então vêm os outros advogados que constam nos contratos, sem ela', () => {
+    // Dado / Quando
+    const achados = responsaveisAoContrato(equipe, '', 'u-adv');
+    // Então: quem não tem função gravada é advogado; quem saiu não volta; a conta reservada consta nos contratos
+    expect(achados.map(m => m.id)).toEqual(['u-antigo', 'u-res']);
+  });
+
+  it('dado um contrato de quem não é advogado, quando a busca é montada, então vêm todos os advogados, e o estagiário e a secretária não', () => {
+    // Dado / Quando
+    const achados = responsaveisAoContrato(equipe, '', 'u-est');
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-adv', 'u-antigo', 'u-res']);
+  });
+
+  it('quando a pessoa digita parte do nome, sem acento, então vêm só os que combinam', () => {
+    // Quando
+    const achados = responsaveisAoContrato(equipe, 'funcao', 'u-adv');
+    // Então
+    expect(achados.map(m => m.id)).toEqual(['u-antigo']);
   });
 });
 

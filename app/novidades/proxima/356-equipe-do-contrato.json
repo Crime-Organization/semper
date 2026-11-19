@@ -1,0 +1,5 @@
+{
+  "titulo": "Equipe do contrato direto nas bolinhas",
+  "texto": "No cartão do contrato, a bolinha com “+” põe alguém da equipe como participante, com 0% na divisão. Clicar na bolinha de um participante o tira, com Desfazer, e na do responsável troca o advogado. O % de cada um continua em Editar.",
+  "ondeAchar": "No topo do cartão do contrato, nas bolinhas da equipe."
+}

@@ -134,6 +134,9 @@ export const CONTRATO_VAZIO: CamposContrato = {
   documentoUrl: '', contaDestinoId: '', observacoes: '', codigoAntigo: ''
 };
 
+/** O aviso de quando o contrato já tem o máximo de participantes que o banco aceita (no lápis e na bolinha com "+"). */
+export const PARTICIPANTES_DEMAIS = `Um contrato pode ter até ${PARTICIPANTES_MAXIMOS} participantes.`;
+
 /** Mensagem de cada campo obrigatório que falta. */
 export const MSG_CONTRATO: Partial<Record<keyof CamposContrato, string>> = {
   clientes: 'Escolha o cliente.',
@@ -197,7 +200,7 @@ const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
     c => preenchidos(c).map(p => { try { lerPercentual(p.percentual); return null; } catch (e) { return (e as Error).message; } }).find(Boolean) ?? null,
     c => preenchidos(c).some(p => !p.pessoaId) ? 'Escolha o participante deste percentual.' : null,
     c => new Set(preenchidos(c).map(p => p.pessoaId)).size < preenchidos(c).length ? 'A mesma pessoa aparece duas vezes nos participantes.' : null,
-    c => preenchidos(c).length > PARTICIPANTES_MAXIMOS ? `Um contrato pode ter até ${PARTICIPANTES_MAXIMOS} participantes.` : null
+    c => preenchidos(c).length > PARTICIPANTES_MAXIMOS ? PARTICIPANTES_DEMAIS : null
   ],
   indicadorPercentual: [percentual('indicadorPercentual'),
     c => quieto(lerPercentual, c.indicadorPercentual) && !c.indicadorId ? 'Escolha o indicador deste percentual.' : null],

@@ -2,7 +2,7 @@
 // Valem as regras do lápis de cada módulo: o responsável é qualquer um da equipe ativa e sai da lista de participantes ao entrar,
 // a lista tem o máximo do banco e quem se tira do cartão sai pela regra da #276 (pessoasAoGravar, em sairDoCartao.ts). A tela lê
 // a equipe gravada logo antes de gravar, para não apagar o que outra pessoa acabou de pôr; estas regras dizem o que gravar.
-// O contrato fica de fora: lá cada participante tem o seu % da divisão, que só o lápis decide.
+// O contrato tem as suas regras (equipeDoContrato.ts): lá cada participante tem o seu % da divisão, e quem entra pela bolinha fica com 0%.
 import { COLABORADORES_MAXIMOS } from '../dados/limites';
 import type { ModuloComSaida } from '../dados/tipos';
 import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';

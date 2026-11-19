@@ -166,6 +166,38 @@ describe('Equipe do cartão que a pessoa pode alterar (#356)', () => {
     expect(m.aoTirar).not.toHaveBeenCalled();
   });
 
+  it('dado um participante que não pode sair, quando a pessoa clica na bolinha dele, então ela vem desligada, com o motivo na dica, e nada muda nem o foco sai do lugar', async () => {
+    // Dado
+    const motivo = 'Você não pode sair deste contrato.';
+    const m = mudar({ impedeTirar: p => p.id === bruno.id ? motivo : undefined });
+    montar(m, [bruno, mateus]);
+    const bolinha = screen.getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 10%' });
+    expect(bolinha).toHaveAttribute('aria-disabled', 'true');
+    expect(bolinha).toHaveAttribute('data-dica', `Bruno Exemplo Souza · Participante · 10% · ${motivo}`);
+    expect(bolinha).toHaveAttribute('aria-description', motivo);
+    // Quando
+    await userEvent.click(bolinha);
+    // Então
+    expect(m.aoTirar).not.toHaveBeenCalled();
+    expect(bolinha).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Tirar Mateus Freitas Gonçalves' })).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('dado um responsável que não pode passar o cartão adiante, quando a pessoa clica na bolinha dele, então ela vem desligada, com o motivo na dica, e a busca não abre', async () => {
+    // Dado
+    const motivo = 'Você não pode passar este contrato a outro advogado.';
+    const m = mudar({ impedeTrocar: motivo });
+    montar(m);
+    const bolinha = screen.getByRole('button', { name: 'Ana Teste Lima, Responsável' });
+    expect(bolinha).toHaveAttribute('aria-disabled', 'true');
+    expect(bolinha).toHaveAttribute('data-dica', `Ana Teste Lima · Responsável · ${motivo}`);
+    // Quando
+    await userEvent.click(bolinha);
+    // Então
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(m.aoTrocarResponsavel).not.toHaveBeenCalled();
+  });
+
   it('dado um cartão com todos da equipe ativa dentro, quando a pessoa tira um participante, então o foco vai à bolinha com "+", sem se perder', async () => {
     // Dado
     const m = mudar({ candidatos: () => [] });
