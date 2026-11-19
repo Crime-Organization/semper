@@ -258,7 +258,7 @@ test.describe('Editar no cartão', () => {
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByText('Modo de edição')).toHaveCount(0);
     await expect(page).toHaveURL(/\/tarefas\/\?id=/);
-    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, Responsável$/ })).toHaveText('BS');
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Responsável. Trocar o responsável' })).toHaveText('BS');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
   });
 
