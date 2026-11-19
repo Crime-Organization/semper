@@ -20,6 +20,7 @@ import type { ItemParaPedir, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { PASTA_APAGADA } from '../regras/pastas';
+import { arvoreDoModelo, itensDaArvore, planoDoChecklist } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
 import { papeisNoContrato } from '../regras/contrato';
 import { papeisNaDemanda } from '../regras/demanda';
@@ -30,7 +31,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ItemDaLista, ListaDoCartao, ModeloDeLista, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -553,7 +554,10 @@ const tarefaLigada = (pessoaId: string, perfilId: string | null) => ({ pessoas, 
 // Na ordem do quadro (como as demandas do contrato).
 const naOrdemDoQuadro = (q: Livre) => q.order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(TAREFAS_LIGADAS);
 
-const CAMPOS_MODELO = 'id, nome, itens, criado_por, atualizado_em';
+const CAMPOS_MODELO = 'id, nome, itens, arvore, criado_por, atualizado_em';
+/** O modelo como o banco devolve: a árvore é nula no modelo de antes. */
+type ModeloGuardado = Omit<ModeloDeLista, 'arvore'> & { arvore: NoDoModelo[] | null };
+const modeloLido = (m: ModeloGuardado): ModeloDeLista => ({ ...m, arvore: arvoreDoModelo(m) });
 const CAMPOS_ORGAO = 'id, sigla, nome, contagem_padrao, recesso, praxe, justica_federal';
 const CAMPOS_DIA = 'id, data, motivo, tipo, orgao_id';
 const CAMPOS_GRUPO = 'id, nome, ordem, comeca_fechado';
@@ -571,11 +575,24 @@ const conferirAdminNoCalendario = (linhas: unknown[]) => {
   if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam o calendário.');
 };
 const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
-const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem';
+const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem, grupo_id, criado_em';
+const CAMPOS_GRUPO_LISTA = 'id, nome, pai_id, ordem, criado_em';
+// Com o nome da chave: de demanda_listas até os grupos há dois caminhos (direto, e pelos itens, que apontam para a lista e para
+// o grupo), e o PostgREST recusa o embed sem a dica (PGRST201).
+const SELECAO_DA_LISTA = `${CAMPOS_LISTA_CARTAO}, itens:demanda_lista_itens!demanda_lista_itens_lista_id_fkey(${CAMPOS_ITEM_LISTA}), `
+  + `grupos:demanda_lista_grupos!demanda_lista_grupos_lista_id_fkey(${CAMPOS_GRUPO_LISTA})`;
+/** A lista lida, com os itens na ordem (a árvore, com os grupos, é montada na tela: regras/gruposDaLista.ts). */
+const listaLida = (l: ListaDoCartao): ListaDoCartao => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) });
+/** A posição depois de tudo o que o checklist tem (grupos e itens), no primeiro nível. */
+async function ordemNoFimDoChecklist(listaId: string) {
+  const [{ data: item }, { data: grupo }] = await Promise.all(['demanda_lista_itens', 'demanda_lista_grupos'].map(tabela =>
+    rodar(sb.from(tabela).select('ordem').eq('lista_id', listaId).order('ordem', { ascending: false }).limit(1))));
+  return Math.max(0, item[0]?.ordem ?? 0, grupo[0]?.ordem ?? 0) + 1;
+}
 const CAMPOS_PERFIL_PROFISSIONAL = 'perfil_id, nome_exibicao, cargo, oab, areas, bio_curta, biografia, formacao, idiomas, experiencia, associacoes, '
   + 'publicacoes, lattes, email_publico, telefone_publico, linkedin, redes, no_site, ordem_no_site, atualizado_em';
 /** A coluna de demanda_listas que liga a lista ao cartão dela. */
-const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id' };
+const DONO_DA_LISTA: Record<CartaoComListas, 'demanda_id' | 'tarefa_id' | 'contrato_id'> = { demandas: 'demanda_id', tarefas: 'tarefa_id', contratos: 'contrato_id' };
 type DemandaParaLigar = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'objeto' | 'prazo' | 'prazo_hora' | 'etapa_id' | 'arquivado_em' | 'criado_em' | 'responsavel_id' | 'colaboradores'>
   & { clientes: string[] };
 const CAMPOS_DEMANDA_LIGADA = 'id, codigo, titulo, objeto, prazo, prazo_hora, etapa_id, arquivado_em, criado_em, responsavel_id, colaboradores, clientes';
@@ -1790,28 +1807,30 @@ export const SD: Dados = {
     await rodar(fotos.remove([FOTO_GRANDE, FOTO_PEQUENA].map(lado => caminhoDaFoto(ctx!.perfil!.escritorio_id, perfilId, lado))));
   },
 
-  // ---------- listas das demandas e das tarefas ----------
+  // ---------- listas das demandas, das tarefas e dos contratos ----------
   async listasDoCartao(modulo, id) {
-    const { data } = await rodar(sb.from('demanda_listas').select(`${CAMPOS_LISTA_CARTAO}, itens:demanda_lista_itens(${CAMPOS_ITEM_LISTA})`)
-      .eq(DONO_DA_LISTA[modulo], id).order('ordem').order('criado_em'));
-    return (data as ListaDoCartao[]).map(l => ({ ...l, itens: l.itens.toSorted((a, b) => a.ordem - b.ordem) }));
+    const { data } = await rodar(sb.from('demanda_listas').select(SELECAO_DA_LISTA).eq(DONO_DA_LISTA[modulo], id).order('ordem').order('criado_em'));
+    return (data as ListaDoCartao[]).map(listaLida);
   },
-  // No fim das listas do cartão: depois da maior posição que já existe. Os itens vêm na ordem dada.
-  async listaCriar(modulo, id, nome, itens = []) {
-    const dono = DONO_DA_LISTA[modulo];
-    const { data: ultima } = await rodar(sb.from('demanda_listas').select('ordem').eq(dono, id).order('ordem', { ascending: false }).limit(1));
-    const { data: lista } = await rodar(sb.from('demanda_listas').insert({ [dono]: id, nome, ordem: (ultima[0]?.ordem ?? 0) + 1 })
-      .select(CAMPOS_LISTA_CARTAO).single());
-    const { data: criados } = itens.length
-      ? await rodar(sb.from('demanda_lista_itens').insert(itens.map((texto, i) => ({ lista_id: lista.id, texto, ordem: i + 1 }))).select(CAMPOS_ITEM_LISTA))
-      : { data: [] };
-    return { ...lista, itens: (criados as ItemDaLista[]).toSorted((a, b) => a.ordem - b.ordem) };
+  // No fim das listas do cartão, com os grupos e os itens, numa vez só (checklist_criar). A árvore vai pelo plano de gruposDaLista.
+  async listaCriar(modulo, id, nome, arvore = []) {
+    const { grupos, itens } = planoDoChecklist(arvore);
+    const listaId = await rpc('checklist_criar', { p_cartao: modulo, p_id: id, p_nome: nome, p_grupos: grupos, p_itens: itens }) as string;
+    const { data } = await rodar(sb.from('demanda_listas').select(SELECAO_DA_LISTA).eq('id', listaId).single());
+    return listaLida(data);
   },
   async listaAtualizar(id, campos) { await rodar(sb.from('demanda_listas').update(campos).eq('id', id)); },
   async listaExcluir(id) { await rodar(sb.from('demanda_listas').delete().eq('id', id)); },
-  async itemCriar(listaId, texto) {
-    const { data: ultimo } = await rodar(sb.from('demanda_lista_itens').select('ordem').eq('lista_id', listaId).order('ordem', { ascending: false }).limit(1));
-    const { data } = await rodar(sb.from('demanda_lista_itens').insert({ lista_id: listaId, texto, ordem: (ultimo[0]?.ordem ?? 0) + 1 })
+  async grupoDoChecklistCriar(listaId, nome, { pai_id, ordem }) {
+    const { data } = await rodar(sb.from('demanda_lista_grupos').insert({ lista_id: listaId, nome, pai_id, ordem }).select(CAMPOS_GRUPO_LISTA).single());
+    return data;
+  },
+  async grupoDoChecklistAtualizar(id, { nome }) { await rodar(sb.from('demanda_lista_grupos').update({ nome }).eq('id', id)); },
+  // Os subgrupos e os itens de dentro vão junto (on delete cascade).
+  async grupoDoChecklistExcluir(id) { await rodar(sb.from('demanda_lista_grupos').delete().eq('id', id)); },
+  async itemCriar(listaId, texto, onde) {
+    const { pai_id, ordem } = onde ?? { pai_id: null, ordem: await ordemNoFimDoChecklist(listaId) };
+    const { data } = await rodar(sb.from('demanda_lista_itens').insert({ lista_id: listaId, texto, grupo_id: pai_id, ordem })
       .select(CAMPOS_ITEM_LISTA).single());
     return data;
   },
@@ -1822,17 +1841,23 @@ export const SD: Dados = {
     return data;
   },
   async itemExcluir(id) { await rodar(sb.from('demanda_lista_itens').delete().eq('id', id)); },
+  async listaReordenar(listaId, posicoes) { await rpc('checklist_reordenar', { p_lista: listaId, p_posicoes: posicoes }); },
 
   // ---------- modelos de lista ----------
+  // A árvore nula (o modelo de antes) vira a dos itens; a defasada (a versão anterior mudou os itens) é ajustada aos itens.
   async modelosListar() {
     const { data } = await rodar(sb.from('lista_modelos').select(CAMPOS_MODELO).order('nome'));
-    return data as ModeloDeLista[];
+    return (data as ModeloGuardado[]).map(modeloLido);
   },
-  async modeloCriar(nome, itens) {
-    const { data } = await rodar(sb.from('lista_modelos').insert({ nome, itens, criado_por: uid() }).select(CAMPOS_MODELO).single());
-    return data as ModeloDeLista;
+  // O banco limpa a árvore e põe as folhas dela em "itens". As folhas vão junto também: assim, gravar a mesma árvore que já estava
+  // (depois que a versão anterior mudou os itens) põe os itens em dia com ela.
+  async modeloCriar(nome, arvore) {
+    const { data } = await rodar(sb.from('lista_modelos').insert({ nome, arvore, itens: itensDaArvore(arvore), criado_por: uid() }).select(CAMPOS_MODELO).single());
+    return modeloLido(data);
   },
-  async modeloAtualizar(id, campos) { await rodar(sb.from('lista_modelos').update(campos).eq('id', id)); },
+  async modeloAtualizar(id, { arvore, ...campos }) {
+    await rodar(sb.from('lista_modelos').update(arvore ? { ...campos, arvore, itens: itensDaArvore(arvore) } : campos).eq('id', id));
+  },
   async modeloExcluir(id) {
     const { data } = await rodar(sb.from('lista_modelos').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem criou o modelo ou um administrador pode excluí-lo.');

@@ -68,6 +68,11 @@ export const TAMANHO_LISTA = 120;
 export const TAMANHO_ITEM = 500;
 /** Quantos itens um modelo de lista pode ter (o banco recusa mais que isso: supabase/migrations/20261027000019_modelos_de_lista.sql). */
 export const ITENS_DO_MODELO = 100;
+/** Quantos níveis a numeração de um checklist tem (1, 1.1, 1.1.1): os grupos vão até o penúltimo e os itens até o último.
+ *  O banco confere o mesmo (supabase/migrations/20261119142702_checklists_com_grupos.sql): mudou aqui, muda lá. */
+export const NIVEIS_DO_CHECKLIST = 3;
+/** Quantos grupos um modelo de checklist pode ter (exigido pela mesma migração). */
+export const GRUPOS_DO_MODELO = 50;
 /** Quantos contratos (os ativos mais recentes) os cadastros de demanda e de tarefa oferecem para ligar. */
 export const CONTRATOS_PARA_LIGAR = 500;
 /** Tamanho de um comentário (o banco recusa mais que isso: supabase/migrations/20261027000016_comentarios.sql). */

@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router';
 import { SD, type CartaoComListas, type ItemDaLista, type ListaDoCartao, type ModeloDeLista } from '../dados';
 import { TAMANHO_ITEM, TAMANHO_LISTA } from '../dados/limites';
 import { ROTULOS_PRAZO, SELO_DO_PRAZO } from '../regras/demanda';
+import { arvoreDoChecklist } from '../regras/gruposDaLista';
 import { conferirNomeDoChecklist, conferirTextoDoItem, moverNaLista, prazoDoItem, progressoDaLista } from '../regras/listas';
 import { fmtData, lerData } from '../regras/pessoa';
 import { avisar, falha } from '../ui/avisos';
@@ -21,6 +22,7 @@ import { hojeISO } from '../ui/util';
 const DO_CARTAO: Record<CartaoComListas, { vazio: string }> = {
   demandas: { vazio: 'Nenhum checklist ainda. Use checklists para os documentos e os passos da demanda.' },
   tarefas: { vazio: 'Nenhum checklist ainda. Use checklists para os documentos e os passos da tarefa.' },
+  contratos: { vazio: 'Nenhum checklist ainda. Use checklists para os documentos e os passos do contrato.' },
 };
 /** A dica do nome do checklist e do texto do item, que se mudam com um clique. */
 const DICA_RENOMEAR = 'Clique para renomear';
@@ -70,11 +72,11 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
     SD.modelosListar().then(modelos => setMenuNova(m => m && { ...m, modelos })).catch(e => { falha(e); setMenuNova(m => m && { ...m, modelos: [] }); });
   }
   // Um clique no modelo: o checklist entra no cartão com o nome e os itens dele, sem nenhum marcado.
-  const usarModelo = (m: ModeloDeLista) => mexer(async () => { await SD.listaCriar(modulo, id, m.nome, m.itens); avisar(`Checklist "${m.nome}" acrescentado.`); });
+  const usarModelo = (m: ModeloDeLista) => mexer(async () => { await SD.listaCriar(modulo, id, m.nome, m.arvore); avisar(`Checklist "${m.nome}" acrescentado.`); });
   async function salvarComoModelo(l: ListaDoCartao) {
     const nome = await pedirTexto('Nome do modelo', l.nome, { maximo: TAMANHO_LISTA });
     if (!nome) return;
-    try { await SD.modeloCriar(nome, l.itens.map(i => i.texto)); avisar(`Modelo "${nome}" salvo. Ele aparece em "Adicionar checklist" em qualquer demanda ou tarefa.`); }
+    try { await SD.modeloCriar(nome, arvoreDoChecklist(l)); avisar(`Modelo "${nome}" salvo. Ele aparece em "Adicionar checklist" em qualquer demanda ou tarefa.`); }
     catch (e) { falha(e); }
   }
   async function novaLista() {

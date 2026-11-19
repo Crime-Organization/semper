@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { SD, type ModeloDeLista } from '../dados';
 import { ITENS_DO_MODELO, TAMANHO_LISTA } from '../dados/limites';
+import { arvoreDosItens } from '../regras/gruposDaLista';
 import { itensDoTexto, textoDosItens } from '../regras/listas';
 import { avisar, falha } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
@@ -33,8 +34,8 @@ export default function ModelosDeLista() {
     if (!nome) { falha(new Error('Dê um nome ao modelo.')); return; }
     if (itens.length > ITENS_DO_MODELO) { falha(new Error(`Um modelo pode ter até ${ITENS_DO_MODELO} itens.`)); return; }
     try {
-      if (edicao.id) await SD.modeloAtualizar(edicao.id, { nome, itens });
-      else await SD.modeloCriar(nome, itens);
+      if (edicao.id) await SD.modeloAtualizar(edicao.id, { nome, arvore: arvoreDosItens(itens) });
+      else await SD.modeloCriar(nome, arvoreDosItens(itens));
       avisar(edicao.id ? 'Modelo atualizado.' : 'Modelo criado.');
       setEdicao(null);
       await carregar();
