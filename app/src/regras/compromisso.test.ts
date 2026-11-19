@@ -162,11 +162,11 @@ describe('Cartão do compromisso', () => {
     expect(fmtHora(null)).toBe('');
   });
 
-  it('quando mostra os dados, então só os preenchidos aparecem', () => {
+  it('quando mostra os dados, então só os preenchidos aparecem, sem a data e o horário, que ficam no grupo das datas (#361)', () => {
     // Quando
     const rotulos = linhasDoCompromisso(salvo({ local: null, geral: true })).map(([r]) => r);
     // Então
-    expect(rotulos).toEqual(['Data', 'Horário', 'Tipo', 'Modalidade', 'Agenda geral']);
+    expect(rotulos).toEqual(['Tipo', 'Modalidade', 'Agenda geral']);
   });
 
   it.each([

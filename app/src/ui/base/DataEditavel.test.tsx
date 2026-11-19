@@ -13,7 +13,7 @@ function Cartao({ aoSalvar = vi.fn(), podeMudar = true }: { aoSalvar?: (iso: str
   const [valor, setValor] = useState('2026-11-18');
   return <>
     <Avisos />
-    <DataEditavel rotulo="Início" nome="Data de início" valor={valor} conferir={erroDaDataDeInicio}
+    <DataEditavel nome="Data de início" valor={valor} conferir={erroDaDataDeInicio}
       aoSalvar={podeMudar ? iso => { setValor(iso); return aoSalvar(iso); } : undefined} />
     <button type="button">Outro lugar</button>
   </>;

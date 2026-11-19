@@ -4,13 +4,14 @@
 // compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type Compromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
+import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
 import { CLIENTES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
   camposDoCompromisso, compromissoVazio, continuaPeloProcesso, dadosDoCompromisso, errosDaEtapaCompromisso, ETAPAS_COMPROMISSO, MODALIDADES, primeiraEtapaComErroCompromisso,
   semSairDoCompromisso, TIPOS, TIPOS_COMPROMISSO, tituloNoLapis, validarCompromisso, type CamposCompromisso, type EtapaCompromisso
 } from '../regras/compromisso';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
+import { datasForaDoLapisDoCompromisso, semOsCampos } from '../regras/datasNoCartao';
 import { clientesPorExtenso } from '../regras/contrato';
 import { fmtCNJ, partesDoCNJ } from '../regras/numeroCNJ';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
@@ -187,10 +188,17 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   // ---------- envio ----------
   /**
    * No lápis do cartão, o título fica de fora: o cartão já o muda no próprio lugar (#346). Só volta quando o tipo escolhido
-   * exige um título e o compromisso não tem nenhum (veja tituloNoLapis).
+   * exige um título e o compromisso não tem nenhum (veja tituloNoLapis). A data e o horário também ficam de fora (#361), a não ser
+   * a hora, quando o tipo escolhido a exige e o compromisso não tem (veja horaNoLapis).
    */
   const comTitulo = !edicao || !alvo || tituloNoLapis(c.tipo, edicao.titulo);
-  const noLapis = (d: ReturnType<typeof dadosDoCompromisso>): ReturnType<typeof dadosDoCompromisso> => comTitulo ? d : semOsCamposDoLugar(d);
+  const datasFora = edicao && alvo ? datasForaDoLapisDoCompromisso(c.tipo, alvo.hora) : null;
+  const noLapis = (d: DadosCompromisso): DadosCompromisso => {
+    const semTitulo = comTitulo ? d : semOsCamposDoLugar(d);
+    return datasFora ? semOsCampos(semTitulo, datasFora.dados) : semTitulo;
+  };
+  /** O lápis mostra este campo da data e do horário? */
+  const mostra = (campo: string) => !datasFora?.campos.includes(campo);
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -226,7 +234,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       } else {
         // Sem coluna escolhida, o compromisso novo entra na coluna-marco de início.
         const coluna = etapaInicial || await colunaInicial('compromissos');
-        const r = await SD.compromissoCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
+        const r = await SD.compromissoCriar({ ...dadosDoCompromisso(c), etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
         feito(`Compromisso ${r.codigo} cadastrado.`, 'cadastro do compromisso', async () => {
           await SD.compromissosArquivar([r.id], true);
           const x = await SD.compromissosExcluir([r.id]);
@@ -250,15 +258,15 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       {comTitulo && <Campo rotulo="Título" para="titulo" obrigatorio={!doProcesso} erro={erros.titulo} dica={doProcesso ? 'Opcional. Sem ele, o cartão mostra o tipo e as pessoas.' : undefined}>
         <input type="text" {...propsDoCampo('titulo', { dica: doProcesso, erro: erros.titulo })} maxLength={TAMANHO_COMPROMISSO.titulo} value={c.titulo} onChange={e => mudar({ titulo: e.target.value })} />
       </Campo>}
-      <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
+      {mostra('data') && <Campo rotulo="Data" para="data" obrigatorio erro={erros.data}>
         <CampoData {...propsDoCampo('data', { erro: erros.data })} valor={c.data} aoMudar={data => mudar({ data })} hora={{ valor: c.hora, aoMudar: hora => mudar({ hora }) }} />
-      </Campo>
-      <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
+      </Campo>}
+      {mostra('hora') && <Campo rotulo="Hora" para="hora" obrigatorio={exigeHora} erro={erros.hora} dica={exigeHora ? 'No horário de Brasília.' : 'No horário de Brasília. Sem hora, vale o dia inteiro.'}>
         <input type="time" {...propsDoCampo('hora', { dica: true, erro: erros.hora })} value={c.hora} onChange={e => mudar({ hora: e.target.value })} />
-      </Campo>
-      <Campo rotulo="Até" para="horaFim" erro={erros.horaFim} dica="Opcional. A hora em que deve terminar.">
+      </Campo>}
+      {mostra('horaFim') && <Campo rotulo="Até" para="horaFim" erro={erros.horaFim} dica="Opcional. A hora em que deve terminar.">
         <input type="time" {...propsDoCampo('horaFim', { dica: true, erro: erros.horaFim })} value={c.horaFim} onChange={e => mudar({ horaFim: e.target.value })} />
-      </Campo>
+      </Campo>}
     </>,
     onde: () => <>
       {c.processoId

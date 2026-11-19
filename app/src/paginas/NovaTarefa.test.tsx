@@ -3,7 +3,7 @@
 // O banco fictício sempre entra como administrador; aqui a tarefa é editada também por quem não é.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Tarefa } from '../dados';
 import { feito } from '../ui/avisos';
@@ -135,13 +135,25 @@ describe('Hora e lembrete do prazo (#286)', () => {
     vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
   });
 
+  /**
+   * Desde a #361, o lápis do cartão não tem mais o prazo, a hora e o lembrete (o cartão os muda no próprio lugar): aqui eles são
+   * conferidos na página "Atualizar tarefa", que tem o cadastro inteiro, em etapas.
+   */
   async function abrir(alvo: Tarefa) {
     vi.spyOn(SD, 'tarefaObter').mockResolvedValue(alvo);
     const gravar = vi.spyOn(SD, 'tarefaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
     gravar.mockClear();
-    render(<MemoryRouter><NovaTarefa edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    const roteador = createMemoryRouter([{ path: '/tarefas/nova/', element: <NovaTarefa /> }, { path: '/tarefas/', element: <p>Tarefas</p> }],
+      { initialEntries: ['/tarefas/nova/?id=' + alvo.id] });
+    render(<RouterProvider router={roteador} />);
     await screen.findByLabelText('Hora');
     return gravar;
+  }
+  /** Passa pelas outras etapas e salva. */
+  async function salvar() {
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Próxima' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Salvar alterações' }));
   }
 
   it('dado uma tarefa com prazo, quando marca a hora e o lembrete e salva, então os dois são gravados', async () => {
@@ -150,12 +162,12 @@ describe('Hora e lembrete do prazo (#286)', () => {
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
     await userEvent.selectOptions(screen.getByLabelText('Lembrete'), '1 hora antes');
-    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await salvar();
     // Então
     await waitFor(() => expect(gravar).toHaveBeenCalledWith('t1', expect.objectContaining({ prazo: '2030-11-15', prazo_hora: '14:00', lembrete: 60 })));
   });
 
-  it('dado uma tarefa salva com hora e lembrete, quando abre para editar, então os campos vêm preenchidos, com as opções combinadas', async () => {
+  it('dado uma tarefa salva com hora e lembrete, quando abre para atualizar, então os campos vêm preenchidos, com as opções combinadas', async () => {
     // Quando
     await abrir(tarefa({ prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 1440 }));
     // Então
@@ -165,16 +177,44 @@ describe('Hora e lembrete do prazo (#286)', () => {
     expect(screen.getByText(/Sem hora, o lembrete conta o prazo às 9h/)).toBeInTheDocument();
   });
 
-  it('dado uma tarefa sem prazo, quando marca hora e lembrete e salva, então pede o prazo e não grava', async () => {
+  it('dado uma tarefa sem prazo, quando marca hora e lembrete e segue, então pede o prazo e não grava', async () => {
     // Dado
     const gravar = await abrir(tarefa({ prazo: null }));
     // Quando
     fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14:00' } });
     await userEvent.selectOptions(screen.getByLabelText('Lembrete'), 'Na hora do prazo');
-    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Próxima' }));
     // Então
     expect(await screen.findByText('Informe o prazo para pôr a hora')).toBeInTheDocument();
     expect(screen.getByText('Informe o prazo para marcar o lembrete')).toBeInTheDocument();
     expect(gravar).not.toHaveBeenCalled();
+  });
+});
+
+describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = true;
+    sessao.escritorio = undefined;
+    vi.spyOn(SD, 'demandasListar').mockResolvedValue({ linhas: [], total: 0 });
+    vi.spyOn(SD, 'contratosListar').mockResolvedValue({ linhas: [], total: 0 });
+  });
+
+  it('dado o lápis de uma tarefa com prazo, quando a pessoa o abre e salva, então ele não mostra nem grava o prazo, a hora, o lembrete e o início', async () => {
+    // Dado
+    const alvo = tarefa({ prazo: '2030-11-15', prazo_hora: '14:00:00', lembrete: 60 });
+    vi.spyOn(SD, 'tarefaObter').mockResolvedValue(alvo);
+    const gravar = vi.spyOn(SD, 'tarefaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
+    gravar.mockClear();
+    // Quando
+    render(<MemoryRouter><NovaTarefa edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    await screen.findByLabelText(/Responsável/);
+    // Então
+    for (const rotulo of ['Prazo', 'Hora', 'Lembrete', 'Data de início']) expect(screen.queryByLabelText(rotulo)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'A tarefa' })).not.toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    // Então
+    await waitFor(() => expect(gravar).toHaveBeenCalled());
+    for (const campo of ['prazo', 'prazo_hora', 'lembrete', 'data_inicio']) expect(gravar.mock.calls[0][1]).not.toHaveProperty(campo);
   });
 });

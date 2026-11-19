@@ -1,6 +1,5 @@
 /* Compromissos: a visão por data da agenda. O que não vem de Contratos.css, Demandas.css e estilo.css */
 .tabela-compromissos td:nth-child(2) { min-width: 260px; max-width: 420px }
-.cartao-quando { margin: 0; font-weight: 700; color: var(--accent-ink) }
 
 .agenda { display: flex; flex-direction: column; gap: 14px; container-type: inline-size }
 .agenda-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px }

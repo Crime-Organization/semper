@@ -1,6 +1,7 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo, o título e o prazo em
 // destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
-// recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da situação, o cronômetro (TempoNaTarefa).
+// recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da descrição, o tempo e as datas lado a lado (#361): o cronômetro
+// (TempoNaTarefa), a criação, o início e o prazo com a hora e o lembrete, que quem altera muda ali mesmo; o lápis não os repete.
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,7 +16,8 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Aviso, Carregando, DataEditavel, Nota, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, GrupoDeDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -32,7 +34,7 @@ import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { relativo } from '../ui/util';
 import { oferecerConcluirDemanda } from './concluirDemanda';
-import { SeloDoLembrete, SeloDoPrazo } from './Demandas';
+import { SeloDoPrazo } from './Demandas';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
@@ -137,7 +139,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */
   const mudaNoLugar = podeAlterar && !t.arquivado_em;
   /** Grava o título ou a descrição mudados no próprio lugar (#346), como o lápis: o mesmo aviso, com Desfazer. */
-  const salvarNoLugar = (novo: Partial<Pick<Tarefa, 'titulo' | 'descricao' | 'data_inicio'>>, antes: typeof novo) => gravarNoLugar({
+  const salvarNoLugar = (novo: Partial<Pick<Tarefa, 'titulo' | 'descricao' | 'data_inicio' | 'prazo' | 'prazo_hora' | 'lembrete'>>, antes: typeof novo) => gravarNoLugar({
     novo, antes, gravar: d => SD.tarefaAtualizar(t!.id, d), aviso: 'Tarefa atualizada.', oQue: 'atualização da tarefa',
     mudanca: { tipo: 'tarefaAtualizada', id: t!.id }, mostrar: d => setT(atual => atual && { ...atual, ...d }),
     depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
@@ -154,7 +156,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <div className="linha">
         <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
         <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
-        <SeloDoLembrete prazo={t.prazo} lembrete={t.lembrete} />
         {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
       </div>
@@ -165,12 +166,22 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />
-      {/* A data de criação, fixa, e a de início, que quem altera muda no próprio lugar (#357). */}
-      <p className="cartao-datas">
-        <span>Criada em <b>{dataDaCriacao(t.criado_em)}</b></span>
-        <DataEditavel key={'inicio-' + noLugar.chave} rotulo="Início" nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
-          aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
-      </p>
+      {/* As datas e o tempo lado a lado (#361): a criação (fixa), o início (#357) e o prazo com a hora e o lembrete, que quem altera
+          muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer); e o cronômetro de quem altera, com o esforço da
+          equipe na linha de baixo. */}
+      <GrupoDeDatas rotulo="Tempo e datas">
+        <DadoDoGrupo rotulo="Criada em"><b className="num">{dataDaCriacao(t.criado_em)}</b></DadoDoGrupo>
+        <DadoDoGrupo rotulo="Início">
+          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
+            aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
+        </DadoDoGrupo>
+        <DadoDoGrupo rotulo="Prazo">
+          <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
+            aoMudarRascunho={noLugar.rascunhoDe('prazo')}
+            aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(t)) : undefined} />
+        </DadoDoGrupo>
+        {podeAlterar && <TempoNaTarefa t={t} />}
+      </GrupoDeDatas>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>
@@ -201,8 +212,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
 
     <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
-
-    {podeAlterar && <TempoNaTarefa t={t} />}
 
     <ListasDoCartao modulo="tarefas" id={t.id} somenteLer={!podeAlterar} />
 

@@ -6,12 +6,11 @@ import { useNavigate } from 'react-router';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
 import { useParametroLido } from '../ui/useParametroLido';
 import { oferecerProcesso } from './concluirDemanda';
-import { SD, type DemandaLista, type FiltroDemandas, type Lembrete, type OrdemComPrazo, type Pagina } from '../dados';
+import { SD, type DemandaLista, type FiltroDemandas, type OrdemComPrazo, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { seloDoPrazo, SEM_SITUACAO_DEMANDA, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
 import { soLeSemEstarNele } from '../regras/equipeVeTudo';
-import { rotuloDoLembrete } from '../regras/lembrete';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -49,10 +48,6 @@ export function SeloDoPrazo({ prazo, hora, concluido = false }: { prazo: string 
   if (concluido === null) return null;
   const selo = seloDoPrazo(prazo, hora, hojeISO(), concluido);
   return selo ? <Selo tipo={selo.tipo}>{selo.texto}</Selo> : null;
-}
-/** O lembrete marcado no cartão, ao lado do prazo: "Lembrete: 1 hora antes" (some sem prazo ou sem lembrete). Selo neutro: o tracejado é dos arquivados. */
-export function SeloDoLembrete({ prazo, lembrete }: { prazo: string | null; lembrete: Lembrete | null | undefined }) {
-  return prazo && lembrete !== null && lembrete !== undefined ? <Selo>{rotuloDoLembrete(lembrete)}</Selo> : null;
 }
 
 export default function Demandas() {

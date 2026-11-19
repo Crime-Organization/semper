@@ -1,6 +1,7 @@
 // Data que se muda no próprio lugar do cartão (#357), no jeito do título e da descrição (#346): quem pode alterar clica na data e
 // ela vira o campo de data (CampoData), com o calendário já aberto. Escolher um dia salva; escrever à mão e apertar Enter (ou sair
-// do campo) também; Esc desfaz. Quem só lê vê a data comum. Serve à data de início de tarefas e demandas.
+// do campo) também; Esc desfaz. Quem só lê vê a data comum. Serve à data de início de tarefas e demandas; o nome dela (ex.: "Início")
+// fica em cima, no grupo das datas do cartão (DadoDoGrupo, #361).
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { fmtData } from '../../regras/pessoa';
 import { isoDoTexto } from '../../regras/campoData';
@@ -8,8 +9,6 @@ import { avisar, falha } from '../avisos';
 import { CampoData } from './CampoData';
 
 interface Props {
-  /** O nome da data, que aparece antes dela (ex.: "Início"). */
-  rotulo: string;
   /** O nome inteiro, para o leitor de tela e o campo (ex.: "Data de início"). */
   nome: string;
   /** A data gravada (aaaa-mm-dd). */
@@ -20,14 +19,14 @@ interface Props {
   conferir: (texto: string) => string;
 }
 
-export function DataEditavel({ rotulo, nome, valor, aoSalvar, conferir }: Props) {
+export function DataEditavel({ nome, valor, aoSalvar, conferir }: Props) {
   const [rascunho, setRascunho] = useState<string | null>(null);
   /** Marcado ao salvar ou desfazer: o campo some, e o "sair do campo" que vem depois não salva de novo. */
   const fechado = useRef(false);
   const botao = useRef<HTMLButtonElement>(null);
   const mostrado = fmtData(valor);
 
-  if (!aoSalvar) return <span className="data-editavel"><span className="data-editavel-rotulo">{rotulo}</span> <b className="num">{mostrado}</b></span>;
+  if (!aoSalvar) return <span className="data-editavel"><b className="num">{mostrado}</b></span>;
 
   /** Fecha o campo. Pelo teclado (e ao escolher no calendário), o foco volta à data, e quem usa o teclado não se perde no cartão. */
   function desfazer(devolverFoco: boolean) {
@@ -56,13 +55,11 @@ export function DataEditavel({ rotulo, nome, valor, aoSalvar, conferir }: Props)
   }
 
   if (rascunho !== null) return <span className="data-editavel editando">
-    <span className="data-editavel-rotulo" aria-hidden="true">{rotulo}</span>
     <CampoData aria-label={nome} valor={rascunho} aoMudar={setRascunho} abrirAoAparecer className="data-editavel-campo"
       aoEscolher={texto => salvar(texto, 'escolha')} aoDesistir={() => desfazer(true)} onKeyDown={teclar}
       onBlur={() => salvar(rascunho, 'saida')} />
   </span>;
   return <span className="data-editavel">
-    <span className="data-editavel-rotulo" aria-hidden="true">{rotulo}</span>
     <button ref={botao} type="button" className="data-editavel-botao num" aria-label={`${nome}: ${mostrado}. Clique para mudar`} title={`Clique para mudar a ${nome.toLowerCase()}`}
       onClick={() => { fechado.current = false; setRascunho(mostrado); }}>
       {mostrado}

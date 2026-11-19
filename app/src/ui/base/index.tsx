@@ -12,6 +12,8 @@ export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } f
 export { TextoEditavel } from './TextoEditavel';
 export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
 export { DataEditavel } from './DataEditavel';
+export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
+export { PrazoEditavel } from './PrazoEditavel';
 
 /** Link com cara de botão (ex.: "Nova pessoa" no cabeçalho do módulo). */
 export function BotaoLink({ forma, variante, pequeno, className, ...resto }: ComponentProps<typeof Link> & EstiloBotao) {

@@ -240,22 +240,25 @@ test.describe('Cadastro numa janela', () => {
 });
 
 test.describe('Editar no cartão', () => {
-  test('quando a pessoa clica no lápis, muda o prazo e salva, então o cartão mostra o prazo novo sem sair dele, e dá para desfazer', async ({ page }) => {
+  // Desde a #361, o prazo, a hora, o lembrete e o início se mudam no grupo das datas, e não mais pelo lápis: a etapa "A tarefa",
+  // que só tinha eles, o título e a descrição, sai do lápis. Aqui o lápis muda o responsável.
+  test('quando a pessoa clica no lápis, muda o responsável e salva, então o cartão mostra a mudança sem sair dele, e dá para desfazer', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
     await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
-    await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toBeVisible();
+    await expect(edicao.getByRole('heading', { name: 'A tarefa' })).toHaveCount(0);
+    await expect(edicao.getByRole('heading', { name: 'Pessoas' })).toBeVisible();
     await expect(edicao.getByRole('heading', { name: 'Demanda, contrato e processo' })).toBeVisible();
-    await edicao.getByLabel('Prazo').fill('15112030');
+    await edicao.getByLabel(/Responsável/).selectOption({ label: 'Bruno Exemplo Souza' });
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByText('Modo de edição')).toHaveCount(0);
     await expect(page).toHaveURL(/\/tarefas\/\?id=/);
-    await expect(cartao).toContainText('Prazo: 15/11/2030');
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, Responsável$/ })).toHaveText('BS');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
   });
 
@@ -371,24 +374,26 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Uma ideia que não pode se perder.');
   });
 
-  test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título e a descrição, e salvar não os muda', async ({ page }) => {
+  test('dado o lápis do cartão, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas, e salvar não os muda', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    const prazo = await cartao.getByRole('button', { name: /^Prazo: / }).textContent();
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
-    // Então
-    await expect(edicao.getByLabel('Prazo')).toBeVisible();
+    // Então: o título e a descrição (#346) e o prazo, a hora, o lembrete e o início (#361) ficam só no cartão
+    await expect(edicao.getByLabel(/Responsável/)).toBeVisible();
     await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
     await expect(edicao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
+    for (const rotulo of ['Prazo', 'Hora', 'Lembrete', 'Data de início']) await expect(edicao.getByLabel(rotulo, { exact: true })).toHaveCount(0);
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toHaveCount(1);
     // Quando
-    await edicao.getByLabel('Prazo').fill('20112030');
     await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 })).toBeVisible();
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Prazo: / })).toHaveText(prazo!);
   });
 
   test('dado o cadastro de uma tarefa nova, quando a pessoa o abre, então o título e a descrição continuam nele', async ({ page }) => {
@@ -774,12 +779,12 @@ test.describe('Prazo de cartão concluído nas listas', () => {
   test('dada uma tarefa já concluída, quando ganha um prazo que já passou, então o cartão não mostra "Prazo vencido"', async ({ page }) => {
     // Dado: "Organizar a pasta" está concluída; dá a ela um prazo vencido
     const cartao = await abrirTarefa(page, 'Organizar a pasta');
-    // Quando
-    await cartao.getByRole('button', { name: 'Editar' }).click();
-    const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
-    await edicao.getByLabel('Prazo').fill('01012020');
-    await edicao.getByRole('button', { name: 'Salvar', exact: true }).click();
-    await expect(edicao).toHaveCount(0);
+    // Quando: desde a #361, o prazo muda no próprio cartão (escrito à mão, com Enter)
+    await cartao.getByRole('button', { name: /^Prazo: / }).click();
+    const campo = cartao.getByRole('group', { name: 'Mudar o prazo' }).getByRole('textbox', { name: 'Prazo', exact: true });
+    await campo.fill('01012020');
+    await campo.press('Enter');
+    await expect(cartao.getByRole('group', { name: 'Mudar o prazo' })).toHaveCount(0);
     // Então
     await expect(cartao.getByText(/^Concluída · Prazo: 01\/01\/2020/)).toBeVisible();
     await expect(cartao.getByText(/Prazo vencido/)).toHaveCount(0);

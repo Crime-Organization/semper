@@ -363,14 +363,15 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(page.getByText('Demanda atualizada.')).toHaveCount(0);
   });
 
-  test('dado o lápis da demanda, quando a pessoa o usa, então o formulário não repete o título e a descrição', async ({ page }) => {
+  test('dado o lápis da demanda, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas (#361)', async ({ page }) => {
     // Dado
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar demanda' });
     // Então
-    await expect(edicao.getByLabel('Prazo de entrega')).toBeVisible();
+    await expect(edicao.getByLabel(/Responsável/)).toBeVisible();
+    for (const rotulo of ['Prazo de entrega', 'Hora', 'Lembrete', 'Data de início']) await expect(edicao.getByLabel(rotulo, { exact: true })).toHaveCount(0);
     await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
     await expect(edicao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
     // Quando

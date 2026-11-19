@@ -2,8 +2,8 @@
 // Datas (#357): o cartão de tarefa e de demanda mostra a data de criação e a de início (que se muda no próprio lugar, com o
 // calendário pequeno), o quadro e a tabela ordenam e filtram pelo início, e os campos de data dos cadastros têm o calendário
 // pequeno no computador e o do aparelho no celular. Na semente, as tarefas e demandas foram criadas hoje (começam hoje).
-import { expect, test, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { abrirSecao, entrarComo } from './ajudantes';
 
 const FUSO = 'America/Sao_Paulo';
 /** Hoje em Brasília, como o cartão mostra (dd/mm/aaaa). */
@@ -91,18 +91,20 @@ test.describe('Data de criação e data de início no cartão (#357)', () => {
     await expect(inicio).toHaveText('01/02/2031');
   });
 
-  test('dada uma tarefa, quando a pessoa usa o lápis, então a data de início está no formulário e muda com ele', async ({ page }) => {
+  // Desde a #361, o início muda só no grupo das datas do cartão: o lápis não o repete.
+  test('dada uma tarefa, quando a pessoa usa o lápis, então a data de início não está no formulário, e salvar não a muda', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, 'tarefas', 'Renovar a procuração');
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar tarefa' });
     // Então
-    await expect(edicao.getByLabel('Data de início')).toHaveValue(hoje());
+    await expect(edicao.getByLabel(/Responsável/)).toBeVisible();
+    await expect(edicao.getByLabel('Data de início')).toHaveCount(0);
     // Quando
-    await edicao.getByLabel('Data de início').fill('05/01/2031');
     await edicao.getByRole('button', { name: 'Salvar' }).click();
     // Então
-    await expect(cartao.getByRole('button', { name: /^Data de início: / })).toHaveText('05/01/2031');
+    await expect(edicao).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: /^Data de início: / })).toHaveText(hoje());
   });
 });
 
@@ -246,5 +248,244 @@ test.describe('Dado um celular (#357)', () => {
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(inicio).toHaveText('20/12/2030');
+  });
+});
+
+test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
+  /** A primeira linha do histórico com este campo (a mais nova vem primeiro). */
+  const doHistorico = (cartao: Locator, campo: string) => cartao.getByRole('listitem').filter({ hasText: campo }).first();
+  /** Abre o cartão de um compromisso pela tabela da agenda. */
+  async function abrirCompromisso(page: Page, nome: string) {
+    await page.goto('/agenda/');
+    await page.getByRole('group', { name: 'Visualização' }).getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: nome }).click();
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: nome, level: 2 }) });
+    await expect(cartao).toBeVisible();
+    return cartao;
+  }
+
+  test('dada uma tarefa, quando a pessoa clica no prazo, escolhe o dia e a hora no calendário e o lembrete no sino, então salva na hora, fica ao fechar e abrir e no histórico', async ({ page }) => {
+    // Dado: o tempo, a criação, o início e o prazo no mesmo grupo
+    let cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    const grupo = cartao.getByRole('group', { name: 'Tempo e datas' });
+    for (const dado of ['Seu tempo nesta tarefa', 'Criada em', 'Início', 'Prazo']) await expect(grupo.getByRole('group', { name: dado, exact: true })).toBeVisible();
+    await expect(grupo.getByRole('timer')).toBeVisible();
+    // Quando: clica no prazo
+    await cartao.getByRole('button', { name: /^Prazo: / }).click();
+    // Então: abre o calendário, com a hora, e o sino do lembrete
+    const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
+    await expect(calendario(page)).toBeVisible();
+    await expect(calendario(page).getByLabel('Hora')).toBeVisible();
+    await expect(formulario.getByLabel('Lembrete')).toBeVisible();
+    // Quando: escreve um dia de outro mês, escolhe outro no calendário, a hora logo abaixo, e o lembrete
+    await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('15/12/2030');
+    await calendario(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
+    await calendario(page).getByLabel('Hora').fill('14:30');
+    await calendario(page).getByRole('button', { name: 'Pronto' }).click();
+    await expect(formulario.getByLabel('Hora')).toHaveValue('14:30');
+    await formulario.getByLabel('Lembrete').selectOption({ label: '1 hora antes' });
+    await formulario.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
+    await expect(formulario).toHaveCount(0);
+    const prazo = () => cartao.getByRole('button', { name: /^Prazo: / });
+    await expect(prazo()).toContainText('20/12/2030 às 14:30');
+    await expect(prazo()).toContainText('Lembrete: 1 hora antes');
+    await expect(cartao).toContainText('Prazo: 20/12/2030 às 14:30');   // o selo do topo
+    // E ao fechar e abrir de novo, e no histórico
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    await expect(prazo()).toContainText('20/12/2030 às 14:30');
+    await abrirSecao(cartao, 'Histórico de alterações');
+    const mudanca = doHistorico(cartao, 'Hora do prazo:');
+    await expect(mudanca).toContainText('20/12/2030');
+    await expect(mudanca).toContainText('14:30');
+    await expect(mudanca).toContainText('1 hora antes');
+  });
+
+  test('dada uma tarefa, quando a pessoa muda o prazo e clica em Desfazer, então o prazo de antes volta', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    const prazo = cartao.getByRole('button', { name: /^Prazo: / });
+    const antes = await prazo.textContent();
+    // Quando
+    await prazo.click();
+    const campo = cartao.getByRole('group', { name: 'Mudar o prazo' }).getByRole('textbox', { name: 'Prazo', exact: true });
+    await campo.fill('01/02/2031');
+    await campo.press('Enter');
+    await expect(prazo).toContainText('01/02/2031');
+    await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
+    // Então
+    await expect(prazo).toHaveText(antes!);
+  });
+
+  test('dada uma demanda, quando a pessoa muda o prazo de entrega e a hora no grupo, então fica ao fechar e abrir e no histórico; Esc não fecha o cartão', async ({ page }) => {
+    // Dado
+    let cartao = await abrirCartao(page, 'demandas', 'Notificar o devedor');
+    const grupo = cartao.getByRole('group', { name: 'Datas' });
+    for (const dado of ['Criada em', 'Início', 'Prazo de entrega']) await expect(grupo.getByRole('group', { name: dado, exact: true })).toBeVisible();
+    const prazo = () => cartao.getByRole('button', { name: /^Prazo de entrega: / });
+    // Quando: abre e desiste com Esc (o primeiro fecha o calendário; o segundo, o formulário)
+    await prazo().click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar o prazo de entrega' });
+    await expect(calendario(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(calendario(page)).toHaveCount(0);
+    await formulario.getByRole('textbox', { name: 'Prazo de entrega', exact: true }).press('Escape');
+    // Então
+    await expect(formulario).toHaveCount(0);
+    await expect(cartao).toBeVisible();
+    // Quando: escreve o prazo e a hora e aperta Enter
+    await prazo().click();
+    await formulario.getByRole('textbox', { name: 'Prazo de entrega', exact: true }).fill('10/03/2031');
+    await page.keyboard.press('Escape');
+    await formulario.getByLabel('Hora').fill('16:00');
+    await formulario.getByLabel('Hora').press('Enter');
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Demanda atualizada.' })).toBeVisible();
+    await expect(prazo()).toContainText('10/03/2031 às 16:00');
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirCartao(page, 'demandas', 'Notificar o devedor');
+    await expect(prazo()).toContainText('10/03/2031 às 16:00');
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(doHistorico(cartao, 'Hora do prazo:')).toContainText('10/03/2031');
+  });
+
+  test('dado um compromisso, quando a pessoa muda a data e o horário no grupo, então ficam ao fechar e abrir e no histórico', async ({ page }) => {
+    // Dado
+    let cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    const quando = () => cartao.getByRole('button', { name: /^Data e horário: / });
+    await expect(quando()).toContainText(`${hoje()} · 09:00`);
+    // Quando
+    await quando().click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar a data e o horário' });
+    await expect(calendario(page)).toBeVisible();
+    await formulario.getByRole('textbox', { name: 'Data' }).fill('25/11/2030');
+    await page.keyboard.press('Escape');
+    await formulario.getByLabel('Hora').fill('15:00');
+    await formulario.getByLabel('Até').fill('16:00');
+    await formulario.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(page.getByRole('status').filter({ hasText: 'Compromisso atualizado.' })).toBeVisible();
+    await expect(quando()).toContainText('25/11/2030 · 15:00 às 16:00');
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    await expect(quando()).toContainText('25/11/2030 · 15:00 às 16:00');
+    await abrirSecao(cartao, 'Histórico de alterações');
+    await expect(doHistorico(cartao, 'Fim:')).toContainText('25/11/2030');
+  });
+
+  test('dada uma reunião, quando a pessoa tira a hora no grupo, então pede a hora, como o cadastro, e não grava', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCompromisso(page, 'Reunião de equipe');
+    await cartao.getByRole('button', { name: /^Data e horário: / }).click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar a data e o horário' });
+    await page.keyboard.press('Escape');
+    // Quando
+    await formulario.getByLabel('Hora').fill('');
+    await formulario.getByRole('button', { name: 'Salvar' }).click();
+    // Então
+    await expect(formulario.getByRole('alert')).toHaveText('Informe a hora.');
+    await expect(formulario).toBeVisible();
+  });
+
+  test('dado um cartão que a pessoa só lê, quando clica nas datas, então nada vira campo', async ({ page }) => {
+    // Dado: com a chave da equipe ligada, o Bruno vê "Renovar a procuração", em que não está, só para ler
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    const tarefa = await abrirCartao(page, 'tarefas', 'Renovar a procuração');
+    const grupo = tarefa.getByRole('group', { name: 'Tempo e datas' });
+    // Quando
+    await grupo.getByRole('group', { name: 'Prazo', exact: true }).click();
+    await grupo.getByRole('group', { name: 'Início', exact: true }).click();
+    // Então: o prazo e o início são texto, e o cronômetro não aparece (é de quem altera)
+    await expect(grupo.getByRole('button')).toHaveCount(0);
+    await expect(grupo.getByRole('textbox')).toHaveCount(0);
+    await expect(grupo.getByRole('group', { name: 'Prazo', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+    await expect(grupo.getByRole('timer')).toHaveCount(0);
+    // E o compromisso que o Bruno só vê pela Agenda geral
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(false));
+    const compromisso = await abrirCompromisso(page, 'Reunião de equipe');
+    await compromisso.getByRole('group', { name: 'Data e horário', exact: true }).click();
+    await expect(compromisso.getByRole('group', { name: 'Datas' }).getByRole('button')).toHaveCount(0);
+    await expect(compromisso.getByRole('group', { name: 'Datas' }).getByRole('textbox')).toHaveCount(0);
+  });
+
+  test('dada uma tarefa, quando a pessoa muda o prazo sem salvar e fecha o cartão, então o SEMPER pergunta antes, e o que ela mudou fica se ela continuar', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    await cartao.getByRole('button', { name: /^Prazo: / }).click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
+    await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('20/12/2030');
+    await page.keyboard.press('Escape');
+    await expect(calendario(page)).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    const pergunta = page.getByRole('dialog', { name: 'Sair sem salvar?' });
+    await expect(pergunta).toBeVisible();
+    await pergunta.getByRole('button', { name: 'Continuar no cadastro' }).click();
+    await expect(formulario.getByRole('textbox', { name: 'Prazo', exact: true })).toHaveValue('20/12/2030');
+    // Quando: desiste da mudança (Cancelar), e aí fecha
+    await formulario.getByRole('button', { name: 'Cancelar' }).click();
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    // Então: fecha sem perguntar
+    await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Emitir a GRU', level: 2 })).toHaveCount(0);
+  });
+});
+
+/** As caixas dos dados do grupo, na ordem pedida, medidas depois de o cartão terminar de entrar (ou de ir para o centro). */
+async function caixasDoGrupo(grupo: Locator, dados: string[]) {
+  await grupo.evaluate(async el => {
+    const animacoes = el.ownerDocument.getAnimations().filter(a => (a.effect as KeyframeEffect | null)?.target?.contains(el));
+    await Promise.allSettled(animacoes.map(a => a.finished));
+  });
+  const caixas = [];
+  for (const dado of dados) caixas.push((await grupo.getByRole('group', { name: dado, exact: true }).boundingBox())!);
+  return caixas;
+}
+/** A ordem dos dados no grupo da tarefa: as datas e, depois delas, o cronômetro. */
+const DADOS_DA_TAREFA = ['Criada em', 'Início', 'Prazo', 'Seu tempo nesta tarefa'];
+
+test.describe('Dado um computador, o grupo das datas (#361)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  for (const formato of ['ao lado', 'no centro']) {
+    test(`quando a pessoa abre o cartão da tarefa ${formato}, então a criação, o início, o prazo e o tempo ficam lado a lado, na mesma linha`, async ({ page }) => {
+      // Quando
+      const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+      if (formato === 'no centro') {
+        await page.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+        await expect(page.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
+      }
+      const grupo = cartao.getByRole('group', { name: 'Tempo e datas' });
+      await expect(grupo.getByRole('timer')).toBeVisible();
+      // Então: as caixas se cruzam na altura (a mesma linha), da esquerda para a direita
+      const caixas = await caixasDoGrupo(grupo, DADOS_DA_TAREFA);
+      for (let i = 1; i < caixas.length; i++) {
+        expect(caixas[i].y).toBeLessThan(caixas[0].y + caixas[0].height);
+        expect(caixas[0].y).toBeLessThan(caixas[i].y + caixas[i].height);
+        expect(caixas[i].x).toBeGreaterThanOrEqual(caixas[i - 1].x + caixas[i - 1].width);
+      }
+    });
+  }
+});
+
+test.describe('Dado um celular, o grupo das datas (#361)', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('quando a pessoa abre o cartão da tarefa, então as datas e o tempo ficam um embaixo do outro', async ({ page }) => {
+    // Quando
+    const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    const grupo = cartao.getByRole('group', { name: 'Tempo e datas' });
+    await expect(grupo.getByRole('timer')).toBeVisible();
+    // Então
+    const caixas = await caixasDoGrupo(grupo, DADOS_DA_TAREFA);
+    for (let i = 1; i < caixas.length; i++) {
+      expect(caixas[i].x).toBeCloseTo(caixas[0].x, 0);
+      expect(caixas[i].y).toBeGreaterThanOrEqual(caixas[i - 1].y + caixas[i - 1].height);
+    }
   });
 });

@@ -1,0 +1,5 @@
+{
+  "titulo": "Tempo, datas e prazos lado a lado nos cartões",
+  "texto": "No alto do cartão da tarefa, a criação, o início, o prazo e o seu tempo ficam juntos, lado a lado (um embaixo do outro no celular). Um clique no prazo abre o calendário com a hora e o sino do lembrete, e salvar muda na hora, sem abrir o lápis. A demanda e o compromisso também mostram as datas assim, e o lápis não repete mais esses campos.",
+  "ondeAchar": "Abra uma tarefa, demanda ou compromisso e clique no prazo (ou na data e no horário, no compromisso), logo abaixo da descrição."
+}

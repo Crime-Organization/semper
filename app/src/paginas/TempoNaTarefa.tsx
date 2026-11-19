@@ -1,18 +1,22 @@
 // O tempo no cartão da tarefa: o cronômetro de quem está com o cartão aberto ("Seu tempo nesta tarefa": Iniciar,
 // Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
+// Desde a #361, ele fica no grupo das datas do topo do cartão (GrupoDeDatas, em ui/base): o cronômetro é mais um dado do grupo, ao
+// lado da criação, do início e do prazo, e o esforço da equipe vai na linha de baixo, na largura toda (LinhaDoGrupo).
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type Tarefa, type TempoDaTarefa } from '../dados';
 import { TAMANHO_MOTIVO } from '../dados/limites';
 import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa } from '../regras/cronometro';
 import { Avatar } from '../ui/Avatar';
 import { falha, feito } from '../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota } from '../ui/base';
-import { Icone } from '../ui/Icone';
+import { Aviso, Campo, Carregando, DadoDoGrupo, estiloBotao, LinhaDoGrupo, Nota } from '../ui/base';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { dataCurta } from '../ui/util';
 import { TECLA_DO_CRONOMETRO, useCronometro } from './useCronometro';
+
+/** O nome do cronômetro no grupo das datas do cartão. */
+const ROTULO_DO_TEMPO = 'Seu tempo nesta tarefa';
 
 export function TempoNaTarefa({ t }: { t: Tarefa }) {
   const ctx = useCtx();
@@ -23,8 +27,8 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
   // Só conta quando a pessoa inicia; na tarefa concluída, a contagem já encerrou.
   const relogio = useCronometro(t, !t.concluida_em, () => { void carregar(); });
 
-  if (tempo === null) return <Carregando />;
-  if (typeof tempo === 'string') return <Aviso tipo="erro">{tempo}</Aviso>;
+  if (tempo === null) return <DadoDoGrupo rotulo={ROTULO_DO_TEMPO}><Carregando /></DadoDoGrupo>;
+  if (typeof tempo === 'string') return <DadoDoGrupo rotulo={ROTULO_DO_TEMPO}><Aviso tipo="erro">{tempo}</Aviso></DadoDoGrupo>;
   // O meu tempo: o que já está gravado (menos o período deste cartão aberto, que o relógio já conta) e o período.
   const gravado = somaDoTempo(tempo.registros.filter(r => r.id !== relogio.periodoId), eu);
   const meu = gravado + relogio.segundos;
@@ -56,21 +60,23 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
     } catch (e) { falha(e); }
   }
 
-  return <section className="bloco separada tempo-tarefa" aria-label="Tempo nesta tarefa">
-    <h3><Icone nome="relogio" tam={14} />Seu tempo nesta tarefa</h3>
-    <div className="cronometro">
-      <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>
-      <span className={'cronometro-situacao' + (relogio.contando ? ' contando' : '')}>{relogio.contando ? 'contando' : 'pausado'}</span>
-      {t.concluida_em
-        ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
-        : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={relogio.alternar}
-          title={`Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`} aria-keyshortcuts={TECLA_DO_CRONOMETRO.toUpperCase()}>
-          {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'} <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd>
-        </button>}
-      <button type="button" className={estiloBotao({ forma: 'link' })} onClick={ajustar}>Ajustar meu tempo</button>
-    </div>
-    {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
-  </section>;
+  // No grupo das datas do cartão (#361), ao lado delas: o cronômetro como um dado do grupo e, na linha de baixo, o esforço da equipe.
+  return <>
+    <DadoDoGrupo rotulo={ROTULO_DO_TEMPO}>
+      <div className="cronometro">
+        <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>
+        <span className={'cronometro-situacao' + (relogio.contando ? ' contando' : '')}>{relogio.contando ? 'contando' : 'pausado'}</span>
+        {t.concluida_em
+          ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
+          : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={relogio.alternar}
+            title={`Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`} aria-keyshortcuts={TECLA_DO_CRONOMETRO.toUpperCase()}>
+            {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'} <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd>
+          </button>}
+        <button type="button" className={estiloBotao({ forma: 'link' })} onClick={ajustar}>Ajustar meu tempo</button>
+      </div>
+    </DadoDoGrupo>
+    {(t.concluida_em || ctx.ehAdmin) && <LinhaDoGrupo><TempoDaEquipe t={t} tempo={tempo} /></LinhaDoGrupo>}
+  </>;
 }
 
 /** No cartão da demanda, embaixo das tarefas: o esforço aproximado dela, a soma do tempo de todos nas tarefas. */

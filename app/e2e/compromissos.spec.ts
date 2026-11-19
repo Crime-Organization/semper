@@ -338,7 +338,8 @@ test.describe('Quadro e cartão', () => {
     await expect(cartao.getByText('Ainda sem resultado.')).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Editar' }).click();
-    await expect(cartao.getByLabel('Data')).toBeFocused();   // o lápis já pôs o foco no primeiro campo
+    // Desde a #361, a data e o horário se mudam no próprio cartão: o primeiro campo do lápis da audiência (com o processo) é o local.
+    await expect(cartao.getByLabel('Local')).toBeFocused();   // o lápis já pôs o foco no primeiro campo
     await cartao.getByLabel('Resultado').fill('Acordo homologado');
     await cartao.getByRole('button', { name: 'Salvar' }).click();
     // Então
@@ -445,7 +446,8 @@ test.describe('Título no próprio lugar (#346)', () => {
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar compromisso' });
     // Então
-    await expect(edicao.getByLabel('Data')).toBeVisible();
+    await expect(edicao.getByLabel('Local')).toBeVisible();
+    for (const rotulo of ['Data', 'Hora', 'Até']) await expect(edicao.getByLabel(rotulo, { exact: true })).toHaveCount(0);   // no cartão, desde a #361
     await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
     // Quando: a audiência sem título vira reunião, que precisa de um
     await edicao.getByRole('group', { name: 'Tipo' }).getByText('Reunião', { exact: true }).click();
@@ -459,7 +461,7 @@ test.describe('Título no próprio lugar (#346)', () => {
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar compromisso' });
     const tipo = edicao.getByRole('group', { name: 'Tipo' });
-    await expect(edicao.getByLabel('Data')).toBeFocused();   // o lápis já pôs o foco no primeiro campo
+    await expect(edicao.getByLabel('Local')).toBeFocused();   // o lápis já pôs o foco no primeiro campo (a data e o horário ficam no cartão, #361)
     // Quando: o título é dado no topo, e a audiência vira reunião
     await cartao.getByRole('button', { name: AUDIENCIA, exact: true }).click();
     await cartao.getByRole('textbox', { name: 'Título' }).fill('Conversa com o cliente');

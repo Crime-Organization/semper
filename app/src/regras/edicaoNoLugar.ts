@@ -6,18 +6,27 @@
 export const CAMPOS_NO_LUGAR = ['titulo', 'descricao'] as const;
 export type CampoNoLugar = typeof CAMPOS_NO_LUGAR[number];
 
+/**
+ * Os dados do grupo das datas que também se mudam no próprio lugar (#361): o prazo de tarefas e demandas e a data e o horário do
+ * compromisso. O formulário pequeno deles (DadoEditavel) só avisa o rascunho quando ele ficou diferente do gravado, e null ao fechar.
+ */
+export const DADOS_NO_LUGAR = ['prazo', 'quando'] as const;
+export type DadoNoLugar = typeof DADOS_NO_LUGAR[number];
+
 /** O que está aberto para editar no cartão (null ou ausente: fora da edição). */
-export type RascunhosNoLugar = Partial<Record<CampoNoLugar, string | null>>;
+export type RascunhosNoLugar = Partial<Record<CampoNoLugar | DadoNoLugar, string | null>>;
 /** Como o título e a descrição estão gravados (o processo e o compromisso não têm descrição; o título deles pode faltar). */
 export interface GravadoNoLugar { titulo: string | null; descricao?: string | null }
 
 /**
  * Há edição por salvar no cartão? Só quando um rascunho aberto ficou diferente do que está gravado: abrir e não mudar nada não
- * conta (o título sem os espaços das pontas, como ele é gravado; a descrição como está, como a caixa a compara).
+ * conta (o título sem os espaços das pontas, como ele é gravado; a descrição como está, como a caixa a compara; um dado do grupo
+ * das datas, quando avisou um rascunho, porque ele só avisa o que mudou).
  */
 export function edicaoNoLugarPorSalvar(gravado: GravadoNoLugar, r: RascunhosNoLugar): boolean {
   return (r.titulo != null && r.titulo.trim() !== (gravado.titulo ?? '').trim())
-    || (r.descricao != null && r.descricao !== (gravado.descricao ?? ''));
+    || (r.descricao != null && r.descricao !== (gravado.descricao ?? ''))
+    || DADOS_NO_LUGAR.some(dado => r[dado] != null);
 }
 
 /**

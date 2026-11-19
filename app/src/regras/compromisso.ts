@@ -190,9 +190,9 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
 export const valorLegivelCompromisso = (campo: string, v: unknown) =>
   v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
 
-/** Os dados do cartão, só os preenchidos. */
+/** Os dados do cartão, só os preenchidos. A data e o horário ficam no grupo das datas, no topo do cartão (#361), e não se repetem aqui. */
 export const linhasDoCompromisso = (c: Compromisso): [string, string][] => ([
-  ['Data', fmtData(c.data)], ['Horário', horarioDoCompromisso(c)], ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome],
+  ['Tipo', TIPOS_COMPROMISSO[c.tipo].nome],
   ['Modalidade', c.modalidade ? MODALIDADES[c.modalidade] : ''], ['Local', c.local ?? ''], ['Observações', c.observacoes ?? ''], ['Agenda geral', c.geral ? 'Todos do escritório veem' : '']
 ] as [string, string][]).filter(([, valor]) => valor);
 
