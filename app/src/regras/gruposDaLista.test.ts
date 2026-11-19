@@ -2,12 +2,12 @@
 import { describe, expect, it } from 'vitest';
 import type { GrupoDaLista, ItemDaLista, NoDoModelo } from '../dados/tipos';
 import {
-  ACOES_DO_NO, CHECKLIST_MUDOU, aplicarPosicoes, avisoDaPosicao, comOsNovos, descricaoDoNo, novosNoChecklist, ondeEntramOsNovos, semOGrupo, tamanhoDoModelo,
+  ACOES_DO_NO, CHECKLIST_MUDOU, aplicarPosicoes, avisoDaPosicao, comOsNovos, descricaoDoNo, ondeEntramOsNovos, semOGrupo, tamanhoDoModelo,
   grupoDoNo, textoDaExclusaoDoGrupo, FORA_DOS_GRUPOS, GRUPO_DE_OUTRO_CHECKLIST, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, acharNo, acoesPossiveis, alturaDoNo,
   arvoreDaLista, arvoreDasLinhas, arvoreDoChecklist, arvoreDoModelo, arvoreDosItens, contagemDoGrupo, destinosDoNo, emOrdemDeLeitura, erroDaArvore,
   itensDaArvore, limparArvore, linhasColadas, listaDoModelo, moverEntreIrmaos, moverParaGrupo, mudancasDePosicao, noDeCima, numeroDoNo, ondeEntraONovo,
   planoDoChecklist, podeTerSubgrupo, posicoesDaArvore, reconciliarArvore, segueALeitura, type ChecklistDaArvore, type NoDaLista, type ResultadoDaAcao,
-  emOrdemNaTela, erroAoAcrescentar, gruposDeCima, NAO_CABE_NO_GRUPO, noDeCimaNaTela
+  emOrdemNaTela, erroAoAcrescentar, gruposDeCima, NAO_CABE_NO_GRUPO, noDeCimaNaTela, comAArvoreNova, ondeEntraAArvore
 } from './gruposDaLista';
 
 const grupo = (id: string, nome: string, pai_id: string | null, ordem: number, criado_em = '2026-11-19T10:00:00Z'): GrupoDaLista =>
@@ -389,12 +389,15 @@ describe('Acrescentar e tirar na tela (#309)', () => {
     expect(onde).toEqual({ pai_id: 'g', ordens: [3, 4], renumerar: [{ id: 'b', tipo: 'item', pai_id: null, ordem: 5 }] });
   });
 
-  it('quando uma árvore colada entra no fim do grupo 1, então o grupo novo vem antes do item de dentro dele, com o pai pela chave', () => {
+  it('dado o editor de modelos, quando uma árvore colada entra no fim do grupo 1, então o grupo novo vem antes do item de dentro dele, e o item, dentro dele', () => {
+    // Dado
+    let n = 0;
     // Quando
-    const novos = novosNoChecklist(arvoreDaLista(EXEMPLO), 'g1', [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }, { texto: 'Foto' }]);
+    const { lista } = comOsNovos(EXEMPLO, 'g1', [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }, { texto: 'Foto' }], () => `novo${++n}`);
     // Então
-    expect(novos.grupos).toEqual([{ chave: 'g1', pai: null, nome: 'Certidões', onde: { pai_id: 'g1', ordem: 3.25 } }]);
-    expect(novos.itens).toEqual([{ pai: 'g1', texto: 'Nascimento', onde: { pai_id: 'g1', ordem: 3.5 } }, { pai: null, texto: 'Foto', onde: { pai_id: 'g1', ordem: 3.75 } }]);
+    expect(lista.grupos.find(g => g.nome === 'Certidões')).toMatchObject({ id: 'novo1', pai_id: 'g1', ordem: 3.25 });
+    expect(lista.itens.filter(i => i.id.startsWith('novo')).map(i => [i.texto, i.grupo_id, i.ordem]))
+      .toEqual([['Nascimento', 'novo1', 3.5], ['Foto', 'g1', 3.75]]);
   });
 
   it('dado o editor de modelos, quando acrescenta um subgrupo com um item, então a árvore numera 1.3 e 1.3.1, e o grupo novo vem na resposta', () => {
@@ -405,6 +408,47 @@ describe('Acrescentar e tirar na tela (#309)', () => {
     // Então
     expect(grupos).toEqual(['novo1']);
     expect(numerados(arvoreDaLista(lista)).slice(0, 5)).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF', '1.3 Certidões', '1.3.1 Nascimento']);
+  });
+
+  it('quando uma árvore colada vai entrar no fim do grupo 1 de uma vez (#375), então cada nó tem a ordem dele, na leitura', () => {
+    // Quando: Certidões, Nascimento (dentro dele) e Foto
+    const onde = ondeEntraAArvore(arvoreDaLista(EXEMPLO), 'g1', [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }, { texto: 'Foto' }]);
+    // Então
+    expect(onde).toEqual({ ordens: [3.25, 3.5, 3.75], renumerar: [] });
+  });
+
+  it('dado um vão pequeno demais no grupo, quando a árvore colada vai entrar nele, então vem junto o que renumerar antes', () => {
+    // Dado
+    const lista = { grupos: [grupo('g', 'G', null, 1)], itens: [item('a', 'A', 'g', 2), item('b', 'B', null, 2 + 1e-7)] };
+    // Quando
+    const onde = ondeEntraAArvore(arvoreDaLista(lista), 'g', [{ texto: 'C' }, { texto: 'D' }]);
+    // Então
+    expect(onde).toEqual({ ordens: [3, 4], renumerar: [{ id: 'b', tipo: 'item', pai_id: null, ordem: 5 }] });
+  });
+
+  it('quando o banco grava a árvore colada nas posições dadas, então ela entra no fim do grupo 2.1, numerada, e o grupo novo vem na resposta', () => {
+    // Dado: o 2.1 termina na Carteira de trabalho (7) e o próximo é o Auxílio-doença (8)
+    let n = 0;
+    const nova = [{ texto: 'Vínculos', filhos: [] }, { texto: 'PPP' }];
+    // Quando
+    const { lista, grupos } = comAArvoreNova(EXEMPLO, 'g3', nova, ondeEntraAArvore(arvoreDaLista(EXEMPLO), 'g3', nova), () => `novo${++n}`);
+    // Então
+    expect(grupos).toEqual(['novo1']);
+    expect(numerados(arvoreDaLista(lista)).slice(4, 9)).toEqual(['2.1 Aposentadoria por idade', '2.1.1 CNIS', '2.1.2 Carteira de trabalho', '2.1.3 Vínculos',
+      '2.1.4 PPP']);
+    expect(lista.itens.find(i => i.texto === 'PPP')).toMatchObject({ grupo_id: 'g3', ordem: 7 + 2 / 3 });
+  });
+
+  it('dado o que renumerar, quando o banco grava a árvore colada, então renumera antes e os novos ficam no vão aberto', () => {
+    // Dado
+    let n = 0;
+    const lista = { grupos: [grupo('g', 'G', null, 1)], itens: [item('a', 'A', 'g', 2), item('b', 'B', null, 2 + 1e-7)] };
+    const nova = [{ texto: 'C' }, { texto: 'D' }];
+    // Quando
+    const depois = comAArvoreNova(lista, 'g', nova, ondeEntraAArvore(arvoreDaLista(lista), 'g', nova), () => `novo${++n}`).lista;
+    // Então
+    expect(numerados(arvoreDaLista(depois))).toEqual(['1. G', '1.1 A', '1.2 C', '1.3 D', '2. B']);
+    expect(segueALeitura(depois)).toBe(true);
   });
 
   it('quando aplica as posições de uma ação, então a árvore lida de novo mostra o que mudou', () => {

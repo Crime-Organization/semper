@@ -237,3 +237,51 @@ test.describe('Grupos na demanda e na tarefa (#309)', () => {
     await expect(lista.getByRole('checkbox', { name: 'CNIS' })).toHaveAccessibleDescription('1.3, no grupo 1. Documentos pessoais');
   });
 });
+
+test.describe('Lista numerada colada no checklist, gravada de uma vez (#375)', () => {
+  /** Cria na demanda um checklist em branco e cola o texto no campo de item novo do pé, como quem copia do Word. */
+  async function colarNoChecklist(page: Page, texto: string) {
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    const cartao = await abrirCartao(page, '/demandas/', 'Busca de anterioridade');
+    await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
+    await page.getByRole('menuitem', { name: 'Checklist em branco' }).click();
+    await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('textbox').fill('Documentos');
+    await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('button', { name: 'Salvar' }).click();
+    const lista = cartao.getByRole('region', { name: 'Checklist Documentos' });
+    await page.evaluate(t => navigator.clipboard.writeText(t), texto);
+    await lista.getByRole('textbox', { name: 'Novo item do checklist Documentos' }).focus();
+    await page.keyboard.press('ControlOrMeta+V');
+    return lista;
+  }
+
+  test('quando a pessoa cola uma lista numerada e usa os números como grupos, então os grupos e os itens entram juntos e continuam depois de recarregar', async ({ page }) => {
+    // Dado
+    const lista = await colarNoChecklist(page, '1. Documentos pessoais\n1.1 RG\n1.2 CPF\n2. Procuração');
+    // Quando
+    await lista.getByRole('button', { name: 'Usar esses números como grupos' }).click();
+    // Então
+    await expect(grupo(lista, '1. Documentos pessoais')).toHaveAccessibleDescription('0 de 2 feitos');
+    await expect(lista.getByRole('checkbox', { name: 'CPF' })).toHaveAccessibleDescription('1.2, no grupo 1. Documentos pessoais');
+    await expect(lista.getByRole('checkbox', { name: 'Procuração' })).toHaveAccessibleDescription('2.');
+    await expect(lista.getByRole('button', { name: 'Usar esses números como grupos' })).toHaveCount(0);
+    // Quando: recarrega a página e abre a demanda de novo
+    await page.reload();
+    const deNovo = await abrirCartao(page, '/demandas/', 'Busca de anterioridade');
+    const relida = deNovo.getByRole('region', { name: 'Checklist Documentos' });
+    // Então
+    await expect(relida.getByRole('checkbox', { name: 'RG' })).toHaveAccessibleDescription('1.1, no grupo 1. Documentos pessoais');
+    await expect(relida.getByText('0 de 3')).toBeVisible();
+  });
+
+  test('dado um item longo demais no meio da lista colada, quando a pessoa usa os números como grupos, então nada da lista entra e o aviso diz por quê', async ({ page }) => {
+    // Dado: o 1.2 passa do tamanho de um item (500 caracteres)
+    const lista = await colarNoChecklist(page, `1. Documentos pessoais\n1.1 RG\n1.2 ${'x'.repeat(501)}\n2. Procuração`);
+    // Quando
+    await lista.getByRole('button', { name: 'Usar esses números como grupos' }).click();
+    // Então: nem o grupo nem o RG, que vinham antes, ficam
+    await expect(page.getByText('O item pode ter até 500 caracteres.')).toBeVisible();
+    await expect(lista.getByRole('button', { name: /grupo 1\. Documentos pessoais/ })).toHaveCount(0);
+    await expect(lista.getByRole('checkbox')).toHaveCount(0);
+    await expect(lista.getByText('0 de 0')).toBeVisible();
+  });
+});

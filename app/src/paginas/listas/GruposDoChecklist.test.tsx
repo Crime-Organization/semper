@@ -6,24 +6,24 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CartaoComListas, DadosListas, DadosModelos, DadosSessao, GrupoDaLista, ItemDaLista, ListaDoCartao } from '../../dados';
-import { aplicarPosicoes, NAO_CABE_NO_GRUPO, NIVEIS_DEMAIS, semOGrupo } from '../../regras/gruposDaLista';
+import { aplicarPosicoes, comAArvoreNova, NAO_CABE_NO_GRUPO, NIVEIS_DEMAIS, semOGrupo } from '../../regras/gruposDaLista';
 import { Avisos } from '../../ui/avisos';
 import { Janelas } from '../../ui/janela';
 import { iniciarPreferencias } from '../../ui/preferencias';
 import { ListasDoCartao } from '../ListasDoCartao';
 
-// Um banco de mentira, só deste checklist: lê, marca, cria, exclui e grava as posições, como o de verdade.
+// Um banco de mentira, só deste checklist: lê, marca, acrescenta (de uma vez), exclui e grava as posições, como o de verdade.
 let atual: ListaDoCartao;
 let seq = 0;
-const { listasDoCartao, itemAtualizar, itemCriar, itemExcluir, grupoDoChecklistCriar, grupoDoChecklistExcluir, listaReordenar, modelosListar, salvarPreferencia } = vi.hoisted(() => ({
-  listasDoCartao: vi.fn<DadosListas['listasDoCartao']>(), itemAtualizar: vi.fn<DadosListas['itemAtualizar']>(), itemCriar: vi.fn<DadosListas['itemCriar']>(),
-  itemExcluir: vi.fn<DadosListas['itemExcluir']>(), grupoDoChecklistCriar: vi.fn<DadosListas['grupoDoChecklistCriar']>(),
+const { listasDoCartao, itemAtualizar, itemExcluir, listaAcrescentar, grupoDoChecklistExcluir, listaReordenar, modelosListar, salvarPreferencia } = vi.hoisted(() => ({
+  listasDoCartao: vi.fn<DadosListas['listasDoCartao']>(), itemAtualizar: vi.fn<DadosListas['itemAtualizar']>(), itemExcluir: vi.fn<DadosListas['itemExcluir']>(),
+  listaAcrescentar: vi.fn<DadosListas['listaAcrescentar']>(),
   grupoDoChecklistExcluir: vi.fn<DadosListas['grupoDoChecklistExcluir']>(), listaReordenar: vi.fn<DadosListas['listaReordenar']>(),
   modelosListar: vi.fn<DadosModelos['modelosListar']>(async () => []), salvarPreferencia: vi.fn<DadosSessao['salvarPreferencia']>(async () => {})
 }));
 vi.mock('../../dados', () => ({
-  SD: { listasDoCartao, itemAtualizar, itemCriar, itemExcluir, grupoDoChecklistCriar, grupoDoChecklistExcluir, listaReordenar, modelosListar, salvarPreferencia } satisfies
-    Pick<DadosListas & DadosModelos & DadosSessao, 'listasDoCartao' | 'itemAtualizar' | 'itemCriar' | 'itemExcluir' | 'grupoDoChecklistCriar' | 'grupoDoChecklistExcluir'
+  SD: { listasDoCartao, itemAtualizar, itemExcluir, listaAcrescentar, grupoDoChecklistExcluir, listaReordenar, modelosListar, salvarPreferencia } satisfies
+    Pick<DadosListas & DadosModelos & DadosSessao, 'listasDoCartao' | 'itemAtualizar' | 'itemExcluir' | 'listaAcrescentar' | 'grupoDoChecklistExcluir'
       | 'listaReordenar' | 'modelosListar' | 'salvarPreferencia'>
 }));
 
@@ -57,16 +57,11 @@ describe('Grupos e numeração do checklist (#309)', () => {
       atual = { ...atual, itens: atual.itens.map(i => i.id === id ? { ...i, ...campos, ...(feito === undefined ? {} : { feito_em: feito ? 'agora' : null }) } : i) };
       return atual.itens.find(i => i.id === id)!;
     });
-    itemCriar.mockReset().mockImplementation(async (_lista, texto, onde) => {
-      const novo = item(`novo${++seq}`, texto, onde?.pai_id ?? null, onde?.ordem ?? 99);
-      atual = { ...atual, itens: [...atual.itens, novo] };
-      return novo;
-    });
     itemExcluir.mockReset().mockImplementation(async id => { atual = { ...atual, itens: atual.itens.filter(i => i.id !== id) }; });
-    grupoDoChecklistCriar.mockReset().mockImplementation(async (_lista, nome, onde) => {
-      const novo = grupo(`grupo${++seq}`, nome, onde.pai_id, onde.ordem);
-      atual = { ...atual, grupos: [...atual.grupos, novo] };
-      return novo;
+    listaAcrescentar.mockReset().mockImplementation(async (_lista, grupoId, nova, onde) => {
+      const { lista, grupos } = comAArvoreNova(atual, grupoId, nova, onde, () => `novo${++seq}`);
+      atual = { ...atual, ...lista };
+      return grupos;
     });
     grupoDoChecklistExcluir.mockReset().mockImplementation(async id => { atual = { ...atual, ...semOGrupo(atual, id) }; });
     listaReordenar.mockReset().mockImplementation(async (_lista, posicoes) => { atual = { ...atual, ...aplicarPosicoes(atual, posicoes) }; });
@@ -189,7 +184,7 @@ describe('Grupos e numeração do checklist (#309)', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Nome do grupo' }), 'Certidões');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
     // Então
-    expect(grupoDoChecklistCriar).toHaveBeenCalledWith('l1', 'Certidões', { pai_id: null, ordem: 11 });
+    expect(listaAcrescentar).toHaveBeenCalledWith('l1', null, [{ texto: 'Certidões', filhos: [] }], { ordens: [11], renumerar: [] });
     await vi.waitFor(() => expect(within(lista).getByRole('textbox', { name: 'Novo item do grupo 4. Certidões' })).toHaveFocus());
   });
 
@@ -205,7 +200,7 @@ describe('Grupos e numeração do checklist (#309)', () => {
     // Quando
     await userEvent.type(campo, 'PPP{Enter}');
     // Então: entre a Carteira de trabalho (7) e o Auxílio-doença (8)
-    expect(itemCriar).toHaveBeenCalledWith('l1', 'PPP', { pai_id: 'g3', ordem: 7.5 });
+    expect(listaAcrescentar).toHaveBeenCalledWith('l1', 'g3', [{ texto: 'PPP' }], { ordens: [7.5], renumerar: [] });
     expect(await within(lista).findByRole('checkbox', { name: 'PPP' })).toHaveAccessibleDescription('2.1.3, no grupo 2. Benefício › 2.1 Aposentadoria por idade');
     expect(campo).toHaveValue('');
     // Quando
@@ -217,7 +212,7 @@ describe('Grupos e numeração do checklist (#309)', () => {
     document.removeEventListener('keydown', ouvir);
   });
 
-  it('quando a pessoa cola três linhas numeradas e escolhe usar os números, então o grupo e os itens dele são criados', async () => {
+  it('quando a pessoa cola três linhas numeradas e escolhe usar os números, então o grupo e os itens dele são gravados de uma vez (#375)', async () => {
     // Dado
     montar();
     const lista = await secao();
@@ -225,11 +220,30 @@ describe('Grupos e numeração do checklist (#309)', () => {
     // Quando
     await userEvent.paste('1. Certidões\n1.1 Nascimento\n1.2 Casamento');
     await userEvent.click(within(lista).getByRole('button', { name: 'Usar esses números como grupos' }));
-    // Então
-    await vi.waitFor(() => expect(itemCriar).toHaveBeenCalledTimes(2));
-    expect(grupoDoChecklistCriar).toHaveBeenCalledWith('l1', 'Certidões', { pai_id: null, ordem: 11 });
-    expect(itemCriar.mock.calls.map(c => [c[1], c[2]])).toEqual([['Nascimento', { pai_id: 'grupo1', ordem: 12 }], ['Casamento', { pai_id: 'grupo1', ordem: 13 }]]);
+    // Então: uma gravação só, com o grupo e os dois itens dele depois da Procuração (10)
+    await vi.waitFor(() => expect(listaAcrescentar).toHaveBeenCalledTimes(1));
+    expect(listaAcrescentar).toHaveBeenCalledWith('l1', null, [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }, { texto: 'Casamento' }] }],
+      { ordens: [11, 12, 13], renumerar: [] });
+    expect(listaReordenar).not.toHaveBeenCalled();
     expect(await within(lista).findByRole('button', { name: 'Fechar o grupo 4. Certidões' })).toBeInTheDocument();
+    expect(within(lista).getByRole('checkbox', { name: 'Casamento' })).toHaveAccessibleDescription('4.2, no grupo 4. Certidões');
+  });
+
+  it('dado que a gravação falha, quando a pessoa cola a lista numerada e usa os números, então nada dela aparece e o erro diz que não deu certo', async () => {
+    // Dado: o banco recusa a gravação inteira (nada fica)
+    listaAcrescentar.mockRejectedValueOnce(new Error('A internet caiu no meio da gravação.'));
+    montar();
+    const lista = await secao();
+    await userEvent.click(within(lista).getByRole('textbox', { name: 'Novo item do checklist Benefício previdenciário' }));
+    // Quando
+    await userEvent.paste('1. Certidões\n1.1 Nascimento\n1.2 Casamento');
+    await userEvent.click(within(lista).getByRole('button', { name: 'Usar esses números como grupos' }));
+    // Então
+    expect(await screen.findByText('A internet caiu no meio da gravação.')).toBeInTheDocument();
+    await vi.waitFor(() => expect(listasDoCartao).toHaveBeenCalledTimes(2));
+    expect(within(lista).queryByRole('button', { name: /Certidões/ })).not.toBeInTheDocument();
+    expect(within(lista).queryByRole('checkbox', { name: 'Nascimento' })).not.toBeInTheDocument();
+    expect(linhas(lista).at(-1)).toBe('3. Procuração');
   });
 
   it('quando a pessoa cola no grupo 1. uma lista numerada de 3 níveis e escolhe usar os números, então nada é criado e o aviso diz por quê', async () => {
@@ -243,14 +257,13 @@ describe('Grupos e numeração do checklist (#309)', () => {
     await userEvent.click(within(lista).getByRole('button', { name: 'Usar esses números como grupos' }));
     // Então
     expect(await screen.findByText(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`)).toBeInTheDocument();
-    expect(grupoDoChecklistCriar).not.toHaveBeenCalled();
-    expect(itemCriar).not.toHaveBeenCalled();
+    expect(listaAcrescentar).not.toHaveBeenCalled();
     expect(listaReordenar).not.toHaveBeenCalled();
     // Quando: mantém como itens
     await userEvent.click(within(lista).getByRole('button', { name: 'Manter como itens' }));
-    // Então
-    await vi.waitFor(() => expect(itemCriar).toHaveBeenCalledTimes(3));
-    expect(grupoDoChecklistCriar).not.toHaveBeenCalled();
+    // Então: os três como itens no fim do grupo 1., entre o CPF (3) e o Benefício (4), de uma vez
+    await vi.waitFor(() => expect(listaAcrescentar).toHaveBeenCalledTimes(1));
+    expect(listaAcrescentar).toHaveBeenCalledWith('l1', 'g1', [{ texto: '1. A' }, { texto: '1.1 B' }, { texto: '1.1.1 C' }], { ordens: [3.25, 3.5, 3.75], renumerar: [] });
   });
 
   it('dado que a gravação de "Subir" falha, quando a pessoa sobe o grupo 2., então só o erro aparece, sem o aviso do número novo', async () => {
