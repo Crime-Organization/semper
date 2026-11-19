@@ -306,3 +306,58 @@ describe('O nome do checklist e o texto do item, que se renomeiam no lugar (#358
     expect(screen.queryByRole('heading')).not.toBeInTheDocument();
   });
 });
+
+describe('Título que já abre em edição, como o da anotação nova (#369)', () => {
+  /** O título em branco, que abre em edição; o Enter desce para o texto, logo abaixo. */
+  function NotaNova({ aoSalvar = vi.fn() }: { aoSalvar?: (t: string) => unknown }) {
+    const [valor, setValor] = useState('');
+    return <>
+      <TituloEditavel valor={valor} exibido={valor ? undefined : 'Sem título'} placeholder="Sem título" editandoAoAbrir
+        depoisDoEnter={() => document.getElementById('texto')?.focus()} aoSalvar={t => { setValor(t); return aoSalvar(t); }} />
+      <textarea id="texto" aria-label="Texto" />
+    </>;
+  }
+
+  it('quando o título abre, então já é um campo em branco, com o cursor nele e a dica "Sem título"', async () => {
+    // Quando
+    render(<NotaNova />);
+    // Então
+    await vi.waitFor(() => expect(campo()).toHaveFocus());
+    expect(campo()).toHaveValue('');
+    expect(campo()).toHaveAttribute('placeholder', 'Sem título');
+  });
+
+  it('quando a pessoa escreve e aperta Enter, então o título é salvo e o cursor desce para o texto', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<NotaNova aoSalvar={aoSalvar} />);
+    await vi.waitFor(() => expect(campo()).toHaveFocus());
+    // Quando
+    await userEvent.type(campo(), 'Visita{Enter}');
+    // Então
+    expect(aoSalvar).toHaveBeenCalledWith('Visita');
+    await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Texto' })).toHaveFocus());
+    expect(titulo()).toHaveTextContent('Visita');
+  });
+
+  it('dado o título em branco, quando a pessoa aperta Enter, então nada é salvo, o cursor desce para o texto e o título mostra "Sem título"', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<NotaNova aoSalvar={aoSalvar} />);
+    await vi.waitFor(() => expect(campo()).toHaveFocus());
+    // Quando
+    await userEvent.keyboard('{Enter}');
+    // Então
+    expect(aoSalvar).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Texto' })).toHaveFocus());
+    expect(screen.getByRole('button', { name: 'Sem título' })).toBeInTheDocument();
+  });
+
+  it('dado quem só lê, quando o título aparece, então não vira campo, mesmo pedido para abrir em edição', () => {
+    // Quando
+    render(<TituloEditavel valor="Plano" editandoAoAbrir />);
+    // Então
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(titulo()).toHaveTextContent('Plano');
+  });
+});

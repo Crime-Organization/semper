@@ -6,14 +6,16 @@
 //   fica guardada para cada pessoa), sobra só o botão de mostrá-la, e a tabela ocupa a largura toda;
 // - no centro, a tabela da pasta escolhida (?pasta=), com as arquivadas embaixo.
 // A anotação abre na janela do cartão (PainelCartao), como os cartões dos outros módulos, no centro ou ao lado (?id=, para recarregar e
-// mandar o link; abrir e fechar não criam entrada no histórico); a anotação nova abre na janela do cadastro (/documentos/nova/, App.tsx). No celular, o explorador vira uma
+// mandar o link; abrir e fechar não criam entrada no histórico); a anotação nova abre na mesma janela, em branco (?nova=1, #369), e,
+// quando vai ao banco, passa a ter o endereço dela (?id=), sem fechar nem recomeçar a janela. No celular, o explorador vira uma
 // gaveta (o botão no alto do centro). Tudo pelo tamanho do conteúdo (container queries), nunca por contas em JavaScript.
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router';
+import { useLocation, useNavigate, useSearchParams, type Location } from 'react-router';
 import { SD, type AnotacaoLista, type FiltroAnotacoes, type ModuloDaAnotacao, type Ordem, type Pagina, type Pasta } from '../dados';
 import { ANOTACOES_NO_EXPLORADOR, POR_PAGINA } from '../dados/limites';
 import {
-  alteraAAnotacao, desdeDoPeriodo, ITEM_DA_ANOTACAO, MODULOS_DA_ANOTACAO, motivoDaListaVazia, PERIODOS_DA_ANOTACAO, type MotivoDaListaVazia, type PeriodoDaAnotacao
+  alteraAAnotacao, desdeDoPeriodo, enderecoDaAnotacaoNova, fechamentoDaAnotacao, ITEM_DA_ANOTACAO, type FechamentoDaAnotacao, MODULOS_DA_ANOTACAO, motivoDaListaVazia, origemDaAnotacaoNova, PARAMETRO_DA_ANOTACAO_NOVA,
+  PERIODOS_DA_ANOTACAO, semAAnotacaoNova, type MotivoDaListaVazia, type PeriodoDaAnotacao
 } from '../regras/anotacao';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ordemDoExplorador } from '../regras/explorador';
@@ -21,6 +23,7 @@ import { PARAMETRO_DO_COMENTARIO } from '../regras/mensagens';
 import { PARAMETRO_DA_PASTA, pastasDescendentes, textoDoCaminho } from '../regras/pastas';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
+import { SEM_SAIR_DA_TELA } from '../ui/AvisoAoSair';
 import { falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, BotaoLink, Carregando, estiloBotao, prepararEditorAoVivo, Vazio } from '../ui/base';
 import { EtiquetasDoItem, EtiquetasEmLote, filtroDeEtiqueta, useEtiquetasDaPagina } from '../ui/Etiquetas';
@@ -37,7 +40,6 @@ import { useCtx } from '../ui/sessao';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { dataCurta, hojeISO, relativo, useTitulo } from '../ui/util';
-import { CADASTRO_DE_ANOTACAO } from './AnotacoesDoCartao';
 import { CartaoAnotacao } from './CartaoAnotacao';
 import { plural } from './importarPessoas/textos';
 import './Documentos.css';
@@ -57,12 +59,26 @@ const EXPLORADOR = 'documentos-explorador';
 const ICONE_DO_BOTAO = 15;
 /** O tamanho do ícone da pasta ao lado do código, na tabela. */
 const ICONE_DA_PASTA_NA_TABELA = 13;
+/**
+ * O estado da navegação que dá à anotação nova, que acabou de ir ao banco, o endereço dela: a janela continua a mesma (a chave de
+ * antes), e o aviso de sair não segura a troca (SEM_SAIR_DA_TELA).
+ */
+interface EstadoDaAnotacaoNova { [SEM_SAIR_DA_TELA]: true; chave: string; veioDeOutraEntrada: boolean }
+/**
+ * Se há, antes da entrada de agora, outra do sistema no histórico desta aba: o roteador numera as entradas (idx), e a primeira, a
+ * do endereço aberto direto (ou numa aba nova), é a 0. Trocar o endereço no lugar mantém o número.
+ */
+const haEntradaAntes = () => ((window.history.state as { idx?: number } | null)?.idx ?? 0) > 0;
+/** A chave da janela da anotação: a da anotação nova continua depois que ela vai ao banco; a de cada anotação aberta é o id dela. */
+const chaveDaJanela = (local: Location, aberto: string | null) =>
+  (local.state as Partial<EstadoDaAnotacaoNova> | null)?.chave ?? (aberto ?? 'nova-' + local.key);
 
 export default function Documentos() {
   const ctx = useCtx();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
-  const { pathname } = useLocation();
+  const local = useLocation();
+  const { pathname } = local;
   useTitulo('Documentos');
   // O editor das anotações começa a chegar já: ao abrir ou criar uma anotação, ele está pronto para escrever.
   useEffect(() => { void prepararEditorAoVivo(); }, []);
@@ -74,6 +90,8 @@ export default function Documentos() {
   const [params, setParams] = useSearchParams();
   const pasta = params.get(PARAMETRO_DA_PASTA);
   const aberto = params.get(PARAMETRO_DA_ANOTACAO);
+  // A anotação nova, em branco (?nova=1), vinda da pasta escolhida ou do cartão de um item (?demanda=…).
+  const nova = !aberto && params.has(PARAMETRO_DA_ANOTACAO_NOVA);
   // A pasta do endereço que a lista guardada não conhece (criada por um colega) faz ler de novo; até a resposta, a lista é null.
   const pastas = usePastas({ reler: true, precisa: pasta });
   // A lista mostra a pasta e as subpastas dela.
@@ -81,7 +99,7 @@ export default function Documentos() {
   const naPasta = useMemo(() => chaveDaPasta ? chaveDaPasta.split(',') : undefined, [chaveDaPasta]);
   /** O endereço desta página com a anotação aberta (e a pasta escolhida, que continua): o link de cada anotação. */
   const endereco = (id: string) => {
-    const p = new URLSearchParams(params);
+    const p = semAAnotacaoNova(new URLSearchParams(params));
     p.delete(PARAMETRO_DO_COMENTARIO);
     p.set(PARAMETRO_DA_ANOTACAO, id);
     return `/documentos/?${p}`;
@@ -90,7 +108,23 @@ export default function Documentos() {
   const escolherPasta = (id: string | null) => navegar(`/documentos/${id ? '?' + new URLSearchParams({ [PARAMETRO_DA_PASTA]: id }) : ''}`);
   // Abrir e fechar a janela trocam o endereço sem criar entrada no histórico, como nos outros módulos (useCartaoNaUrl): o Voltar sai
   // da página. A pasta escolhida continua. O texto por gravar é gravado antes de fechar (o AvisoAoSair da anotação segura a saída).
-  const { abrir, fechar } = useCartaoNaUrl();
+  const { abrir, fechar: fecharAberta } = useCartaoNaUrl();
+  // A anotação nova aberta de outra entrada do histórico (o "+" do cartão de um item, o da navegação, o botão "Nova anotação") volta
+  // para lá ao fechar, mesmo depois de ir ao banco (o estado guarda isso); a aberta direto pelo endereço só tira a nova do endereço
+  // (a pasta escolhida continua). As outras anotações fecham como os cartões dos outros módulos.
+  const estado = local.state as Partial<EstadoDaAnotacaoNova> | null;
+  const veioDeOutraEntrada = nova ? haEntradaAntes() : !!estado?.veioDeOutraEntrada;
+  const FECHAR: Record<FechamentoDaAnotacao, () => void> = {
+    voltar: () => navegar(-1),
+    tirarANova: () => setParams(p => semAAnotacaoNova(p), { replace: true }),
+    fechar: fecharAberta
+  };
+  const fechar = () => FECHAR[fechamentoDaAnotacao({ nova, veioDeOutraEntrada })]();
+  /** A anotação nova foi ao banco: o endereço passa a ser o dela, no lugar do da nova (o Voltar não traz a nova em branco de volta). */
+  function aoCriar(id: string) {
+    const estado: EstadoDaAnotacaoNova = { [SEM_SAIR_DA_TELA]: true, chave: chaveDaJanela(local, aberto), veioDeOutraEntrada };
+    navegar(endereco(id), { replace: true, state: estado });
+  }
   const navegacao = useNavegacaoRecolhida();
   // Outra pasta (pela árvore, pelo caminho da anotação ou pelo Voltar do navegador): a lista volta à primeira página.
   const [pastaVista, setPastaVista] = useState(pasta);
@@ -188,7 +222,7 @@ export default function Documentos() {
     ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta }))
   ];
   // A anotação nova, escrita com uma pasta escolhida, já nasce nela.
-  const cadastro = pasta ? `${CADASTRO_DE_ANOTACAO}?${new URLSearchParams({ [PARAMETRO_DA_PASTA]: pasta })}` : CADASTRO_DE_ANOTACAO;
+  const cadastro = enderecoDaAnotacaoNova(pasta ? { [PARAMETRO_DA_PASTA]: pasta } : {});
   const tabelaDe = { pastas: pastas ?? [], naPasta: !!pasta, cadastro };
   const contador = tabela ? plural(tabela.total, 'ativa', 'ativas') : null;
 
@@ -219,9 +253,11 @@ export default function Documentos() {
       </div>
     </div>
   </PaginaModulo>
-  {/* A anotação, na janela do cartão dos outros módulos (no centro, larga como uma folha aberta, #340, com a coluna da direita). */}
-  {aberto && <PainelCartao aoFechar={fechar} largo rotulo="Anotação">
-    <CartaoAnotacao key={aberto} id={aberto} aoMudar={recarregar} aoFechar={fechar} />
+  {/* A anotação, na janela do cartão dos outros módulos (no centro, larga como uma folha aberta, #340, com a coluna da direita). A
+      nova abre na mesma janela, e ela não recomeça quando a nova vai ao banco (a mesma chave, veja chaveDaJanela). */}
+  {(aberto || nova) && <PainelCartao aoFechar={fechar} largo rotulo="Anotação">
+    <CartaoAnotacao key={chaveDaJanela(local, aberto)} id={aberto ?? undefined} aoMudar={recarregar} aoFechar={fechar} aoCriar={aoCriar}
+      nova={nova ? { pasta, origem: origemDaAnotacaoNova(params) } : undefined} />
   </PainelCartao>}
   </>;
 }

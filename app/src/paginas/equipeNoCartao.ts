@@ -58,13 +58,20 @@ export async function mudarAEquipe(modulo: ModuloDaEquipe, itemId: string, pedid
     await sairDoCartao(modulo, itemId, `Você saiu ${m.doItem}, e a saída ficou no histórico.`).catch(() => { throw new Error(saidaPelaBolinhaFalhou(modulo)); });
     return 'saiu';
   }
-  feito(AVISO_DA_MUDANCA[pedido.tipo](modulo, pedido.nome), m.oQue, async (): Promise<Mudanca> => {
-    const agora = await l.ler(itemId);
-    if (!agora) throw new Error(ITEM_SUMIU);
-    const volta = desfazerMudanca(modulo, pedido, antes, agora);
-    if (volta && 'aviso' in volta) throw new Error(volta.aviso);
-    if (volta) await l.gravar(itemId, volta);
-    return { tipo: l.mudanca, id: itemId };
-  });
+  feito(AVISO_DA_MUDANCA[pedido.tipo](modulo, pedido.nome), m.oQue, () => desfazerNoItem(modulo, itemId, pedido, antes));
   return 'gravou';
+}
+
+/**
+ * Desfaz no item gravado a mudança pedida na equipe, sobre a equipe como ela está agora (lida logo antes, desfazerMudanca). Serve
+ * também à anotação nova que foi ao banco depois da mudança, feita ainda na tela (#369).
+ */
+export async function desfazerNoItem(modulo: ModuloDaEquipe, itemId: string, pedido: PedidoNaEquipe, antes: EquipeGravada): Promise<Mudanca> {
+  const l = EQUIPE_DO_ITEM[modulo];
+  const agora = await l.ler(itemId);
+  if (!agora) throw new Error(ITEM_SUMIU);
+  const volta = desfazerMudanca(modulo, pedido, antes, agora);
+  if (volta && 'aviso' in volta) throw new Error(volta.aviso);
+  if (volta) await l.gravar(itemId, volta);
+  return { tipo: l.mudanca, id: itemId };
 }

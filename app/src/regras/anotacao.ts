@@ -14,7 +14,7 @@ import { gravaForaDoCartao, pessoasAoGravar, type CartaoAntes } from './sairDoCa
 /**
  * O que cada módulo ligado tem de próprio. "rotulo" e "plural": como a tela fala do item. "endereco": o começo do endereço do
  * cartão do item, que termina com o id (o processo vai para a página do tipo dele: use enderecoDoItem). "parametro": o nome
- * do parâmetro no cadastro de anotação (/documentos/nova/?demanda=<id>), que diz a que item a anotação nova fica ligada.
+ * do parâmetro no endereço da anotação nova (/documentos/?nova=1&demanda=<id>), que diz a que item ela nasce ligada.
  */
 export const ITEM_DA_ANOTACAO: Record<ModuloDaAnotacao, { rotulo: string; plural: string; endereco: string; parametro: string }> = {
   pessoas: { rotulo: 'Pessoa', plural: 'Pessoas', endereco: '/pessoas/?id=', parametro: 'pessoa' },
@@ -146,29 +146,15 @@ export function desdeDoPeriodo(periodo: PeriodoDaAnotacao, hoje: string): string
 export const DICA_DO_TEXTO = 'Escreva aqui. # título, - lista, - [ ] tarefa, **negrito**, [link](https://…)';
 /** Os campos do cadastro de anotação, como a tela os guarda. */
 export interface CamposAnotacao { titulo: string; texto: string; responsavelId: string; participantes: string[] }
-type CampoConferido = 'titulo' | 'texto' | 'responsavelId';
 /** O que o título confere ('' = está certo): não fica vazio e cabe no banco. Vale no cadastro e na edição no próprio título (#339). */
 export const erroDoTitulo = (titulo: string) => !titulo.trim() ? 'Dê um título à anotação.'
   : titulo.length > TAMANHO_ANOTACAO.titulo ? `O título pode ter até ${TAMANHO_ANOTACAO.titulo} caracteres.` : '';
 /** O que o texto confere ('' = está certo): cabe no banco. Pode ficar vazio. */
 export const erroDoTexto = (texto: string) =>
   texto.length > TAMANHO_ANOTACAO.texto ? `O texto pode ter até ${TAMANHO_ANOTACAO.texto.toLocaleString('pt-BR')} caracteres.` : '';
-/** O que cada campo confere ('' = está certo). Os tamanhos são os do banco. */
-export const VALIDACAO_DA_ANOTACAO: Record<CampoConferido, (c: CamposAnotacao) => string> = {
-  titulo: c => erroDoTitulo(c.titulo),
-  texto: c => erroDoTexto(c.texto),
-  responsavelId: c => c.responsavelId ? '' : 'Escolha o responsável.'
-};
-/** Os erros do cadastro, só dos campos errados. */
-export const errosDaAnotacao = (c: CamposAnotacao): Partial<Record<CampoConferido, string>> =>
-  Object.fromEntries((Object.keys(VALIDACAO_DA_ANOTACAO) as CampoConferido[]).map(k => [k, VALIDACAO_DA_ANOTACAO[k](c)]).filter(([, erro]) => erro));
 /** O que o cadastro grava: o título sem os espaços das pontas, e o responsável fora dos participantes. */
 export const dadosDaAnotacao = (c: CamposAnotacao) => ({
   titulo: c.titulo.trim(), texto: c.texto, responsavel_id: c.responsavelId, participantes: c.participantes.filter(p => p !== c.responsavelId)
-});
-/** Os campos do cadastro a partir de uma anotação gravada (para editar). */
-export const camposDaAnotacao = (a: Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes'>): CamposAnotacao => ({
-  titulo: a.titulo, texto: a.texto, responsavelId: a.responsavel_id, participantes: a.participantes
 });
 
 // ---------- a equipe da anotação (o lápis do cartão, desde a #339) ----------
@@ -183,6 +169,88 @@ export const dadosDaEquipe = (c: CamposDaEquipe) => ({
 /** Os campos da equipe a partir de uma anotação gravada. */
 export const equipeDaAnotacao = (a: Pick<Anotacao, 'responsavel_id' | 'participantes'>): CamposDaEquipe => ({
   responsavelId: a.responsavel_id, participantes: a.participantes
+});
+
+// ---------- a anotação nova, na mesma janela da anotação aberta (#369) ----------
+/** O parâmetro do endereço de Documentos que abre a anotação nova, em branco, na janela da anotação. */
+export const PARAMETRO_DA_ANOTACAO_NOVA = 'nova';
+/** A página Documentos, onde as anotações abrem. */
+const DOCUMENTOS = '/documentos/';
+/**
+ * O endereço da anotação nova: a página Documentos com a anotação em branco na janela da anotação. `junto` leva a pasta (?pasta=,
+ * onde ela nasce) ou o item de onde se veio (?demanda=<id>, a que ela nasce ligada).
+ */
+export const enderecoDaAnotacaoNova = (junto: Record<string, string> = {}) =>
+  `${DOCUMENTOS}?${new URLSearchParams({ [PARAMETRO_DA_ANOTACAO_NOVA]: '1', ...junto })}`;
+/**
+ * O endereço antigo da anotação nova (/documentos/nova/?…, dos favoritos e dos links já mandados) leva ao novo, com a pasta e o
+ * item de onde se veio; com ?id=, o antigo editar, leva à anotação.
+ */
+export function enderecoNovoDaAnotacaoNova(busca: string) {
+  const p = new URLSearchParams(busca);
+  const id = p.get('id');
+  return id ? `${DOCUMENTOS}?${new URLSearchParams({ id })}` : enderecoDaAnotacaoNova(Object.fromEntries(p));
+}
+/** O item de onde se veio, pelo endereço da anotação nova: o primeiro módulo cujo parâmetro está nele (null: nenhum). */
+export function origemDaAnotacaoNova(p: URLSearchParams): ItemParaLigar | null {
+  const modulo = MODULOS_DA_ANOTACAO.find(m => p.get(ITEM_DA_ANOTACAO[m].parametro));
+  return modulo ? { modulo, id: p.get(ITEM_DA_ANOTACAO[modulo].parametro)! } : null;
+}
+/** Tira do endereço o que só a anotação nova usa (o "nova" e o item de onde se veio); a pasta escolhida continua. */
+export function semAAnotacaoNova(p: URLSearchParams) {
+  p.delete(PARAMETRO_DA_ANOTACAO_NOVA);
+  for (const m of MODULOS_DA_ANOTACAO) p.delete(ITEM_DA_ANOTACAO[m].parametro);
+  return p;
+}
+/** O título com que a anotação nova vai ao banco quando a pessoa começa pelo texto (o banco não aceita título em branco). */
+export const TITULO_PROVISORIO = 'Sem título';
+/**
+ * O título como a janela da anotação o trata: o provisório conta como sem título ('') e aparece apagado; ao clicar nele, o campo
+ * abre vazio, e a pessoa escreve o título sem antes apagar "Sem título". Nas listas, ele aparece como está gravado.
+ */
+export const tituloNaJanela = (titulo: string) => titulo === TITULO_PROVISORIO ? '' : titulo;
+/**
+ * Como a janela da anotação fecha (o X, o Esc, a exclusão). Aberta de outra página ou de outra entrada do histórico (o "+" do
+ * cartão de um item, o "+" da navegação, o botão "Nova anotação"), ela volta para lá, como o Voltar, mesmo depois de ir ao banco.
+ * Aberta direto pelo endereço (sem entrada antes no histórico), a anotação nova só sai do endereço, e a aberta fecha, como os
+ * cartões dos outros módulos.
+ */
+export type FechamentoDaAnotacao = 'voltar' | 'tirarANova' | 'fechar';
+export const fechamentoDaAnotacao = ({ nova, veioDeOutraEntrada }: { nova: boolean; veioDeOutraEntrada: boolean }): FechamentoDaAnotacao =>
+  veioDeOutraEntrada ? 'voltar' : nova ? 'tirarANova' : 'fechar';
+/** O que a pessoa escreveu na anotação nova: o título, o texto ou os dois. */
+export interface EscritoNaAnotacaoNova { titulo?: string; texto?: string }
+/** A anotação nova só vai ao banco quando a pessoa escreve algo no título ou no texto (só espaços não contam). */
+export const vaiAoBanco = ({ titulo = '', texto = '' }: EscritoNaAnotacaoNova) => !!(titulo.trim() || texto.trim());
+/** O que a anotação nova grava ao ir ao banco: o que foi escrito (o título provisório, se só há texto) e a equipe escolhida antes. */
+export const dadosDaAnotacaoNova = ({ titulo = '', texto = '' }: EscritoNaAnotacaoNova, equipe: CamposDaEquipe) =>
+  dadosDaAnotacao({ titulo: titulo.trim() || TITULO_PROVISORIO, texto, ...equipe });
+/** O que a anotação nova leva ao ir ao banco, além do que foi escrito: a equipe, a pasta, os itens e as etiquetas escolhidos antes. */
+export interface EscolhidoNaAnotacaoNova { equipe: CamposDaEquipe; pasta: string | null; ligacoes: ItemParaLigar[]; etiquetas: string[] }
+/** O que mudou nas escolhas enquanto a anotação nova ia ao banco, para gravar logo depois (null em dados: nem a equipe nem a pasta). */
+export interface MudadoNaIda { dados: DadosAnotacao | null; aplicar: string[]; tirar: string[]; ligar: ItemParaLigar[]; desligar: ItemParaLigar[] }
+/**
+ * O que a pessoa mudou enquanto a anotação nova ia ao banco (ela pode clicar nas bolinhas, na etiqueta ou na pasta logo depois do
+ * Enter no título): a anotação foi com as escolhas de antes (foi), e o que mudou depois é gravado em seguida, para nada se perder.
+ */
+export function mudadoNaIda(foi: EscolhidoNaAnotacaoNova, agora: EscolhidoNaAnotacaoNova): MudadoNaIda {
+  const equipe = (c: CamposDaEquipe) => JSON.stringify(dadosDaEquipe(c));
+  const mudouAEquipe = equipe(foi.equipe) !== equipe(agora.equipe), mudouAPasta = foi.pasta !== agora.pasta;
+  const fora = (lista: ItemParaLigar[], de: ItemParaLigar[]) => lista.filter(i => !de.some(j => mesmoItem(i, j)));
+  return {
+    dados: mudouAEquipe || mudouAPasta ? { ...(mudouAEquipe ? dadosDaEquipe(agora.equipe) : {}), ...(mudouAPasta ? { pasta_id: agora.pasta } : {}) } : null,
+    aplicar: agora.etiquetas.filter(e => !foi.etiquetas.includes(e)),
+    tirar: foi.etiquetas.filter(e => !agora.etiquetas.includes(e)),
+    ligar: fora(agora.ligacoes, foi.ligacoes),
+    desligar: fora(foi.ligacoes, agora.ligacoes)
+  };
+}
+/** Se algo mudou enquanto a anotação nova ia ao banco. */
+export const mudouNaIda = (m: MudadoNaIda) => !!m.dados || [m.aplicar, m.tirar, m.ligar, m.desligar].some(l => l.length > 0);
+/** A anotação nova antes de ir ao banco: de quem a escreve, em branco, sem pasta, sem código e sem datas. */
+export const anotacaoEmBranco = (eu: string): Anotacao => ({
+  id: '', codigo: '', titulo: '', texto: '', responsavel_id: eu, participantes: [], ligada_a: [], pasta_id: null, arquivado_em: null, arquivado_por: null,
+  criado_por: eu, criado_em: '', atualizado_por: null, atualizado_em: ''
 });
 
 // ---------- a edição no próprio cartão (#339) ----------

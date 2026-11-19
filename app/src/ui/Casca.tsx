@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { MARCA } from '../marca';
 import { rotuloDoMenu, textoDoContador } from '../regras/mensagens';
 import { SD } from '../dados';
+import { enderecoDaAnotacaoNova } from '../regras/anotacao';
 import { modulosLigados } from '../regras/buscaGeral';
 import { podeSairDoCadastro } from './AvisoAoSair';
 import { Avatar } from './Avatar';
@@ -110,7 +111,7 @@ export function Casca({ children }: { children: ReactNode }) {
           </div>}
           {ctx.escritorio?.modulos?.anotacoes && <div className="nav-linha">
             {item('/documentos/', 'documentos', 'Documentos')}
-            <Link className="nav-mais" to="/documentos/nova/" aria-label="Cadastrar anotação" title="Cadastrar anotação"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
+            <Link className="nav-mais" to={enderecoDaAnotacaoNova()} aria-label="Cadastrar anotação" title="Cadastrar anotação"><Icone nome="mais" tam={ICONE_DO_MAIS} /></Link>
           </div>}
           {ctx.escritorio?.modulos?.processos && <SubmenuLateral id="processos" icone="processos" rotulo="Processos" caminhos={['/processos']} para="/processos/">
             <NavLink to="/processos/administrativo/"><span>Administrativo</span></NavLink>

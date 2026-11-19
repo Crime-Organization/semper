@@ -83,10 +83,16 @@ interface Props {
   /** A dica ao passar o mouse, que diz o que o clique faz. Sem isto, "Clique para mudar o título". */
   dica?: string;
   className?: string;
+  /** Começa já em edição, com o cursor no título (a anotação nova, #369, que abre com o cursor no título em branco). */
+  editandoAoAbrir?: boolean;
+  /** Para onde vai o foco depois do Enter (a anotação nova desce para o texto, como numa nota). Sem isto, volta ao título. */
+  depoisDoEnter?: () => void;
 }
 
-export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, dica = DICA, className }: Props) {
-  const [rascunho, setRascunho] = useState<string | null>(null);
+export function TituloEditavel({
+  valor, exibido, nivel = 2, aoSalvar, conferir, rotulo = 'Título', maximo, placeholder, aoMudarRascunho, dica = DICA, className, editandoAoAbrir = false, depoisDoEnter
+}: Props) {
+  const [rascunho, setRascunho] = useState<string | null>(() => editandoAoAbrir && aoSalvar ? valor : null);
   /** Marcado ao salvar ou desfazer: o campo some, e o "sair do campo" que vem depois não salva de novo. */
   const fechado = useRef(false);
   const botao = useRef<HTMLButtonElement>(null);
@@ -118,7 +124,8 @@ export function TituloEditavel({ valor, exibido, nivel = 2, aoSalvar, conferir, 
   function desfazer(pelo: Saida) {
     fechado.current = true;
     mudar(null);
-    if (pelo !== 'saida') setTimeout(() => botao.current?.focus({ preventScroll: true }), 0);
+    if (pelo === 'enter' && depoisDoEnter) setTimeout(depoisDoEnter, 0);
+    else if (pelo !== 'saida') setTimeout(() => botao.current?.focus({ preventScroll: true }), 0);
   }
   /** Salva o que está no campo. Pelo Enter, um título errado deixa o campo aberto; ao sair do campo, volta ao gravado. */
   function salvar(pelo: Exclude<Saida, 'esc'>) {

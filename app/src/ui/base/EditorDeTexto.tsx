@@ -44,12 +44,17 @@ interface Props {
   controle?: RefObject<ControleDoEditor | null>;
   /** Outra pessoa mudou o texto gravado enquanto esta escrevia: a linha da gravação diz isso, e quem usa oferece a escolha. */
   conflito?: boolean;
+  /** O id da caixa, para quem usa pôr o foco nela (o Enter no título da anotação nova desce para o texto). */
+  id?: string;
+  /** A anotação nova ainda não foi ao banco (#369): sem nada escrito, a linha da gravação diz isso, em vez de "Salvo". */
+  aindaNaoGravada?: boolean;
 }
 
 export function EditorDeTexto({
-  texto, aoSalvar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, className, aoMudarRascunho, controle, conflito = false
+  texto, aoSalvar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, className, aoMudarRascunho, controle, conflito = false, id: idPedido, aindaNaoGravada = false
 }: Props) {
-  const id = useId();
+  const idProprio = useId();
+  const id = idPedido ?? idProprio;
   const [valor, setValor] = useState(texto);
   const [gravado, setGravado] = useState(texto);
   const [salvando, setSalvando] = useState(false);
@@ -139,7 +144,7 @@ export function EditorDeTexto({
     if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) return;
     void gravarTudo();
   }
-  const situacao = situacaoDoSalvamento({ valor, gravado, salvando, falhou, conflito });
+  const situacao = situacaoDoSalvamento({ valor, gravado, salvando, falhou, conflito, aindaNaoGravada });
   return <div className="editor-de-texto" onKeyDown={teclar} onBlur={sair}>
     {/* A caixa cresce com o texto, como uma página: quem rola é a página, não a caixa. */}
     <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={valor} aoMudar={setValor} />

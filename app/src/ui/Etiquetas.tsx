@@ -122,6 +122,8 @@ export function useEtiquetasDoCartao(modulo: ModuloComEtiquetas, id: string) {
   // Só a leitura mais nova vale, e a pessoa agir descarta a que está a caminho (ela traria o estado de antes).
   const leitura = useRef(0);
   useEffect(() => {
+    // Sem id (a anotação nova, que ainda não foi ao banco, #369), não há o que ler.
+    if (!id) return;
     const esta = ++leitura.current;
     SD.etiquetasDoCartao(modulo, id).then(l => { if (esta === leitura.current) setIds(l); }).catch(falha);
   }, [modulo, id, versao]);

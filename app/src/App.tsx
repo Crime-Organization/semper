@@ -1,9 +1,11 @@
 // Rotas do SEMPER. Cada tela é baixada só quando alguém a abre.
 // Os endereços são os mesmos do site antigo (os links dos e-mails e os favoritos continuam valendo).
-// Os cadastros novos (pessoa, contrato, demanda, tarefa, anotação), abertos de dentro do sistema, aparecem numa janela no meio da
-// tela, sobre a página de onde se veio; abertos direto pelo endereço (ou numa aba nova), aparecem como página.
+// Os cadastros novos (pessoa, contrato, demanda, tarefa), abertos de dentro do sistema, aparecem numa janela no meio da tela, sobre
+// a página de onde se veio; abertos direto pelo endereço (ou numa aba nova), aparecem como página. A anotação nova não é um
+// cadastro: abre em Documentos, na mesma janela da anotação aberta (#369); o endereço antigo dela (/documentos/nova/) leva para lá.
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { createBrowserRouter, Navigate, Route, RouterProvider, Routes, useLocation, useNavigate, type Location } from 'react-router';
+import { enderecoNovoDaAnotacaoNova } from './regras/anotacao';
 import { Avisos, sinalizarMudanca } from './ui/avisos';
 import { Carregando } from './ui/base';
 import { PainelCartao } from './ui/PainelCartao';
@@ -44,7 +46,6 @@ const Conferencia = lazy(() => import('./paginas/Conferencia'));
 const Lucros = lazy(() => import('./paginas/Lucros'));
 const Mensagens = lazy(() => import('./paginas/Mensagens'));
 const Documentos = lazy(() => import('./paginas/Documentos'));
-const NovaAnotacao = lazy(() => import('./paginas/NovaAnotacao'));
 
 // Os formulários recomeçam do zero a cada vez que são abertos (mesmo clicando no "+" de dentro deles).
 function FormularioPessoa() {
@@ -75,16 +76,16 @@ function FormularioTarefa() {
   const { key } = useLocation();
   return <NovaTarefa key={key} />;
 }
-function FormularioAnotacao() {
-  const { key } = useLocation();
-  return <NovaAnotacao key={key} />;
+/** O endereço antigo da anotação nova (dos favoritos e dos links já mandados) leva a Documentos, onde ela abre agora (#369). */
+function AnotacaoNovaAntiga() {
+  const { search } = useLocation();
+  return <Navigate to={enderecoNovoDaAnotacaoNova(search)} replace />;
 }
 
 /** Os cadastros novos (e a importação de pessoas): cada endereço, o formulário dele e o nome da janela (padrão: "Cadastro"). */
 const CADASTROS: [caminho: string, Formulario: () => React.JSX.Element, rotulo?: string][] = [
   ['pessoas/nova', FormularioPessoa], ['pessoas/importar', FormularioImportacao, 'Importar pessoas'], ['contratos/novo', FormularioContrato],
-  ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa], ['processos/novo', FormularioProcesso], ['agenda/novo', FormularioCompromisso],
-  ['documentos/nova', FormularioAnotacao]
+  ['demandas/nova', FormularioDemanda], ['tarefas/nova', FormularioTarefa], ['processos/novo', FormularioProcesso], ['agenda/novo', FormularioCompromisso]
 ];
 /** O caminho sem as barras das pontas ("/pessoas/nova/" → "pessoas/nova"). */
 const semBarras = (caminho: string) => caminho.replace(/^\/+|\/+$/g, '');
@@ -140,6 +141,7 @@ function Rotas() {
           <Route path="processos/administrativo" element={<Processos key="administrativo" tipo="administrativo" />} />
           <Route path="agenda" element={<Compromissos />} />
           <Route path="documentos" element={<Documentos />} />
+          <Route path="documentos/nova" element={<AnotacaoNovaAntiga />} />
           <Route path="financeiro" element={<HubDoFinanceiro />} />
           <Route path="financeiro/saidas" element={<HubDoFinanceiro />} />
           <Route path="financeiro/direitos" element={<HubDoFinanceiro />} />

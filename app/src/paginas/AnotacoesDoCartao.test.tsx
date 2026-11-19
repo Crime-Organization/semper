@@ -107,7 +107,7 @@ describe('Anotações no cartão de um item', () => {
     const { unmount } = montar({ modulo: 'pessoas', id: 'p1' });
     await screen.findByRole('list', { name: 'Anotações ligadas' });
     // Então: a pessoa não abre a anotação, e a busca não tem o que avisar
-    expect(screen.getByRole('link', { name: 'Nova anotação' })).toHaveAttribute('href', '/documentos/nova/?pessoa=p1');
+    expect(screen.getByRole('link', { name: 'Nova anotação' })).toHaveAttribute('href', '/documentos/?nova=1&pessoa=p1');
     await userEvent.click(screen.getByRole('button', { name: 'Ligar anotação existente' }));
     expect(await screen.findByRole('button', { name: /Parecer sobre a prescrição/ })).toBeInTheDocument();
     expect(screen.queryByText(/passa a ler a anotação/)).not.toBeInTheDocument();
@@ -141,11 +141,11 @@ describe('Anotações no cartão de um item', () => {
     expect(within(lista).getByRole('link', { name: /Ata antiga/ })).toHaveTextContent('Arquivada');
   });
 
-  it('então o "+" leva ao cadastro de anotação já ligada ao item; no cartão só para ler, ele não aparece', async () => {
+  it('então o "+" leva à anotação nova, em Documentos, já ligada ao item (#369); no cartão só para ler, ele não aparece', async () => {
     // Dado / Quando
     const { unmount } = montar({ modulo: 'processos', id: 'pr9' });
     // Então
-    expect(screen.getByRole('link', { name: 'Nova anotação ligada a este item' })).toHaveAttribute('href', '/documentos/nova/?processo=pr9');
+    expect(screen.getByRole('link', { name: 'Nova anotação ligada a este item' })).toHaveAttribute('href', '/documentos/?nova=1&processo=pr9');
     unmount();
     // Quando
     montar({ somenteLer: true });

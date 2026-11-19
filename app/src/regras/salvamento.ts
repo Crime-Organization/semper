@@ -6,9 +6,10 @@ import type { Historico } from '../dados/tipos';
 
 /**
  * Em que pé está o texto: igual ao gravado, mudado e ainda por gravar, sendo gravado, a última gravação falhou, ou outra
- * pessoa mudou o texto gravado depois que a anotação abriu (e a pessoa precisa escolher qual versão fica).
+ * pessoa mudou o texto gravado depois que a anotação abriu (e a pessoa precisa escolher qual versão fica). Na anotação nova que ainda
+ * não foi ao banco (#369), sem nada escrito, nada foi gravado ainda: não se diz "Salvo".
  */
-export type SituacaoDoSalvamento = 'salvo' | 'porSalvar' | 'salvando' | 'naoSalvo' | 'conflito';
+export type SituacaoDoSalvamento = 'salvo' | 'porSalvar' | 'salvando' | 'naoSalvo' | 'conflito' | 'aindaNaoGravada';
 
 /** O que a tela mostra em cada situação. */
 export const TEXTO_DO_SALVAMENTO: Record<SituacaoDoSalvamento, string> = {
@@ -16,7 +17,8 @@ export const TEXTO_DO_SALVAMENTO: Record<SituacaoDoSalvamento, string> = {
   porSalvar: 'Alterações por salvar',
   salvando: 'Salvando…',
   naoSalvo: 'Não foi salvo. Tente de novo com Ctrl+S.',
-  conflito: 'Outra pessoa mudou esta anotação. Escolha qual texto fica.'
+  conflito: 'Outra pessoa mudou esta anotação. Escolha qual texto fica.',
+  aindaNaoGravada: 'Ainda não gravada'
 };
 
 interface EstadoDoTexto {
@@ -30,16 +32,18 @@ interface EstadoDoTexto {
   falhou: boolean;
   /** Outra pessoa mudou o texto gravado depois que a anotação abriu: nada é gravado até a pessoa escolher. */
   conflito?: boolean;
+  /** A anotação nova ainda não foi ao banco (#369): ela vai quando a pessoa escreve algo. */
+  aindaNaoGravada?: boolean;
 }
 
 /**
  * A situação do texto. Gravando, é "salvando", mesmo que a pessoa continue a escrever; igual ao gravado, está salvo (mesmo que
  * uma tentativa anterior tenha falhado e a pessoa tenha voltado ao texto gravado); diferente, ou há conflito, ou falhou, ou
- * ainda vai gravar.
+ * ainda vai gravar. Na anotação nova ainda fora do banco, igual ao gravado é "ainda não gravada".
  */
-export function situacaoDoSalvamento({ valor, gravado, salvando, falhou, conflito = false }: EstadoDoTexto): SituacaoDoSalvamento {
+export function situacaoDoSalvamento({ valor, gravado, salvando, falhou, conflito = false, aindaNaoGravada = false }: EstadoDoTexto): SituacaoDoSalvamento {
   if (salvando) return 'salvando';
-  if (valor === gravado) return 'salvo';
+  if (valor === gravado) return aindaNaoGravada ? 'aindaNaoGravada' : 'salvo';
   if (conflito) return 'conflito';
   return falhou ? 'naoSalvo' : 'porSalvar';
 }

@@ -89,22 +89,22 @@ span.pasta-abrir { cursor: default }
 .tabela-anotacoes .anotacao-pasta { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; color: var(--muted) }
 .tabela-anotacoes td .etiquetas { margin-bottom: 4px }
 
-/* ---------- A anotação aberta (na janela do cartão) e a nova (na janela do cadastro) ----------
+/* ---------- A anotação aberta e a nova, na janela do cartão ----------
    Larga e limpa, na medida de um documento, com bastante ar entre o topo, o título e o texto. A classe é só dela: a .nota é a
    da peça <Nota>, que vale no sistema todo. */
 .anotacao-aberta { width: 100%; max-width: var(--medida-documento); margin-inline: auto; display: flex; flex-direction: column; gap: 22px }
 /* O topo numa linha só: o caminho da pasta à esquerda; a equipe, a etiqueta e o ⋯ à direita. Sem espaço, as ações descem. */
 .anotacao-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-height: var(--botao-redondo) }
 /* Ao lado (e na janela estreita), a etiqueta e o ⋯ vão para a linha dos botões da janela, por cima do topo: ele reserva o lugar deles
-   (o formato, o X, o ⋯ e, para quem escreve, a etiqueta), com as medidas dos botões redondos. Na janela do cadastro, só o X. */
+   (o formato, o X, o ⋯ e, para quem escreve, a etiqueta), com as medidas dos botões redondos. */
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .anotacao-topo { padding-right: calc(3 * var(--botao-redondo) + 3 * var(--botao-redondo-vao)) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(2)) .anotacao-topo { padding-right: calc(4 * var(--botao-redondo) + 4 * var(--botao-redondo-vao)) }
-.cartao-painel.sem-coluna .anotacao-nova .anotacao-topo { padding-right: calc(var(--botao-redondo) + var(--botao-redondo-vao)) }
 .anotacao-topo > .caminho-da-pasta { flex: 1 1 auto; min-width: 0; margin: 0 }
 .anotacao-topo-acoes { display: flex; align-items: center; gap: var(--botao-redondo-vao); margin-left: auto }
 .anotacao-topo-acoes > .equipe-cartao { margin-right: 6px }
-/* O título grande, como o de uma nota. */
+/* O título grande, como o de uma nota. Sem título (a anotação nova), o "Sem título" aparece apagado, como a dica do campo. */
 .anotacao-aberta .anotacao-titulo { margin: 0; font-size: var(--texto-titulo-da-nota); font-weight: 900; letter-spacing: -.02em; line-height: 1.15; color: var(--ink); text-wrap: balance; overflow-wrap: anywhere }
+.anotacao-aberta .anotacao-titulo.sem-titulo .titulo-editavel-botao { color: var(--faint) }
 
 /* O caminho no topo da anotação: pequeno e discreto, cada pedaço um link que leva à pasta. */
 .caminho-da-pasta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-top: 10px; font-size: var(--texto-tabela); line-height: 1.4; color: var(--muted) }
@@ -134,9 +134,6 @@ span.pasta-abrir { cursor: default }
 .texto-formatado.anotacao-texto > h4 { font-size: var(--texto-nota-titulo-2) }
 .texto-formatado.anotacao-texto > h5 { font-size: var(--texto-nota-titulo-3) }
 .texto-formatado.anotacao-texto > ul { margin: 6px 0 }
-
-/* A anotação nova (#339): a nota em branco, no mesmo desenho. Salvar no pé, à direita. */
-.anotacao-nova-salvar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; padding-top: 18px; border-top: 1px solid var(--line) }
 
 /* Ligar a outro item: o tipo de item e a busca lado a lado (um embaixo do outro na coluna estreita). */
 .ligar-item { flex: 1 1 100% }
