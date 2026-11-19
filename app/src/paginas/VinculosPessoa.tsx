@@ -1,20 +1,30 @@
 // Vínculos de uma pessoa com outras (cônjuge, sócio, representante legal...), nos dois sentidos.
 // Fica no cartão da pessoa, cada vínculo num quadrinho (ItensLigados), como toda ligação do sistema; clicar nele abre o
-// cartão da outra pessoa.
+// cartão da outra pessoa. Embaixo, "Vincular pessoa" (uma que já está no cadastro) e "+ Nova pessoa vinculada" (#376): escolhe o
+// tipo do vínculo e abre o cadastro de pessoa, que ao terminar grava o vínculo e volta a este cartão.
 import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router';
 import { SD, type Pessoa, type PessoaLista, type Vinculo, type VinculoTipo } from '../dados';
 import { estiloBotao, Nota } from '../ui/base';
 import { TAMANHO_VINCULO } from '../dados/limites';
+import { cadastroDePessoaVinculada, ORIGEM_DA_PESSOA } from '../regras/origemDaPessoa';
 import { TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { exigeDescricao, lerVinculo, opcoesDeVinculo, pontasDoVinculo } from '../regras/vinculos';
 import { avisar, falha, feito } from '../ui/avisos';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { Icone } from '../ui/Icone';
-import { ItensLigados } from '../ui/ItensLigados';
+import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 
 const NOVO_TIPO = '__novo';
+
+/** O formulário aberto: vincular uma pessoa que já está no cadastro, ou escolher o vínculo e cadastrar uma nova. */
+type Formulario = 'existente' | 'nova';
+const FORMULARIO: Record<Formulario, { enviar: string; rotulo: string }> = {
+  existente: { enviar: 'Vincular', rotulo: 'Vincular pessoa' },
+  nova: { enviar: 'Cadastrar a pessoa', rotulo: ORIGEM_DA_PESSOA.vinculos.novo }
+};
 
 interface Props {
   p: Pessoa;
@@ -22,11 +32,14 @@ interface Props {
   /** Algo mudou: recarregar os vínculos e o histórico. */
   aoMudar: () => void;
   aoAbrirPessoa: (id: string) => void;
+  /** Pode cadastrar uma pessoa nova já vinculada (a pessoa aberta não está arquivada). */
+  podeCriar?: boolean;
 }
 
-export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
+export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar = false }: Props) {
   const ctx = useCtx();
-  const [formulario, setFormulario] = useState(false);
+  const navegar = useNavigate();
+  const [formulario, setFormulario] = useState<Formulario | null>(null);
   const [tipos, setTipos] = useState<VinculoTipo[] | null>(null);
   const [opcao, setOpcao] = useState('');
   const [outra, setOutra] = useState<PessoaLista | null>(null);
@@ -39,17 +52,23 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
   // No representante legal, a descrição é a função, que entra na qualificação da pessoa jurídica.
   const ehRepresentacao = !!escolhida && tipos?.find(t => t.id === escolhida.tipoId)?.nome === TIPO_REPRESENTANTE;
 
-  function abrirFormulario() {
-    setFormulario(true);
+  function abrirFormulario(qual: Formulario) {
+    setFormulario(qual);
     if (!tipos) SD.vinculoTiposListar().then(setTipos).catch(falha);
   }
-  function fecharFormulario() { setFormulario(false); setOpcao(''); setOutra(null); setDescricao(''); }
+  function fecharFormulario() { setFormulario(null); setOpcao(''); setOutra(null); setDescricao(''); }
 
   async function vincular(e: FormEvent) {
     e.preventDefault();
     if (!escolhida) return falha(new Error('Escolha o tipo de vínculo.'));
-    if (!outra) return falha(new Error('Escolha a pessoa a vincular.'));
+    if (formulario === 'existente' && !outra) return falha(new Error('Escolha a pessoa a vincular.'));
     if (pedeDescricao && !descricao.trim()) return falha(new Error('Descreva o vínculo no campo "Descrição".'));
+    // A pessoa nova: o cadastro grava o vínculo ao terminar. A descrição vai junto com a navegação, e não no endereço (é texto livre).
+    // O formulário fecha: ao voltar do cadastro, a seção mostra o vínculo novo.
+    if (formulario === 'nova' || !outra) {
+      fecharFormulario();
+      return navegar(cadastroDePessoaVinculada(p.id, escolhida.chave), { state: { descricao } });
+    }
     const { de, para } = pontasDoVinculo(escolhida, p.id, outra.id);
     setOcupado(true);
     try {
@@ -106,7 +125,8 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
     })} /> : !formulario && <Nota>Nenhum vínculo com outras pessoas ainda.</Nota>}
 
     {formulario
-      ? <form className="form-vinculo campos" noValidate onSubmit={vincular}>
+      ? <form className="form-vinculo campos" noValidate aria-label={FORMULARIO[formulario].rotulo} onSubmit={vincular}>
+        {formulario === 'nova' && <Nota>Escolha o vínculo de {p.nome} com a pessoa nova. Em seguida abre o cadastro dela; ao terminar, o vínculo fica gravado e você volta a este cartão.</Nota>}
         <label>Vínculo
           <select value={opcao} onChange={e => { if (e.target.value === NOVO_TIPO) void novoTipo(); else setOpcao(e.target.value); }}>
             <option value="">{tipos ? 'Escolha o tipo de vínculo' : 'Carregando…'}</option>
@@ -115,7 +135,7 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
             {ctx.ehAdmin && <option value={NOVO_TIPO}>+ Novo tipo de vínculo…</option>}
           </select>
         </label>
-        <BuscaPessoa rotulo="Pessoa" escolhida={outra} aoEscolher={setOutra} desativar={x => x.id === p.id ? 'é a própria pessoa' : null} />
+        {formulario === 'existente' && <BuscaPessoa rotulo="Pessoa" escolhida={outra} aoEscolher={setOutra} desativar={x => x.id === p.id ? 'é a própria pessoa' : null} />}
         {ehRepresentacao
           ? <label>Função <small>(entra na qualificação: "neste ato representada por sua sócia administradora, …")</small>
             <input maxLength={TAMANHO_VINCULO.funcao} value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Ex.: sócia administradora" />
@@ -126,9 +146,12 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa }: Props) {
           </label>}
         <div className="form-vinculo-acoes">
           <button type="button" className={estiloBotao({ pequeno: true })} onClick={fecharFormulario}>Cancelar</button>
-          <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado}>Vincular</button>
+          <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado}>{FORMULARIO[formulario].enviar}</button>
         </div>
       </form>
-      : <div><button type="button" className={estiloBotao({ forma: 'mini' })} onClick={abrirFormulario}><Icone nome="mais" tam={14} /> Vincular pessoa</button></div>}
+      : <AcoesDosLigados>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('existente')}><Icone nome="vinculo" tam={13} /> {FORMULARIO.existente.rotulo}</button>
+        {podeCriar && <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => abrirFormulario('nova')}><Icone nome="mais" tam={13} /> {FORMULARIO.nova.rotulo}</button>}
+      </AcoesDosLigados>}
   </>;
 }

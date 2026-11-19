@@ -1,0 +1,5 @@
+{
+  "titulo": "Cadastrar uma pessoa nova direto do cartão",
+  "texto": "Nos clientes de uma demanda ou de um processo, e nas pessoas de uma tarefa ou de um compromisso, o \"+ Nova pessoa\" abre o cadastro e, ao terminar, a pessoa já entra ali e você volta ao cartão. Se o CPF ou CNPJ já estiver cadastrado, dá para ligar a pessoa que já existe. Nos vínculos de uma pessoa, \"+ Nova pessoa vinculada\" faz o mesmo e grava o vínculo.",
+  "ondeAchar": "No cartão da demanda, do processo, da tarefa ou do compromisso, na seção Clientes ou Pessoas (o \"+\" do título ou o botão \"+ Nova pessoa\"). No cartão da pessoa, na seção Vínculos."
+}

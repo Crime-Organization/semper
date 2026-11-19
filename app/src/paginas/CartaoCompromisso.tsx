@@ -39,7 +39,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
-import { LigarPessoaNoItem } from './PessoasNosItens';
+import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
   id: string;
@@ -188,10 +188,11 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         aoMudar={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />
     </Recolhivel>
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length}>
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="compromissos.cartao.pessoas" contador={c.pessoas.length} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer).titulo}>
       {c.pessoas.length ? <ItensLigados itens={c.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a este compromisso.</Nota>}
-      {/* Ligar uma pessoa que já está no cadastro (#341): quem muda o compromisso, com ele ativo. */}
-      {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
+      {/* Ligar uma pessoa que já está no cadastro (#341) ou cadastrar uma nova já nele (#376): quem muda o compromisso, com ele ativo. */}
+      {!somenteLer && <LigarPessoaNoItem modulo="compromissos" itemId={c.id} ligadas={c.pessoas} novo={novaPessoaNoItem('compromissos', c.id, c.pessoas, !somenteLer).embaixo}
+        depois={() => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }} />}
     </Recolhivel>
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: comentários, anotações e
