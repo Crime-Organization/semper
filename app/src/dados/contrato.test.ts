@@ -1178,7 +1178,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
           afterEach(() => entrarComo('u-master'));
 
-          it('quando quem não vê a anotação comenta mencionando alguém, então a recusa é sempre a de cartão não encontrado, sem dizer quem está nela', async () => {
+          it('quando quem não vê a anotação comenta mencionando alguém, então a recusa é sempre a das regras de acesso, sem dizer quem está nela', async () => {
             // Dado: uma anotação com a Ana, que o Bruno não vê
             const { id } = await anotacaoNova({ participantes: ['u-ana'] });
             entrarComo('u-bruno');
@@ -1188,7 +1188,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
               SD.comentarioCriar('anotacoes', id, 'Oi, @bruno.souza'), SD.comentarioCriar('anotacoes', crypto.randomUUID(), 'Oi, @ana.lima')
             ]);
             // Então: a mesma resposta em todos os casos
-            expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(Array(tentativas.length).fill('Este cartão não foi encontrado. Ele pode ter sido excluído.'));
+            expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(Array(tentativas.length).fill('Você não tem permissão para fazer isso.'));
             entrarComo('u-master');
             expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
           });
@@ -5960,8 +5960,8 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     entrarComo('u-bruno');
     // Então
     expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
-    // O banco fictício diz que o cartão não foi encontrado, como em todos os módulos (o de verdade, que não tem permissão)
-    await expect(SD.comentarioCriar('anotacoes', id, 'Entrei')).rejects.toThrow('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    // A recusa de sempre das regras de acesso, como no banco de verdade e em todos os módulos (#365)
+    await expect(SD.comentarioCriar('anotacoes', id, 'Entrei')).rejects.toThrow(SEM_PERMISSAO);
     entrarComo('u-master');
     expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Só para quem vê']);
   });
