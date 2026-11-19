@@ -1,13 +1,15 @@
-// Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113) e os lembretes marcados nas tarefas e
-// demandas em que ela está (#286). Clicar abre o cartão e marca como lida.
+// Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113), os lembretes marcados nas tarefas e
+// demandas em que ela está (#286) e os pedidos para participar de um item (#363): quem aprova recebe o pedido, com "Aprovar" e
+// "Recusar"; quem pediu recebe a resposta. Clicar abre o cartão e marca como lida.
 // O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário, na rotina diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Mensagem, type TipoMensagem } from '../dados';
+import { AVISO_AO_RESPONDER, enderecoDaResposta, enderecoDoItemDoPedido, PEDIDO_DO_MODULO, RESPOSTA_DO_PEDIDO, respostaDoPedido, type RespostaDoPedido } from '../regras/pedidoDeParticipacao';
 import { hojeNaAgenda } from '../regras/agenda';
 import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
-import { falha } from '../ui/avisos';
+import { avisar, falha } from '../ui/avisos';
 import { Botao } from '../ui/Botoes';
 import { Aviso, Carregando, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
@@ -31,6 +33,8 @@ export default function Mensagens() {
     try { await SD.mensagemMarcarLida(id); await carregar(); await atualizarNaoLidas(); }
     catch (e) { falha(e); }
   }
+  /** Um pedido foi respondido: ele sai da caixa (de todos os que aprovariam) e o número do menu acompanha. */
+  async function mudou() { await carregar(); await atualizarNaoLidas(); }
   async function marcarTodas() {
     try { await SD.mensagensMarcarTodasLidas(); await carregar(); await atualizarNaoLidas(); }
     catch (e) { falha(e); }
@@ -40,7 +44,7 @@ export default function Mensagens() {
     <header className="mensagens-cabeca">
       <div>
         <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">As vezes em que marcaram você com @ nos comentários, os avisos dos prazos sob a sua responsabilidade e os lembretes das tarefas e demandas em que você está.</p>
+        <p className="lead">As vezes em que marcaram você com @ nos comentários, os avisos dos prazos sob a sua responsabilidade, os lembretes das tarefas e demandas em que você está e os pedidos para participar dos seus itens.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
@@ -49,12 +53,12 @@ export default function Mensagens() {
       : typeof lista === 'string' ? <Aviso tipo="erro">{lista}</Aviso>
       : !lista.length ? <Vazio>Nenhuma mensagem. Quando alguém marcar você com @ num comentário ou um prazo seu estiver perto de vencer, o aviso aparece aqui.</Vazio>
       : <ul className="lista-mensagens" aria-label="Mensagens">
-        {lista.map(m => { const Item = ITEM_DO_TIPO[m.tipo]; return <Item key={m.id} m={m} aoMarcarLida={marcarLida} />; })}
+        {lista.map(m => { const Item = ITEM_DO_TIPO[m.tipo]; return <Item key={m.id} m={m} aoMarcarLida={marcarLida} aoMudar={mudou} />; })}
       </ul>}
   </div>;
 }
 
-interface PropsDoItem { m: Mensagem; aoMarcarLida: (id: string) => Promise<void> }
+interface PropsDoItem { m: Mensagem; aoMarcarLida: (id: string) => Promise<void>; aoMudar: () => Promise<void> }
 
 const situacaoDa = (m: Mensagem) => m.lido_em ? 'lida' : 'não lida';
 const situacaoDoAviso = (m: Mensagem) => m.lido_em ? 'lido' : 'não lido';
@@ -116,5 +120,61 @@ function ItemDoPrazo(props: PropsDoItem) {
   </LinhaDaMensagem>;
 }
 
+/** O código do item do pedido: um link para o cartão, quando a pessoa o vê. */
+function CodigoDoItem({ codigo, para }: { codigo: string; para: string | null }) {
+  return para ? <Link className="mensagem-codigo" to={para}>{codigo}</Link> : <b>{codigo}</b>;
+}
+
+/** O pedido para participar, na caixa de quem aprova (#363): o primeiro que responde resolve, e o pedido sai da caixa dos outros. */
+function ItemDoPedido(props: PropsDoItem) {
+  const { m, aoMudar } = props;
+  const ctx = useCtx();
+  const p = m.pedido;
+  if (!p) {
+    return <LinhaDaMensagem {...props} rotulo={`Pedido ${situacaoDa(m)} que não está mais disponível`} marcarLida="Marcar como lido o pedido que não está mais disponível">
+      <CartaoQueNaoVe texto="Este pedido para participar não está mais disponível." />
+    </LinhaDaMensagem>;
+  }
+  const quem = ctx.equipe.find(x => x.id === p.pedido_por), nome = quem?.nome ?? 'Usuário removido', modulo = PEDIDO_DO_MODULO[p.modulo];
+  async function responder(r: RespostaDoPedido) {
+    try { await SD.participacaoResponder(p!.id, r === 'aprovado'); avisar(AVISO_AO_RESPONDER[r](nome, p!.modulo)); }
+    catch (e) { falha(e); }
+    await aoMudar();
+  }
+  return <LinhaDaMensagem {...props} rotulo={`Pedido para participar ${situacaoDa(m)} de ${nome}`} marcarLida={`Marcar como lido o pedido de ${nome}`}>
+    <Avatar p={quem} tam={32} />
+    <div className="mensagem-miolo mensagem-pedido">
+      <span className="mensagem-titulo"><b>{nome}</b> pediu para participar {modulo.doItem} <CodigoDoItem codigo={p.item_codigo} para={enderecoDoItemDoPedido(p)} /></span>
+      <span className="mensagem-trecho">Ao aprovar, {nome} {modulo.aoAprovar}.</span>
+      <div className="mensagem-acoes">
+        <Botao pequeno variante="principal" ocupadoTexto="Aprovando…" aria-label={`Aprovar o pedido de ${nome}`} onClick={() => responder('aprovado')}>Aprovar</Botao>
+        <Botao pequeno ocupadoTexto="Recusando…" aria-label={`Recusar o pedido de ${nome}`} onClick={() => responder('recusado')}>Recusar</Botao>
+      </div>
+    </div>
+  </LinhaDaMensagem>;
+}
+
+/** A resposta ao pedido, na caixa de quem pediu (#363). Aprovada, abre o cartão; recusada, só avisa. */
+function ItemDaResposta(props: PropsDoItem) {
+  const { m } = props;
+  const ctx = useCtx();
+  const p = m.pedido, r = p && respostaDoPedido(p.situacao);
+  if (!p || !r) {
+    return <LinhaDaMensagem {...props} rotulo={`Resposta ${situacaoDa(m)} de um pedido que não está mais disponível`} marcarLida="Marcar como lida a resposta de um pedido que não está mais disponível">
+      <CartaoQueNaoVe texto="Esta resposta é de um pedido que não está mais disponível." />
+    </LinhaDaMensagem>;
+  }
+  const quem = ctx.equipe.find(x => x.id === p.respondido_por), nome = quem?.nome ?? 'Usuário removido', resposta = RESPOSTA_DO_PEDIDO[r];
+  const para = enderecoDaResposta(p);
+  const texto = <>
+    <span className="mensagem-titulo"><b>{nome}</b> {resposta.verbo} seu pedido para participar {PEDIDO_DO_MODULO[p.modulo].doItem} <b>{p.item_codigo}</b></span>
+    <span className="mensagem-trecho">{resposta.depois(p.modulo)}</span>
+  </>;
+  return <LinhaDaMensagem {...props} rotulo={`Resposta ${situacaoDa(m)}: ${nome} ${resposta.verbo} seu pedido`} marcarLida={`Marcar como lida a resposta de ${nome}`}>
+    <Avatar p={quem} tam={32} />
+    {para ? <LinkDaMensagem {...props} para={para}>{texto}</LinkDaMensagem> : <div className="mensagem-miolo mensagem-pedido">{texto}</div>}
+  </LinhaDaMensagem>;
+}
+
 /** Como cada tipo de mensagem aparece. Tipo novo = uma entrada nova. */
-const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = { mencao: ItemDaMencao, prazo: ItemDoPrazo };
+const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = { mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta };

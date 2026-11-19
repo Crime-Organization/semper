@@ -33,3 +33,9 @@ export function moverNaLista<T extends { id: string; ordem: number }>(itens: T[]
 export const itensDoTexto = (texto: string) => texto.split('\n').map(t => t.trim()).filter(Boolean);
 /** O texto do editor a partir dos itens do modelo (um por linha). */
 export const textoDosItens = (itens: string[]) => itens.join('\n');
+
+// ---------- renomear no lugar (#358) ----------
+/** O aviso do checklist sem nome ('' = está certo). */
+export const conferirNomeDoChecklist = (nome: string) => nome.trim() ? '' : 'O checklist precisa de um nome.';
+/** O aviso do item sem texto ('' = está certo). */
+export const conferirTextoDoItem = (texto: string) => texto.trim() ? '' : 'O item não pode ficar em branco.';

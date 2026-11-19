@@ -34,11 +34,11 @@ describe('A sociedade na janela do usuário', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Tornar sócio' }));
     // Então: o formulário mostra a data de entrada (hoje) e nada foi gravado ainda
     const desde = screen.getByLabelText(/Desde/);
-    expect(desde).toHaveValue('2026-11-07');
+    expect(desde).toHaveValue('07/11/2026');   // o campo de data mostra dd/mm/aaaa (#357); grava aaaa-mm-dd
     expect(SD.financeiroSocioCriar).not.toHaveBeenCalled();
     // E quando muda a data e salva, então grava com ela
     await userEvent.clear(desde);
-    await userEvent.type(desde, '2026-01-01');
+    await userEvent.type(desde, '01012026');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar período' }));
     expect(SD.financeiroSocioCriar).toHaveBeenCalledWith({ pessoa_id: 'p-ana', desde: '2026-01-01', ate: null });
     expect(aoMudar).toHaveBeenCalled();
@@ -66,7 +66,7 @@ describe('Mudar e tirar um período de sócio', () => {
     render(<SocioNaEquipe usuario={USUARIO} socios={[socio({})]} aoMudar={aoMudar} />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Mudar o período desde 01/02/2026' }));
-    await userEvent.type(screen.getByLabelText(/Até/), '2026-10-31');
+    await userEvent.type(screen.getByLabelText(/Até/), '31102026');
     await userEvent.click(screen.getByRole('button', { name: 'Salvar período' }));
     // Então
     expect(SD.financeiroSocioAtualizar).toHaveBeenCalledWith('s1', { desde: '2026-02-01', ate: '2026-10-31' });

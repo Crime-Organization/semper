@@ -104,3 +104,34 @@ test.describe('Lembrete no prazo da demanda', () => {
     await expect(lembrete).toContainText('demanda');
   });
 });
+
+test.describe('Lembrete marcado pelo sino no cartão (#361)', () => {
+  const TITULO = 'Emitir a GRU';
+
+  test('quando a pessoa muda o prazo, a hora e o lembrete no próprio cartão, então o lembrete chega na hora nova', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: TITULO }).click();
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: TITULO, level: 2 }) });
+    // Quando
+    await cartao.getByRole('button', { name: /^Prazo: / }).click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
+    await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('06/11/2026');
+    await page.keyboard.press('Escape');
+    await formulario.getByLabel('Hora').fill('10:00');
+    await formulario.getByLabel('Lembrete').selectOption({ label: '30 minutos antes' });
+    await formulario.getByRole('button', { name: 'Salvar' }).click();
+    await expect(cartao.getByRole('button', { name: /^Prazo: / })).toContainText('Lembrete: 30 minutos antes');
+    // Quando: a rotina roda antes e na hora do lembrete (9h30)
+    await rodarOsLembretes(page, '2026-11-06T09:29:00-03:00');
+    await page.goto('/mensagens/');
+    await expect(page.getByRole('listitem', { name: `Lembrete não lido: ${TITULO}` })).toHaveCount(0);
+    await rodarOsLembretes(page, '2026-11-06T09:30:00-03:00');
+    await page.goto('/mensagens/');
+    // Então
+    const lembrete = page.getByRole('listitem', { name: `Lembrete não lido: ${TITULO}` });
+    await expect(lembrete).toContainText('Lembrete: 30 minutos antes');
+    await expect(lembrete).toContainText('06/11/2026 às 10:00');
+  });
+});

@@ -277,3 +277,32 @@ describe('Título que pode faltar, com outro nome à mostra (#346)', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
+
+describe('O nome do checklist e o texto do item, que se renomeiam no lugar (#358)', () => {
+  it('dado o nível 4 e outra dica, quando a pessoa passa o mouse e clica, então a dica é a pedida e o campo abre dentro do h4', async () => {
+    // Dado
+    render(<TituloEditavel nivel={4} valor="Pessoa jurídica" rotulo="Nome do checklist" dica="Clique para renomear" aoSalvar={vi.fn()} />);
+    const botao = screen.getByRole('button', { name: 'Pessoa jurídica' });
+    // Então
+    expect(botao).toHaveAttribute('title', 'Clique para renomear');
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    expect(screen.getByRole('heading', { level: 4 })).toContainElement(screen.getByRole('textbox', { name: 'Nome do checklist' }));
+  });
+
+  it('dado o nível "texto", quando aparece e quando a pessoa clica, então é uma linha comum, sem título, e o campo abre ali mesmo', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<TituloEditavel nivel="texto" valor="Atos constitutivos" rotulo="Texto do item" aoSalvar={aoSalvar} />);
+    // Então
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Atos constitutivos' })).toHaveAttribute('title', 'Clique para mudar o título');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Atos constitutivos' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Texto do item' }), ' e alterações{Enter}');
+    // Então
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenCalledWith('Atos constitutivos e alterações'));
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument();
+  });
+});

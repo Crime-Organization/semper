@@ -1,6 +1,7 @@
 // Erros do banco e do login em português, para a tela mostrar. Vale para qualquer erro que vier do Supabase.
 // Erro novo é uma linha nova numa das listas abaixo. A ordem importa: vale a primeira regra que casar.
 // Uma regra casa quando o código (se houver) e o padrão da mensagem (se houver) batem os dois.
+import { INICIO_VAZIO } from '../regras/dataDeInicio';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
@@ -21,7 +22,7 @@ const REPETIDO: Regra[] = [
   { padrao: /convites_email_pendente/, mensagem: 'Este e-mail já tem um convite pendente.' },
   { padrao: /pessoa_vinculos_unico/, mensagem: 'Essas duas pessoas já têm esse vínculo.' },
   { padrao: /vinculo_tipos_unico/, mensagem: 'Esse tipo de vínculo já existe.' },
-  { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de lista com esse nome.' },
+  { padrao: /lista_modelos_nome_unico/, mensagem: 'Já existe um modelo de checklist com esse nome.' },
   { padrao: /orgaos_sigla_unica/, mensagem: 'Já existe um órgão com essa sigla.' },
   { padrao: /quadro_grupos_nome_unico/, mensagem: 'Já existe um grupo com esse nome neste quadro.' },
   { padrao: /processos_numero_unico/, mensagem: 'Já existe um processo com esse número.' },
@@ -35,6 +36,7 @@ const REPETIDO: Regra[] = [
 ];
 
 const ERROS: Regra[] = [
+  { codigo: '23502', padrao: /data_inicio/, mensagem: INICIO_VAZIO },
   { codigo: '23503', padrao: /perfis_pessoa_fkey/, mensagem: 'Esta pessoa é usuária do sistema e não pode ser excluída.' },
   { codigo: '23503', padrao: /contratos_(cliente|participante|indicador)_id_fkey|contrato_participantes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em contratos e não pode ser excluída.' },
   { codigo: '23503', padrao: /demanda_clientes_pessoa_id_fkey/, mensagem: 'Esta pessoa está em demandas e não pode ser excluída.' },

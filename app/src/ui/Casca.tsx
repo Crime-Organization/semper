@@ -1,14 +1,16 @@
 // Casca do app: barra lateral (no celular, menu que abre por cima) e área de conteúdo.
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router';
 import { MARCA } from '../marca';
 import { rotuloDoMenu, textoDoContador } from '../regras/mensagens';
 import { SD } from '../dados';
+import { modulosLigados } from '../regras/buscaGeral';
 import { podeSairDoCadastro } from './AvisoAoSair';
 import { Avatar } from './Avatar';
 import { Icone } from './Icone';
 import { avisar } from './avisos';
 import { estiloBotao } from './base';
+import { BotaoBuscaGeral, BuscaGeral } from './BuscaGeral';
 import { cronometrosAtivos, pausarTodos } from './cronometros';
 import { abandonarGravacao, estaGravando } from './gravacaoDaImportacao';
 import { confirmar } from './janela';
@@ -34,6 +36,9 @@ export function Casca({ children }: { children: ReactNode }) {
   const local = useLocation();
   const [aberta, setAberta] = useState(false);
   const lateral = useRef<HTMLElement>(null);
+  // Os módulos da busca geral (#321): os que o escritório tem ligados. A lista só muda quando os módulos mudam.
+  const modulosDoEscritorio = ctx.escritorio?.modulos;
+  const modulosDaBusca = useMemo(() => modulosLigados(modulosDoEscritorio), [modulosDoEscritorio]);
 
   // No celular, o menu fecha ao trocar de tela ou ao tocar fora dele.
   useEffect(() => setAberta(false), [local.pathname, local.search, local.hash]);
@@ -68,7 +73,8 @@ export function Casca({ children }: { children: ReactNode }) {
     <header className="topo-cel">
       <button type="button" aria-label="Abrir menu" onClick={e => { e.stopPropagation(); setAberta(a => !a); }}><Icone nome="menu" tam={18} /></button>
       <b className="topo-nome">{nomeEsc} <span style={{ color: 'var(--accent-ink)' }}>{MARCA.nome}</span></b>
-      <BotaoNovidades soIcone />
+      {/* A busca geral (#321) também fica aqui, só com a lupa: no celular não há Ctrl+K. */}
+      <span className="topo-acoes"><BotaoBuscaGeral soIcone /><BotaoNovidades soIcone /></span>
     </header>
     <div className="app">
       <aside className={'side' + (aberta ? ' aberta' : '')} aria-label="Menu" ref={lateral}>
@@ -77,6 +83,8 @@ export function Casca({ children }: { children: ReactNode }) {
           <span className="ini">{nomeEsc.trim().charAt(0)}</span>
           <span style={{ minWidth: 0 }}><b>{nomeEsc}</b><small>{MARCA.nome}</small></span>
         </Link>
+        {/* A busca geral (#321): em todos os módulos de uma vez; o atalho é Ctrl+K (Cmd+K no Mac), em qualquer página. */}
+        <BotaoBuscaGeral />
         <nav className="nav" aria-label="Seções">
           {item('/inicio/', 'inicio', 'Início')}
           <NavLink to="/mensagens/" aria-label={rotuloDoMenu(quantasNaoLidas)}>
@@ -137,6 +145,7 @@ export function Casca({ children }: { children: ReactNode }) {
       </aside>
       <main className="conteudo">{children}</main>
     </div>
+    <BuscaGeral modulos={modulosDaBusca} />
   </>;
 }
 

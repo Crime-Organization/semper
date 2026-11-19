@@ -4,14 +4,14 @@
 // - AvisoDaEdicaoNoLugar: com algo por salvar, sair do cartão pergunta antes (AvisoAoSair), como na anotação;
 // - gravarNoLugar: grava só o campo mudado, com a mesma função e o mesmo aviso (com Desfazer) do lápis.
 import { useCallback, useRef, useState, type RefObject } from 'react';
-import { edicaoNoLugarPorSalvar, type CampoNoLugar, type GravadoNoLugar, type RascunhosNoLugar } from '../regras/edicaoNoLugar';
+import { edicaoNoLugarPorSalvar, type CampoNoLugar, type DadoNoLugar, type GravadoNoLugar, type RascunhosNoLugar } from '../regras/edicaoNoLugar';
 import { AvisoAoSair } from './AvisoAoSair';
 import { feito, type Mudanca } from './avisos';
 
 export interface EdicaoNoLugar {
   rascunhos: RascunhosNoLugar;
-  /** Para o aoMudarRascunho do título ou da descrição. */
-  rascunhoDe: (campo: CampoNoLugar) => (rascunho: string | null) => void;
+  /** Para o aoMudarRascunho do título, da descrição e dos dados do grupo das datas (#361). */
+  rascunhoDe: (campo: CampoNoLugar | DadoNoLugar) => (rascunho: string | null) => void;
   /** A chave do título e da descrição: muda quando a pessoa escolhe "Sair sem salvar", e a edição aberta recomeça. */
   chave: number;
   descartar: () => void;
@@ -23,13 +23,13 @@ export function useEdicaoNoLugar(): EdicaoNoLugar {
   const [chave, setChave] = useState(0);
   /** O cartão não sai por conta própria no meio de uma edição no lugar: fica sempre false, e o aviso sempre pergunta. */
   const liberada = useRef(false);
-  const rascunhoDe = useCallback((campo: CampoNoLugar) => (r: string | null) => setRascunhos(atual => ({ ...atual, [campo]: r })), []);
+  const rascunhoDe = useCallback((campo: CampoNoLugar | DadoNoLugar) => (r: string | null) => setRascunhos(atual => ({ ...atual, [campo]: r })), []);
   // O cartão pode continuar ao fundo (a anotação nova abre por cima dele): o que foi descartado não é salvo depois.
   const descartar = useCallback(() => { setRascunhos({}); setChave(v => v + 1); }, []);
   return { rascunhos, rascunhoDe, chave, descartar, liberada };
 }
 
-/** Com o título ou a descrição mudados e ainda não salvos, sair do cartão pergunta antes. */
+/** Com o título, a descrição ou um dado do grupo das datas (#361) mudados e ainda não salvos, sair do cartão pergunta antes. */
 export function AvisoDaEdicaoNoLugar({ edicao, gravado }: { edicao: EdicaoNoLugar; gravado: GravadoNoLugar }) {
   if (!edicaoNoLugarPorSalvar(gravado, edicao.rascunhos)) return null;
   return <AvisoAoSair preenchido liberada={edicao.liberada} ocupado={false} aoDescartar={edicao.descartar} />;

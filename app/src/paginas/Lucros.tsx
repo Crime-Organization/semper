@@ -8,7 +8,7 @@ import { fmtCentavos } from '../regras/caixa';
 import { anosDoLucro, avisoDaRetirada, dadosDaRetirada, emAbertoComoResponsavel, errosDaRetirada, lucroDoAno, MESES_DO_ANO, retiradaNova, rotuloDoEmAberto, totalDasLinhas, type FormDaRetirada, type LinhaDoLucro } from '../regras/lucro';
 import { fmtData } from '../regras/pessoa';
 import { falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Campo, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, Campo, CampoData, Carregando, estiloBotao, Nota, propsDoCampo, TituloSecao, Vazio } from '../ui/base';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { PaginaModulo } from '../ui/PaginaModulo';
@@ -77,7 +77,7 @@ function FormPagarLucro({ socios, contas, movimento, hoje, aoTerminar, aoCancela
     </div>
     <div className="financeiro-form-linha">
       <Campo rotulo="Data do pagamento" para={id + 'data'} obrigatorio erro={erros.data}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro: erros.data })} value={f.data} onChange={e => mudar({ data: e.target.value })} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro: erros.data })} valor={f.data} aoMudar={v => mudar({ data: v })} />
       </Campo>
       <Campo rotulo="Valor" para={id + 'valor'} obrigatorio erro={erros.valor} dica={`Em aberto até hoje: ${fmtCentavos(emAberto(f.pessoaId))}.`}>
         <input type="text" inputMode="decimal" placeholder="0,00" {...propsDoCampo(id + 'valor', { erro: erros.valor })} value={f.valor} onChange={e => mudar({ valor: e.target.value })} />

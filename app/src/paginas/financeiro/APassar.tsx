@@ -6,7 +6,7 @@ import { fmtCentavos } from '../../regras/caixa';
 import { erroDaDataDoPagamento } from '../../regras/meusValores';
 import { fmtData } from '../../regras/pessoa';
 import { falha, feito } from '../../ui/avisos';
-import { Campo, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
+import { Campo, CampoData, estiloBotao, Nota, propsDoCampo, Selo, Vazio } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 
 const rotuloDoValor = (v: ValorAPassar) => `${v.nome}, parcela ${v.parcela_numero} de ${v.contrato_codigo}`;
@@ -32,7 +32,7 @@ function FormMarcar({ valor, hoje, aoTerminar, aoCancelar }: { valor: ValorAPass
     <Nota>{fmtCentavos(valor.valor)} a {valor.nome}. Isto só registra que o valor foi pago: não cria lançamento no caixa.</Nota>
     <div className="financeiro-form-linha">
       <Campo rotulo="Data do pagamento" para={id + 'data'} obrigatorio erro={erro}>
-        <input type="date" {...propsDoCampo(id + 'data', { erro })} value={data} onChange={e => setData(e.target.value)} />
+        <CampoData formato="iso" {...propsDoCampo(id + 'data', { erro })} valor={data} aoMudar={v => setData(v)} />
       </Campo>
     </div>
     <div className="financeiro-acoes">

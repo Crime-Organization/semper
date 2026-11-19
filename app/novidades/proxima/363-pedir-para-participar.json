@@ -1,0 +1,5 @@
+{
+  "titulo": "Pedir para participar de um item",
+  "texto": "Quem precisa entrar numa tarefa, demanda, processo, compromisso, contrato ou anotação de que não faz parte acha o item pelo código ou pelo número do processo e pede para participar. O contrato só aparece a quem está numa demanda ou tarefa dele. Um administrador, o responsável ou quem criou o item aprova ou recusa.",
+  "ondeAchar": "Na busca geral (botão Buscar ou Ctrl+K), digite o código exato do item e clique em \"Pedir para participar\". O pedido e a resposta chegam em Mensagens, com os botões \"Aprovar\" e \"Recusar\"."
+}

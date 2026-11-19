@@ -143,8 +143,8 @@ export type PessoaLista = Pick<Pessoa, 'id' | 'codigo' | 'tipo' | 'nome' | 'nome
 
 /** Ordem das listas de qualquer módulo: "manual" é a do quadro (arrastando os cartões); as outras valem para quadro e tabela. */
 export type Ordem = 'manual' | 'nome' | 'nome_desc' | 'novos' | 'antigos' | 'recentes';
-/** A ordem de tarefas e demandas: as de sempre e o prazo, a data de entrega, o mais próximo ou o mais distante primeiro (#291). */
-export type OrdemComPrazo = Ordem | 'prazo' | 'prazo_desc';
+/** As ordens de tarefas e demandas: as de sempre, pelo prazo (#291) e pela data de início (#357). */
+export type OrdemComPrazo = Ordem | 'prazo' | 'prazo_desc' | 'inicio' | 'inicio_desc';
 
 export interface PessoaResumida { id: string; codigo: string; nome: string; tipo: TipoPessoa; arquivado_em?: string | null }
 
@@ -310,6 +310,8 @@ export interface Demanda {
   prazo_hora: string | null;
   /** Quantos minutos antes do prazo chega o lembrete (null: sem lembrete). */
   lembrete: Lembrete | null;
+  /** Quando o trabalho começa (aaaa-mm-dd): nasce no dia da criação, no horário de Brasília, e quem altera o cartão a muda (#357). */
+  data_inicio: string;
   responsavel_id: string;          // perfil
   colaboradores: string[];         // perfis da equipe, sem o responsável
   /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
@@ -345,10 +347,10 @@ export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' 
   papeis: PapelNaDemanda[];
 }
 /** Campos que o cadastro de demanda grava. */
-export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'responsavel_id'
+export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'colaboradores' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
-export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
@@ -359,6 +361,9 @@ export interface FiltroDemandas {
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
+  /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
+  inicioDesde?: string;
+  inicioAte?: string;
   pagina?: number;
   porPagina?: number;
 }
@@ -378,6 +383,8 @@ export interface Tarefa {
   prazo_hora: string | null;
   /** Quantos minutos antes do prazo chega o lembrete (null: sem lembrete). */
   lembrete: Lembrete | null;
+  /** Quando o trabalho começa (aaaa-mm-dd): nasce no dia da criação, no horário de Brasília, e quem altera o cartão a muda (#357). */
+  data_inicio: string;
   responsavel_id: string;          // perfil
   participantes: string[];         // perfis da equipe, sem o responsável
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
@@ -421,10 +428,10 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
   papeis: PapelNaTarefa[];
 }
 /** Campos que o cadastro de tarefa grava. */
-export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'responsavel_id'
+export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
   | 'participantes' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
-export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
   /**
    * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a
@@ -439,6 +446,9 @@ export interface FiltroTarefas {
   pessoa?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
+  /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
+  inicioDesde?: string;
+  inicioAte?: string;
   pagina?: number;
   porPagina?: number;
 }
@@ -1097,7 +1107,8 @@ export interface ComentarioDaMensagem {
   cartao_codigo: string;
   cartao_nome: string | null;
 }
-export type TipoMensagem = 'mencao' | 'prazo';
+/** A menção, o aviso de prazo e, do pedido para participar (#363), o pedido (para quem aprova) e a resposta (para quem pediu). */
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1129,6 +1140,8 @@ export interface Mensagem {
   comentario: ComentarioDaMensagem | null;
   /** No aviso de prazo. null: a pessoa não vê mais o cartão do prazo. */
   prazo: PrazoDaMensagem | null;
+  /** No pedido para participar e na resposta a ele (#363). */
+  pedido: PedidoDaMensagem | null;
 }
 
 /** A caixa de mensagens: cada pessoa só lê e marca as suas. */
@@ -1715,4 +1728,47 @@ export interface DadosParcelas {
   financeiroSocioRestaurar(id: string): Promise<void>;
 }
 
-export interface Dados extends DadosMensagens, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+// ---------- pedir para participar (#363) ----------
+/** Os módulos em que se pede para participar de um item. */
+export type ModuloDoPedido = 'tarefas' | 'demandas' | 'processos' | 'compromissos' | 'contratos' | 'anotacoes';
+/** O grupo da busca geral em que o item aparece: os processos se dividem pelo tipo (judiciais e administrativos). */
+export type GrupoDoPedido = 'tarefas' | 'demandas' | 'judiciais' | 'administrativos' | 'compromissos' | 'contratos' | 'anotacoes';
+export type SituacaoDoPedido = 'pendente' | 'aprovado' | 'recusado' | 'cancelado';
+/**
+ * Um item de que a pessoa não faz parte, achado pelo código exato ou pelo número inteiro do processo: só o tipo e o código.
+ * `numero` é o próprio número digitado, quando foi ele que achou o processo. `pedido_id`: o pedido pendente dela, se houver.
+ */
+export interface ItemParaPedir {
+  modulo: ModuloDoPedido;
+  grupo: GrupoDoPedido;
+  id: string;
+  codigo: string;
+  numero: string | null;
+  pedido_id: string | null;
+}
+/** O pedido de que a mensagem fala. */
+export interface PedidoDaMensagem {
+  id: string;
+  modulo: ModuloDoPedido;
+  item_id: string;
+  item_codigo: string;
+  /** Quem pediu. */
+  pedido_por: string;
+  situacao: SituacaoDoPedido;
+  respondido_por: string | null;
+  /** No processo, o tipo (a página do cartão depende dele); null quando a pessoa não vê o processo. */
+  tipo_do_processo: TipoProcesso | null;
+}
+/** Pedir para participar: as regras ficam no banco (supabase/migrations/20261118220000_pedidos_de_participacao.sql). */
+export interface DadosPedidos {
+  /** Os itens que a pessoa ainda não vê, pelo código exato ou pelo número inteiro do processo, do escritório dela. */
+  itensParaPedir(termo: string): Promise<ItemParaPedir[]>;
+  /** Pede para participar; devolve o id do pedido. Um pendente por pessoa e item. */
+  participacaoPedir(modulo: ModuloDoPedido, itemId: string): Promise<string>;
+  /** Só quem pediu, só o pendente. */
+  participacaoCancelar(pedidoId: string): Promise<void>;
+  /** Um administrador, o responsável ou quem criou o item; o primeiro que responde resolve. Aprovado, a pessoa entra no item. */
+  participacaoResponder(pedidoId: string, aprovar: boolean): Promise<void>;
+}
+
+export interface Dados extends DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}

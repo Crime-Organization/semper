@@ -7,6 +7,7 @@ import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_DEMANDA } from '../dad
 import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao, lerLembrete, prazoComHora, textoDoLembrete } from './lembrete';
 import { fmtHora } from './compromisso';
+import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
 
 /** Rótulo das demandas fora das colunas do quadro. */
 export const SEM_SITUACAO_DEMANDA = 'Sem situação';
@@ -22,13 +23,15 @@ export interface CamposDemanda {
   hora: string;
   /** Minutos antes do prazo, ou null sem lembrete (só vale com o prazo). */
   lembrete: Lembrete | null;
+  /** A data de início, dd/mm/aaaa (#357). null no cadastro novo: a demanda começa no dia em que é criada (o padrão do banco). */
+  inicio: string | null;
   responsavelId: string;
   colaboradores: string[];
   /** Um por linha (o id da pessoa escolhida; linha vazia ainda sem pessoa). */
   clientes: string[];
   contratoId: string;
 }
-export const DEMANDA_VAZIA: CamposDemanda = { titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, responsavelId: '', colaboradores: [], clientes: [''], contratoId: '' };
+export const DEMANDA_VAZIA: CamposDemanda = { titulo: '', descricao: '', prazo: '', hora: '', lembrete: null, inicio: null, responsavelId: '', colaboradores: [], clientes: [''], contratoId: '' };
 
 /** Confere um campo: devolve a mensagem de erro ou null. */
 type Conferencia = (c: CamposDemanda) => string | null;
@@ -43,6 +46,7 @@ const CONFERENCIAS: Partial<Record<keyof CamposDemanda, Conferencia[]>> = {
   ],
   descricao: [c => c.descricao.length > TAMANHO_DEMANDA.descricao ? `A descrição pode ter até ${TAMANHO_DEMANDA.descricao} caracteres.` : null],
   prazo: [c => { try { lerData(c.prazo); return null; } catch (e) { return (e as Error).message; } }],
+  inicio: [c => c.inicio === null ? null : erroDaDataDeInicio(c.inicio) || null],
   ...CONFERENCIAS_DO_LEMBRETE,
   responsavelId: [c => c.responsavelId ? null : 'Escolha o responsável.'],
   colaboradores: [
@@ -69,7 +73,7 @@ export function validarDemanda(c: CamposDemanda): Partial<Record<keyof CamposDem
 export function dadosDaDemanda(c: CamposDemanda): DadosDemanda {
   const prazo = lerData(c.prazo);
   return {
-    titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), responsavel_id: c.responsavelId,
+    titulo: c.titulo.trim(), descricao: c.descricao.trim() || null, prazo, ...horaELembreteAoGravar(prazo, c), ...inicioAoGravar(c), responsavel_id: c.responsavelId,
     colaboradores: [...new Set(escolhidos(c.colaboradores))].filter(id => id !== c.responsavelId),
     clientes: [...new Set(escolhidos(c.clientes))], contrato_id: c.contratoId || null
   };
@@ -87,7 +91,7 @@ export function semSairDaDemanda(d: DadosDemanda, eu: string, podeSair: boolean,
 
 /** Campos do formulário a partir de uma demanda salva (para atualizar). */
 export const camposDaDemanda = (d: Demanda): CamposDemanda => ({
-  titulo: d.titulo, descricao: d.descricao || '', prazo: fmtData(d.prazo), ...horaELembreteDoCartao(d), responsavelId: d.responsavel_id,
+  titulo: d.titulo, descricao: d.descricao || '', prazo: fmtData(d.prazo), ...horaELembreteDoCartao(d), inicio: fmtData(d.data_inicio), responsavelId: d.responsavel_id,
   colaboradores: [...d.colaboradores], clientes: d.clientes.length ? d.clientes.map(p => p.id) : [''], contratoId: d.contrato_id || ''
 });
 
@@ -96,7 +100,7 @@ export type EtapaDemanda = 'demanda' | 'pessoas' | 'contrato';
 export interface DefinicaoEtapaDemanda { id: EtapaDemanda; titulo: string; texto: string; campos: (keyof CamposDemanda)[] }
 /** As etapas do cadastro de demanda, na ordem, como nos cadastros de pessoa e de contrato. */
 export const ETAPAS_DEMANDA: DefinicaoEtapaDemanda[] = [
-  { id: 'demanda', titulo: 'A demanda', texto: 'O que precisa ser feito e, se houver, o prazo de entrega, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete'] },
+  { id: 'demanda', titulo: 'A demanda', texto: 'O que precisa ser feito e, se houver, o prazo de entrega, com a hora e um lembrete.', campos: ['titulo', 'descricao', 'prazo', 'hora', 'lembrete', 'inicio'] },
   { id: 'pessoas', titulo: 'Pessoas', texto: 'Quem responde pela demanda, quem da equipe ajuda e para quais clientes.',
     campos: ['responsavelId', 'colaboradores', 'clientes'] },
   { id: 'contrato', titulo: 'Contrato e processos', texto: 'Se a demanda vem de um contrato ou trabalha num processo que já existe, ligue aqui. Não é obrigatório.', campos: ['contratoId'] }
@@ -113,12 +117,13 @@ export const primeiraEtapaComErroDemanda = (c: CamposDemanda) =>
 // ---------- cartão e histórico ----------
 /** Nome de cada campo no histórico de alterações da demanda. */
 export const CAMPOS_DEMANDA: Record<string, string> = {
-  titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', responsavel_id: 'Responsável', colaboradores: 'Colaboradores',
+  titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', data_inicio: ROTULO_DO_INICIO, responsavel_id: 'Responsável', colaboradores: 'Colaboradores',
   clientes: 'Clientes', contrato: 'Contrato', etapa: 'Situação', arquivado_em: 'Arquivamento'
 };
 /** O histórico guarda a hora como o banco (hh:mm:ss) e o lembrete em minutos: aqui eles ganham o formato da tela. */
 const FORMATOS: Record<string, (v: unknown) => string> = {
   prazo: v => fmtData(String(v)),
+  data_inicio: v => fmtData(String(v)),
   prazo_hora: v => fmtHora(String(v)),
   lembrete: v => textoDoLembrete(lerLembrete(String(v)))
 };

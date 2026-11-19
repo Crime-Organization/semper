@@ -1,0 +1,121 @@
+/* Busca geral (#321, ui/BuscaGeral.tsx): o botão "Buscar" do menu e a janela que busca em todos os módulos.
+   Cores e letras vêm das variáveis de estilo.css; as medidas próprias da busca ficam aqui, com nome. */
+:root {
+  /* A largura da janela no computador: cabem os filtros de todos os módulos numa linha, e o título, o código e o contexto de cada resultado */
+  --largura-da-busca-geral: 720px;
+  /* A distância da janela até o alto da tela: fica na altura dos olhos, e a lista cresce para baixo */
+  --topo-da-busca-geral: 12vh;
+  /* A altura do campo da busca, maior que a dos campos comuns: é o assunto da janela */
+  --campo-da-busca-geral: 56px;
+  /* A altura máxima da lista de resultados (o resto rola dentro dela) */
+  --lista-da-busca-geral: min(56vh, 520px);
+  /* O quadradinho do ícone de cada resultado */
+  --icone-da-busca-geral: 32px;
+  /* A altura do botão "Buscar" do menu: a mesma dos itens do menu */
+  --botao-da-busca-geral: 36px;
+  /* A largura máxima da busca no alto da página inicial (#319): a de um campo de busca, sem atravessar a página */
+  --largura-da-busca-do-painel: 560px;
+}
+
+/* ---------- o botão do menu ---------- */
+.busca-geral-botao { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--botao-da-busca-geral); margin: 0 0 10px; padding: 0 8px 0 12px;
+  border: 1px solid var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); font: inherit; font-size: var(--texto-tabela); cursor: pointer; text-align: left }
+.busca-geral-botao:hover { border-color: var(--faint); color: var(--ink) }
+.busca-geral-botao:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.busca-geral-botao > span { flex: 1; min-width: 0 }
+.topo-acoes { display: flex; align-items: center; gap: 8px }
+.topo-cel .busca-geral-lupa { color: var(--ink) }
+
+/* ---------- a busca no alto da página inicial (#319): um botão com cara de campo, que abre a janela ---------- */
+.busca-do-painel { display: flex; align-items: center; gap: 12px; width: 100%; max-width: var(--largura-da-busca-do-painel); min-height: var(--altura-campo);
+  padding: 0 12px 0 18px; border: 1px solid var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); font: inherit;
+  font-size: var(--texto-corrido); cursor: pointer; text-align: left; transition: border-color .15s, color .15s }
+.busca-do-painel:hover { border-color: var(--faint); color: var(--ink) }
+.busca-do-painel:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.busca-do-painel > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+.busca-geral kbd, .busca-geral-botao kbd, .busca-do-painel kbd { display: inline-flex; align-items: center; gap: 2px; min-height: 20px; padding: 0 6px; border: 1px solid var(--line2); border-radius: 6px;
+  background: var(--soft); color: var(--muted); font-family: var(--font); font-size: var(--texto-miudo); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap }
+
+/* ---------- a janela ---------- */
+.veu-busca-geral { align-items: flex-start; padding-top: var(--topo-da-busca-geral) }
+.busca-geral { width: min(var(--largura-da-busca-geral), 100%); max-height: calc(100dvh - var(--topo-da-busca-geral) - var(--folga-da-janela)); display: flex; flex-direction: column;
+  background: var(--superficie); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sombra-flutuante); overflow: hidden;
+  animation: busca-geral-entra .18s cubic-bezier(.16, 1, .3, 1) }
+/* Só a lista encolhe (e rola) quando falta altura: o campo, os filtros e o rodapé ficam inteiros. */
+.busca-geral > * { flex-shrink: 0 }
+.busca-geral > .busca-geral-corpo { flex-shrink: 1 }
+@keyframes busca-geral-entra { from { opacity: 0; transform: translateY(-8px) scale(.985) } }
+@media (prefers-reduced-motion: reduce) { .busca-geral { animation: none } }
+
+.busca-geral-campo { display: flex; align-items: center; gap: 12px; min-height: var(--campo-da-busca-geral); padding: 0 12px 0 18px; border-bottom: 1px solid var(--line); color: var(--muted) }
+/* A letra do que se digita é a do título da janela (é o assunto dela). */
+.busca-geral-campo input { flex: 1; min-width: 0; height: var(--campo-da-busca-geral); border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit;
+  font-size: var(--texto-titulo-2); caret-color: var(--accent) }
+.busca-geral-campo input::placeholder { color: var(--muted) }
+.busca-geral-campo:focus-within { box-shadow: inset 0 -2px 0 var(--accent) }
+.busca-geral-fechar { flex: none; display: inline-flex; align-items: center; justify-content: center; min-width: var(--alvo-de-toque); min-height: var(--alvo-de-toque); padding: 0;
+  border: 0; background: transparent; cursor: pointer; border-radius: 8px }
+.busca-geral-fechar:hover kbd { color: var(--ink); border-color: var(--faint) }
+.busca-geral-fechar:focus-visible { outline: 2px solid var(--accent) }
+
+.busca-geral-leitura { margin: 0; padding: 8px 18px 0; color: var(--accent-ink); font-size: var(--texto-apoio); font-weight: 700; font-variant-numeric: tabular-nums }
+.busca-geral-filtros { display: flex; padding: 12px 18px; border-bottom: 1px solid var(--line) }
+.busca-geral-filtros .segmentos { min-width: 0 }
+.busca-geral-periodo { flex: none; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--texto-apoio); font-weight: 700 }
+.busca-geral-periodo .filtro { height: var(--botao-da-busca-geral); padding: 0 10px; font-size: var(--texto-apoio) }
+
+.busca-geral-corpo { flex: 1 1 auto; min-height: 0; max-height: var(--lista-da-busca-geral); overflow-y: auto; overscroll-behavior: contain; padding: 6px 8px 10px; scrollbar-gutter: stable }
+.busca-geral-grupo + .busca-geral-grupo { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line) }
+/* O título de cada grupo (Pessoas, Tarefas…), miúdo e em caixa alta, como os cabeçalhos de coluna. */
+.busca-geral-grupo-titulo { padding: 10px 10px 6px; color: var(--muted); font-size: var(--texto-miudo); font-weight: 900; letter-spacing: .14em; text-transform: uppercase }
+
+.busca-geral-linha { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--ink) }
+.busca-geral-linha[aria-selected="true"] { background: var(--accent-tint) }
+.busca-geral-linha[aria-disabled="true"] { cursor: default }
+.busca-geral-icone { flex: none; width: var(--icone-da-busca-geral); height: var(--icone-da-busca-geral); display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--superficie); color: var(--text2) }
+.busca-geral-linha[aria-selected="true"] .busca-geral-icone { border-color: transparent; color: var(--accent-ink) }
+.busca-geral-texto { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px }
+.busca-geral-titulo { font-size: var(--texto-corrido); font-weight: 700; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.busca-geral-titulo mark { background: transparent; color: var(--accent-ink); font-weight: 900 }
+.busca-geral-meta { display: flex; gap: 6px; min-width: 0; color: var(--muted); font-size: var(--texto-apoio); line-height: 1.4; white-space: nowrap; overflow: hidden }
+.busca-geral-meta > * + *::before { content: "·"; margin-right: 6px }
+.busca-geral-contexto { min-width: 0; overflow: hidden; text-overflow: ellipsis }
+.busca-geral-codigo { font-variant-numeric: tabular-nums; letter-spacing: .02em }
+.busca-geral-linha.ver-todos .busca-geral-titulo { color: var(--accent-ink) }
+.busca-geral-linha.ver-todos .busca-geral-icone { border-style: dashed }
+/* O item de que a pessoa não faz parte (#363): a linha não abre; a ação é o botão do fim ("Pedir para participar" ou "Cancelar"). */
+.busca-geral-linha:has(.busca-geral-pedir) { cursor: default }
+.busca-geral-pedir { flex: none }
+
+.busca-geral-situacao { padding: 18px 12px; color: var(--text2); font-size: var(--texto-corrido); line-height: 1.6 }
+.busca-geral-situacao p { margin: 0 0 6px }
+.busca-geral-situacao .mini { margin-top: 6px }
+.busca-geral-falha { margin: 6px 4px 0 }
+
+.busca-geral-rodape { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0; padding: 10px 18px; border-top: 1px solid var(--line); background: var(--soft); color: var(--muted);
+  font-size: var(--texto-miudo) }
+.busca-geral-rodape > span { display: inline-flex; align-items: center; gap: 4px }
+
+/* No celular (e com zoom alto): a janela ocupa a largura toda, logo abaixo do alto da tela, e o filtro de data desce para a
+   linha de baixo. As dicas do teclado somem na tela de toque. */
+@media (max-width: 640px) {
+  .veu-busca-geral { padding: var(--folga-da-janela) max(var(--folga-da-janela), env(safe-area-inset-left, 0px)) }
+  .busca-geral { max-height: calc(100dvh - 2 * var(--folga-da-janela)) }
+  .busca-geral-corpo { max-height: none }
+  .busca-geral-campo { flex-wrap: wrap; padding-bottom: 10px }
+  .busca-geral-campo input { flex-basis: 0 }
+  .busca-geral-periodo { order: 3; flex-basis: 100%; justify-content: space-between }
+  .busca-geral-periodo .filtro { flex: 1 }
+  /* Sem largura para uma linha só, o contexto de cada resultado desce para a linha de baixo em vez de sumir. */
+  .busca-geral-meta { flex-wrap: wrap; white-space: normal }
+  .busca-geral-meta .busca-geral-contexto { flex-basis: 100%; white-space: normal }
+  .busca-geral-meta .busca-geral-contexto::before { content: none }
+}
+/* Na tela de toque não há teclado físico: as dicas somem, e o botão de fechar mostra o X em vez do Esc. */
+.busca-geral-fechar .icone-de-toque { display: none }
+@media (hover: none) {
+  .busca-geral-rodape, .busca-geral-fechar kbd { display: none }
+  .busca-geral-fechar .icone-de-toque { display: inline-flex; color: var(--ink) }
+}

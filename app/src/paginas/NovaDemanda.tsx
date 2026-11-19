@@ -5,14 +5,14 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosDemanda, type Demanda, type PessoaLista } from '../dados';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
+import { camposForaDoLapis, DATAS_NO_LUGAR, etapasDoLapis, semOsCampos } from '../regras/datasNoCartao';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, TAMANHO_DEMANDA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import {
   camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, ETAPAS_DEMANDA, errosDaEtapaDemanda, primeiraEtapaComErroDemanda, semSairDaDemanda, validarDemanda,
   type CamposDemanda, type EtapaDemanda
 } from '../regras/demanda';
-import { MASCARAS } from '../regras/pessoa';
-import { CampoDoLembrete, CampoDaHora } from './CamposDoLembrete';
+import { CampoDoInicio, CampoDoLembrete, CampoDaHora, CampoDoPrazo } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
@@ -171,8 +171,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   }
 
   // ---------- envio ----------
-  /** No lápis do cartão, o título e a descrição ficam de fora: o cartão já os muda no próprio lugar (#346). */
-  const noLapis = (d: DadosDemanda): DadosDemanda => edicao ? semOsCamposDoLugar(d) : d;
+  /** No lápis do cartão, o título e a descrição (#346) e as datas (#361) ficam de fora: o cartão já os muda no próprio lugar. */
+  const noLapis = (d: DadosDemanda): DadosDemanda => edicao ? semOsCampos(semOsCamposDoLugar(d), DATAS_NO_LUGAR.demandas.dados) : d;
   async function salvar() {
     if (ocupado) return;   // o Enter não respeita o botão desligado
     // Uma etapa anterior pode ter ficado com erro (a pessoa voltou e mudou): volta para ela.
@@ -242,12 +242,11 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
             aoMudar={descricao => mudar({ descricao })} />
         </Campo>
       </>}
-      <Campo rotulo="Prazo de entrega" para="prazo" erro={erros.prazo} dica="Opcional. O prazo aparece na agenda.">
-        <input type="text" {...propsDoCampo('prazo', { dica: true, erro: erros.prazo })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.prazo}
-          onChange={e => mudar({ prazo: MASCARAS.data(e.target.value) })} />
-      </Campo>
+      <CampoDoPrazo rotulo="Prazo de entrega" valor={c.prazo} erro={erros.prazo} hora={c.hora} aoMudar={prazo => mudar({ prazo })} aoMudarHora={hora => mudar({ hora })} />
       <CampoDaHora valor={c.hora} erro={erros.hora} aoMudar={hora => mudar({ hora })} />
       <CampoDoLembrete valor={c.lembrete} erro={erros.lembrete} aoMudar={lembrete => mudar({ lembrete })} />
+      {/* A data de início só ao mudar uma demanda que já existe: a nova começa no dia em que é criada (#357). */}
+      {c.inicio !== null && <CampoDoInicio valor={c.inicio} erro={erros.inicio} aoMudar={inicio => mudar({ inicio })} />}
     </>,
     pessoas: () => <>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pela demanda: qualquer um da equipe.">
@@ -293,11 +292,11 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     </>
   };
 
-  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé.
+  // No cartão (o lápis): todas as etapas de uma vez, com Cancelar e Salvar no pé, menos a que só tem o que o cartão muda no lugar.
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar demanda" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {ETAPAS_DEMANDA.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
+      {etapasDoLapis(ETAPAS_DEMANDA, camposForaDoLapis(DATAS_NO_LUGAR.demandas)).map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
         <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
         {CONTEUDO[e.id]()}
       </section>)}

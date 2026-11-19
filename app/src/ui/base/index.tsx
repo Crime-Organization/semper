@@ -12,6 +12,10 @@ export { CampoDoTitulo, TituloEditavel, TITULO_EM_BRANCO, type NivelDoTitulo } f
 export { TextoEditavel } from './TextoEditavel';
 export { EditorDeTexto, type ControleDoEditor } from './EditorDeTexto';
 export { EditorAoVivo, prepararEditorAoVivo, type PropsEditorAoVivo } from './EditorAoVivo';
+export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } from './CampoData';
+export { DataEditavel } from './DataEditavel';
+export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
+export { PrazoEditavel } from './PrazoEditavel';
 
 /**
  * A dica que aparece junto de um botão pequeno, só de ícone ou de iniciais (as bolinhas da equipe), ao passar o mouse e no foco
@@ -127,6 +131,24 @@ export function Vazio({ children }: { children: ReactNode }) {
   return <div className="vazio">{children}</div>;
 }
 
+/**
+ * O número pequeno, numa pílula, ao lado de um nome: quantos itens há numa seção do cartão, numa aba, num bloco do Início.
+ * "apagado": sem o fundo, para o zero não chamar a atenção.
+ */
+export function Contador({ apagado, className, ...resto }: ComponentProps<'span'> & { apagado?: boolean }) {
+  return <span className={['recolher-contador num', apagado && 'vazio', className].filter(Boolean).join(' ')} {...resto} />;
+}
+
+/** Uma linha da lista de números: quantos há e de quê; com "para", a linha toda leva à página. */
+export interface LinhaDeNumero { chave: string; n: number; nome: string; para?: string }
+/** Uma lista de números, um embaixo do outro, cada um com o nome ao lado (ex.: as demandas por situação no Início). */
+export function ListaDeNumeros({ rotulo, linhas }: { rotulo: string; linhas: readonly LinhaDeNumero[] }) {
+  return <ul className="lista-de-numeros" aria-label={rotulo}>{linhas.map(l => {
+    const conteudo = <><b className="num">{l.n.toLocaleString('pt-BR')}</b> <span>{l.nome}</span></>;
+    return <li key={l.chave}>{l.para ? <Link to={l.para}>{conteudo}</Link> : <span>{conteudo}</span>}</li>;
+  })}</ul>;
+}
+
 export interface Aba<T extends string> {
   id: T;
   rotulo: ReactNode;
@@ -170,7 +192,7 @@ export function Abas<T extends string>({ rotulo, abas, atual, aoTrocar, painel }
   return <div className="abas" role="tablist" aria-label={rotulo} onKeyDown={tecla}>
     {abas.map(a => <button key={a.id} type="button" role="tab" aria-selected={a.id === atual} tabIndex={a.id === atual ? 0 : -1}
       id={painel && idDaAba(painel, a.id)} aria-controls={painel} onClick={() => aoTrocar(a.id)}>
-      {a.rotulo}{a.contador !== undefined && <> <span className="recolher-contador num">{a.contador.toLocaleString('pt-BR')}</span></>}
+      {a.rotulo}{a.contador !== undefined && <> <Contador>{a.contador.toLocaleString('pt-BR')}</Contador></>}
     </button>)}
   </div>;
 }

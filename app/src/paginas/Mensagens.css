@@ -22,3 +22,8 @@
   .mensagem { flex-wrap: wrap }
   .mensagem-lado { flex-basis: 100%; flex-direction: row; justify-content: space-between; align-items: center; padding-left: 44px }
 }
+/* O pedido para participar (#363): o texto em cima e os botões "Aprovar" e "Recusar" logo abaixo, à esquerda, como as ações de um cartão. */
+.mensagem-pedido { display: flex; flex-direction: column; gap: 4px }
+.mensagem-codigo { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; text-decoration: underline; text-decoration-color: var(--line2); text-underline-offset: 3px }
+.mensagem-codigo:hover { text-decoration-color: currentColor }
+.mensagem-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px }

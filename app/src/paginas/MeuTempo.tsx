@@ -7,7 +7,7 @@ import { SD, type TempoNaTarefaDoPeriodo } from '../dados';
 import { fmtRelogio } from '../regras/cronometro';
 import { intervaloDoPeriodo, PERIODOS, periodoPorExtenso, totalDoPeriodo, type Periodo } from '../regras/meuTempo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
-import { Aviso, BotaoLink, Carregando, naGrade, Nota, TituloSecao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, CampoData, Carregando, naGrade, Nota, TituloSecao, Vazio } from '../ui/base';
 import { useSessao } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import './Configuracoes.css';
@@ -61,11 +61,11 @@ export default function MeuTempo() {
         {periodo === 'intervalo' && <>
           <div className="campo-form" style={naGrade({ p: 6, m: 6, g: 2 })}>
             <label htmlFor="mt-de">Primeiro dia</label>
-            <input id="mt-de" type="date" value={escolhido.de} onChange={e => setEscolhido(x => ({ ...x, de: e.target.value }))} />
+            <CampoData formato="iso" id="mt-de" valor={escolhido.de} aoMudar={v => setEscolhido(x => ({ ...x, de: v }))} />
           </div>
           <div className="campo-form" style={naGrade({ p: 6, m: 6, g: 2 })}>
             <label htmlFor="mt-ate">Último dia</label>
-            <input id="mt-ate" type="date" value={escolhido.ate} onChange={e => setEscolhido(x => ({ ...x, ate: e.target.value }))} />
+            <CampoData formato="iso" id="mt-ate" valor={escolhido.ate} aoMudar={v => setEscolhido(x => ({ ...x, ate: v }))} />
           </div>
         </>}
       </div>

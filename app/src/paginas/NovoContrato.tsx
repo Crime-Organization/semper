@@ -13,11 +13,10 @@ import {
   type CampoComErro, type CamposContrato, type EtapaContrato
 } from '../regras/contrato';
 import { opcoesDeResponsavel } from '../regras/equipe';
-import { MASCARAS } from '../regras/pessoa';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { falha, feito } from '../ui/avisos';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, Nota, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { Icone } from '../ui/Icone';
@@ -315,7 +314,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     onBlur: e => { try { mudar({ [nome]: dinheiroNoCampo(lerDinheiro(e.target.value)) }); } catch { /* o erro aparece ao seguir */ } }
   }, dica);
   const data = (nome: 'assinadoEm' | 'primeiroPagamento') =>
-    texto(nome, { inputMode: 'numeric', placeholder: 'DD/MM/AAAA', onChange: e => mudar({ [nome]: MASCARAS.data(e.target.value) }) });
+    <CampoData {...propsDoCampo(nome, { erro: erros[nome] })} valor={c[nome]} aoMudar={v => mudar({ [nome]: v })} />;
   const radios = (nome: 'categoria' | 'percentualEscritorio', opcoes: [string, string][]) => opcoes.map(([v, t]) =>
     <label key={v || 'nenhum'}><input type="radio" name={nome} value={v} checked={c[nome] === v} onChange={() => mudar({ [nome]: v })} />{t}</label>);
   // Busca de pessoa com o visual dos outros campos da etapa (a busca é a mesma de Vínculos e de Equipe).

@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { itensDoTexto, moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista, textoDosItens } from './listas';
+import { conferirNomeDoChecklist, conferirTextoDoItem, itensDoTexto, moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista, textoDosItens } from './listas';
 
 describe('Listas da demanda', () => {
   it.each([
@@ -63,5 +63,17 @@ describe('Modelos de lista', () => {
     // Então
     expect(itens).toEqual(['Atos constitutivos', 'Quadro de sócios']);
     expect(textoDosItens(itens)).toBe('Atos constitutivos\nQuadro de sócios');
+  });
+});
+
+describe('Renomear o checklist e o item no lugar (#358)', () => {
+  it.each([
+    ['o nome do checklist', conferirNomeDoChecklist, 'O checklist precisa de um nome.'],
+    ['o texto do item', conferirTextoDoItem, 'O item não pode ficar em branco.']
+  ] as const)('quando %s fica em branco (ou só com espaços), então o aviso diz por quê; com texto, está certo', (_caso, conferir, aviso) => {
+    // Quando / Então
+    expect(conferir('')).toBe(aviso);
+    expect(conferir('   ')).toBe(aviso);
+    expect(conferir('Documentos do cliente')).toBe('');
   });
 });

@@ -50,8 +50,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByText('toda a equipe vê este cartão', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeDisabled();
-    await abrirSecao(cartao, 'Listas');
-    await expect(cartao.getByRole('button', { name: 'Adicionar lista' })).toHaveCount(0);
+    await abrirSecao(cartao, 'Checklists');
+    await expect(cartao.getByRole('button', { name: 'Adicionar checklist' })).toHaveCount(0);
   });
 
   test('dada a chave ligada, quando um advogado sem vínculo entra no processo, então passa a poder alterar', async ({ page }) => {
@@ -137,13 +137,19 @@ test.describe('Toda a equipe vê os cartões', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
     const cartao = page.getByRole('dialog');
-    // Quando
-    await cartao.getByRole('button', { name: 'Editar' }).click();
-    await cartao.getByLabel('Prazo').fill('15112030');
-    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Quando: muda o prazo no próprio cartão (desde a #361, ele não está mais no lápis) e salva o lápis
+    await cartao.getByRole('button', { name: /^Prazo: / }).click();
+    // (o cartão é achado como "dialog": com o calendário aberto, o formulário do prazo é achado pela página)
+    const prazo = page.getByRole('group', { name: 'Mudar o prazo' }).getByRole('textbox', { name: 'Prazo', exact: true });
+    await prazo.fill('15112030');
+    await prazo.press('Enter');
+    await expect(page.getByRole('group', { name: 'Mudar o prazo' })).toHaveCount(0);
     // Então
     await expect(cartao).toContainText('Prazo: 15/11/2030');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(cartao.getByRole('form', { name: 'Editar tarefa' })).toHaveCount(0);
     await cartao.getByRole('button', { name: 'Editar' }).click();
     await expect(cartao.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toHaveCount(0);
   });

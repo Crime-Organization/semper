@@ -5,6 +5,7 @@ import type { CategoriaHonorario, Contrato, DadosContrato, PapelNoContrato, Dado
 import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXIMOS, TAMANHO_CONTRATO } from '../dados/limites';
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
+import { CAMPOS_DO_PEDIDO_NO_HISTORICO } from './pedidoDeParticipacao';
 
 export const CATEGORIAS: Record<CategoriaHonorario, string> = {
   pro_labore: 'Pró-labore',
@@ -258,7 +259,7 @@ export const CAMPOS_CONTRATO: Record<string, string> = {
   entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
   percentual_escritorio: 'Enviado à conta da empresa', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', conta_destino_id: 'Conta de destino', observacoes: 'Observações',
-  codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento'
+  codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento', ...CAMPOS_DO_PEDIDO_NO_HISTORICO
 };
 
 /** Como cada campo aparece no cartão e no histórico (o que não está aqui aparece como foi guardado). */

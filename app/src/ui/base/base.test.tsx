@@ -8,7 +8,7 @@ import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Indicador, Indicadores, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
+import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -148,7 +148,9 @@ describe('Peças de texto e de estado', () => {
     ['Cartão com classe da tela', () => <Cartao className="campos">Conteúdo</Cartao>, 'cartao campos'],
     ['Nota', () => <Nota>Conteúdo</Nota>, 'nota'],
     ['Dica', () => <Dica>Conteúdo</Dica>, 'dica'],
-    ['Vazio', () => <Vazio>Conteúdo</Vazio>, 'vazio']
+    ['Vazio', () => <Vazio>Conteúdo</Vazio>, 'vazio'],
+    ['Contador', () => <Contador>12</Contador>, 'recolher-contador num'],
+    ['Contador apagado (zero)', () => <Contador apagado>0</Contador>, 'recolher-contador num vazio']
   ])('quando a peça é %s, então gera as classes "%s"', (_peca, criar, classes) => {
     // Quando
     const { container } = render(criar());
@@ -296,6 +298,21 @@ describe('FaixaDoBanco', () => {
     const { container } = render(<FaixaDoBanco modo="production" noComputador={false} />);
     // Então
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('Lista de números', () => {
+  it('quando mostra as linhas, então cada número vem com o nome, e só as com destino viram link', () => {
+    // Quando
+    render(<MemoryRouter><ListaDeNumeros rotulo="Demandas por situação" linhas={[
+      { chave: 'a', n: 1500, nome: 'Para fazer', para: '/demandas/' }, { chave: 'b', n: 2, nome: 'Fazendo' }
+    ]} /></MemoryRouter>);
+    // Então
+    const lista = screen.getByRole('list', { name: 'Demandas por situação' });
+    expect(lista).toContainElement(screen.getByRole('link', { name: '1.500 Para fazer' }));
+    expect(screen.getByRole('link', { name: '1.500 Para fazer' })).toHaveAttribute('href', '/demandas/');
+    expect(screen.getAllByRole('listitem')[1]).toHaveTextContent('2 Fazendo');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 });
 

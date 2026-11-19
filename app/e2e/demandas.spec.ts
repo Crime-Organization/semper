@@ -116,17 +116,17 @@ test.describe('Demandas ligadas', () => {
   });
 });
 
-test.describe('Listas da demanda', () => {
-  test('quando a pessoa cria uma lista, acrescenta itens e marca um, então a lista mostra o progresso', async ({ page }) => {
+test.describe('Checklists da demanda', () => {
+  test('quando a pessoa cria um checklist, acrescenta itens e marca um, então o checklist mostra o progresso', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Listas');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
-    await page.getByRole('menuitem', { name: 'Lista em branco' }).click();
-    await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('textbox').fill('Documentos do cliente');
-    await page.getByRole('dialog', { name: 'Nome da lista' }).getByRole('button', { name: 'Salvar' }).click();
-    const lista = cartao.getByRole('region', { name: 'Lista Documentos do cliente' });
-    const novo = lista.getByRole('textbox', { name: 'Novo item da lista Documentos do cliente' });
+    await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
+    await page.getByRole('menuitem', { name: 'Checklist em branco' }).click();
+    await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('textbox').fill('Documentos do cliente');
+    await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('button', { name: 'Salvar' }).click();
+    const lista = cartao.getByRole('region', { name: 'Checklist Documentos do cliente' });
+    const novo = lista.getByRole('textbox', { name: 'Novo item do checklist Documentos do cliente' });
     await novo.fill('Procuração');
     await novo.press('Enter');
     await novo.fill('Contrato social');
@@ -139,9 +139,9 @@ test.describe('Listas da demanda', () => {
   });
 
   test('quando a pessoa põe uma data de entrega num item e o sobe, então a data aparece e o item vai para cima', async ({ page }) => {
-    // Dado: "Registro de marca" tem a lista "Pessoa jurídica" com três itens
-    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
-    const lista = cartao.getByRole('region', { name: 'Lista Pessoa jurídica' });
+    // Dado: "Registro de marca" tem o checklist "Pessoa jurídica" com três itens
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Checklists');
+    const lista = cartao.getByRole('region', { name: 'Checklist Pessoa jurídica' });
     // Quando
     await lista.getByRole('button', { name: 'Ações do item Atos constitutivos' }).click();
     await page.getByRole('menuitem', { name: 'Data de entrega' }).click();
@@ -155,20 +155,20 @@ test.describe('Listas da demanda', () => {
     await expect.poll(async () => (await lista.getByRole('listitem').allTextContents()).findIndex(t => t.includes('Atos constitutivos'))).toBe(1);
   });
 
-  test('quando a pessoa exclui uma lista e confirma, então ela some do cartão', async ({ page }) => {
+  test('quando a pessoa exclui um checklist e confirma, então ele some do cartão', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
-    await page.getByRole('menuitem', { name: 'Excluir lista' }).click();
-    await page.getByRole('dialog', { name: 'Excluir a lista?' }).getByRole('button', { name: 'Excluir lista' }).click();
+    await cartao.getByRole('button', { name: 'Ações do checklist Pessoa jurídica' }).click();
+    await page.getByRole('menuitem', { name: 'Excluir checklist' }).click();
+    await page.getByRole('dialog', { name: 'Excluir o checklist?' }).getByRole('button', { name: 'Excluir checklist' }).click();
     // Então
-    await expect(cartao.getByRole('region', { name: 'Lista Pessoa jurídica' })).toHaveCount(0);
-    await expect(cartao.getByText('Nenhuma lista ainda.', { exact: false })).toBeVisible();
+    await expect(cartao.getByRole('region', { name: 'Checklist Pessoa jurídica' })).toHaveCount(0);
+    await expect(cartao.getByText('Nenhum checklist ainda.', { exact: false })).toBeVisible();
   });
 });
 
-test.describe('Modelos de lista', () => {
+test.describe('Modelos de checklist', () => {
   test('quando a pessoa cria um modelo, então ele aparece na lista de modelos, com os itens na ordem', async ({ page }) => {
     // Dado
     await page.goto('/modelos-de-lista/');
@@ -181,23 +181,23 @@ test.describe('Modelos de lista', () => {
     await expect(page.getByRole('listitem', { name: 'Modelo Documentos do divórcio' }).getByRole('listitem')).toHaveText(['Certidão de casamento', 'Pacto antenupcial']);
   });
 
-  test('quando a pessoa escolhe um modelo em "Adicionar lista", então a lista entra na demanda com um clique, sem itens marcados', async ({ page }) => {
+  test('quando a pessoa escolhe um modelo em "Adicionar checklist", então o checklist entra na demanda com um clique, sem itens marcados', async ({ page }) => {
     // Dado
-    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Listas');
+    const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Adicionar lista' }).click();
+    await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
     await page.getByRole('menuitem', { name: 'Documentos de pessoa física' }).click();
     // Então
-    const lista = cartao.getByRole('region', { name: 'Lista Documentos de pessoa física' });
+    const lista = cartao.getByRole('region', { name: 'Checklist Documentos de pessoa física' });
     await expect(lista.getByRole('checkbox')).toHaveCount(2);
     await expect(lista).toContainText('0 de 2');
   });
 
-  test('quando a pessoa salva uma lista da demanda como modelo, então ele passa a aparecer nos modelos', async ({ page }) => {
-    // Dado: "Registro de marca" tem a lista "Pessoa jurídica"
-    const cartao = await abrirDemanda(page, 'Registro de marca', 'Listas');
+  test('quando a pessoa salva um checklist da demanda como modelo, então ele passa a aparecer nos modelos', async ({ page }) => {
+    // Dado: "Registro de marca" tem o checklist "Pessoa jurídica"
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Checklists');
     // Quando
-    await cartao.getByRole('button', { name: 'Ações da lista Pessoa jurídica' }).click();
+    await cartao.getByRole('button', { name: 'Ações do checklist Pessoa jurídica' }).click();
     await page.getByRole('menuitem', { name: 'Salvar como modelo' }).click();
     const janela = page.getByRole('dialog', { name: 'Nome do modelo' });
     await janela.getByRole('textbox').fill('Documentos da marca');
@@ -206,6 +206,70 @@ test.describe('Modelos de lista', () => {
     await page.goto('/modelos-de-lista/');
     // Então
     await expect(page.getByRole('listitem', { name: 'Modelo Documentos da marca' }).getByRole('listitem')).toHaveCount(3);
+  });
+});
+
+test.describe('Checklists: o nome e o caminho para editar (#358)', () => {
+  for (const modulo of ['Demandas', 'Tarefas']) {
+    test(`quando a pessoa abre o menu ⋯ de ${modulo} e escolhe "Modelos de checklist", então chega à página dos modelos`, async ({ page }) => {
+      // Dado
+      await page.goto(`/${modulo.toLowerCase()}/`);
+      // Quando
+      await page.getByRole('button', { name: 'Mais ações' }).click();
+      await page.getByRole('menuitem', { name: 'Modelos de checklist' }).click();
+      // Então
+      await expect(page.getByRole('heading', { name: 'Modelos de checklist', level: 1 })).toBeVisible();
+      await expect(page.getByRole('list', { name: 'Modelos de checklist' }).getByRole('listitem', { name: 'Modelo Documentos de pessoa física' })).toBeVisible();
+    });
+  }
+
+  test('dado o checklist "Pessoa jurídica", quando a pessoa clica no nome e num item e escreve outro texto, então os dois mudam ali mesmo e continuam assim ao reabrir', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Checklists');
+    const lista = cartao.getByRole('region', { name: 'Checklist Pessoa jurídica' });
+    // Então: passar o mouse diz que o clique renomeia, e mostra o "⋯"
+    const nome = lista.getByRole('button', { name: 'Pessoa jurídica', exact: true });
+    await nome.hover();
+    await expect(nome).toHaveAttribute('title', 'Clique para renomear');
+    await expect(lista.getByRole('button', { name: 'Ações do checklist Pessoa jurídica' })).toHaveCSS('opacity', '1');
+    // Então: no item, o mesmo (a dica no texto e o "⋯" dele à vista)
+    await lista.getByRole('listitem').filter({ hasText: 'Atos constitutivos' }).hover();
+    await expect(lista.getByRole('button', { name: 'Atos constitutivos', exact: true })).toHaveAttribute('title', 'Clique para renomear');
+    await expect(lista.getByRole('button', { name: 'Ações do item Atos constitutivos' })).toHaveCSS('opacity', '1');
+    // Quando
+    await nome.click();
+    await lista.getByRole('textbox', { name: 'Nome do checklist' }).fill('Documentos da empresa');
+    await lista.getByRole('textbox', { name: 'Nome do checklist' }).press('Enter');
+    const renomeada = cartao.getByRole('region', { name: 'Checklist Documentos da empresa' });
+    await renomeada.getByRole('button', { name: 'Atos constitutivos', exact: true }).click();
+    await renomeada.getByRole('textbox', { name: 'Texto do item' }).fill('Contrato social e alterações');
+    await renomeada.getByRole('textbox', { name: 'Texto do item' }).press('Enter');
+    // Então
+    await expect(renomeada.getByRole('heading', { name: 'Documentos da empresa', level: 4 })).toBeVisible();
+    await expect(renomeada.getByRole('checkbox', { name: 'Contrato social e alterações' })).toBeVisible();
+    const reaberto = await abrirDemanda(page, 'Registro de marca', 'Checklists');
+    const deNovo = reaberto.getByRole('region', { name: 'Checklist Documentos da empresa' });
+    await expect(deNovo.getByRole('checkbox', { name: 'Contrato social e alterações' })).toBeVisible();
+  });
+
+  test('dado um item do checklist, quando a pessoa toca logo ao lado da caixa, então o item é marcado, e tocar no texto abre o texto para renomear', async ({ page }) => {
+    // Quantos pixels à esquerda da caixa (de 18px) fica o toque: fora dela, mas dentro do alvo de 44px em volta
+    const AO_LADO_DA_CAIXA = 8;
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca', 'Checklists');
+    const lista = cartao.getByRole('region', { name: 'Checklist Pessoa jurídica' });
+    const caixa = lista.getByRole('checkbox', { name: 'Atos constitutivos' });
+    await expect(caixa).not.toBeChecked();
+    // Quando
+    const onde = (await caixa.boundingBox())!;
+    await page.mouse.click(onde.x - AO_LADO_DA_CAIXA, onde.y + onde.height / 2);
+    // Então
+    await expect(caixa).toBeChecked();
+    // Quando
+    await lista.getByRole('button', { name: 'Atos constitutivos', exact: true }).click();
+    // Então
+    await expect(lista.getByRole('textbox', { name: 'Texto do item' })).toBeFocused();
+    await expect(caixa).toBeChecked();
   });
 });
 
@@ -299,14 +363,15 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(page.getByText('Demanda atualizada.')).toHaveCount(0);
   });
 
-  test('dado o lápis da demanda, quando a pessoa o usa, então o formulário não repete o título e a descrição', async ({ page }) => {
+  test('dado o lápis da demanda, quando a pessoa o usa, então o formulário não repete o título, a descrição e as datas (#361)', async ({ page }) => {
     // Dado
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
     // Quando
     await cartao.getByRole('button', { name: 'Editar' }).click();
     const edicao = cartao.getByRole('form', { name: 'Editar demanda' });
     // Então
-    await expect(edicao.getByLabel('Prazo de entrega')).toBeVisible();
+    await expect(edicao.getByLabel(/Responsável/)).toBeVisible();
+    for (const rotulo of ['Prazo de entrega', 'Hora', 'Lembrete', 'Data de início']) await expect(edicao.getByLabel(rotulo, { exact: true })).toHaveCount(0);
     await expect(edicao.getByRole('textbox', { name: 'Título' })).toHaveCount(0);
     await expect(edicao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
     // Quando

@@ -1,11 +1,12 @@
 // Ordem das listas de qualquer módulo: as opções, a escolha guardada de cada usuário e a data que
 // acompanha a ordem escolhida. Na tabela, o <PaginaModulo> mostra o controle "Ordenar"; no quadro,
 // cada coluna tem a sua ordem, escolhida no menu da coluna (useColunas). Tarefas e demandas têm também
-// as ordens pelo prazo (ORDENS_COM_PRAZO, #291); os outros módulos ficam só com as de sempre.
+// as ordens pelo prazo (ORDENS_COM_PRAZO, #291) e pela data de início (ORDENS_COM_INICIO, #357); os outros módulos ficam só com as de sempre.
 import { useState } from 'react';
 import type { Ordem, OrdemComPrazo } from '../dados';
 import type { Visao } from './PaginaModulo';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
+import { fmtData } from '../regras/pessoa';
 import { dataCurta, relativo } from './util';
 
 /** O nome de cada ordem, no controle "Ordenar", no menu da coluna e no topo dela. */
@@ -17,10 +18,14 @@ export const ORDENS: Record<OrdemComPrazo, string> = {
   nome: 'Nome (A–Z)',
   nome_desc: 'Nome (Z–A)',
   prazo: 'Prazo (o mais próximo primeiro)',
-  prazo_desc: 'Prazo (o mais distante primeiro)'
+  prazo_desc: 'Prazo (o mais distante primeiro)',
+  inicio: 'Início (o que começou antes primeiro)',
+  inicio_desc: 'Início (o que começa depois primeiro)'
 };
 /** As ordens a mais de tarefas e demandas, na tabela e em cada coluna do quadro (#291). */
 export const ORDENS_COM_PRAZO: OrdemComPrazo[] = ['prazo', 'prazo_desc'];
+/** As ordens pela data de início de tarefas e demandas (#357), também na tabela e em cada coluna do quadro. */
+export const ORDENS_COM_INICIO: OrdemComPrazo[] = ['inicio', 'inicio_desc'];
 // A ordem manual (arrastando os cartões) só existe no quadro.
 type VisaoComOrdem = Exclude<Visao, 'agenda'>;
 const OPCOES: Record<VisaoComOrdem, Ordem[]> = {
@@ -50,9 +55,29 @@ export function useOrdem<O extends OrdemComPrazo = Ordem>(modulo: string, visao:
   };
 }
 
-/** Data que acompanha a ordem escolhida, para mostrar no cartão: "Cadastro: 12/10/2026" ou "Atualização: há 2 h". */
-export function dataDaOrdem(ordem: OrdemComPrazo, item: { criado_em?: string | null; atualizado_em?: string | null }) {
-  if ((ordem === 'novos' || ordem === 'antigos') && item.criado_em) return `Cadastro: ${dataCurta(item.criado_em)}`;
-  if (ordem === 'recentes' && item.atualizado_em) return `Atualização: ${relativo(item.atualizado_em)}`;
-  return '';
+/** As datas que podem acompanhar a ordem: a do cadastro, a da última atualização e a de início (#357). */
+type DataDaOrdem = 'cadastro' | 'atualizacao' | 'inicio';
+/** O item com as datas que a ordem pode mostrar. */
+export interface ComDatas { criado_em?: string | null; atualizado_em?: string | null; data_inicio?: string | null }
+/** Cada data: o nome no cartão do quadro, o nome da coluna na tabela e como ela aparece. */
+const DATAS: Record<DataDaOrdem, { rotulo: string; coluna: string; valor: (item: ComDatas) => string }> = {
+  cadastro: { rotulo: 'Cadastro', coluna: 'Criada', valor: item => dataCurta(item.criado_em) },
+  atualizacao: { rotulo: 'Atualização', coluna: 'Atualizada', valor: item => item.atualizado_em ? relativo(item.atualizado_em) : '' },
+  inicio: { rotulo: 'Início', coluna: 'Início', valor: item => fmtData(item.data_inicio) }
+};
+/** A data que cada ordem mostra no cartão do quadro (null: nenhuma). */
+const DATA_NO_CARTAO: Record<OrdemComPrazo, DataDaOrdem | null> = {
+  manual: null, nome: null, nome_desc: null, prazo: null, prazo_desc: null,
+  novos: 'cadastro', antigos: 'cadastro', recentes: 'atualizacao', inicio: 'inicio', inicio_desc: 'inicio'
+};
+
+/** Data que acompanha a ordem escolhida, para mostrar no cartão: "Cadastro: 12/10/2026", "Atualização: há 2 h" ou "Início: 25/11/2026". */
+export function dataDaOrdem(ordem: OrdemComPrazo, item: ComDatas) {
+  const qual = DATA_NO_CARTAO[ordem], valor = qual ? DATAS[qual].valor(item) : '';
+  return qual && valor ? `${DATAS[qual].rotulo}: ${valor}` : '';
+}
+/** A última coluna da tabela de tarefas e demandas: a data da ordem escolhida; nas que não têm data, a última atualização. */
+export function colunaDaOrdem(ordem: OrdemComPrazo) {
+  const d = DATAS[DATA_NO_CARTAO[ordem] ?? 'atualizacao'];
+  return { titulo: d.coluna, valor: d.valor };
 }

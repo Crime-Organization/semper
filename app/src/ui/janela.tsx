@@ -1,7 +1,8 @@
 // Janelas de confirmação e de escolha. janela() devolve uma promessa com o valor escolhido (null ao fechar),
 // então qualquer tela pergunta com: const ok = await confirmar('Título', 'Texto').
 // A janela é um formulário: uma ação recebe os campos dela pelo name (FormData), sem precisar procurar no HTML.
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { CampoData } from './base/CampoData';
 import { criarLoja } from './loja';
 import { estiloBotao } from './base/botao';
 
@@ -54,6 +55,24 @@ export function pedirTexto(titulo: string, valor = '', { multilinha = false, max
   });
 }
 
+
+/** A data da janela de pedirData: o campo de data de sempre (com o calendário pequeno, #357), que avisa cada mudança. */
+function DataDaJanela({ titulo, inicial, aoMudar }: { titulo: string; inicial: string; aoMudar: (texto: string) => void }) {
+  const [valor, setValor] = useState(inicial);
+  return <CampoData className="campo" aria-label={titulo} valor={valor} aoMudar={v => { setValor(v); aoMudar(v); }} />;
+}
+/**
+ * Pede uma data (dd/mm/aaaa, como digitada) com o calendário pequeno (#357). Devolve o texto sem espaços nas pontas (vazio, se a
+ * pessoa apagou), ou null se cancelar. Quem pede confere a data (lerData).
+ */
+export function pedirData(titulo: string, valor = '') {
+  const escrito = { texto: valor };
+  return janela<string>({
+    titulo,
+    corpo: <DataDaJanela titulo={titulo} inicial={valor} aoMudar={texto => { escrito.texto = texto; }} />,
+    acoes: [{ rotulo: 'Cancelar', valor: null }, { rotulo: 'Salvar', tipo: 'pri', valor: () => escrito.texto.trim() }]
+  });
+}
 function JanelaAberta({ p }: { p: Pedido }) {
   const veu = useRef<HTMLDivElement>(null);
   const formulario = useRef<HTMLFormElement>(null);

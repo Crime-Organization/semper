@@ -16,7 +16,10 @@ describe('Edição por salvar no próprio lugar do cartão (#346)', () => {
     ['o título mudado', { titulo: 'Emitir a guia' }, true],
     ['a descrição aberta sem mudança', { descricao: 'Pagar até sexta.' }, false],
     ['a descrição mudada', { descricao: 'Pagar até sexta. Avisar o cliente.' }, true],
-    ['os dois fechados (null)', { titulo: null, descricao: null }, false]
+    ['os dois fechados (null)', { titulo: null, descricao: null }, false],
+    ['o prazo mudado e não salvo (#361)', { prazo: '{"prazo":"20/12/2030"}' }, true],
+    ['a data e o horário do compromisso mudados e não salvos (#361)', { quando: '{"data":"25/11/2030"}' }, true],
+    ['o prazo e a data fechados ou sem mudança (null)', { prazo: null, quando: null }, false]
   ])('dado %s, quando o cartão confere, então diz se há o que perder', (_caso, rascunhos, esperado) => {
     // Quando / Então
     expect(edicaoNoLugarPorSalvar(gravado, rascunhos)).toBe(esperado);

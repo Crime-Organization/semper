@@ -2,9 +2,12 @@
 // ações em lote e quadro por situação, além do cartão de cada um. A estrutura da página vem de <PaginaModulo>; o modelo é o
 // módulo Pessoas.
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
+import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
+import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type CompromissoLista, type FiltroCompromissos, type Ordem, type OrdemCompromisso, type Pagina, type TipoCompromisso } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
+import { PARAMETRO_DA_VISAO } from '../regras/buscaGeral';
 import { clientesPorExtenso } from '../regras/contrato';
 import { nomeDoCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO, soLeNaLista, TIPOS, TIPOS_COMPROMISSO } from '../regras/compromisso';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
@@ -51,12 +54,25 @@ export default function Compromissos() {
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  // Vindo do painel do Início (?pessoa=eu), a agenda abre no que é de quem está logado; senão, na última escolha da pessoa. O
+  // parâmetro sai do endereço depois de lido.
+  const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
   const [f, setF] = useState<FiltroCompromissos>(() => {
-    let pessoa = lerPreferencia('compromissos.pessoa', '');
+    let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('compromissos.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
     return { termo: '', pessoa, tipo: '', situacao: 'ativos', pagina: 0 };
   });
   const [visao, setVisao] = useState<Visao>(() => { const v = lerPreferencia<Visao>('compromissos.visao', 'agenda'); return VISOES_DA_AGENDA.includes(v) ? v : 'agenda'; });
+  // O endereço pode pedir uma visão (/agenda/?busca=…&visao=tabela, o "Ver todos em Agenda" da busca geral, #321): a visão por
+  // data só mostra o período da tela, e os compromissos achados em outras datas ficariam de fora. Vale ao abrir a página e cada
+  // vez que o endereço a traz, sem mudar a preferência; a PaginaModulo tira o parâmetro do endereço em seguida.
+  const [params] = useSearchParams();
+  const visaoDoEndereco = params.get(PARAMETRO_DA_VISAO) as Visao | null;
+  const [visaoLida, setVisaoLida] = useState<Visao | null>(null);
+  if (visaoDoEndereco !== visaoLida) {
+    setVisaoLida(visaoDoEndereco);
+    if (visaoDoEndereco && VISOES_DA_AGENDA.includes(visaoDoEndereco)) setVisao(visaoDoEndereco);
+  }
   const [ordem, setOrdem] = useState<OrdemCompromisso>(() => { const o = lerPreferencia<OrdemCompromisso>('compromissos.ordem.tabela', 'data_desc'); return ORDENS_DA_TABELA.some(([v]) => v === o) ? o : 'data_desc'; });
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);

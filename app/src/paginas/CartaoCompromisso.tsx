@@ -3,12 +3,12 @@
 // compromisso pela Agenda geral lê tudo e comenta, mas não muda nada.
 // Desde a #346, quem muda o compromisso muda o título no próprio lugar, como na anotação (o lápis não o repete). A audiência e a
 // perícia podem ficar sem título: aí o título mostra o tipo e as pessoas, o campo abre em branco, e apagar o título volta a
-// mostrá-los. A data e a hora, logo abaixo, continuam no lápis (a #361 faz o mesmo com elas).
+// mostrá-los. Logo abaixo, a data e o horário (#361), que também se mudam no próprio lugar; o lápis não os repete.
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { SD, type Compromisso, type PessoaResumida } from '../dados';
 import { TAMANHO_COMPROMISSO } from '../dados/limites';
 import {
-  CAMPOS_COMPROMISSO, compromissoVazio, continuaPeloProcesso, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, quandoDoCompromisso, SEM_SITUACAO_COMPROMISSO,
+  CAMPOS_COMPROMISSO, compromissoVazio, continuaPeloProcesso, linhasDoCompromisso, motivoSemMencaoNoCompromisso, nomeDoCompromisso, podeMudarCompromisso, SEM_SITUACAO_COMPROMISSO,
   TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
 } from '../regras/compromisso';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
@@ -17,7 +17,10 @@ import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
+import { dataDaCriacao } from '../regras/dataDeInicio';
+import { QuandoDoCompromisso } from './QuandoDoCompromisso';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
@@ -109,6 +112,13 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
   });
 
+  /** Grava a data e o horário mudados no próprio lugar (#361), como o lápis: o mesmo aviso, com Desfazer. */
+  const salvarQuando = (q: QuandoGravado) => gravarNoLugar<QuandoGravado>({
+    novo: q, antes: quandoComoEsta(c), gravar: x => SD.compromissoAtualizar(c.id, x),
+    aviso: 'Compromisso atualizado.', oQue: 'atualização do compromisso', mudanca: { tipo: 'compromissoAtualizado', id: c.id },
+    mostrar: x => setC(atual => atual && { ...atual, ...x }), depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }
+  });
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
@@ -127,7 +137,14 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />
-      <p className="cartao-quando">{quandoDoCompromisso(c)}</p>
+      {/* A data e o horário (#361), que quem muda o compromisso muda no próprio lugar, como o lápis grava; e a criação, fixa. */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Data e horário">
+          <QuandoDoCompromisso key={'quando-' + noLugar.chave} c={c} aoMudarRascunho={noLugar.rascunhoDe('quando')}
+            aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
+        </DadoDoGrupo>
+        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(c.criado_em)}</b></DadoDoGrupo>
+      </GrupoDeDatas>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />

@@ -2,6 +2,7 @@
 // de antes riscado. Cada módulo passa como ler o histórico, o nome de cada campo e como mostrar os valores.
 import { useEffect, useState } from 'react';
 import type { Historico } from '../dados';
+import { CAMPOS_DO_PEDIDO_NO_HISTORICO } from '../regras/pedidoDeParticipacao';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { useCtx } from '../ui/sessao';
 import { dataHora } from '../ui/util';
@@ -18,8 +19,10 @@ interface Props {
   versao: number;
 }
 
-export function HistoricoDoCartao({ carregar, campos, valor, soQueMudou = [], versao }: Props) {
+export function HistoricoDoCartao({ carregar, campos: doModulo, valor, soQueMudou = [], versao }: Props) {
   const ctx = useCtx();
+  // A resposta a um pedido para participar (#363) entra no histórico de todos os módulos com o mesmo nome.
+  const campos: Record<string, string> = { ...CAMPOS_DO_PEDIDO_NO_HISTORICO, ...doModulo };
   const [hist, setHist] = useState<Historico[] | string | null>(null);
   const nomeDe = (pid: string) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   useEffect(() => {

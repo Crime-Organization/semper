@@ -8,7 +8,6 @@ import { SD, type DadosProcesso, type Demanda, type CampoDeOpcao, type CampoDePr
 import { CLIENTES_MAXIMOS, TAMANHO_CAMPO, TAMANHO_PROCESSO } from '../dados/limites';
 import { SIGLAS_SUGERIDAS } from '../regras/calendario';
 import { camposDoTipo, camposParaDesfazer, errosDosCampos, valoresNoFormulario, valoresParaGravar } from '../regras/camposDeProcesso';
-import { MASCARAS } from '../regras/pessoa';
 import {
   aoMudarNumero, camposDoProcesso, dadosDoProcesso, ETAPAS_PROCESSO, errosDaEtapaProcesso, GRATUIDADES, ehOpcaoPronta, LISTAS_DO_PROCESSO, MEIOS, opcaoNaLista, opcoesDoCampo, orgaoIndicadoNoProcesso, POLOS,
   primeiraEtapaComErroProcesso, processoVazio, semSairDoProcesso, TIPOS, TIPOS_PROCESSO, validarProcesso, type CamposProcesso, type EtapaProcesso
@@ -20,7 +19,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -43,7 +42,7 @@ const NAO_INFORMADO = 'Não informado';
 /** Como cada tipo de campo do escritório é preenchido. */
 const CONTROLE_DO_CAMPO: Record<CampoDeProcesso['tipo'], (p: { id: string; campo: CampoDeProcesso; valor: string; erro?: string; aoMudar: (v: string) => void }) => ReactNode> = {
   texto: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} maxLength={TAMANHO_CAMPO.texto} value={valor} onChange={e => aoMudar(e.target.value)} />,
-  data: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} inputMode="numeric" placeholder="DD/MM/AAAA" value={valor} onChange={e => aoMudar(MASCARAS.data(e.target.value))} />,
+  data: ({ id, valor, erro, aoMudar }) => <CampoData {...propsDoCampo(id, { erro })} valor={valor} aoMudar={aoMudar} />,
   numero: ({ id, valor, erro, aoMudar }) => <input type="text" {...propsDoCampo(id, { erro })} inputMode="decimal" value={valor} onChange={e => aoMudar(e.target.value)} />,
   // O valor que saiu da lista continua aparecendo até a pessoa escolher outro.
   lista: ({ id, campo, valor, erro, aoMudar }) => <select {...propsDoCampo(id, { erro })} value={valor} onChange={e => aoMudar(e.target.value)}>
@@ -398,8 +397,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
           <input type="text" {...propsDoCampo('juiz', { erro: erros.juiz })} maxLength={TAMANHO_PROCESSO.juiz} value={c.juiz} onChange={e => mudar({ juiz: e.target.value })} />
         </Campo>
         <Campo rotulo="Data da distribuição" para="distribuicao" erro={erros.distribuicao}>
-          <input type="text" {...propsDoCampo('distribuicao', { erro: erros.distribuicao })} inputMode="numeric" placeholder="DD/MM/AAAA" value={c.distribuicao}
-            onChange={e => mudar({ distribuicao: MASCARAS.data(e.target.value) })} />
+          <CampoData {...propsDoCampo('distribuicao', { erro: erros.distribuicao })} valor={c.distribuicao} aoMudar={distribuicao => mudar({ distribuicao })} />
         </Campo>
         <Campo rotulo="Valor da causa" para="valorCausa" erro={erros.valorCausa}>
           <input type="text" {...propsDoCampo('valorCausa', { erro: erros.valorCausa })} inputMode="decimal" placeholder="0,00" value={c.valorCausa}

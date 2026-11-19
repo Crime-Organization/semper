@@ -2,8 +2,10 @@
 // participantes, prazo e, se houver, a demanda, o contrato e as pessoas a que se ligam. Tabela com ações em lote,
 // quadro (Para fazer, Fazendo, Aguardando retorno, Concluída) e o cartão de cada uma. A estrutura da página vem de
 // <PaginaModulo>; o modelo é o módulo Pessoas, e a página é irmã da de Demandas.
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
+import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
+import { useParametroLido } from '../ui/useParametroLido';
 import { SD, type FiltroTarefas, type OrdemComPrazo, type Pagina, type TarefaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
@@ -25,10 +27,13 @@ import { Kanban } from '../ui/quadro/Kanban';
 import { colunaComMarco } from '../regras/quadro';
 import { useColunas } from '../ui/quadro/useColunas';
 import { useCtx } from '../ui/sessao';
-import { dataDaOrdem, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
+import { colunaDaOrdem, dataDaOrdem, ORDENS_COM_INICIO, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
+import { filtroDoInicio } from '../ui/filtroDoInicio';
+import { limitesDoPeriodo, type PeriodoDoInicio } from '../regras/dataDeInicio';
+import { hojeNaAgenda } from '../regras/agenda';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
-import { dataCurta, numero, relativo, useTitulo } from '../ui/util';
+import { numero, useTitulo } from '../ui/util';
 import { CartaoTarefa } from './CartaoTarefa';
 import { oferecerConcluirDemanda } from './concluirDemanda';
 import { SeloDoPrazo, type SeloConcluido } from './Demandas';
@@ -45,20 +50,27 @@ export default function Tarefas() {
   const ctx = useCtx();
   const eu = ctx.perfil.id;
   const navegar = useNavigate();
-  const quadro = useColunas<OrdemComPrazo>('tarefas', ctx, SEM_SITUACAO_TAREFA, [...ORDENS_DO_QUADRO, ...ORDENS_COM_PRAZO]);   // e o prazo, em cada coluna (#291)
+  const quadro = useColunas<OrdemComPrazo>('tarefas', ctx, SEM_SITUACAO_TAREFA, [...ORDENS_DO_QUADRO, ...ORDENS_COM_PRAZO, ...ORDENS_COM_INICIO]);   // e o prazo (#291) e o início (#357), em cada coluna
   // O módulo, se o cartão está na coluna das concluídas; null enquanto as colunas não chegaram (sem selo, para não piscar "vencido").
   const concluido = (etapa: string | null) => !quadro.pronto ? null : colunaComMarco(quadro.colunas, etapa, 'concluido') && ('tarefas' as const);
   const { aberto, abrir, fechar, endereco } = useCartaoNaUrl();
   const selecao = useSelecao();
 
+  // Vindo do painel do Início (?pessoa=eu), a lista abre no que é de quem está logado; senão, na última escolha da pessoa. O parâmetro sai do endereço depois de lido.
+  const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
   const [f, setF] = useState<FiltroTarefas>(() => {
-    let pessoa = lerPreferencia('tarefas.pessoa', '');
+    let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('tarefas.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
     return { termo: '', pessoa, situacao: 'ativas', pagina: 0 };
   });
+  // O filtro "Início" (#357): só o período escolhido. Os dias dele saem do período a cada desenho, a partir de hoje (Brasília): com a
+  // página aberta depois da meia-noite, "Começa hoje" passa a ser o dia novo. É o filtro com os dias (filtro) que vai ao banco.
+  const [inicio, setInicio] = useState<PeriodoDoInicio>('');
+  const hoje = hojeNaAgenda();
+  const filtro = useMemo<FiltroTarefas>(() => ({ ...f, ...limitesDoPeriodo(inicio, hoje) }), [f, inicio, hoje]);
   const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('tarefas.visao', 'kanban') === 'tabela' ? 'tabela' : 'kanban');
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
-  const ordem = useOrdem('tarefas', 'tabela', ORDENS_COM_PRAZO);   // e o prazo (#291)
+  const ordem = useOrdem('tarefas', 'tabela', [...ORDENS_COM_PRAZO, ...ORDENS_COM_INICIO]);   // e o prazo (#291) e o início (#357)
   const ordenacao = { ...ordem, aoMudar: (o: OrdemComPrazo) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
   const [recarga, setRecarga] = useState(0);
   const recarregar = () => setRecarga(n => n + 1);
@@ -74,34 +86,34 @@ export default function Tarefas() {
   useEffect(() => {
     if (visao !== 'tabela') return;
     let vivo = true;
-    SD.tarefasListar({ ...f, ordem: ordem.valor, porPagina: POR_PAGINA })
+    SD.tarefasListar({ ...filtro, ordem: ordem.valor, porPagina: POR_PAGINA })
       .then(r => { if (vivo) { setTabela(r); setErroTabela(''); } })
       .catch(e => { if (vivo) setErroTabela((e as Error).message); });
     return () => { vivo = false; };
-  }, [visao, f, ordem.valor, f.etiqueta, recarga]);
+  }, [visao, filtro, ordem.valor, recarga]);
 
   // No quadro, o total vem de uma contagem à parte (cada coluna carrega só o começo da lista).
   const [totalQuadro, setTotalQuadro] = useState<number | null>(null);
   useEffect(() => {
     if (visao !== 'kanban') return;
     let vivo = true;
-    SD.tarefasListar({ ...f, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
+    SD.tarefasListar({ ...filtro, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.etiqueta, recarga]);
+  }, [visao, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
   useEffect(() => {
     if (visao !== 'tabela') return;
     let vivo = true;
-    SD.tarefasListar({ ...f, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
+    SD.tarefasListar({ ...filtro, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.etiqueta, recarga]);
-  const arquivadas = (pagina: number, porPagina: number) => SD.tarefasListar({ ...f, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
+  }, [visao, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  const arquivadas = (pagina: number, porPagina: number) => SD.tarefasListar({ ...filtro, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.etiqueta);
+  const filtrado = !!(f.termo || f.pessoa || f.etiqueta || inicio);
   const mudarFiltro = (campos: Partial<FiltroTarefas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -130,7 +142,7 @@ export default function Tarefas() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.etiqueta].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -141,15 +153,20 @@ export default function Tarefas() {
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('tarefas.pessoa', pessoa); },
           opcoes: [['', 'Todas as tarefas'], [eu, 'Comigo (responsável ou participante)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
-        ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta }))
+        ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
+        filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}
-      mais={[{ rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') }]}
+      mais={[
+        { rotulo: 'Meu tempo trabalhado', icone: 'relogio', aoEscolher: () => navegar('/tarefas/meu-tempo/') },
+        // A mesma página do menu de Demandas (#358): os checklists prontos servem às duas.
+        { rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }
+      ]}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
         ? <Kanban<TarefaLista, OrdemComPrazo> quadro={quadro} podeArrastar={t => !soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m))}
           recarga={chaveDaLista}
-          carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
+          carregar={(colunaId, deslocamento, ordemDaColuna) => SD.tarefasDaEtapa(colunaId, { ...filtro, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={t => t.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
           cartao={(t, ordemDaColuna, coluna) => <CartaoKanban t={t} ordem={ordemDaColuna} concluido={concluido(coluna)} />}
@@ -225,14 +242,14 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
   const { selecionadas, marcar } = selecao;
   const alteraveis = linhas.filter(t => !soLeSemEstarNele(ctx, m => !soLeATarefaNaLista(t, m)));
   const todas = alteraveis.length > 0 && alteraveis.every(t => selecionadas.has(t.id));
-  // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
-  const porCadastro = ordem === 'novos' || ordem === 'antigos';
+  // Ordenando pela data de cadastro ou pela de início, a última coluna mostra essa data; nas outras ordens, a última atualização.
+  const ultima = colunaDaOrdem(ordem);
   return <div>
     <div className="tabela tabela-demandas"><table>
       <thead><tr>
         <th className="td-check"><input type="checkbox" aria-label="Selecionar todas desta página" checked={todas} onChange={e => marcar(alteraveis.map(t => t.id), e.target.checked)} /></th>
         <th scope="col">Tarefa</th><th scope="col">Prazo</th><th scope="col">Situação</th><th scope="col">Pessoas</th>
-        <th scope="col">{porCadastro ? 'Criada' : 'Atualizada'}</th>
+        <th scope="col">{ultima.titulo}</th>
       </tr></thead>
       <tbody>{linhas.map(t => <LinhaQueAbre key={t.id} para={endereco(t.id)} aoAbrir={() => aoAbrir(t.id)} marcada={selecionadas.has(t.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${t.codigo}`} checked={selecionadas.has(t.id)} disabled={!alteraveis.includes(t)} onChange={e => marcar([t.id], e.target.checked)} /></td>
@@ -241,7 +258,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
         <td style={{ whiteSpace: 'nowrap' }}>{t.prazo ? <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={concluido(t.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(t.etapa_id)}</span></td>
         <td><Avatares ids={[t.responsavel_id, ...t.participantes]} equipe={ctx.equipe} /></td>
-        <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(t.criado_em) : relativo(t.atualizado_em)}</td>
+        <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{ultima.valor(t)}</td>
       </LinhaQueAbre>)}</tbody>
     </table></div>
     <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />

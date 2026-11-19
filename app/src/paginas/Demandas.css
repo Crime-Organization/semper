@@ -5,7 +5,9 @@
 /* O contrato escolhido no cadastro, com o botão de tirar. */
 .demanda-contrato-escolhido { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 10px; background: var(--superficie); font-size: 15px; color: var(--ink) }
 .demanda-contrato-escolhido > span { flex: 1; min-width: 0; overflow-wrap: anywhere }
-/* Listas da demanda (como as do Trello): nome, quantos feitos, a barra do progresso, os itens e o campo de item novo. */
+/* Checklists da demanda e da tarefa (#358; como os do Trello): nome, quantos feitos, a barra do progresso, os itens e o campo
+   de item novo. O nome e o texto de cada item se renomeiam com um clique (<TituloEditavel>): ao passar o mouse, o cursor de
+   texto, o fundo e o contorno sutis mostram que dá para clicar; o "⋯" aparece no mouse e no foco, e fica à vista no toque. */
 .lista-demanda { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
 .lista-demanda > header { display: flex; align-items: center; gap: 10px }
 .lista-demanda h4 { flex: 1; min-width: 0; margin: 0; font-size: 15px; font-weight: 800; color: var(--ink); overflow-wrap: anywhere }
@@ -14,10 +16,22 @@
 .lista-demanda ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
 .lista-demanda li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--soft) }
 .lista-demanda li:last-child { border-bottom: 0 }
-.lista-demanda li > label { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 10px; font-size: 14px; line-height: 1.45; color: var(--ink); cursor: pointer; padding: 4px 0 }
-.lista-demanda li > label > input { margin-top: 2px; width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0 }
-.lista-demanda li > label > span { overflow-wrap: anywhere }
-.lista-demanda li.feito > label > span { color: var(--muted); text-decoration: line-through }
+/* A caixa fica numa linha com a mesma letra e a mesma folga do texto ao lado, e assim acompanha a primeira linha dele. */
+.lista-demanda li > .lista-marcar { position: relative; align-self: flex-start; flex-shrink: 0; padding: var(--folga-do-item) 0; font-size: var(--texto-tabela); line-height: 1.45; cursor: pointer }
+/* O alvo do dedo: um quadrado de --alvo-de-toque centrado na caixa, sem mudar o desenho. A própria caixa e o texto ao lado ficam
+   por cima dele (position: relative): o clique na caixa cai nela, e o no texto continua renomeando; na tela de toque, o texto
+   se afasta até a borda do alvo. */
+.lista-marcar::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--alvo-de-toque); height: var(--alvo-de-toque); transform: translate(-50%, -50%) }
+.lista-marcar > input { position: relative; margin: 0; vertical-align: middle; width: var(--caixa-de-marcar); height: var(--caixa-de-marcar); accent-color: var(--accent); cursor: pointer }
+.lista-marcar > input:disabled { cursor: default }
+@media (hover: none) { .lista-demanda li > .lista-marcar { margin-right: calc((var(--alvo-de-toque) - var(--caixa-de-marcar)) / 2) } }
+.lista-item-texto { position: relative; flex: 1; min-width: 0; padding: var(--folga-do-item) 0; font-size: var(--texto-tabela); line-height: 1.45; color: var(--ink); overflow-wrap: anywhere }
+.lista-demanda li.feito :is(.lista-item-texto, .lista-item-texto > button) { color: var(--muted); text-decoration: line-through }
+.lista-demanda .titulo-editavel-botao:hover { outline: 1px solid var(--line2); outline-offset: 0 }
+.lista-demanda .lista-mais { flex-shrink: 0; opacity: 0; transition: opacity .15s ease-out }
+.lista-demanda li > .lista-mais { width: var(--botao-da-linha); height: var(--botao-da-linha) }
+.lista-demanda :is(header, li):is(:hover, :focus-within) > .lista-mais, .lista-demanda .lista-mais[aria-expanded="true"] { opacity: 1 }
+@media (hover: none) { .lista-demanda .lista-mais { opacity: 1 } }
 /* Tarefas da demanda (#298): a caixa é só a caixa (conclui); o nome é um link que abre a tarefa. */
 /* A caixa fica ao lado da primeira linha do nome, como nas listas do cartão (o nome tem 4px em cima; a caixa, 2px a mais). */
 .tarefas-da-demanda li > input { width: 18px; height: 18px; margin: 6px 0 0; align-self: flex-start; accent-color: var(--accent); flex-shrink: 0; cursor: pointer }
@@ -28,7 +42,7 @@
 .tarefas-da-demanda li.feito > .tarefa-da-demanda-nome { color: var(--muted); text-decoration-line: line-through; text-decoration-color: currentColor }
 .lista-novo-item { display: flex; gap: 8px }
 .lista-novo-item > input { flex: 1; min-width: 0; height: 36px }
-/* Modelos de lista: cada modelo num cartão, com os itens numerados; o editor (nome e itens, um por linha). */
+/* Modelos de checklist: cada modelo num cartão, com os itens numerados; o editor (nome e itens, um por linha). */
 .modelos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px }
 .modelo { display: flex; flex-direction: column; gap: 10px; height: 100% }
 .modelo > header { display: flex; align-items: baseline; gap: 10px }
