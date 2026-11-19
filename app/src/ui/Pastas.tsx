@@ -1,20 +1,22 @@
-// Pastas dos documentos na tela (#342), como no Obsidian: a árvore ao lado da lista (abre e fecha cada pasta; cria, renomeia,
-// move e apaga pelo ⋯ de cada uma), o seletor que toma o lugar dela quando a tela é estreita, o caminho acima do título da
-// anotação ("Escritório › POPs › Financeiro", cada pedaço leva à pasta) e a escolha da pasta da anotação. As regras (árvore,
+// Pastas dos documentos na tela (#342), como no Obsidian: a árvore à esquerda (abre e fecha cada pasta; cria, renomeia, move e
+// apaga pelo ⋯ de cada uma), que desde o pedido de 18/11 é o explorador, com as anotações dentro das pastas (no celular, numa
+// gaveta); o caminho no topo da anotação ("Escritório › POPs › Financeiro", cada pedaço leva à pasta) e a escolha da pasta da anotação. As regras (árvore,
 // caminho, nome, ciclo) ficam em regras/pastas.ts; a lista do escritório, em pastasDoEscritorio.ts.
-import { useState, type CSSProperties } from 'react';
+import { useId, useState, type CSSProperties } from 'react';
 import { Link } from 'react-router';
-import { SD, type Pasta } from '../dados';
+import { SD, type Ordem, type Pasta } from '../dados';
 import { TAMANHO_PASTA } from '../dados/limites';
 import {
   arvoreDePastas, caminhoDaPasta, destinosDaPasta, enderecoDaPasta, erroAoMoverPasta, erroDoNomeDaPasta, pastasDescendentes, pastasEmOrdem,
   textoDoCaminho, type NoDaPasta
 } from '../regras/pastas';
+import { anotacoesPorPasta, ORDENS_DO_EXPLORADOR, pastasParaMostrar, type AnotacaoDoExplorador } from '../regras/explorador';
 import { avisar, falha, feito } from './avisos';
-import { Campo, Carregando } from './base';
+import { Campo, Carregando, Nota } from './base';
 import { Icone, type NomeIcone } from './Icone';
 import { confirmar, janela, pedirTexto } from './janela';
 import { MenuFlutuante } from './Menu';
+import { ORDENS } from './ordem';
 import { buscarPastas } from './pastasDoEscritorio';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { useCtx } from './sessao';
@@ -23,6 +25,23 @@ import { useCtx } from './sessao';
 const comNivel = (nivel: number) => ({ '--nivel': nivel }) as CSSProperties;
 /** Onde fica guardado, para cada pessoa, quais pastas da árvore ela deixou abertas. */
 const PREFERENCIA_DAS_ABERTAS = 'documentos.pastas.abertas';
+/** Onde fica guardado, para cada pessoa, se a navegação de Documentos (a árvore à esquerda) está recolhida. */
+export const PREFERENCIA_DA_NAVEGACAO = 'documentos.navegacao.recolhida';
+/** O nome do botão que recolhe e mostra a navegação, em cada estado: ele diz o que o clique faz. */
+const NOME_DA_NAVEGACAO: Record<'recolhida' | 'aberta', string> = { recolhida: 'Mostrar a navegação', aberta: 'Recolher a navegação' };
+
+/**
+ * Se a navegação de Documentos (a árvore à esquerda) está recolhida, e como alternar. A escolha fica guardada para cada pessoa,
+ * como as outras preferências de tela.
+ */
+export function useNavegacaoRecolhida() {
+  const [recolhida, setRecolhida] = useState(() => lerPreferencia<unknown>(PREFERENCIA_DA_NAVEGACAO, false) === true);
+  const alternar = () => {
+    setRecolhida(!recolhida);
+    salvarPreferencia(PREFERENCIA_DA_NAVEGACAO, !recolhida);
+  };
+  return { recolhida, alternar };
+}
 /** O valor do seletor que mostra todos os documentos, de todas as pastas. */
 const TODAS = '';
 /** O id do campo da pasta de destino, na janela de mover. */
@@ -115,45 +134,94 @@ function MenuDaPasta({ pasta, acoes }: { pasta: Pasta; acoes: AcoesDasPastas }) 
   </>;
 }
 
+/** O sinal da escolha atual no menu (o lugar fica reservado nas outras, para os nomes ficarem alinhados). */
+const Marca = ({ ligada }: { ligada: boolean }) => <span className="kmenu-marca">{ligada && <Icone nome="check" tam={15} />}</span>;
+
+/** As anotações no explorador (a página Documentos, como no Obsidian): quais são, qual está aberta e como abrir e criar. */
+export interface AnotacoesDaArvore {
+  /** As anotações, na ordem escolhida no explorador (null: ainda chegando). */
+  lista: AnotacaoDoExplorador[] | null;
+  /** A anotação aberta (na janela do cartão), destacada na árvore. */
+  aberta: string | null;
+  /** O endereço que abre a anotação (o link de cada uma, que troca o endereço sem criar entrada no histórico, como abrir um cartão; o Ctrl+clique abre noutra aba). */
+  endereco: (id: string) => string;
+  /** O endereço da anotação nova (já na pasta escolhida). */
+  nova: string;
+  /** A ordem das anotações e como mudá-la (o botão Ordenar). */
+  ordem: Ordem;
+  aoOrdenar: (o: Ordem) => void;
+  /**
+   * Quantas anotações há com a busca e os filtros da página: o explorador lê até um máximo (ANOTACOES_NO_EXPLORADOR), e, se
+   * houver mais, diz no pé quantas mostra, para ninguém achar que as outras sumiram.
+   */
+  total?: number;
+}
+
 interface PropsDaArvore {
   /** As pastas do escritório (null: ainda chegando). */
   pastas: Pasta[] | null;
   /** A pasta escolhida (null: todos os documentos). */
   escolhida: string | null;
   aoEscolher: (id: string | null) => void;
+  /** Com isto, a árvore é o explorador: cada pasta mostra as anotações dela, e as sem pasta ficam no primeiro nível. */
+  anotacoes?: AnotacoesDaArvore;
+  /**
+   * O botão que recolhe e mostra a navegação (useNavegacaoRecolhida), no começo da barra. Recolhida, a página esconde o resto da
+   * árvore pelo CSS; no celular, onde a árvore é uma gaveta, o botão não aparece, e a gaveta mostra tudo.
+   */
+  navegacao?: { recolhida: boolean; aoAlternar: () => void };
 }
 
+/** O tamanho dos ícones da barra do explorador. */
+const ICONE_DA_BARRA = 16;
+
 /**
- * A árvore das pastas, ao lado da lista de documentos: "Todos os documentos" no alto e cada pasta com a seta que abre e fecha
- * as subpastas, o nome (que escolhe a pasta) e o ⋯. A pasta escolhida abre o caminho até ela. As abertas ficam guardadas para
- * cada pessoa. Em tela estreita, o CSS a esconde e mostra o SeletorDePasta no lugar.
+ * A árvore das pastas, à esquerda da página Documentos, como o explorador do Obsidian: no alto, a barra com nova anotação, nova
+ * pasta, ordenar e recolher tudo; depois, "Todos os documentos" e cada pasta com a seta que abre e fecha o que está dentro, o
+ * nome (que escolhe a pasta) e o ⋯. Dentro de cada pasta aberta, as subpastas e as anotações dela; as anotações sem pasta vêm
+ * no primeiro nível, depois das pastas. A anotação aberta fica destacada, e as pastas do caminho até ela (e até a pasta
+ * escolhida) abrem sozinhas. As abertas ficam guardadas para cada pessoa. No celular, a página a mostra numa gaveta. Com
+ * "navegacao", o começo da barra tem o botão que recolhe e mostra a navegação (como o do painel lateral do Obsidian).
  */
-export function ArvoreDePastas({ pastas, escolhida, aoEscolher }: PropsDaArvore) {
+export function ArvoreDePastas({ pastas, escolhida, aoEscolher, anotacoes, navegacao }: PropsDaArvore) {
   const lista = pastas ?? [];
+  const idDaLista = useId();
   const acoes = useAcoesDasPastas(lista, escolhida, aoEscolher);
   const [abertas, setAbertas] = useState<string[]>(() => lerPreferencia<string[]>(PREFERENCIA_DAS_ABERTAS, []));
-  // A pasta escolhida (pela árvore, pelo caminho do cartão ou pelo endereço) fica à vista e aberta, como a lista, que mostra também
-  // as subpastas dela: ao ser escolhida, ela e as pastas acima dela abrem. Depois, a pessoa ainda pode fechá-las.
-  const acima = caminhoDaPasta(lista, escolhida).map(p => p.id);
+  const [menuDaOrdem, setMenuDaOrdem] = useState<HTMLElement | null>(null);
+  // A pasta escolhida (pela árvore, pelo caminho da anotação ou pelo endereço) e a da anotação aberta ficam à vista: ao mudarem,
+  // elas e as pastas acima delas abrem. Depois, a pessoa ainda pode fechá-las.
+  const daAberta = anotacoes?.lista?.find(a => a.id === anotacoes.aberta)?.pasta_id ?? null;
+  const acima = pastasParaMostrar(lista, escolhida, daAberta);
   const [abertasPara, setAbertasPara] = useState('');
   if (acima.join() !== abertasPara) {
     setAbertasPara(acima.join());
     const faltam = acima.filter(id => !abertas.includes(id));
     if (faltam.length) setAbertas([...abertas, ...faltam]);
   }
-  function alternar(id: string) {
-    const novas = abertas.includes(id) ? abertas.filter(x => x !== id) : [...abertas, id];
+  function guardar(novas: string[]) {
     setAbertas(novas);
     salvarPreferencia(PREFERENCIA_DAS_ABERTAS, novas);
   }
+  const alternar = (id: string) => guardar(abertas.includes(id) ? abertas.filter(x => x !== id) : [...abertas, id]);
   const arvore = arvoreDePastas(lista);
+  const porPasta = anotacoesPorPasta(anotacoes?.lista ?? [], lista);
+  const temAberta = !!anotacoes?.aberta;
 
+  const linhasDasAnotacoes = (pastaId: string | null, nivel: number) => anotacoes && (porPasta.get(pastaId) ?? []).map(a => {
+    const atual = a.id === anotacoes.aberta;
+    return <li key={'a-' + a.id}>
+      <Link className={atual ? 'explorador-anotacao atual' : 'explorador-anotacao'} style={comNivel(nivel)} to={anotacoes.endereco(a.id)} replace
+        aria-current={atual ? 'page' : undefined}><span>{a.titulo}</span></Link>
+    </li>;
+  });
   const no = (n: NoDaPasta<Pasta>) => {
-    const aberta = abertas.includes(n.pasta.id), atual = n.pasta.id === escolhida;
+    const temDentro = n.filhas.length > 0 || (porPasta.get(n.pasta.id)?.length ?? 0) > 0;
+    const aberta = abertas.includes(n.pasta.id), atual = !temAberta && n.pasta.id === escolhida;
     return <li key={n.pasta.id}>
       <div className={atual ? 'pasta-linha atual' : 'pasta-linha'} style={comNivel(n.nivel)}>
-        {n.filhas.length > 0
-          ? <button type="button" className="pasta-abrir" aria-expanded={aberta} aria-label={`Subpastas de ${n.pasta.nome}`} title={aberta ? 'Fechar' : 'Abrir'}
+        {temDentro
+          ? <button type="button" className="pasta-abrir" aria-expanded={aberta} aria-label={`O que está em ${n.pasta.nome}`} title={aberta ? 'Fechar' : 'Abrir'}
             onClick={() => alternar(n.pasta.id)}><Icone nome={aberta ? 'abaixo' : 'direita'} tam={14} /></button>
           : <span className="pasta-abrir" aria-hidden="true" />}
         <button type="button" className="pasta-nome" aria-current={atual ? 'true' : undefined} onClick={() => aoEscolher(n.pasta.id)}>
@@ -161,50 +229,56 @@ export function ArvoreDePastas({ pastas, escolhida, aoEscolher }: PropsDaArvore)
         </button>
         <MenuDaPasta pasta={n.pasta} acoes={acoes} />
       </div>
-      {aberta && n.filhas.length > 0 && <ul>{n.filhas.map(no)}</ul>}
+      {aberta && temDentro && <ul>{n.filhas.map(no)}{linhasDasAnotacoes(n.pasta.id, n.nivel + 1)}</ul>}
     </li>;
   };
+  const ordenar = (o: Ordem) => { setMenuDaOrdem(null); anotacoes?.aoOrdenar(o); };
+  // Com uma anotação aberta, o destaque é só dela: a pasta escolhida (ou "Todos os documentos") volta a se destacar ao fechá-la.
+  const todos = !temAberta && escolhida === null;
 
-  return <nav className="pastas-arvore" aria-label="Pastas">
+  return <nav className="pastas-arvore" aria-label="Pastas e anotações">
     <div className="pastas-cabeca">
-      <span className="rotulo-caps">Pastas</span>
-      <button type="button" className="pasta-mais" aria-label="Nova pasta" title="Nova pasta" onClick={() => void acoes.criar(null)}>
-        <Icone nome="mais" tam={16} />
-      </button>
+      {/* No explorador, só a barra (como no Obsidian): o título da página já diz onde se está. */}
+      {!anotacoes && <span className="rotulo-caps">Pastas</span>}
+      {navegacao && <button type="button" className="pasta-mais explorador-navegacao" aria-controls={idDaLista} aria-expanded={!navegacao.recolhida}
+        aria-label={NOME_DA_NAVEGACAO[navegacao.recolhida ? 'recolhida' : 'aberta']} title={NOME_DA_NAVEGACAO[navegacao.recolhida ? 'recolhida' : 'aberta']}
+        onClick={navegacao.aoAlternar}><Icone nome="navegacao" tam={ICONE_DA_BARRA} /></button>}
+      <div className="explorador-barra" role="toolbar" aria-label="Explorador">
+        {anotacoes && <Link className="pasta-mais" to={anotacoes.nova} aria-label="Nova anotação" title="Nova anotação"><Icone nome="novaAnotacao" tam={ICONE_DA_BARRA} /></Link>}
+        <button type="button" className="pasta-mais" aria-label="Nova pasta" title="Nova pasta" onClick={() => void acoes.criar(null)}>
+          <Icone nome={anotacoes ? 'novaPasta' : 'mais'} tam={ICONE_DA_BARRA} />
+        </button>
+        {anotacoes && <button type="button" className="pasta-mais" aria-label={`Ordenar: ${ORDENS[anotacoes.ordem]}`} title="Ordenar" aria-haspopup="menu"
+          aria-expanded={!!menuDaOrdem} onClick={e => { const alvo = e.currentTarget; setMenuDaOrdem(m => m ? null : alvo); }}>
+          <Icone nome="ordenar" tam={ICONE_DA_BARRA} />
+        </button>}
+        {anotacoes && <button type="button" className="pasta-mais" aria-label="Recolher tudo" title="Recolher tudo" disabled={!abertas.length} onClick={() => guardar([])}>
+          <Icone nome="recolher" tam={ICONE_DA_BARRA} />
+        </button>}
+      </div>
     </div>
-    <ul className="pastas-lista">
-      <li><div className={escolhida === null ? 'pasta-linha atual' : 'pasta-linha'} style={comNivel(0)}>
+    {menuDaOrdem && anotacoes && <MenuFlutuante botao={menuDaOrdem} aoFechar={() => setMenuDaOrdem(null)}>
+      {ORDENS_DO_EXPLORADOR.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === anotacoes.ordem} onClick={() => ordenar(o)}>
+        <Marca ligada={o === anotacoes.ordem} /> {ORDENS[o]}
+      </button>)}
+    </MenuFlutuante>}
+    <ul className="pastas-lista" id={idDaLista}>
+      <li><div className={todos ? 'pasta-linha atual' : 'pasta-linha'} style={comNivel(0)}>
         <span className="pasta-abrir" aria-hidden="true" />
-        <button type="button" className="pasta-nome" aria-current={escolhida === null ? 'true' : undefined} onClick={() => aoEscolher(null)}>
+        <button type="button" className="pasta-nome" aria-current={todos ? 'true' : undefined} onClick={() => aoEscolher(null)}>
           <Icone nome="documentos" tam={16} /><span>Todos os documentos</span>
         </button>
       </div></li>
       {arvore.map(no)}
+      {linhasDasAnotacoes(null, 0)}
     </ul>
-    {pastas !== null && !lista.length && <p className="pastas-vazio">Nenhuma pasta ainda. Use o + para criar a primeira.</p>}
+    {anotacoes?.lista === null && <Carregando />}
+    {anotacoes?.lista && anotacoes.total !== undefined && anotacoes.total > anotacoes.lista.length && <Nota className="pastas-vazio">
+      Mostrando {anotacoes.lista.length} de {anotacoes.total} anotações. Use a busca, no alto da página, ou a tabela de cada pasta, para achar as outras.
+    </Nota>}
+    {pastas !== null && !lista.length && !anotacoes?.lista?.length && <p className="pastas-vazio">Nenhuma pasta ainda. Use o botão de nova pasta, no alto, para criar a primeira.</p>}
   </nav>;
 }
-
-/** No lugar da árvore, em tela estreita: a pasta num seletor acima da lista, com o + para criar e o ⋯ da pasta escolhida. */
-export function SeletorDePasta({ pastas, escolhida, aoEscolher }: PropsDaArvore) {
-  const lista = pastas ?? [];
-  const acoes = useAcoesDasPastas(lista, escolhida, aoEscolher);
-  const atual = lista.find(p => p.id === escolhida);
-  return <div className="pastas-seletor">
-    <label className="pastas-seletor-campo"><Icone nome="pasta" tam={16} /><span className="sr">Pasta</span>
-      <select className="filtro" value={escolhida ?? TODAS} onChange={e => aoEscolher(e.target.value || null)}>
-        <option value={TODAS}>Todos os documentos</option>
-        {pastasEmOrdem(lista).map(n => <option key={n.pasta.id} value={n.pasta.id}>{textoDoCaminho(lista, n.pasta.id)}</option>)}
-      </select>
-    </label>
-    <button type="button" className="pasta-mais" aria-label={atual ? `Nova subpasta em ${atual.nome}` : 'Nova pasta'} title={atual ? 'Nova subpasta' : 'Nova pasta'}
-      onClick={() => void acoes.criar(atual?.id ?? null)}><Icone nome="mais" tam={16} /></button>
-    {atual && <MenuDaPasta pasta={atual} acoes={acoes} />}
-  </div>;
-}
-
-/** O sinal da escolha atual no menu (o lugar fica reservado nas outras, para os nomes ficarem alinhados). */
-const Marca = ({ ligada }: { ligada: boolean }) => <span className="kmenu-marca">{ligada && <Icone nome="check" tam={15} />}</span>;
 
 interface PropsDoCaminho {
   pastas: Pasta[] | null;

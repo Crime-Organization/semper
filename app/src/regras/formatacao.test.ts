@@ -668,3 +668,39 @@ describe('Botões de lista numerada, tarefas, citação e código (#344)', () =>
     expect(depois.texto).toBe('```\na\n```\n```\nx\n```\n```\nb\n```');
   });
 });
+
+describe('A marca num trecho de várias linhas que já tem a marca em parte (#364)', () => {
+  it.each([
+    // Arrastar de "dois" até "oito", com a linha do meio já em negrito: nada de "****" encaixado
+    ['negrito', 'um [dois tres\n**quatro cinco seis**\nsete oito] nove', 'um [**dois tres**\n**quatro cinco seis**\n**sete oito**] nove'],
+    // Arrastar de "aqui" até "ultima", com "forte" em negrito na linha do meio
+    ['negrito', 'primeira linha [aqui\n**forte** meio palavra fim\nultima] linha final',
+      'primeira linha [**aqui**\n**forte meio palavra fim**\n**ultima**] linha final'],
+    // Ctrl+A num texto misto: tudo fica em negrito, sem sinais soltos
+    ['negrito', '[um **dois tres**\n**quatro cinco seis**\n**sete oito** nove]',
+      '[**um dois tres**\n**quatro cinco seis**\n**sete oito nove**]'],
+    // Tudo já em negrito: o B tira o negrito de todas as linhas
+    ['negrito', '[**um dois**\n**tres quatro**]', '[um dois\ntres quatro]'],
+    // Tirar só de parte: o que estava em negrito fora da escolha continua em negrito
+    ['negrito', '**um [dois**\n**tres] quatro**', '[**um** dois\ntres **quatro**]'],
+    // Numa lista, o "- " fica fora da marca (senão o item deixa de ser item)
+    ['negrito', '[- item um\n- item dois]', '- [**item um**\n- **item dois**]'],
+    ['italico', '[*alfa beta*\ngama]', '[*alfa beta*\n*gama*]']
+  ] as const)('dada a marca %s e "%s", quando aperta o botão, então fica "%s"', (marca, antes, depois) => {
+    // Quando
+    const r = alternarMarca(escolha(antes), marca);
+    // Então
+    expect(ver(r)).toBe(depois);
+  });
+
+  it('dado um texto misto todo escolhido, quando aperta B, então toda letra aparece em negrito e nenhum "*" sobra à vista', () => {
+    // Dado
+    const antes = escolha('[um **dois tres**\n**quatro cinco seis**\n**sete oito** nove\n*dez onze* doze]');
+    // Quando
+    const r = alternarMarca(antes, 'negrito');
+    // Então
+    const pedacos = blocosDoTexto(r.texto).flatMap(b => b.tipo === 'texto' ? b.linhas.flat() : []);
+    expect(pedacos.every(p => p.marcas.includes('negrito'))).toBe(true);
+    expect(pedacos.map(p => p.texto).join('')).not.toContain('**');
+  });
+});

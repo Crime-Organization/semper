@@ -1,0 +1,5 @@
+{
+  "titulo": "Equipe direto nas bolinhas",
+  "texto": "Clicar na bolinha do responsável já abre a troca, e clicar na de um participante o tira na hora, com Desfazer. O nome aparece ao passar o mouse, e a busca do “+” mostra só os nomes.",
+  "ondeAchar": "No topo dos cartões de tarefa, demanda, processo, compromisso e anotação, nas bolinhas da equipe."
+}

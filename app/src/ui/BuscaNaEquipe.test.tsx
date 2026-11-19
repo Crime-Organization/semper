@@ -41,6 +41,18 @@ describe('Busca na equipe', () => {
     await vi.waitFor(() => expect(screen.getByRole('textbox', { name: '% novo' })).toHaveFocus());
   });
 
+  // A regra mudou (pedido do dono, 18/11): a bolinha na frente de cada nome saiu da lista.
+  it('quando a busca abre, então cada achado mostra só o nome, sem a bolinha', async () => {
+    // Dado
+    render(<BuscaNaEquipe buscar={todos} aoEscolher={vi.fn()} adicionar="Adicionar participante" />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar participante' }));
+    // Então
+    const ana = screen.getByRole('button', { name: 'Ana Teste Lima' });
+    expect(ana).toHaveTextContent(/^Ana Teste Lima$/);
+    expect(ana.querySelector('svg, img, [aria-hidden="true"]')).toBeNull();
+  });
+
   it('dado a lista no máximo, quando a busca aparece, então o botão de adicionar vem desligado', () => {
     // Quando
     render(<BuscaNaEquipe buscar={todos} aoEscolher={vi.fn()} adicionar="Adicionar participante" desligado />);
@@ -115,7 +127,7 @@ describe('Busca na equipe na bolinha "+" do topo do cartão', () => {
     naBolinha({ desligado: true });
     const mais = screen.getByRole('button', { name: 'Pôr participante' });
     expect(mais).toHaveAttribute('aria-disabled', 'true');
-    expect(mais).toHaveAttribute('title', 'Cheia.');
+    expect(mais).toHaveAttribute('data-dica', 'Cheia.');
     // Quando
     await userEvent.click(mais);
     // Então
@@ -128,7 +140,7 @@ describe('Busca na equipe na bolinha "+" do topo do cartão', () => {
     naBolinha({ buscar: () => [] });
     const mais = screen.getByRole('button', { name: 'Pôr participante' });
     expect(mais).toHaveAttribute('aria-disabled', 'true');
-    expect(mais).toHaveAttribute('title', 'Não há mais ninguém na equipe.');
+    expect(mais).toHaveAttribute('data-dica', 'Não há mais ninguém na equipe.');
     expect(mais).toHaveAccessibleDescription('Não há mais ninguém na equipe.');
     // Quando
     await userEvent.click(mais);

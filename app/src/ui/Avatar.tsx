@@ -16,16 +16,21 @@ export function iniciais(nome?: string | null) {
 }
 const tamanho = (tam: number) => ({ '--av': tam + 'px' }) as CSSProperties;
 
-export function Avatar({ p, tam = 28 }: { p?: Partial<Membro> | null; tam?: number }) {
+/**
+ * A bolinha de uma pessoa. Com `semDica`, sem o nome na dica do navegador nem para o leitor de tela: para quando quem está em
+ * volta já dá o nome e a ação (as bolinhas da equipe do cartão, cuja dica diz "Tirar Ana Souza"), e duas dicas brigariam.
+ */
+export function Avatar({ p, tam = 28, semDica = false }: { p?: Partial<Membro> | null; tam?: number; semDica?: boolean }) {
   const nome = p?.nome || 'Usuário removido';
+  const dica = semDica ? { 'aria-hidden': true } : { title: nome, 'aria-label': nome };
   // O link da foto vale por um dia: se não abrir (venceu, ou a foto foi tirada), voltam as iniciais.
   const [semFoto, setSemFoto] = useState<string | null>(null);
   if (p?.foto && semFoto !== p.foto) {
-    return <span className="avatar com-foto" style={tamanho(tam)} title={nome} role="img" aria-label={nome}>
+    return <span className="avatar com-foto" style={tamanho(tam)} role={semDica ? undefined : 'img'} {...dica}>
       <img src={p.foto} alt="" width={tam} height={tam} loading="lazy" decoding="async" onError={() => setSemFoto(p.foto ?? null)} />
     </span>;
   }
-  return <span className="avatar" style={{ ...tamanho(tam), background: corDe(p) }} title={nome} aria-label={nome}>{iniciais(p?.nome)}</span>;
+  return <span className="avatar" style={{ ...tamanho(tam), background: corDe(p) }} {...dica}>{iniciais(p?.nome)}</span>;
 }
 
 export function Avatares({ ids, equipe, max = 4, tam = 26 }: { ids: string[]; equipe: Membro[]; max?: number; tam?: number }) {

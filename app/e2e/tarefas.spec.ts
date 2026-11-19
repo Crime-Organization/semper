@@ -58,8 +58,8 @@ test.describe('Cadastro de tarefas', () => {
     await expect(cartao.getByRole('heading', { name: 'Mandar a notificação' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável' })).toBeVisible();
-    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante' })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável. Trocar o responsável' })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Tirar Ana Teste Lima' })).toBeVisible();
     await abrirSecao(cartao, 'Pessoas');
     await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
@@ -512,20 +512,29 @@ test.describe('Cronômetro da tarefa', () => {
 });
 
 test.describe('Equipe da tarefa', () => {
-  test('quando a pessoa clica na bolinha de alguém da equipe, então vê o nome e o papel, e abre o cartão da pessoa', async ({ page }) => {
+  // A regra mudou (pedido do dono, 18/11): a bolinha não abre mais a ficha com o nome, o papel e o link para o cartão da pessoa.
+  // O nome aparece na dica, ao passar o mouse e no foco; o clique já é a ação (trocar o responsável, tirar o participante).
+  test('quando a pessoa passa o mouse ou chega pelo Tab numa bolinha da equipe, então vê o nome e o papel na dica', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    // As bolinhas das pessoas (desde a #356, o grupo tem também a bolinha "Pôr participante", para quem altera a tarefa).
-    const bolinhas = cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, (Responsável|Participante)$/ });
-    await expect(bolinhas).toHaveText(['AL', 'MG']);
+    const equipe = cartao.getByRole('group', { name: 'Equipe' });
+    const ana = equipe.getByRole('button', { name: 'Ana Teste Lima, Responsável. Trocar o responsável' });
+    const mateus = equipe.getByRole('button', { name: 'Sair da tarefa (Mateus Freitas Gonçalves)' });
+    await expect(ana).toHaveText('AL');
+    await expect(mateus).toHaveText('MG');
     // Quando
-    await bolinhas.first().click();
-    const ficha = page.getByRole('dialog', { name: 'Ana Teste Lima' });
-    await expect(ficha).toContainText('Responsável');
-    await ficha.getByRole('link', { name: 'Abrir o cartão da pessoa' }).click();
+    await ana.hover();
+    // Então: a dica é desenhada pelo estilo, com o texto de data-dica
+    await expect(ana).toHaveAttribute('data-dica', 'Ana Teste Lima · Responsável. Clique para trocar.');
+    await expect.poll(() => ana.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
+    // Quando: pelo teclado (o foco vindo do Tab)
+    await mateus.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
     // Então
-    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
-    await expect(page.getByRole('dialog').getByRole('heading', { name: 'ANA TESTE LIMA' })).toBeVisible();
+    await expect(mateus).toBeFocused();
+    await expect.poll(() => mateus.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
+    await expect(page.getByRole('dialog', { name: 'Ana Teste Lima' })).toHaveCount(0);
   });
 });
 

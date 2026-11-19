@@ -5,6 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comentario, DadosComentarios, Membro } from '../dados';
 import { SecaoComentarios } from './Comentarios';
+import { ColunaDoCartao } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
 
 // A seção usa só as operações de comentários; o mock declara exatamente essas.
@@ -134,5 +135,54 @@ describe('Comentários do cartão', () => {
     // Então
     const alvo = await screen.findByRole('listitem', { name: item });
     expect(within(alvo).queryAllByRole('button').map(b => b.textContent)).toEqual(acoes);
+  });
+});
+
+describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11)', () => {
+  /** A coluna da direita, como a da janela no centro, fora do cartão. */
+  let coluna: HTMLElement;
+  beforeEach(() => {
+    // Dado que a pessoa deixou os comentários recolhidos no painel ao lado (a escolha não vale na coluna)
+    iniciarPreferencias({ 'cartao.comentarios': false });
+    Object.values(SD).forEach(f => f.mockReset());
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Primeiro contato', '2026-10-28T15:00:00Z')]);
+    coluna = document.body.appendChild(document.createElement('aside'));
+    coluna.setAttribute('aria-label', 'Coluna da direita');
+    return () => coluna.remove();
+  });
+  const naColuna = () => within(screen.getByRole('complementary', { name: 'Coluna da direita' }));
+
+  it('quando o cartão abre no centro, então os comentários são uma seção que recolhe, aberta, com o número e o "Recolher tudo" acima', async () => {
+    // Quando
+    render(<ColunaDoCartao.Provider value={coluna}><main><SecaoComentarios modulo="tarefas" cartaoId="t1" /></main></ColunaDoCartao.Provider>);
+    // Então
+    const secao = await naColuna().findByRole('button', { name: /^Comentários\s*1$/ });
+    expect(secao).toHaveAttribute('aria-expanded', 'true');
+    expect(naColuna().getAllByRole('button')[0]).toHaveAccessibleName('Recolher tudo');
+    expect(naColuna().getByRole('textbox', { name: 'Escrever um comentário' })).toBeInTheDocument();
+    expect(screen.getByRole('main')).not.toHaveTextContent('Comentários');
+  });
+
+  it('dados os comentários na coluna, quando a pessoa clica em "Recolher tudo", então a seção fecha, e o botão passa a "Expandir tudo"', async () => {
+    // Dado
+    render(<ColunaDoCartao.Provider value={coluna}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
+    await naColuna().findByRole('button', { name: /^Comentários\s*1$/ });
+    // Quando
+    await userEvent.click(naColuna().getByRole('button', { name: 'Recolher tudo' }));
+    // Então
+    expect(naColuna().getByRole('button', { name: /^Comentários\s*1$/ })).toHaveAttribute('aria-expanded', 'false');
+    expect(naColuna().queryByRole('textbox', { name: 'Escrever um comentário' })).not.toBeInTheDocument();
+    expect(naColuna().getByRole('button', { name: 'Expandir tudo' })).toBeInTheDocument();
+  });
+
+  it('dado um comentário começado no painel ao lado, quando a janela passa para o centro, então ele continua na caixa, agora na coluna', async () => {
+    // Dado: ao lado (sem a coluna), com a seção aberta
+    iniciarPreferencias({ 'cartao.comentarios': true });
+    const { rerender } = render(<ColunaDoCartao.Provider value={null}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
+    await userEvent.type(await screen.findByRole('textbox', { name: 'Escrever um comentário' }), 'Falar com o cliente');
+    // Quando
+    rerender(<ColunaDoCartao.Provider value={coluna}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
+    // Então
+    expect(await naColuna().findByRole('textbox', { name: 'Escrever um comentário' })).toHaveValue('Falar com o cliente');
   });
 });

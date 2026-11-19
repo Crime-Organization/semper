@@ -5,7 +5,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Etiqueta } from '../dados';
-import { anelDasEtiquetas, CirculoDeEtiquetas, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
+import { BotaoDasEtiquetas, EtiquetasDaSecao, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
 
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin }) }));
@@ -110,23 +110,20 @@ describe('Peças das etiquetas', () => {
   });
 });
 
-describe('O círculo das etiquetas da anotação (#342)', () => {
+// A seção "Etiquetas" dos cartões: o título com o "+" na frente e os selos embaixo. A anotação (pedido do dono, 18/11) não tem a
+// seção: usa as mesmas peças por partes, o botão que abre a escolha e os selos (veja o grupo seguinte).
+describe('A seção "Etiquetas" dos cartões', () => {
   beforeEach(() => {
     sessao.ehAdmin = false;
     lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
     vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
   });
 
-  it('dadas as cores das etiquetas, quando monta o anel, então cada uma ganha uma fatia igual, na ordem; sem etiqueta, não há anel', () => {
-    // Então
-    expect(anelDasEtiquetas([])).toBeUndefined();
-    expect(anelDasEtiquetas(['azul', 'verde'])).toEqual({ '--anel': 'conic-gradient(var(--etq-azul) 0% 50%, var(--etq-verde) 50% 100%)' });
-  });
-
-  it('dada uma anotação sem etiquetas, quando a pessoa clica no círculo e marca uma, então quem chama recebe a etiqueta marcada', async () => {
+  it('dado um cartão cuja lista fica com quem chama, quando a pessoa clica no "+" ao lado do título da seção e marca uma, então quem chama recebe a etiqueta marcada', async () => {
     // Dado
     const aoMarcar = vi.fn();
-    render(<CirculoDeEtiquetas ids={[]} aoMarcar={aoMarcar} />);
+    render(<EtiquetasDaSecao ids={[]} aoMarcar={aoMarcar} />);
+    expect(screen.getByRole('region', { name: 'Etiquetas' })).toHaveTextContent('Nenhuma etiqueta.');
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('checkbox', { name: 'Minha' }));
@@ -134,25 +131,88 @@ describe('O círculo das etiquetas da anotação (#342)', () => {
     expect(aoMarcar).toHaveBeenCalledWith(MINHA, true);
   });
 
-  it('dada uma anotação com etiquetas, quando quem só lê a vê, então o círculo mostra as cores mas não é um botão', () => {
-    // Quando
-    const { container } = render(<CirculoDeEtiquetas ids={[MINHA.id]} aoMarcar={() => undefined} somenteLer />);
-    // Então
-    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
-    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--anel')).toContain('var(--etq-azul)');
-  });
-
-  it('dadas as etiquetas da anotação, quando aparecem abaixo do título, então só quem pode mudar vê o x para tirar', async () => {
+  it('dadas as etiquetas, quando aparecem embaixo do título da seção, então cada uma é um selo, e só quem pode mudar vê o x para tirar', async () => {
     // Dado
-    const aoTirar = vi.fn();
-    const { rerender } = render(<SelosDasEtiquetas ids={[MINHA.id]} />);
+    const aoMarcar = vi.fn();
+    const { rerender } = render(<EtiquetasDaSecao ids={[MINHA.id]} aoMarcar={aoMarcar} somenteLer />);
     // Então
     expect(screen.getByText('Minha')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
     // Quando
-    rerender(<SelosDasEtiquetas ids={[MINHA.id]} aoTirar={aoTirar} />);
+    rerender(<EtiquetasDaSecao ids={[MINHA.id]} aoMarcar={aoMarcar} />);
     await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Minha' }));
     // Então
+    expect(aoMarcar).toHaveBeenCalledWith(MINHA, false);
+  });
+});
+
+// Pedido do dono (18/11): na anotação, a escolha das etiquetas abre pelo ícone de etiqueta, no topo, e os selos ficam numa linha
+// entre o topo e o título; sem etiquetas, a linha não aparece.
+describe('As peças das etiquetas da anotação: o botão que abre a escolha e os selos', () => {
+  beforeEach(() => {
+    sessao.ehAdmin = false;
+    lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
+    vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
+  });
+
+  it('quando a pessoa clica no botão, então abre a mesma escolha da seção, com as etiquetas marcadas e o formulário de nova; marcar avisa quem chama, e clicar de novo fecha', async () => {
+    // Dado
+    const aoMarcar = vi.fn();
+    render(<BotaoDasEtiquetas ids={[MINHA.id]} aoMarcar={aoMarcar} rotulo="Etiquetas" className="cartao-botao" comDica>ícone</BotaoDasEtiquetas>);
+    const botao = screen.getByRole('button', { name: 'Etiquetas' });
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    const escolha = within(screen.getByRole('dialog', { name: 'Escolher etiquetas' }));
+    expect(botao).toHaveAttribute('aria-expanded', 'true');
+    expect(escolha.getByRole('checkbox', { name: 'Minha' })).toBeChecked();
+    expect(escolha.getByRole('checkbox', { name: 'Da Ana' })).not.toBeChecked();
+    expect(escolha.getByRole('form', { name: 'Nova etiqueta' })).toBeTruthy();
+    // Quando
+    await userEvent.click(escolha.getByRole('checkbox', { name: 'Da Ana' }));
+    // Então
+    expect(aoMarcar).toHaveBeenCalledWith(DA_ANA, true);
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    expect(screen.queryByRole('dialog', { name: 'Escolher etiquetas' })).toBeNull();
+  });
+
+  it('dado o botão com a dica do sistema, então o nome aparece na dica, e não na do navegador', () => {
+    // Quando
+    render(<BotaoDasEtiquetas ids={[]} aoMarcar={vi.fn()} rotulo="Etiquetas" className="cartao-botao" comDica>ícone</BotaoDasEtiquetas>);
+    // Então
+    const botao = screen.getByRole('button', { name: 'Etiquetas' });
+    expect(botao).toHaveAttribute('data-dica', 'Etiquetas');
+    expect(botao).not.toHaveAttribute('title');
+  });
+
+  it('dadas duas etiquetas, quando os selos aparecem, então ficam numa linha com o nome dado, e o x tira a etiqueta', async () => {
+    // Dado
+    const aoTirar = vi.fn();
+    render(<SelosDasEtiquetas ids={[MINHA.id, DA_ANA.id]} rotulo="Etiquetas" aoTirar={aoTirar} />);
+    // Então
+    const linha = within(screen.getByRole('group', { name: 'Etiquetas' }));
+    expect(linha.getByText('Minha')).toBeTruthy();
+    expect(linha.getByText('Da Ana')).toBeTruthy();
+    // Quando
+    await userEvent.click(linha.getByRole('button', { name: 'Tirar a etiqueta Minha' }));
+    // Então
     expect(aoTirar).toHaveBeenCalledWith(MINHA);
+  });
+
+  it('dado quem só lê, então os selos aparecem sem o x; sem etiquetas, a linha não aparece', () => {
+    // Quando
+    const { container, rerender } = render(<SelosDasEtiquetas ids={[MINHA.id]} rotulo="Etiquetas" />);
+    // Então
+    expect(screen.getByRole('group', { name: 'Etiquetas' })).toHaveTextContent('Minha');
+    expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeNull();
+    // Quando
+    rerender(<SelosDasEtiquetas ids={[]} rotulo="Etiquetas" />);
+    // Então
+    expect(screen.queryByRole('group', { name: 'Etiquetas' })).toBeNull();
+    expect(container.textContent).toBe('');
   });
 });

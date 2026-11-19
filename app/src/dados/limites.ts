@@ -6,6 +6,8 @@
 export const POR_PAGINA = 50;
 /** Cartões carregados por vez em cada coluna do quadro (o resto vem em "Carregar mais"). */
 export const POR_COLUNA = 30;
+/** Anotações lidas de uma vez para o explorador da página Documentos (a árvore das pastas com as anotações dentro). */
+export const ANOTACOES_NO_EXPLORADOR = 500;
 /** Pessoas mostradas na busca enquanto se digita (BuscaPessoa). */
 export const ACHADOS_DA_BUSCA = 8;
 /** Últimas ações mostradas no registro de ações (Equipe). */
@@ -191,8 +193,12 @@ export const ITENS_DA_AGENDA = 500;
 export const PROCESSOS_PARA_LIGAR = 50;
 
 // ---------- Anotações (módulo Documentos, #303) ----------
-/** Tamanhos do título e do texto da anotação (exigidos pelo banco: supabase/migrations/…_anotacoes.sql). */
-export const TAMANHO_ANOTACAO = { titulo: 300, texto: 20000 };
+/**
+ * Tamanhos do título e do texto da anotação, em caracteres (exigidos pelo banco: o título em
+ * supabase/migrations/20261117143714_anotacoes.sql; o texto pela regra anotacoes_texto_tamanho, de
+ * 20261119000000_comentarios_das_anotacoes.sql). O texto cabe um artigo longo (uns 40 mil caracteres) com folga (#364).
+ */
+export const TAMANHO_ANOTACAO = { titulo: 300, texto: 200000 };
 /** A quantos itens uma anotação pode ser ligada (exigido pelo banco, mesma migração: ele recusa o 51º). */
 export const ITENS_DA_ANOTACAO = 50;
 /**

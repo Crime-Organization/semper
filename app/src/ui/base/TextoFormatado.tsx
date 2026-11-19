@@ -6,7 +6,7 @@
 import { Fragment, useRef, type ComponentProps, type KeyboardEvent, type ReactNode } from 'react';
 import {
   TAMANHO_DO_ENDERECO, alternarCodigo, alternarInicioDeLinha, alternarItemDeTarefa, alternarLista, alternarMarca, alternarTitulo,
-  blocosDoTexto, linkPermitido, porLink, tirarLink,
+  blocosDoTexto, linkPermitido, porLink, textoDosPedacos as textoDaLinha, tirarLink,
   type Bloco, type BlocoDo, type Escolha, type Marca, type MarcaDoBotao, type NivelTitulo, type Pedaco, type TipoBloco
 } from '../../regras/formatacao';
 import { avisar } from '../avisos';
@@ -16,17 +16,17 @@ import { estiloBotao } from './botao';
 
 /** O elemento de cada destaque. */
 const ELEMENTO: Record<Marca, 'strong' | 'em' | 'del' | 'code'> = { negrito: 'strong', italico: 'em', tachado: 'del', codigo: 'code' };
-/** Os atalhos da caixa (com Ctrl, ou Cmd no Mac). */
-const ATALHOS: Record<string, MarcaDoBotao> = { b: 'negrito', i: 'italico' };
+/** Os atalhos da caixa (com Ctrl, ou Cmd no Mac): a tecla e a marca. O editor ao vivo monta os dele com esta mesma tabela. */
+export const ATALHOS: Record<string, MarcaDoBotao> = { b: 'negrito', i: 'italico' };
 /**
  * O elemento de cada nível de título. Começa no h3: o cartão já usa h2 no nome do item e h3 nas seções, e um "#" escrito
  * no texto não pode virar o título da página.
  */
 const ELEMENTO_DO_TITULO: Record<NivelTitulo, 'h3' | 'h4' | 'h5'> = { 1: 'h3', 2: 'h4', 3: 'h5' };
 /** O começo do endereço que abre o programa de e-mail: esse link não abre aba nova. */
-const DE_EMAIL = 'mailto:';
-/** O nome da caixinha de um item da lista de tarefas sem texto. */
-const ITEM_SEM_TEXTO = 'Item sem texto';
+export const DE_EMAIL = 'mailto:';
+/** O nome da caixinha de um item da lista de tarefas sem texto (aqui e no editor ao vivo). */
+export const ITEM_SEM_TEXTO = 'Item sem texto';
 
 function Marcas({ p }: { p: Pedaco }) {
   return p.marcas.reduceRight<ReactNode>((dentro, m) => { const E = ELEMENTO[m]; return <E>{dentro}</E>; }, p.texto);
@@ -54,8 +54,6 @@ function Pedacos({ pedacos }: { pedacos: Pedaco[] }) {
 
 /** As linhas comuns, como foram escritas: uma quebra entre elas (o pre-wrap do estilo mantém as quebras). */
 const Linhas = ({ b }: { b: Bloco }) => b.linhas.map((l, j) => <Fragment key={j}>{j > 0 && '\n'}<Pedacos pedacos={l} /></Fragment>);
-/** O texto de uma linha, sem os destaques. */
-const textoDaLinha = (l: Pedaco[]) => l.map(p => p.texto).join('');
 
 /** A tabela: as células vêm em sequência, uma por coluna em cada linha, e a primeira linha é o cabeçalho. */
 function Tabela({ b }: { b: BlocoDo<'tabela'> }) {
@@ -138,74 +136,107 @@ const BOTOES: { rotulo: string; icone: NomeIcone; fazer: (e: Escolha) => Escolha
 /** O tamanho dos ícones da barra. */
 const TAMANHO_DO_ICONE = 15;
 
-type PropsCaixa =Omit<ComponentProps<'textarea'>, 'value' | 'onChange' | 'ref'> & { valor: string; aoMudar: (texto: string) => void };
+/** O que a barra de formatação precisa da caixa onde se escreve (a caixa de texto comum ou o editor ao vivo). */
+export interface AlvoDaFormatacao {
+  /** O id da caixa: a barra diz ao leitor de tela que a controla. */
+  id?: string;
+  /** O tamanho máximo do texto: o botão cujo resultado passaria dele não muda nada. */
+  maximo?: number;
+  /** O texto e o trecho escolhido agora (null se a caixa ainda não está na tela). */
+  escolha: () => Escolha | null;
+  /** Põe na caixa o resultado de um botão, com o trecho escolhido, de modo que o Ctrl+Z o desfaça. */
+  trocar: (r: Escolha) => void;
+  focar: () => void;
+}
 
 /**
- * A caixa de escrever com a barra B, I, cabeçalho, listas (comum, numerada e de tarefas), citação, código e link. Fica dentro de
- * <Campo>, com as props de propsDoCampo. Ctrl+B e Ctrl+I só valem com o foco na caixa, e não deixam o navegador abrir os
- * favoritos (Firefox).
+ * A barra B, I, cabeçalho, listas (comum, numerada e de tarefas), citação, código e link, com as regras de regras/formatacao.ts,
+ * para a caixa dada. Devolve a barra e o "marcar" (para os atalhos Ctrl+B e Ctrl+I de quem a usa).
  */
-export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCaixa) {
-  const caixa = useRef<HTMLTextAreaElement>(null);
-  const escolhaAtual = (): Escolha | null => {
-    const el = caixa.current;
-    return el && { texto: valor, inicio: el.selectionStart, fim: el.selectionEnd };
-  };
+export function barraDeFormatacao(alvo: AlvoDaFormatacao) {
   /**
-   * Troca o texto da caixa pelo resultado do botão, a partir da escolha dada (ou da que está na caixa agora). Diz se trocou: se o
-   * resultado passa do tamanho da caixa, nada muda (os botões de marca e de começo de linha ficam calados; o Link avisa, porque a
-   * pessoa escreveu um endereço).
+   * Aplica o botão à escolha dada (ou à que está na caixa agora). Diz se trocou: se o resultado passa do tamanho da caixa, nada
+   * muda (os botões de marca e de começo de linha ficam calados; o Link avisa, porque a pessoa escreveu um endereço).
    */
-  function aplicar(fazer: (e: Escolha) => Escolha, escolha = escolhaAtual()): boolean {
-    const el = caixa.current;
-    if (!el || !escolha) return false;
+  function aplicar(fazer: (e: Escolha) => Escolha, escolha = alvo.escolha()): boolean {
+    if (!escolha) return false;
     const r = fazer(escolha);
-    if (resto.maxLength && r.texto.length > resto.maxLength) return false;   // a marca não cabe: nada muda
-    // O texto novo entra pelo próprio navegador, como se fosse digitado: assim Ctrl+Z desfaz a marca e não perde o que veio antes.
-    // Onde o navegador não deixa (ou nos testes), entra pelo estado, como as outras caixas.
-    el.focus();
-    el.setSelectionRange(0, el.value.length);
-    const escolher = () => { el.focus(); el.setSelectionRange(r.inicio, r.fim); };
-    // Pelo navegador, o texto já está na caixa: a escolha volta na hora. Se esperasse, apagaria um trecho que a pessoa escolhesse logo
-    // em seguida. Pelo estado, ela só volta depois que o React desenha o texto novo.
-    if (digitar(r.texto)) escolher();
-    else { aoMudar(r.texto); setTimeout(escolher, 0); }
+    if (alvo.maximo && r.texto.length > alvo.maximo) return false;   // a marca não cabe: nada muda
+    alvo.trocar(r);
     return true;
   }
   const marcar = (marca: MarcaDoBotao) => aplicar(e => alternarMarca(e, marca));
   /** Sobre um link, tira o link; fora dele, pede o endereço (a escolha fica guardada enquanto a janela está aberta). */
   async function link() {
-    const escolha = escolhaAtual();
+    const escolha = alvo.escolha();
     if (!escolha) return;
     const semLink = tirarLink(escolha);
     if (semLink) { aplicar(() => semLink, escolha); return; }
     const escrito = await pedirTexto('Endereço do link', 'https://', { maximo: TAMANHO_DO_ENDERECO });
-    if (escrito === null) { caixa.current?.focus(); return; }
+    if (escrito === null) { alvo.focar(); return; }
     const endereco = linkPermitido(escrito);
     if (!endereco) {
       avisar('Esse endereço não vira link. Use um endereço completo, começando com https://, http:// ou mailto:.', 'erro');
-      caixa.current?.focus();
+      alvo.focar();
       return;
     }
     const comLink = porLink(escolha, endereco);
     if (!comLink) avisar('Esse trecho não vira link: ele tem colchetes ou pega parte de um link já escrito. Escolha outro trecho.', 'erro');
-    else if (!aplicar(() => comLink, escolha)) avisar(`O link não cabe: o texto passaria do limite de ${resto.maxLength} caracteres.`, 'erro');
-    caixa.current?.focus();
+    else if (!aplicar(() => comLink, escolha)) avisar(`O link não cabe: o texto passaria do limite de ${alvo.maximo} caracteres.`, 'erro');
+    alvo.focar();
   }
+  const botao = estiloBotao({ forma: 'mini' }, 'caixa-formatada-botao');
+  const barra = <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={alvo.id}>
+    <button type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>
+    <button type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>
+    {BOTOES.map(({ rotulo, icone, fazer }) =>
+      <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>)}
+    <button type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
+  </div>;
+  return { barra, marcar };
+}
+
+/** A marca do atalho (Ctrl+B, Ctrl+I, ou Cmd no Mac), ou undefined se a tecla não é um atalho da barra. */
+const marcaDoAtalho = (e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean }) =>
+  (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey ? ATALHOS[e.key.toLowerCase()] : undefined;
+
+type PropsCaixa =Omit<ComponentProps<'textarea'>, 'value' | 'onChange' | 'ref'> & { valor: string; aoMudar: (texto: string) => void };
+
+/**
+ * A caixa de escrever com a barra de formatação (barraDeFormatacao). Fica dentro de <Campo>, com as props de propsDoCampo.
+ * Ctrl+B e Ctrl+I só valem com o foco na caixa, e não deixam o navegador abrir os favoritos (Firefox).
+ */
+export function CaixaFormatada({ valor, aoMudar, onKeyDown, ...resto }: PropsCaixa) {
+  const caixa = useRef<HTMLTextAreaElement>(null);
+  const { barra, marcar } = barraDeFormatacao({
+    id: resto.id,
+    maximo: resto.maxLength,
+    escolha: () => {
+      const el = caixa.current;
+      return el && { texto: valor, inicio: el.selectionStart, fim: el.selectionEnd };
+    },
+    trocar: r => {
+      const el = caixa.current;
+      if (!el) return;
+      // O texto novo entra pelo próprio navegador, como se fosse digitado: assim Ctrl+Z desfaz a marca e não perde o que veio antes.
+      // Onde o navegador não deixa (ou nos testes), entra pelo estado, como as outras caixas.
+      el.focus();
+      el.setSelectionRange(0, el.value.length);
+      const escolher = () => { el.focus(); el.setSelectionRange(r.inicio, r.fim); };
+      // Pelo navegador, o texto já está na caixa: a escolha volta na hora. Se esperasse, apagaria um trecho que a pessoa escolhesse
+      // logo em seguida. Pelo estado, ela só volta depois que o React desenha o texto novo.
+      if (digitar(r.texto)) escolher();
+      else { aoMudar(r.texto); setTimeout(escolher, 0); }
+    },
+    focar: () => caixa.current?.focus()
+  });
   function teclar(e: KeyboardEvent<HTMLTextAreaElement>) {
-    const marca = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey ? ATALHOS[e.key.toLowerCase()] : undefined;
+    const marca = marcaDoAtalho(e);
     if (marca) { e.preventDefault(); marcar(marca); }
     onKeyDown?.(e);
   }
-  const botao = estiloBotao({ forma: 'mini' }, 'caixa-formatada-botao');
   return <div className="caixa-formatada">
-    <div className="caixa-formatada-barra" role="toolbar" aria-label="Formatação do texto" aria-controls={resto.id}>
-      <button type="button" className={botao} aria-label="Negrito (Ctrl+B)" title="Negrito (Ctrl+B)" onClick={() => marcar('negrito')}><b aria-hidden="true">B</b></button>
-      <button type="button" className={botao} aria-label="Itálico (Ctrl+I)" title="Itálico (Ctrl+I)" onClick={() => marcar('italico')}><i aria-hidden="true">I</i></button>
-      {BOTOES.map(({ rotulo, icone, fazer }) =>
-        <button key={rotulo} type="button" className={botao} aria-label={rotulo} title={rotulo} onClick={() => aplicar(fazer)}><Icone nome={icone} tam={TAMANHO_DO_ICONE} /></button>)}
-      <button type="button" className={botao} aria-label="Link" title="Link" onClick={() => void link()}><Icone nome="vinculo" tam={TAMANHO_DO_ICONE} /></button>
-    </div>
+    {barra}
     <textarea ref={caixa} {...resto} value={valor} onChange={e => aoMudar(e.target.value)} onKeyDown={teclar} />
   </div>;
 }

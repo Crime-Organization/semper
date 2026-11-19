@@ -1084,6 +1084,84 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Então
         expect(daOutra).toEqual([]);
       });
+
+      describe('Nas anotações (#364)', () => {
+        const anotacaoNova = (extra: Partial<Parameters<Dados['anotacaoCriar']>[0]> = {}) => SD.anotacaoCriar({ titulo: marca(), responsavel_id: 'u-master', ...extra });
+
+        it('quando alguém comenta numa anotação, então o comentário vem no topo, só dela, e quem foi mencionado recebe a mensagem', async () => {
+          // Dado: duas anotações, a Ana numa delas
+          const { id } = await anotacaoNova({ participantes: ['u-ana'] }), { id: outra } = await anotacaoNova();
+          await SD.comentarioCriar('anotacoes', id, 'Primeiro');
+          // Quando
+          const novo = await SD.comentarioCriar('anotacoes', id, '  Veja o resumo, @ana.lima  ');
+          // Então
+          expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Veja o resumo, @ana.lima', 'Primeiro']);
+          expect(novo).toMatchObject({ autor_id: 'u-master', mencoes: ['u-ana'] });
+          expect(await SD.comentariosListar('anotacoes', outra)).toEqual([]);
+        });
+
+        it('quando o comentário menciona quem não está na anotação, então salvar é recusado com a mensagem do banco; um administrador pode', async () => {
+          // Dado
+          const { id } = await anotacaoNova();
+          // Quando
+          const [deFora, administradora] = await Promise.allSettled([
+            SD.comentarioCriar('anotacoes', id, 'Veja isto, @bruno.souza'), SD.comentarioCriar('anotacoes', id, 'Veja isto, @ana.lima')
+          ]);
+          // Então
+          expect(deFora).toMatchObject({ status: 'rejected', reason: { message: 'Não é possível mencionar Bruno Exemplo Souza nesta anotação: inclua essa pessoa como participante antes.' } });
+          expect(administradora).toMatchObject({ status: 'fulfilled', value: { mencoes: ['u-ana'] } });
+        });
+
+        describe('Quem não vê a anotação (#364)', () => {
+          const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+          afterEach(() => entrarComo('u-master'));
+
+          it('quando quem não vê a anotação comenta mencionando alguém, então a recusa é sempre a de cartão não encontrado, sem dizer quem está nela', async () => {
+            // Dado: uma anotação com a Ana, que o Bruno não vê
+            const { id } = await anotacaoNova({ participantes: ['u-ana'] });
+            entrarComo('u-bruno');
+            // Quando: ele menciona quem está nela, quem não está, e tenta numa anotação que não existe
+            const tentativas = await Promise.allSettled([
+              SD.comentarioCriar('anotacoes', id, 'Oi, @ana.lima'), SD.comentarioCriar('anotacoes', id, 'Oi, @mateus.goncalves'),
+              SD.comentarioCriar('anotacoes', id, 'Oi, @bruno.souza'), SD.comentarioCriar('anotacoes', crypto.randomUUID(), 'Oi, @ana.lima')
+            ]);
+            // Então: a mesma resposta em todos os casos
+            expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual(Array(tentativas.length).fill('Este cartão não foi encontrado. Ele pode ter sido excluído.'));
+            entrarComo('u-master');
+            expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
+          });
+
+          it('quando quem saiu da anotação edita o próprio comentário nela, então é recusado e o texto fica como estava', async () => {
+            // Dado: o Bruno comenta numa anotação em que está, e depois sai dela
+            const { id } = await anotacaoNova({ participantes: ['u-bruno'] });
+            entrarComo('u-bruno');
+            const { id: comentario } = await SD.comentarioCriar('anotacoes', id, 'Do Bruno');
+            entrarComo('u-master');
+            await SD.anotacaoAtualizar(id, { participantes: [] });
+            entrarComo('u-bruno');
+            // Quando
+            const editar = SD.comentarioEditar(comentario, 'Mudei, @ana.lima');
+            // Então
+            await expect(editar).rejects.toThrow('Só quem escreveu o comentário pode editá-lo.');
+            entrarComo('u-master');
+            expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Do Bruno']);
+          });
+        });
+
+        it('quando a anotação é arquivada, então os comentários ficam; quando é excluída, então vão junto', async () => {
+          // Dado
+          const { id } = await anotacaoNova();
+          await SD.comentarioCriar('anotacoes', id, 'Comentário que vai junto');
+          // Quando
+          await SD.anotacoesArquivar([id], true);
+          // Então
+          expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Comentário que vai junto']);
+          // Quando
+          await SD.anotacoesExcluir([id]);
+          // Então
+          expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
+        });
+      });
     });
 
     describe('Demandas', () => {
@@ -5219,6 +5297,31 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(h.feito_por).toBe('u-master');
       });
 
+      it('dado o texto gravado com a data da leitura, quando ninguém mudou a anotação, então ele é gravado e volta a data nova', async () => {
+        // Dado
+        const { id } = await anotacao({ texto: 'antes' });
+        const lida = (await SD.anotacaoObter(id))!;
+        // Quando
+        const nova = await SD.anotacaoGravarTexto(id, 'depois', lida.atualizado_em);
+        // Então
+        const agora = (await SD.anotacaoObter(id))!;
+        expect(agora.texto).toBe('depois');
+        expect(nova).toBe(agora.atualizado_em);
+        expect(nova).not.toBe(lida.atualizado_em);
+      });
+
+      it('dada a anotação mudada depois da leitura, quando o texto vai com a data velha, então nada é gravado e volta null', async () => {
+        // Dado: lida, e depois mudada por outra gravação (outra pessoa, ou outra aba)
+        const { id } = await anotacao({ texto: 'antes' });
+        const lida = (await SD.anotacaoObter(id))!;
+        await SD.anotacaoAtualizar(id, { texto: 'de outra pessoa' });
+        // Quando
+        const nova = await SD.anotacaoGravarTexto(id, 'meu texto', lida.atualizado_em);
+        // Então
+        expect(nova).toBeNull();
+        expect((await SD.anotacaoObter(id))!.texto).toBe('de outra pessoa');
+      });
+
       it('quando liga e desliga um item, então isso não muda a data de alteração nem o histórico', async () => {
         // Dado
         const { id } = await anotacao(), d = await demandaNova();
@@ -5772,6 +5875,37 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     expect(await SD.anotacaoItens(id)).toEqual({ visiveis: [], ocultos: 0 });
     expect(await SD.anotacaoHistorico(id)).toEqual([]);
     await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
+    await expect(SD.anotacaoGravarTexto(id, 'mexi', new Date().toISOString())).rejects.toThrow(SEM_PERMISSAO);
+  });
+
+  it('dada uma anotação comentada pelo master, quando a conta comum de fora a procura, então não lê nem comenta (#364)', async () => {
+    // Dado
+    const { id } = await doMaster();
+    await SD.comentarioCriar('anotacoes', id, 'Só para quem vê');
+    // Quando
+    entrarComo('u-bruno');
+    // Então
+    expect(await SD.comentariosListar('anotacoes', id)).toEqual([]);
+    // O banco fictício diz que o cartão não foi encontrado, como em todos os módulos (o de verdade, que não tem permissão)
+    await expect(SD.comentarioCriar('anotacoes', id, 'Entrei')).rejects.toThrow('Este cartão não foi encontrado. Ele pode ter sido excluído.');
+    entrarComo('u-master');
+    expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Só para quem vê']);
+  });
+
+  it('dada uma anotação que a conta comum vê só pela demanda, quando ela entra, então lê e comenta, mas não altera a anotação (#364)', async () => {
+    // Dado
+    const { id: demanda } = await SD.demandaCriar({ titulo: marca(), responsavel_id: 'u-master', colaboradores: ['u-bruno'] });
+    const { id } = await doMaster({}, { modulo: 'demandas', id: demanda });
+    await SD.comentarioCriar('anotacoes', id, 'Do master');
+    // Quando
+    entrarComo('u-bruno');
+    const meu = await SD.comentarioCriar('anotacoes', id, 'Do Bruno, @mateus.goncalves');
+    // Então
+    expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Do Bruno, @mateus.goncalves', 'Do master']);
+    await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
+    // E quem foi mencionado recebe a mensagem, que leva à anotação no comentário
+    entrarComo('u-master');
+    expect((await SD.mensagensListar()).find(m => m.comentario?.id === meu.id)?.comentario).toMatchObject({ modulo: 'anotacoes', cartao_id: id });
   });
 
   it('dada uma anotação compartilhada com a conta comum, quando ela entra, então vê e altera, mas não exclui a arquivada', async () => {

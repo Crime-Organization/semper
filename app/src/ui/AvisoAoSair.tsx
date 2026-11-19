@@ -24,10 +24,14 @@ const ENTRADA = /^\/entrar\/?$/;
 let temAlgoAPerder = () => false;
 /** Diz se o cadastro aberto está sendo salvo. */
 let salvandoAgora = () => false;
+/** Grava o que falta, no texto que salva sozinho (null: o que está aberto não grava sozinho). */
+let salvarAgora: (() => Promise<boolean>) | null = null;
 const ESPERE_SALVAR = 'Espere terminar de salvar.';
 
 /** Para quem precisa perguntar antes de agir, como o botão Sair do sistema: sem isto, a sessão acabaria antes da pergunta. */
 export async function podeSairDoCadastro() {
+  // O texto que salva sozinho grava antes de sair; só se a gravação falhar, a pergunta aparece.
+  if (temAlgoAPerder() && salvarAgora && await salvarAgora()) return true;
   if (salvandoAgora()) {
     avisar(ESPERE_SALVAR);
     return false;
@@ -52,11 +56,18 @@ interface PropsDoAviso {
    * ao fundo (a anotação nova abre por cima do cartão): o que ela mandou descartar é descartado, e não salvo depois.
    */
   aoDescartar?: () => void;
+  /**
+   * O texto que salva sozinho (a anotação): ao sair com algo ainda por gravar, grava antes (esperando a gravação que já corre) e
+   * só então sai, sem perguntar. Se a gravação falhar, a pergunta de sempre aparece.
+   */
+  salvarAntes?: () => Promise<boolean>;
 }
 
-export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoDescartar }: PropsDoAviso) {
+export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoDescartar, salvarAntes }: PropsDoAviso) {
   const descartar = useRef(aoDescartar);
   descartar.current = aoDescartar;
+  const salvar = useRef(salvarAntes);
+  salvar.current = salvarAntes;
   const atual = JSON.stringify(estado);
   // Até a pessoa mexer num campo, o que muda veio do sistema (dados da pessoa escolhida, parâmetros do endereço), e não há o que perder.
   const mexeu = useRef(false);
@@ -83,7 +94,8 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
     montado.current = true;
     temAlgoAPerder = () => agora.current.preenchido && !liberada.current;
     salvandoAgora = () => agora.current.ocupado;
-    return () => { montado.current = false; temAlgoAPerder = () => false; salvandoAgora = () => false; };
+    salvarAgora = () => salvar.current?.() ?? Promise.resolve(false);
+    return () => { montado.current = false; temAlgoAPerder = () => false; salvandoAgora = () => false; salvarAgora = null; };
   }, [liberada]);
 
   // Qualquer navegação perde o preenchido, mesmo para o mesmo endereço: cada abertura do cadastro começa um formulário novo (App.tsx).
@@ -91,6 +103,18 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
   const perguntando = useRef(false);
   useEffect(() => {
     if (bloqueio.state !== 'blocked' || perguntando.current) return;
+    const gravarAntes = salvar.current;
+    if (gravarAntes) {
+      perguntando.current = true;
+      void gravarAntes().then(async gravou => {
+        const sair = gravou || !!await perguntarSeSai();
+        perguntando.current = false;
+        if (!montado.current) return;
+        if (sair) { if (!gravou) descartar.current?.(); bloqueio.proceed(); }
+        else bloqueio.reset();
+      });
+      return;
+    }
     if (agora.current.ocupado) {
       avisar(ESPERE_SALVAR);
       bloqueio.reset();

@@ -62,6 +62,12 @@ const ICONES = {
   caixinha: '<rect x="3" y="4" width="6" height="6" rx="1.2"/><path d="M4.6 7l1.2 1.2 2-2.3"/><rect x="3" y="14" width="6" height="6" rx="1.2"/><path d="M13 7h8M13 17h8"/>',
   citacao: '<path d="M4.5 5v14"/><path d="M9 7h11M9 12h11M9 17h7"/>',
   codigo: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15"/>',
+  // O explorador da página Documentos: nova anotação (a folha com o lápis), nova pasta (a pasta com o "+") e ordenar.
+  novaAnotacao: '<path d="M13 4H6a1 1 0 00-1 1v14a1 1 0 001 1h12a1 1 0 001-1v-7"/><path d="M17.5 3.5l3 3L13 14h-3v-3z"/>',
+  novaPasta: '<path d="M3 7.5A1.5 1.5 0 014.5 6h4.2l2 2.2h8.8A1.5 1.5 0 0121 9.7v8.8a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 18.5z"/><path d="M12 11.5v5M9.5 14h5"/>',
+  ordenar: '<path d="M7 4v16M3.5 16.5L7 20l3.5-3.5"/><path d="M13 6h8M13 11h6M13 16h4"/>',
+  // Recolher e mostrar a navegação de Documentos (a árvore à esquerda), como o botão do painel lateral do Obsidian.
+  navegacao: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
   anexo: '<path d="M20 11.5l-7.8 7.8a5 5 0 01-7.1-7.1l8.1-8.1a3.3 3.3 0 014.7 4.7l-8.1 8.1a1.7 1.7 0 01-2.4-2.4l7.4-7.4"/>'
 };
 export type NomeIcone = keyof typeof ICONES;

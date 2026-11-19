@@ -1,7 +1,7 @@
 // A equipe mudada no topo do cartão (#356). Padrão Dado / Quando / Então: app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import { COLABORADORES_MAXIMOS } from '../dados/limites';
-import { AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, MUDANCAS, planoDaMudanca, saidaPelaBolinhaFalhou, type ModuloDaEquipe } from './equipeNoCartao';
+import { AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, MUDANCAS, planoDaMudanca, saidaPelaBolinhaFalhou, tirarPelaBolinha, type ModuloDaEquipe } from './equipeNoCartao';
 
 const equipe = (responsavel_id: string, lista: string[]) => ({ responsavel_id, lista });
 const cheia = Array.from({ length: COLABORADORES_MAXIMOS }, (_, i) => 'u' + i);
@@ -147,5 +147,17 @@ describe('Sair do cartão pela bolinha', () => {
     // Dado / Quando / Então
     expect(planoDaMudanca('tarefas', { tipo: 'por', id: 'u-ana', nome: 'Ana' }, equipe('u-bruno', ['u-ana']), { eu: 'u-master', podeSair: true }))
       .toEqual({ aviso: 'Ana já estava na tarefa.', tipo: 'info' });
+  });
+});
+
+describe('O que a bolinha de quem está na lista diz a quem muda a equipe', () => {
+  it('dada a bolinha de outra pessoa, quando a dica aparece, então diz que o clique a tira, com o nome dela', () => {
+    // Então
+    expect(tirarPelaBolinha('tarefas', { id: 'u-ana', nome: 'Ana Souza' }, 'u-bruno')).toBe('Tirar Ana Souza');
+  });
+
+  it.each(modulos)('dada a própria bolinha em %s, quando a dica aparece, então diz que o clique faz a pessoa sair do item', modulo => {
+    // Então
+    expect(tirarPelaBolinha(modulo, { id: 'u-ana', nome: 'Ana Souza' }, 'u-ana')).toBe(`${EQUIPE_DO_MODULO[modulo].sair} (Ana Souza)`);
   });
 });

@@ -47,6 +47,13 @@
   --texto-titulo-1: 19px;
   --texto-titulo-2: 17px;
   --texto-titulo-3: 15px;
+  /* Os mesmos títulos no texto da anotação (#364, escrito no editor ao vivo e lido por quem só lê): medidos a partir da letra da nota
+     (--texto-nota), todos acima dela, como no Obsidian; o "###" também fica maior que o texto */
+  --texto-nota-titulo-1: 1.6em;
+  --texto-nota-titulo-2: 1.35em;
+  --texto-nota-titulo-3: 1.15em;
+  /* A caixinha da lista de tarefas ("- [ ] "), no texto formatado e no editor ao vivo */
+  --tamanho-da-caixinha: 16px;
   /* As tabelas dentro do texto formatado: um ponto abaixo do texto (15px), para caber mais colunas sem rolar */
   --texto-tabela: 14px;
   /* A letra da nota (o texto da anotação, lido e escrito, #339): um ponto acima do texto corrido, para ler e escrever com folga */
@@ -71,6 +78,24 @@
   --texto-apoio: 13px;
   /* O título de cada novidade: um ponto acima do texto corrido, para separar uma novidade da outra */
   --texto-titulo-da-novidade: 16px;
+  /* O título da anotação aberta em Documentos, grande como o de uma nota do Obsidian (entre o do painel e o da página) */
+  --texto-titulo-da-nota: clamp(26px, 1.6vw + 14px, 34px);
+  /* A espera da dica das bolinhas da equipe ao passar o mouse (como a do navegador); no foco do teclado, ela aparece na hora */
+  --espera-da-dica: .4s;
+  /* A largura máxima da dica das bolinhas: um nome comprido quebra em duas linhas, sem atravessar o cartão */
+  --largura-da-dica: 260px;
+  /* A altura mínima da caixa de escrever da anotação (#339), para a nota em branco já parecer uma página */
+  --altura-do-texto: 260px;
+  /* O recuo das listas no editor ao vivo (#364): a bolinha ou a caixinha ficam nele, e a linha que quebra começa depois */
+  --recuo-da-lista: 1.5em;
+  /* A sombra da gaveta que entra pela esquerda (o menu lateral e o explorador de Documentos, no celular): Drawer do DESIGN.md */
+  --sombra-gaveta: 8px 0 30px rgba(0,0,0,.15);
+  /* O véu atrás da gaveta aberta no celular: escurece a página, e o clique nele fecha a gaveta */
+  --veu: rgba(0,0,0,.35);
+  /* O texto sobre o fundo escuro dos avisos e das dicas (--dark), nos dois temas */
+  --texto-sobre-escuro: #FFFFFF;
+  /* A sombra da dica das bolinhas da equipe */
+  --sombra-dica: 0 6px 18px rgba(0,0,0,.2);
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -84,6 +109,7 @@
     --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
     --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
+    --sombra-gaveta: 8px 0 30px rgba(0,0,0,.5); --veu: rgba(0,0,0,.55); --texto-sobre-escuro: #FBFBF9; --sombra-dica: 0 6px 18px rgba(0,0,0,.5);
   }
 }
 :root[data-tema="escuro"] {
@@ -95,6 +121,7 @@
   --dark: #262420; --card: #2C2A26; --ink: #F1EFE9; --text: #D8D6CE; --text2: #C2C0B7; --muted: #A6A49B;
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
   --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
+  --sombra-gaveta: 8px 0 30px rgba(0,0,0,.5); --veu: rgba(0,0,0,.55); --texto-sobre-escuro: #FBFBF9; --sombra-dica: 0 6px 18px rgba(0,0,0,.5);
 }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
@@ -158,12 +185,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-formatado > ol > li { white-space: pre-wrap }
 .texto-formatado > ul.texto-formatado-tarefas { padding-left: 0; list-style: none }
 .texto-formatado-tarefas > li { display: flex; align-items: flex-start; gap: 8px; white-space: pre-wrap }
-.texto-formatado-tarefas input { flex: none; width: 16px; height: 16px; margin: .25em 0 0; accent-color: var(--accent); cursor: pointer }
+.texto-formatado-tarefas input { flex: none; width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: .25em 0 0; accent-color: var(--accent); cursor: pointer }
 .texto-formatado-tarefas input:disabled { cursor: default }
 .texto-formatado-tarefas input:checked + span { color: var(--muted) }
 .texto-formatado > blockquote { margin: 6px 0; padding: 2px 0 2px 14px; border-left: 2px solid var(--line2); color: var(--text2); white-space: pre-wrap }
 .texto-formatado del { color: var(--muted) }
-.texto-formatado code { font-family: var(--font-codigo); font-size: .88em; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink) }
+.texto-formatado code, .ao-vivo-codigo { font-family: var(--font-codigo); font-size: .88em; padding: 1px 5px; border-radius: 6px; border: 1px solid var(--line); background: var(--soft); color: var(--ink) }
 .texto-formatado > pre { margin: 8px 0; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--soft); overflow-x: auto; line-height: 1.5 }
 .texto-formatado > pre > code { padding: 0; border: 0; background: none; white-space: pre; overflow-wrap: normal }
 .texto-formatado > hr { margin: 14px 0; border: 0; border-top: 1px solid var(--line2) }
@@ -178,6 +205,47 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .caixa-formatada { display: flex; flex-direction: column; gap: 6px }
 .caixa-formatada-barra { display: flex; flex-wrap: wrap; gap: 6px }
 .caixa-formatada-botao { width: 34px; padding: 0; justify-content: center; font-size: 15px }
+/* O texto que já abre para escrever (<EditorDeTexto>): a caixa sem borda, do tamanho do texto, no corpo de leitura do DESIGN.md
+   (16/1.65). A barra de formatação fica discreta e aparece inteira com o foco na caixa ou com o mouse em cima. */
+.editor-de-texto { display: flex; flex-direction: column; gap: 6px }
+.editor-de-texto .caixa-formatada { gap: 10px }
+.editor-de-texto .caixa-formatada-barra { position: sticky; top: 0; z-index: 1; padding: 4px 0; background: var(--superficie); opacity: .55; transition: opacity .15s ease-out }
+.editor-de-texto:is(:focus-within, :hover) .caixa-formatada-barra { opacity: 1 }
+.editor-de-texto .caixa-formatada-botao { border-color: transparent; background: none }
+.editor-de-texto .caixa-formatada-botao:hover { background: var(--soft); border-color: var(--line) }
+.editor-de-texto-situacao { margin: 0; min-height: 18px; font-size: var(--texto-miudo); color: var(--muted); text-align: right }
+.editor-de-texto-situacao:is(.naoSalvo, .conflito) { color: var(--erro); font-weight: 700 }
+/* O editor ao vivo (<EditorAoVivo>, #364), como o do Obsidian: o texto já formatado enquanto se escreve, na letra da nota e com os
+   mesmos tamanhos e cores do texto formatado (.texto-formatado). Os sinais do Markdown (**, ##, "- ") ficam escondidos e, na linha
+   do cursor, aparecem apagados. Com o foco no texto, um fio verde à esquerda mostra onde se escreve. */
+.editor-ao-vivo .cm-editor { font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); background: none }
+.editor-ao-vivo .cm-editor.cm-focused { outline: 0 }
+.editor-ao-vivo .cm-editor::before { content: ""; position: absolute; top: 0; bottom: 0; left: -12px; width: 2px; border-radius: 2px; background: transparent; transition: background .15s ease-out }
+.editor-ao-vivo .cm-editor.cm-focused::before { background: var(--accent) }
+.editor-ao-vivo .cm-editor .cm-scroller { font-family: inherit; line-height: inherit; overflow: visible }
+.editor-ao-vivo .cm-editor .cm-content { min-height: var(--altura-do-texto); padding: 0; caret-color: var(--accent); overflow-wrap: anywhere }
+.editor-ao-vivo .cm-editor .cm-line { padding: 0 }
+.editor-ao-vivo .cm-editor .cm-placeholder { color: var(--faint) }
+.editor-ao-vivo-chegando { min-height: var(--altura-do-texto); font-size: var(--texto-nota); line-height: 1.65 }
+.ao-vivo-simbolo { color: var(--faint); font-weight: 400; font-style: normal }
+.ao-vivo-negrito { font-weight: 800; color: var(--ink) }
+.ao-vivo-italico { font-style: italic }
+.ao-vivo-tachado { text-decoration: line-through; color: var(--muted) }
+.ao-vivo-link { color: var(--accent-ink); font-weight: 700; border-bottom: 1px solid currentColor }
+.editor-ao-vivo .cm-editor :is(.ao-vivo-linha-titulo-1, .ao-vivo-linha-titulo-2, .ao-vivo-linha-titulo-3) { padding-top: .5em; font-weight: 900; line-height: 1.3; letter-spacing: -.01em; color: var(--ink) }
+.ao-vivo-linha-titulo-1 { font-size: var(--texto-nota-titulo-1) }
+.ao-vivo-linha-titulo-2 { font-size: var(--texto-nota-titulo-2) }
+.ao-vivo-linha-titulo-3 { font-size: var(--texto-nota-titulo-3) }
+.editor-ao-vivo .cm-editor :is(.ao-vivo-linha-lista, .ao-vivo-linha-tarefa) { padding-left: var(--recuo-da-lista); text-indent: calc(-1 * var(--recuo-da-lista)) }
+.ao-vivo-marcador { display: inline-block; width: var(--recuo-da-lista); text-indent: 0 }
+.ao-vivo-marcador::before { content: '•'; color: var(--muted) }
+.ao-vivo-caixinha { font: inherit; width: var(--tamanho-da-caixinha); height: var(--tamanho-da-caixinha); margin: 0 calc(var(--recuo-da-lista) - var(--tamanho-da-caixinha)) 0 0; vertical-align: -.15em; accent-color: var(--accent); cursor: pointer }
+.ao-vivo-linha-marcada { color: var(--muted) }
+.editor-ao-vivo .cm-editor .ao-vivo-linha-citacao { padding-left: 14px; border-left: 2px solid var(--line2); color: var(--text2) }
+.editor-ao-vivo .cm-editor :is(.ao-vivo-linha-cerca, .ao-vivo-linha-codigo) { padding: 0 14px; font-family: var(--font-codigo); font-size: .88em; background: var(--soft) }
+.ao-vivo-linha-cerca { color: var(--faint) }
+.ao-vivo-linha-tabela { font-family: var(--font-codigo); font-size: var(--texto-tabela) }
+.ao-vivo-divisoria-linha { display: inline-block; width: 100%; vertical-align: middle; border-top: 1px solid var(--line2) }
 /* Título e texto que se mudam no próprio lugar (<TituloEditavel>, <TextoEditavel>, #339). O campo do título fica dentro do próprio
    título e herda a letra dele; o recuo de 6px, devolvido pela margem, deixa o texto parado ao entrar e ao sair da edição. */
 .titulo-editavel-botao, .titulo-editavel-campo { display: block; width: calc(100% + 12px); margin: 0 -6px; padding: 0 6px; border: 0; border-radius: 6px; background: none; font: inherit; letter-spacing: inherit; line-height: inherit; color: inherit; text-align: left; overflow-wrap: anywhere }
@@ -372,7 +440,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .topo-cel { display: none }
 @media (max-width: 900px) {
   .app { flex-direction: column }
-  .side { position: fixed; z-index: 40; inset: 0 auto 0 0; width: min(300px, 86vw); height: auto; transform: translateX(-102%); transition: transform .25s; box-shadow: 8px 0 30px rgba(0,0,0,.15) }
+  .side { position: fixed; z-index: 40; inset: 0 auto 0 0; width: min(300px, 86vw); height: auto; transform: translateX(-102%); transition: transform .25s; box-shadow: var(--sombra-gaveta) }
   .side.aberta { transform: none }
   .topo-cel { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0; z-index: 30; padding: 10px max(16px, env(safe-area-inset-left, 0px)); background: var(--soft); border-bottom: 1px solid var(--line) }
   .topo-cel button { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--line2); background: var(--white); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
@@ -546,21 +614,35 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 :root { --medida-documento: 720px }
 .cartao-painel.centro.largo { width: calc(100vw - 2 * var(--janela-margem)); height: var(--janela-altura) }
 .cartao-painel.centro.largo .cartao-corpo { padding-inline: max(var(--cartao-corpo-lado), (100% - var(--medida-documento)) / 2) }
-.cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: 28px clamp(16px, 2vw, 24px) 40px }
-.comentarios-coluna > h3 { padding-right: 92px; min-height: 40px }
-/* Janela estreita: a coluna dos comentários desce para baixo do cartão. */
+/* Sempre da altura da janela, o conteúdo também a ocupa toda: a linha da coluna da direita vai até o pé. */
+.cartao-painel.centro.largo .cartao-conteudo { flex: 1 }
+.cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: var(--cartao-topo) clamp(16px, 2vw, 24px) 40px; display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
+/* O que vai para a coluna (NaColunaDoCartao) fica numa caixa e num lugar marcado no fluxo, que não desenham nada: as seções contam
+   como filhas da coluna (ou do cartão, ao lado), com o vão de sempre entre elas. */
+.cartao-coluna-secoes, .cartao-coluna-lugar { display: contents }
+/* As seções da coluna têm o "Expandir tudo" delas no topo, na altura dos botões da janela (o formato e o X), à esquerda deles: sobe
+   do recuo da coluna até a margem dos botões. */
+.cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { min-height: var(--botao-redondo); align-items: center;
+  margin-top: calc(var(--cartao-botoes-margem) - var(--cartao-topo)); padding-right: calc(2 * var(--botao-redondo) + 3 * var(--botao-redondo-vao)) }
+/* Janela estreita: a coluna dos comentários desce para baixo do cartão (e o "Expandir tudo" dela fica no lugar de sempre). */
 @media (max-width: 900px) {
   .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto; max-height: var(--janela-altura) }
   .cartao-painel.centro :is(.cartao-corpo, .cartao-coluna) { overflow: visible; max-height: none }
   .cartao-coluna { border-left: 0; border-top: 1px solid var(--line) }
+  .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { min-height: 0; margin-top: 0; padding-right: 0 }
 }
 /* O botão de formato e o "X" ficam presos ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
 /* Os botões redondos do cartão (os do painel, Arquivar, Editar…): o tamanho de cada um e o espaço entre eles. A cabeça do
-   cartão reserva o lugar deles com essas mesmas medidas (veja .cartao-topo-acoes). */
-:root { --botao-redondo: 40px; --botao-redondo-vao: 8px }
-.cartao-botoes { position: sticky; top: 14px; margin: 14px 14px -54px auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
+   cartão reserva o lugar deles com essas mesmas medidas (veja .cartao-topo-acoes). A margem dos botões do painel (do topo e da
+   direita) e o recuo do topo do cartão e da coluna também têm nome: o "Expandir tudo" da coluna se alinha aos botões com eles. O vão
+   entre as seções é o mesmo no cartão e na coluna. */
+:root { --botao-redondo: 40px; --botao-redondo-vao: 8px; --cartao-botoes-margem: 14px; --cartao-topo: 28px; --cartao-vao-secoes: 26px }
+.cartao-botoes { position: sticky; top: var(--cartao-botoes-margem); margin: var(--cartao-botoes-margem) var(--cartao-botoes-margem) calc(-1 * (var(--cartao-botoes-margem) + var(--botao-redondo))) auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
 .cartao-botao { width: var(--botao-redondo); height: var(--botao-redondo); border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
+/* O desligado e o foco do teclado: em todos os cartões. */
+.cartao-botao:disabled { opacity: .5; cursor: progress }
+.cartao-botao:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 /* No celular, nos dois formatos, o cartão sobe do pé da tela, na largura toda e da altura do conteúdo (até perto do
    topo, deixando ver a página por trás): não há o que escolher. */
 @media (max-width: 640px) {
@@ -597,7 +679,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
 /* O espaço entre o conteúdo do cartão e as bordas dele, dos lados (a janela larga centraliza o conteúdo a partir dele). */
 :root { --cartao-corpo-lado: clamp(18px, 4vw, 32px) }
-.cartao-corpo { padding: 28px var(--cartao-corpo-lado) 40px; display: flex; flex-direction: column; gap: 26px }
+.cartao-corpo { padding: var(--cartao-topo) var(--cartao-corpo-lado) 40px; display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }
 /* Linha abaixo do título do cartão: a equipe em bolinhas, na ponta direita. */
@@ -632,19 +714,37 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .edicao-cartao .etapa > header h2 { font-size: 15px; letter-spacing: .02em }
 .edicao-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 /* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
-   parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. */
+   parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. Cada bolinha já é a ação
+   (pedido de 18/11): a do responsável troca, a de um participante o tira; o nome vem na dica ([data-dica], logo abaixo). */
 .equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 10px }
 /* O traço entre o responsável e os participantes: metade da altura da bolinha, para separar sem pesar. */
 .equipe-traco { width: 1px; height: 18px; border-radius: 1px; background: var(--line2) }
 .equipe-participantes { display: inline-flex; align-items: center }
 .equipe-participantes .equipe-bolinha + .equipe-bolinha { margin-left: -8px }
-.equipe-bolinha { display: inline-flex; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; box-shadow: 0 0 0 2px var(--superficie) }
+.equipe-bolinha { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 0; border-radius: 999px; background: none; cursor: pointer; box-shadow: 0 0 0 2px var(--superficie) }
 .equipe-bolinha:hover, .equipe-bolinha:focus-visible, .equipe-bolinha[aria-expanded="true"] { outline: 2px solid var(--accent); outline-offset: 1px; position: relative; z-index: 1 }
-.equipe-ficha { display: flex; align-items: center; gap: 10px; padding: 2px 2px 8px }
-.equipe-ficha > span { display: flex; flex-direction: column; gap: 2px; min-width: 0 }
-.equipe-ficha b { font-size: 15px; color: var(--ink); overflow-wrap: anywhere }
-.equipe-ficha small { font-size: 13px; color: var(--muted) }
-.equipe-ficha-link { font-size: 14px; font-weight: 700; color: var(--accent-ink) }
+/* Quem só vê: a bolinha não é um botão, e só o foco do teclado a contorna (para a dica aparecer). */
+.equipe-bolinha.so-ver { cursor: default }
+.equipe-bolinha.so-ver:hover { outline: 0 }
+.equipe-bolinha.so-ver:focus-visible { outline: 2px solid var(--accent) }
+/* No participante, o clique tira a pessoa: ao passar o mouse, o contorno é o vermelho de "tirar", não o verde de escolher. */
+.equipe-participantes button.equipe-bolinha:not([aria-disabled="true"]):hover { outline-color: var(--erro) }
+.equipe-bolinha[aria-disabled="true"] { cursor: progress }
+/* Sem responsável: a bolinha vazia, tracejada como a do "+", com o ícone de pessoa. */
+.equipe-bolinha.vazia { border: 1px dashed var(--line2); background: var(--superficie); color: var(--muted); box-shadow: none }
+.equipe-bolinha.vazia:not(.so-ver):hover { border-style: solid; border-color: var(--faint); color: var(--ink); background: var(--soft) }
+/* A dica das bolinhas (propsDaDica): embaixo, encostada à direita (a equipe fica na ponta direita do cartão), ao passar o mouse,
+   depois de uma espera curta, e no foco do teclado, na hora. No fundo escuro dos avisos, nos dois temas. */
+[data-dica] { position: relative }
+[data-dica]::after { content: attr(data-dica); position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; width: max-content; max-width: var(--largura-da-dica);
+  padding: 6px 10px; border-radius: 8px; background: var(--dark); color: var(--texto-sobre-escuro); box-shadow: var(--sombra-dica); font-size: var(--texto-miudo); font-weight: 700;
+  line-height: 1.4; letter-spacing: 0; text-transform: none; text-align: left; white-space: normal; pointer-events: none; opacity: 0; transform: translateY(-2px);
+  transition: opacity .12s ease-out, transform .12s ease-out }
+[data-dica]:hover::after { opacity: 1; transform: none; transition-delay: var(--espera-da-dica) }
+[data-dica]:focus-visible::after { opacity: 1; transform: none }
+/* A dica não aparece por cima do painel da busca aberto pela própria bolinha. */
+[data-dica][aria-expanded="true"]::after { opacity: 0 }
+@media (prefers-reduced-motion: reduce) { [data-dica]::after { transition: none; transform: none } }
 /* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
    tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
 .equipe-mais { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 1px dashed var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); cursor: pointer }
@@ -652,11 +752,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-mais:focus-visible, .equipe-mais[aria-expanded="true"] { border-style: solid; color: var(--ink); outline: 2px solid var(--accent); outline-offset: 1px }
 /* Desligada (lista cheia, ninguém mais na equipe, gravando), ela continua no Tab: aria-disabled, não disabled. */
 .equipe-mais[aria-disabled="true"] { cursor: not-allowed; opacity: .5 }
-/* A ação na ficha da bolinha (tirar o participante, trocar o responsável), separada do nome por uma linha. */
-.equipe-ficha-acao { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line) }
-.kmenu .equipe-ficha-acao > button, .kmenu .equipe-ficha-acao > div > button { width: 100%; padding: 0 10px }
-.kmenu .equipe-ficha-acao > button:hover, .kmenu .equipe-ficha-acao > button:focus-visible, .kmenu .equipe-ficha-acao > div > button:hover, .kmenu .equipe-ficha-acao > div > button:focus-visible { background: var(--soft); outline: 0 }
-/* Dentro de um painel (a ficha, o "+"), a lista de achados fica no fluxo, sem flutuar por cima: o painel já está por cima. */
+/* Dentro de um painel (o "+", a troca do responsável), a lista de achados fica no fluxo, sem flutuar por cima: o painel já está por cima. */
 .kmenu .busca-equipe .achados { position: static; box-shadow: none }
 /* Item arquivado: aviso em texto, logo abaixo das ações. A exclusão fica na lixeira, no topo do cartão. */
 .cartao-arquivada { padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
@@ -677,6 +773,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .com-novo { gap: 10px }
 .com-novo .recolher { width: auto }
 .mini.secao-novo { width: 32px; height: 32px; padding: 0; flex-shrink: 0; justify-content: center; border-radius: 999px; letter-spacing: 0 }
+/* A seção "Etiquetas" (<EtiquetasDaSecao>), igual em todos os cartões: o título com o "+" redondo logo na frente, os selos embaixo. */
+.secao-etiquetas h3 { min-height: 32px }
+.secao-titulo { display: inline-flex; align-items: center; gap: 8px }
 .recolher-resto { flex: 1; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; cursor: pointer }
 .recolher-resto:hover { color: var(--ink) }
 .com-novo:has(.recolher[aria-expanded="true"]) .recolher-seta { transform: rotate(180deg) }
@@ -712,7 +811,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-escolhida .escolhida > span { display: flex; align-items: center; gap: 10px }
 .equipe-escolhida .nome { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .equipe-escolhida .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
-.achados .com-bolinha { display: flex; align-items: center; gap: 10px }
 .achados .sem-achados { padding: 10px 12px }
 /* Ligar um processo que já existe (LigarProcesso): a mesma busca, por cima do que vem abaixo. No cadastro (EscolhaDeProcessos),
    cada escolhido numa linha, com o nome e, embaixo, o tipo, o número e o código. */
@@ -727,7 +825,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .processos-escolhidos .icone-btn { width: 30px; height: 30px; flex-shrink: 0 }
 .busca-pessoa .achados, .busca-equipe .achados, .busca-processo .achados, .busca-existente .achados { position: absolute; z-index: 30; top: 100%; left: 0; right: 0; box-shadow: 0 12px 36px rgba(0,0,0,.18) }
 .achados { list-style: none; margin: 6px 0 0; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie); display: flex; flex-direction: column; gap: 2px; max-height: 280px; overflow: auto }
-.achados button { width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; gap: 2px; color: var(--ink) }
+/* Os achados, um embaixo do outro e alinhados à esquerda. O align-items e a altura vêm aqui de propósito: dentro de um painel
+   (.kmenu), os botões do menu são centralizados e de altura fixa, e os nomes da busca do "+" ficavam centralizados, cada um num
+   recuo diferente (o desalinhamento que o dono viu em 18/11). */
+.achados button { width: 100%; height: auto; text-align: left; border: 0; background: transparent; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; color: var(--ink) }
 .achados button:hover, .achados button:focus-visible { background: var(--soft); outline: 0 }
 .achados button:disabled { cursor: not-allowed; opacity: .6 }
 .achados small { color: var(--muted) }
