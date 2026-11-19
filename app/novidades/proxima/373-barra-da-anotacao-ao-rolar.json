@@ -1,0 +1,5 @@
+{
+  "titulo": "Barra de formatação firme ao rolar",
+  "texto": "Na anotação com texto longo, a barra de formatação (negrito, listas…) continua no alto ao rolar, com fundo firme: o texto não aparece por trás dela, e ela não cobre mais os botões da janela.",
+  "ondeAchar": "Em Documentos, ao abrir uma anotação longa e rolar o texto, ao lado, no centro ou no celular."
+}

@@ -138,6 +138,9 @@ const idDaDemanda = (page: Page, titulo: string) => page.evaluate(([chave, t]) =
 const titulosNaTabela = (page: Page) => page.getByRole('table').getByRole('row').filter({ has: page.getByRole('cell') });
 /** Espera a tela desenhar dois quadros: o que o React faz depois de uma mudança já aconteceu. */
 const esperarDesenhar = (page: Page) => page.evaluate(() => new Promise(pronto => requestAnimationFrame(() => requestAnimationFrame(pronto))));
+/** Espera a janela terminar de entrar (ou de mudar de formato), para medir: as animações que acabam, não as que se repetem. */
+const esperarParar = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
+  .filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished)));
 
 test.describe('Anotações no cartão de um item', () => {
   test('dado o cartão de uma demanda, quando a pessoa escreve uma anotação pelo "+" da seção, então ela nasce ligada, abre na janela em Documentos, e o Voltar leva de novo ao cartão, com o número', async ({ page }) => {
@@ -521,8 +524,7 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     const expandir = janela.getByRole('button', { name: 'Expandir tudo' });
     // A folga entre o "Expandir tudo" e o título de "Comentários", logo abaixo dele, depois que a janela termina de entrar
     const folga = async () => {
-      await page.evaluate(() => Promise.all(document.getAnimations()
-        .filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished)));
+      await esperarParar(page);
       const [b, s] = [(await expandir.boundingBox())!, (await secoes.nth(0).boundingBox())!];
       return s.y - (b.y + b.height);
     };
@@ -1991,9 +1993,6 @@ test.describe('O "Salvo" e o rodapé no pé da janela da anotação (#372)', () 
   /** Um texto longo, inventado, que passa da altura da janela. */
   const TEXTO_LONGO = Array.from({ length: 40 }, (_, i) => `Parágrafo ${i + 1}: um texto de exemplo sobre o andamento do caso.`).join('\n\n') + '\n\n' + ULTIMA_LINHA;
   const situacao = (janela: Locator) => janela.getByRole('status', { name: 'Gravação do texto' });
-  /** Espera a janela terminar de entrar (ou de mudar de formato), para medir. */
-  const esperarParar = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
-    .filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished)));
   /** Quanto falta do fim de "alvo" ao fim da janela da anotação. */
   async function ateOFim(janela: Locator, alvo: Locator) {
     const [j, a] = [(await janela.boundingBox())!, (await alvo.boundingBox())!];
@@ -2196,4 +2195,92 @@ test.describe('O "Salvo" e o rodapé no pé da janela da anotação (#372)', () 
     await noPe(janela, janela.getByText(/^Atualizada /));
     expect(Math.abs((await situacao(janela).boundingBox())!.y - antes.y)).toBeLessThan(1);
   });
+});
+
+test.describe('A barra de formatação presa no alto da anotação ao rolar (#373)', () => {
+  /** Um texto longo, inventado, que passa da altura da janela. */
+  const TEXTO_LONGO = Array.from({ length: 40 }, (_, i) => `Parágrafo ${i + 1}: um texto de exemplo sobre o andamento do caso.`).join('\n\n');
+  /** Quanto rolar para o texto chegar ao meio, já passado por baixo da barra. */
+  const ATE_O_MEIO = 1200;
+  const barra = (janela: Locator) => janela.getByRole('toolbar', { name: 'Formatação do texto' });
+  /** Os botões da janela à vista: a etiqueta, o ⋯, o formato (que não há no celular) e o X. */
+  async function botoesDaJanela(janela: Locator) {
+    const todos = [
+      janela.getByRole('button', { name: 'Etiquetas', exact: true }), janela.getByRole('button', { name: 'Mais ações' }),
+      janela.getByRole('button', { name: /^Abrir (no centro da tela|ao lado)$/ }), janela.getByRole('button', { name: 'Fechar', exact: true })
+    ];
+    const visiveis: Locator[] = [];
+    for (const b of todos) if (await b.isVisible()) visiveis.push(b);
+    return visiveis;
+  }
+  const seCruzam = (a: { x: number; y: number; width: number; height: number }, b: typeof a) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  /**
+   * O que aparece por cima de tudo em cada ponto da faixa do alto, do topo da janela até o fim da barra, na largura do texto: em
+   * nenhum deles pode ser um pedaço do texto (ele passa por baixo da barra e do fundo dela, sem aparecer).
+   */
+  const textoNaFaixaDoAlto = (janela: Locator, alto: number, fimDaBarra: number) => caixaDoTexto(janela).evaluate((caixa, [de, ate]) => {
+    const r = caixa.getBoundingClientRect(), achados: string[] = [];
+    for (let y = Math.max(de, 0) + 1; y < ate; y += 4)
+      for (const x of [r.left + 2, r.left + r.width / 4, r.left + r.width / 2])
+        if (caixa.contains(document.elementFromPoint(x, y))) achados.push(`${Math.round(x)},${Math.round(y)}`);
+    return achados;
+  }, [alto, fimDaBarra]);
+  /**
+   * Onde está o cursor na tela: a linha em que ele pisca (num parágrafo que quebra em várias linhas, só a dele). Numa linha vazia,
+   * sem letra para medir, vale o pedaço da caixa que guarda o cursor.
+   */
+  const ondeEstaOCursor = (janela: Locator) => caixaDoTexto(janela).evaluate(caixa => {
+    const escolha = window.getSelection()!;
+    const r = escolha.getRangeAt(0).getClientRects()[0];
+    if (r?.height) return { y: r.top, height: r.height };
+    let no = escolha.focusNode;
+    while (no && no.parentNode !== caixa) no = no.parentNode;
+    const linha = (no as Element).getBoundingClientRect();
+    return { y: linha.top, height: linha.height };
+  });
+
+  for (const { onde, largura, altura, formato } of [
+    { onde: 'no centro', largura: 1440, altura: 900, formato: 'Abrir no centro da tela' },
+    { onde: 'ao lado', largura: 1440, altura: 900, formato: null },
+    { onde: 'no celular', largura: 390, altura: 844, formato: null }
+  ]) {
+    test(`dada uma anotação com texto longo ${onde}, quando a pessoa rola o texto até o meio, então a barra de formatação continua à vista, com fundo sólido, sem o texto por trás e sem cobrir os botões da janela, e o X ainda fecha`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize({ width: largura, height: altura });
+      const janela = await criarAnotacao(page, 'Parecer longo', { texto: TEXTO_LONGO });
+      if (formato) await janela.getByRole('button', { name: formato }).click();
+      await esperarParar(page);
+      // Quando: o texto volta ao começo e a pessoa rola, com a roda do mouse por cima dele, até o meio
+      await caixaDoTexto(janela).press('Control+Home');
+      const caixa = (await caixaDoTexto(janela).boundingBox())!;
+      await page.mouse.move(caixa.x + caixa.width / 2, altura / 2);
+      await page.mouse.wheel(0, ATE_O_MEIO);
+      await esperarDesenhar(page);
+      // Então: o texto já passou por baixo da barra, que continua à vista, dentro da janela
+      await expect(barra(janela)).toBeInViewport();
+      const [b, j] = [(await barra(janela).boundingBox())!, (await janela.boundingBox())!];
+      expect((await caixaDoTexto(janela).boundingBox())!.y).toBeLessThan(b.y - ATE_O_MEIO / 2);
+      expect(b.y).toBeGreaterThanOrEqual(j.y);
+      // Então: o fundo dela é sólido (sem transparência), e o texto não aparece por trás dela nem acima dela
+      const fundo = await barra(janela).evaluate(el => ({ cor: getComputedStyle(el).backgroundColor, opacidade: getComputedStyle(el).opacity }));
+      expect(fundo.cor).toMatch(/^rgb\(/);
+      expect(fundo.opacidade).toBe('1');
+      expect(await textoNaFaixaDoAlto(janela, j.y, b.y + b.height)).toEqual([]);
+      // Então: nenhum botão da janela fica embaixo da barra
+      for (const botao of await botoesDaJanela(janela)) expect(seCruzam((await botao.boundingBox())!, b)).toBe(false);
+      // Quando: a pessoa clica numa linha logo abaixo da barra e sobe com o cursor
+      await page.mouse.click(caixa.x + caixa.width / 4, b.y + b.height + 40);
+      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowUp');
+      await page.keyboard.press('ArrowUp');
+      await esperarDesenhar(page);
+      // Então: o texto acompanha, e a linha do cursor não fica escondida atrás da barra
+      expect((await ondeEstaOCursor(janela)).y).toBeGreaterThanOrEqual(b.y + b.height);
+      // Quando: a pessoa clica no X
+      await fecharAnotacao(page);
+      // Então: a janela fecha
+      await expect(janela).toHaveCount(0);
+    });
+  }
 });

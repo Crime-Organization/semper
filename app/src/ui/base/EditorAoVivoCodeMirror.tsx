@@ -325,6 +325,26 @@ const limite = (maximo: number) => EditorState.transactionFilter.of(tr => {
   };
 });
 
+/** O primeiro antepassado que rola na vertical (o painel, o corpo do cartão…), ou null se é a própria página. */
+function quemRola(el: HTMLElement) {
+  for (let p = el.parentElement; p && p !== document.documentElement; p = p.parentElement)
+    if (/auto|scroll/.test(getComputedStyle(p).overflowY)) return p;
+  return null;
+}
+
+/**
+ * Quanto, no alto de quem rola, fica coberto pela barra de formatação presa ali (#373): do alto de quem rola até o fim do
+ * esmaecido logo abaixo dela. A barra vem logo antes do lugar do editor. Solta, ela fica acima do texto, e a conta dá o espaço até
+ * ela, que o texto já respeita. Sem barra presa (sticky), não há o que descontar.
+ */
+function folgaDaBarra(lugar: HTMLElement | null) {
+  const barra = lugar?.previousElementSibling;
+  if (!(barra instanceof HTMLElement) || getComputedStyle(barra).position !== 'sticky') return 0;
+  const esmaecido = parseFloat(getComputedStyle(barra, '::after').height) || 0;
+  const alto = quemRola(barra)?.getBoundingClientRect().top ?? 0;
+  return Math.max(0, barra.getBoundingClientRect().bottom + esmaecido - alto);
+}
+
 export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, maximo, placeholder, className, focarAoChegar, folgaEmbaixo }: PropsDoMiolo) {
   const lugar = useRef<HTMLDivElement>(null);
   const vista = useRef<EditorView | null>(null);
@@ -361,8 +381,9 @@ export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, max
       ])),
       keymap.of([...standardKeymap, ...historyKeymap]),
       EditorView.lineWrapping,
-      // Ao seguir o cursor, o editor desconta o que fica preso no fim de quem rola (o pé da anotação, #372).
-      EditorView.scrollMargins.of(() => ({ bottom: agora.current.folgaEmbaixo?.() ?? 0 })),
+      // Ao seguir o cursor, o editor desconta o que fica preso no fim de quem rola (o pé da anotação, #372) e, no alto, a barra
+      // de formatação presa ali (#373).
+      EditorView.scrollMargins.of(() => ({ top: folgaDaBarra(lugar.current), bottom: agora.current.folgaEmbaixo?.() ?? 0 })),
       EditorView.contentAttributes.of({ 'aria-label': rotulo, 'aria-multiline': 'true', spellcheck: 'true', ...(id ? { id } : {}) }),
       aoVivo,
       cursorNoTexto,

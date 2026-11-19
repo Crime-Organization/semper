@@ -118,6 +118,14 @@ span.pasta-abrir { cursor: default }
   gap: var(--anotacao-vao); background: var(--superficie) }
 /* O texto que rola por baixo some aos poucos logo acima do pé (no vão da anotação, onde não há nada quando o pé está no lugar dele). */
 .anotacao-pe::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--anotacao-vao); background: linear-gradient(transparent, var(--superficie)); pointer-events: none }
+/* A barra de formatação presa no alto ao rolar (#373). Sem a coluna da direita (ao lado, na janela estreita e no celular), os botões
+   da janela ficam por cima do texto: a barra se prende logo abaixo deles, com o vão de sempre entre botões redondos, e o fundo dela
+   cobre o espaço até o alto da janela, onde os botões continuam por cima, clicáveis. No centro com a coluna, os botões ficam sobre
+   a coluna, e a barra se prende no alto do corpo do cartão, que rola com o recuo do topo dele: o fundo dela cobre também esse
+   recuo (veja .editor-de-texto em estilo.css). */
+.cartao-painel:not(:has(.cartao-coluna)) .anotacao-aberta .editor-de-texto {
+  --editor-barra-topo: var(--abaixo-dos-botoes-da-janela) }
+.cartao-painel:has(.cartao-coluna) .anotacao-aberta .editor-de-texto { --editor-barra-acima: var(--cartao-topo) }
 /* Quem só lê não tem a linha da gravação: o lugar dela não ocupa espaço. */
 .anotacao-pe-situacao:empty { display: none }
 /* Ao lado (e na janela estreita), as seções da coluna ficam aqui, com o vão da anotação, e não o do cartão: o "Expandir tudo"

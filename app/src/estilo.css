@@ -251,11 +251,20 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .caixa-formatada-barra { display: flex; flex-wrap: wrap; gap: 6px }
 .caixa-formatada-botao { width: 34px; padding: 0; justify-content: center; font-size: 15px }
 /* O texto que já abre para escrever (<EditorDeTexto>): a caixa sem borda, do tamanho do texto, no corpo de leitura do DESIGN.md
-   (16/1.65). A barra de formatação fica discreta e aparece inteira com o foco na caixa ou com o mouse em cima. */
-.editor-de-texto { display: flex; flex-direction: column; gap: 6px }
-.editor-de-texto .caixa-formatada { gap: 10px }
-.editor-de-texto .caixa-formatada-barra { position: sticky; top: 0; z-index: 1; padding: 4px 0; background: var(--superficie); opacity: .55; transition: opacity .15s ease-out }
-.editor-de-texto:is(:focus-within, :hover) .caixa-formatada-barra { opacity: 1 }
+   (16/1.65). A barra de formatação fica discreta (os botões, apagados) e aparece inteira com o foco na caixa ou com o mouse em cima.
+   Com o texto rolando, ela fica presa no alto de quem rola, a --editor-barra-topo dele (quem usa o editor muda essa distância quando
+   há algo preso ali, como os botões da janela, #373), com fundo sólido: o texto passa por baixo dela, sem aparecer por trás, e some
+   aos poucos logo abaixo dela (o esmaecido, da altura do vão entre a barra e o texto, como o do pé da anotação). O fundo também
+   cobre o espaço entre o alto de quem rola e a barra (--editor-barra-acima: a distância dela e, se quem rola tem recuo no alto, o
+   recuo), mas só sobre o texto: a caixa corta (clip, que não rola nem solta a barra) o que passa do alto dela, e o título e o que
+   vem antes da caixa continuam à vista. */
+.editor-de-texto { --editor-barra-topo: 0px; --editor-barra-acima: var(--editor-barra-topo); --editor-vao: 10px; display: flex; flex-direction: column; gap: 6px }
+.editor-de-texto .caixa-formatada { gap: var(--editor-vao); overflow-y: clip }
+.editor-de-texto .caixa-formatada-barra { position: sticky; top: var(--editor-barra-topo); z-index: 1; padding: 4px 0; background: var(--superficie) }
+.editor-de-texto .caixa-formatada-barra::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--editor-barra-acima); background: var(--superficie) }
+.editor-de-texto .caixa-formatada-barra::after { content: ''; position: absolute; inset: 100% 0 auto; height: var(--editor-vao); background: linear-gradient(var(--superficie), transparent); pointer-events: none }
+.editor-de-texto .caixa-formatada-barra > * { opacity: .55; transition: opacity .15s ease-out }
+.editor-de-texto:is(:focus-within, :hover) .caixa-formatada-barra > * { opacity: 1 }
 .editor-de-texto .caixa-formatada-botao { border-color: transparent; background: none }
 .editor-de-texto .caixa-formatada-botao:hover { background: var(--soft); border-color: var(--line) }
 .editor-de-texto-situacao { margin: 0; min-height: 18px; font-size: var(--texto-miudo); color: var(--muted); text-align: right }
@@ -684,7 +693,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* As seções da coluna têm o "Expandir tudo" delas no alto da coluna, à direita, acima da primeira (#366): logo abaixo dos botões
    da janela (o formato e o X), com o vão de sempre entre botões redondos, sem disputar a linha deles nem passar por baixo deles. */
 .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child {
-  margin-top: calc(var(--cartao-botoes-margem) + var(--botao-redondo) + var(--botao-redondo-vao) - var(--cartao-topo)) }
+  margin-top: calc(var(--abaixo-dos-botoes-da-janela) - var(--cartao-topo)) }
 /* Janela estreita: uma coluna só. A da direita não é desenhada (PainelCartao, JANELA_ESTREITA): o que iria para ela fica no pé do
    cartão, antes do rodapé, no grupo do cartão, como ao lado (#360). */
 @media (max-width: 900px) {
@@ -695,8 +704,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Os botões redondos do cartão (os do painel, Arquivar, Editar…): o tamanho de cada um e o espaço entre eles. A cabeça do
    cartão reserva o lugar deles com essas mesmas medidas (veja .cartao-topo-acoes). A margem dos botões do painel (do topo e da
    direita) e o recuo do topo do cartão e da coluna também têm nome: o "Expandir tudo" da coluna se alinha aos botões com eles. O vão
-   entre as seções é o mesmo no cartão e na coluna. */
-:root { --botao-redondo: 40px; --botao-redondo-vao: 8px; --cartao-botoes-margem: 14px; --cartao-topo: 28px; --cartao-vao-secoes: 26px }
+   entre as seções é o mesmo no cartão e na coluna. Logo abaixo dos botões da janela (a margem, um botão e o vão de sempre) é onde
+   começa o que fica abaixo deles: o "Expandir tudo" da coluna (#366) e a barra de formatação da anotação ao rolar (#373). */
+:root { --botao-redondo: 40px; --botao-redondo-vao: 8px; --cartao-botoes-margem: 14px; --cartao-topo: 28px; --cartao-vao-secoes: 26px;
+  --abaixo-dos-botoes-da-janela: calc(var(--cartao-botoes-margem) + var(--botao-redondo) + var(--botao-redondo-vao)) }
 .cartao-botoes { position: sticky; top: var(--cartao-botoes-margem); margin: var(--cartao-botoes-margem) var(--cartao-botoes-margem) calc(-1 * (var(--cartao-botoes-margem) + var(--botao-redondo))) auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
 .cartao-botao { width: var(--botao-redondo); height: var(--botao-redondo); border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
