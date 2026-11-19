@@ -431,7 +431,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const voltarLista = idAtualizar ? '/pessoas/?id=' + idAtualizar : '/pessoas/';
   const formulario: Formulario = {
     c, cRef, pj, mudar, marcarErro, verificarDocumento, buscarCNPJ, buscarCEP, retornoCNPJ, retornoCEP, botaoCNPJ, botaoCEP, botaoAvancar,
-    equipe: ctx.equipe, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno
+    equipe: ctx.equipe, pc, erro, erroDe, texto, data, radios, ufs, lista, acrescentar, retorno, nivel: edicao ? 3 : 2
   };
   const Atual = ETAPAS[etapa].Componente;
 

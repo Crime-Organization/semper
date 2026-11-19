@@ -396,3 +396,33 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(cartao.getByRole('button', { name: 'Sem descrição. Clique para escrever.' })).toHaveCount(0);
   });
 });
+
+test.describe('Seções e campos do formulário (#359)', () => {
+  test('dado o cadastro de demanda, quando a pessoa chega à etapa Pessoas, então ela é uma seção com Responsável, Colaboradores e Clientes como campos dentro', async ({ page }) => {
+    // Dado
+    await page.goto('/demandas/nova/');
+    await page.getByLabel('Título').fill('Contestação do processo');
+    // Quando
+    await page.getByRole('button', { name: 'Próxima' }).click();
+    // Então: "Pessoas" é o título (h2) de uma região, e os três campos ficam dentro dela, com o rótulo no plural nos de vários itens
+    const pessoas = page.getByRole('region', { name: 'Pessoas' });
+    await expect(pessoas.getByRole('heading', { name: 'Pessoas', level: 2 })).toBeVisible();
+    await expect(pessoas.getByRole('combobox', { name: /Responsável/ })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Colaboradores' })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Clientes' })).toBeVisible();
+    await expect(pessoas.getByRole('heading', { name: /Responsável|Colaboradores|Clientes/ })).toHaveCount(0);
+  });
+
+  test('dado o lápis de uma demanda, quando abre, então "Pessoas" é uma seção (h3, abaixo do título do cartão) com os campos dentro', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    // Então
+    const pessoas = cartao.getByRole('form', { name: 'Editar demanda' }).getByRole('region', { name: 'Pessoas' });
+    await expect(pessoas.getByRole('heading', { name: 'Pessoas', level: 3 })).toBeVisible();
+    await expect(pessoas.getByRole('combobox', { name: /Responsável/ })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Colaboradores' })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Clientes' })).toBeVisible();
+  });
+});

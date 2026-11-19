@@ -260,6 +260,8 @@ Uma única fotografia de marca, `app/src/imagens/farol.webp` (já em escala de c
 
 ### Inputs & Forms
 - **`text-input`:** 48px nas telas de acesso, 44px no app, `{rounded.md}`, borda `{colors.line2}`. Foco com contorno de 2px `{colors.accent}` e borda transparente.
+- **Seções e campos** (#359): em todo formulário de cadastro ou de edição, a hierarquia é **título da seção > rótulo do campo > dica**. A seção é sempre `<SecaoDoFormulario>`: o título em 900 (no cadastro por etapas, h2 de 24–30px abaixo do h1 da página; no lápis do cartão e na Nova entrada do Financeiro, h3 em `--texto-titulo-1`, 19px, abaixo do h2 do cartão), o rótulo do campo em 15px / 700 e a dica em 13px `{colors.muted}`. Os campos da seção ficam juntos embaixo do título, recuados `--recuo-dos-campos` (16px) e com um fio de 1px `{colors.line2}` à esquerda: o recuo, e não uma caixa, porque o lápis já fica dentro do cartão (caixa dentro de caixa pesa e se confunde com estado). No lápis, uma linha `{colors.line}` e espaço separam uma seção da outra. Um grupo de pessoas dentro de uma seção (Responsável, Colaboradores, Clientes) é feito de **campos**, nunca de subtítulos.
+- **Campo de vários itens:** o rótulo vai **no plural** ("Clientes", "Colaboradores", "Participantes", "Pessoas ligadas", "Telefones", "E-mails"), uma vez só, sobre as linhas (`<CampoDeVarios>`, ou `<EscolhaDaEquipe>` para a equipe). Cada linha tem o próprio nome só para o leitor de tela ("Cliente 2"). Campo de um item só fica no singular ("Responsável", "Processo").
 - **`segmented-tabs`** (`.abas`): trilho `{colors.soft}`, `{rounded.full}`, aba ativa preenchida de `{colors.dark}` com texto branco.
 - **`markdown-editor`** (CMS): campo livre com barra de formatação de 26px e visualização ao lado.
 
@@ -277,6 +279,8 @@ As peças acima existem como componentes React. Cada um gera o mesmo HTML e as m
 | Botões (`.btn`, `.pri`, `.esc`, `.perigo`, `.btn-sm`, `.mini`, `.link`) | `Botao` e `BotaoDuplo` (em `ui/Botoes.tsx`), `BotaoLink`, `estiloBotao()` | `<Botao variante="principal">Salvar</Botao>` · `<BotaoDuplo forma="mini" variante="perigo" …>` · `<BotaoLink to="/pessoas/nova/" variante="principal">` |
 | Pergunta de formulário (`.pergunta`, `.req`, `.dica`, `.msg-erro`) | `Campo` com `propsDoCampo()`; `depois` para o que vem após o erro (ex.: o resultado de uma busca) | `<Campo rotulo="CPF" para="cpf" obrigatorio erro={erro}><input {...propsDoCampo('cpf', { erro })} /></Campo>` |
 | Grupo de opções (`.pergunta` + `.escolhas`) | `Escolhas`, com `dica` e `arranjo` (`coluna-unica`, `multipla`) | `<Escolhas rotulo="Gênero" obrigatorio>…rádios…</Escolhas>` |
+| Seção de formulário (`.etapa` + `.etapa-campos`) | `SecaoDoFormulario`, com `texto` (a frase do cadastro por etapas) e `nivel` (2 no cadastro, 3 no lápis do cartão) | `<SecaoDoFormulario titulo="Pessoas" nivel={3}>…campos…</SecaoDoFormulario>` |
+| Campo de vários itens (`.pergunta` com grupo) | `CampoDeVarios`, rótulo no plural; cada linha com o nome só para o leitor de tela | `<CampoDeVarios rotulo="Clientes" obrigatorio erro={erro}>…linhas…</CampoDeVarios>` |
 | `alert` (`.aviso`) | `Aviso` | `<Aviso tipo="erro">{mensagem}</Aviso>` |
 | `status-chip` (`.selo`) | `Selo` | `<Selo tipo="pend">Pendente</Selo>` |
 | `card` (`.cartao`) | `Cartao` | `<Cartao>…</Cartao>` |

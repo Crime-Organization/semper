@@ -925,3 +925,19 @@ test.describe('Descrição com o Markdown completo (#344)', () => {
     await expect(cartao.getByText('- [ ]', { exact: false })).toHaveCount(0);
   });
 });
+
+test.describe('Seções e campos do formulário (#359)', () => {
+  test('dado o lápis de uma tarefa, quando abre, então "Pessoas" é uma seção com Responsável, Participantes e Pessoas ligadas como campos dentro', async ({ page }) => {
+    // Dado
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar' }).click();
+    // Então: o título da seção é um h3 (abaixo do título do cartão), e os campos de vários itens têm o rótulo no plural
+    const pessoas = cartao.getByRole('form', { name: 'Editar tarefa' }).getByRole('region', { name: 'Pessoas' });
+    await expect(pessoas.getByRole('heading', { name: 'Pessoas', level: 3 })).toBeVisible();
+    await expect(pessoas.getByRole('combobox', { name: /Responsável/ })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Participantes' })).toBeVisible();
+    await expect(pessoas.getByRole('group', { name: 'Pessoas ligadas' })).toBeVisible();
+    await expect(pessoas.getByRole('textbox', { name: 'Pessoa ligada', exact: true })).toBeVisible();
+  });
+});

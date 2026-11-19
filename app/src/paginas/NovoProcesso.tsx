@@ -19,7 +19,7 @@ import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -331,10 +331,10 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>}
     </>,
     pessoas: () => <>
-      <div className={'pergunta' + (erros.clientes ? ' erro' : '')} role="group" aria-label="Clientes">
+      <CampoDeVarios rotulo="Clientes" obrigatorio erro={erros.clientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
-            <BuscaPessoa rotulo={c.clientes.length === 1 ? <span>Cliente<span className="req" aria-hidden="true">*</span></span> : `Cliente ${i + 1}`} escolhida={clientes[i]}
+            <BuscaPessoa rotulo={<span className="sr">{c.clientes.length === 1 ? 'Cliente' : `Cliente ${i + 1}`}</span>} escolhida={clientes[i]}
               aoEscolher={escolherCliente(i)} desativar={outroCliente(i)} focar={chaves[i] === focarCliente} />
           </div>
           {c.clientes.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar o cliente ${i + 1}`} onClick={() => tirarCliente(i)}>
@@ -344,8 +344,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.clientes.length >= CLIENTES_MAXIMOS} onClick={acrescentarCliente}>
           <Icone nome="mais" tam={13} /> Adicionar cliente
         </button></div>
-        {erros.clientes && <span className="msg-erro" role="alert">{erros.clientes}</span>}
-      </div>
+      </CampoDeVarios>
       <Campo rotulo="Polo do cliente" para="polo">
         <select {...propsDoCampo('polo')} value={c.polo} onChange={e => mudar({ polo: e.target.value as CamposProcesso['polo'] })}>
           <option value="">{NAO_INFORMADO}</option>
@@ -427,10 +426,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar processo" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {ETAPAS_PROCESSO.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
-        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+      {ETAPAS_PROCESSO.map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
-      </section>)}
+      </SecaoDoFormulario>)}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
@@ -451,10 +449,9 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </div>
 
       <form className="form-grade" noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-        <section className="etapa ativa" key={etapa.id} aria-labelledby="etapa-titulo">
-          <header><h2 id="etapa-titulo">{etapa.titulo}</h2><p>{etapa.texto}</p></header>
+        <SecaoDoFormulario key={etapa.id} titulo={etapa.titulo} texto={etapa.texto}>
           {CONTEUDO[etapa.id]()}
-        </section>
+        </SecaoDoFormulario>
 
         <div className="navegar">
           <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>

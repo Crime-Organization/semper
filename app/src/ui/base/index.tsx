@@ -73,6 +73,57 @@ export function Escolhas({ rotulo, obrigatorio, dica, erro, arranjo, children }:
   </div>;
 }
 
+interface PropsCampoDeVarios {
+  /** O rótulo, no plural ("Clientes", "Pessoas ligadas"): o campo aceita mais de um item. */
+  rotulo: ReactNode;
+  obrigatorio?: boolean;
+  dica?: ReactNode;
+  erro?: ReactNode;
+  /** As linhas (uma busca por item, com o botão de tirar) e o botão de acrescentar. */
+  children: ReactNode;
+}
+/**
+ * Campo que aceita mais de um item (os clientes de uma demanda, as pessoas ligadas a uma tarefa): o rótulo no plural,
+ * uma vez só, e as linhas embaixo. Cada linha tem o próprio nome para o leitor de tela ("Cliente 2"), sem repetir na tela.
+ */
+export function CampoDeVarios({ rotulo, obrigatorio, dica, erro, children }: PropsCampoDeVarios) {
+  const id = useId();
+  return <div className={'pergunta' + (erro ? ' erro' : '')} role="group" aria-labelledby={id}>
+    <span className="rot" id={id}>{rotulo}{obrigatorio && <span className="req" aria-hidden="true">*</span>}</span>
+    {dica && <p className="dica">{dica}</p>}
+    {children}
+    {erro && <span className="msg-erro" role="alert">{erro}</span>}
+  </div>;
+}
+
+/**
+ * O nível do título de uma seção do formulário: 2 no cadastro (abaixo do título da página, o h1) e 3 no lápis do cartão
+ * (abaixo do título do cartão, o h2).
+ */
+export type NivelDaSecao = 2 | 3;
+const TITULO_DA_SECAO: Record<NivelDaSecao, 'h2' | 'h3'> = { 2: 'h2', 3: 'h3' };
+interface PropsSecaoDoFormulario {
+  titulo: ReactNode;
+  /** A frase que explica a seção, embaixo do título (no cadastro por etapas). */
+  texto?: ReactNode;
+  nivel?: NivelDaSecao;
+  /** Os campos da seção. */
+  children: ReactNode;
+}
+/**
+ * Uma seção de formulário de cadastro ou de edição (uma etapa do cadastro; todas juntas no lápis do cartão): o título,
+ * maior que os rótulos, e os campos agrupados embaixo dele, recuados, para a seção não se confundir com o primeiro campo
+ * (#359). O leitor de tela a anuncia como uma região com o nome da seção.
+ */
+export function SecaoDoFormulario({ titulo, texto, nivel = 2, children }: PropsSecaoDoFormulario) {
+  const id = useId();
+  const Titulo = TITULO_DA_SECAO[nivel];
+  return <section className="etapa ativa" aria-labelledby={id}>
+    <header><Titulo id={id}>{titulo}</Titulo>{texto && <p>{texto}</p>}</header>
+    <div className="etapa-campos">{children}</div>
+  </section>;
+}
+
 /** Colunas (de 12) que um campo ocupa na grade de formulário (.grade-form, em estilo.css): p no estreito, m a partir de 560px, g a partir de 860px. */
 export type TamanhoNaGrade = { p?: number; m?: number; g?: number };
 export const naGrade = (t: TamanhoNaGrade = {}) => ({ '--p': t.p, '--m': t.m, '--g': t.g }) as CSSProperties;

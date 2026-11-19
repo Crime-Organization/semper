@@ -19,7 +19,7 @@ import { RodapeDaEdicao, type EdicaoNoCartao } from '../ui/AcoesDoCartao';
 import { falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Aviso, Campo, CampoData, Carregando, Escolhas, estiloBotao, propsDoCampo } from '../ui/base';
+import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBotao, propsDoCampo, SecaoDoFormulario } from '../ui/base';
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -289,10 +289,10 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </Campo>
     </>,
     pessoas: () => <>
-      <div className={'pergunta' + (erros.pessoas ? ' erro' : '')} role="group" aria-label="Pessoas ligadas">
+      <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">
-            <BuscaPessoa rotulo={c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`} escolhida={pessoas[i]}
+            <BuscaPessoa rotulo={<span className="sr">{c.pessoas.length === 1 ? 'Pessoa ligada' : `Pessoa ligada ${i + 1}`}</span>} escolhida={pessoas[i]}
               aoEscolher={escolherPessoa(i)} desativar={outraPessoa(i)} focar={chaves[i] === focarPessoa} />
           </div>
           {c.pessoas.length > 1 && <button type="button" className="icone-btn" aria-label={`Tirar a pessoa ${i + 1}`} onClick={() => tirarPessoa(i)}>
@@ -302,8 +302,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
         <div><button type="button" className={estiloBotao({ forma: 'mini' })} disabled={c.pessoas.length >= CLIENTES_MAXIMOS} onClick={acrescentarPessoa}>
           <Icone nome="mais" tam={13} /> Adicionar pessoa
         </button></div>
-        {erros.pessoas && <span className="msg-erro" role="alert">{erros.pessoas}</span>}
-      </div>
+      </CampoDeVarios>
       <Campo rotulo="Responsável" para="responsavelId" obrigatorio erro={erros.responsavelId} dica="Quem responde pelo compromisso: qualquer um da equipe.">
         <select {...propsDoCampo('responsavelId', { dica: true, erro: erros.responsavelId })} value={c.responsavelId}
           onChange={e => mudar({ responsavelId: e.target.value, participantes: c.participantes.filter(x => x !== e.target.value) })}>
@@ -331,10 +330,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   if (edicao) return !pronto ? <Carregando />
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="form-grade edicao-cartao" noValidate autoComplete="off" aria-label="Editar compromisso" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-      {ETAPAS_COMPROMISSO.map(e => <section className="etapa ativa" key={e.id} aria-labelledby={'etapa-' + e.id}>
-        <header><h2 id={'etapa-' + e.id}>{e.titulo}</h2></header>
+      {ETAPAS_COMPROMISSO.map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
-      </section>)}
+      </SecaoDoFormulario>)}
       <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
@@ -354,10 +352,9 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </div>
 
       <form className="form-grade" noValidate autoComplete="off" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
-        <section className="etapa ativa" key={etapa.id} aria-labelledby="etapa-titulo">
-          <header><h2 id="etapa-titulo">{etapa.titulo}</h2><p>{etapa.texto}</p></header>
+        <SecaoDoFormulario key={etapa.id} titulo={etapa.titulo} texto={etapa.texto}>
           {CONTEUDO[etapa.id]()}
-        </section>
+        </SecaoDoFormulario>
 
         <div className="navegar">
           <button type="button" className={estiloBotao()} style={{ visibility: passo === 0 ? 'hidden' : 'visible' }} onClick={() => irPara(passo - 1)}>Voltar</button>

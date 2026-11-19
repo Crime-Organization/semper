@@ -59,6 +59,8 @@
   --altura-campo: 48px;
   /* O campo numa linha discreta (a equipe da anotação nova, #339): um pouco mais baixo que o das perguntas (--altura-campo) */
   --campo-discreto: 40px;
+  /* Quanto os campos de uma seção do formulário entram sob o título dela (<SecaoDoFormulario>, #359) */
+  --recuo-dos-campos: 16px;
   /* Quanto cada nível das pastas entra (#342): na árvore da página Documentos e no menu de escolher a pasta, que fica fora dela */
   --recuo-da-pasta: 14px;
   /* O recuo da janela (ui/janela.tsx) por dentro; a janela larga usa o mesmo para o corpo rolar até a borda */
@@ -662,7 +664,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .edicao-cartao { display: flex; flex-direction: column; gap: 28px }
 .edicao-cartao .etapa { gap: 20px; padding-top: 22px; border-top: 1px solid var(--line) }
 .edicao-cartao .etapa:first-child { padding-top: 0; border-top: 0 }
-.edicao-cartao .etapa > header h2 { font-size: 15px; letter-spacing: .02em }
 .edicao-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 /* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
    parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. */
@@ -840,8 +841,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .etapa { display: none; flex-direction: column; gap: 28px }
 .etapa.ativa { display: flex; animation: entra .35s cubic-bezier(.16,1,.3,1) }
 @keyframes entra { from { opacity: 0; transform: translateY(16px) } }
-.etapa > header h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); font-weight: 900; letter-spacing: -.02em }
+.etapa > header :is(h2, h3) { margin: 0; font-size: clamp(24px, 3vw, 30px); font-weight: 900; letter-spacing: -.02em }
+/* A seção dentro de um cartão (o lápis, a nova entrada do Financeiro): título h3, menor que o do cadastro e maior que os rótulos (#359) */
+.etapa > header h3 { font-size: var(--texto-titulo-1); letter-spacing: -.01em }
 .etapa > header p { margin: 6px 0 0; color: var(--muted); font-size: 15px }
+/* Os campos de uma seção (<SecaoDoFormulario>, #359): recuados sob o título, com um fio fino à esquerda, para a seção não
+   se confundir com o primeiro campo. O vão entre eles é o da seção. */
+.etapa-campos { display: flex; flex-direction: column; gap: inherit; padding-left: var(--recuo-dos-campos); border-left: 1px solid var(--line2) }
 .pergunta { display: flex; flex-direction: column; gap: 8px }
 .pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere }
 .pergunta .req { color: var(--erro); margin-left: 2px }

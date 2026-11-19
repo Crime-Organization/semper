@@ -2,13 +2,13 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // As peças precisam gerar as mesmas classes que as telas usam hoje: é isso que garante que trocar a marcação
 // de uma tela por elas não muda a aparência.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { Botao, BotaoDuplo } from '../Botoes';
-import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, Selo, TituloSecao, Vazio } from '.';
+import { Contador, Indicador, Indicadores, ListaDeNumeros, NavegacaoEmAbas, Segmentos, Abas, Aviso, BotaoLink, Campo, CampoDeVarios, Carregando, Cartao, Dica, Escolhas, estiloBotao, FaixaDoBanco, idDaAba, Nota, Progresso, propsDoCampo, SecaoDoFormulario, Selo, TituloSecao, Vazio } from '.';
 
 describe('Estilo dos botões', () => {
   it.each([
@@ -104,6 +104,58 @@ describe('Campo de formulário', () => {
     // Então
     const grupo = screen.getByRole('group', { name: 'Gênero*' });
     expect(grupo.querySelectorAll('.escolhas input[type="radio"]')).toHaveLength(2);
+  });
+});
+
+describe('Seções do formulário (#359)', () => {
+  it('quando a seção está no cadastro, então o título é um h2 que dá nome a uma região com os campos dentro, depois da frase que a explica', () => {
+    // Quando
+    render(<SecaoDoFormulario titulo="Pessoas" texto="Quem responde pela demanda.">
+      <Campo rotulo="Responsável" para="resp"><select {...propsDoCampo('resp')}><option>Ana</option></select></Campo>
+      <CampoDeVarios rotulo="Clientes"><input aria-label="Cliente" /></CampoDeVarios>
+    </SecaoDoFormulario>);
+    // Então
+    const secao = screen.getByRole('region', { name: 'Pessoas' });
+    expect(within(secao).getByRole('heading', { level: 2, name: 'Pessoas' })).toBeInTheDocument();
+    expect(secao).toHaveTextContent('Quem responde pela demanda.');
+    expect(within(secao).getByRole('combobox', { name: 'Responsável' })).toBeInTheDocument();
+    expect(within(secao).getByRole('group', { name: 'Clientes' })).toBeInTheDocument();
+    // Os campos ficam juntos, num bloco à parte do título (o que o estilo recua sob ele).
+    const [cabeca, campos] = [...secao.children];
+    expect(cabeca.tagName).toBe('HEADER');
+    expect(campos).toHaveClass('etapa-campos');
+    expect(campos).toContainElement(screen.getByRole('combobox', { name: 'Responsável' }));
+  });
+
+  it('quando a seção está no lápis do cartão, então o título é um h3, abaixo do título do cartão', () => {
+    // Quando
+    render(<SecaoDoFormulario titulo="Pessoas" nivel={3}><Campo rotulo="Responsável" para="resp"><input {...propsDoCampo('resp')} /></Campo></SecaoDoFormulario>);
+    // Então
+    const secao = screen.getByRole('region', { name: 'Pessoas' });
+    expect(within(secao).getByRole('heading', { level: 3, name: 'Pessoas' })).toBeInTheDocument();
+    expect(within(secao).queryByRole('heading', { level: 2 })).not.toBeInTheDocument();
+  });
+
+  it('quando o campo aceita vários itens e é obrigatório, então o grupo tem o rótulo no plural, com * só à vista, e as linhas dentro', () => {
+    // Quando
+    render(<CampoDeVarios rotulo="Clientes" obrigatorio dica="Busque pelo nome.">
+      <input aria-label="Cliente 1" /><input aria-label="Cliente 2" />
+    </CampoDeVarios>);
+    // Então
+    const grupo = screen.getByRole('group', { name: 'Clientes' });
+    expect(grupo).toHaveTextContent('Clientes*');
+    expect(within(grupo).getAllByRole('textbox')).toHaveLength(2);
+    expect(within(grupo).getByText('Busque pelo nome.')).toBeInTheDocument();
+    expect(within(grupo).queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('quando o campo de vários itens tem erro, então ele fica marcado e a mensagem é anunciada', () => {
+    // Quando
+    render(<CampoDeVarios rotulo="Pessoas ligadas" erro="Escolha a pessoa ou tire a linha."><input aria-label="Pessoa ligada" /></CampoDeVarios>);
+    // Então
+    const grupo = screen.getByRole('group', { name: 'Pessoas ligadas' });
+    expect(grupo).toHaveClass('pergunta', 'erro');
+    expect(within(grupo).getByRole('alert')).toHaveTextContent('Escolha a pessoa ou tire a linha.');
   });
 });
 

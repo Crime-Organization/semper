@@ -4,6 +4,7 @@ import { createContext, useContext, type ReactNode, type RefObject } from 'react
 import type { Membro } from '../../dados';
 import type { CamposCadastro } from '../../regras/cadastro';
 import type { MASCARAS } from '../../regras/pessoa';
+import type { NivelDaSecao } from '../../ui/base';
 
 export type Retorno = { tipo: 'ok' | 'erro'; conteudo: ReactNode } | null;
 export interface OpcoesTexto { maximo?: number; maiusculas?: boolean; mascara?: keyof typeof MASCARAS; placeholder?: string; numerico?: boolean; aoSair?: () => void }
@@ -37,6 +38,8 @@ export interface Formulario {
   lista: (campo: 'telefones' | 'emails', tel: boolean) => ReactNode;
   acrescentar: (campo: 'telefones' | 'emails') => void;
   retorno: (r: Retorno) => ReactNode;
+  /** O nível do título de cada etapa: 2 no cadastro, 3 no lápis do cartão (abaixo do título do cartão). */
+  nivel: NivelDaSecao;
 }
 
 export const FormularioCtx = createContext<Formulario | null>(null);
