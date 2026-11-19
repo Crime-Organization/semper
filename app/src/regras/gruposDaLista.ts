@@ -19,6 +19,8 @@ export const NIVEIS_DEMAIS = `O checklist vai até ${NIVEIS_DO_CHECKLIST} nívei
 export const GRUPO_DENTRO_DELE = 'Um grupo não pode ir para dentro dele mesmo nem de um subgrupo dele.';
 export const GRUPO_DE_OUTRO_CHECKLIST = 'Esse grupo é de outro checklist.';
 export const CHECKLIST_MUDOU = 'O checklist mudou enquanto você mexia nele. Ele foi recarregado: tente de novo.';
+/** A lista colada (com os números como grupos) que passaria do último nível dentro do grupo: vem depois de NIVEIS_DEMAIS. */
+export const NAO_CABE_NO_GRUPO = 'Essa lista não cabe neste grupo: mantenha como itens ou cole no fim do checklist.';
 /** O destino de "Mover para grupo" que tira o nó dos grupos. */
 export const FORA_DOS_GRUPOS = 'Fora dos grupos';
 
@@ -127,6 +129,37 @@ export function noDeCima(arvore: NoDaLista[], id: string): NoDaLista | null {
 
 /** Se o grupo ainda pode ganhar um subgrupo (o subgrupo vai até o penúltimo nível). */
 export const podeTerSubgrupo = (no: NoDaLista) => no.tipo === 'grupo' && no.nivel < NIVEIS_DO_CHECKLIST - 1;
+
+/** Quantos níveis o nó de uma árvore nova ocupa (item 1; grupo, 1 mais o mais fundo de dentro) e quantos níveis de grupos (item 0). */
+const alturaDoNovo = (no: NoDoModelo): number => no.filhos ? 1 + Math.max(0, ...no.filhos.map(alturaDoNovo)) : 1;
+const gruposDoNovo = (no: NoDoModelo): number => no.filhos ? 1 + Math.max(0, ...no.filhos.map(gruposDoNovo)) : 0;
+/**
+ * Por que a árvore nova (a lista colada com os números como grupos, um grupo novo) não cabe no fim do grupo (null: no fim do
+ * checklist), ou '' se cabe: os níveis contam a partir do grupo de destino ("1. A / 1.1 B" colada no grupo 2.1 passaria de 3).
+ * A tela confere antes de gravar: assim nada fica pela metade.
+ */
+export function erroAoAcrescentar(arvore: NoDaLista[], grupoId: string | null, nova: NoDoModelo[]): string {
+  const destino = grupoId === null ? null : acharNo(arvore, grupoId);
+  if (grupoId !== null && destino?.tipo !== 'grupo') return CHECKLIST_MUDOU;
+  const nivel = destino?.nivel ?? 0;
+  const cabeAqui = (no: NoDoModelo) => nivel + alturaDoNovo(no) <= NIVEIS_DO_CHECKLIST && nivel + gruposDoNovo(no) <= NIVEIS_DO_CHECKLIST - 1;
+  return nova.every(cabeAqui) ? '' : destino ? `${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}` : NIVEIS_DEMAIS;
+}
+
+/** Os grupos de cima do nó, do primeiro nível até o dele (vazio: o nó está no primeiro nível). */
+export function gruposDeCima(arvore: NoDaLista[], id: string): string[] {
+  const grupo = arvore.find(n => n.tipo === 'grupo' && emOrdemDeLeitura(n.filhos).some(f => f.id === id));
+  return grupo?.tipo === 'grupo' ? [grupo.id, ...gruposDeCima(grupo.filhos, id)] : [];
+}
+/** A árvore achatada como está na tela: o que está dentro de um grupo fechado não aparece. */
+export function emOrdemNaTela(arvore: NoDaLista[], fechados: ReadonlySet<string>): NoDaLista[] {
+  return arvore.flatMap(n => n.tipo === 'grupo' && !fechados.has(n.id) ? [n, ...emOrdemNaTela(n.filhos, fechados)] : [n]);
+}
+/** O nó à vista logo acima (para onde vai o foco depois de excluir): pula o que está dentro de grupos fechados; o primeiro não tem. */
+export function noDeCimaNaTela(arvore: NoDaLista[], id: string, fechados: ReadonlySet<string>): NoDaLista | null {
+  const vistos = emOrdemNaTela(arvore, fechados), i = vistos.findIndex(n => n.id === id);
+  return i > 0 ? vistos[i - 1] : null;
+}
 
 // ---------- subir, descer e mover para grupo ----------
 

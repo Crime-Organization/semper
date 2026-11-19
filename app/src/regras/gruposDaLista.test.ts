@@ -6,7 +6,8 @@ import {
   grupoDoNo, textoDaExclusaoDoGrupo, FORA_DOS_GRUPOS, GRUPO_DE_OUTRO_CHECKLIST, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, acharNo, acoesPossiveis, alturaDoNo,
   arvoreDaLista, arvoreDasLinhas, arvoreDoChecklist, arvoreDoModelo, arvoreDosItens, contagemDoGrupo, destinosDoNo, emOrdemDeLeitura, erroDaArvore,
   itensDaArvore, limparArvore, linhasColadas, listaDoModelo, moverEntreIrmaos, moverParaGrupo, mudancasDePosicao, noDeCima, numeroDoNo, ondeEntraONovo,
-  planoDoChecklist, podeTerSubgrupo, posicoesDaArvore, reconciliarArvore, segueALeitura, type ChecklistDaArvore, type NoDaLista, type ResultadoDaAcao
+  planoDoChecklist, podeTerSubgrupo, posicoesDaArvore, reconciliarArvore, segueALeitura, type ChecklistDaArvore, type NoDaLista, type ResultadoDaAcao,
+  emOrdemNaTela, erroAoAcrescentar, gruposDeCima, NAO_CABE_NO_GRUPO, noDeCimaNaTela
 } from './gruposDaLista';
 
 const grupo = (id: string, nome: string, pai_id: string | null, ordem: number, criado_em = '2026-11-19T10:00:00Z'): GrupoDaLista =>
@@ -436,5 +437,61 @@ describe('Acrescentar e tirar na tela (#309)', () => {
     expect(avisoDaPosicao(acharNo(arvore, 'rg')!)).toBe('"RG" agora é 1.1.');
     expect(avisoDaPosicao(acharNo(arvore, 'g2')!)).toBe('"Benefício" agora é 2.');
     expect([grupoDoNo(arvore, 'cnis'), grupoDoNo(arvore, 'g1')]).toEqual(['g3', null]);
+  });
+});
+
+describe('Acrescentar uma lista colada dentro de um grupo (#309)', () => {
+  const tresNiveis = arvoreDasLinhas(['1. A', '1.1 B', '1.1.1 C'], true).arvore;
+  const doisNiveis = arvoreDasLinhas(['1. A', '1.1 B'], true).arvore;
+
+  it('quando a lista colada tem 3 níveis e vai para o grupo 1. (1º nível), então é recusada, com o motivo', () => {
+    // Quando
+    const erro = erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g1', tresNiveis);
+    // Então
+    expect(erro).toBe(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`);
+  });
+
+  it('quando a lista colada tem 2 níveis e vai para o grupo 2.1 (2º nível), então é recusada; no grupo 1., cabe', () => {
+    // Então
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g3', doisNiveis)).toBe(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`);
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g1', doisNiveis)).toBe('');
+  });
+
+  it('quando a lista colada tem 3 níveis e vai para o fim do checklist, então cabe; com só itens, cabe até no 2º nível', () => {
+    // Então
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), null, tresNiveis)).toBe('');
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g3', [{ texto: 'X' }, { texto: 'Y' }])).toBe('');
+  });
+
+  it('quando um grupo vazio vai para o 2º nível, então cabe; para dentro de um do 2º nível, não (grupo vai até o penúltimo)', () => {
+    // Então
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g1', [{ texto: 'Sub', filhos: [] }])).toBe('');
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'g3', [{ texto: 'Sub', filhos: [] }])).not.toBe('');
+  });
+
+  it('quando o grupo de destino já não existe, então é recusado com "o checklist mudou"', () => {
+    // Então
+    expect(erroAoAcrescentar(arvoreDaLista(EXEMPLO), 'sumiu', doisNiveis)).toBe(CHECKLIST_MUDOU);
+  });
+});
+
+describe('O que está à vista com grupos fechados (#309)', () => {
+  it('quando pede os grupos de cima do CNIS, então vêm o 2. e o 2.1, na ordem; do RG, o 1.; do grupo 1., nenhum', () => {
+    // Dado
+    const arvore = arvoreDaLista(EXEMPLO);
+    // Então
+    expect(gruposDeCima(arvore, 'cnis')).toEqual(['g2', 'g3']);
+    expect(gruposDeCima(arvore, 'rg')).toEqual(['g1']);
+    expect(gruposDeCima(arvore, 'g1')).toEqual([]);
+  });
+
+  it('dado o grupo 1. fechado, quando pede o nó à vista acima do grupo 2., então é o grupo 1. (e não o CPF, escondido)', () => {
+    // Dado
+    const arvore = arvoreDaLista(EXEMPLO), fechados = new Set(['g1']);
+    // Então
+    expect(noDeCima(arvore, 'g2')?.id).toBe('cpf');
+    expect(noDeCimaNaTela(arvore, 'g2', fechados)?.id).toBe('g1');
+    expect(emOrdemNaTela(arvore, fechados).map(n => n.id)).toEqual(['g1', 'g2', 'g3', 'cnis', 'ctps', 'g4', 'laudo']);
+    expect(noDeCimaNaTela(arvore, 'g1', fechados)).toBeNull();
   });
 });

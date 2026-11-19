@@ -19,8 +19,8 @@ interface Props {
   /** O ⋯ do checklist com o menu aberto (fica à vista). */
   menuAberto: boolean;
   aoAbrirMenu: (botao: HTMLElement) => void;
-  /** Faz a mudança no banco e recarrega os checklists (o erro aparece no pé da tela). */
-  mexer: (fn: () => Promise<unknown>) => Promise<void>;
+  /** Faz a mudança no banco e recarrega os checklists (o erro aparece no pé da tela); devolve se gravou. */
+  mexer: (fn: () => Promise<unknown>) => Promise<boolean>;
   /** Muda na tela, na hora, o que o banco grava em seguida. */
   mudarNaTela: (fn: (l: ListaDoCartao) => ListaDoCartao) => void;
 }
@@ -54,9 +54,9 @@ export function Lista({ lista, somenteLer, menuAberto, aoAbrirMenu, mexer, mudar
     },
     async reordenar(depois) {
       const posicoes = mudancasDePosicao(lista, depois);
-      if (!posicoes.length) return;
+      if (!posicoes.length) return true;
       nesta(l => ({ ...l, ...aplicarPosicoes(l, posicoes) }));
-      await mexer(() => SD.listaReordenar(lista.id, posicoes));
+      return mexer(() => SD.listaReordenar(lista.id, posicoes));
     },
     // Os grupos novos entram antes dos de dentro deles: o id que o banco dá a cada um vira o pai dos seguintes.
     async acrescentar(grupoId, nova) {

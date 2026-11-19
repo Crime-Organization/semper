@@ -24,6 +24,8 @@ import './Demandas.css';
 type Edicao = { id: string | null; nome: string; lista: ChecklistDaArvore };
 /** Os ids dos grupos e itens novos do editor (só valem na tela). */
 const PREFIXO_NOVO = 'novo-';
+/** Salvar com um item escrito e não adicionado perderia o item: o salvar espera a pessoa decidir. */
+const ITEM_NAO_ADICIONADO = 'Há um item escrito e ainda não adicionado. Tecle Enter ou clique em Adicionar para ele entrar no modelo, ou apague o texto.';
 
 export default function ModelosDeLista() {
   useTitulo('Modelos de checklist');
@@ -97,6 +99,8 @@ function EditorDoModelo({ edicao, aoMudar, aoSalvar, aoCancelar }: {
 }) {
   const campoDoNome = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
+  /** Se algum campo de item novo tem texto escrito e não adicionado. */
+  const [pendente, setPendente] = useState(false);
   const { lista } = edicao;
   const arvore = useMemo(() => arvoreDaLista(lista), [lista]);
   const limpa = useMemo(() => limparArvore(arvoreDoChecklist(lista)), [lista]);
@@ -104,7 +108,7 @@ function EditorDoModelo({ edicao, aoMudar, aoSalvar, aoCancelar }: {
   const acoes: AcoesDaArvore = {
     renomearItem: (item, texto) => mudar(l => ({ ...l, itens: l.itens.map(i => i.id === item.id ? { ...i, texto } : i) })),
     renomearGrupo: (grupo, nome) => mudar(l => ({ ...l, grupos: l.grupos.map(g => g.id === grupo.id ? { ...g, nome } : g) })),
-    reordenar: async depois => mudar(l => aplicarPosicoes(l, mudancasDePosicao(l, depois))),
+    reordenar: async depois => { mudar(l => aplicarPosicoes(l, mudancasDePosicao(l, depois))); return true; },
     acrescentar: async (grupoId, nova) => {
       const r = comOsNovos(lista, grupoId, nova, () => `${PREFIXO_NOVO}${++seq.current}`);
       aoMudar({ ...edicao, lista: r.lista });
@@ -115,6 +119,7 @@ function EditorDoModelo({ edicao, aoMudar, aoSalvar, aoCancelar }: {
   };
   function enviar(e: FormEvent) {
     e.preventDefault();
+    if (pendente) { avisar(ITEM_NAO_ADICIONADO, 'erro'); return; }
     void aoSalvar(limpa);
   }
   return <form className="modelo-form" noValidate onSubmit={enviar} aria-label={edicao.id ? 'Editar modelo' : 'Novo modelo'}>
@@ -124,7 +129,8 @@ function EditorDoModelo({ edicao, aoMudar, aoSalvar, aoCancelar }: {
     </Campo>
     <div className="modelo-arvore" role="group" aria-label="Grupos e itens do modelo">
       <p className="rotulo-caps">Grupos e itens</p>
-      <ArvoreDoChecklist arvore={arvore} modo="modelo" acoes={acoes} rotuloDoNovo="Novo item do modelo" aoFocarNoTopo={() => campoDoNome.current?.focus()} />
+      <ArvoreDoChecklist arvore={arvore} modo="modelo" acoes={acoes} rotuloDoNovo="Novo item do modelo" aoFocarNoTopo={() => campoDoNome.current?.focus()}
+        aoMudarPendente={setPendente} />
     </div>
     {typeof limpa === 'string' && <Aviso tipo="erro">{limpa}</Aviso>}
     <div className="modelo-form-acoes">

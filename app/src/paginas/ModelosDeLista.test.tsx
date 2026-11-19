@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosModelos, ModeloDeLista, NoDoModelo } from '../dados';
 import { GRUPOS_DO_MODELO } from '../dados/limites';
+import { NAO_CABE_NO_GRUPO, NIVEIS_DEMAIS } from '../regras/gruposDaLista';
 import { Avisos } from '../ui/avisos';
 import { Janelas } from '../ui/janela';
 import ModelosDeLista from './ModelosDeLista';
@@ -115,5 +116,40 @@ describe('Modelos de checklist com grupos (#309)', () => {
     // Então
     expect(screen.getByRole('alert')).toHaveTextContent(`Um modelo pode ter até ${GRUPOS_DO_MODELO} grupos.`);
     expect(screen.getByRole('button', { name: 'Salvar modelo' })).toBeDisabled();
+  });
+  it('dado um item escrito e não adicionado, quando a pessoa clica em Salvar modelo, então nada é salvo e o aviso diz o que fazer; com Enter, salva com ele', async () => {
+    // Dado
+    montar();
+    await userEvent.click(await screen.findByRole('button', { name: 'Novo modelo' }));
+    const editor = screen.getByRole('form', { name: 'Novo modelo' });
+    await userEvent.type(within(editor).getByLabelText(/Nome do modelo/), 'Inventário');
+    const campo = within(editor).getByRole('textbox', { name: 'Novo item do modelo' });
+    await userEvent.type(campo, 'Certidão de óbito');
+    // Quando
+    await userEvent.click(within(editor).getByRole('button', { name: 'Salvar modelo' }));
+    // Então
+    expect(await screen.findByText(/Há um item escrito e ainda não adicionado/)).toBeInTheDocument();
+    expect(modeloCriar).not.toHaveBeenCalled();
+    // Quando
+    await userEvent.type(campo, '{Enter}');
+    await userEvent.click(within(editor).getByRole('button', { name: 'Salvar modelo' }));
+    // Então
+    expect(modeloCriar).toHaveBeenCalledWith('Inventário', [{ texto: 'Certidão de óbito' }]);
+  });
+
+  it('dado o modelo em edição, quando a pessoa cola no grupo 2.1 uma lista numerada de 2 níveis e escolhe usar os números, então nada entra e o aviso diz por quê', async () => {
+    // Dado
+    montar();
+    await userEvent.click(within(await screen.findByRole('listitem', { name: 'Modelo Benefício previdenciário' })).getByRole('button', { name: 'Editar' }));
+    const editor = screen.getByRole('form', { name: 'Editar modelo' });
+    await userEvent.click(within(editor).getByRole('button', { name: 'Adicionar item no grupo 2.1 Aposentadoria por idade' }));
+    await userEvent.click(within(editor).getByRole('textbox', { name: 'Novo item do grupo 2.1 Aposentadoria por idade' }));
+    // Quando
+    await userEvent.paste('1. Vínculos\n1.1 CTPS');
+    await userEvent.click(within(editor).getByRole('button', { name: 'Usar esses números como grupos' }));
+    // Então
+    expect(await screen.findByText(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`)).toBeInTheDocument();
+    expect(linhas(within(editor).getAllByRole('list')[0])).toEqual(['1. Documentos pessoais 2 itens', '1.1 RG', '1.2 CPF', '2. Benefício 1 item',
+      '2.1 Aposentadoria por idade 1 item', '2.1.1 CNIS']);
   });
 });

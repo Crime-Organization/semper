@@ -45,10 +45,13 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
   }, [modulo, id]);
   useEffect(() => { void carregar(); }, [carregar]);
   /** Faz a mudança e recarrega os checklists (o erro aparece no pé da tela). */
+  /** Grava, recarrega e devolve se gravou (o erro aparece no pé da tela). */
   const mexer = async (fn: () => Promise<unknown>) => {
     gravando.current++;
-    try { await fn(); } catch (e) { falha(e); } finally { gravando.current--; }
+    let gravou = true;
+    try { await fn(); } catch (e) { falha(e); gravou = false; } finally { gravando.current--; }
     await carregar();
+    return gravou;
   };
   /** Muda na tela na hora o que o banco grava em seguida (e os checklists voltam como ele guardou). */
   const mudarNaTela = (fn: (l: ListaDoCartao) => ListaDoCartao) => setListas(atual => Array.isArray(atual) ? atual.map(fn) : atual);

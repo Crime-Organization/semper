@@ -1,12 +1,13 @@
 // O menu "⋯" de cada grupo e de cada item do checklist (#309): Data de entrega (só no cartão), Adicionar subgrupo, Subir,
 // Descer (da tabela ACOES_DO_NO), Mover para grupo (a janela de escolher, a mesma de "Mover para pasta") e Excluir. Depois de
 // cada ação, o foco vai para um lugar certo: o ⋯ do nó movido (e o aviso do pé diz o número novo) ou, depois de excluir, o ⋯ do
-// nó de cima (ou o nome do checklist, se não houver).
+// nó à vista logo acima (ou o nome do checklist, se não houver). O que está dentro de um grupo fechado não está na tela: o grupo
+// para onde o nó vai, ou onde nasce o subgrupo, abre antes do foco.
 import { useState, type RefObject } from 'react';
 import type { GrupoDaLista, ItemDaLista, NoDoModelo } from '../../dados';
 import { TAMANHO_LISTA } from '../../dados/limites';
 import {
-  ACOES_DO_NO, acharNo, acoesPossiveis, avisoDaPosicao, destinosDoNo, grupoDoNo, moverParaGrupo, noDeCima, podeTerSubgrupo, textoDaExclusaoDoGrupo,
+  ACOES_DO_NO, acharNo, acoesPossiveis, avisoDaPosicao, destinosDoNo, grupoDoNo, gruposDeCima, moverParaGrupo, noDeCimaNaTela, podeTerSubgrupo, textoDaExclusaoDoGrupo,
   type AcaoDoNo, type NoDaLista, type ResultadoDaAcao
 } from '../../regras/gruposDaLista';
 import { avisar } from '../../ui/avisos';
@@ -26,8 +27,8 @@ export interface AcoesDaArvore {
   prazo?: (item: ItemDaLista) => Promise<unknown>;
   renomearItem: (item: ItemDaLista, texto: string) => unknown;
   renomearGrupo: (grupo: GrupoDaLista, nome: string) => unknown;
-  /** Grava a árvore depois de subir, descer ou mover para grupo. */
-  reordenar: (depois: NoDaLista[]) => Promise<unknown>;
+  /** Grava a árvore depois de subir, descer ou mover para grupo; devolve se gravou (se não, quem a usa já mostrou o erro). */
+  reordenar: (depois: NoDaLista[]) => Promise<boolean>;
   /** Acrescenta a árvore no fim do grupo (null: no fim do checklist); devolve os ids dos grupos criados, na ordem. */
   acrescentar: (grupoId: string | null, nova: NoDoModelo[]) => Promise<string[]>;
   excluirItem: (item: ItemDaLista) => Promise<unknown>;
@@ -46,9 +47,12 @@ interface Opcoes {
   aoFocarNoTopo: () => void;
   /** Abre o campo de item novo do grupo (depois de criar um subgrupo). */
   abrirCampo: (grupoId: string) => void;
+  /** Os grupos fechados na tela, e como abrir alguns. */
+  fechados: ReadonlySet<string>;
+  abrirGrupos: (ids: string[]) => void;
 }
 
-export function useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo }: Opcoes) {
+export function useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo, fechados, abrirGrupos }: Opcoes) {
   const [menu, setMenu] = useState<{ botao: HTMLElement; id: string } | null>(null);
   /** O foco no ⋯ do nó, depois de o React desenhar a árvore nova. */
   const focar = (id: string | null) => setTimeout(() => {
@@ -58,9 +62,10 @@ export function useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo }:
   /** Grava a árvore nova da ação (ou diz por que não deu) e leva o foco ao nó, com o número novo no aviso. */
   async function aplicar(id: string, resultado: ResultadoDaAcao) {
     if ('motivo' in resultado) { avisar(resultado.motivo, 'erro'); return; }
-    await acoes!.reordenar(resultado.arvore);
+    if (!await acoes!.reordenar(resultado.arvore)) return;
     const no = acharNo(resultado.arvore, id);
     if (no) avisar(avisoDaPosicao(no));
+    abrirGrupos(gruposDeCima(resultado.arvore, id));
     focar(id);
   }
   async function moverParaOGrupo(no: NoDaLista) {
@@ -81,7 +86,7 @@ export function useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo }:
     return true;
   }
   async function excluir(no: NoDaLista) {
-    const acima = noDeCima(arvore, no.id)?.id ?? null;
+    const acima = noDeCimaNaTela(arvore, no.id, fechados)?.id ?? null;
     if (no.tipo === 'item') { await acoes!.excluirItem(no.item); focar(acima); return; }
     focar(await excluirGrupo(no) ? acima : no.id);
   }
@@ -89,7 +94,9 @@ export function useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo }:
     const nome = await pedirTexto('Nome do subgrupo', '', { maximo: TAMANHO_LISTA });
     if (!nome) return;
     const [criado] = await acoes!.acrescentar(no.id, [{ texto: nome, filhos: [] }]);
-    if (criado) abrirCampo(criado);
+    if (!criado) return;
+    abrirGrupos([no.id]);
+    abrirCampo(criado);
   }
 
   const no = menu && acharNo(arvore, menu.id);

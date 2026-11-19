@@ -131,6 +131,12 @@
   --campo-do-item-novo: 12em;
   /* O vão entre a caixa de marcar (ou a seta do grupo), o número e o texto, em cada linha de um checklist */
   --vao-da-linha-do-checklist: 8px;
+  /* O vão entre as partes de um checklist (a árvore e o campo de item novo, o pé de cada grupo, a lista colada) ({spacing.xs}),
+     os cantos do botão que abre e fecha o grupo ({rounded.sm}) e a moldura da árvore no editor de modelos ({rounded.lg}) */
+  --vao-do-checklist: 8px;
+  --cantos-da-seta-do-grupo: 6px;
+  --folga-da-moldura-do-modelo: 12px 14px;
+  --cantos-da-moldura-do-modelo: 12px;
   /* As letras dos dias da semana no topo da grade (D S T Q Q S S), miúdas como as do rótulo em caixa alta, e o número de cada dia */
   --texto-dia-da-semana: 11px;
   --texto-dia-do-calendario: 14px;

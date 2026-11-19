@@ -6,7 +6,7 @@ import { useId, useRef, useState, type ReactNode } from 'react';
 import type { ItemDaLista } from '../../dados';
 import { TAMANHO_ITEM, TAMANHO_LISTA } from '../../dados/limites';
 import { ROTULOS_PRAZO, SELO_DO_PRAZO } from '../../regras/demanda';
-import { descricaoDoNo, emOrdemDeLeitura, type NoDaLista } from '../../regras/gruposDaLista';
+import { descricaoDoNo, emOrdemDeLeitura, erroAoAcrescentar, type NoDaLista } from '../../regras/gruposDaLista';
 import { conferirNomeDoGrupo, conferirTextoDoItem, prazoDoItem } from '../../regras/listas';
 import { fmtData } from '../../regras/pessoa';
 import { estiloBotao, Selo, TituloEditavel } from '../../ui/base';
@@ -38,17 +38,29 @@ interface Props {
   rotuloDoNovo: string;
   /** Para onde vai o foco quando não sobra nó acima depois de excluir (o nome do checklist ou do modelo). */
   aoFocarNoTopo: () => void;
+  /** Avisa se há texto escrito e ainda não adicionado em algum campo de item novo (o editor de modelos trava o salvar). */
+  aoMudarPendente?: (pendente: boolean) => void;
 }
 
-export function ArvoreDoChecklist({ arvore, modo, acoes, rotuloDoNovo, aoFocarNoTopo }: Props) {
+/** A chave do campo de item novo do pé do checklist, entre os rascunhos (os dos grupos usam o id do grupo). */
+const CAMPO_DO_PE = '';
+
+export function ArvoreDoChecklist({ arvore, modo, acoes, rotuloDoNovo, aoFocarNoTopo, aoMudarPendente }: Props) {
   const base = useId();
   const raiz = useRef<HTMLDivElement>(null);
   /** Os grupos fechados (todos começam abertos; a escolha vale enquanto a árvore está na tela). */
   const [fechados, setFechados] = useState<ReadonlySet<string>>(new Set());
   /** O grupo com o campo de item novo aberto. */
   const [campo, setCampo] = useState<string | null>(null);
-  const abrirCampo = (id: string) => { setFechados(f => { const n = new Set(f); n.delete(id); return n; }); setCampo(id); };
-  const menu = useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo });
+  /** O texto escrito e não adicionado de cada campo de item novo (pelo grupo; o do pé, CAMPO_DO_PE). */
+  const rascunhos = useRef(new Map<string, string>());
+  const rascunho = (chave: string) => (texto: string) => {
+    if (texto) rascunhos.current.set(chave, texto); else rascunhos.current.delete(chave);
+    aoMudarPendente?.(rascunhos.current.size > 0);
+  };
+  const abrirGrupos = (ids: string[]) => setFechados(f => { const n = new Set(f); ids.forEach(id => n.delete(id)); return n; });
+  const abrirCampo = (id: string) => { abrirGrupos([id]); setCampo(id); };
+  const menu = useAcoesDoNo({ arvore, acoes, raiz, aoFocarNoTopo, abrirCampo, fechados, abrirGrupos });
   const alternar = (id: string) => setFechados(f => { const n = new Set(f); if (!n.delete(id)) n.add(id); return n; });
   const idDe = (parte: string, id: string) => `${base}-${parte}-${id}`;
   const hoje = hojeISO();
@@ -85,7 +97,7 @@ export function ArvoreDoChecklist({ arvore, modo, acoes, rotuloDoNovo, aoFocarNo
     const completo = modo === 'cartao' && no.total > 0 && no.feitos === no.total;
     return <li key={no.id} className="lista-grupo">
       <div className="lista-grupo-cabeca">
-        <button type="button" className="lista-grupo-abrir" aria-expanded={aberto} aria-controls={aberto ? dentro : undefined} aria-describedby={contagem}
+        <button type="button" className="lista-grupo-abrir" aria-expanded={aberto} aria-controls={aberto && no.filhos.length > 0 ? dentro : undefined} aria-describedby={contagem}
           aria-label={`${aberto ? 'Fechar' : 'Abrir'} o grupo ${nome}`} title={aberto ? 'Fechar o grupo' : 'Abrir o grupo'} onClick={() => alternar(no.id)}>
           <Icone nome={aberto ? 'abaixo' : 'direita'} tam={14} /><span className="lista-numero">{no.numero}</span>
         </button>{' '}
@@ -99,6 +111,7 @@ export function ArvoreDoChecklist({ arvore, modo, acoes, rotuloDoNovo, aoFocarNo
         {acoes && <div className="lista-grupo-pe">
           {campo === no.id
             ? <CampoDoItemNovo key={no.id} focar rotulo={`Novo item do grupo ${nome}`} aoAcrescentar={nova => acoes.acrescentar(no.id, nova)}
+              conferir={nova => erroAoAcrescentar(arvore, no.id, nova)} aoMudarTexto={rascunho(no.id)}
               aoFechar={() => { setCampo(null); setTimeout(() => raiz.current?.querySelector<HTMLElement>(`[${ATRIBUTO_DO_ADICIONAR}="${no.id}"]`)?.focus(), 0); }} />
             : <button type="button" className={estiloBotao({ forma: 'mini' })} {...{ [ATRIBUTO_DO_ADICIONAR]: no.id }} aria-label={`Adicionar item no grupo ${nome}`}
               onClick={() => setCampo(no.id)}><Icone nome="mais" tam={13} /> Adicionar item</button>}
@@ -112,6 +125,7 @@ export function ArvoreDoChecklist({ arvore, modo, acoes, rotuloDoNovo, aoFocarNo
     {arvore.length > 0 && <ul>{arvore.map(linha)}</ul>}
     {modo === 'cartao' && <div hidden>{emOrdemDeLeitura(arvore).map(no => no.tipo === 'item' && <span key={no.id} id={idDe('d', no.id)}>{descricaoDoNo(no)}</span>)}</div>}
     {acoes && <CampoDoItemNovo rotulo={rotuloDoNovo} aoAcrescentar={nova => acoes.acrescentar(null, nova)}
+      conferir={nova => erroAoAcrescentar(arvore, null, nova)} aoMudarTexto={rascunho(CAMPO_DO_PE)}
       depois={<button type="button" className={estiloBotao({ forma: 'mini' })} aria-label="Novo grupo" title="Novo grupo no fim do checklist"
         onClick={() => void novoGrupo()}><Icone nome="mais" tam={13} /> Grupo</button>} />}
     {menu.menu}

@@ -6,7 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CartaoComListas, DadosListas, DadosModelos, DadosSessao, GrupoDaLista, ItemDaLista, ListaDoCartao } from '../../dados';
-import { aplicarPosicoes, semOGrupo } from '../../regras/gruposDaLista';
+import { aplicarPosicoes, NAO_CABE_NO_GRUPO, NIVEIS_DEMAIS, semOGrupo } from '../../regras/gruposDaLista';
 import { Avisos } from '../../ui/avisos';
 import { Janelas } from '../../ui/janela';
 import { iniciarPreferencias } from '../../ui/preferencias';
@@ -230,6 +230,101 @@ describe('Grupos e numeração do checklist (#309)', () => {
     expect(grupoDoChecklistCriar).toHaveBeenCalledWith('l1', 'Certidões', { pai_id: null, ordem: 11 });
     expect(itemCriar.mock.calls.map(c => [c[1], c[2]])).toEqual([['Nascimento', { pai_id: 'grupo1', ordem: 12 }], ['Casamento', { pai_id: 'grupo1', ordem: 13 }]]);
     expect(await within(lista).findByRole('button', { name: 'Fechar o grupo 4. Certidões' })).toBeInTheDocument();
+  });
+
+  it('quando a pessoa cola no grupo 1. uma lista numerada de 3 níveis e escolhe usar os números, então nada é criado e o aviso diz por quê', async () => {
+    // Dado
+    montar();
+    const lista = await secao();
+    await userEvent.click(within(lista).getByRole('button', { name: 'Adicionar item no grupo 1. Documentos pessoais' }));
+    await userEvent.click(within(lista).getByRole('textbox', { name: 'Novo item do grupo 1. Documentos pessoais' }));
+    // Quando
+    await userEvent.paste('1. A\n1.1 B\n1.1.1 C');
+    await userEvent.click(within(lista).getByRole('button', { name: 'Usar esses números como grupos' }));
+    // Então
+    expect(await screen.findByText(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`)).toBeInTheDocument();
+    expect(grupoDoChecklistCriar).not.toHaveBeenCalled();
+    expect(itemCriar).not.toHaveBeenCalled();
+    expect(listaReordenar).not.toHaveBeenCalled();
+    // Quando: mantém como itens
+    await userEvent.click(within(lista).getByRole('button', { name: 'Manter como itens' }));
+    // Então
+    await vi.waitFor(() => expect(itemCriar).toHaveBeenCalledTimes(3));
+    expect(grupoDoChecklistCriar).not.toHaveBeenCalled();
+  });
+
+  it('dado que a gravação de "Subir" falha, quando a pessoa sobe o grupo 2., então só o erro aparece, sem o aviso do número novo', async () => {
+    // Dado
+    listaReordenar.mockRejectedValueOnce(new Error('Sem conexão com o servidor.'));
+    montar();
+    const lista = await secao();
+    // Quando
+    await userEvent.click(within(lista).getByRole('button', { name: 'Ações do grupo Benefício' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Subir' }));
+    // Então
+    expect(await screen.findByText('Sem conexão com o servidor.')).toBeInTheDocument();
+    expect(await within(lista).findByRole('button', { name: 'Fechar o grupo 2. Benefício' })).toBeInTheDocument();
+    expect(screen.queryByText('"Benefício" agora é 1.')).not.toBeInTheDocument();
+  });
+
+  describe('com um grupo fechado', () => {
+    it('quando a pessoa move a Procuração para o grupo 1. fechado, então ele abre e o foco fica no ⋯ dela', async () => {
+      // Dado
+      montar();
+      const lista = await secao();
+      await userEvent.click(within(lista).getByRole('button', { name: 'Fechar o grupo 1. Documentos pessoais' }));
+      // Quando
+      await userEvent.click(within(lista).getByRole('button', { name: 'Ações do item Procuração' }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Mover para grupo' }));
+      const janela = screen.getByRole('dialog', { name: 'Mover "Procuração" para o grupo' });
+      await userEvent.selectOptions(within(janela).getByRole('combobox', { name: 'Grupo' }), '1. Documentos pessoais');
+      await userEvent.click(within(janela).getByRole('button', { name: 'Mover' }));
+      // Então
+      expect(await within(lista).findByRole('button', { name: 'Fechar o grupo 1. Documentos pessoais' })).toHaveAttribute('aria-expanded', 'true');
+      await vi.waitFor(() => expect(within(lista).getByRole('button', { name: 'Ações do item Procuração' })).toHaveFocus());
+    });
+
+    it('quando a pessoa exclui o grupo 2. logo abaixo do grupo 1. fechado, então o foco vai ao ⋯ do grupo 1., e não ao nome do checklist', async () => {
+      // Dado
+      montar();
+      const lista = await secao();
+      await userEvent.click(within(lista).getByRole('button', { name: 'Fechar o grupo 1. Documentos pessoais' }));
+      // Quando
+      await userEvent.click(within(lista).getByRole('button', { name: 'Ações do grupo Benefício' }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Excluir grupo' }));
+      await userEvent.click(within(screen.getByRole('dialog', { name: 'Excluir o grupo?' })).getByRole('button', { name: 'Excluir grupo' }));
+      // Então
+      expect(grupoDoChecklistExcluir).toHaveBeenCalledWith('g2');
+      await vi.waitFor(() => expect(within(lista).getByRole('button', { name: 'Ações do grupo Documentos pessoais' })).toHaveFocus());
+    });
+
+    it('quando a pessoa adiciona um subgrupo no grupo 1. fechado, então ele abre e o foco vai ao campo de item novo do subgrupo', async () => {
+      // Dado
+      montar();
+      const lista = await secao();
+      await userEvent.click(within(lista).getByRole('button', { name: 'Fechar o grupo 1. Documentos pessoais' }));
+      // Quando
+      await userEvent.click(within(lista).getByRole('button', { name: 'Ações do grupo Documentos pessoais' }));
+      await userEvent.click(screen.getByRole('menuitem', { name: 'Adicionar subgrupo' }));
+      await userEvent.type(screen.getByRole('textbox', { name: 'Nome do subgrupo' }), 'Certidões');
+      await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+      // Então
+      await vi.waitFor(() => expect(within(lista).getByRole('textbox', { name: 'Novo item do grupo 1.3 Certidões' })).toHaveFocus());
+    });
+
+    it('dado um grupo aberto e vazio, então o botão de abrir e fechar não aponta para uma lista que não existe', async () => {
+      // Dado
+      atual = { ...exemplo(), grupos: [...exemplo().grupos, grupo('vazio', 'Vazio', null, 20)] };
+      // Quando
+      montar();
+      const lista = await secao();
+      // Então
+      const botao = within(lista).getByRole('button', { name: 'Fechar o grupo 4. Vazio' });
+      expect(botao).toHaveAttribute('aria-expanded', 'true');
+      expect(botao).not.toHaveAttribute('aria-controls');
+      const cheio = within(lista).getByRole('button', { name: 'Fechar o grupo 1. Documentos pessoais' });
+      expect(document.getElementById(cheio.getAttribute('aria-controls')!)).toBeInTheDocument();
+    });
   });
 
   it('dado quem só lê um contrato, quando abre o checklist, então vê os grupos, os números e as contagens e abre e fecha, sem ⋯ nem botões de acrescentar', async () => {

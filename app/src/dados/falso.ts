@@ -1997,11 +1997,12 @@ function conferirDia(d: Omit<DiaLancado, 'id'>) {
   if (d.orgao_id !== null && !bd.orgaos!.some(o => o.id === d.orgao_id)) throw new Error('Não foi possível concluir agora. Tente de novo.');
 }
 // ---------- listas das demandas, das tarefas e dos contratos ----------
-/** De cada cartão com listas: o campo que liga a lista a ele e como achá-lo (erro se não existe). */
-const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id' | 'contrato_id'; achar: (id: string) => unknown }> = {
-  demandas: { campo: 'demanda_id', achar: acharDemanda },
-  tarefas: { campo: 'tarefa_id', achar: acharTarefa },
-  contratos: { campo: 'contrato_id', achar: acharContrato },
+/** De cada cartão com listas: o campo que liga a lista a ele, como achá-lo (erro se não existe) e se quem está logado pode mexer
+ *  nos checklists dele (como privado.altero_a_lista, 20261119142702: no contrato, quem só foi mencionado lê, mas não mexe). */
+const CARTAO_DA_LISTA: Record<CartaoComListas, { campo: 'demanda_id' | 'tarefa_id' | 'contrato_id'; achar: (id: string) => unknown; altero: (id: string) => boolean }> = {
+  demandas: { campo: 'demanda_id', achar: acharDemanda, altero: () => true },
+  tarefas: { campo: 'tarefa_id', achar: acharTarefa, altero: () => true },
+  contratos: { campo: 'contrato_id', achar: acharContrato, altero: alteroContratoDoId },
 };
 type ItemGuardado = NonNullable<Banco['itensDeLista']>[number];
 type GrupoGuardado = NonNullable<Banco['gruposDeLista']>[number];
@@ -2011,6 +2012,16 @@ const itensDaLista = (id: string) => bd.itensDeLista!.filter(i => i.lista_id ===
 const gruposDaLista = (id: string) => bd.gruposDeLista!.filter(g => g.lista_id === id);
 const listaLida = ({ demanda_id: _d, tarefa_id: _t, contrato_id: _k, criado_em: _c, ...l }: NonNullable<Banco['listas']>[number]): ListaDoCartao =>
   ({ ...l, itens: itensDaLista(l.id).sort((a, b) => a.ordem - b.ordem).map(itemLido), grupos: gruposDaLista(l.id).map(grupoLido) });
+/** Se quem está logado pode mexer no checklist (pelo cartão dele). Quem não pode: criar é recusado (SEM_PERMISSAO, como a regra
+ *  RLS "tudo"); mudar e excluir não acham a linha e não mudam nada, sem erro, como no banco. */
+function alteroALista(listaId: string | undefined) {
+  const l = bd.listas!.find(x => x.id === listaId);
+  return !l?.contrato_id || CARTAO_DA_LISTA.contratos.altero(l.contrato_id);
+}
+/** A recusa de checklist_reordenar a quem não pode mexer no checklist. */
+const NAO_ALTERA_O_CHECKLIST = 'Você não pode alterar este checklist.';
+const listaDoItem = (id: string) => bd.itensDeLista!.find(i => i.id === id)?.lista_id;
+const listaDoGrupo = (id: string) => bd.gruposDeLista!.find(g => g.id === id)?.lista_id;
 /** Como o gatilho que confere a árvore (20261119142702): a mudança só fica se a árvore do checklist continua certa; senão,
  *  tudo volta como estava e o erro é o do banco. */
 function conferirArvore(listaId: string, mudar: () => void) {
@@ -2887,8 +2898,9 @@ export const SD: Dados = {
   listasDoCartao: (modulo, id) => espera(bd.listas!.filter(l => l[CARTAO_DA_LISTA[modulo].campo] === id).sort((a, b) => a.ordem - b.ordem).map(listaLida)),
   // Como checklist_criar: a lista, os grupos e os itens de uma vez; se a árvore não serve, nada fica.
   async listaCriar(modulo, id, nome, arvore = []) {
-    const { campo, achar } = CARTAO_DA_LISTA[modulo];
+    const { campo, achar, altero } = CARTAO_DA_LISTA[modulo];
     achar(id);
+    if (!altero(id)) return erro(SEM_PERMISSAO);
     const ordem = Math.max(0, ...bd.listas!.filter(l => l[campo] === id).map(l => l.ordem)) + 1;
     const l = { id: novoId(), [campo]: id, nome: nomeDaLista(nome), ordem, criado_em: agora() };
     const plano = planoDoChecklist(arvore), chaves = new Map(plano.grupos.map(g => [g.chave, novoId()]));
@@ -2903,9 +2915,11 @@ export const SD: Dados = {
   },
   async listaAtualizar(id, { nome, ordem }) {
     const l = bd.listas!.find(x => x.id === id); if (!l) return erro('Checklist não encontrado.');
+    if (!alteroALista(id)) return;
     Object.assign(l, nome === undefined ? {} : { nome: nomeDaLista(nome) }, ordem === undefined ? {} : { ordem }); gravar();
   },
   async listaExcluir(id) {
+    if (!alteroALista(id)) return;
     bd.listas = bd.listas!.filter(l => l.id !== id);
     bd.itensDeLista = bd.itensDeLista!.filter(i => i.lista_id !== id);
     bd.gruposDeLista = bd.gruposDeLista!.filter(g => g.lista_id !== id);
@@ -2913,16 +2927,19 @@ export const SD: Dados = {
   },
   async grupoDoChecklistCriar(listaId, nome, { pai_id, ordem }) {
     if (!bd.listas!.some(l => l.id === listaId)) return erro('Checklist não encontrado.');
+    if (!alteroALista(listaId)) return erro(SEM_PERMISSAO);
     const g = { id: novoId(), lista_id: listaId, nome: nomeDoGrupoDoChecklist(nome), pai_id, ordem, criado_em: agora() };
     conferirArvore(listaId, () => { bd.gruposDeLista!.push(g); });
     gravar(); return espera(grupoLido(g));
   },
   async grupoDoChecklistAtualizar(id, { nome }) {
     const g = bd.gruposDeLista!.find(x => x.id === id); if (!g) return erro('Grupo não encontrado.');
+    if (!alteroALista(g.lista_id)) return;
     g.nome = nomeDoGrupoDoChecklist(nome); gravar();
   },
   // Como o "on delete cascade": os subgrupos e os itens de dentro vão junto.
   async grupoDoChecklistExcluir(id) {
+    if (!alteroALista(listaDoGrupo(id))) return;
     const fora = gruposDentro(id);
     bd.gruposDeLista = bd.gruposDeLista!.filter(g => !fora.has(g.id));
     bd.itensDeLista = bd.itensDeLista!.filter(i => !i.grupo_id || !fora.has(i.grupo_id));
@@ -2931,6 +2948,7 @@ export const SD: Dados = {
   // Sem "onde", como a versão anterior: no fim do checklist, depois da maior posição de grupos e itens, no primeiro nível.
   async itemCriar(listaId, texto, onde) {
     if (!bd.listas!.some(l => l.id === listaId)) return erro('Checklist não encontrado.');
+    if (!alteroALista(listaId)) return erro(SEM_PERMISSAO);
     const { pai_id, ordem } = onde ?? { pai_id: null, ordem: Math.max(0, ...[...itensDaLista(listaId), ...gruposDaLista(listaId)].map(x => x.ordem)) + 1 };
     const item = { id: novoId(), lista_id: listaId, texto: textoDoItem(texto), prazo: null, feito_em: null, feito_por: null, ordem, grupo_id: pai_id, criado_em: agora() };
     conferirArvore(listaId, () => { bd.itensDeLista!.push(item); });
@@ -2939,14 +2957,20 @@ export const SD: Dados = {
   // Como o gatilho preparar: marcar anota agora e quem marcou; mexer num item já feito não troca isso; desmarcar apaga os dois.
   async itemAtualizar(id, { feito, texto, ...campos }) {
     const item = bd.itensDeLista!.find(x => x.id === id); if (!item) return erro('Item não encontrado.');
+    // No banco, a linha que a regra esconde não volta, e o .single() de supabase.ts recusa.
+    if (!alteroALista(item.lista_id)) return erro(NAO_DEU);
     Object.assign(item, campos, texto === undefined ? {} : { texto: textoDoItem(texto) });
     if (feito === false) Object.assign(item, { feito_em: null, feito_por: null });
     if (feito && !item.feito_em) Object.assign(item, { feito_em: agora(), feito_por: eu });
     gravar(); return espera(itemLido(item));
   },
-  async itemExcluir(id) { bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar(); },
+  async itemExcluir(id) {
+    if (!alteroALista(listaDoItem(id))) return;
+    bd.itensDeLista = bd.itensDeLista!.filter(i => i.id !== id); gravar();
+  },
   // Como checklist_reordenar: tudo de uma vez; um id que não é do checklist, ou uma árvore que não serve, desfaz tudo.
   async listaReordenar(listaId, posicoes) {
+    if (!alteroALista(listaId)) return erro(NAO_ALTERA_O_CHECKLIST);
     const [grupos, itens] = [gruposDaLista(listaId), itensDaLista(listaId)];
     const doChecklist = (p: (typeof posicoes)[number]) => (p.tipo === 'grupo' ? grupos : itens).some(x => x.id === p.id);
     if (!posicoes.every(doChecklist)) return erro(CHECKLIST_MUDOU);

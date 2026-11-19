@@ -4445,6 +4445,42 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(fundo).toBe(NIVEIS_DEMAIS);
       });
 
+      describe('no contrato, quem só foi mencionado', () => {
+        const falso = () => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void; mudarFuncao(id: string, funcao: string): void } }).SEMPER_FALSO;
+        const entrarComo = (id: string) => falso().entrarComo(id);
+        afterEach(() => { entrarComo('u-master'); falso().mudarFuncao('u-bruno', 'estagiario'); });
+
+        it('quando lê o checklist do contrato, então o vê; criar, acrescentar item ou grupo e reordenar são recusados, e excluir não muda nada', async () => {
+          // Dado: um contrato de outra pessoa, com um checklist, e um comentário que menciona o Bruno (advogado, sem ser administrador)
+          falso().mudarFuncao('u-bruno', 'advogado');
+          const { id: cliente } = await criar(marca());
+          const contrato = (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' })).id;
+          const lista = await SD.listaCriar('contratos', contrato, 'Documentos do contrato', EXEMPLO);
+          const documentos = grupoDe(lista, 'Documentos pessoais');
+          await SD.comentarioCriar('contratos', contrato, 'Veja o checklist, @bruno.souza');
+          entrarComo('u-bruno');
+          // Quando
+          const lida = await SD.listasDoCartao('contratos', contrato);
+          const tentativas = await Promise.allSettled([
+            SD.listaCriar('contratos', contrato, 'Outro'),
+            SD.itemCriar(lista.id, 'Procuração', ondeEntraONovo(arvoreDaLista(lista), documentos.id)),
+            SD.grupoDoChecklistCriar(lista.id, 'Certidões', { pai_id: null, ordem: 99 }),
+            SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: null, ordem: 99 }])
+          ]);
+          await SD.grupoDoChecklistExcluir(documentos.id);
+          await SD.itemExcluir(lista.itens[0].id);
+          // Então
+          expect(numerados(lida[0])).toEqual(numerados(lista));
+          expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual([
+            'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.',
+            'Você não pode alterar este checklist.']);
+          entrarComo('u-master');
+          const depois = await SD.listasDoCartao('contratos', contrato);
+          expect(depois.map(l => l.nome)).toEqual(['Documentos do contrato']);
+          expect(numerados(depois[0])).toEqual(numerados(lista));
+        });
+      });
+
       it('quando o modelo agrupado é usado, então o checklist entra agrupado e numerado', async () => {
         // Dado
         const m = await SD.modeloCriar('Modelo ' + marca(), EXEMPLO);

@@ -19,9 +19,9 @@
 :is(.lista-demanda, .checklist-arvore) ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column }
 :is(.lista-demanda, .checklist-arvore) :is(li:not(.lista-grupo), .lista-grupo-cabeca) { display: flex; align-items: center; gap: var(--vao-da-linha-do-checklist); padding: var(--folga-do-item) 0; border-bottom: 1px solid var(--soft) }
 :is(.lista-demanda, .checklist-arvore) li:not(.lista-grupo):last-child { border-bottom: 0 }
-.checklist-arvore { display: flex; flex-direction: column; gap: 8px }
+.checklist-arvore { display: flex; flex-direction: column; gap: var(--vao-do-checklist) }
 .lista-grupo > ul, .lista-grupo-pe { padding-left: var(--recuo-do-checklist) }
-.lista-grupo-pe { display: flex; flex-direction: column; gap: 8px; padding-top: var(--folga-do-item); padding-bottom: var(--folga-do-item) }
+.lista-grupo-pe { display: flex; flex-direction: column; gap: var(--vao-do-checklist); padding-top: var(--folga-do-item); padding-bottom: var(--folga-do-item) }
 /* "Adicionar item" do grupo: discreto (sem borda, a letra apagada) até o mouse ou o foco, para não pesar em cada grupo; o "+" fica
    na coluna das caixas de marcar. */
 .lista-grupo-pe > .mini { align-self: flex-start; height: var(--botao-da-linha); padding-left: 0; border-color: transparent; color: var(--muted); font-weight: 700 }
@@ -35,7 +35,7 @@
 /* A cabeça do grupo: a seta e o número num botão só (abre e fecha), com a seta no lugar da caixa de marcar dos itens; o nome em
    negrito (renomeia com um clique); a contagem, sempre à vista; e o "⋯", que aparece no mouse e no foco da própria cabeça. */
 .lista-grupo-abrir { position: relative; display: inline-flex; align-items: center; gap: var(--vao-da-linha-do-checklist); flex-shrink: 0; align-self: flex-start; padding: 0; border: 0;
-  border-radius: 6px; background: none; font: inherit; color: var(--ink); cursor: pointer }
+  border-radius: var(--cantos-da-seta-do-grupo); background: none; font: inherit; color: var(--ink); cursor: pointer }
 .lista-grupo-abrir > svg { flex: 0 0 var(--caixa-de-marcar); color: var(--muted); transition: color .15s ease-out }
 .lista-grupo-abrir:hover > svg { color: var(--ink) }
 .lista-grupo-abrir > .lista-numero { font-weight: 800; color: var(--ink) }
@@ -45,7 +45,8 @@
 .lista-grupo-nome { flex: 1; min-width: 0; padding: var(--folga-do-item) 0; font-size: var(--texto-tabela); line-height: 1.45; font-weight: 800; color: var(--ink); overflow-wrap: anywhere }
 .lista-grupo-nome > button { font-weight: inherit }
 .lista-grupo-contagem { flex-shrink: 0 }
-/* Na tela estreita (o cartão ou o modelo com até 480px), o recuo de cada nível é menor, para o texto ter mais lugar. */
+/* Na tela estreita (o cartão ou o modelo com até 480px), o recuo de cada nível é menor, para o texto ter mais lugar. A consulta
+   vale pelo container mais próximo: no cartão, .cartao-painel e .cartao-corpo; na página de modelos, .modelo e .modelo-arvore. */
 @container (max-width: 480px) { .checklist-arvore { --recuo-do-checklist: var(--recuo-do-checklist-estreito) } }
 /* A caixa fica numa linha com a mesma letra e a mesma folga do texto ao lado, e assim acompanha a primeira linha dele. */
 :is(.lista-demanda, .checklist-arvore) li > .lista-marcar { position: relative; align-self: flex-start; flex-shrink: 0; padding: var(--folga-do-item) 0; font-size: var(--texto-tabela); line-height: 1.45; cursor: pointer }
@@ -75,20 +76,21 @@
 .tarefa-da-demanda-nome:hover { color: var(--accent-ink); text-decoration-color: currentColor }
 .tarefas-da-demanda li.feito > .tarefa-da-demanda-nome { color: var(--muted); text-decoration-line: line-through; text-decoration-color: currentColor }
 /* O campo de item novo e, ao lado, Adicionar (e o "+ Grupo", no pé do checklist): os botões quebram de linha na tela estreita. */
-.lista-novo-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.lista-novo-item { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-do-checklist) }
 .lista-novo-item > input { flex: 1 1 var(--campo-do-item-novo); min-width: 0; height: 36px }
 /* A lista colada com números: a pergunta e as duas escolhas. */
-.lista-colada { display: flex; flex-direction: column; gap: 8px }
+.lista-colada { display: flex; flex-direction: column; gap: var(--vao-do-checklist) }
 .lista-colada > p { margin: 0 }
-.lista-colada > div { display: flex; flex-wrap: wrap; gap: 8px }
+.lista-colada > div { display: flex; flex-wrap: wrap; gap: var(--vao-do-checklist) }
 /* Modelos de checklist: cada modelo num cartão, com a árvore numerada; o editor (o nome e a mesma árvore do cartão). */
 .modelos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 14px }
-.modelo { display: flex; flex-direction: column; gap: 10px; height: 100% }
+.modelo { display: flex; flex-direction: column; gap: 10px; height: 100%; container-type: inline-size }
 .modelo > header { display: flex; align-items: baseline; gap: 10px }
 .modelo h2 { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: 800; color: var(--ink); overflow-wrap: anywhere }
 /* O modelo em edição ocupa a linha toda da grade: a árvore precisa de largura para os grupos e subgrupos. */
 .modelos > .modelo-em-edicao { grid-column: 1 / -1 }
-.modelo-arvore { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
+.modelo-arvore { display: flex; flex-direction: column; gap: var(--vao-do-checklist); padding: var(--folga-da-moldura-do-modelo); border: 1px solid var(--line);
+  border-radius: var(--cantos-da-moldura-do-modelo); background: var(--superficie); container-type: inline-size }
 .modelo-form { display: flex; flex-direction: column; gap: 14px }
 .modelo-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto }
 /* Cronômetro no cartão da tarefa (TempoNaTarefa): o relógio grande, se está contando e os botões, numa linha. */
