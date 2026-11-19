@@ -1,12 +1,14 @@
 // Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113), os lembretes marcados nas tarefas e
-// demandas em que ela está (#286) e os pedidos para participar de um item (#363): quem aprova recebe o pedido, com "Aprovar" e
-// "Recusar"; quem pediu recebe a resposta. Clicar abre o cartão e marca como lida.
-// O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário, na rotina diária dos prazos e na dos lembretes.
+// demandas em que ela está (#286), os pedidos para participar de um item (#363: quem aprova recebe o pedido, com "Aprovar" e
+// "Recusar"; quem pediu recebe a resposta) e o aviso de quando alguém a põe num item (#377). Clicar abre o cartão e marca como lida.
+// O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário ou a equipe de um item, na rotina
+// diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { SD, type Mensagem, type TipoMensagem } from '../dados';
 import { AVISO_AO_RESPONDER, enderecoDaResposta, enderecoDoItemDoPedido, PEDIDO_DO_MODULO, RESPOSTA_DO_PEDIDO, respostaDoPedido, type RespostaDoPedido } from '../regras/pedidoDeParticipacao';
 import { hojeNaAgenda } from '../regras/agenda';
+import { enderecoDaInclusao, INCLUSAO_DO_MODULO, nomeDoItemDaInclusao, rotulosDaInclusao } from '../regras/inclusao';
 import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha } from '../ui/avisos';
@@ -44,14 +46,14 @@ export default function Mensagens() {
     <header className="mensagens-cabeca">
       <div>
         <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">As vezes em que marcaram você com @ nos comentários, os avisos dos prazos sob a sua responsabilidade, os lembretes das tarefas e demandas em que você está e os pedidos para participar dos seus itens.</p>
+        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar e quando incluem você num item.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
     </header>
     {lista === null ? <Carregando />
       : typeof lista === 'string' ? <Aviso tipo="erro">{lista}</Aviso>
-      : !lista.length ? <Vazio>Nenhuma mensagem. Quando alguém marcar você com @ num comentário ou um prazo seu estiver perto de vencer, o aviso aparece aqui.</Vazio>
+      : !lista.length ? <Vazio>Nenhuma mensagem. Menções com @, prazos, lembretes, pedidos para participar e avisos de quando incluem você num item aparecem aqui.</Vazio>
       : <ul className="lista-mensagens" aria-label="Mensagens">
         {lista.map(m => { const Item = ITEM_DO_TIPO[m.tipo]; return <Item key={m.id} m={m} aoMarcarLida={marcarLida} aoMudar={mudou} />; })}
       </ul>}
@@ -176,5 +178,32 @@ function ItemDaResposta(props: PropsDoItem) {
   </LinhaDaMensagem>;
 }
 
+/**
+ * O aviso de que alguém pôs a pessoa num item (#377). Com o item, quem incluiu, o nome do item e o link para o cartão; sem ele (a
+ * pessoa foi retirada), só que ela não faz mais parte, sem nada do item nem quem incluiu, como a menção de um cartão que não vê.
+ */
+function ItemDaInclusao(props: PropsDoItem) {
+  const { m } = props;
+  const ctx = useCtx();
+  const i = m.inclusao!, modulo = INCLUSAO_DO_MODULO[i.modulo];
+  const quem = ctx.equipe.find(x => x.id === i.incluido_por), nome = quem?.nome ?? 'Usuário removido';
+  const rotulos = rotulosDaInclusao(i, nome, situacaoDoAviso(m));
+  const para = i.item && enderecoDaInclusao(i.modulo, i.item);
+  if (!i.item || !para) {
+    return <LinhaDaMensagem {...props} rotulo={rotulos.linha} marcarLida={rotulos.marcarLida}>
+      <CartaoQueNaoVe texto={modulo.naoFazMais} />
+    </LinhaDaMensagem>;
+  }
+  return <LinhaDaMensagem {...props} rotulo={rotulos.linha} marcarLida={rotulos.marcarLida}>
+    <Avatar p={quem} tam={32} />
+    <LinkDaMensagem {...props} para={para}>
+      <span className="mensagem-titulo"><b>{nome}</b> {modulo.acao[i.entrou_como]} <b>{nomeDoItemDaInclusao(i.item)}</b></span>
+      <span className="mensagem-trecho">{modulo.agora[i.entrou_como]}</span>
+    </LinkDaMensagem>
+  </LinhaDaMensagem>;
+}
+
 /** Como cada tipo de mensagem aparece. Tipo novo = uma entrada nova. */
-const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = { mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta };
+const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = {
+  mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao
+};

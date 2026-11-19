@@ -21,6 +21,8 @@
 @media (max-width: 560px) {
   .mensagem { flex-wrap: wrap }
   .mensagem-lado { flex-basis: 100%; flex-direction: row; justify-content: space-between; align-items: center; padding-left: 44px }
+  /* Sem foto nem sino (a mensagem de um item que a pessoa não vê ou de que não faz mais parte), a hora fica rente ao texto. */
+  .mensagem:not(:has(> .avatar, > .mensagem-icone)) .mensagem-lado { padding-left: 0 }
 }
 /* O pedido para participar (#363): o texto em cima e os botões "Aprovar" e "Recusar" logo abaixo, à esquerda, como as ações de um cartão. */
 .mensagem-pedido { display: flex; flex-direction: column; gap: 4px }

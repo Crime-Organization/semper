@@ -16,7 +16,7 @@ import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, Contrat
 import { PARCELAS_DA_PESSOA } from './limites';
 import type { AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoParaLigar, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos';
-import type { ItemParaPedir, PedidoDaMensagem, TipoProcesso } from './tipos';
+import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
 import { PASTA_APAGADA } from '../regras/pastas';
@@ -205,7 +205,7 @@ const prazoDaLinha = (l: LinhaDaMensagem): PrazoDaMensagem | null => {
 /** Junta o comentário e o cartão dele. Sem o comentário, ou sem o cartão, a pessoa não vê mais de onde veio a menção. */
 function mensagemLida(l: LinhaDaMensagem): Mensagem {
   const { comentario: c, id, tipo, criado_em, lido_em } = l;
-  const m = { id, tipo, criado_em, lido_em, prazo: prazoDaLinha(l), pedido: null };
+  const m = { id, tipo, criado_em, lido_em, prazo: prazoDaLinha(l), pedido: null, inclusao: null };
   const modulo = (Object.keys(NOME_DO_CARTAO_DA_MENSAGEM) as ModuloComentado[]).find(x => c?.[x]);
   const cartao = modulo && c?.[modulo];
   if (!c || !modulo || !cartao) return { ...m, comentario: null };
@@ -221,10 +221,42 @@ type LinhaDaMensagemDePedido = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & 
   pedido: (Omit<PedidoDaMensagem, 'tipo_do_processo'> & { processo: { tipo: TipoProcesso } | null }) | null };
 const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem => {
   const { processo, ...p } = pedido ?? { processo: null };
-  return { ...m, comentario: null, prazo: null, pedido: pedido && { ...(p as Omit<PedidoDaMensagem, 'tipo_do_processo'>), tipo_do_processo: processo?.tipo ?? null } };
+  return { ...m, comentario: null, prazo: null, inclusao: null, pedido: pedido && { ...(p as Omit<PedidoDaMensagem, 'tipo_do_processo'>), tipo_do_processo: processo?.tipo ?? null } };
 };
-/** As duas tabelas da caixa: a de sempre e a dos pedidos para participar. Marcar como lida vale nas duas (o id só existe numa). */
-const CAIXAS = ['mensagens', 'mensagens_de_participacao'] as const;
+/**
+ * Os avisos de quem entrou num item (#377), da tabela própria. ainda_faz_parte é o campo calculado do banco: o item só vem enquanto
+ * a pessoa faz parte dele (quem foi retirado e ainda vê o item por outro caminho não recebe o título nem o link). A ligação com o
+ * item passa pelas regras de leitura dele; o contrato vem pela view, como na menção.
+ */
+const CAMPOS_MENSAGEM_DE_INCLUSAO = 'id, criado_em, lido_em, modulo, entrou_como, incluido_por, ainda_faz_parte, '
+  + 'tarefa:tarefas(id, codigo, titulo), demanda:demandas(id, codigo, titulo), processo:processos(id, codigo, titulo, numero, tipo), '
+  + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero), anotacao:anotacoes(id, codigo, titulo), '
+  + 'contrato:contratos_da_equipe(id, codigo, servico)';
+type ItemComTitulo = { id: string; codigo: string; titulo: string | null };
+type LinhaDaMensagemDeInclusao = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & Omit<InclusaoDaMensagem, 'item'> & {
+  ainda_faz_parte: boolean;
+  tarefa: ItemComTitulo | null; demanda: ItemComTitulo | null; anotacao: ItemComTitulo | null;
+  processo: (ItemComTitulo & { numero: string | null; tipo: TipoProcesso }) | null;
+  compromisso: Pick<Compromisso, 'id' | 'codigo' | 'titulo' | 'tipo' | 'pessoa_nome' | 'processo_numero'> | null;
+  contrato: { id: string; codigo: string; servico: string | null } | null;
+};
+const comTitulo = (x: ItemComTitulo | null): ItemDaInclusao | null => x && { id: x.id, codigo: x.codigo, nome: x.titulo, tipo_do_processo: null };
+/** De cada módulo, o item do aviso. A ligação vem vazia quando é de outro módulo ou quando a pessoa não vê o item. */
+const ITEM_DA_INCLUSAO: Record<ModuloDoPedido, (l: LinhaDaMensagemDeInclusao) => ItemDaInclusao | null> = {
+  tarefas: l => comTitulo(l.tarefa),
+  demandas: l => comTitulo(l.demanda),
+  anotacoes: l => comTitulo(l.anotacao),
+  // O processo sem título é chamado pelo número (sem os dois, pelo código).
+  processos: ({ processo: p }) => p && { id: p.id, codigo: p.codigo, nome: p.titulo || p.numero, tipo_do_processo: p.tipo },
+  compromissos: ({ compromisso: c }) => c && { id: c.id, codigo: c.codigo, nome: nomeDoCompromisso(c), tipo_do_processo: null },
+  contratos: ({ contrato: k }) => k && { id: k.id, codigo: k.codigo, nome: k.servico, tipo_do_processo: null }
+};
+const mensagemDeInclusao = (l: LinhaDaMensagemDeInclusao): Mensagem => ({
+  id: l.id, tipo: 'inclusao', criado_em: l.criado_em, lido_em: l.lido_em, comentario: null, prazo: null, pedido: null,
+  inclusao: { modulo: l.modulo, entrou_como: l.entrou_como, incluido_por: l.incluido_por, item: l.ainda_faz_parte ? ITEM_DA_INCLUSAO[l.modulo](l) : null }
+});
+/** As tabelas da caixa: a de sempre, a dos pedidos para participar e a dos avisos de inclusão. Marcar como lida vale em todas (o id só existe numa). */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
@@ -2018,11 +2050,13 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const [sempre, pedidos] = await Promise.all([
+    const [sempre, pedidos, inclusoes] = await Promise.all([
       rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
-      rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+      rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
     ]);
-    return juntarAsCaixas([(pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido), (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
+    return juntarAsCaixas([(inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
+      (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {
     const contagens = await Promise.all(CAIXAS.map(t => rodar(sb.from(t).select('id', { count: 'exact', head: true }).is('lido_em', null))));

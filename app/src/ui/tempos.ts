@@ -38,3 +38,10 @@ export const CONFERIR_MENSAGENS_A_CADA = MINUTO;
 
 /** De quanto em quanto tempo a aba aberta confere se a sessão ainda existe, para não mostrar listas vazias a quem perdeu o acesso. */
 export const CONFERIR_SESSAO_A_CADA = MINUTO;
+
+/**
+ * Aviso de quem entra num item (#377): as mudanças no papel de uma pessoa num item que vêm a menos deste tempo uma da outra (o
+ * botão "Desfazer", o Ctrl+Z, a troca logo corrigida) contam como uma só, e o desfazer apaga o aviso que a pessoa ainda não leu.
+ * É o mesmo tempo do banco (interval '1 minute' em supabase/migrations/20261119193326_aviso_ao_ser_incluido.sql).
+ */
+export const AVISO_DESFEITO = MINUTO;
