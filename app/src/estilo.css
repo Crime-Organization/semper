@@ -122,6 +122,15 @@
   --alvo-de-toque: 44px;
   /* A folga em cima e embaixo do texto de cada item de um checklist; a caixa ao lado tem a mesma, para ficar na primeira linha */
   --folga-do-item: 4px;
+  /* Checklists com grupos (#309): o recuo de cada nível de grupo (menor na tela estreita, pelo tamanho do checklist), a largura
+     do número (1., 2.1, 2.1.1), que alinha os textos de um mesmo nível, e a menor largura do campo de item novo antes de os
+     botões ao lado quebrarem de linha */
+  --recuo-do-checklist: 22px;
+  --recuo-do-checklist-estreito: 12px;
+  --largura-do-numero: 2.6em;
+  --campo-do-item-novo: 12em;
+  /* O vão entre a caixa de marcar (ou a seta do grupo), o número e o texto, em cada linha de um checklist */
+  --vao-da-linha-do-checklist: 8px;
   /* As letras dos dias da semana no topo da grade (D S T Q Q S S), miúdas como as do rótulo em caixa alta, e o número de cada dia */
   --texto-dia-da-semana: 11px;
   --texto-dia-do-calendario: 14px;

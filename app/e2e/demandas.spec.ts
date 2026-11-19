@@ -169,16 +169,22 @@ test.describe('Checklists da demanda', () => {
 });
 
 test.describe('Modelos de checklist', () => {
+  // Desde a #309, o modelo é montado com a mesma árvore do checklist do cartão (um item por vez no campo de item novo, em vez de
+  // um por linha numa caixa de texto), e os itens aparecem numerados.
   test('quando a pessoa cria um modelo, então ele aparece na lista de modelos, com os itens na ordem', async ({ page }) => {
     // Dado
     await page.goto('/modelos-de-lista/');
     // Quando
     await page.getByRole('button', { name: 'Novo modelo' }).click();
     await page.getByLabel('Nome do modelo').fill('Documentos do divórcio');
-    await page.getByLabel('Itens').fill('Certidão de casamento\n\nPacto antenupcial\n');
+    const novo = page.getByRole('textbox', { name: 'Novo item do modelo' });
+    await novo.fill('Certidão de casamento');
+    await novo.press('Enter');
+    await novo.fill('Pacto antenupcial');
+    await novo.press('Enter');
     await page.getByRole('button', { name: 'Salvar modelo' }).click();
     // Então
-    await expect(page.getByRole('listitem', { name: 'Modelo Documentos do divórcio' }).getByRole('listitem')).toHaveText(['Certidão de casamento', 'Pacto antenupcial']);
+    await expect(page.getByRole('listitem', { name: 'Modelo Documentos do divórcio' }).getByRole('listitem')).toHaveText(['1. Certidão de casamento', '2. Pacto antenupcial']);
   });
 
   test('quando a pessoa escolhe um modelo em "Adicionar checklist", então o checklist entra na demanda com um clique, sem itens marcados', async ({ page }) => {

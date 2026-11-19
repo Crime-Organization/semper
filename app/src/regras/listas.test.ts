@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { conferirNomeDoChecklist, conferirTextoDoItem, itensDoTexto, moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista, textoDosItens } from './listas';
+import { conferirNomeDoChecklist, conferirNomeDoGrupo, conferirTextoDoItem, moverNaLista, ordemNoFimDaLista, prazoDoItem, progressoDaLista } from './listas';
 
 describe('Listas da demanda', () => {
   it.each([
@@ -56,20 +56,12 @@ describe('Listas da demanda', () => {
   });
 });
 
-describe('Modelos de lista', () => {
-  it('quando o modelo é escrito um item por linha, então os itens vêm limpos, sem linhas vazias, e voltam ao texto igual', () => {
-    // Quando
-    const itens = itensDoTexto('  Atos constitutivos \n\n  \nQuadro de sócios');
-    // Então
-    expect(itens).toEqual(['Atos constitutivos', 'Quadro de sócios']);
-    expect(textoDosItens(itens)).toBe('Atos constitutivos\nQuadro de sócios');
-  });
-});
 
 describe('Renomear o checklist e o item no lugar (#358)', () => {
   it.each([
     ['o nome do checklist', conferirNomeDoChecklist, 'O checklist precisa de um nome.'],
-    ['o texto do item', conferirTextoDoItem, 'O item não pode ficar em branco.']
+    ['o texto do item', conferirTextoDoItem, 'O item não pode ficar em branco.'],
+    ['o nome do grupo (#309)', conferirNomeDoGrupo, 'O grupo precisa de um nome.']
   ] as const)('quando %s fica em branco (ou só com espaços), então o aviso diz por quê; com texto, está certo', (_caso, conferir, aviso) => {
     // Quando / Então
     expect(conferir('')).toBe(aviso);

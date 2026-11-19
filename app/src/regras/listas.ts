@@ -28,14 +28,10 @@ export function moverNaLista<T extends { id: string; ordem: number }>(itens: T[]
   return nova.map((x, k) => ({ id: x.id, ordem: k + 1 })).filter(x => itens.find(y => y.id === x.id)!.ordem !== x.ordem);
 }
 
-// ---------- modelos de lista ----------
-/** Os itens do modelo a partir do texto do editor: um por linha, sem espaços nas pontas e sem linhas vazias. */
-export const itensDoTexto = (texto: string) => texto.split('\n').map(t => t.trim()).filter(Boolean);
-/** O texto do editor a partir dos itens do modelo (um por linha). */
-export const textoDosItens = (itens: string[]) => itens.join('\n');
-
 // ---------- renomear no lugar (#358) ----------
 /** O aviso do checklist sem nome ('' = está certo). */
 export const conferirNomeDoChecklist = (nome: string) => nome.trim() ? '' : 'O checklist precisa de um nome.';
+/** O aviso do grupo sem nome ('' = está certo). */
+export const conferirNomeDoGrupo = (nome: string) => nome.trim() ? '' : 'O grupo precisa de um nome.';
 /** O aviso do item sem texto ('' = está certo). */
 export const conferirTextoDoItem = (texto: string) => texto.trim() ? '' : 'O item não pode ficar em branco.';

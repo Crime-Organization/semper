@@ -2,7 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import type { GrupoDaLista, ItemDaLista, NoDoModelo } from '../dados/tipos';
 import {
-  ACOES_DO_NO, CHECKLIST_MUDOU, FORA_DOS_GRUPOS, GRUPO_DE_OUTRO_CHECKLIST, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, acharNo, acoesPossiveis, alturaDoNo,
+  ACOES_DO_NO, CHECKLIST_MUDOU, aplicarPosicoes, avisoDaPosicao, comOsNovos, descricaoDoNo, novosNoChecklist, ondeEntramOsNovos, semOGrupo, tamanhoDoModelo,
+  grupoDoNo, textoDaExclusaoDoGrupo, FORA_DOS_GRUPOS, GRUPO_DE_OUTRO_CHECKLIST, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, acharNo, acoesPossiveis, alturaDoNo,
   arvoreDaLista, arvoreDasLinhas, arvoreDoChecklist, arvoreDoModelo, arvoreDosItens, contagemDoGrupo, destinosDoNo, emOrdemDeLeitura, erroDaArvore,
   itensDaArvore, limparArvore, linhasColadas, listaDoModelo, moverEntreIrmaos, moverParaGrupo, mudancasDePosicao, noDeCima, numeroDoNo, ondeEntraONovo,
   planoDoChecklist, podeTerSubgrupo, posicoesDaArvore, reconciliarArvore, segueALeitura, type ChecklistDaArvore, type NoDaLista, type ResultadoDaAcao
@@ -367,5 +368,73 @@ describe('Colar uma lista (#309)', () => {
   it('quando não usa os números, então cada linha é um item, com o texto como veio ("1.000 cópias" fica no texto)', () => {
     // Então
     expect(arvoreDasLinhas(['1.000 cópias', '2. Procuração'], false)).toEqual({ arvore: [{ texto: '1.000 cópias' }, { texto: '2. Procuração' }], erro: '' });
+  });
+});
+
+describe('Acrescentar e tirar na tela (#309)', () => {
+  it('quando três novos entram no fim de um grupo, então as posições ficam no vão, em ordem, sem renumerar', () => {
+    // Quando: o grupo 1 termina no CPF (3) e o próximo é o Benefício (4)
+    const onde = ondeEntramOsNovos(arvoreDaLista(EXEMPLO), 'g1', 3);
+    // Então
+    expect(onde).toEqual({ pai_id: 'g1', ordens: [3.25, 3.5, 3.75], renumerar: [] });
+  });
+
+  it('dado um vão pequeno demais, quando dois novos entram no grupo, então o checklist é renumerado com dois lugares', () => {
+    // Dado
+    const lista = { grupos: [grupo('g', 'G', null, 1)], itens: [item('a', 'A', 'g', 2), item('b', 'B', null, 2 + 1e-7)] };
+    // Quando
+    const onde = ondeEntramOsNovos(arvoreDaLista(lista), 'g', 2);
+    // Então
+    expect(onde).toEqual({ pai_id: 'g', ordens: [3, 4], renumerar: [{ id: 'b', tipo: 'item', pai_id: null, ordem: 5 }] });
+  });
+
+  it('quando uma árvore colada entra no fim do grupo 1, então o grupo novo vem antes do item de dentro dele, com o pai pela chave', () => {
+    // Quando
+    const novos = novosNoChecklist(arvoreDaLista(EXEMPLO), 'g1', [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }, { texto: 'Foto' }]);
+    // Então
+    expect(novos.grupos).toEqual([{ chave: 'g1', pai: null, nome: 'Certidões', onde: { pai_id: 'g1', ordem: 3.25 } }]);
+    expect(novos.itens).toEqual([{ pai: 'g1', texto: 'Nascimento', onde: { pai_id: 'g1', ordem: 3.5 } }, { pai: null, texto: 'Foto', onde: { pai_id: 'g1', ordem: 3.75 } }]);
+  });
+
+  it('dado o editor de modelos, quando acrescenta um subgrupo com um item, então a árvore numera 1.3 e 1.3.1, e o grupo novo vem na resposta', () => {
+    // Dado
+    let n = 0;
+    // Quando
+    const { lista, grupos } = comOsNovos(EXEMPLO, 'g1', [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }], () => `novo${++n}`);
+    // Então
+    expect(grupos).toEqual(['novo1']);
+    expect(numerados(arvoreDaLista(lista)).slice(0, 5)).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF', '1.3 Certidões', '1.3.1 Nascimento']);
+  });
+
+  it('quando aplica as posições de uma ação, então a árvore lida de novo mostra o que mudou', () => {
+    // Dado
+    const depois = arvoreDe(ACOES_DO_NO.descer.aplicar(arvoreDaLista(EXEMPLO), 'g1'));
+    // Quando
+    const lista = aplicarPosicoes(EXEMPLO, mudancasDePosicao(EXEMPLO, depois));
+    // Então
+    expect(numerados(arvoreDaLista(lista))[0]).toBe('1. Benefício');
+    expect(acharNo(arvoreDaLista(lista), 'rg')?.numero).toBe('2.1');
+  });
+
+  it('quando tira o grupo Benefício, então saem os subgrupos e os itens de dentro, e o resto fica', () => {
+    // Quando
+    const lista = semOGrupo(EXEMPLO, 'g2');
+    // Então
+    expect(numerados(arvoreDaLista(lista))).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF']);
+  });
+
+  it('quando pede os textos da tela, então dizem o tamanho do modelo, a exclusão do grupo, o caminho e o número novo', () => {
+    // Dado
+    const arvore = arvoreDaLista(EXEMPLO);
+    // Então
+    expect(tamanhoDoModelo(MODELO)).toBe('5 itens em 4 grupos');
+    expect(tamanhoDoModelo([{ texto: 'A' }])).toBe('1 item');
+    expect(textoDaExclusaoDoGrupo(acharNo(arvore, 'g2')!)).toBe('O grupo "2. Benefício", 2 subgrupos e 3 itens serão excluídos.');
+    expect(textoDaExclusaoDoGrupo(acharNo(arvoreDaLista({ grupos: [grupo('v', 'Vazio', null, 1)], itens: [] }), 'v')!)).toBe('O grupo "1. Vazio" será excluído.');
+    expect(descricaoDoNo(acharNo(arvore, 'rg')!)).toBe('1.1, no grupo 1. Documentos pessoais');
+    expect(descricaoDoNo(acharNo(arvore, 'g1')!)).toBe('1.');
+    expect(avisoDaPosicao(acharNo(arvore, 'rg')!)).toBe('"RG" agora é 1.1.');
+    expect(avisoDaPosicao(acharNo(arvore, 'g2')!)).toBe('"Benefício" agora é 2.');
+    expect([grupoDoNo(arvore, 'cnis'), grupoDoNo(arvore, 'g1')]).toEqual(['g3', null]);
   });
 });

@@ -1,0 +1,5 @@
+{
+  "titulo": "Checklists com grupos numerados, também no contrato",
+  "texto": "Os itens de um checklist podem ficar em grupos e subgrupos numerados (1. Documentos pessoais, 1.1 RG, 2.1.1 CNIS); o número se ajusta sozinho ao mover ou excluir. Cada grupo abre e fecha e mostra quantos itens já foram feitos. Os modelos de checklist são montados do mesmo jeito, e o contrato agora também tem checklists.",
+  "ondeAchar": "Na seção Checklists do cartão da demanda, da tarefa ou do contrato: o botão \"+ Grupo\" e o ⋯ de cada item ou grupo (Mover para grupo). Os modelos ficam no menu ⋯ de Demandas, Tarefas e Contratos."
+}

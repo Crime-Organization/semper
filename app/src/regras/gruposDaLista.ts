@@ -140,6 +140,8 @@ function localizar(arvore: NoDaLista[], id: string, pai: string | null = null): 
   }
   return null;
 }
+/** O grupo em que o nó está, na árvore (null: no primeiro nível). */
+export const grupoDoNo = (arvore: NoDaLista[], id: string) => localizar(arvore, id)?.pai ?? null;
 /** A árvore com os filhos do grupo (null: o primeiro nível) trocados. */
 function trocarFilhos(arvore: NoDaLista[], pai: string | null, novos: NoDaLista[]): NoDaLista[] {
   if (pai === null) return novos;
@@ -232,21 +234,110 @@ export const mudancasDePosicao = (lista: ChecklistDaArvore, depois: NoDaLista[])
   queMudaram(posicoesDaArvore(depois), guardadas(arvoreDaLista(lista)));
 
 /**
- * Onde entra o grupo ou o item novo: no fim do grupo (null: no fim do checklist, depois da maior "ordem" de grupos e itens).
- * No fim do grupo, a "ordem" fica entre o último nó de dentro dele e o próximo nó; se o vão é pequeno demais, ou se a ordem
- * guardada não segue a leitura, "renumerar" traz o checklist inteiro renumerado com um vão para o novo (gravar antes de criar).
+ * Onde entram os "quantos" grupos e itens novos, na ordem de leitura: no fim do grupo (null: no fim do checklist, depois da
+ * maior "ordem" de grupos e itens). No fim do grupo, as "ordem" ficam entre o último nó de dentro dele e o próximo nó; se o vão
+ * é pequeno demais, ou se a ordem guardada não segue a leitura, "renumerar" traz o checklist inteiro renumerado com um vão para
+ * os novos (gravar antes de criar).
  */
-export function ondeEntraONovo(arvore: NoDaLista[], grupoId: string | null): { pai_id: string | null; ordem: number; renumerar: PosicaoNaLista[] } {
+export function ondeEntramOsNovos(arvore: NoDaLista[], grupoId: string | null, quantos: number): { pai_id: string | null; ordens: number[]; renumerar: PosicaoNaLista[] } {
   const lidos = emOrdemDeLeitura(arvore), g = grupoId === null ? -1 : lidos.findIndex(n => n.id === grupoId);
-  const grupo = lidos[g];
-  if (grupo?.tipo !== 'grupo') return { pai_id: null, ordem: Math.max(0, ...lidos.map(ordemGuardada)) + 1, renumerar: [] };
-  const fim = g + emOrdemDeLeitura(grupo.filhos).length, a = ordemGuardada(lidos[fim]), proximo = lidos[fim + 1];
-  if (crescem(lidos.map(ordemGuardada)) && (!proximo || ordemGuardada(proximo) - a >= MENOR_VAO_DA_ORDEM)) {
-    return { pai_id: grupo.id, ordem: proximo ? (a + ordemGuardada(proximo)) / 2 : a + 1, renumerar: [] };
+  const grupo = lidos[g], cada = Array.from({ length: quantos }, (_, k) => k + 1);
+  if (grupo?.tipo !== 'grupo') {
+    const maior = Math.max(0, ...lidos.map(ordemGuardada));
+    return { pai_id: null, ordens: cada.map(k => maior + k), renumerar: [] };
   }
-  // Renumera de 1 a n, pulando a posição logo depois do fim do grupo: é a do novo.
-  const renumeradas = posicoesDaArvore(arvore).map((p, i) => ({ ...p, ordem: i + 1 + (i > fim ? 1 : 0) }));
-  return { pai_id: grupo.id, ordem: fim + 2, renumerar: queMudaram(renumeradas, guardadas(arvore)) };
+  const fim = g + emOrdemDeLeitura(grupo.filhos).length, a = ordemGuardada(lidos[fim]), proximo = lidos[fim + 1];
+  if (crescem(lidos.map(ordemGuardada)) && (!proximo || (ordemGuardada(proximo) - a) / quantos >= MENOR_VAO_DA_ORDEM)) {
+    const vao = proximo ? (ordemGuardada(proximo) - a) / (quantos + 1) : 1;
+    return { pai_id: grupo.id, ordens: cada.map(k => a + vao * k), renumerar: [] };
+  }
+  // Renumera de 1 a n, pulando as posições logo depois do fim do grupo: são as dos novos.
+  const renumeradas = posicoesDaArvore(arvore).map((p, i) => ({ ...p, ordem: i + 1 + (i > fim ? quantos : 0) }));
+  return { pai_id: grupo.id, ordens: cada.map(k => fim + 1 + k), renumerar: queMudaram(renumeradas, guardadas(arvore)) };
+}
+/** Onde entra um grupo ou um item novo (ver ondeEntramOsNovos). */
+export function ondeEntraONovo(arvore: NoDaLista[], grupoId: string | null): { pai_id: string | null; ordem: number; renumerar: PosicaoNaLista[] } {
+  const { pai_id, ordens, renumerar } = ondeEntramOsNovos(arvore, grupoId, 1);
+  return { pai_id, ordem: ordens[0], renumerar };
+}
+
+/** O checklist com as posições novas (grupo de cima e "ordem") dos nós citados: a tela mostra na hora o que o banco grava. */
+export function aplicarPosicoes(lista: ChecklistDaArvore, posicoes: PosicaoNaLista[]): ChecklistDaArvore {
+  const de = new Map(posicoes.map(p => [p.id, p]));
+  return {
+    grupos: lista.grupos.map(g => { const p = de.get(g.id); return p?.tipo === 'grupo' ? { ...g, pai_id: p.pai_id, ordem: p.ordem } : g; }),
+    itens: lista.itens.map(i => { const p = de.get(i.id); return p?.tipo === 'item' ? { ...i, grupo_id: p.pai_id, ordem: p.ordem } : i; })
+  };
+}
+
+/** O checklist sem o grupo, os subgrupos e os itens de dentro (como o banco faz ao excluir o grupo). */
+export function semOGrupo(lista: ChecklistDaArvore, grupoId: string): ChecklistDaArvore {
+  const fora = new Set([grupoId]);
+  let cresceu = true;
+  while (cresceu) {
+    const antes = fora.size;
+    lista.grupos.forEach(g => { if (g.pai_id && fora.has(g.pai_id)) fora.add(g.id); });
+    cresceu = fora.size > antes;
+  }
+  return { grupos: lista.grupos.filter(g => !fora.has(g.id)), itens: lista.itens.filter(i => !i.grupo_id || !fora.has(i.grupo_id)) };
+}
+
+/**
+ * Os grupos e itens de uma árvore de modelo, prontos para entrar no fim do grupo (null: no fim do checklist): cada um com o grupo
+ * de cima (a chave de um grupo novo, ou o grupo escolhido) e a "ordem", e o que renumerar antes. A tela cria os grupos na ordem
+ * (o de cima antes dos de dentro) e troca as chaves pelos ids que o banco deu.
+ */
+export function novosNoChecklist(arvore: NoDaLista[], grupoId: string | null, nova: NoDoModelo[]) {
+  const plano = planoDoChecklist(nova);
+  const { pai_id, ordens, renumerar } = ondeEntramOsNovos(arvore, grupoId, plano.grupos.length + plano.itens.length);
+  return {
+    renumerar,
+    grupos: plano.grupos.map(g => ({ chave: g.chave, pai: g.pai, nome: g.nome, onde: { pai_id, ordem: ordens[g.ordem - 1] } })),
+    itens: plano.itens.map(i => ({ pai: i.pai, texto: i.texto, onde: { pai_id, ordem: ordens[i.ordem - 1] } }))
+  };
+}
+
+/**
+ * O checklist em memória (o editor de modelos) com a árvore nova no fim do grupo (null: no fim do checklist). "novoId" dá os ids
+ * dos grupos e itens novos. Devolve também os ids dos grupos criados, na ordem.
+ */
+export function comOsNovos(lista: ChecklistDaArvore, grupoId: string | null, nova: NoDoModelo[], novoId: () => string): { lista: ChecklistDaArvore; grupos: string[] } {
+  const { renumerar, grupos, itens } = novosNoChecklist(arvoreDaLista(lista), grupoId, nova);
+  const base = aplicarPosicoes(lista, renumerar), chaves = new Map<string, string>();
+  const paiDe = (pai: string | null, onde: { pai_id: string | null }) => pai === null ? onde.pai_id : chaves.get(pai)!;
+  const novosGrupos = grupos.map((g): GrupoDaLista => {
+    const id = novoId();
+    chaves.set(g.chave, id);
+    return { id, nome: g.nome, pai_id: paiDe(g.pai, g.onde), ordem: g.onde.ordem, criado_em: '' };
+  });
+  const novosItens = itens.map((i): ItemDaLista =>
+    ({ id: novoId(), texto: i.texto, prazo: null, feito_em: null, feito_por: null, ordem: i.onde.ordem, grupo_id: paiDe(i.pai, i.onde), criado_em: '' }));
+  return { lista: { grupos: [...base.grupos, ...novosGrupos], itens: [...base.itens, ...novosItens] }, grupos: novosGrupos.map(g => g.id) };
+}
+
+// ---------- textos da tela ----------
+
+const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`;
+/** Quantos itens e grupos uma árvore de modelo tem: "5 itens em 4 grupos", "1 item". */
+export function tamanhoDoModelo(arvore: NoDoModelo[]): string {
+  const itens = plural(itensDaArvore(arvore).length, 'item', 'itens'), grupos = contarGrupos(arvore);
+  return grupos ? `${itens} em ${plural(grupos, 'grupo', 'grupos')}` : itens;
+}
+/** O que a confirmação de excluir um grupo diz: 'O grupo "2. Benefício", 2 subgrupos e 3 itens serão excluídos.' */
+export function textoDaExclusaoDoGrupo(no: NoDaLista): string {
+  if (no.tipo !== 'grupo') return '';
+  const dentro = emOrdemDeLeitura(no.filhos), subgrupos = dentro.filter(n => n.tipo === 'grupo').length;
+  const partes = [`o grupo "${no.numero} ${no.grupo.nome}"`, ...(subgrupos ? [plural(subgrupos, 'subgrupo', 'subgrupos')] : []),
+    ...(no.total ? [plural(no.total, 'item', 'itens')] : [])];
+  const lista = partes.length > 1 ? `${partes.slice(0, -1).join(', ')} e ${partes.at(-1)}` : partes[0];
+  return `${lista[0].toUpperCase()}${lista.slice(1)} ${partes.length > 1 ? 'serão excluídos' : 'será excluído'}.`;
+}
+/** A descrição do item para o leitor de tela: o número e, se ele está num grupo, o caminho ("1.1, no grupo 1. Documentos pessoais"). */
+export const descricaoDoNo = (no: NoDaLista) => no.caminho ? `${no.numero}, no grupo ${no.caminho}` : no.numero;
+/** O aviso depois de subir, descer ou mover: o número novo ('"RG" agora é 2.1.'). */
+export function avisoDaPosicao(no: NoDaLista): string {
+  const nome = no.tipo === 'grupo' ? no.grupo.nome : no.item.texto;
+  return `"${nome}" agora é ${no.numero.replace(/\.$/, '')}.`;
 }
 
 /** O erro que o banco daria para esta árvore ('' = está certa): grupo de outro checklist, grupo dentro dele mesmo, níveis demais. */

@@ -126,6 +126,7 @@ export default function Contratos() {
 
   return <>
     <PaginaModulo titulo="Contratos" contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
+      mais={[{ rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }]}
       busca={{ placeholder: 'Buscar cliente, número, objeto…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',

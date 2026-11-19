@@ -175,3 +175,40 @@ describe('Pedir uma data (#357)', () => {
     await expect(resposta).resolves.toBe('');
   });
 });
+
+describe('Escolher numa lista (#309)', () => {
+  const opcoes = [{ valor: '', nome: 'Fora dos grupos' }, { valor: 'g1', nome: '1. Documentos pessoais' }, { valor: 'g3', nome: '2.1 Aposentadoria por idade' }];
+  const abrir = () => {
+    let r!: Promise<string | null>;
+    act(() => { r = janela.escolherNaJanela({ titulo: 'Mover "RG" para o grupo', rotulo: 'Grupo', opcoes, atual: 'g1' }); });
+    return r;
+  };
+
+  it('quando abre, então mostra as opções com a atual marcada', () => {
+    // Quando
+    void abrir();
+    // Então
+    const campo = screen.getByRole('combobox', { name: 'Grupo' });
+    expect(screen.getAllByRole('option').map(o => o.textContent)).toEqual(['Fora dos grupos', '1. Documentos pessoais', '2.1 Aposentadoria por idade']);
+    expect(campo).toHaveValue('g1');
+  });
+
+  it('quando a pessoa escolhe outra e confirma, então devolve o valor dela', async () => {
+    // Dado
+    const resposta = abrir();
+    // Quando
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Grupo' }), '2.1 Aposentadoria por idade');
+    await userEvent.click(screen.getByRole('button', { name: 'Mover' }));
+    // Então
+    await expect(resposta).resolves.toBe('g3');
+  });
+
+  it('quando a pessoa cancela, então a resposta é nula', async () => {
+    // Dado
+    const resposta = abrir();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    // Então
+    await expect(resposta).resolves.toBeNull();
+  });
+});
