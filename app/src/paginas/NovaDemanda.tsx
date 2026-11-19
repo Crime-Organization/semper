@@ -3,6 +3,7 @@
 // Vindo do cartão de uma pessoa (?cliente=) ou de um contrato (?contrato=), ela já vem escolhida. Vinda do cartão de uma tarefa
 // (?tarefa=), a demanda herda as pessoas e o contrato da tarefa; vinda de um processo (?processo=), ele já escolhido e os clientes
 // dele. Ela nasce ligada à origem e, ao salvar, volta ao cartão de onde a pessoa partiu (#376). A origem arquivada não vale.
+// Vinda do "+ Novo…" de uma anotação (?anotacao=), ela nasce ligada à anotação, com a pessoa única dela como cliente (por ?cliente=).
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosDemanda, type Demanda, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
@@ -31,6 +32,7 @@ import {
   aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDoContratoDaTarefa, origemDaTarefa, origemDoProcesso, textoDaOrigem, type OrigemDoItem
 } from '../regras/nascerLigado';
 import { ligarTarefaNaDemanda } from './ligarNoCartao';
+import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -57,6 +59,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   // A origem do "+ Nova demanda" de um cartão (#376): a tarefa fica ligada à demanda nova; o processo já vem escolhido.
   const tarefaInicial = idAtualizar ? null : params.get('tarefa'), processoInicial = idAtualizar ? null : params.get('processo');
   const [origem, setOrigem] = useState<OrigemDoItem | null>(null);
+  // A anotação de onde a demanda nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada à demanda nova.
+  const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'demanda');
   // A tarefa de origem, só quando ela vale (ativa): é ela que fica ligada à demanda nova.
   const [tarefa, setTarefa] = useState<Tarefa | null>(null);
 
@@ -280,7 +284,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
           catch (e) { avisar(avisoDaLigacaoQueFalhou('tarefa na demanda', tarefa.codigo, e), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(volta, { replace: !!origem });
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'demanda', r.id, volta), { replace: !!origem || !!daAnotacao });
       }
     } catch (err) {
       falha(err);
@@ -369,6 +373,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando a demanda <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
     {origem && <Aviso tipo="info">{textoDaOrigem(origem)[0]} <b>{origem.codigo}</b> ({origem.nome}){textoDaOrigem(origem)[1]}</Aviso>}
+    <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>

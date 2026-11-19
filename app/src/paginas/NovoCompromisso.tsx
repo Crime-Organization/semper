@@ -1,7 +1,8 @@
 // Cadastro de compromisso (novo ou atualizar), por etapas como os de pessoa, demanda e processo: o compromisso (tipo, data e
 // hora), onde e de qual processo, as pessoas e os detalhes. Vindo do cartão de uma pessoa (?pessoa=) ou de um processo
 // (?processo=, que já começa como audiência), ele já vem escolhido. Ao escolher o processo, os clientes dele entram no
-// compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília.
+// compromisso, se ainda não houver pessoas. A data e a hora são as do relógio de Brasília. Vindo do "+ Novo…" de uma anotação
+// (?anotacao=, #376), ele nasce ligado a ela (com a pessoa única da anotação, por ?pessoa=) e, ao salvar, volta à anotação.
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type Compromisso, type DadosCompromisso, type PessoaLista, type PessoaResumida, type ProcessoParaLigar, type TipoCompromisso } from '../dados';
@@ -29,6 +30,7 @@ import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useCtx } from '../ui/sessao';
 import { subirAoCadastro, useAtrasado, useTitulo } from '../ui/util';
+import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -51,6 +53,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa'), pessoaInicial = params.get('pessoa'), processoInicial = params.get('processo');
   const tipoInicial: TipoCompromisso = processoInicial ? 'audiencia' : 'reuniao';
+  // A anotação de onde o compromisso nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada ao compromisso novo.
+  const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'compromisso');
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposCompromisso>(() => ({ ...compromissoVazio(tipoInicial), responsavelId: ctx.perfil.id }));
@@ -245,7 +249,8 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
           return { tipo: 'compromissoCriado', id: r.id };
         });
         saidaLiberada.current = true;
-        navegar(ENDERECO + '?id=' + r.id);
+        // Vindo de uma anotação, liga o compromisso a ela e volta à anotação, no lugar do cadastro.
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'compromisso', r.id, ENDERECO + '?id=' + r.id), { replace: !!daAnotacao });
       }
     } catch (err) {
       falha(err);
@@ -351,6 +356,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       <h1 className="titulo">{alvo ? 'Atualizar compromisso' : 'Novo compromisso'}<span className="ponto">.</span></h1>
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando o compromisso <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
+    <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>

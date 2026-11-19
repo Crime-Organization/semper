@@ -3,7 +3,8 @@
 // Cada etapa só segue com os campos dela certos (regras/contrato.ts, ETAPAS_CONTRATO). O número do contrato é dado pelo
 // banco ao salvar e, depois de dado, não muda.
 // Vindo do cartão de uma demanda (?demanda=) ou de um processo (?processo=), o contrato herda os clientes da origem, nasce ligado
-// a ela e, ao salvar, volta ao cartão de onde a pessoa partiu (#376). A origem arquivada não vale.
+// a ela e, ao salvar, volta ao cartão de onde a pessoa partiu (#376). A origem arquivada não vale. Vindo do "+ Novo…" de uma
+// anotação (?anotacao=), ele nasce ligado à anotação, com a pessoa única dela como cliente (por ?cliente=).
 import { useCallback, useEffect, useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContaParaEscolher, type Contrato, type Demanda, type PessoaLista, type PessoaResumida } from '../dados';
@@ -35,6 +36,7 @@ import {
 } from '../regras/nascerLigado';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { ligarNoItem } from './ligarNoCartao';
+import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import { ParticipantesDoContrato } from './ParticipantesDoContrato';
 import './Contratos.css';
 
@@ -62,6 +64,8 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
   // A origem do "+ Novo contrato" de um cartão (#376): a demanda fica ligada ao contrato novo; o processo já vem escolhido.
   const demandaInicial = idAtualizar ? null : params.get('demanda'), processoInicial = idAtualizar ? null : params.get('processo');
   const [origem, setOrigem] = useState<OrigemDoItem | null>(null);
+  // A anotação de onde o contrato nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada ao contrato novo.
+  const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'contrato');
   // A demanda de origem, só quando ela vale (ativa), e por que ela não ficaria no contrato novo ('' = fica).
   const [demanda, setDemanda] = useState<Demanda | null>(null);
   const [demandaFora, setDemandaFora] = useState('');
@@ -363,7 +367,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
           catch (e) { avisar(avisoDaLigacaoQueFalhou('demanda no contrato', demanda.codigo, e), 'erro'); }
         }
         saidaLiberada.current = true;
-        navegar(volta, { replace: !!origem });
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'contrato', r.id, volta), { replace: !!origem || !!daAnotacao });
       }
     } catch (err) {
       falha(err);
@@ -519,6 +523,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando o contrato <b>{alvo.codigo}</b> de <b>{nomesPorExtenso(alvo.clientes.map(x => x.nome))}</b>. O número não muda, e as informações anteriores ficam no histórico.</Aviso>}
     {origem && <Aviso tipo="info">{textoDaOrigem(origem)[0]} <b>{origem.codigo}</b> ({origem.nome}){textoDaOrigem(origem)[1]}</Aviso>}
+    <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
     {/* Vindo de uma demanda: o que impede a ligação ou, ligada, que os objetos ainda viram demandas ao assinar (o banco ainda não pula a de origem). */}
     {demanda && <Aviso tipo="info">{demandaFora || OBJETOS_AINDA_VIRAM_DEMANDAS}</Aviso>}
     {!pronto ? <Carregando /> : <>

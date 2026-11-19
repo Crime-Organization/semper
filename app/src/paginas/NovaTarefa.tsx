@@ -6,6 +6,8 @@
 // Vindo do "+ Nova tarefa" de um processo (?processo=, #376), ela já vem ligada a ele (o aviso do topo diz de onde nasce), com os clientes
 // dele como pessoas (se o endereço não traz outras), e, ao salvar, a tela volta ao cartão do processo (se a pessoa não tirou o processo no
 // cadastro). O processo arquivado depois que o cartão abriu não é ligado: o aviso diz isso antes de gravar.
+// Vindo do "+ Novo…" de uma anotação (?anotacao=, #376), a tarefa nasce ligada a ela (com a pessoa única da anotação, que vem por
+// ?pessoa=) e, ao salvar, a tela volta à anotação (nascerNaAnotacao.tsx).
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { SD, type ContratoLista, type DadosTarefa, type DemandaLista, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
@@ -16,6 +18,7 @@ import { clientesPorExtenso } from '../regras/contrato';
 import { enderecoDoItem } from '../regras/anotacao';
 import { depoisDeCriar, tarefaDoProcesso } from '../regras/origemDoCadastro';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
+import { anotacaoNoEndereco, AvisoDaAnotacaoDeOrigem, depoisDeCriarNaAnotacao, useAnotacaoDeOrigem } from './nascerNaAnotacao';
 import {
   camposDaTarefa, continuaPelaDemanda, dadosDaTarefa, ETAPAS_TAREFA, errosDaEtapaTarefa, naOrdemDoLapisTarefa, oQueADemandaTraz, primeiraEtapaComErroTarefa, semADemanda,
   semSairDaTarefa, TAREFA_VAZIA, validarTarefa, type CamposTarefa, type EtapaTarefa, type TrazidoDaDemanda
@@ -56,6 +59,8 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const pessoaInicial = params.get('pessoa'), demandaInicial = params.get('demanda'), contratoInicial = params.get('contrato'), processoInicial = params.get('processo');
+  // A anotação de onde a tarefa nasce (o "+ Novo…" da seção "Ligada a"): ela fica ligada à tarefa nova.
+  const daAnotacao = useAnotacaoDeOrigem(anotacaoNoEndereco(params, !!idAtualizar), 'tarefa');
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposTarefa>(() => ({ ...TAREFA_VAZIA, responsavelId: ctx.perfil.id }));
@@ -280,8 +285,10 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
           return { tipo: 'tarefaCriada', id: r.id };
         });
         saidaLiberada.current = true;
-        // Vinda do processo, volta ao cartão dele, onde a tarefa nova já aparece (a tarefa nasce com o processo gravado).
-        navegar(depoisDeCriar(doProcesso?.cartao ?? null, !!processoInicial && dados.processo_id === processoInicial, '/tarefas/?id=' + r.id));
+        // Vinda do processo, volta ao cartão dele, onde a tarefa nova já aparece (a tarefa nasce com o processo gravado). Vinda de
+        // uma anotação, liga a tarefa a ela e volta à anotação, no lugar do cadastro (o Voltar do navegador não reabre o formulário).
+        const doCriado = depoisDeCriar(doProcesso?.cartao ?? null, !!processoInicial && dados.processo_id === processoInicial, '/tarefas/?id=' + r.id);
+        navegar(await depoisDeCriarNaAnotacao(daAnotacao, 'tarefa', r.id, doCriado), { replace: !!daAnotacao });
       }
     } catch (err) {
       falha(err);
@@ -382,6 +389,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     {doProcesso?.arquivado && <Aviso tipo="erro">O processo <b>{doProcesso.codigo}</b> ({doProcesso.nome}) está arquivado: esta tarefa não fica ligada a ele.</Aviso>}
     {doProcesso && !doProcesso.arquivado && c.processoId === processoInicial
       && <Aviso tipo="info">Esta tarefa nasce do processo <b>{doProcesso.codigo}</b> ({doProcesso.nome}) e fica ligada a ele.</Aviso>}
+    <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>
