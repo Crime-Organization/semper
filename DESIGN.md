@@ -229,6 +229,7 @@ Abre à direita, com até 560px, sobre um véu. O "X" fica preso ao topo por cim
 | Mobile | ≤ 640px | Formulários em uma coluna, ações empilhadas (botão principal em largura total) |
 
 - Alvo mínimo de 44px em controles; campos de login com 48px.
+- A barra de formatação (B, I, cabeçalho, listas, citação, código e link; `barraDeFormatacao`, na anotação e nas descrições) no celular (#374): com a caixa de até 420px (container `caixa-formatada`), nove botões com o alvo inteiro não cabem numa linha, então a barra vira duas linhas equilibradas (5 + 4; a quantidade por linha vem do componente, em `--botoes-por-linha`) e nenhum botão fica sozinho embaixo. Cada botão é um alvo de `--alvo-de-toque` por `--alvo-de-toque` (44x44), encostado no vizinho; o desenho continua a bolinha de `--botao-da-formatacao` (34px, a altura do `.mini`, `--botao-mini`) no meio do alvo, com 10px de sobra entre uma bolinha e outra e o contorno do foco em volta dela. Cabe até numa tela de 320px. No computador, a linha de sempre, com 6px entre os botões.
 - Margens laterais sempre com `max(16px, env(safe-area-inset-*))`.
 - Tabelas rolam na horizontal dentro de `.tabela`.
 
