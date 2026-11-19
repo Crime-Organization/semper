@@ -1566,8 +1566,14 @@ test.describe('Arrastar a anotação para uma pasta, no explorador (#370)', () =
     const contexto = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, locale: 'pt-BR', timezoneId: 'America/Sao_Paulo' });
     const page = await contexto.newPage();
     await page.goto('/documentos/');
-    await page.getByRole('button', { name: 'Pastas e anotações' }).click();
-    await criarPasta(page, 'Modelos');
+    const gaveta = page.getByRole('button', { name: 'Pastas e anotações' });
+    await gaveta.click();
+    await arvore(page).getByRole('button', { name: 'Nova pasta' }).click();
+    await page.getByRole('textbox', { name: 'Nova pasta' }).fill('Modelos');
+    await page.getByRole('button', { name: 'Salvar' }).click();
+    await expect(page.getByText('Pasta "Modelos" criada.')).toBeVisible();
+    // A pasta nova fica escolhida, e escolher uma pasta fecha a gaveta (como em qualquer pasta)
+    await expect(gaveta).toHaveAttribute('aria-expanded', 'false');
     await criarAnotacao(page, 'Nota do celular');
     await page.goto('/documentos/');
     await page.getByRole('button', { name: 'Pastas e anotações' }).click();
