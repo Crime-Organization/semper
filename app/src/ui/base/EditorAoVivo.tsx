@@ -17,6 +17,11 @@ export interface PropsEditorAoVivo {
   maximo?: number;
   placeholder?: string;
   className?: string;
+  /**
+   * Quanto, no fim de quem rola, fica coberto por algo preso ali (o pé da anotação, #372), em pixels: o editor rola o bastante para
+   * a linha do cursor não ficar escondida embaixo dele.
+   */
+  folgaEmbaixo?: () => number;
 }
 
 /** O que o miolo (o CodeMirror) recebe além disso: se a pessoa pediu o foco enquanto ele chegava. */

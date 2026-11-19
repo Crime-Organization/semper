@@ -325,7 +325,7 @@ const limite = (maximo: number) => EditorState.transactionFilter.of(tr => {
   };
 });
 
-export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, maximo, placeholder, className, focarAoChegar }: PropsDoMiolo) {
+export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, maximo, placeholder, className, focarAoChegar, folgaEmbaixo }: PropsDoMiolo) {
   const lugar = useRef<HTMLDivElement>(null);
   const vista = useRef<EditorView | null>(null);
   /** Os textos que o editor mandou a quem o usa e que ainda não voltaram em "valor" (veja acompanharValor). */
@@ -341,8 +341,8 @@ export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, max
     marcarNoCursor: marca => !!vista.current && marcarComOCursor(vista.current, marca, maximo)
   });
   /** O que muda a cada desenho, para o editor (criado uma vez) chamar sempre o de agora. */
-  const agora = useRef({ aoMudar, marcar, valor });
-  agora.current = { aoMudar, marcar, valor };
+  const agora = useRef({ aoMudar, marcar, valor, folgaEmbaixo });
+  agora.current = { aoMudar, marcar, valor, folgaEmbaixo };
 
   useEffect(() => {
     if (!lugar.current) return;
@@ -361,6 +361,8 @@ export default function EditorAoVivoCodeMirror({ id, rotulo, valor, aoMudar, max
       ])),
       keymap.of([...standardKeymap, ...historyKeymap]),
       EditorView.lineWrapping,
+      // Ao seguir o cursor, o editor desconta o que fica preso no fim de quem rola (o pé da anotação, #372).
+      EditorView.scrollMargins.of(() => ({ bottom: agora.current.folgaEmbaixo?.() ?? 0 })),
       EditorView.contentAttributes.of({ 'aria-label': rotulo, 'aria-multiline': 'true', spellcheck: 'true', ...(id ? { id } : {}) }),
       aoVivo,
       cursorNoTexto,

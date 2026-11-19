@@ -7,6 +7,7 @@
 // de sair (o AvisoAoSair o chama antes de trocar de anotação). Peça comum: a TextoEditavel continua nas descrições dos cartões,
 // com Salvar e Cancelar.
 import { useEffect, useId, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { createPortal } from 'react-dom';
 import { situacaoDoSalvamento, TEXTO_DO_SALVAMENTO } from '../../regras/salvamento';
 import { avisar, falha } from '../avisos';
 import { ESPERA_PARA_SALVAR } from '../tempos';
@@ -48,10 +49,18 @@ interface Props {
   id?: string;
   /** A anotação nova ainda não foi ao banco (#369): sem nada escrito, a linha da gravação diz isso, em vez de "Salvo". */
   aindaNaoGravada?: boolean;
+  /**
+   * Onde a linha da gravação aparece, quando não é logo abaixo da caixa: a anotação a põe no pé da janela, junto do rodapé (#372).
+   * Com null, o lugar ainda não existe, e a linha aparece assim que ele existir.
+   */
+  lugarDaSituacao?: HTMLElement | null;
+  /** O que fica preso no fim de quem rola (o pé da anotação), para a linha do cursor não se esconder embaixo dele (veja EditorAoVivo). */
+  folgaEmbaixo?: () => number;
 }
 
 export function EditorDeTexto({
-  texto, aoSalvar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, className, aoMudarRascunho, controle, conflito = false, id: idPedido, aindaNaoGravada = false
+  texto, aoSalvar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, className, aoMudarRascunho, controle, conflito = false, id: idPedido, aindaNaoGravada = false,
+  lugarDaSituacao, folgaEmbaixo
 }: Props) {
   const idProprio = useId();
   const id = idPedido ?? idProprio;
@@ -145,9 +154,10 @@ export function EditorDeTexto({
     void gravarTudo();
   }
   const situacao = situacaoDoSalvamento({ valor, gravado, salvando, falhou, conflito, aindaNaoGravada });
+  const linha = <p className={'editor-de-texto-situacao ' + situacao} role="status" aria-label="Gravação do texto">{TEXTO_DO_SALVAMENTO[situacao]}</p>;
   return <div className="editor-de-texto" onKeyDown={teclar} onBlur={sair}>
     {/* A caixa cresce com o texto, como uma página: quem rola é a página, não a caixa. */}
-    <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={valor} aoMudar={setValor} />
-    <p className={'editor-de-texto-situacao ' + situacao} role="status" aria-label="Gravação do texto">{TEXTO_DO_SALVAMENTO[situacao]}</p>
+    <EditorAoVivo id={id} rotulo={rotulo} maximo={maximo} placeholder={placeholder} valor={valor} aoMudar={setValor} folgaEmbaixo={folgaEmbaixo} />
+    {lugarDaSituacao === undefined ? linha : lugarDaSituacao && createPortal(linha, lugarDaSituacao)}
   </div>;
 }

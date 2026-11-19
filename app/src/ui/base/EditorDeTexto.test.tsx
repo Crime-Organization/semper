@@ -210,3 +210,38 @@ describe('O texto da anotação nova, que ainda não foi ao banco (#369)', () =>
     expect(caixa).toHaveFocus();
   });
 });
+
+describe('A linha da gravação noutro lugar (o pé da janela da anotação, #372)', () => {
+  /** Quem usa o editor marca, depois dele, o lugar da linha da gravação (como a anotação faz no pé da janela). */
+  function ComOPe({ aoSalvar = vi.fn() }: { aoSalvar?: (t: string) => unknown }) {
+    const [lugar, setLugar] = useState<HTMLElement | null>(null);
+    return <>
+      <EditorDeTexto texto="Levar a procuração." aoSalvar={aoSalvar} lugarDaSituacao={lugar} />
+      <footer aria-label="Pé da janela"><div ref={setLugar} /></footer>
+    </>;
+  }
+
+  it('dado um lugar para a linha da gravação, quando o editor aparece, então ela fica nesse lugar, e não logo abaixo da caixa', async () => {
+    // Quando
+    render(<ComOPe />);
+    await acharEditor();
+    // Então
+    expect(screen.getByLabelText('Pé da janela')).toContainElement(situacao());
+    expect(situacao()).toHaveTextContent('Salvo');
+  });
+
+  it('dado o lugar no pé, quando a pessoa escreve e aperta Ctrl+S, então a linha do pé diz que salvou', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<ComOPe aoSalvar={aoSalvar} />);
+    const caixa = await acharEditor();
+    // Quando
+    trocarTextoDoEditor(caixa, 'Levar a procuração e o RG.');
+    expect(situacao()).toHaveTextContent('Alterações por salvar');
+    fireEvent.keyDown(caixa, { key: 's', ctrlKey: true });
+    // Então
+    expect(await screen.findByText('Salvo')).toBeInTheDocument();
+    expect(aoSalvar).toHaveBeenCalledExactlyOnceWith('Levar a procuração e o RG.', 'Levar a procuração.');
+    expect(screen.getByLabelText('Pé da janela')).toContainElement(situacao());
+  });
+});

@@ -1,0 +1,5 @@
+{
+  "titulo": "\"Salvo\" e rodapé no pé da anotação",
+  "texto": "O \"Salvo\" e o rodapé da anotação (o código e as datas) agora ficam sempre no pé da janela. Com texto longo, continuam à vista enquanto o texto rola, sem cobrir o fim dele.",
+  "ondeAchar": "Em Documentos, ao abrir uma anotação ou criar uma nova, ao lado, no centro ou no celular."
+}
