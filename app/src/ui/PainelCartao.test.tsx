@@ -240,6 +240,43 @@ describe('Expandir e recolher todas as seções', () => {
     expect(screen.queryByText('O histórico')).toBeNull();
     expect(salvarPreferencia).not.toHaveBeenCalled();
   });
+
+  // Desde a #366, o botão é só o ícone das duas setas: o nome fica para o leitor de tela e para a dica.
+  it('dado um cartão com seções, quando olha o botão de expandir e recolher, então ele é só o ícone, sem texto à vista, com o nome e a dica conforme o estado', async () => {
+    // Dado
+    render(<PainelCartao aoFechar={() => {}}>
+      <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
+      <Recolhivel titulo="Histórico" icone="relogio"><p>O histórico</p></Recolhivel>
+    </PainelCartao>);
+    // Quando
+    const botao = screen.getByRole('button', { name: 'Expandir tudo' });
+    // Então: nenhum texto à vista (só o ícone), a dica diz o mesmo que o nome e o leitor de tela sabe que está fechado
+    expect(botao.textContent).toBe('');
+    expect(screen.queryByText(/Expandir tudo|Recolher tudo/)).toBeNull();
+    expect(botao).toHaveAttribute('data-dica', 'Expandir tudo');
+    expect(botao).toHaveAttribute('aria-expanded', 'false');
+    // Quando: abre todas
+    await userEvent.click(botao);
+    // Então: o nome e a dica passam a "Recolher tudo", e o leitor de tela sabe que está aberto
+    const recolher = screen.getByRole('button', { name: 'Recolher tudo' });
+    expect(recolher.textContent).toBe('');
+    expect(recolher).toHaveAttribute('data-dica', 'Recolher tudo');
+    expect(recolher).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('dado o botão só de ícone, quando a pessoa chega nele pelo Tab, então ele recebe o foco e tem a dica com o nome dele', async () => {
+    // Dado
+    render(<PainelCartao aoFechar={() => {}}>
+      <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
+    </PainelCartao>);
+    const botao = screen.getByRole('button', { name: 'Expandir tudo' });
+    // Quando: o Tab sai dos botões da janela e chega nele
+    screen.getByRole('button', { name: 'Fechar' }).focus();
+    await userEvent.tab();
+    // Então
+    expect(botao).toHaveFocus();
+    expect(botao).toHaveAttribute('data-dica', 'Expandir tudo');
+  });
 });
 
 describe('Expandir tudo com uma seção dentro de outra', () => {

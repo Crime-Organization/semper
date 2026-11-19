@@ -653,16 +653,16 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* O que vai para a coluna (NaColunaDoCartao) fica numa caixa e num lugar marcado no fluxo, que não desenham nada: as seções contam
    como filhas da coluna (ou do cartão, ao lado), com o vão de sempre entre elas. */
 .cartao-coluna-secoes, .cartao-coluna-lugar { display: contents }
-/* As seções da coluna têm o "Expandir tudo" delas no topo, na altura dos botões da janela (o formato e o X), à esquerda deles: sobe
-   do recuo da coluna até a margem dos botões. */
-.cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { min-height: var(--botao-redondo); align-items: center;
-  margin-top: calc(var(--cartao-botoes-margem) - var(--cartao-topo)); padding-right: calc(2 * var(--botao-redondo) + 3 * var(--botao-redondo-vao)) }
+/* As seções da coluna têm o "Expandir tudo" delas no alto da coluna, à direita, acima da primeira (#366): logo abaixo dos botões
+   da janela (o formato e o X), com o vão de sempre entre botões redondos, sem disputar a linha deles nem passar por baixo deles. */
+.cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child {
+  margin-top: calc(var(--cartao-botoes-margem) + var(--botao-redondo) + var(--botao-redondo-vao) - var(--cartao-topo)) }
 /* Janela estreita: a coluna dos comentários desce para baixo do cartão (e o "Expandir tudo" dela fica no lugar de sempre). */
 @media (max-width: 900px) {
   .cartao-painel.centro .cartao-conteudo { display: block; overflow-y: auto; max-height: var(--janela-altura) }
   .cartao-painel.centro :is(.cartao-corpo, .cartao-coluna) { overflow: visible; max-height: none }
   .cartao-coluna { border-left: 0; border-top: 1px solid var(--line) }
-  .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { min-height: 0; margin-top: 0; padding-right: 0 }
+  .cartao-coluna > .cartao-coluna-secoes > .secoes-todas:first-child { margin-top: 0 }
 }
 /* O botão de formato e o "X" ficam presos ao topo por cima do conteúdo, sem ocupar largura (a margem negativa devolve a altura). */
 /* Os botões redondos do cartão (os do painel, Arquivar, Editar…): o tamanho de cada um e o espaço entre eles. A cabeça do
@@ -775,8 +775,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   transition: opacity .12s ease-out, transform .12s ease-out }
 [data-dica]:hover::after { opacity: 1; transform: none; transition-delay: var(--espera-da-dica) }
 [data-dica]:focus-visible::after { opacity: 1; transform: none }
-/* A dica não aparece por cima do painel da busca aberto pela própria bolinha. */
-[data-dica][aria-expanded="true"]::after { opacity: 0 }
+/* Na tela de toque, o navegador deixa o :hover preso depois do toque, e a dica do "Expandir tudo" (#366) ficaria parada por cima
+   da primeira seção: ali ela só aparece no foco do teclado. */
+@media (hover: none) { .recolher-todas[data-dica]:hover:not(:focus-visible)::after { opacity: 0 } }
+/* A dica não aparece por cima do painel da busca aberto pela própria bolinha (o "aberto" do "Recolher tudo", que não abre painel,
+   continua com a dica). */
+[data-dica][aria-haspopup][aria-expanded="true"]::after { opacity: 0 }
 @media (prefers-reduced-motion: reduce) { [data-dica]::after { transition: none; transform: none } }
 /* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
    tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
@@ -812,11 +816,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .recolher-resto { flex: 1; align-self: stretch; display: flex; align-items: center; justify-content: flex-end; cursor: pointer }
 .recolher-resto:hover { color: var(--ink) }
 .com-novo:has(.recolher[aria-expanded="true"]) .recolher-seta { transform: rotate(180deg) }
-/* "Expandir tudo / Recolher tudo": logo acima da primeira seção, na coluna das setas, colado a ela (a margem negativa
-   desfaz parte do espaço entre os blocos do cartão). */
-.secoes-todas { display: flex; justify-content: flex-end; margin-bottom: -18px }
-.recolher-todas { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0; border: 0; background: none; color: var(--text2); font: inherit; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; cursor: pointer }
-.recolher-todas:hover { color: var(--ink) }
+/* "Expandir tudo / Recolher tudo" (#366): só o ícone, num botão redondo do cartão (.cartao-botao), logo acima da primeira seção,
+   encostado à direita. A margem negativa troca o vão entre as seções pelo vão entre botões redondos, para ele ficar junto da
+   seção que abre. O alvo do clique tem --alvo-de-toque, um pouco maior que o desenho (o ::before; o ::after é a dica). */
+.secoes-todas { display: flex; justify-content: flex-end; margin-bottom: calc(var(--botao-redondo-vao) - var(--cartao-vao-secoes)) }
+.recolher-todas { flex-shrink: 0; padding: 0 }
+.recolher-todas::before { content: ''; position: absolute; inset: calc((var(--botao-redondo) - var(--alvo-de-toque)) / 2); border-radius: 999px }
 .recolher-contador { font-size: 12px; font-weight: 700; letter-spacing: 0; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line) }
 /* Zero: a seção foi conferida e não tem nada (sem o fundo do número de quem tem). */
 .recolher-contador.vazio { background: transparent }

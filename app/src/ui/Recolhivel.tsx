@@ -3,11 +3,11 @@
 // Toda seção começa recolhida. Com "preferencia", a escolha de cada usuário (aberta ou fechada) fica guardada e vale
 // na próxima vez. Toda seção tem ícone.
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
-// primeira mostra, logo acima dela e alinhado às setas, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas
-// abertas), que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
+// primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
+// só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BotaoLink, Contador } from './base';
-import { Icone, type NomeIcone } from './Icone';
+import { BotaoLink, Contador, propsDaDica } from './base';
+import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import type { NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
@@ -48,12 +48,17 @@ export function GrupoDeSecoes({ children }: { children: ReactNode }) {
   </InscricaoNoGrupo.Provider>;
 }
 
-/** O botão que abre ou fecha todas as seções do grupo, à direita, na coluna das setas. */
+/**
+ * O botão que abre ou fecha todas as seções do grupo, à direita, acima da primeira. Desde a #366, só o ícone das duas setas
+ * (para baixo: abre; para cima: fecha), redondo como os botões do cartão, sem texto: o nome ("Expandir tudo" ou "Recolher
+ * tudo") vai para o leitor de tela e para a dica, que aparece ao passar o mouse e no foco do teclado.
+ */
 function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
   const rotulo = estado.todasAbertas ? 'Recolher tudo' : 'Expandir tudo';
   return <div className="secoes-todas">
-    <button type="button" className="recolher-todas" onClick={() => estado.definirTodas(!estado.todasAbertas)}>
-      {rotulo}<Icone nome={estado.todasAbertas ? 'recolher' : 'expandir'} tam={16} />
+    <button type="button" className="cartao-botao recolher-todas" aria-label={rotulo} aria-expanded={estado.todasAbertas}
+      {...propsDaDica(rotulo)} onClick={() => estado.definirTodas(!estado.todasAbertas)}>
+      <Icone nome={estado.todasAbertas ? 'recolher' : 'expandir'} tam={ICONE_DO_TOPO} />
     </button>
   </div>;
 }

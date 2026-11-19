@@ -12,12 +12,13 @@ import { falha } from './avisos';
 import { Botao } from './Botoes';
 import { BotoesNoPainel } from './PainelCartao';
 import { estiloBotao } from './base';
-import { Icone, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { confirmar } from './janela';
 import { MenuFlutuante } from './Menu';
 
-/** Tamanho dos ícones dos botões redondos do topo dos cartões (o mesmo dos botões do painel); a anotação usa o mesmo nos dela. */
-export const ICONE_DO_TOPO = 18;
+// O tamanho dos ícones dos botões redondos (ICONE_DO_TOPO) mora em Icone.tsx, onde o "Expandir tudo" das seções também o acha
+// sem dar volta pelo painel; continua saindo daqui para quem já o importava.
+export { ICONE_DO_TOPO };
 /** Tamanho dos ícones dentro do menu ⋯ (como nos outros menus). */
 const ICONE_DO_MENU = 15;
 
