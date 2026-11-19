@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import { createMemoryRouter, Link, RouterProvider, useNavigate } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { avisar } from './avisos';
-import { AvisoAoSair, podeSairDoCadastro } from './AvisoAoSair';
+import { AvisoAoSair, podeSairDoCadastro, SEM_SAIR_DA_TELA } from './AvisoAoSair';
 import { Janelas } from './janela';
 
 vi.mock('./avisos', async original => ({ ...await original<typeof import('./avisos')>(), avisar: vi.fn() }));
@@ -319,11 +319,11 @@ describe('Aviso ao sair de uma edição no próprio lugar (#339)', () => {
 });
 
 /** O texto que salva sozinho (a anotação): sair grava antes o que falta, e só pergunta se a gravação falhar. */
-function TextoQueSalvaSozinho({ salvarAntes }: { salvarAntes: () => Promise<boolean> }) {
+function TextoQueSalvaSozinho({ salvarAntes, aoFicar }: { salvarAntes: () => Promise<boolean>; aoFicar?: () => void }) {
   const [porSalvar, setPorSalvar] = useState(false);
   const liberada = useRef(false);
   return <>
-    {porSalvar && <AvisoAoSair preenchido liberada={liberada} ocupado={false} salvarAntes={salvarAntes} />}
+    {porSalvar && <AvisoAoSair preenchido liberada={liberada} ocupado={false} salvarAntes={salvarAntes} aoFicar={aoFicar} />}
     <button type="button" onClick={() => setPorSalvar(true)}>Escrever</button>
     <Link to="/lista">Lista</Link>
   </>;
@@ -334,9 +334,9 @@ describe('Aviso ao sair do texto que salva sozinho (a anotação)', () => {
     if (pergunta()) fireEvent.keyDown(document, { key: 'Escape' });
     cleanup();
   });
-  function abrir(salvarAntes: () => Promise<boolean>) {
+  function abrir(salvarAntes: () => Promise<boolean>, aoFicar?: () => void) {
     const roteador = createMemoryRouter([
-      { path: '/anotacao', element: <TextoQueSalvaSozinho salvarAntes={salvarAntes} /> },
+      { path: '/anotacao', element: <TextoQueSalvaSozinho salvarAntes={salvarAntes} aoFicar={aoFicar} /> },
       { path: '/lista', element: <p>Página da lista</p> }
     ], { initialEntries: ['/anotacao'] });
     render(<><RouterProvider router={roteador} /><Janelas /></>);
@@ -355,9 +355,10 @@ describe('Aviso ao sair do texto que salva sozinho (a anotação)', () => {
     expect(pergunta()).not.toBeInTheDocument();
   });
 
-  it('dada a gravação que falha, quando a pessoa sai por um link, então a pergunta de sempre aparece e ela fica, se quiser', async () => {
+  it('dada a gravação que falha, quando a pessoa sai por um link, então a pergunta de sempre aparece e ela fica, se quiser, e a tela sabe que ela ficou', async () => {
     // Dado
-    abrir(async () => false);
+    const aoFicar = vi.fn();
+    abrir(async () => false, aoFicar);
     await userEvent.click(screen.getByRole('button', { name: 'Escrever' }));
     // Quando
     await irParaLista();
@@ -365,5 +366,74 @@ describe('Aviso ao sair do texto que salva sozinho (a anotação)', () => {
     // Então
     expect(screen.queryByText('Página da lista')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Escrever' })).toBeInTheDocument();
+    expect(aoFicar).toHaveBeenCalledOnce();
+  });
+
+  it('dado um texto ainda por gravar, quando ele é gravado e a pessoa sai, então a tela não é avisada de que ficou', async () => {
+    // Dado
+    const aoFicar = vi.fn();
+    abrir(async () => true, aoFicar);
+    await userEvent.click(screen.getByRole('button', { name: 'Escrever' }));
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(aoFicar).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A anotação nova que acabou de ir ao banco (#369): a tela troca o próprio endereço, no lugar do atual, com a marca de que não sai
+ * dela; o Voltar e os links continuam sendo segurados.
+ */
+function NotaQueGanhaEndereco() {
+  const liberada = useRef(false);
+  const navegar = useNavigate();
+  return <>
+    <AvisoAoSair preenchido liberada={liberada} ocupado={false} salvarAntes={async () => false} />
+    <button type="button" onClick={() => navegar('/anotacao?id=a1', { replace: true, state: { [SEM_SAIR_DA_TELA]: true } })}>Ganhar o endereço</button>
+    <button type="button" onClick={() => navegar('/anotacao?id=a2', { replace: true })}>Trocar sem a marca</button>
+    <Link to="/lista" state={{ [SEM_SAIR_DA_TELA]: true }}>Lista</Link>
+  </>;
+}
+
+describe('Aviso ao sair: a tela que só troca o próprio endereço (#369)', () => {
+  afterEach(() => {
+    if (pergunta()) fireEvent.keyDown(document, { key: 'Escape' });
+    cleanup();
+  });
+  function abrir() {
+    const roteador = createMemoryRouter([
+      { path: '/anotacao', element: <NotaQueGanhaEndereco /> },
+      { path: '/lista', element: <p>Página da lista</p> }
+    ], { initialEntries: ['/anotacao'] });
+    render(<><RouterProvider router={roteador} /><Janelas /></>);
+    return roteador;
+  }
+
+  it('dado algo por gravar, quando a tela troca o próprio endereço com a marca, então a troca passa, sem pergunta', async () => {
+    // Dado
+    const roteador = abrir();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Ganhar o endereço' }));
+    // Então
+    await waitFor(() => expect(roteador.state.location.search).toBe('?id=a1'));
+    expect(pergunta()).not.toBeInTheDocument();
+  });
+
+  it('dado algo por gravar, quando a troca vem sem a marca, ou a marca vem num link (que não troca no lugar), então a saída é segurada', async () => {
+    // Dado
+    const roteador = abrir();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Trocar sem a marca' }));
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+    expect(roteador.state.location.search).toBe('');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar no cadastro' }));
+    await irParaLista();
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+    expect(screen.queryByText('Página da lista')).not.toBeInTheDocument();
   });
 });

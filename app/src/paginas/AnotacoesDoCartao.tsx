@@ -1,11 +1,11 @@
 // A seção "Anotações" do cartão de uma pessoa, um processo, um contrato, uma demanda, uma tarefa ou um compromisso (#303):
 // as anotações ligadas ao item que quem lê pode ver, cada uma num quadrinho que abre o cartão dela em Documentos, o "+" para
-// escrever uma nova já ligada a este item e, embaixo, como nos processos do contrato e da demanda, "Ligar anotação existente"
+// escrever uma nova já ligada a este item (ela abre em Documentos, na mesma janela da anotação, #369) e, embaixo, como nos processos do contrato e da demanda, "Ligar anotação existente"
 // (#341) e "Nova anotação". A lista é lida ao abrir o cartão (para o número aparecer com a seção fechada) e de novo quando algo
 // muda (a janela do cadastro fechou, ligaram uma anotação, desfizeram algo).
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type AnotacaoLigada, type AnotacaoParaLigar, type ModuloDaAnotacao } from '../dados';
-import { ITEM_DA_ANOTACAO, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER } from '../regras/anotacao';
+import { enderecoDaAnotacaoNova, ITEM_DA_ANOTACAO, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER } from '../regras/anotacao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando } from '../ui/base';
 import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
@@ -14,9 +14,8 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { relativo } from '../ui/util';
 
-/** Onde fica o cartão de cada anotação, e o cadastro de uma nova. */
+/** Onde fica o cartão de cada anotação. */
 export const ENDERECO_DA_ANOTACAO = '/documentos/?id=';
-export const CADASTRO_DE_ANOTACAO = '/documentos/nova/';
 /** O aviso quando a anotação escolhida já estava ligada ao item (alguém ligou enquanto a busca estava aberta). */
 export const JA_ESTAVA_LIGADA = 'Esta anotação já estava ligada a este item.';
 
@@ -46,7 +45,8 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
   useMudancas(() => { if (ligado) void carregar(); });
   if (!ligado) return null;
 
-  const cadastro = `${CADASTRO_DE_ANOTACAO}?${ITEM_DA_ANOTACAO[modulo].parametro}=${id}`;
+  // A anotação nova abre em Documentos, na janela da anotação, já ligada a este item (#369).
+  const cadastro = enderecoDaAnotacaoNova({ [ITEM_DA_ANOTACAO[modulo].parametro]: id });
   const novo = somenteLer ? undefined : { para: cadastro, rotulo: 'Nova anotação ligada a este item' };
 
   async function ligar(a: AnotacaoParaLigar) {

@@ -3,8 +3,9 @@
 // Desde os pedidos do dono de 18/11, a página é como o Obsidian: o explorador (as pastas com as anotações dentro) à esquerda, que
 // se recolhe, e a tabela no centro. A anotação abre na janela do cartão, como os outros cartões (ao lado, de início, ou no centro),
 // com as etiquetas no topo e o texto já na caixa de escrever, salvando sozinho; os comentários, "Ligada a" e o histórico ficam
-// embaixo do texto (ao lado) ou na coluna da direita da janela (no centro). A anotação nova abre na janela do cadastro. No
-// explorador, a anotação se arrasta para uma pasta (#370).
+// embaixo do texto (ao lado) ou na coluna da direita da janela (no centro). A anotação nova abre na mesma janela (#369), com o
+// cursor no título, e vai ao banco sozinha quando a pessoa escreve o título ou o texto (sem "Salvar anotação"). No explorador,
+// a anotação se arrasta para uma pasta (#370).
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
@@ -53,26 +54,47 @@ const estilosDoTexto = (caixa: Locator, texto: string) => caixa.evaluate((el, t)
 }, texto);
 const textoGuardado = (page: Page, titulo: string) => page.evaluate(([chave, t]) =>
   (JSON.parse(sessionStorage.getItem(chave)!) as { anotacoes: { titulo: string; texto: string }[] }).anotacoes.find(a => a.titulo === t)?.texto, [CHAVE, titulo]);
-/** A anotação nova, em branco: na janela do cadastro (ou na página, quando aberta direto pelo endereço). */
+/** A anotação nova, em branco, na janela da anotação (#369): até ir ao banco, ela se chama "Anotação nova". */
 const notaNova = (page: Page) => page.getByRole('article', { name: 'Anotação nova' });
+/** A anotação já gravada, na janela: o nome traz o código dela. */
+const anotacaoGravada = (page: Page) => anotacaoAberta(page).getByRole('article', { name: /^Anotação (?!nova$)\w+$/ });
+/**
+ * Escreve o título da anotação nova e aperta Enter: ela vai ao banco sozinha (#369), e o cursor desce ao texto. Se o título saiu
+ * da edição (a pessoa clicou em outro lugar antes, como no ícone de etiqueta), um clique em "Sem título" o abre de novo.
+ */
+async function escreverOTitulo(page: Page, titulo: string) {
+  const campo = notaNova(page).getByRole('textbox', { name: 'Título' });
+  await expect(notaNova(page).getByRole('heading', { level: 2 })).toBeVisible();
+  if (!await campo.count()) await notaNova(page).getByRole('button', { name: 'Sem título' }).click();
+  await campo.fill(titulo);
+  await campo.press('Enter');
+  await expect(anotacaoGravada(page)).toBeVisible();
+}
+/** O código da anotação aberta, lido do nome dela. */
+async function codigoDaAnotacao(page: Page) {
+  return /^Anotação (\w+)$/.exec((await anotacaoGravada(page).getAttribute('aria-label'))!)![1];
+}
 /** O link "Nova anotação" da barra do explorador (o do cabeçalho da página leva ao mesmo lugar). */
 const novaAnotacao = (page: Page) => page.getByRole('toolbar', { name: 'Explorador' }).getByRole('link', { name: 'Nova anotação' });
 
 /**
- * Escreve uma anotação na nota em branco e espera ela abrir na janela do cartão. A nota não tem rótulos à vista: o título e o
- * texto são achados pelo nome que o leitor de tela lê. A equipe é a das bolinhas, no topo.
+ * Escreve uma anotação na nota em branco, na janela da anotação, e espera ela ir ao banco (#369). A nota não tem rótulos à vista:
+ * o título e o texto são achados pelo nome que o leitor de tela lê. A equipe, escolhida antes de escrever, é a das bolinhas, no
+ * topo. O endereço antigo (/documentos/nova/…) leva à anotação nova em Documentos.
  */
 async function criarAnotacao(page: Page, titulo: string, { texto = '', compartilharCom = '', endereco = '/documentos/nova/' } = {}) {
   await page.goto(endereco);
-  await page.getByRole('textbox', { name: 'Título' }).fill(titulo);
-  if (texto) await porNoTexto(caixaDoTexto(page), texto);
   if (compartilharCom) {
     await notaNova(page).getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Compartilhar com mais alguém' }).click();
     await page.getByRole('dialog', { name: 'Compartilhar com mais alguém' }).getByRole('list', { name: 'Equipe' }).getByRole('button', { name: compartilharCom }).click();
   }
-  await page.getByRole('button', { name: 'Salvar anotação' }).click();
-  await expect(page.getByText(/Anotação \w+ cadastrada\./)).toBeVisible();
+  await escreverOTitulo(page, titulo);
   const anotacao = anotacaoAberta(page);
+  if (texto) {
+    await porNoTexto(caixaDoTexto(anotacao), texto);
+    await caixaDoTexto(anotacao).press('Control+s');
+    await expect(anotacao.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Salvo');
+  }
   await expect(anotacao.getByRole('heading', { name: titulo, level: 2 })).toBeVisible();
   return anotacao;
 }
@@ -124,19 +146,19 @@ test.describe('Anotações no cartão de um item', () => {
     const secao = cartao.getByRole('button', { name: /^Anotações/ });
     await expect(secao).toHaveAttribute('aria-expanded', 'false');
     await expect(secao).toHaveText(/^Anotações\s*0$/);
-    // Quando: o "+" abre a anotação nova na janela do cadastro, por cima do cartão, como os outros cadastros (pedido de 18/11)
+    // Quando: o "+" abre a anotação nova em Documentos, na mesma janela da anotação aberta (a regra mudou, #369: antes, abria na
+    // janela do cadastro, por cima do cartão)
     await cartao.getByRole('link', { name: 'Nova anotação ligada a este item' }).click();
-    await expect(page).toHaveURL(/\/documentos\/nova\/\?demanda=/);
-    await expect(page.getByRole('dialog', { name: 'Cadastro' }).getByRole('article', { name: 'Anotação nova' })).toBeVisible();
+    await expect(page).toHaveURL(/\/documentos\/\?nova=1&demanda=/);
+    await expect(anotacaoAberta(page).getByRole('article', { name: 'Anotação nova' })).toBeVisible();
     // A demanda de onde se veio já está na lista "Ligada a" da nota em branco (#339), embaixo do texto.
     const escolhidos = notaNova(page).getByRole('list', { name: 'Itens ligados' });
     await expect(escolhidos.getByRole('listitem')).toHaveCount(1);
     await expect(escolhidos).toContainText('Demanda');
     await expect(escolhidos).toContainText('Registro de marca');
-    await notaNova(page).getByRole('textbox', { name: 'Título' }).fill('Estratégia do registro');
-    await notaNova(page).getByRole('button', { name: 'Salvar anotação' }).click();
-    // Então: a anotação salva abre na janela do cartão, no lugar da nota em branco, com a demanda em "Ligada a"
-    await expect(page.getByText(/Anotação \w+ cadastrada\./)).toBeVisible();
+    await escreverOTitulo(page, 'Estratégia do registro');
+    // Então: a anotação, gravada sozinha, continua na mesma janela, com o endereço dela e a demanda em "Ligada a"
+    await expect(page).toHaveURL(/\/documentos\/\?id=/);
     const anotacao = anotacaoAberta(page);
     await expect(anotacao.getByRole('heading', { name: 'Estratégia do registro', level: 2 })).toBeVisible();
     await abrirSecao(coluna(page), 'Ligada a');
@@ -151,6 +173,27 @@ test.describe('Anotações no cartão de um item', () => {
     // E o link abre a anotação na janela, em Documentos
     await expect(page).toHaveURL(/\/documentos\/\?id=/);
     await expect(anotacaoAberta(page).getByRole('heading', { name: 'Estratégia do registro', level: 2 })).toBeVisible();
+  });
+
+  test('dado o cartão de uma demanda, quando a pessoa abre a anotação nova pelo "+" e fecha pelo X, escrita ou não, então volta ao cartão', async ({ page }) => {
+    // Dado
+    let cartao = await abrirDemanda(page, 'Registro de marca');
+    await cartao.getByRole('link', { name: 'Nova anotação ligada a este item' }).click();
+    await expect(notaNova(page)).toBeVisible();
+    // Quando: fecha sem escrever
+    await fecharAnotacao(page);
+    // Então: de volta ao cartão, sem anotação nova
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Registro de marca', level: 2 })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Anotações/ })).toHaveText(/^Anotações\s*0$/);
+    // Quando: abre de novo, escreve o título e fecha
+    await cartao.getByRole('link', { name: 'Nova anotação ligada a este item' }).click();
+    await escreverOTitulo(page, 'Escrita e fechada');
+    await fecharAnotacao(page);
+    // Então: de volta ao cartão, com a anotação
+    cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'Registro de marca', level: 2 })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Anotações/ })).toHaveText(/^Anotações\s*1$/);
   });
 
   test('dada uma anotação, quando a pessoa a liga a mais itens, então ela aparece no cartão de cada um e a coluna dela mostra todos', async ({ page }) => {
@@ -175,7 +218,9 @@ test.describe('Anotações no cartão de um item', () => {
     await fecharAnotacao(page);
     await expect(page.getByRole('row').filter({ hasText: 'Reunião com o cliente' })).toContainText('Pessoas, Demandas');
     // E cada cartão ligado mostra a anotação
+    // ("Ligada a" veio aberta na anotação nova, sem a escolha da pessoa, #369: ao reabrir, ela volta recolhida, como de costume)
     await abrirAnotacao(page, 'Reunião com o cliente');
+    await abrirSecao(coluna(page), 'Ligada a');
     await coluna(page).getByRole('list', { name: 'Itens ligados' }).getByRole('link', { name: /JOSÉ DA SILVA TESTE/ }).click();
     let cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'JOSÉ DA SILVA TESTE', level: 2 })).toBeVisible();
@@ -185,6 +230,7 @@ test.describe('Anotações no cartão de um item', () => {
     await expect(cartao.getByRole('link', { name: /Reunião com o cliente/ })).toBeVisible();
     // Quando: desliga a pessoa
     await abrirAnotacao(page, 'Reunião com o cliente');
+    await abrirSecao(coluna(page), 'Ligada a');
     await coluna(page).getByRole('button', { name: 'Desligar JOSÉ DA SILVA TESTE' }).click();
     // Então
     await expect(coluna(page).getByRole('list', { name: 'Itens ligados' }).getByRole('link')).toHaveCount(1);
@@ -194,12 +240,6 @@ test.describe('Anotações no cartão de um item', () => {
 });
 
 test.describe('Ligar uma anotação que já existe, no cartão de um item (#341)', () => {
-  /** O código da anotação que acabou de ser cadastrada, lido do aviso no pé da tela. */
-  async function codigoDoAviso(page: Page) {
-    const aviso = page.getByText(/Anotação \w+ cadastrada\./);
-    await expect(aviso).toBeVisible();
-    return /Anotação (\w+) cadastrada\./.exec((await aviso.textContent())!)![1];
-  }
   /** Abre o cartão de uma pessoa pela tabela. */
   async function abrirPessoa(page: Page, nome: string) {
     await page.goto('/pessoas/');
@@ -219,7 +259,7 @@ test.describe('Ligar uma anotação que já existe, no cartão de um item (#341)
   test('dado o cartão de uma pessoa, quando a pessoa liga uma anotação existente achada pelo código, então ela aparece na seção, a anotação mostra a pessoa em "Ligada a", e ela não é oferecida de novo', async ({ page }) => {
     // Dado
     await criarAnotacao(page, 'Parecer da prescrição');
-    const codigo = await codigoDoAviso(page);
+    const codigo = await codigoDaAnotacao(page);
     let cartao = await abrirPessoa(page, 'JOSÉ DA SILVA TESTE');
     await abrirSecao(cartao, 'Anotações');
     await expect(cartao.getByRole('link', { name: 'Nova anotação', exact: true })).toBeVisible();
@@ -717,16 +757,14 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
 const equipeVeTudo = (page: Page) => page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
 
 test.describe('A anotação nos casos de canto', () => {
-  test('dado um endereço de anotação nova com um item que não existe mais, quando a pessoa salva, então a anotação é cadastrada sem ligação, como o aviso promete', async ({ page }) => {
+  test('dado um endereço de anotação nova com um item que não existe mais, quando a pessoa escreve o título, então a anotação é gravada sem ligação, como o aviso promete', async ({ page }) => {
     // Dado
     await page.goto('/documentos/nova/?demanda=demanda-que-nao-existe');
-    // (a nota pode ser ligada a outros itens antes de salvar: o aviso fala só do item de onde se veio)
-    await expect(page.getByText('O item de onde você veio não foi encontrado. A anotação será salva sem ligação a ele.')).toBeVisible();
+    // (a nota pode ser ligada a outros itens antes de ir ao banco: o aviso fala só do item de onde se veio)
+    await expect(page.getByText('O item de onde você veio não foi encontrado. A anotação será gravada sem ligação a ele.')).toBeVisible();
     // Quando
-    await page.getByRole('textbox', { name: 'Título' }).fill('Sem a demanda');
-    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    await escreverOTitulo(page, 'Sem a demanda');
     // Então
-    await expect(page.getByText(/Anotação \w+ cadastrada\./)).toBeVisible();
     await abrirSecao(coluna(page), 'Ligada a');
     await expect(coluna(page).getByText('Esta anotação não está ligada a nenhum item.')).toBeVisible();
   });
@@ -1005,10 +1043,12 @@ test.describe('Duplicar a anotação (#343)', () => {
 });
 
 test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (#339)', () => {
-  test('dada a página Documentos, quando a pessoa cria uma anotação, escreve título e texto e a liga a dois itens antes de salvar, então ela nasce ligada aos dois', async ({ page }) => {
+  // A regra mudou (#369): sem "Salvar anotação" nem Ctrl+Enter; a anotação vai ao banco ao escrever o título, com o que foi
+  // escolhido antes, e o texto grava sozinho.
+  test('dada a página Documentos, quando a pessoa liga a anotação nova a dois itens e depois escreve título e texto, então ela nasce ligada aos dois, com o texto', async ({ page }) => {
     // Dado
     await page.goto('/documentos/');
-    // Quando: abre a nota em branco na janela do cadastro, com o cursor no título e sem campos com rótulo repetindo o título
+    // Quando: abre a nota em branco na janela da anotação, com o cursor no título e sem campos com rótulo repetindo o título
     await novaAnotacao(page).click();
     const nota = notaNova(page);
     const titulo = nota.getByRole('textbox', { name: 'Título' });
@@ -1016,11 +1056,9 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await expect(titulo).toHaveAttribute('placeholder', 'Sem título');
     await expect(nota.getByText('Título', { exact: true })).toHaveCount(0);
     await expect(nota.getByText('Texto', { exact: true })).toHaveCount(0);
-    await page.keyboard.type('Reunião de abertura');
-    await page.keyboard.press('Enter');   // o Enter no título desce para o texto
-    await expect(nota.getByRole('textbox', { name: 'Texto', exact: true })).toBeFocused();
-    await page.keyboard.type('Pauta: **prazos** e documentos.');
-    // Quando: liga a uma pessoa e a uma demanda, ainda sem salvar ("Ligada a", embaixo do texto)
+    await expect(nota.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Ainda não gravada');
+    await expect(nota.getByRole('button', { name: 'Salvar anotação' })).toHaveCount(0);
+    // Quando: liga a uma pessoa e a uma demanda, antes de escrever ("Ligada a")
     await nota.getByRole('button', { name: 'Ligar a um item' }).click();
     await nota.getByRole('textbox', { name: 'Buscar item para ligar' }).fill('josé da silva');
     await nota.getByRole('button', { name: /JOSÉ DA SILVA TESTE/ }).click();
@@ -1030,16 +1068,21 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await nota.getByRole('button', { name: /Registro de marca/ }).click();
     const escolhidos = nota.getByRole('list', { name: 'Itens ligados' });
     await expect(escolhidos.getByRole('listitem')).toHaveCount(2);
-    // (os itens escolhidos não abrem o cartão deles: a nota ainda não foi salva)
+    // (os itens escolhidos não abrem o cartão deles: a nota ainda não foi ao banco)
     await expect(escolhidos.getByRole('link')).toHaveCount(0);
-    // Quando: salva pelo atalho
-    await page.keyboard.press('Control+Enter');
-    // Então: a anotação abre na janela do cartão, com o texto e os dois itens em "Ligada a"
-    await expect(page.getByText(/Anotação \w+ cadastrada\./)).toBeVisible();
+    // Quando: escreve o título (o Enter a leva ao banco e desce para o texto) e o texto, que grava sozinho
+    await escreverOTitulo(page, 'Reunião de abertura');
     const anotacao = anotacaoAberta(page);
+    await expect(caixaDoTexto(anotacao)).toBeFocused();
+    await page.keyboard.type('Pauta: **prazos** e documentos.');
+    await expect(anotacao.getByRole('status', { name: 'Gravação do texto' })).toHaveText('Salvo');
+    // Então: a anotação continua na mesma janela, com o texto e os dois itens em "Ligada a"
     await expect(anotacao.getByRole('heading', { name: 'Reunião de abertura', level: 2 })).toBeVisible();
-    await expect(caixaDoTexto(anotacao)).toHaveText('Pauta: prazos e documentos.');
     expect(await textoGuardado(page, 'Reunião de abertura')).toBe('Pauta: **prazos** e documentos.');
+    // (a caixa continua a mesma, com o cursor na linha e os sinais à vista: aberta de novo, o texto aparece formatado)
+    await fecharAnotacao(page);
+    await abrirAnotacao(page, 'Reunião de abertura');
+    await expect(caixaDoTexto(anotacao)).toHaveText('Pauta: prazos e documentos.');
     await abrirSecao(coluna(page), 'Ligada a');
     const ligados = coluna(page).getByRole('list', { name: 'Itens ligados' });
     await expect(ligados.getByRole('link')).toHaveCount(2);
@@ -1047,7 +1090,7 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await expect(ligados.getByRole('link', { name: /Registro de marca/ })).toBeVisible();
   });
 
-  test('dada uma anotação nova com itens escolhidos, quando a pessoa tira um antes de salvar, então ela nasce ligada só ao que ficou', async ({ page }) => {
+  test('dada uma anotação nova com itens escolhidos, quando a pessoa tira um antes de escrever, então ela nasce ligada só ao que ficou', async ({ page }) => {
     // Dado: vinda da demanda, que já está na lista
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
@@ -1059,8 +1102,7 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await expect(nota.getByRole('list', { name: 'Itens ligados' }).getByRole('listitem')).toHaveCount(2);
     // Quando
     await nota.getByRole('button', { name: 'Tirar Registro de marca' }).click();
-    await page.getByRole('textbox', { name: 'Título' }).fill('Só da pessoa');
-    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    await escreverOTitulo(page, 'Só da pessoa');
     // Então
     await expect(anotacaoAberta(page).getByRole('heading', { name: 'Só da pessoa', level: 2 })).toBeVisible();
     await abrirSecao(coluna(page), 'Ligada a');
@@ -1123,10 +1165,51 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
       await expect(nota.getByRole('textbox', { name: 'Título' })).toBeFocused();
       await esperarDesenhar(page);
       await expect(nota.getByRole('textbox', { name: 'Título' })).toBeFocused();
-      // E fecha a janela do cadastro, em branco, para abrir de novo
-      await page.getByRole('dialog', { name: 'Cadastro' }).getByRole('button', { name: 'Fechar', exact: true }).click();
+      // E fecha a janela, em branco (nada vai ao banco), para abrir de novo
+      await fecharAnotacao(page);
       await expect(nota).toHaveCount(0);
     }
+  });
+
+  test('dado o título escrito e ainda no campo da anotação nova, sem Enter, quando a pessoa fecha pelo X ou usa o Voltar, então sai de primeira, e a anotação está na lista', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await novaAnotacao(page).click();
+    await notaNova(page).getByRole('textbox', { name: 'Título' }).fill('Fechada pelo X');
+    // Quando: fecha pelo X, sem Enter (sair do campo leva a anotação ao banco, e a saída espera)
+    await fecharAnotacao(page);
+    // Então: um clique basta, sem pergunta
+    await expect(anotacaoAberta(page)).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+    await expect(page).toHaveURL(url => url.pathname === '/documentos/' && !url.search);
+    await expect(page.getByRole('row').filter({ hasText: 'Fechada pelo X' })).toBeVisible();
+    // Quando: outra, deixada pelo Voltar do navegador com o título ainda no campo
+    await novaAnotacao(page).click();
+    await notaNova(page).getByRole('textbox', { name: 'Título' }).fill('Deixada pelo Voltar');
+    await esperarDesenhar(page);
+    await page.evaluate(() => history.back());
+    // Então
+    await expect(anotacaoAberta(page)).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+    await expect(page).toHaveURL(url => url.pathname === '/documentos/' && !url.search);
+    await expect(page.getByRole('row').filter({ hasText: 'Deixada pelo Voltar' })).toBeVisible();
+  });
+
+  test('dado o texto escrito na anotação nova, quando a pessoa fecha pelo X logo depois, antes da pausa, então sai de primeira, com o texto gravado', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    await novaAnotacao(page).click();
+    await caixaDoTexto(notaNova(page)).click();
+    await page.keyboard.insertText('Levar a procuração.');
+    // Quando
+    await fecharAnotacao(page);
+    // Então: a anotação foi com o título provisório, que aparece apagado ao abri-la
+    await expect(anotacaoAberta(page)).toHaveCount(0);
+    await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+    await expect.poll(() => textoGuardado(page, 'Sem título')).toBe('Levar a procuração.');
+    await page.getByRole('row').filter({ hasText: 'Sem título' }).click();
+    await anotacaoAberta(page).getByRole('button', { name: 'Sem título' }).click();
+    await expect(anotacaoAberta(page).getByRole('textbox', { name: 'Título' })).toHaveValue('');
   });
 
   test('dado o título mudado e ainda em edição, quando a pessoa usa o Voltar do navegador, então o SEMPER pergunta e respeita a resposta: "Sair sem salvar" sai sem gravar o título', async ({ page }) => {
@@ -1275,8 +1358,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     // Então: o caminho aparece no topo, sem links (sair perderia a anotação)
     await expect(caminho(nova).getByRole('listitem')).toHaveText(['Escritório', 'POPs']);
     await expect(caminho(nova).getByRole('link')).toHaveCount(0);
-    await nova.getByRole('textbox', { name: 'Título' }).fill('POP do caixa');
-    await nova.getByRole('button', { name: 'Salvar anotação' }).click();
+    await escreverOTitulo(page, 'POP do caixa');
     // Então: a anotação (na janela do cartão) mostra o caminho com links, acima do título, e ela aparece dentro da pasta no explorador
     let anotacao = page.getByRole('article', { name: /^Anotação / });
     await expect(anotacao.getByRole('heading', { name: 'POP do caixa', level: 2 })).toBeVisible();
@@ -1343,27 +1425,29 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     // Dado
     await page.goto('/documentos/nova/');
     const nota = notaNova(page);
-    const titulo = nota.getByRole('textbox', { name: 'Título' });
+    // (o ícone de etiqueta fica junto dos botões da janela, como na anotação aberta: ao lado, fora do artigo da nota)
+    const janela = anotacaoAberta(page);
+    // (o título: um campo enquanto a nota abre, um botão "Sem título" depois de a pessoa clicar em outro lugar)
+    const titulo = nota.getByRole('heading', { level: 2 });
     // Então: só o ícone, sem a seção nem a linha dos selos
-    await expect(nota.getByRole('button', { name: 'Etiquetas', exact: true })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Etiquetas', exact: true })).toBeVisible();
     await expect(nota.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(nota.getByRole('region', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(nota.getByText('Nenhuma etiqueta.')).toHaveCount(0);
     // Quando: cria "POP" e "Reunião" pelo ícone
-    await criarEtiquetaPeloIcone(page, nota, 'POP', 'Azul');
-    await criarEtiquetaPeloIcone(page, nota, 'Reunião', 'Verde');
+    await criarEtiquetaPeloIcone(page, janela, 'POP', 'Azul');
+    await criarEtiquetaPeloIcone(page, janela, 'Reunião', 'Verde');
     // Então: as duas aparecem na linha dos selos, acima do título
     const selos = nota.getByRole('group', { name: 'Etiquetas' });
     await expect(selos.getByText('POP', { exact: true })).toBeVisible();
     await expect(selos.getByText('Reunião', { exact: true })).toBeVisible();
     const [linha, caixaDoTitulo] = [(await selos.boundingBox())!, (await titulo.boundingBox())!];
     expect(linha.y + linha.height).toBeLessThanOrEqual(caixaDoTitulo.y);
-    // Quando: desmarca "Reunião" e salva
-    await nota.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    // Quando: desmarca "Reunião" e escreve o título
+    await janela.getByRole('button', { name: 'Etiquetas', exact: true }).click();
     await page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Reunião' }).uncheck();
     await page.keyboard.press('Escape');
-    await titulo.fill('POP de atendimento');
-    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    await escreverOTitulo(page, 'POP de atendimento');
     // Então: a anotação nasce com "POP", que aparece nos selos dela, acima do título, e na lista
     const anotacao = anotacaoAberta(page);
     const tituloSalvo = anotacao.getByRole('heading', { name: 'POP de atendimento', level: 2 });
@@ -1380,13 +1464,13 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     await expect(titulosNaTabela(page).filter({ hasText: 'POP de atendimento' }).getByText('POP', { exact: true })).toBeVisible();
   });
 
-  test('dada uma anotação nova com uma etiqueta marcada, quando a pessoa exclui a etiqueta no próprio painel e salva, então a anotação nasce sem ela', async ({ page }) => {
+  test('dada uma anotação nova com uma etiqueta marcada, quando a pessoa exclui a etiqueta no próprio painel e escreve o título, então a anotação nasce sem ela', async ({ page }) => {
     // Dado
     await page.goto('/documentos/nova/');
-    await criarEtiquetaPeloIcone(page, notaNova(page), 'Transitória', 'Amarelo');
-    await criarEtiquetaPeloIcone(page, notaNova(page), 'POP', 'Azul');
+    await criarEtiquetaPeloIcone(page, anotacaoAberta(page), 'Transitória', 'Amarelo');
+    await criarEtiquetaPeloIcone(page, anotacaoAberta(page), 'POP', 'Azul');
     // Quando: exclui "Transitória" pelo painel do ícone de etiqueta
-    await notaNova(page).getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    await anotacaoAberta(page).getByRole('button', { name: 'Etiquetas', exact: true }).click();
     const escolha = page.getByRole('dialog', { name: 'Escolher etiquetas' });
     await escolha.getByRole('button', { name: 'Mudar a etiqueta Transitória' }).click();
     const form = escolha.getByRole('form', { name: 'Mudar a etiqueta Transitória' });
@@ -1394,8 +1478,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     await form.getByRole('button', { name: 'Confirmar exclusão' }).click();
     await expect(escolha.getByRole('checkbox', { name: 'Transitória' })).toHaveCount(0);
     await page.keyboard.press('Escape');
-    await page.getByRole('textbox', { name: 'Título' }).fill('Ata sem a transitória');
-    await page.getByRole('button', { name: 'Salvar anotação' }).click();
+    await escreverOTitulo(page, 'Ata sem a transitória');
     // Então: a anotação é criada, só com "POP"
     const anotacao = anotacaoAberta(page);
     await expect(anotacao.getByRole('heading', { name: 'Ata sem a transitória', level: 2 })).toBeVisible();
@@ -1710,20 +1793,20 @@ test.describe('Formatar o texto de uma anotação já criada (#364): o clique es
     await expect.poll(() => textoGuardado(page, 'Reaberta')).toBe('Contrato de **honorarios** *assinado* hoje');
   });
 
-  test('dada a anotação nova, ainda sem salvar, quando a pessoa põe negrito numa linha que já tem negrito, depois de clicar em outra, então ele vai para a palavra clicada', async ({ page }) => {
+  // A regra mudou (#369): a anotação nova vai ao banco ao escrever o título; a caixa de escrever continua a mesma.
+  test('dada a anotação nova, logo depois de ir ao banco, quando a pessoa põe negrito numa linha que já tem negrito, depois de clicar em outra, então ele vai para a palavra clicada', async ({ page }) => {
     // Dado
     await page.goto('/documentos/nova/');
-    await page.getByRole('textbox', { name: 'Título' }).fill('Nova com negrito');
-    const nota = notaNova(page), caixa = caixaDoTexto(nota);
+    await escreverOTitulo(page, 'Nova com negrito');
+    const nota = anotacaoAberta(page), caixa = caixaDoTexto(nota);
     await porNoTexto(caixa, 'Contrato de **honorarios** assinado hoje\nCliente pediu revisao do valor');
     // Quando
     await clicarDepois(caixa, 'valor');
     await expect(caixa).not.toContainText('**');
     await cliqueDuplo(caixa, 'hoje');
     await negrito(nota).click();
-    await nota.getByRole('button', { name: 'Salvar anotação' }).click();
+    await caixa.press('Control+s');
     // Então
-    await expect(page.getByText(/Anotação \w+ cadastrada\./)).toBeVisible();
     await expect.poll(() => textoGuardado(page, 'Nova com negrito')).toBe('Contrato de **honorarios** assinado **hoje**\nCliente pediu revisao do valor');
   });
 
@@ -1797,11 +1880,12 @@ test.describe('Escrever na anotação sem moldura (#367)', () => {
     const nota = notaNova(page);
     // Então
     await semMoldura(nota.getByRole('textbox', { name: 'Título' }));
-    // Quando: o Enter no título desce para o texto
+    // Quando: o Enter no título desce para o texto (e, desde a #369, leva a anotação ao banco: na mesma janela, ela passa a ter
+    // o código no nome, e deixa de ser a "Anotação nova")
     await page.keyboard.type('Sem moldura');
     await page.keyboard.press('Enter');
     // Então
-    await semMoldura(caixaDoTexto(nota));
+    await semMoldura(caixaDoTexto(anotacaoAberta(page)));
   });
 
   test('dada uma anotação aberta, quando a pessoa clica no texto e no título para mudá-los, então nenhum dos dois ganha moldura, e a caixa de comentar continua com a dela', async ({ page }) => {

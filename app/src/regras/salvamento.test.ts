@@ -12,7 +12,11 @@ describe('O texto que salva sozinho', () => {
     ['mudado e com a gravação falha', { valor: 'ab', gravado: 'a', salvando: false, falhou: true }, 'naoSalvo'],
     ['de volta ao gravado depois de uma falha', { valor: 'a', gravado: 'a', salvando: false, falhou: true }, 'salvo'],
     ['mudado por outra pessoa no banco', { valor: 'ab', gravado: 'a', salvando: false, falhou: true, conflito: true }, 'conflito'],
-    ['de volta ao gravado com o conflito ainda marcado', { valor: 'a', gravado: 'a', salvando: false, falhou: true, conflito: true }, 'salvo']
+    ['de volta ao gravado com o conflito ainda marcado', { valor: 'a', gravado: 'a', salvando: false, falhou: true, conflito: true }, 'salvo'],
+    // A anotação nova, que ainda não foi ao banco (#369): sem nada escrito, nada foi gravado; ao escrever, segue as outras regras.
+    ['em branco na anotação nova', { valor: '', gravado: '', salvando: false, falhou: false, aindaNaoGravada: true }, 'aindaNaoGravada'],
+    ['escrito na anotação nova e ainda por gravar', { valor: 'a', gravado: '', salvando: false, falhou: false, aindaNaoGravada: true }, 'porSalvar'],
+    ['levando a anotação nova ao banco', { valor: 'a', gravado: '', salvando: true, falhou: false, aindaNaoGravada: true }, 'salvando']
   ] as const)('dado o texto %s, quando a tela pergunta, então a situação é %j', (_caso, estado, situacao) => {
     // Então
     expect(situacaoDoSalvamento(estado)).toBe(situacao);
@@ -24,6 +28,7 @@ describe('O texto que salva sozinho', () => {
     expect(TEXTO_DO_SALVAMENTO.salvo).toBe('Salvo');
     expect(TEXTO_DO_SALVAMENTO.naoSalvo).toMatch(/Ctrl\+S/);
     expect(TEXTO_DO_SALVAMENTO.conflito).toMatch(/Outra pessoa/);
+    expect(TEXTO_DO_SALVAMENTO.aindaNaoGravada).toBe('Ainda não gravada');
   });
 });
 

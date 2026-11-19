@@ -13,13 +13,19 @@
 // O texto grava com trava otimista (decidirGravacao): se outra pessoa o mudou depois que a anotação abriu, nada é gravado por
 // cima, e a pessoa escolhe qual texto fica. Cada pausa ao digitar grava só o texto, sem ler de novo a página inteira, e o
 // histórico junta as gravações seguidas do texto numa linha só (juntarTextoNoHistorico).
-import { useCallback, useEffect, useRef, useState } from 'react';
+// A anotação nova (#369, pedido do dono) abre nesta mesma janela, sem id, com o cursor no título: o que a pessoa escolhe antes
+// de escrever fica na tela (RascunhoDaAnotacao), e ela vai ao banco sozinha, uma vez só, quando a pessoa escreve algo no título
+// ou no texto (garantirGravada), levando a pasta, a equipe, as etiquetas e os itens escolhidos. Daí em diante, é a anotação
+// aberta de sempre, sem trocar a caixa de escrever (o que a pessoa continua a escrever não se perde). Sem nada escrito, fechar
+// não grava nada.
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { SD, type Anotacao, type ItemDaAnotacao } from '../dados';
 import { ITENS_DA_ANOTACAO, TAMANHO_ANOTACAO } from '../dados/limites';
 import {
-  alteraAAnotacao, dadosDaCopia, DICA_DO_TEXTO, edicaoPorSalvar, enderecoDoItem, erroDoTexto, erroDoTitulo, excluiAAnotacao, gravaForaDaAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao,
-  MODULOS_DA_ANOTACAO, motivoSemMencaoNaAnotacao, type RascunhosDaAnotacao
+  alteraAAnotacao, anotacaoEmBranco, dadosDaAnotacaoNova, dadosDaCopia, DICA_DO_TEXTO, edicaoPorSalvar, enderecoDoItem, erroDoTexto, erroDoTitulo, excluiAAnotacao,
+  gravaForaDaAnotacao, ITEM_DA_ANOTACAO, ligaNaAnotacao, MODULOS_DA_ANOTACAO, motivoSemMencaoNaAnotacao, mudadoNaIda, mudouNaIda, TITULO_PROVISORIO, tituloNaJanela, vaiAoBanco,
+  type EscolhidoNaAnotacaoNova, type EscritoNaAnotacaoNova, type RascunhosDaAnotacao
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
 import { nomeDaEtiqueta } from '../regras/etiquetas';
@@ -32,12 +38,13 @@ import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, EditorDeTexto, estiloBotao, Nota, Selo, TituloEditavel, Vazio, type ControleDoEditor } from '../ui/base';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { BotaoDasEtiquetas, SelosDasEtiquetas, useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
+import { buscarEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { CaminhoDaPasta, escolherPastaDaAnotacao, levarAnotacaoParaPasta } from '../ui/Pastas';
-import { usePastas } from '../ui/pastasDoEscritorio';
+import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
 import { Recolhivel } from '../ui/Recolhivel';
 import { decidirGravacao, juntarTextoNoHistorico } from '../regras/salvamento';
 import { JUNTAR_TEXTO_NO_HISTORICO } from '../ui/tempos';
@@ -47,6 +54,7 @@ import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
 import { plural } from './importarPessoas/textos';
+import { LigadosDoRascunho, TopoDoRascunho, useRascunhoDaAnotacao, type AnotacaoNova } from './RascunhoDaAnotacao';
 import './Documentos.css';
 
 /** O nome de cada campo no histórico. */
@@ -89,18 +97,57 @@ type VersaoNoBanco = { texto: string; marca: string };
 type GravacaoDoTexto = { gravou: true; marca: string } | { gravou: false; noBanco: Anotacao };
 
 interface Props {
-  id: string;
+  /** A anotação gravada. Sem ele, a anotação nova, em branco, que vai ao banco quando a pessoa escreve o título ou o texto. */
+  id?: string;
+  /** De onde vem a anotação nova: a pasta em que ela nasce e o item a que ela nasce ligada. */
+  nova?: AnotacaoNova;
   /** Avisa a página de que algo mudou (para ler de novo o explorador e a lista). */
   aoMudar: () => void;
   /** Fecha a janela da anotação (a página volta à lista), depois que ela é excluída. */
   aoFechar: () => void;
+  /** A anotação nova acabou de ir ao banco: quem a abriu passa a mostrá-la pelo endereço dela. */
+  aoCriar?: (id: string) => void;
 }
 type ItensLidos = { visiveis: ItemDaAnotacao[]; ocultos: number };
+/** A anotação com o título como a janela o trata (o provisório conta como sem título), para comparar com o título aberto. */
+const comoNaJanela = (x: Anotacao): Anotacao => ({ ...x, titulo: tituloNaJanela(x.titulo) });
 
-export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
+export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCriar }: Props) {
   const ctx = useCtx();
   const navegar = useNavigate();
-  const [a, setA] = useState<Anotacao | null | undefined>(undefined);   // undefined: carregando; null: não existe ou não pode ver
+  /** O id que a anotação nova ganhou ao ir ao banco (quem a abriu pode ainda não ter trocado o endereço). */
+  const [criada, setCriada] = useState<string | null>(null);
+  /** O id da anotação no banco (null: a anotação nova, que ainda não foi). */
+  const id = idRecebido ?? criada;
+  const emBranco = !id;
+  /** O mesmo id, para as gravações da fila, que podem começar antes de a anotação nova ir ao banco e terminar depois. */
+  const noBanco = useRef<string | null>(id);
+  const rascunho = useRascunhoDaAnotacao(nova, noBanco);
+  /**
+   * Marcada enquanto uma saída está segurada (AvisoAoSair, que grava antes de sair): a anotação nova que vai ao banco nesse meio
+   * tempo não troca de endereço (a troca desfaria o bloqueio do roteador, e a saída se perderia). A troca fica guardada e só
+   * acontece se a pessoa continuar na anotação (aoFicar); se ela sair, não há o que trocar.
+   */
+  const saindo = useRef(false);
+  const trocaGuardada = useRef<string | null>(null);
+  /** A janela ainda está aberta: a anotação que chega ao banco depois de a janela fechar não a abre de novo pelo endereço. */
+  const aberta = useRef(false);
+  useEffect(() => {
+    aberta.current = true;
+    return () => { aberta.current = false; };
+  }, []);
+  /** O texto só de espaços que a anotação nova "gravou" sem ir ao banco (não há o que gravar): no banco, ele é o texto vazio. */
+  const soEspacos = useRef<string | null>(null);
+  // A anotação nova já abre, em branco; a gravada é lida do banco.
+  const [a, setA] = useState<Anotacao | null | undefined>(() => id ? undefined : anotacaoEmBranco(ctx.perfil.id));   // undefined: carregando; null: não existe ou não pode ver
+  /** A anotação como está agora, para quem continua depois de esperar o banco (a tela pode ainda não ter se desenhado de novo). */
+  const naTela = useRef(a);
+  naTela.current = a;
+  /** A ida da anotação nova ao banco: uma vez só, mesmo que o título e o texto peçam ao mesmo tempo. */
+  const criacao = useRef<Promise<Anotacao> | null>(null);
+  const [criando, setCriando] = useState(false);
+  /** A caixa do texto, para o Enter no título da anotação nova descer até ela. */
+  const idDoTexto = useId();
   const [itens, setItens] = useState<ItensLidos | string | null>(null);
   const [erro, setErro] = useState('');
   const [versaoHist, setVersaoHist] = useState(0);
@@ -137,11 +184,13 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   const leitura = useRef(0);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // A pasta da anotação que a lista guardada não conhece (um colega a criou depois) faz ler as pastas de novo; até lá, null.
-  const pastas = usePastas({ precisa: a?.pasta_id ?? null });
+  const pastas = usePastas({ precisa: emBranco ? rascunho.pasta : a?.pasta_id ?? null });
+  if (emBranco) rascunho.conferirPasta(pastas);
   const etiquetasDoEscritorio = useEtiquetas();
-  const etiquetas = useEtiquetasDoCartao('anotacoes', id);
+  const etiquetas = useEtiquetasDoCartao('anotacoes', id ?? '');
 
   const carregar = useCallback(() => {
+    if (!id) return Promise.resolve();
     const esta = ++leitura.current;
     return SD.anotacaoObter(id).then(x => {
       if (esta !== leitura.current) return;   // velha: vale a resposta mais recente
@@ -151,11 +200,11 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
       setErro('');
     }).catch(e => setErro((e as Error).message));
   }, [id]);
-  const carregarItens = useCallback(() => SD.anotacaoItens(id).then(setItens).catch(e => setItens((e as Error).message)), [id]);
+  const carregarItens = useCallback(() => id ? SD.anotacaoItens(id).then(setItens).catch(e => setItens((e as Error).message)) : Promise.resolve(), [id]);
   useEffect(() => { void carregar(); void carregarItens(); }, [carregar, carregarItens]);
   // Depois de desfazer: mostra a anotação como ficou.
   useMudancas(() => { void carregar(); void carregarItens(); setVersaoHist(v => v + 1); });
-  const historico = useQuantos(() => historicoJunto(id), `${id}:${versaoHist}`);
+  const historico = useQuantos(() => historicoJunto(id!), `${id}:${versaoHist}`, !emBranco);
 
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (a === undefined) return <Carregando />;
@@ -199,6 +248,76 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
     } catch (e) { falha(e); }
   }
   /**
+   * Leva a anotação nova ao banco, uma vez só: com o que a pessoa escreveu primeiro (o título ou o texto) e com o que ela escolheu
+   * antes (a pasta, a equipe, as etiquetas e os itens). Quem pede depois, enquanto ela vai, espera a mesma ida. Sem aviso no pé da
+   * tela, como o texto que salva sozinho. O que a pessoa mudou nas escolhas enquanto ela ia (mudadoNaIda) é gravado logo depois.
+   * Se a criação falhar, a próxima gravação tenta de novo (a pasta ou uma etiqueta pode ter sido apagada por um colega: as listas
+   * lidas de novo as tiram da tela). Depois de criada, ela não é criada de novo: uma falha nos passos seguintes (o que mudou na
+   * ida, a leitura) aparece no pé da tela, e a janela passa a mostrar a anotação como está no banco.
+   */
+  function garantirGravada(escrito: EscritoNaAnotacaoNova): Promise<Anotacao> {
+    if (criacao.current) return criacao.current;
+    setCriando(true);
+    const ida = (async () => {
+      const foi = await rascunho.paraGravar();
+      const r = await SD.anotacaoCriar({ ...dadosDaAnotacaoNova(escrito, foi.equipe), pasta_id: foi.pasta }, foi.ligacoes, foi.etiquetas);
+      noBanco.current = r.id;
+      try {
+        // O que mudou enquanto ela ia, e depois o que mudou enquanto ela era lida (aí ela é lida de novo, já com isso).
+        const depoisDaIda = await gravarOMudadoNaIda(r.id, foi);
+        let gravada = await SD.anotacaoObter(r.id);
+        if ((await gravarOMudadoNaIda(r.id, depoisDaIda.agora)).mudou) gravada = await SD.anotacaoObter(r.id);
+        if (!gravada) throw new Error(NAO_ENCONTRADA);
+        versao.current = { texto: gravada.texto, marca: gravada.atualizado_em };
+        naTela.current = gravada;
+        setA(gravada);
+        return gravada;
+      } finally {
+        // Mesmo com uma falha depois de criada: com o id, a janela lê a anotação do banco (carregar).
+        setCriada(r.id);
+        trocarOEndereco(r.id);
+        aoMudar();
+      }
+    })();
+    criacao.current = ida;
+    ida.catch(() => {
+      criacao.current = null;
+      void buscarPastas(ctx.perfil.id);
+      void buscarEtiquetas();
+    }).finally(() => setCriando(false));
+    return ida;
+  }
+  /** A anotação nova foi ao banco: quem a abriu passa a mostrá-la pelo endereço dela, a não ser com uma saída segurada (veja "saindo"). */
+  function trocarOEndereco(novoId: string) {
+    if (!aberta.current) return;
+    if (saindo.current) trocaGuardada.current = novoId;
+    else aoCriar?.(novoId);
+  }
+  /** A saída segurada não aconteceu (a pessoa continua aqui): a troca de endereço guardada acontece agora. */
+  function ficar() {
+    saindo.current = false;
+    const guardada = trocaGuardada.current;
+    trocaGuardada.current = null;
+    if (guardada) aoCriar?.(guardada);
+  }
+  /**
+   * Grava na anotação nova, que acabou de ir ao banco, o que a pessoa mudou nas escolhas desde "antes" (o que já está gravado).
+   * Devolve as escolhas de agora (o ponto de partida da próxima conferência) e se havia algo a gravar.
+   */
+  async function gravarOMudadoNaIda(id: string, antes: EscolhidoNaAnotacaoNova) {
+    const agora = await rascunho.paraGravar();
+    const m = mudadoNaIda(antes, agora);
+    if (!mudouNaIda(m)) return { agora, mudou: false };
+    await Promise.all([
+      m.dados && SD.anotacaoAtualizar(id, m.dados),
+      ...m.aplicar.map(e => SD.etiquetaAplicar('anotacoes', id, e)),
+      ...m.tirar.map(e => SD.etiquetaTirar('anotacoes', id, e)),
+      ...m.ligar.map(i => SD.anotacaoLigar(id, i.modulo, i.id)),
+      ...m.desligar.map(i => SD.anotacaoDesligar(id, i.modulo, i.id))
+    ]);
+    return { agora, mudou: true };
+  }
+  /**
    * Grava o texto com a trava otimista: só se o banco ainda tem o texto de que a pessoa partiu (`base`). Vai direto com o
    * atualizado_em da última leitura; se a anotação mudou depois dela, lê de novo e decide (decidirGravacao): mudou só outro
    * campo, tenta de novo; o banco já tem este texto, está feito; outra pessoa mudou o texto, para, sem gravar por cima.
@@ -231,20 +350,29 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   function gravarTexto(texto: string, base: string): Promise<boolean> {
     // Com o conflito à vista, o texto espera a pessoa escolher qual texto fica.
     if (emConflito.current) return Promise.resolve(false);
-    const g = gravacoes.current, id = a!.id;
+    const g = gravacoes.current;
     const partiuDe = baseEscolhida.current ?? base;
     g.pendentes++;
     setNaFila(g.pendentes);
     let gravou = false;
     g.fila = g.fila.then(async () => {
       try {
-        const r = await gravarSeNinguemMudou(id, texto, partiuDe);
+        // A anotação nova vai ao banco com este texto (só espaços não a levam: não há o que gravar). Se ela já ia, com o título,
+        // o texto grava depois, como na anotação aberta.
+        if (!noBanco.current) {
+          if (!vaiAoBanco({ texto })) { soEspacos.current = texto; gravou = true; return; }
+          if ((await garantirGravada({ texto })).texto === texto) { soEspacos.current = null; gravou = true; return; }
+        }
+        // O texto só de espaços que a caixa tomou por gravado está vazio no banco (a anotação foi com o título): é dele que a
+        // pessoa partiu, sem conflito com ninguém.
+        const r = await gravarSeNinguemMudou(noBanco.current!, texto, partiuDe === soEspacos.current ? '' : partiuDe);
         if (!r.gravou) {
           emConflito.current = true;
           setConflito(r.noBanco);
           return;
         }
         baseEscolhida.current = null;
+        soEspacos.current = null;
         gravou = true;
         setA(atual => atual && { ...atual, texto, atualizado_em: r.marca });
       } catch (e) { falha(e); }
@@ -271,12 +399,20 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   }
   /**
    * Grava o título mudado no próprio lugar (#339): só o título, com o aviso e o desfazer. A tela já mostra o novo; se a gravação
-   * falhar, o título gravado volta.
+   * falhar, o título gravado volta. Na anotação nova, o título a leva ao banco; se ela já tinha ido com o texto (com o título
+   * provisório), o título muda como na anotação aberta.
    */
   async function salvarTitulo(titulo: string) {
-    const antes = a!.titulo, id = a!.id;
+    let antes = a!.titulo;
     setA(atual => atual && { ...atual, titulo });
     try {
+      if (!noBanco.current) {
+        const gravada = await garantirGravada({ titulo });
+        if (gravada.titulo === titulo) return;
+        antes = gravada.titulo;
+        setA(atual => atual && { ...atual, titulo });
+      }
+      const id = noBanco.current!;
       await SD.anotacaoAtualizar(id, { titulo });
       feito('Anotação atualizada.', 'atualização da anotação', async () => {
         await SD.anotacaoAtualizar(id, { titulo: antes });
@@ -330,7 +466,7 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
     try {
       await editor.current?.salvar();
       await gravacoes.current.fila;
-      const original = await SD.anotacaoObter(id);
+      const original = await SD.anotacaoObter(a!.id);
       if (!original) throw new Error(NAO_ENCONTRADA);
       const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves), equipe: ctx.equipe };
       const copia = await SD.anotacaoDuplicar(original.id, dadosDaCopia(original, quem));
@@ -366,44 +502,66 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
   }
   /**
    * Antes de sair, grava o texto que falta e espera a fila das gravações; o título ainda aberto não se grava sozinho (Enter ou
-   * sair do campo o gravam). Diz se ficou tudo gravado.
+   * sair do campo o gravam). Na anotação nova, o título ainda aberto a leva ao banco: a pessoa escreveu algo. Diz se ficou tudo
+   * gravado.
    */
   async function salvarAntesDeSair() {
+    // A anotação nova que for ao banco agora não troca de endereço até a saída se decidir (veja "saindo").
+    saindo.current = true;
+    const tituloAberto = rascunhos.titulo?.trim() ?? '';
+    const levaANova = !noBanco.current && vaiAoBanco({ titulo: tituloAberto });
+    if (levaANova) {
+      try { await salvarTitulo(tituloAberto); } catch (e) { falha(e); return false; }
+    }
     const gravou = await (editor.current?.salvar() ?? Promise.resolve(true));
     await gravacoes.current.fila;
-    return gravou && !edicaoPorSalvar(a!, { titulo: rascunhos.titulo });
+    const foi = await (criacao.current?.then(() => true, () => false) ?? true);
+    return gravou && foi && (levaANova || !edicaoPorSalvar(comoNaJanela(naTela.current ?? a!), { titulo: rascunhos.titulo }));
   }
   // Há o que perder enquanto o editor tem texto por gravar ou gravando (o rascunho só some depois que o banco aceita), enquanto
-  // há gravações na fila e enquanto o título aberto difere do gravado: a saída espera a gravação.
-  const porSalvar = rascunhos.texto != null || naFila > 0 || edicaoPorSalvar(a, { titulo: rascunhos.titulo });
+  // há gravações na fila, enquanto a anotação nova vai ao banco e enquanto o título aberto difere do gravado: a saída espera a
+  // gravação. Na anotação nova sem nada escrito, não há o que perder (o que foi escolhido antes não vai sozinho ao banco).
+  const porSalvar = rascunhos.texto != null || naFila > 0 || criando || edicaoPorSalvar(comoNaJanela(a), { titulo: rascunhos.titulo });
+  // O título provisório ("Sem título") conta como sem título: aparece apagado, e o campo abre vazio.
+  const titulo = tituloNaJanela(a.titulo);
+  /** O Enter no título da anotação nova desce para o texto, como numa nota. */
+  const focarTexto = () => document.getElementById(idDoTexto)?.focus({ preventScroll: true });
+  const chavesDaMencao = { equipeVeTudo: equipeVeTudo(ctx.escritorio), equipeEditaTudo: chaves.equipeEditaTudo };
 
-  return <article className="anotacao-aberta" aria-label={`Anotação ${a.codigo}`}>
+  return <article className="anotacao-aberta" aria-label={emBranco ? 'Anotação nova' : `Anotação ${a.codigo}`}>
     {/* Sempre montado: a saída que espera a gravação continua depois dela, quando já não há nada por salvar. */}
-    <AvisoAoSair preenchido={porSalvar} liberada={saidaLiberada} ocupado={false} aoDescartar={descartarEdicao} salvarAntes={salvarAntesDeSair} />
-    <header className="anotacao-topo">
-      <CaminhoDaPasta pastas={pastas} pastaId={a.pasta_id} comLinks aoMudar={mudaNoLugar ? mudarPasta : undefined} />
-      <div className="anotacao-topo-acoes">
-        {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {/* Quem altera muda a equipe nas bolinhas (#356), com as regras de sair da anotação (#276). */}
-        <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} mudar={mudaNoLugar ? {
-          saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
-        } : null} />
-        {/* A etiqueta e o ⋯ ficam junto dos botões da janela (o formato e o X), como os botões do topo dos outros cartões. A etiqueta
-            abre a mesma escolha da seção "Etiquetas" dos outros cartões; quem só lê vê só os selos. */}
-        <NoTopoDoCartao>
-          {mudaNoLugar && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={depois} rotulo="Etiquetas" className="cartao-botao" comDica>
-            <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
-          </BotaoDasEtiquetas>}
-          <MenuDoCartao arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
-            excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoMenu} />
-        </NoTopoDoCartao>
-      </div>
-    </header>
-    {/* As etiquetas escolhidas, numa linha entre o topo e o título (sem etiquetas, ela não aparece). */}
-    <SelosDasEtiquetas ids={etiquetas.ids} rotulo="Etiquetas" aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
+    <AvisoAoSair preenchido={porSalvar} liberada={saidaLiberada} ocupado={false} aoDescartar={descartarEdicao} salvarAntes={salvarAntesDeSair} aoFicar={ficar} />
+    {/* O topo num lugar só (o da anotação nova ou o da gravada): o título e o texto, logo abaixo, continuam os mesmos quando a
+        anotação nova vai ao banco. */}
+    {emBranco ? <TopoDoRascunho rascunho={rascunho} pastas={pastas} /> : <>
+      <header className="anotacao-topo">
+        <CaminhoDaPasta pastas={pastas} pastaId={a.pasta_id} comLinks aoMudar={mudaNoLugar ? mudarPasta : undefined} />
+        <div className="anotacao-topo-acoes">
+          {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+          {/* Quem altera muda a equipe nas bolinhas (#356), com as regras de sair da anotação (#276). */}
+          <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} mudar={mudaNoLugar ? {
+            saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
+          } : null} />
+          {/* A etiqueta e o ⋯ ficam junto dos botões da janela (o formato e o X), como os botões do topo dos outros cartões. A etiqueta
+              abre a mesma escolha da seção "Etiquetas" dos outros cartões; quem só lê vê só os selos. */}
+          <NoTopoDoCartao>
+            {mudaNoLugar && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={depois} rotulo="Etiquetas" className="cartao-botao" comDica>
+              <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
+            </BotaoDasEtiquetas>}
+            <MenuDoCartao arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
+              excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoMenu} />
+          </NoTopoDoCartao>
+        </div>
+      </header>
+      {/* As etiquetas escolhidas, numa linha entre o topo e o título (sem etiquetas, ela não aparece). */}
+      <SelosDasEtiquetas ids={etiquetas.ids} rotulo="Etiquetas" aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
+    </>}
 
-    <TituloEditavel key={'titulo-' + edicaoDescartada} className="anotacao-titulo" valor={a.titulo} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo}
-      maximo={TAMANHO_ANOTACAO.titulo} placeholder="Sem título" aoMudarRascunho={mudarRascunho('titulo')} />
+    {/* A anotação nova abre com o cursor no título; sem título (ou com o provisório), ele aparece como "Sem título", apagado. */}
+    <TituloEditavel key={'titulo-' + edicaoDescartada} className={'anotacao-titulo' + (titulo ? '' : ' sem-titulo')} valor={titulo}
+      exibido={titulo ? undefined : TITULO_PROVISORIO} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo}
+      maximo={TAMANHO_ANOTACAO.titulo} placeholder={TITULO_PROVISORIO} aoMudarRascunho={mudarRascunho('titulo')}
+      editandoAoAbrir={emBranco} depoisDoEnter={emBranco ? focarTexto : undefined} />
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
     {a.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Anotação arquivada. Se não for mais necessária, pode ser excluída definitivamente, pelo menu ⋯.'
@@ -417,18 +575,24 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
         <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={usarOGravado}>Usar o texto gravado</button>
       </div>
     </Aviso>}
-    <EditorDeTexto key={`texto-${edicaoDescartada}-${textoTrocado}`} texto={a.texto} className="anotacao-texto" maximo={TAMANHO_ANOTACAO.texto} conferir={erroDoTexto}
-      placeholder={DICA_DO_TEXTO} vazio={<Nota>Sem texto ainda.</Nota>} controle={editor} conflito={!!conflito}
-      aoSalvar={mudaNoLugar ? gravarTexto : undefined}
+    <EditorDeTexto key={`texto-${edicaoDescartada}-${textoTrocado}`} id={idDoTexto} texto={a.texto} className="anotacao-texto" maximo={TAMANHO_ANOTACAO.texto}
+      conferir={erroDoTexto} placeholder={DICA_DO_TEXTO} vazio={<Nota>Sem texto ainda.</Nota>} controle={editor} conflito={!!conflito}
+      aindaNaoGravada={emBranco} aoSalvar={mudaNoLugar ? gravarTexto : undefined}
       aoMudarRascunho={mudarRascunho('texto')} />
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: os comentários (abertos), o
-        que a anotação liga e o histórico (recolhidos). Quem vê a anotação comenta, mesmo quem só a lê, como nos outros cartões (#364). */}
-    <NaColunaDoCartao>
-      <SecaoComentarios modulo="anotacoes" cartaoId={a.id}
-        motivoSemMencao={motivoSemMencaoNaAnotacao(a, { equipeVeTudo: equipeVeTudo(ctx.escritorio), equipeEditaTudo: chaves.equipeEditaTudo })} />
-      <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={totalLigados}>
-        {itens === null ? <Carregando />
+        que a anotação liga e o histórico (recolhidos). Quem vê a anotação comenta, mesmo quem só a lê, como nos outros cartões (#364).
+        Na anotação nova, "Ligada a" vem aberta, com os itens escolhidos antes de ela ir ao banco, e ainda não há o que comentar.
+        Quando ela vai ao banco, a coluna recomeça (a chave), na ordem de sempre, com o "Expandir tudo" no topo; "Ligada a" continua aberta. */}
+    <NaColunaDoCartao key={emBranco ? 'coluna-nova' : 'coluna'}>
+      {emBranco
+        ? <Recolhivel titulo="Comentários" icone="comentario" contador={0} abertaAoIniciar>
+          <Nota>Para comentar, escreva antes o título ou o texto: a anotação é gravada assim que você escreve.</Nota>
+        </Recolhivel>
+        : <SecaoComentarios modulo="anotacoes" cartaoId={a.id} motivoSemMencao={motivoSemMencaoNaAnotacao(a, chavesDaMencao)} />}
+      <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={emBranco ? rascunho.itens.length : totalLigados} abertaAoIniciar={emBranco || !!criada}>
+        {emBranco ? <LigadosDoRascunho rascunho={rascunho} />
+          : itens === null ? <Carregando />
           : typeof itens === 'string' ? <Aviso tipo="erro">{itens}</Aviso>
           : <>
             {itens.ocultos > 0 && <Nota>Há {plural(itens.ocultos, 'item ligado', 'itens ligados')} aqui que você não tem acesso para abrir.</Nota>}
@@ -446,15 +610,18 @@ export function CartaoAnotacao({ id, aoMudar, aoFechar }: Props) {
           </>}
       </Recolhivel>
 
-      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="anotacoes.cartao.historico" contador={historico}>
-        <HistoricoDoCartao carregar={() => historicoJunto(a.id)} campos={CAMPOS_ANOTACAO} valor={valorNoHistorico} soQueMudou={SO_QUE_MUDOU} versao={versaoHist} />
+      <Recolhivel titulo="Histórico de alterações" icone="relogio" preferencia="anotacoes.cartao.historico" contador={emBranco ? 0 : historico}>
+        {emBranco ? <Nota>Nenhuma alteração ainda.</Nota>
+          : <HistoricoDoCartao carregar={() => historicoJunto(a.id)} campos={CAMPOS_ANOTACAO} valor={valorNoHistorico} soQueMudou={SO_QUE_MUDOU} versao={versaoHist} />}
       </Recolhivel>
     </NaColunaDoCartao>
 
     {/* O rodapé, por último, como nos outros cartões (no centro, as seções de cima vão para a coluna, e ele fica no pé do texto). */}
-    <footer className="cartao-rodape">
-      <span>Anotação <span className="codigo">{a.codigo}</span> · Criada em {dataCurta(a.criado_em)}{a.criado_por ? ' por ' + nomeDe(a.criado_por) : ''}</span>
-      <span>Atualizada {relativo(a.atualizado_em)}</span>
-    </footer>
+    {emBranco
+      ? <footer className="cartao-rodape"><span>Anotação nova · gravada assim que você escrever o título ou o texto</span></footer>
+      : <footer className="cartao-rodape">
+        <span>Anotação <span className="codigo">{a.codigo}</span> · Criada em {dataCurta(a.criado_em)}{a.criado_por ? ' por ' + nomeDe(a.criado_por) : ''}</span>
+        <span>Atualizada {relativo(a.atualizado_em)}</span>
+      </footer>}
   </article>;
 }

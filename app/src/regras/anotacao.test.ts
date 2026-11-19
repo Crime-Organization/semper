@@ -6,9 +6,11 @@ import type { Anotacao, ItemParaLigar, Membro } from '../dados/tipos';
 type ItemComNome = ItemParaLigar & { nome: string };
 import {
   ABRE_A_ANOTACAO, alteraAAnotacao, enderecoDoItem, excluiAAnotacao, ITEM_DA_ANOTACAO, itemDaAnotacao, ligaNaAnotacao, MODULOS_DA_ANOTACAO, modulosLigados,
-  camposDaAnotacao, dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, errosDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
+  dadosDaAnotacao, dadosDaCopia, desdeDoPeriodo, gravaForaDaAnotacao, semSairDaAnotacao, NOME_DO_ITEM, PERIODOS_DA_ANOTACAO,
   SUFIXO_DA_COPIA, tituloDaCopia, veAAnotacao, comMaisUmItem, dadosDaEquipe, equipeDaAnotacao, erroDaEquipe, erroDoTexto, erroDoTitulo, ligacoesDaAnotacaoNova,
-  edicaoPorSalvar, mencaoNegadaNaAnotacao, mesmoItem, motivoDaListaVazia, motivoSemMencaoNaAnotacao, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao
+  edicaoPorSalvar, mencaoNegadaNaAnotacao, mesmoItem, motivoDaListaVazia, motivoSemMencaoNaAnotacao, motivoDeNaoLigarAAnotacao, QUEM_PASSA_A_LER, semOItem, type CamposAnotacao, type ChavesDaEquipe, type RascunhosDaAnotacao,
+  anotacaoEmBranco, dadosDaAnotacaoNova, mudadoNaIda, mudouNaIda, type EscolhidoNaAnotacaoNova, enderecoDaAnotacaoNova, enderecoNovoDaAnotacaoNova, origemDaAnotacaoNova, semAAnotacaoNova, TITULO_PROVISORIO, vaiAoBanco,
+  fechamentoDaAnotacao, tituloNaJanela
 } from './anotacao';
 
 const anotacao = (campos: Partial<Anotacao> = {}): Anotacao => ({
@@ -192,31 +194,122 @@ describe('O filtro "Data" da página Documentos', () => {
 describe('O cadastro de anotação', () => {
   const campos = (c: Partial<CamposAnotacao> = {}): CamposAnotacao => ({ titulo: 'Estratégia do caso', texto: '', responsavelId: 'u-ana', participantes: [], ...c });
 
-  it('dado um cadastro com título e responsável, então não há erro', () => {
-    // Dado / Quando / Então
-    expect(errosDaAnotacao(campos())).toEqual({});
-  });
-
-  it('dado o título em branco, sem responsável e o texto grande demais, então cada campo diz o que falta', () => {
-    // Dado
-    const c = campos({ titulo: '   ', responsavelId: '', texto: 'x'.repeat(TAMANHO_ANOTACAO.texto + 1) });
-    // Quando
-    const erros = errosDaAnotacao(c);
-    // Então
-    expect(erros).toEqual({ titulo: 'Dê um título à anotação.', texto: 'O texto pode ter até 200.000 caracteres.', responsavelId: 'Escolha o responsável.' });
-    expect(errosDaAnotacao(campos({ titulo: 'x'.repeat(TAMANHO_ANOTACAO.titulo + 1) })).titulo).toBe('O título pode ter até 300 caracteres.');
-  });
-
+  // A regra mudou (#369): a tela própria da anotação nova saiu, e com ela a conferência de todos os campos ao salvar (o título e o
+  // texto se conferem no próprio lugar, nos testes de #339, e o responsável já vem preenchido).
   it('quando o cadastro grava, então o título perde os espaços das pontas e o responsável sai dos participantes', () => {
     // Dado
     const c = campos({ titulo: '  Estratégia  ', participantes: ['u-ana', 'u-bruno'] });
     // Quando / Então
     expect(dadosDaAnotacao(c)).toEqual({ titulo: 'Estratégia', texto: '', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
   });
+});
 
-  it('dada uma anotação gravada, quando ela é editada, então os campos vêm dela', () => {
+describe('A anotação nova, na mesma janela da anotação aberta (#369)', () => {
+  const equipe = { responsavelId: 'u-ana', participantes: ['u-ana', 'u-bruno'] };
+
+  it('quando a anotação nova abre sem nada, numa pasta ou vinda de um item, então o endereço é o da página Documentos com a janela em branco', () => {
+    // Quando / Então
+    expect(enderecoDaAnotacaoNova()).toBe('/documentos/?nova=1');
+    expect(enderecoDaAnotacaoNova({ pasta: 'pa1' })).toBe('/documentos/?nova=1&pasta=pa1');
+    expect(enderecoDaAnotacaoNova({ [ITEM_DA_ANOTACAO.demandas.parametro]: 'd1' })).toBe('/documentos/?nova=1&demanda=d1');
+  });
+
+  it.each([
+    ['sem nada', '', '/documentos/?nova=1'],
+    ['com a pasta', '?pasta=pa1', '/documentos/?nova=1&pasta=pa1'],
+    ['com o item de onde se veio', '?pessoa=p1', '/documentos/?nova=1&pessoa=p1'],
+    ['com o id (o antigo editar)', '?id=a1', '/documentos/?id=a1']
+  ])('dado o endereço antigo %s, quando a pessoa o abre, então ele leva a %s', (_caso, busca, esperado) => {
+    // Quando / Então
+    expect(enderecoNovoDaAnotacaoNova(busca)).toBe(esperado);
+  });
+
+  it('dado o endereço da anotação nova vinda de um item, quando a tela o lê, então acha o item; sem item, não acha nada', () => {
     // Dado / Quando / Então
-    expect(camposDaAnotacao(anotacao({ texto: '# Plano' }))).toEqual({ titulo: 'Estratégia', texto: '# Plano', responsavelId: 'u-ana', participantes: ['u-carla'] });
+    expect(origemDaAnotacaoNova(new URLSearchParams('nova=1&processo=pr9'))).toEqual({ modulo: 'processos', id: 'pr9' });
+    expect(origemDaAnotacaoNova(new URLSearchParams('nova=1&pasta=pa1'))).toBeNull();
+  });
+
+  it('dada a anotação nova numa pasta e vinda de um item, quando ela vai ao banco, então o endereço perde o "nova" e o item, e a pasta continua', () => {
+    // Dado
+    const p = new URLSearchParams('nova=1&pasta=pa1&demanda=d1&tarefa=t1');
+    // Quando
+    semAAnotacaoNova(p);
+    // Então
+    expect(p.toString()).toBe('pasta=pa1');
+  });
+
+  it.each([
+    ['nada escrito', {}, false],
+    ['só espaços no título e no texto', { titulo: '  ', texto: ' \n ' }, false],
+    ['um título', { titulo: 'Visita' }, true],
+    ['só o texto', { texto: 'Levar a procuração.' }, true]
+  ])('dado %s, então a anotação nova vai ao banco: %s', (_caso, escrito, esperado) => {
+    // Quando / Então
+    expect(vaiAoBanco(escrito)).toBe(esperado);
+  });
+
+  it('dado só o texto escrito, quando a anotação nova vai ao banco, então leva o título provisório e a equipe escolhida antes', () => {
+    // Quando / Então
+    expect(dadosDaAnotacaoNova({ texto: 'Levar a procuração.' }, equipe))
+      .toEqual({ titulo: TITULO_PROVISORIO, texto: 'Levar a procuração.', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+  });
+
+  it('dado só o título escrito, quando a anotação nova vai ao banco, então leva o título sem os espaços das pontas e o texto vazio', () => {
+    // Quando / Então
+    expect(dadosDaAnotacaoNova({ titulo: '  Visita ' }, equipe)).toEqual({ titulo: 'Visita', texto: '', responsavel_id: 'u-ana', participantes: ['u-bruno'] });
+  });
+
+  it('dado o título provisório gravado (a pessoa começou pelo texto), quando a janela o mostra, então ele conta como sem título; os outros ficam como estão', () => {
+    // Dado / Quando / Então
+    expect(tituloNaJanela(TITULO_PROVISORIO)).toBe('');
+    expect(tituloNaJanela('Visita')).toBe('Visita');
+    expect(tituloNaJanela('')).toBe('');
+  });
+
+  it.each([
+    ['a nova aberta de outra página (o + do cartão de um item)', 'voltar', { nova: true, veioDeOutraEntrada: true }],
+    ['a nova que já foi ao banco, aberta de outra página', 'voltar', { nova: false, veioDeOutraEntrada: true }],
+    ['a nova aberta direto pelo endereço', 'tirarANova', { nova: true, veioDeOutraEntrada: false }],
+    ['uma anotação aberta pela lista', 'fechar', { nova: false, veioDeOutraEntrada: false }]
+  ] as const)('dada %s, quando a pessoa fecha a janela, então ela faz: %s', (_caso, esperado, situacao) => {
+    // Quando / Então
+    expect(fechamentoDaAnotacao(situacao)).toBe(esperado);
+  });
+
+  describe('o que muda enquanto ela vai ao banco', () => {
+    const foi: EscolhidoNaAnotacaoNova = { equipe: { responsavelId: 'u-ana', participantes: [] }, pasta: null, ligacoes: [{ modulo: 'demandas', id: 'd1' }], etiquetas: ['e1'] };
+
+    it('dadas as mesmas escolhas, então nada muda', () => {
+      // Quando
+      const m = mudadoNaIda(foi, { ...foi, equipe: { responsavelId: 'u-ana', participantes: ['u-ana'] } });
+      // Então
+      expect(mudouNaIda(m)).toBe(false);
+      expect(m).toEqual({ dados: null, aplicar: [], tirar: [], ligar: [], desligar: [] });
+    });
+
+    it('dada a pessoa que, logo depois do Enter, compartilha, troca a pasta, troca a etiqueta e troca o item, então cada mudança vai para o banco', () => {
+      // Quando
+      const m = mudadoNaIda(foi, { equipe: { responsavelId: 'u-ana', participantes: ['u-bruno'] }, pasta: 'pa1', ligacoes: [{ modulo: 'pessoas', id: 'p1' }], etiquetas: ['e2'] });
+      // Então
+      expect(mudouNaIda(m)).toBe(true);
+      expect(m).toEqual({
+        dados: { responsavel_id: 'u-ana', participantes: ['u-bruno'], pasta_id: 'pa1' }, aplicar: ['e2'], tirar: ['e1'],
+        ligar: [{ modulo: 'pessoas', id: 'p1' }], desligar: [{ modulo: 'demandas', id: 'd1' }]
+      });
+    });
+
+    it('dada só a pasta trocada, então só a pasta vai para o banco, sem mexer na equipe', () => {
+      // Quando / Então
+      expect(mudadoNaIda(foi, { ...foi, pasta: 'pa1' }).dados).toEqual({ pasta_id: 'pa1' });
+    });
+  });
+
+  it('quando a anotação nova abre, então ela é de quem a escreve, em branco, sem pasta e sem código', () => {
+    // Quando
+    const a = anotacaoEmBranco('u-ana');
+    // Então
+    expect(a).toMatchObject({ id: '', codigo: '', titulo: '', texto: '', responsavel_id: 'u-ana', participantes: [], pasta_id: null, criado_por: 'u-ana', arquivado_em: null });
   });
 });
 

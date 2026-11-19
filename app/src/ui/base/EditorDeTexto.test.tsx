@@ -184,3 +184,29 @@ describe('O texto que já abre em edição e salva sozinho (a anotação, como n
     expect(screen.getByText('Sem texto ainda.')).toBeInTheDocument();
   });
 });
+
+// A anotação nova (#369) abre já com a caixa de escrever, antes de existir no banco: a linha da gravação não diz "Salvo" antes da
+// hora, e quem usa põe o foco na caixa pelo id dela (o Enter no título desce para o texto).
+describe('O texto da anotação nova, que ainda não foi ao banco (#369)', () => {
+  it('dada a anotação nova sem nada escrito, então a linha diz "Ainda não gravada"; quando a pessoa escreve, diz que há alterações por salvar', async () => {
+    // Dado
+    render(<EditorDeTexto texto="" aindaNaoGravada aoSalvar={vi.fn(async () => true)} />);
+    const caixa = await acharEditor();
+    expect(situacao()).toHaveTextContent('Ainda não gravada');
+    // Quando
+    escreverNoEditor(caixa, 'Levar');
+    // Então
+    expect(situacao()).toHaveTextContent('Alterações por salvar');
+  });
+
+  it('dado o id pedido por quem usa, quando o foco vai para ele, então chega à caixa de escrever', async () => {
+    // Dado
+    render(<EditorDeTexto id="texto-da-nova" texto="" aoSalvar={vi.fn(async () => true)} />);
+    const caixa = await acharEditor();
+    // Quando
+    act(() => { document.getElementById('texto-da-nova')?.focus(); });
+    // Então
+    expect(caixa).toHaveAttribute('id', 'texto-da-nova');
+    expect(caixa).toHaveFocus();
+  });
+});

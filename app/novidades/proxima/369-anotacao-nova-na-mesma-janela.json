@@ -1,0 +1,5 @@
+{
+  "titulo": "Anotação nova abre direto na janela da anotação",
+  "texto": "A anotação nova abre na mesma janela das anotações que já existem, com o cursor no título. Ela é gravada sozinha assim que você escreve o título ou o texto, sem o botão \"Salvar anotação\"; se fechar sem escrever nada, nada fica gravado.",
+  "ondeAchar": "Em Documentos, no botão \"Nova anotação\" ou no ícone de nova anotação do explorador; no \"+\" ao lado de Documentos, no menu lateral; e no \"+\" da seção Anotações dos cartões."
+}

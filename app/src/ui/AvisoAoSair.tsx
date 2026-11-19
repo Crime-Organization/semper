@@ -3,7 +3,7 @@
 // Entra na tela do cadastro novo e, desde a #339, na edição no próprio lugar (o título e o texto da anotação), que diz direto
 // se há o que perder ("preenchido"). Um só por vez: o roteador só segura uma saída de cada vez.
 import { useEffect, useRef, type RefObject } from 'react';
-import { useBlocker } from 'react-router';
+import { NavigationType, useBlocker } from 'react-router';
 import { avisar } from './avisos';
 import { janela } from './janela';
 
@@ -19,6 +19,13 @@ const EVENTOS_DE_CAMPO = ['input', 'change'] as const;
 const ehOpcaoOuCaixa = (alvo: EventTarget | null) => alvo instanceof HTMLInputElement && (alvo.type === 'radio' || alvo.type === 'checkbox');
 /** A entrada do sistema: quem vai para lá já não tem sessão (saiu, a sessão acabou, a conta foi desativada), e não há como continuar. */
 const ENTRADA = /^\/entrar\/?$/;
+/**
+ * A marca, no estado da navegação, de que ela não sai da tela: só troca o endereço dela, no lugar do atual (a anotação nova que
+ * acabou de ir ao banco passa a ter o endereço dela, #369). Essa troca não é segurada; o Voltar e os links continuam sendo.
+ */
+export const SEM_SAIR_DA_TELA = 'semSairDaTela';
+const ficaNaTela = (estado: unknown, acao: NavigationType) =>
+  acao === NavigationType.Replace && !!estado && typeof estado === 'object' && SEM_SAIR_DA_TELA in estado;
 
 /** Diz se o cadastro aberto agora tem algo a perder. */
 let temAlgoAPerder = () => false;
@@ -26,6 +33,8 @@ let temAlgoAPerder = () => false;
 let salvandoAgora = () => false;
 /** Grava o que falta, no texto que salva sozinho (null: o que está aberto não grava sozinho). */
 let salvarAgora: (() => Promise<boolean>) | null = null;
+/** Avisa o cadastro aberto de que a saída que ele segurou não aconteceu: a pessoa continua nele. */
+let ficarAgora = () => {};
 const ESPERE_SALVAR = 'Espere terminar de salvar.';
 
 /** Para quem precisa perguntar antes de agir, como o botão Sair do sistema: sem isto, a sessão acabaria antes da pergunta. */
@@ -34,9 +43,12 @@ export async function podeSairDoCadastro() {
   if (temAlgoAPerder() && salvarAgora && await salvarAgora()) return true;
   if (salvandoAgora()) {
     avisar(ESPERE_SALVAR);
+    ficarAgora();
     return false;
   }
-  return !temAlgoAPerder() || !!await perguntarSeSai();
+  const sai = !temAlgoAPerder() || !!await perguntarSeSai();
+  if (!sai) ficarAgora();
+  return sai;
 }
 
 interface PropsDoAviso {
@@ -61,11 +73,19 @@ interface PropsDoAviso {
    * só então sai, sem perguntar. Se a gravação falhar, a pergunta de sempre aparece.
    */
   salvarAntes?: () => Promise<boolean>;
+  /**
+   * A saída segurada não aconteceu: a pessoa escolheu continuar (ou a saída esperou salvar). Para quem adia algo enquanto a saída
+   * está segurada: a anotação nova que foi ao banco no meio dela só troca de endereço agora (#369), porque qualquer navegação que
+   * termina com a saída segurada desfaz o bloqueio do roteador, e a saída se perderia.
+   */
+  aoFicar?: () => void;
 }
 
-export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoDescartar, salvarAntes }: PropsDoAviso) {
+export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoDescartar, salvarAntes, aoFicar }: PropsDoAviso) {
   const descartar = useRef(aoDescartar);
   descartar.current = aoDescartar;
+  const ficar = useRef(aoFicar);
+  ficar.current = aoFicar;
   const salvar = useRef(salvarAntes);
   salvar.current = salvarAntes;
   const atual = JSON.stringify(estado);
@@ -95,11 +115,13 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
     temAlgoAPerder = () => agora.current.preenchido && !liberada.current;
     salvandoAgora = () => agora.current.ocupado;
     salvarAgora = () => salvar.current?.() ?? Promise.resolve(false);
-    return () => { montado.current = false; temAlgoAPerder = () => false; salvandoAgora = () => false; salvarAgora = null; };
+    ficarAgora = () => ficar.current?.();
+    return () => { montado.current = false; temAlgoAPerder = () => false; salvandoAgora = () => false; salvarAgora = null; ficarAgora = () => {}; };
   }, [liberada]);
 
   // Qualquer navegação perde o preenchido, mesmo para o mesmo endereço: cada abertura do cadastro começa um formulário novo (App.tsx).
-  const bloqueio = useBlocker(({ nextLocation }) => temAlgoAPerder() && !ENTRADA.test(nextLocation.pathname));
+  const bloqueio = useBlocker(({ nextLocation, historyAction }) =>
+    temAlgoAPerder() && !ENTRADA.test(nextLocation.pathname) && !ficaNaTela(nextLocation.state, historyAction));
   const perguntando = useRef(false);
   useEffect(() => {
     if (bloqueio.state !== 'blocked' || perguntando.current) return;
@@ -111,13 +133,14 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
         perguntando.current = false;
         if (!montado.current) return;
         if (sair) { if (!gravou) descartar.current?.(); bloqueio.proceed(); }
-        else bloqueio.reset();
+        else { bloqueio.reset(); ficar.current?.(); }
       });
       return;
     }
     if (agora.current.ocupado) {
       avisar(ESPERE_SALVAR);
       bloqueio.reset();
+      ficar.current?.();
       return;
     }
     perguntando.current = true;
@@ -125,7 +148,7 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
       perguntando.current = false;
       if (!montado.current) return;   // a sessão acabou com a pergunta aberta: o bloqueio já não existe
       if (sair) { descartar.current?.(); bloqueio.proceed(); }
-      else bloqueio.reset();
+      else { bloqueio.reset(); ficar.current?.(); }
     });
   }, [bloqueio]);
 

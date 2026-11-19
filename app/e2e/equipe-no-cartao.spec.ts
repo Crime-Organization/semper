@@ -188,11 +188,12 @@ test.describe('Equipe no topo dos outros cartões', () => {
   });
 
   test('dada uma anotação, quando a compartilha pela bolinha com "+", então a pessoa fica na anotação', async ({ page }) => {
-    // Dado: a anotação salva abre na janela do cartão, como os outros cartões (pedido de 18/11)
+    // Dado: a anotação nova abre na janela da anotação e vai ao banco ao escrever o título (#369)
     await page.goto('/documentos/nova/');
     await page.getByRole('textbox', { name: 'Título' }).fill('Roteiro da reunião');
-    await page.getByRole('button', { name: 'Salvar anotação' }).click();
-    // A janela da anotação salva (o artigo da nota em branco, que some logo depois de salvar, também se chama "Anotação …")
+    await page.getByRole('textbox', { name: 'Título' }).press('Enter');
+    // (gravada, ela ganha o endereço dela: é ele que o recarregar abre, no fim)
+    await expect(page).toHaveURL(/\/documentos\/\?id=/);
     const anotacao = page.getByRole('dialog', { name: 'Anotação', exact: true });
     await expect(anotacao.getByRole('heading', { name: 'Roteiro da reunião', level: 2 })).toBeVisible();
     // Quando

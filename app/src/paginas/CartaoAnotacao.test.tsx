@@ -9,9 +9,10 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Anotacao, DadosAnotacoes, DadosComentarios, DadosEtiquetas, DadosPastas, DadosSessao, Etiqueta } from '../dados';
-import { acharEditor, escreverNoEditor, textoDoEditor } from '../testes/editorAoVivo';
+import type { Anotacao, DadosAnotacoes, DadosComentarios, DadosDemandas, DadosEtiquetas, DadosPastas, DadosSessao, Demanda, Etiqueta, Pasta } from '../dados';
+import { acharEditor, editorDe, escreverNoEditor, textoDoEditor } from '../testes/editorAoVivo';
 import { Avisos } from '../ui/avisos';
+import { SEM_SAIR_DA_TELA } from '../ui/AvisoAoSair';
 import { lojaDeEtiquetas } from '../ui/Etiquetas';
 import { lojaDePastas } from '../ui/pastasDoEscritorio';
 import { ESPERA_PARA_SALVAR } from '../ui/tempos';
@@ -21,11 +22,13 @@ import { iniciarPreferencias } from '../ui/preferencias';
 import { CartaoAnotacao, ITEM_JA_LIGADO } from './CartaoAnotacao';
 
 // O cartão lê a anotação, os itens ligados, o histórico, as etiquetas e as pastas (#342), e grava o texto (com a trava otimista)
-// e o título; o mock declara exatamente essas operações.
+// e o título; a anotação nova (#369) vai ao banco e lê o item de onde se veio; o mock declara exatamente essas operações.
 const {
   anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, anotacaoGravarTexto, anotacaoLigar, anotacaoDesligar, itensParaLigar, salvarPreferencia,
-  etiquetasListar, etiquetasDoCartao, etiquetaAplicar, pastasListar, comentariosListar, comentarioCriar
+  etiquetasListar, etiquetasDoCartao, etiquetaAplicar, pastasListar, comentariosListar, comentarioCriar, anotacaoCriar, demandaObter
 } = vi.hoisted(() => ({
+  anotacaoCriar: vi.fn<DadosAnotacoes['anotacaoCriar']>(),
+  demandaObter: vi.fn<DadosDemandas['demandaObter']>(),
   comentariosListar: vi.fn<DadosComentarios['comentariosListar']>(async () => []),
   comentarioCriar: vi.fn<DadosComentarios['comentarioCriar']>(),
   anotacaoLigar: vi.fn<DadosAnotacoes['anotacaoLigar']>(),
@@ -44,8 +47,8 @@ const {
 }));
 vi.mock('../dados', () => ({
   SD: { anotacaoObter, anotacaoItens, anotacaoHistorico, anotacaoAtualizar, anotacaoGravarTexto, anotacaoLigar, anotacaoDesligar, itensParaLigar, salvarPreferencia, etiquetasListar, etiquetasDoCartao, etiquetaAplicar,
-    pastasListar, comentariosListar, comentarioCriar } satisfies
-    Pick<DadosAnotacoes & DadosSessao & DadosEtiquetas & DadosPastas & DadosComentarios, 'comentariosListar' | 'comentarioCriar' | 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'anotacaoGravarTexto' | 'anotacaoLigar'
+    pastasListar, comentariosListar, comentarioCriar, anotacaoCriar, demandaObter } satisfies
+    Pick<DadosAnotacoes & DadosSessao & DadosEtiquetas & DadosPastas & DadosComentarios & DadosDemandas, 'anotacaoCriar' | 'demandaObter' | 'comentariosListar' | 'comentarioCriar' | 'anotacaoObter' | 'anotacaoItens' | 'anotacaoHistorico' | 'anotacaoAtualizar' | 'anotacaoGravarTexto' | 'anotacaoLigar'
       | 'anotacaoDesligar' | 'itensParaLigar' | 'salvarPreferencia' | 'etiquetasListar' | 'etiquetasDoCartao' | 'etiquetaAplicar' | 'pastasListar'>
 }));
 /** A equipe do escritório: quem escreve e alguém com quem compartilhar (com o @usuario, para os comentários). */
@@ -566,6 +569,338 @@ describe('Ligar um item pela seção "Ligada a" (#341)', () => {
     await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
     // Então
     expect(anotacaoDesligar).toHaveBeenCalledWith('a1', 'pessoas', 'p1');
+  });
+});
+
+// A anotação nova (#369, pedido do dono): sem tela própria, ela abre nesta mesma janela, com o cursor no título, e vai ao banco
+// sozinha quando a pessoa escreve algo no título ou no texto. A regra mudou: antes, "Salvar anotação" e Ctrl+Enter a criavam.
+describe('A anotação nova, na mesma janela da anotação aberta (#369)', () => {
+  /** A pasta da semente destes casos, para a anotação nova nascer nela. */
+  const POPS: Pasta = { id: 'pa1', nome: 'POPs', pasta_mae_id: null, criada_por: 'u-mateus', criada_em: '2026-11-10T12:00:00Z' };
+  /** A demanda de onde se vem, quando a anotação nova é escrita pelo "+" do cartão dela. */
+  const DEMANDA = { id: 'd1', codigo: 'D-7', titulo: 'Registro de marca', arquivado_em: null } as Demanda;
+  const aoCriar = vi.fn<(id: string) => void>();
+  /** O banco grava a anotação nova (a de id a1), com o que ela leva. */
+  const criarNoBanco: DadosAnotacoes['anotacaoCriar'] = async dados => {
+    banco.titulo = dados.titulo;
+    banco.texto = dados.texto ?? '';
+    return { id: 'a1', codigo: 'A-1' };
+  };
+
+  beforeEach(() => {
+    zerarBanco('');
+    pastasListar.mockResolvedValue([POPS]);
+    anotacaoCriar.mockReset();
+    anotacaoCriar.mockImplementation(criarNoBanco);
+    demandaObter.mockReset();
+    demandaObter.mockResolvedValue(DEMANDA);
+    aoCriar.mockReset();
+  });
+
+  /** A anotação nova num roteador de verdade, como a de abrirCartao, vinda da pasta POPs ou do cartão da demanda. */
+  function abrirNova(origem: 'pasta' | 'demanda' | null = null, initialEntries = ['/']) {
+    const nova = { pasta: origem === 'pasta' ? POPS.id : null, origem: origem === 'demanda' ? { modulo: 'demandas' as const, id: DEMANDA.id } : null };
+    const roteador = createMemoryRouter([
+      { path: '/', element: <CartaoAnotacao nova={nova} aoMudar={() => undefined} aoFechar={() => undefined} aoCriar={aoCriar} /> },
+      { path: '/fora', element: <p>Outra página</p> }
+    ], { initialEntries, initialIndex: initialEntries.length - 1 });
+    render(<><RouterProvider router={roteador} /><Avisos /><Janelas /></>);
+    return roteador;
+  }
+  /**
+   * Como na página Documentos: quando a anotação nova vai ao banco, a página troca o endereço no lugar, com a marca de que não sai
+   * da tela (o AvisoAoSair não segura essa troca).
+   */
+  function trocarOEnderecoAoCriar(roteador: ReturnType<typeof abrirNova>) {
+    aoCriar.mockImplementation(id => { void roteador.navigate('/?id=' + id, { replace: true, state: { [SEM_SAIR_DA_TELA]: true } }); });
+  }
+  const campoDoTitulo = () => screen.getByRole('textbox', { name: 'Título' });
+
+  it('quando a anotação nova abre, então é a mesma janela da aberta, com o cursor no título em branco, sem "Salvar anotação" nem "Ctrl+Enter salva", e sem o ⋯', async () => {
+    // Quando
+    abrirNova();
+    // Então
+    expect(screen.getByRole('article', { name: 'Anotação nova' })).toBeInTheDocument();
+    await vi.waitFor(() => expect(campoDoTitulo()).toHaveFocus());
+    expect(campoDoTitulo()).toHaveAttribute('placeholder', 'Sem título');
+    expect(await acharEditor()).toBeInTheDocument();
+    expect(situacao()).toHaveTextContent('Ainda não gravada');
+    expect(screen.getByRole('button', { name: /^Comentários/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Ligada a/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: /^Histórico de alterações/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Salvar anotação' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Ctrl+Enter salva')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument();
+    expect(anotacaoObter).not.toHaveBeenCalled();
+  });
+
+  it('dado nada escrito, quando a pessoa sai, então nada vai ao banco e ninguém pergunta nada', async () => {
+    // Dado
+    const roteador = abrirNova('pasta');
+    await acharEditor();
+    // Quando
+    await act(async () => { void roteador.navigate('/fora'); });
+    // Então
+    expect(await screen.findByText('Outra página')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Sair sem salvar?' })).not.toBeInTheDocument();
+    expect(anotacaoCriar).not.toHaveBeenCalled();
+  });
+
+  it('dadas a etiqueta, a pasta e a demanda escolhidas antes, quando a pessoa escreve o título e aperta Enter, então a anotação vai ao banco uma vez, com tudo, e o cursor desce ao texto', async () => {
+    // Dado: veio do cartão da demanda, e escolhe uma etiqueta e a pasta POPs antes de escrever
+    abrirNova('demanda');
+    expect(within(await screen.findByRole('list', { name: 'Itens ligados' })).getByText('Registro de marca')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Etiquetas' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('checkbox', { name: 'Urgente' }));
+    await userEvent.keyboard('{Escape}');
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher a pasta' }));
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: 'POPs' }));
+    const texto = await acharEditor();
+    // Quando: o título, que saiu da edição com os cliques, volta a ela com um clique em "Sem título"
+    await userEvent.click(screen.getByRole('button', { name: 'Sem título' }));
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    // Então
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    expect(anotacaoCriar).toHaveBeenCalledExactlyOnceWith(
+      { titulo: 'Visita', texto: '', responsavel_id: 'u-mateus', participantes: [], pasta_id: POPS.id }, [{ modulo: 'demandas', id: DEMANDA.id }], [URGENTE.id]);
+    expect(await screen.findByRole('article', { name: 'Anotação A-1' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Visita');
+    expect(editorDe(texto).hasFocus).toBe(true);
+    // E a caixa de escrever é a mesma: não recomeçou quando a anotação foi ao banco
+    expect(caixa()).toBe(texto);
+  });
+
+  it('quando a pessoa começa pelo texto, então a anotação vai ao banco com ele e o título "Sem título"; o que ela continua a escrever grava na mesma anotação', async () => {
+    // Dado
+    abrirNova();
+    const texto = await acharEditor();
+    // Quando
+    escreverNoEditor(texto, 'Levar');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    // Então
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    expect(anotacaoCriar).toHaveBeenCalledExactlyOnceWith(
+      { titulo: 'Sem título', texto: 'Levar', responsavel_id: 'u-mateus', participantes: [], pasta_id: null }, [], []);
+    expect(anotacaoGravarTexto).not.toHaveBeenCalled();
+    expect(await screen.findByText('Salvo')).toBeInTheDocument();
+    // Quando
+    escreverNoEditor(caixa(), ' a procuração');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await responder();
+    // Então
+    expect(anotacaoGravarTexto).toHaveBeenCalledExactlyOnceWith('a1', 'Levar a procuração', 'm0');
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+    expect(caixa()).toBe(texto);
+  });
+
+  it('dado o título indo ao banco devagar, quando o texto também pede para gravar, então a anotação vai ao banco uma vez só, e o texto grava nela depois', async () => {
+    // Dado: o banco demora a responder à ida da anotação nova
+    let responderCriacao: () => void = () => undefined;
+    anotacaoCriar.mockImplementation(dados => new Promise(ok => { responderCriacao = () => void criarNoBanco(dados).then(ok); }));
+    abrirNova();
+    const texto = await acharEditor();
+    await userEvent.type(campoDoTitulo(), 'Visita');
+    // Quando: vai para o texto (o título sai do campo e leva a anotação ao banco) e grava o texto antes de o banco responder
+    escreverNoEditor(texto, 'Levar');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await act(async () => { responderCriacao(); });
+    await responder();
+    // Então
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+    expect(anotacaoCriar.mock.calls[0][0]).toMatchObject({ titulo: 'Visita', texto: '' });
+    expect(anotacaoGravarTexto).toHaveBeenCalledExactlyOnceWith('a1', 'Levar', 'm0');
+  });
+
+  it('dado o banco demorando a responder à ida da anotação nova, quando a pessoa compartilha com o Bruno nesse meio-tempo, então ele é gravado logo depois, e não se perde', async () => {
+    // Dado: o banco demora a responder à ida da anotação nova
+    let responderCriacao: () => void = () => undefined;
+    anotacaoCriar.mockImplementation(dados => new Promise(ok => { responderCriacao = () => void criarNoBanco(dados).then(ok); }));
+    abrirNova();
+    await acharEditor();
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    // Quando: compartilha com o Bruno antes de o banco responder
+    await userEvent.click(screen.getByRole('button', { name: 'Compartilhar com mais alguém' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Compartilhar com mais alguém' })).getByRole('button', { name: 'Bruno' }));
+    await act(async () => { responderCriacao(); });
+    await vi.waitFor(() => expect(anotacaoAtualizar).toHaveBeenCalled());
+    await responder();
+    // Então: a anotação foi sem o Bruno, e ele foi gravado em seguida
+    expect(anotacaoCriar.mock.calls[0][0]).toMatchObject({ titulo: 'Visita', participantes: [] });
+    expect(anotacaoAtualizar).toHaveBeenCalledExactlyOnceWith('a1', { responsavel_id: 'u-mateus', participantes: ['u-bruno'] });
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+  });
+
+  it('dado um título escrito e ainda no campo, quando a pessoa sai, então a anotação vai ao banco com ele antes, sem pergunta', async () => {
+    // Dado
+    const roteador = abrirNova();
+    await acharEditor();
+    await userEvent.type(campoDoTitulo(), 'Visita');
+    // Quando
+    await act(async () => { void roteador.navigate('/fora'); });
+    // Então
+    expect(await screen.findByText('Outra página')).toBeInTheDocument();
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+    expect(anotacaoCriar.mock.calls[0][0]).toMatchObject({ titulo: 'Visita' });
+    expect(screen.queryByRole('dialog', { name: 'Sair sem salvar?' })).not.toBeInTheDocument();
+  });
+
+  it('quando a pessoa escolhe duas etiquetas pelo ícone, então os selos aparecem entre o topo e o título, e o x de um selo o tira', async () => {
+    // Dado
+    abrirNova();
+    const titulo = campoDoTitulo();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Etiquetas' }));
+    const escolha = within(screen.getByRole('dialog', { name: 'Escolher etiquetas' }));
+    await userEvent.click(escolha.getByRole('checkbox', { name: 'Urgente' }));
+    await userEvent.click(escolha.getByRole('checkbox', { name: 'Cliente' }));
+    await userEvent.keyboard('{Escape}');
+    // Então
+    const selos = screen.getByRole('group', { name: 'Etiquetas' });
+    expect(within(selos).getByText('Urgente')).toBeInTheDocument();
+    expect(within(selos).getByText('Cliente')).toBeInTheDocument();
+    expect(selos.compareDocumentPosition(titulo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Urgente' }));
+    // Então
+    expect(within(screen.getByRole('group', { name: 'Etiquetas' })).queryByText('Urgente')).not.toBeInTheDocument();
+    expect(anotacaoCriar).not.toHaveBeenCalled();
+  });
+
+  it('dada uma pessoa compartilhada, quando a bolinha dela é clicada, então ela sai na hora, com o aviso e o Desfazer, que a põe de volta', async () => {
+    // Dado
+    abrirNova();
+    const equipe = () => within(screen.getByRole('group', { name: 'Equipe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Compartilhar com mais alguém' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Compartilhar com mais alguém' })).getByRole('button', { name: 'Bruno' }));
+    // Quando
+    await userEvent.click(equipe().getByRole('button', { name: 'Tirar Bruno' }));
+    // Então
+    expect(equipe().queryByRole('button', { name: 'Tirar Bruno' })).not.toBeInTheDocument();
+    const aviso = (await screen.findByText('Bruno saiu da anotação.')).closest('div')!;
+    // Quando
+    await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
+    // Então
+    expect(await equipe().findByRole('button', { name: 'Tirar Bruno' })).toBeInTheDocument();
+    expect(anotacaoCriar).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['por um link', (r: ReturnType<typeof abrirNova>) => r.navigate('/fora')],
+    ['pelo Voltar', (r: ReturnType<typeof abrirNova>) => r.navigate(-1)]
+  ])('dado um título escrito e ainda no campo, numa página que troca o endereço quando a anotação vai ao banco, quando a pessoa sai %s, então sai de primeira, com a anotação gravada', async (_caso, sair) => {
+    // Dado: veio de outra página (o Voltar leva para lá)
+    const roteador = abrirNova(null, ['/fora', '/']);
+    trocarOEnderecoAoCriar(roteador);
+    await acharEditor();
+    await userEvent.type(campoDoTitulo(), 'Visita');
+    // Quando
+    await act(async () => { void sair(roteador); });
+    // Então: a troca do endereço, no meio da saída, não a desfez
+    expect(await screen.findByText('Outra página')).toBeInTheDocument();
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+    expect(aoCriar).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: 'Sair sem salvar?' })).not.toBeInTheDocument();
+  });
+
+  it('dado um texto por gravar e a leitura da anotação falhando logo depois de ela ir ao banco, quando a pessoa sai e escolhe continuar, então ela fica, e só aí a página troca o endereço', async () => {
+    // Dado
+    const roteador = abrirNova();
+    trocarOEnderecoAoCriar(roteador);
+    anotacaoObter.mockRejectedValueOnce(new Error('Sem conexão.'));
+    escreverNoEditor(await acharEditor(), 'Levar');
+    // Quando
+    await act(async () => { void roteador.navigate('/fora'); });
+    await userEvent.click(await screen.findByRole('button', { name: 'Continuar no cadastro' }));
+    // Então
+    expect(screen.queryByText('Outra página')).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledExactlyOnceWith('a1'));
+    expect(roteador.state.location.search).toBe('?id=a1');
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+  });
+
+  it('dada a leitura falhando logo depois de a anotação ir ao banco, quando a pessoa continua a escrever, então ela não é criada de novo: o texto grava na mesma', async () => {
+    // Dado
+    abrirNova();
+    anotacaoObter.mockRejectedValueOnce(new Error('Sem conexão.'));
+    await acharEditor();
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    // (o último aviso: os de casos anteriores podem ainda estar no pé da tela)
+    expect((await screen.findAllByText('Sem conexão.')).at(-1)).toBeInTheDocument();
+    // E a janela passa a mostrar a anotação como está no banco
+    expect(await screen.findByRole('article', { name: 'Anotação A-1' })).toBeInTheDocument();
+    // Quando
+    escreverNoEditor(caixa(), 'Levar');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await responder();
+    // Então
+    expect(anotacaoCriar).toHaveBeenCalledOnce();
+    expect(anotacaoGravarTexto).toHaveBeenCalledExactlyOnceWith('a1', 'Levar', 'm0');
+  });
+
+  it('dado um texto só com uma linha em branco, tomado por gravado, quando a pessoa escreve o título e depois o texto, então o texto grava sem conflito com ninguém', async () => {
+    // Dado: a linha em branco não leva a anotação ao banco
+    abrirNova();
+    escreverNoEditor(await acharEditor(), '\n');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    expect(anotacaoCriar).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: 'Sem título' }));
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    // Quando
+    escreverNoEditor(caixa(), 'Levar');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await responder();
+    // Então
+    expect(anotacaoGravarTexto).toHaveBeenCalledExactlyOnceWith('a1', '\nLevar', 'm0');
+    expect(screen.queryByText(/Outra pessoa mudou/)).not.toBeInTheDocument();
+    expect(situacao()).toHaveTextContent('Salvo');
+  });
+
+  it('dada a anotação gravada com o título provisório (começou pelo texto), quando a pessoa clica no título, então ele abre vazio, para escrever o título de verdade', async () => {
+    // Dado
+    abrirNova();
+    escreverNoEditor(await acharEditor(), 'Levar');
+    await userEvent.keyboard('{Control>}s{/Control}');
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    // Quando
+    await userEvent.click(await screen.findByRole('button', { name: 'Sem título' }));
+    // Então
+    expect(campoDoTitulo()).toHaveValue('');
+    // Quando
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    // Então
+    expect(anotacaoAtualizar).toHaveBeenCalledExactlyOnceWith('a1', { titulo: 'Visita' });
+    await responder();
+  });
+
+  it('dado o Bruno compartilhado antes de a anotação ir ao banco, quando ela vai e a pessoa clica no Desfazer daquele aviso, então ele sai da anotação gravada', async () => {
+    // Dado
+    abrirNova();
+    await acharEditor();
+    await userEvent.click(screen.getByRole('button', { name: 'Compartilhar com mais alguém' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Compartilhar com mais alguém' })).getByRole('button', { name: 'Bruno' }));
+    // O último aviso (os de casos anteriores podem ainda estar no pé da tela)
+    const aviso = (await screen.findAllByText('Bruno agora está na anotação.')).at(-1)!.closest('div')!;
+    await userEvent.click(screen.getByRole('button', { name: 'Sem título' }));
+    await userEvent.type(campoDoTitulo(), 'Visita{Enter}');
+    await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
+    expect(anotacaoCriar.mock.calls[0][0]).toMatchObject({ participantes: ['u-bruno'] });
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(banco.texto), participantes: ['u-bruno'] }));
+    // Quando
+    await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
+    // Então
+    await vi.waitFor(() => expect(anotacaoAtualizar).toHaveBeenCalledExactlyOnceWith('a1', { participantes: [] }));
+    await responder();
+  });
+
+  it('dado um item de origem que não existe mais, quando a anotação nova abre, então o aviso diz que ela será gravada sem ligação a ele', async () => {
+    // Dado
+    demandaObter.mockResolvedValue(null);
+    // Quando
+    abrirNova('demanda');
+    // Então
+    expect(await screen.findByText(/O item de onde você veio não foi encontrado/)).toBeInTheDocument();
+    expect(screen.getByText('Ainda não está ligada a nenhum item.')).toBeInTheDocument();
   });
 });
 
