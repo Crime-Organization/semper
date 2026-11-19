@@ -1,9 +1,11 @@
 // Cadastro de demanda (novo ou atualizar), por etapas como os de pessoa e de contrato: a demanda (título, descrição,
 // prazo, hora e lembrete), as pessoas (responsável, colaboradores da equipe e clientes) e o contrato, que é opcional.
-// Vindo do cartão de uma pessoa (?cliente=) ou de um contrato (?contrato=), ela já vem escolhida.
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+// Vindo do cartão de uma pessoa (?cliente=) ou de um contrato (?contrato=), ela já vem escolhida. Vinda do cartão de uma tarefa
+// (?tarefa=), a demanda herda as pessoas e o contrato da tarefa; vinda de um processo (?processo=), ele já escolhido e os clientes
+// dele. Ela nasce ligada à origem e, ao salvar, volta ao cartão de onde a pessoa partiu (#376). A origem arquivada não vale.
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
-import { SD, type ContratoLista, type DadosDemanda, type Demanda, type PessoaLista } from '../dados';
+import { SD, type ContratoLista, type DadosDemanda, type Demanda, type PessoaLista, type PessoaResumida, type Tarefa } from '../dados';
 import { semOsCamposDoLugar } from '../regras/edicaoNoLugar';
 import { camposForaDoLapis, DATAS_NO_LUGAR, etapasDoLapis, semOsCampos } from '../regras/datasNoCartao';
 import { CLIENTES_MAXIMOS, CONTRATOS_PARA_LIGAR, TAMANHO_DEMANDA } from '../dados/limites';
@@ -14,7 +16,7 @@ import {
 } from '../regras/demanda';
 import { CampoDoInicio, CampoDoPrazo } from './CamposDoLembrete';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
-import { falha, feito } from '../ui/avisos';
+import { avisar, falha, feito } from '../ui/avisos';
 import { sairDoCartao } from '../ui/sairDoCartao';
 import { equipeVeTudo } from '../regras/equipeVeTudo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
@@ -25,6 +27,10 @@ import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
 import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { mudancasNosProcessos } from '../regras/processo';
+import {
+  aoSalvarPelaOrigem, avisoDaLigacaoQueFalhou, clientesDaOrigem, motivoDoContratoDaTarefa, origemDaTarefa, origemDoProcesso, textoDaOrigem, type OrigemDoItem
+} from '../regras/nascerLigado';
+import { ligarTarefaNaDemanda } from './ligarNoCartao';
 import { gravarProcessos } from './ProcessosDoCartao';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -48,11 +54,17 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const [params] = useSearchParams();
   const idAtualizar = edicao?.id ?? params.get('id'), etapaInicial = params.get('etapa');
   const clienteInicial = params.get('cliente'), contratoInicial = params.get('contrato');
+  // A origem do "+ Nova demanda" de um cartão (#376): a tarefa fica ligada à demanda nova; o processo já vem escolhido.
+  const tarefaInicial = idAtualizar ? null : params.get('tarefa'), processoInicial = idAtualizar ? null : params.get('processo');
+  const [origem, setOrigem] = useState<OrigemDoItem | null>(null);
+  // A tarefa de origem, só quando ela vale (ativa): é ela que fica ligada à demanda nova.
+  const [tarefa, setTarefa] = useState<Tarefa | null>(null);
 
   // Quem cadastra já vem como responsável.
   const [c, setC] = useState<CamposDemanda>(() => ({ ...DEMANDA_VAZIA, responsavelId: ctx.perfil.id }));
   const [alvo, setAlvo] = useState<Demanda | null>(null);   // demanda sendo atualizada
-  const [pronto, setPronto] = useState(!idAtualizar);
+  // Vinda de um cartão, espera os dados da origem: o que chegar depois não pode trocar o que a pessoa já escolheu.
+  const [pronto, setPronto] = useState(!idAtualizar && !tarefaInicial && !processoInicial);
   const [passo, setPasso] = useState(0);
   // Os erros de uma etapa aparecem depois da primeira tentativa de seguir e, daí em diante, acompanham o que se digita.
   const [conferidas, setConferidas] = useState<ReadonlySet<EtapaDemanda>>(new Set());
@@ -66,6 +78,8 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   // Os contratos que se pode ligar (os ativos mais recentes) e o texto digitado na busca.
   const [contratos, setContratos] = useState<ContratoLista[]>([]);
   const [buscaContrato, setBuscaContrato] = useState('');
+  // O contrato que veio da origem, como o cartão dela o mostra (ele pode não estar entre os contratos para ligar).
+  const [contratoDaOrigem, setContratoDaOrigem] = useState<{ id: string; rotulo: string } | null>(null);
   // Os processos ligados (os que a pessoa pode abrir; os outros só contados) e os que já estavam, para gravar só o que mudou.
   const comProcessos = !!ctx.escritorio?.modulos?.processos;
   const [processos, setProcessos] = useState<ProcessoEscolhido[]>([]);
@@ -73,6 +87,14 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
   const processosAntes = useRef<string[]>([]);
   useTitulo(edicao ? null : alvo ? 'Atualizar demanda' : 'Nova demanda');
 
+  /** Os clientes que vêm da origem (o contrato, a tarefa ou o processo), cada um na sua linha; sem nenhum, uma linha vazia. */
+  const porClientes = useCallback((pessoas: readonly PessoaResumida[]) => {
+    const lista = clientesDaOrigem(pessoas);
+    setClientes(lista.length ? lista : [null]);
+    setChaves(lista.length ? lista.map((_, i) => i) : [0]);
+    proximaChave.current = lista.length + 1;
+    setC(x => ({ ...x, clientes: lista.length ? lista.map(p => p.id) : [''] }));
+  }, []);
   useEffect(() => {
     SD.contratosListar({ situacao: 'ativos', ordem: 'novos', porPagina: CONTRATOS_PARA_LIGAR, paraLigar: true }).then(r => setContratos(r.linhas)).catch(() => {});
     if (idAtualizar) {
@@ -96,13 +118,36 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
     // Do cartão de um contrato: ele, os clientes e o responsável dele já vêm escolhidos.
     if (contratoInicial) SD.contratoVer(contratoInicial).then(k => {
       if (!k) return;
-      setClientes(k.clientes.length ? k.clientes : [null]);
-      setChaves(k.clientes.length ? k.clientes.map((_, i) => i) : [0]);
-      proximaChave.current = k.clientes.length + 1;
-      setC(x => ({ ...x, contratoId: k.id, responsavelId: k.responsavel_id, clientes: k.clientes.length ? k.clientes.map(p => p.id) : [''] }));
+      porClientes(k.clientes);
+      setC(x => ({ ...x, contratoId: k.id, responsavelId: k.responsavel_id }));
     }).catch(falha);
   // oxlint-disable-next-line react/exhaustive-deps -- carrega uma vez só, ao abrir o formulário
   }, []);
+  useEffect(() => {
+    // Do cartão de uma tarefa: as pessoas dela como clientes e o contrato dela, para a tarefa poder ficar na demanda (#283).
+    if (tarefaInicial) SD.tarefaObter(tarefaInicial).then(t => {
+      if (!t) return;
+      const o = origemDaTarefa(t);
+      setOrigem(o);
+      if (o.arquivada) return;
+      setTarefa(t);
+      porClientes(t.pessoas);
+      if (t.contrato_id) {
+        const contratoId = t.contrato_id;
+        setC(x => ({ ...x, contratoId }));
+        setContratoDaOrigem({ id: contratoId, rotulo: t.contrato ? `${t.contrato.codigo} · ${t.contrato.servico}` : t.contrato_codigo ?? '' });
+      }
+    }).catch(falha).finally(() => setPronto(true));
+    // Do cartão de um processo: ele já escolhido nos processos da demanda, e os clientes dele.
+    if (processoInicial) (comProcessos ? SD.processoObter(processoInicial) : Promise.resolve(null)).then(p => {
+      if (!p) return;
+      const o = origemDoProcesso(p, 'demanda');
+      setOrigem(o);
+      if (o.arquivada) return;
+      setProcessos([{ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: p.cliente_nome }]);
+      porClientes(p.clientes);
+    }).catch(falha).finally(() => setPronto(true));
+  }, [tarefaInicial, processoInicial, comProcessos, porClientes]);
   // A cada etapa, o foco vai para o primeiro campo dela.
   useEffect(() => {
     const t = setTimeout(() => document.querySelector<HTMLElement>(CAMPOS_DA_ETAPA)?.focus({ preventScroll: true }), 0);
@@ -166,7 +211,10 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
 
   // ---------- contrato ----------
   const contratoEscolhido = contratos.find(k => k.id === c.contratoId);
-  const rotuloEscolhido = contratoEscolhido ? rotuloDoContrato(contratoEscolhido) : alvo?.contrato_codigo && alvo.contrato_id === c.contratoId ? alvo.contrato_codigo : '';
+  const rotuloEscolhido = contratoEscolhido ? rotuloDoContrato(contratoEscolhido) : alvo?.contrato_codigo && alvo.contrato_id === c.contratoId ? alvo.contrato_codigo
+    : contratoDaOrigem?.id === c.contratoId ? contratoDaOrigem.rotulo : '';
+  // A tarefa de origem com outro contrato não poderia ficar na demanda: avisa antes de salvar.
+  const contratoForaDaTarefa = tarefa ? motivoDoContratoDaTarefa(tarefa.contrato_id, c.contratoId) : '';
   function digitarContrato(texto: string) {
     const k = contratos.find(x => rotuloDoContrato(x) === texto);
     if (k) { mudar({ contratoId: k.id }); setBuscaContrato(''); } else setBuscaContrato(texto);
@@ -215,15 +263,24 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
         // Sem coluna escolhida, a demanda nova entra na coluna-marco de início ("Para fazer").
         const coluna = etapaInicial || await colunaInicial('demandas');
         const r = await SD.demandaCriar({ ...dados, etapa_id: coluna, etapa_ordem: coluna ? ordemNoFim() : null });
-        await Promise.all(processos.map(p => SD.processoDemandaLigar(p.id, r.id, 'atua')));
+        // A demanda já existe: a ligação que falhar não a desfaz (salvar de novo a duplicaria), e a pessoa fica sabendo.
+        const ligacoes = await Promise.allSettled(processos.map(p => SD.processoDemandaLigar(p.id, r.id, 'atua')));
         feito(`Demanda ${r.codigo} cadastrada.`, 'cadastro da demanda', async () => {
           await SD.demandasArquivar([r.id], true);
           const x = await SD.demandasExcluir([r.id]);
           if (!x.excluidas) throw new Error(x.motivo || 'Não foi possível desfazer o cadastro.');
           return { tipo: 'demandaCriada', id: r.id };
         });
+        ligacoes.forEach((x, i) => { if (x.status === 'rejected') avisar(avisoDaLigacaoQueFalhou('processo na demanda', processos[i].codigo, x.reason), 'erro'); });
+        // Vinda de um cartão, volta a ele, com a demanda nova na seção. Sem origem, ou com a tarefa de outro contrato (que não
+        // fica nela, como o cadastro já avisou), abre o cartão da demanda.
+        const { liga, volta } = aoSalvarPelaOrigem(origem, contratoForaDaTarefa, '/demandas/?id=' + r.id);
+        if (liga && tarefa) {
+          try { await ligarTarefaNaDemanda(tarefa.id, r.id); }
+          catch (e) { avisar(avisoDaLigacaoQueFalhou('tarefa na demanda', tarefa.codigo, e), 'erro'); }
+        }
         saidaLiberada.current = true;
-        navegar('/demandas/?id=' + r.id);
+        navegar(volta, { replace: !!origem });
       }
     } catch (err) {
       falha(err);
@@ -281,6 +338,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
             <span>{rotuloEscolhido || 'Contrato ligado'}</span>
             <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => mudar({ contratoId: '' })}>Tirar o contrato</button>
           </div>
+          {contratoForaDaTarefa && <Aviso tipo="info">{contratoForaDaTarefa}</Aviso>}
         </div>
         : <Campo rotulo="Contrato" para="contrato" dica="Busque pelo número, pelo cliente ou pelo objeto. Deixe vazio se a demanda não vem de um contrato.">
           <CampoComSugestoes id="contrato" aria-describedby="contrato-dica" placeholder="Buscar contrato…" valor={buscaContrato} aoMudar={digitarContrato}
@@ -310,6 +368,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       <h1 className="titulo">{alvo ? 'Atualizar demanda' : 'Nova demanda'}<span className="ponto">.</span></h1>
     </header>
     {alvo && <Aviso tipo="info">Você está atualizando a demanda <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
+    {origem && <Aviso tipo="info">{textoDaOrigem(origem)[0]} <b>{origem.codigo}</b> ({origem.nome}){textoDaOrigem(origem)[1]}</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
         <span>Etapa {passo + 1} de {total}</span>

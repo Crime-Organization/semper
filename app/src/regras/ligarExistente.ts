@@ -4,6 +4,12 @@
 import { CLIENTES_MAXIMOS } from '../dados/limites';
 import type { DadosTarefa } from '../dados/tipos';
 
+/**
+ * A ligação que uma regra recusa (o item já tem outro, a lista está cheia, os contratos são diferentes, o item sumiu): a mensagem
+ * diz o motivo. Diferente de uma falha de rede ou do banco, tentar de novo, no cadastro ou no cartão, dá a mesma recusa.
+ */
+export class RecusaDaLigacao extends Error {}
+
 // ---------- listas de pessoas (os clientes da demanda e do processo, as pessoas da tarefa e do compromisso) ----------
 /** O que pôr uma pessoa na lista dá: a lista nova, ou por que não se grava (ela já estava; a lista está cheia). */
 export type Acrescimo = { lista: string[] } | { recusa: 'ja' | 'cheia' };

@@ -104,6 +104,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !p.arquivado_em;
+  // A demanda e o contrato criados já ligados a este processo (#376), com as mesmas condições de ligar os que existem.
+  const novaDemanda = '/demandas/nova/?processo=' + p.id, novoContrato = '/contratos/novo/?processo=' + p.id;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   async function entrar(como: ComoEntrarNoProcesso) {
     try {
@@ -206,9 +208,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {podeLigar && <LigarPessoaNoItem modulo="processos" itemId={p.id} ligadas={p.clientes} depois={depoisDeLigar} />}
     </Recolhivel>
 
-    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}>
+    {ctx.escritorio?.modulos?.demandas && <Recolhivel titulo="Demandas" icone="demandas" preferencia="processos.cartao.demandas" contador={quantos.demandas}
+      novo={podeLigar ? { para: novaDemanda, rotulo: 'Nova demanda deste processo' } : undefined}>
       <CartoesLigados modulo="demandas" carregar={() => SD.demandasDoProcesso(p.id)} vazio="Nenhuma demanda ligada a este processo que você possa abrir." versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados>
+      {podeLigar && <AcoesDosLigados novo={{ para: novaDemanda, rotulo: 'Nova demanda' }}>
         <LigarDoModulo modulo="demandas" filtro={async () => ({ fora: (await SD.demandasDoProcesso(p.id)).map(d => d.id) })}
           aoEscolher={d => ligarEAvisar(() => ligarDemandaNoProcesso(p.id, d.id),
             { feito: `Demanda ligada: ${d.titulo}.`, oQue: 'ligação da demanda', ja: 'Esta demanda já estava ligada a este processo.' }, depoisDeLigar)} />
@@ -216,9 +219,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>}
 
     {modulos?.contratos && <Recolhivel titulo="Contratos" icone="contratos" preferencia="processos.cartao.contratos"
-      contador={quantos.contratos ? quantos.contratos.visiveis.length + quantos.contratos.ocultos : undefined}>
+      contador={quantos.contratos ? quantos.contratos.visiveis.length + quantos.contratos.ocultos : undefined}
+      novo={podeLigar ? { para: novoContrato, rotulo: 'Novo contrato deste processo' } : undefined}>
       <ContratosDoProcesso processoId={p.id} versao={versaoHist} />
-      {podeLigar && <AcoesDosLigados>
+      {podeLigar && <AcoesDosLigados novo={{ para: novoContrato, rotulo: 'Novo contrato' }}>
         <LigarDoModulo modulo="contratos" filtro={async () => ({ fora: (await SD.contratosDoProcesso(p.id)).visiveis.map(k => k.id) })}
           aoEscolher={k => ligarEAvisar(() => ligarContratoNoProcesso(p.id, k.id),
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Este contrato já estava ligado a este processo.' }, depoisDeLigar)} />

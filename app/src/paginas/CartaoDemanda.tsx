@@ -96,6 +96,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   // Ligar à demanda um item que já existe (#341): quem altera a demanda, com ela ativa. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !d.arquivado_em;
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
+  // O contrato, ligado (o que existe) ou criado já ligado (#376): um só, e só enquanto a demanda não tem.
+  const ligaContrato = podeLigar && !d.contrato_id && !!ctx.escritorio?.modulos?.contratos, novoContrato = '/contratos/novo/?demanda=' + d.id;
   const cliente = (p: PessoaResumida): ItemLigado => ({ id: 'cliente-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     detalhe: 'Cliente', selo: p.arquivado_em ? 'Arquivada' : undefined });
   // O contrato abre só para quem pode vê-lo; os outros veem o número, sem o link.
@@ -221,11 +223,12 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         aviso={d.contrato_id ? 'Esta demanda é de um contrato: confira se a pessoa também é parte dele.' : undefined} />}
     </Recolhivel>
 
-    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" contador={contrato ? 1 : 0}>
+    <Recolhivel titulo="Contrato" icone="contratos" preferencia="demandas.cartao.contrato" contador={contrato ? 1 : 0}
+      novo={ligaContrato ? { para: novoContrato, rotulo: 'Novo contrato desta demanda' } : undefined}>
       {contrato ? <ItensLigados itens={[contrato]} /> : <Nota>Esta demanda não vem de um contrato.</Nota>}
       {d.objeto && d.objeto !== d.titulo && <Nota>Nasceu do objeto do contrato: <b>{d.objeto}</b>.</Nota>}
       {/* Um contrato só: com ele, trocar é pelo lápis (a demanda pode ter nascido de um objeto dele). */}
-      {podeLigar && !d.contrato_id && ctx.escritorio?.modulos?.contratos && <AcoesDosLigados>
+      {ligaContrato && <AcoesDosLigados novo={{ para: novoContrato, rotulo: 'Novo contrato' }}>
         <LigarDoModulo modulo="contratos" aviso="Quem está no contrato passa a ver, só para ler, esta demanda e as tarefas dela."
           aoEscolher={k => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),
             { feito: `Contrato ligado: ${k.codigo}.`, oQue: 'ligação do contrato', ja: 'Esta demanda já estava ligada a este contrato.' }, depoisDeLigar)} />

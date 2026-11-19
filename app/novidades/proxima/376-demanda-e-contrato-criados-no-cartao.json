@@ -1,0 +1,5 @@
+{
+  "titulo": "Demanda e contrato criados já ligados, direto do cartão",
+  "texto": "Na tarefa, o \"+ Nova demanda\" abre o cadastro com as pessoas e o contrato da tarefa. No processo, o \"+ Nova demanda\" e o \"+ Novo contrato\" já vêm com o processo e os clientes dele, e na demanda o \"+ Novo contrato\" vem com os clientes dela. Ao salvar, o item novo já fica ligado e você volta ao cartão de onde partiu.",
+  "ondeAchar": "No cartão da tarefa (seção Demanda), do processo (Demandas e Contratos) e da demanda (Contrato): o \"+\" ao lado do título da seção ou o botão \"+ Novo…\" embaixo da lista."
+}
