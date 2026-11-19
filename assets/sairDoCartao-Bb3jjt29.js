@@ -1,0 +1,1 @@
+import{T as e,k as t}from"./TextoFormatado-DgGXFAlT.js";import{C as n}from"./util-CLNMnJhg.js";var r=`As alterações foram salvas, mas você continua neste cartão. Salve de novo para sair.`;async function i(i,a,o){try{await n.cartaoSair(i,a)}catch{throw t(),Error(r)}e(o),t()}export{i as t};
