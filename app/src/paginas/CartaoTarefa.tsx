@@ -96,6 +96,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const depoisDeLigar = () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); };
   // O cadastro do processo que nasce gravado nesta tarefa (#376).
   const novoProcesso = '/processos/novo/?tarefa=' + t.id;
+  // A demanda, ligada (a que existe) ou criada já ligada (#376): uma só, e só enquanto a tarefa não tem.
+  const ligaDemanda = podeLigar && !t.demanda_id && !!modulos?.demandas, novaDemanda = '/demandas/nova/?tarefa=' + t.id;
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
@@ -218,9 +220,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <ListasDoCartao modulo="tarefas" id={t.id} somenteLer={!podeAlterar} />
 
-    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demanda ? 1 : 0}>
+    <Recolhivel titulo="Demanda" icone="demandas" preferencia="tarefas.cartao.demanda" contador={demanda ? 1 : 0}
+      novo={ligaDemanda ? { para: novaDemanda, rotulo: 'Nova demanda desta tarefa' } : undefined}>
       {demanda ? <ItensLigados itens={[demanda]} /> : <Nota>Esta tarefa não faz parte de uma demanda.</Nota>}
-      {podeLigar && !t.demanda_id && modulos?.demandas && <AcoesDosLigados>
+      {ligaDemanda && <AcoesDosLigados novo={{ para: novaDemanda, rotulo: 'Nova demanda' }}>
         <LigarDoModulo modulo="demandas" motivo={d => motivoDeContratoDiferente(t.contrato_id, d.contrato_id)}
           aviso="Quem está na demanda passa a ver esta tarefa. Sem pessoas ou sem contrato, a tarefa leva os clientes e o contrato da demanda."
           aoEscolher={d => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),

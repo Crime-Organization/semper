@@ -1,11 +1,12 @@
 // Ligar, no cartão de um item, outro que já existe (#341, etapa 2): as gravações. Cada uma lê a lista (ou a ligação) gravada no
 // item logo antes de gravar, para não apagar o que outra pessoa acabou de pôr, e devolve o Desfazer; null quando já estava ligado
 // e nada foi gravado (a tela então avisa sem Desfazer, que apagaria a ligação feita por outra pessoa). O Desfazer também lê antes
-// e tira só o que esta ligação pôs. As regras de cada passo estão em regras/ligarExistente.ts.
+// e tira só o que esta ligação pôs. As regras de cada passo estão em regras/ligarExistente.ts. O que as regras recusam vem como
+// RecusaDaLigacao: tentar de novo pelo cartão daria a mesma recusa (#376).
 import { SD, type Tarefa } from '../dados';
 import {
-  acrescentar, DEMANDA_DE_OUTRO_CONTRATO, desfazerTarefaNaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, motivoDeContratoDiferente, semOId, TAREFA_DE_OUTRO_PROCESSO,
-  tarefaNaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
+  acrescentar, DEMANDA_DE_OUTRO_CONTRATO, desfazerTarefaNaDemanda, ligacaoDeUm, LISTA_CHEIA, motivoDasTarefasDaDemanda, motivoDeContratoDiferente, RecusaDaLigacao, semOId,
+  TAREFA_DE_OUTRO_PROCESSO, tarefaNaDemanda, tarefaNoPrazo, voltarOQueAindaE, type ItemComPessoas, type TarefaParaADemanda, type TarefaParaOPrazo
 } from '../regras/ligarExistente';
 import { avisar, falha, feito } from '../ui/avisos';
 
@@ -29,11 +30,11 @@ const PESSOAS_DO_ITEM: Record<ItemComPessoas, ListaDoItem> = {
 export async function porAPessoa(modulo: ItemComPessoas, itemId: string, pessoaId: string): Promise<Desfazer | null> {
   const l = PESSOAS_DO_ITEM[modulo];
   const atual = await l.ler(itemId);
-  if (!atual) throw new Error(ITEM_SUMIU);
+  if (!atual) throw new RecusaDaLigacao(ITEM_SUMIU);
   const r = acrescentar(atual, pessoaId);
   if ('recusa' in r) {
     if (r.recusa === 'ja') return null;
-    throw new Error(LISTA_CHEIA);
+    throw new RecusaDaLigacao(LISTA_CHEIA);
   }
   await l.gravar(itemId, r.lista);
   return async () => {
@@ -70,12 +71,12 @@ const LIGACOES_NO_ITEM: Record<LigacaoNoItem, UmNoItem> = {
 export async function ligarNoItem(qual: LigacaoNoItem, itemId: string, valor: string): Promise<Desfazer | null> {
   const l = LIGACOES_NO_ITEM[qual];
   const atual = await l.ler(itemId);
-  if (atual === undefined) throw new Error(ITEM_SUMIU);
+  if (atual === undefined) throw new RecusaDaLigacao(ITEM_SUMIU);
   const r = ligacaoDeUm(atual, valor);
   if (r === 'ja') return null;
-  if (r === 'outro') throw new Error(l.outro);
+  if (r === 'outro') throw new RecusaDaLigacao(l.outro);
   const motivo = await l.conferir?.(itemId, valor);
-  if (motivo) throw new Error(motivo);
+  if (motivo) throw new RecusaDaLigacao(motivo);
   await l.gravar(itemId, valor);
   return async () => { if (await l.ler(itemId) === valor) await l.gravar(itemId, null); };
 }
@@ -85,12 +86,12 @@ const tarefaParaADemanda = (t: Tarefa): TarefaParaADemanda => ({ demanda_id: t.d
 /** Liga a tarefa à demanda, levando os clientes e o contrato da demanda, como o cadastro de tarefa (veja tarefaNaDemanda). */
 export async function ligarTarefaNaDemanda(tarefaId: string, demandaId: string): Promise<Desfazer | null> {
   const [t, d] = await Promise.all([SD.tarefaObter(tarefaId), SD.demandaObter(demandaId)]);
-  if (!t || !d) throw new Error(ITEM_SUMIU);
+  if (!t || !d) throw new RecusaDaLigacao(ITEM_SUMIU);
   const r = ligacaoDeUm(t.demanda_id, demandaId);
   if (r === 'ja') return null;
-  if (r === 'outro') throw new Error('Esta tarefa já está em outra demanda.');
+  if (r === 'outro') throw new RecusaDaLigacao('Esta tarefa já está em outra demanda.');
   const motivo = motivoDeContratoDiferente(t.contrato_id, d.contrato_id);
-  if (motivo) throw new Error(motivo);
+  if (motivo) throw new RecusaDaLigacao(motivo);
   const gravado = tarefaNaDemanda(tarefaParaADemanda(t), { id: d.id, clientes: ids(d.clientes)!, contrato_id: d.contrato_id });
   await SD.tarefaAtualizar(tarefaId, gravado);
   return async () => {
@@ -106,12 +107,12 @@ const tarefaParaOPrazo = ({ processo_id, prazo }: Tarefa): TarefaParaOPrazo => (
 /** Liga ao prazo uma tarefa que já existe (veja tarefaNoPrazo): a tarefa sem processo passa a ser deste, com o último dia do prazo. */
 export async function ligarTarefaNoPrazo(processoId: string, prazoId: string, tarefaId: string): Promise<Desfazer | null> {
   const [z, t] = await Promise.all([lerPrazo(processoId, prazoId), SD.tarefaObter(tarefaId)]);
-  if (!z || !t) throw new Error(ITEM_SUMIU);
+  if (!z || !t) throw new RecusaDaLigacao(ITEM_SUMIU);
   const r = ligacaoDeUm(z.tarefa_id, tarefaId);
   if (r === 'ja') return null;
-  if (r === 'outro') throw new Error('Este prazo já tem outra tarefa.');
+  if (r === 'outro') throw new RecusaDaLigacao('Este prazo já tem outra tarefa.');
   const naTarefa = tarefaNoPrazo(tarefaParaOPrazo(t), processoId, z.final);
-  if ('recusa' in naTarefa) throw new Error(naTarefa.recusa);
+  if ('recusa' in naTarefa) throw new RecusaDaLigacao(naTarefa.recusa);
   const antes = tarefaParaOPrazo(t);
   await SD.processoPrazoAtualizar(prazoId, { tarefa_id: tarefaId });
   if (Object.keys(naTarefa.dados).length) await SD.tarefaAtualizar(tarefaId, naTarefa.dados);
