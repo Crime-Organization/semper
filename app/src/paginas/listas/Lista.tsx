@@ -4,7 +4,7 @@
 import { useMemo, useRef } from 'react';
 import { SD, type ItemDaLista, type ListaDoCartao } from '../../dados';
 import { TAMANHO_LISTA } from '../../dados/limites';
-import { aplicarPosicoes, arvoreDaLista, mudancasDePosicao, novosNoChecklist, semOGrupo } from '../../regras/gruposDaLista';
+import { aplicarPosicoes, arvoreDaLista, mudancasDePosicao, ondeEntraAArvore, semOGrupo } from '../../regras/gruposDaLista';
 import { conferirNomeDoChecklist, progressoDaLista } from '../../regras/listas';
 import { fmtData, lerData } from '../../regras/pessoa';
 import { avisar, falha } from '../../ui/avisos';
@@ -58,20 +58,11 @@ export function Lista({ lista, somenteLer, menuAberto, aoAbrirMenu, mexer, mudar
       nesta(l => ({ ...l, ...aplicarPosicoes(l, posicoes) }));
       return mexer(() => SD.listaReordenar(lista.id, posicoes));
     },
-    // Os grupos novos entram antes dos de dentro deles: o id que o banco dá a cada um vira o pai dos seguintes.
+    // Tudo de uma vez (#375): o que renumerar, os grupos e os itens entram juntos, ou nada entra (a internet que cai no meio, ou
+    // outra pessoa mexendo junto, não deixam o checklist pela metade).
     async acrescentar(grupoId, nova) {
-      const criados: string[] = [];
-      await mexer(async () => {
-        const { renumerar, grupos, itens } = novosNoChecklist(arvore, grupoId, nova), ids = new Map<string, string>();
-        if (renumerar.length) await SD.listaReordenar(lista.id, renumerar);
-        const onde = (pai: string | null, o: { pai_id: string | null; ordem: number }) => ({ pai_id: pai === null ? o.pai_id : ids.get(pai)!, ordem: o.ordem });
-        for (const g of grupos) {
-          const criado = await SD.grupoDoChecklistCriar(lista.id, g.nome, onde(g.pai, g.onde));
-          ids.set(g.chave, criado.id);
-          criados.push(criado.id);
-        }
-        for (const i of itens) await SD.itemCriar(lista.id, i.texto, onde(i.pai, i.onde));
-      });
+      let criados: string[] = [];
+      await mexer(async () => { criados = await SD.listaAcrescentar(lista.id, grupoId, nova, ondeEntraAArvore(arvore, grupoId, nova)); });
       return criados;
     },
     excluirItem(item) {

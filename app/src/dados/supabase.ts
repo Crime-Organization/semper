@@ -1842,6 +1842,10 @@ export const SD: Dados = {
   },
   async itemExcluir(id) { await rodar(sb.from('demanda_lista_itens').delete().eq('id', id)); },
   async listaReordenar(listaId, posicoes) { await rpc('checklist_reordenar', { p_lista: listaId, p_posicoes: posicoes }); },
+  // Numa transação só (checklist_acrescentar): o que renumerar, os grupos e os itens; se algo falha, nada fica.
+  async listaAcrescentar(listaId, grupoId, arvore, { ordens, renumerar }) {
+    return await rpc('checklist_acrescentar', { p_lista: listaId, p_grupo: grupoId, p_arvore: arvore, p_ordens: ordens, p_renumerar: renumerar }) as string[];
+  },
 
   // ---------- modelos de lista ----------
   // A árvore nula (o modelo de antes) vira a dos itens; a defasada (a versão anterior mudou os itens) é ajustada aos itens.

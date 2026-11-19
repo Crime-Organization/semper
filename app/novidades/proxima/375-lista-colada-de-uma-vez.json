@@ -1,0 +1,5 @@
+{
+  "titulo": "Lista colada no checklist entra inteira",
+  "texto": "Ao colar uma lista numerada num checklist e usar os números como grupos, os grupos e os itens são gravados de uma vez. Se a internet cair no meio, nada fica pela metade: o aviso diz que não deu certo e é só colar de novo.",
+  "ondeAchar": "Na seção Checklists do cartão da demanda, da tarefa ou do contrato, colando a lista no campo \"Adicionar um item…\"."
+}

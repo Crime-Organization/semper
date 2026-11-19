@@ -3,7 +3,7 @@
 // descer e mover para grupo, as posições a gravar, os modelos (a árvore guardada em lista_modelos.arvore) e a lista colada.
 // Regras puras: sem tela, sem banco. O banco fictício (dados/falso.ts) usa estas funções para se comportar como o de verdade
 // (supabase/migrations/20261119142702_checklists_com_grupos.sql).
-import type { GrupoDaLista, ItemDaLista, ListaDoCartao, NoDoModelo, PosicaoNaLista } from '../dados/tipos';
+import type { GrupoDaLista, ItemDaLista, ListaDoCartao, NoDoModelo, OndeDosNovos, PosicaoNaLista } from '../dados/tipos';
 import { GRUPOS_DO_MODELO, ITENS_DO_MODELO, NIVEIS_DO_CHECKLIST, TAMANHO_ITEM, TAMANHO_LISTA } from '../dados/limites';
 import type { NomeIcone } from '../ui/Icone';
 
@@ -19,6 +19,8 @@ export const NIVEIS_DEMAIS = `O checklist vai até ${NIVEIS_DO_CHECKLIST} nívei
 export const GRUPO_DENTRO_DELE = 'Um grupo não pode ir para dentro dele mesmo nem de um subgrupo dele.';
 export const GRUPO_DE_OUTRO_CHECKLIST = 'Esse grupo é de outro checklist.';
 export const CHECKLIST_MUDOU = 'O checklist mudou enquanto você mexia nele. Ele foi recarregado: tente de novo.';
+/** A árvore que chega ao banco num formato que ele não conhece, ou com posições que não batem com os nós. */
+export const ARVORE_FORA_DE_ORDEM = 'Os grupos do checklist vieram fora de ordem. Recarregue a página e tente de novo.';
 /** A lista colada (com os números como grupos) que passaria do último nível dentro do grupo: vem depois de NIVEIS_DEMAIS. */
 export const NAO_CABE_NO_GRUPO = 'Essa lista não cabe neste grupo: mantenha como itens ou cole no fim do checklist.';
 /** O destino de "Mover para grupo" que tira o nó dos grupos. */
@@ -315,38 +317,41 @@ export function semOGrupo(lista: ChecklistDaArvore, grupoId: string): ChecklistD
   return { grupos: lista.grupos.filter(g => !fora.has(g.id)), itens: lista.itens.filter(i => !i.grupo_id || !fora.has(i.grupo_id)) };
 }
 
+/** Quantos nós (grupos e itens) uma árvore de modelo tem, em qualquer nível. */
+const nosDaArvore = (arvore: NoDoModelo[]): number => arvore.reduce((n, no) => n + 1 + nosDaArvore(no.filhos ?? []), 0);
 /**
- * Os grupos e itens de uma árvore de modelo, prontos para entrar no fim do grupo (null: no fim do checklist): cada um com o grupo
- * de cima (a chave de um grupo novo, ou o grupo escolhido) e a "ordem", e o que renumerar antes. A tela cria os grupos na ordem
- * (o de cima antes dos de dentro) e troca as chaves pelos ids que o banco deu.
+ * Onde entra a árvore nova no fim do grupo (null: no fim do checklist), como o cartão a manda gravar de uma vez (listaAcrescentar,
+ * #375): a "ordem" de cada nó, na ordem de leitura (o grupo, o que está dentro dele, o próximo), e o que renumerar antes.
  */
-export function novosNoChecklist(arvore: NoDaLista[], grupoId: string | null, nova: NoDoModelo[]) {
-  const plano = planoDoChecklist(nova);
-  const { pai_id, ordens, renumerar } = ondeEntramOsNovos(arvore, grupoId, plano.grupos.length + plano.itens.length);
-  return {
-    renumerar,
-    grupos: plano.grupos.map(g => ({ chave: g.chave, pai: g.pai, nome: g.nome, onde: { pai_id, ordem: ordens[g.ordem - 1] } })),
-    itens: plano.itens.map(i => ({ pai: i.pai, texto: i.texto, onde: { pai_id, ordem: ordens[i.ordem - 1] } }))
-  };
+export function ondeEntraAArvore(arvore: NoDaLista[], grupoId: string | null, nova: NoDoModelo[]): OndeDosNovos {
+  const { ordens, renumerar } = ondeEntramOsNovos(arvore, grupoId, nosDaArvore(nova));
+  return { ordens, renumerar };
 }
-
 /**
- * O checklist em memória (o editor de modelos) com a árvore nova no fim do grupo (null: no fim do checklist). "novoId" dá os ids
- * dos grupos e itens novos. Devolve também os ids dos grupos criados, na ordem.
+ * O checklist depois de gravar a árvore nova no fim do grupo (null: no primeiro nível), nas posições dadas, como faz
+ * checklist_acrescentar (20261119175248): renumera o que "onde" pede e acrescenta os grupos e os itens. "novoId" dá os ids dos
+ * novos. Devolve também os ids dos grupos criados, na ordem de leitura.
  */
-export function comOsNovos(lista: ChecklistDaArvore, grupoId: string | null, nova: NoDoModelo[], novoId: () => string): { lista: ChecklistDaArvore; grupos: string[] } {
-  const { renumerar, grupos, itens } = novosNoChecklist(arvoreDaLista(lista), grupoId, nova);
-  const base = aplicarPosicoes(lista, renumerar), chaves = new Map<string, string>();
-  const paiDe = (pai: string | null, onde: { pai_id: string | null }) => pai === null ? onde.pai_id : chaves.get(pai)!;
-  const novosGrupos = grupos.map((g): GrupoDaLista => {
+export function comAArvoreNova(lista: ChecklistDaArvore, grupoId: string | null, nova: NoDoModelo[], { ordens, renumerar }: OndeDosNovos,
+  novoId: () => string): { lista: ChecklistDaArvore; grupos: string[] } {
+  const plano = planoDoChecklist(nova), base = aplicarPosicoes(lista, renumerar), chaves = new Map<string, string>();
+  const paiDe = (pai: string | null) => pai === null ? grupoId : chaves.get(pai)!;
+  const novosGrupos = plano.grupos.map((g): GrupoDaLista => {
     const id = novoId();
     chaves.set(g.chave, id);
-    return { id, nome: g.nome, pai_id: paiDe(g.pai, g.onde), ordem: g.onde.ordem, criado_em: '' };
+    return { id, nome: g.nome, pai_id: paiDe(g.pai), ordem: ordens[g.ordem - 1], criado_em: '' };
   });
-  const novosItens = itens.map((i): ItemDaLista =>
-    ({ id: novoId(), texto: i.texto, prazo: null, feito_em: null, feito_por: null, ordem: i.onde.ordem, grupo_id: paiDe(i.pai, i.onde), criado_em: '' }));
+  const novosItens = plano.itens.map((i): ItemDaLista =>
+    ({ id: novoId(), texto: i.texto, prazo: null, feito_em: null, feito_por: null, ordem: ordens[i.ordem - 1], grupo_id: paiDe(i.pai), criado_em: '' }));
   return { lista: { grupos: [...base.grupos, ...novosGrupos], itens: [...base.itens, ...novosItens] }, grupos: novosGrupos.map(g => g.id) };
 }
+/**
+ * O checklist em memória (o editor de modelos) com a árvore nova no fim do grupo (null: no fim do checklist), nas mesmas posições
+ * que o cartão manda gravar (ondeEntraAArvore e comAArvoreNova). "novoId" dá os ids dos grupos e itens novos. Devolve também os
+ * ids dos grupos criados, na ordem.
+ */
+export const comOsNovos = (lista: ChecklistDaArvore, grupoId: string | null, nova: NoDoModelo[], novoId: () => string) =>
+  comAArvoreNova(lista, grupoId, nova, ondeEntraAArvore(arvoreDaLista(lista), grupoId, nova), novoId);
 
 // ---------- textos da tela ----------
 

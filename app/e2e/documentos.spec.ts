@@ -9,7 +9,7 @@
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
 
@@ -2281,6 +2281,60 @@ test.describe('A barra de formatação presa no alto da anotação ao rolar (#37
       await fecharAnotacao(page);
       // Então: a janela fecha
       await expect(janela).toHaveCount(0);
+    });
+  }
+});
+
+test.describe('A barra de formatação da anotação no celular, em duas linhas equilibradas (#374)', () => {
+  /** O desenho de cada botão da barra no computador (a bolinha do .mini) e o vão entre dois deles, que não mudam. */
+  const DESENHO_DO_BOTAO = 34;
+  const VAO_NO_COMPUTADOR = 6;
+  /** Quanto o toque fica para dentro do canto do alvo: ainda no alvo, mas fora da bolinha desenhada no meio dele. */
+  const PERTO_DO_CANTO = 3;
+
+  test('dada uma anotação aberta num celular, quando a pessoa olha a barra de formatação, então os botões ficam em duas linhas equilibradas, com o alvo do dedo de 44px por 44px, e o Link, o último, abre a janela do endereço com um toque fora do desenho dele', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 390, height: 844 });
+    const janela = await criarAnotacao(page, 'Parecer no celular', { texto: 'Um texto curto.' });
+    await esperarParar(page);
+    // Então: nenhum botão sozinho numa segunda linha, e todos ao alcance
+    await barraEquilibradaNoCelular(barraDeFormatacao(janela));
+    // Quando: a pessoa toca no Link perto do canto de cima do alvo, fora da bolinha desenhada
+    const link = (await botoesDaBarra(barraDeFormatacao(janela))).at(-1)!;
+    expect(link.nome).toBe('Link');
+    await page.mouse.click(link.x + PERTO_DO_CANTO, link.y + PERTO_DO_CANTO);
+    // Então: a janela do endereço abre
+    const endereco = page.getByRole('textbox', { name: 'Endereço do link' });
+    await expect(endereco).toBeVisible();
+    // Quando: a pessoa desiste
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(endereco).toHaveCount(0);
+  });
+
+  test('dada uma anotação aberta num celular bem estreito (320px), quando a pessoa olha a barra de formatação, então os botões continuam em duas linhas equilibradas, com o alvo do dedo de 44px por 44px e todos à vista', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 320, height: 640 });
+    // Quando
+    const janela = await criarAnotacao(page, 'Parecer no celular estreito', { texto: 'Um texto curto.' });
+    await esperarParar(page);
+    // Então
+    await barraEquilibradaNoCelular(barraDeFormatacao(janela));
+  });
+
+  for (const formato of [null, 'Abrir no centro da tela']) {
+    test(`dada uma anotação aberta no computador ${formato ? 'no centro' : 'ao lado'}, quando aparece, então a barra continua igual: os botões numa linha, com o desenho de sempre e o vão de sempre entre eles`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const janela = await criarAnotacao(page, 'Parecer no computador');
+      if (formato) await janela.getByRole('button', { name: formato }).click();
+      await esperarParar(page);
+      // Quando
+      const botoes = await botoesDaBarra(barraDeFormatacao(janela));
+      // Então
+      expect(new Set(botoes.map(b => Math.round(b.y))).size).toBe(1);
+      for (const b of botoes) expect([b.width, b.height], b.nome).toEqual([DESENHO_DO_BOTAO, DESENHO_DO_BOTAO]);
+      for (let i = 1; i < botoes.length; i++) expect(botoes[i].x - (botoes[i - 1].x + botoes[i - 1].width), botoes[i].nome).toBeCloseTo(VAO_NO_COMPUTADOR, 0);
     });
   }
 });

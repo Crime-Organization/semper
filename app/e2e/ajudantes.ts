@@ -83,3 +83,34 @@ export async function entrarComo(page: Page, id: string) {
   await page.evaluate(conta => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(conta), id);
   await page.goto('/inicio/');
 }
+
+/** O alvo mínimo do dedo em cada controle (o "alvo mínimo de 44px em controles" do DESIGN.md, o --alvo-de-toque). */
+export const ALVO_DE_TOQUE = 44;
+/** A barra de formatação de um texto (B, I, listas, link), pelo nome dela. */
+export const barraDeFormatacao = (lugar: Page | Locator) => lugar.getByRole('toolbar', { name: 'Formatação do texto' }).first();
+/** O lugar e o tamanho de cada botão da barra de formatação, na ordem em que aparecem, com o nome de cada um. */
+export const botoesDaBarra = (barra: Locator) => barra.getByRole('button').evaluateAll(botoes => botoes.map(b => {
+  const { x, y, width, height } = b.getBoundingClientRect();
+  return { nome: b.getAttribute('aria-label')!, x, y, width, height };
+}));
+/**
+ * Confere a barra de formatação na caixa estreita do celular (#374): os botões em duas linhas equilibradas (uma com no máximo um
+ * botão a mais que a outra, então nenhum fica sozinho embaixo), cada um um alvo do dedo de pelo menos ALVO_DE_TOQUE de largura e
+ * de altura, sem se sobrepor aos vizinhos, dentro da barra, e todos à vista na tela.
+ */
+export async function barraEquilibradaNoCelular(barra: Locator) {
+  const [b, botoes] = [(await barra.boundingBox())!, await botoesDaBarra(barra)];
+  expect(botoes.length).toBeGreaterThan(1);
+  const linhas = [...new Set(botoes.map(x => Math.round(x.y)))].map(y => botoes.filter(x => Math.round(x.y) === y));
+  expect(linhas.length).toBe(2);
+  const tamanhos = linhas.map(l => l.length);
+  expect(Math.max(...tamanhos) - Math.min(...tamanhos)).toBeLessThanOrEqual(1);
+  for (const x of botoes) {
+    expect(x.width, x.nome).toBeGreaterThanOrEqual(ALVO_DE_TOQUE);
+    expect(x.height, x.nome).toBeGreaterThanOrEqual(ALVO_DE_TOQUE);
+    expect(x.x, x.nome).toBeGreaterThanOrEqual(b.x);
+    expect(x.x + x.width, x.nome).toBeLessThanOrEqual(b.x + b.width);
+  }
+  for (const linha of linhas) for (let i = 1; i < linha.length; i++) expect(linha[i].x, linha[i].nome).toBeGreaterThanOrEqual(linha[i - 1].x + linha[i - 1].width);
+  for (const nome of botoes.map(x => x.nome)) await expect(barra.getByRole('button', { name: nome, exact: true })).toBeInViewport({ ratio: 1 });
+}

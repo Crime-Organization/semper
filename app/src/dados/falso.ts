@@ -38,7 +38,7 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
-import { arvoreDoModelo, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
+import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { fmtCentavos } from '../regras/caixa';
@@ -2979,6 +2979,25 @@ export const SD: Dados = {
       else Object.assign(itens.find(i => i.id === p.id)!, { grupo_id: p.pai_id, ordem: p.ordem });
     }));
     gravar();
+  },
+  // Como checklist_acrescentar (20261119175248): o que renumerar, os grupos e os itens de uma vez; se algo não serve, nada fica.
+  async listaAcrescentar(listaId, grupoId, arvore, onde) {
+    if (!bd.listas!.some(l => l.id === listaId) || !alteroALista(listaId)) return erro(NAO_ALTERA_O_CHECKLIST);
+    const atual = { grupos: gruposDaLista(listaId), itens: itensDaLista(listaId) }, plano = planoDoChecklist(arvore);
+    const motivo = erroAoAcrescentar(arvoreDaLista(atual), grupoId, arvore)
+      || (onde.ordens.length === plano.grupos.length + plano.itens.length ? '' : ARVORE_FORA_DE_ORDEM);
+    if (motivo) return erro(motivo);
+    const limparNos = (nos: NoDoModelo[]): NoDoModelo[] =>
+      nos.map(n => n.filhos ? { texto: nomeDoGrupoDoChecklist(n.texto), filhos: limparNos(n.filhos) } : { texto: textoDoItem(n.texto) });
+    const limpa = limparNos(arvore);
+    if (!onde.renumerar.every(p => (p.tipo === 'grupo' ? atual.grupos : atual.itens).some(x => x.id === p.id))) return erro(CHECKLIST_MUDOU);
+    const { lista, grupos } = comAArvoreNova(atual, grupoId, limpa, onde, novoId);
+    const daLista = <T extends { criado_em: string }>(x: T) => ({ ...x, lista_id: listaId, criado_em: x.criado_em || agora() });
+    conferirArvore(listaId, () => {
+      bd.gruposDeLista = [...bd.gruposDeLista!.filter(g => g.lista_id !== listaId), ...lista.grupos.map(daLista)];
+      bd.itensDeLista = [...bd.itensDeLista!.filter(i => i.lista_id !== listaId), ...lista.itens.map(daLista)];
+    });
+    gravar(); return espera(grupos);
   },
 
   // ---------- compromissos (como supabase/migrations/20261102141258_compromissos.sql) ----------

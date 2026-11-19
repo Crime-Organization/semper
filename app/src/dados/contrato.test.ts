@@ -9,13 +9,13 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
+import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
 import { DIA } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
 import { INICIO_VAZIO, inicioDoCriadoEm } from '../regras/dataDeInicio';
-import { acharNo, arvoreDaLista, arvoreDosItens, CHECKLIST_MUDOU, emOrdemDeLeitura, GRUPO_DENTRO_DELE, NIVEIS_DEMAIS, ondeEntraONovo } from '../regras/gruposDaLista';
+import { acharNo, arvoreDaLista, arvoreDosItens, CHECKLIST_MUDOU, emOrdemDeLeitura, GRUPO_DENTRO_DELE, NAO_CABE_NO_GRUPO, NIVEIS_DEMAIS, ondeEntraAArvore, ondeEntraONovo } from '../regras/gruposDaLista';
 
 function contrato(nome: string, abrir: () => Promise<Dados>) {
   describe(`Contrato da camada de dados (${nome})`, () => {
@@ -4423,6 +4423,91 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(acharNo(arvoreDaLista(depois), depois.itens[2].id)?.numero).toBe('2.1.1');
       });
 
+      describe('a lista colada, de uma vez (#375)', () => {
+        const COLADA = [{ texto: '  Certidões ', filhos: [{ texto: 'Nascimento' }, { texto: 'Casamento' }] }, { texto: 'Foto' }];
+        const acrescentar = (lista: Awaited<ReturnType<typeof lerUma>>, grupoId: string | null, nova: typeof COLADA) =>
+          SD.listaAcrescentar(lista.id, grupoId, nova, ondeEntraAArvore(arvoreDaLista(lista), grupoId, nova));
+
+        it('quando a lista colada entra no fim do checklist, então os grupos e os itens ficam nos lugares, numerados, e o grupo novo vem na resposta', async () => {
+          // Dado
+          const demanda = await novaDemanda();
+          const lista = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+          // Quando
+          const grupos = await acrescentar(lista, null, COLADA);
+          // Então
+          const depois = await lerUma(demanda);
+          expect(grupos).toEqual([grupoDe(depois, 'Certidões').id]);
+          expect(numerados(depois).slice(-4)).toEqual(['3. Certidões', '3.1 Nascimento', '3.2 Casamento', '4. Foto']);
+        });
+
+        it('dado um vão pequeno demais no grupo, quando a lista colada entra nele, então renumera e grava junto, na ordem', async () => {
+          // Dado: o grupo 1. termina no CPF e o Benefício vem logo depois, quase na mesma posição
+          const demanda = await novaDemanda();
+          const criada = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+          const documentos = grupoDe(criada, 'Documentos pessoais'), cpf = criada.itens.find(i => i.texto === 'CPF')!;
+          await SD.listaReordenar(criada.id, [{ id: cpf.id, tipo: 'item', pai_id: documentos.id, ordem: 4 - 1e-7 }]);
+          const lista = await lerUma(demanda), onde = ondeEntraAArvore(arvoreDaLista(lista), documentos.id, [{ texto: 'Foto' }]);
+          // Quando
+          await SD.listaAcrescentar(lista.id, documentos.id, [{ texto: 'Foto' }], onde);
+          // Então
+          expect(onde.renumerar.length).toBeGreaterThan(0);
+          expect(numerados(await lerUma(demanda)).slice(0, 5)).toEqual(['1. Documentos pessoais', '1.1 RG', '1.2 CPF', '1.3 Foto', '2. Benefício']);
+        });
+
+        it('quando a lista colada passaria de 3 níveis, então é recusada e nada é gravado; no grupo, o aviso diz para colar no fim', async () => {
+          // Dado
+          const demanda = await novaDemanda();
+          const lista = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+          // Quando
+          const noFim = await acrescentar(lista, null, FUNDO_DEMAIS).then(() => '', (e: Error) => e.message);
+          const noGrupo = await acrescentar(lista, grupoDe(lista, 'Aposentadoria por idade').id, COLADA).then(() => '', (e: Error) => e.message);
+          // Então
+          expect(noFim).toBe(NIVEIS_DEMAIS);
+          expect(noGrupo).toBe(`${NIVEIS_DEMAIS} ${NAO_CABE_NO_GRUPO}`);
+          expect(numerados(await lerUma(demanda))).toEqual(numerados(lista));
+        });
+
+        it('quando a lista colada tem 5 níveis, com as posições de todos ou faltando uma, então a recusa é a dos níveis e nada é gravado', async () => {
+          // Dado: A > B > C > D > E (o banco só desce até o 4º nível para conferir)
+          const demanda = await novaDemanda();
+          const lista = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+          const cinco = [{ texto: 'A', filhos: [{ texto: 'B', filhos: [{ texto: 'C', filhos: [{ texto: 'D', filhos: [{ texto: 'E' }] }] }] }] }];
+          // Quando
+          const completas = await SD.listaAcrescentar(lista.id, null, cinco, { ordens: [20, 21, 22, 23, 24], renumerar: [] }).then(() => '', (e: Error) => e.message);
+          const faltando = await SD.listaAcrescentar(lista.id, null, cinco, { ordens: [20, 21], renumerar: [] }).then(() => '', (e: Error) => e.message);
+          // Então
+          expect([completas, faltando]).toEqual([NIVEIS_DEMAIS, NIVEIS_DEMAIS]);
+          expect(numerados(await lerUma(demanda))).toEqual(numerados(lista));
+        });
+
+        it('quando um item do meio da lista colada não serve, então nada dela é gravado, nem o grupo de antes', async () => {
+          // Dado: o Nascimento passa do tamanho de um item
+          const demanda = await novaDemanda();
+          const lista = await SD.listaCriar('demandas', demanda, 'Benefício', EXEMPLO);
+          const quebrada = [{ texto: 'Certidões', filhos: [{ texto: 'x'.repeat(TAMANHO_ITEM + 1) }, { texto: 'Casamento' }] }, { texto: 'Foto' }];
+          // Quando
+          const recusa = await acrescentar(lista, null, quebrada).then(() => '', (e: Error) => e.message);
+          // Então
+          expect(recusa).toBe(`O item pode ter até ${TAMANHO_ITEM} caracteres.`);
+          expect(numerados(await lerUma(demanda))).toEqual(numerados(lista));
+        });
+
+        it('quando o grupo de destino ou o que renumerar não é do checklist, então é recusado e nada muda', async () => {
+          // Dado
+          const demanda = await novaDemanda();
+          const uma = await SD.listaCriar('demandas', demanda, 'Uma', EXEMPLO);
+          const outra = await SD.listaCriar('demandas', demanda, 'Outra', EXEMPLO);
+          const renumerar = [{ id: uma.itens[0].id, tipo: 'item' as const, pai_id: null, ordem: 50 }, { id: outra.itens[0].id, tipo: 'item' as const, pai_id: null, ordem: 51 }];
+          // Quando
+          const destinoErrado = await acrescentar(uma, grupoDe(outra, 'Benefício').id, COLADA).then(() => '', (e: Error) => e.message);
+          const renumeracaoErrada = await SD.listaAcrescentar(uma.id, null, [{ texto: 'Foto' }], { ordens: [99], renumerar }).then(() => '', (e: Error) => e.message);
+          // Então
+          expect([destinoErrado, renumeracaoErrada]).toEqual([CHECKLIST_MUDOU, CHECKLIST_MUDOU]);
+          const [lidaUma] = (await SD.listasDoCartao('demandas', demanda)).filter(l => l.id === uma.id);
+          expect(numerados(lidaUma)).toEqual(numerados(uma));
+        });
+      });
+
       it('quando um modelo é gravado com a árvore, então os itens são as folhas; renomear mantém a árvore', async () => {
         // Dado
         const nome = 'Modelo ' + marca();
@@ -4450,13 +4535,13 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const entrarComo = (id: string) => falso().entrarComo(id);
         afterEach(() => { entrarComo('u-master'); falso().mudarFuncao('u-bruno', 'estagiario'); });
 
-        it('quando lê o checklist do contrato, então o vê; criar, acrescentar item ou grupo e reordenar são recusados, e excluir não muda nada', async () => {
+        it('quando lê o checklist do contrato, então o vê; criar, acrescentar item, grupo ou lista colada e reordenar são recusados, e excluir não muda nada', async () => {
           // Dado: um contrato de outra pessoa, com um checklist, e um comentário que menciona o Bruno (advogado, sem ser administrador)
           falso().mudarFuncao('u-bruno', 'advogado');
           const { id: cliente } = await criar(marca());
           const contrato = (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' })).id;
           const lista = await SD.listaCriar('contratos', contrato, 'Documentos do contrato', EXEMPLO);
-          const documentos = grupoDe(lista, 'Documentos pessoais');
+          const documentos = grupoDe(lista, 'Documentos pessoais'), colada = [{ texto: 'Certidões', filhos: [{ texto: 'Nascimento' }] }];
           await SD.comentarioCriar('contratos', contrato, 'Veja o checklist, @bruno.souza');
           entrarComo('u-bruno');
           // Quando
@@ -4465,7 +4550,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
             SD.listaCriar('contratos', contrato, 'Outro'),
             SD.itemCriar(lista.id, 'Procuração', ondeEntraONovo(arvoreDaLista(lista), documentos.id)),
             SD.grupoDoChecklistCriar(lista.id, 'Certidões', { pai_id: null, ordem: 99 }),
-            SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: null, ordem: 99 }])
+            SD.listaReordenar(lista.id, [{ id: documentos.id, tipo: 'grupo', pai_id: null, ordem: 99 }]),
+            SD.listaAcrescentar(lista.id, documentos.id, colada, ondeEntraAArvore(arvoreDaLista(lista), documentos.id, colada))
           ]);
           await SD.grupoDoChecklistExcluir(documentos.id);
           await SD.itemExcluir(lista.itens[0].id);
@@ -4473,7 +4559,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect(numerados(lida[0])).toEqual(numerados(lista));
           expect(tentativas.map(t => t.status === 'rejected' && (t.reason as Error).message)).toEqual([
             'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.', 'Você não tem permissão para fazer isso.',
-            'Você não pode alterar este checklist.']);
+            'Você não pode alterar este checklist.', 'Você não pode alterar este checklist.']);
           entrarComo('u-master');
           const depois = await SD.listasDoCartao('contratos', contrato);
           expect(depois.map(l => l.nome)).toEqual(['Documentos do contrato']);

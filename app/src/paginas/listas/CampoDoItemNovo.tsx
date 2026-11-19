@@ -11,7 +11,8 @@ import { Aviso, estiloBotao } from '../../ui/base';
 interface Props {
   /** O nome do campo para o leitor de tela ("Novo item do grupo 2.1 Aposentadoria por idade"). */
   rotulo: string;
-  /** Acrescenta a árvore (um item, várias linhas, ou grupos com itens) e espera gravar. */
+  /** Acrescenta a árvore (um item, várias linhas, ou grupos com itens) e espera gravar. No cartão, a árvore inteira é gravada de
+   *  uma vez (listaAcrescentar, #375): se falha, nada dela fica e o erro aparece no pé da tela. */
   aoAcrescentar: (nova: NoDoModelo[]) => Promise<unknown>;
   /** Por que a árvore colada com os números como grupos não cabe aqui ('' = cabe): aí nada é criado e o aviso fica. */
   conferir?: (nova: NoDoModelo[]) => string;

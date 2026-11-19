@@ -690,6 +690,9 @@ export interface ListaDoCartao { id: string; nome: string; ordem: number; itens:
 export interface PosicaoNaLista { id: string; tipo: 'grupo' | 'item'; pai_id: string | null; ordem: number }
 /** Um nó do modelo: item ({ texto }) ou grupo ({ texto, filhos }). */
 export interface NoDoModelo { texto: string; filhos?: NoDoModelo[] }
+/** Onde entram os nós novos de um checklist (ondeEntraAArvore em regras/gruposDaLista.ts): a "ordem" de cada um, na ordem de
+ *  leitura, e as posições a gravar antes, quando não há vão para eles. */
+export interface OndeDosNovos { ordens: number[]; renumerar: PosicaoNaLista[] }
 
 /** Listas das demandas, das tarefas e dos contratos (supabase/migrations/20261027000018_listas_das_demandas.sql, 20261030130000_listas_nas_tarefas.sql e
  * 20261119142702_checklists_com_grupos.sql): quem vê a demanda ou a tarefa vê e mexe nas listas dela; no contrato, lê quem lê e mexe quem altera. */
@@ -712,6 +715,12 @@ export interface DadosListas {
   itemExcluir(id: string): Promise<void>;
   /** Grava as posições novas de uma vez (subir, descer, mover para grupo). Id que não é do checklist: recusa e nada muda. */
   listaReordenar(listaId: string, posicoes: PosicaoNaLista[]): Promise<void>;
+  /**
+   * Acrescenta a árvore (um item, várias linhas, um grupo novo, a lista colada com os números como grupos) no fim do grupo (null:
+   * no fim do checklist), de uma vez: ou entra tudo, ou nada (#375). Confere os níveis como erroAoAcrescentar (regras/gruposDaLista.ts).
+   * Devolve os ids dos grupos criados, na ordem de leitura.
+   */
+  listaAcrescentar(listaId: string, grupoId: string | null, arvore: NoDoModelo[], onde: OndeDosNovos): Promise<string[]>;
 }
 
 /** Modelo de lista do escritório. "itens": as folhas, na ordem (o banco as mantém); "arvore": os grupos e os itens, já reconciliada
