@@ -1981,3 +1981,219 @@ test.describe('Escrever na anotação sem moldura (#367)', () => {
     await expect(campo).toHaveCSS('outline-style', 'solid');
   });
 });
+
+test.describe('O "Salvo" e o rodapé no pé da janela da anotação (#372)', () => {
+  /** Até onde o pé fica do fim da janela: a folga embaixo do rodapé (24px) e um pouco mais. */
+  const PERTO_DO_FIM = 48;
+  /** Com texto curto, o pé fica longe do texto: bem mais que o vão entre as partes da anotação. */
+  const LONGE_DO_TEXTO = 200;
+  const ULTIMA_LINHA = 'Última linha do texto.';
+  /** Um texto longo, inventado, que passa da altura da janela. */
+  const TEXTO_LONGO = Array.from({ length: 40 }, (_, i) => `Parágrafo ${i + 1}: um texto de exemplo sobre o andamento do caso.`).join('\n\n') + '\n\n' + ULTIMA_LINHA;
+  const situacao = (janela: Locator) => janela.getByRole('status', { name: 'Gravação do texto' });
+  /** Espera a janela terminar de entrar (ou de mudar de formato), para medir. */
+  const esperarParar = (page: Page) => page.evaluate(() => Promise.all(document.getAnimations()
+    .filter(a => a.effect?.getComputedTiming().iterations !== Infinity).map(a => a.finished)));
+  /** Quanto falta do fim de "alvo" ao fim da janela da anotação. */
+  async function ateOFim(janela: Locator, alvo: Locator) {
+    const [j, a] = [(await janela.boundingBox())!, (await alvo.boundingBox())!];
+    return (j.y + j.height) - (a.y + a.height);
+  }
+  /** Confere que a linha da gravação e o rodapé estão à vista, nessa ordem, encostados no fim da janela. */
+  async function noPe(janela: Locator, rodape: Locator) {
+    await expect(situacao(janela)).toBeInViewport();
+    await expect(rodape).toBeInViewport();
+    const distancia = await ateOFim(janela, rodape);
+    expect(distancia).toBeGreaterThanOrEqual(0);
+    expect(distancia).toBeLessThanOrEqual(PERTO_DO_FIM);
+    expect((await situacao(janela).boundingBox())!.y).toBeLessThan((await rodape.boundingBox())!.y);
+  }
+  /** Confere que "linha" termina antes de o pé começar (o pé não a cobre). */
+  async function acimaDoPe(janela: Locator, linha: Locator) {
+    const [l, s] = [(await linha.boundingBox())!, (await situacao(janela).boundingBox())!];
+    expect(l.y + l.height).toBeLessThanOrEqual(s.y);
+  }
+  /** Rola o texto com a roda do mouse, por cima dele. */
+  async function rolar(page: Page, janela: Locator, quanto: number) {
+    const caixa = (await caixaDoTexto(janela).boundingBox())!;
+    await page.mouse.move(caixa.x + caixa.width / 2, Math.min(caixa.y + caixa.height / 2, page.viewportSize()!.height / 2));
+    await page.mouse.wheel(0, quanto);
+    await esperarDesenhar(page);
+  }
+  /** A página e a janela não rolam para o lado. */
+  async function semRolagemParaOLado(page: Page, janela: Locator) {
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+    expect(await janela.evaluate(j => j.scrollWidth <= j.clientWidth)).toBe(true);
+  }
+
+  test('dada uma anotação com texto curto, quando ela abre ao lado e no centro, então o "Salvo" e o rodapé ficam no pé da janela, e não logo abaixo do texto', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const janela = await criarAnotacao(page, 'Reunião com o cliente', { texto: 'Levar a procuração assinada.' });
+    const rodape = janela.getByText(/^Atualizada /);
+    const linhaDoTexto = caixaDoTexto(janela).getByText('Levar a procuração assinada.');
+    for (const formato of ['Abrir no centro da tela', 'Abrir ao lado']) {
+      // Quando
+      await janela.getByRole('button', { name: formato }).click();
+      await esperarParar(page);
+      // Então
+      await expect(situacao(janela)).toHaveText('Salvo');
+      await noPe(janela, rodape);
+      const [texto, linha] = [(await linhaDoTexto.boundingBox())!, (await situacao(janela).boundingBox())!];
+      expect(linha.y).toBeGreaterThan(texto.y + texto.height + LONGE_DO_TEXTO);
+      await semRolagemParaOLado(page, janela);
+    }
+  });
+
+  test('dada uma anotação com texto curto numa janela estreita, quando ela abre no centro, então o "Salvo" e o rodapé ficam no pé da janela, e não logo abaixo do texto', async ({ page }) => {
+    // Dado: com 900px ou menos, a janela no centro não tem a coluna, e quem rola é o conteúdo do cartão; alta, para o que fica
+    // embaixo do texto (os comentários e as outras seções da coluna) não bastar para empurrar o pé até o fim da janela
+    await page.setViewportSize({ width: 800, height: 1400 });
+    const janela = await criarAnotacao(page, 'Reunião com o cliente', { texto: 'Levar a procuração assinada.' });
+    const rodape = janela.getByText(/^Atualizada /);
+    // Quando
+    await janela.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    await esperarParar(page);
+    // Então
+    await expect(situacao(janela)).toHaveText('Salvo');
+    await noPe(janela, rodape);
+    const [texto, linha] = [(await caixaDoTexto(janela).getByText('Levar a procuração assinada.').boundingBox())!, (await situacao(janela).boundingBox())!];
+    expect(linha.y).toBeGreaterThan(texto.y + texto.height + LONGE_DO_TEXTO);
+    await semRolagemParaOLado(page, janela);
+  });
+
+  test('dada uma anotação com texto longo no centro, quando a pessoa rola o texto, então o "Salvo" e o rodapé continuam no pé e, no fim, não cobrem a última linha nem a que ela escreve', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const janela = await criarAnotacao(page, 'Parecer longo', { texto: TEXTO_LONGO });
+    await janela.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    await esperarParar(page);
+    const rodape = janela.getByText(/^Atualizada /);
+    // Então: com o texto no começo, o pé já está no fim da janela, por cima do resto do texto
+    await noPe(janela, rodape);
+    // Quando: a pessoa rola até o meio
+    await rolar(page, janela, 1200);
+    // Então
+    await noPe(janela, rodape);
+    // Quando: rola até o fim
+    await rolar(page, janela, 20000);
+    // Então: a última linha aparece inteira, logo acima do pé
+    const ultima = caixaDoTexto(janela).getByText(ULTIMA_LINHA);
+    await expect(ultima).toBeInViewport();
+    await acimaDoPe(janela, ultima);
+    await noPe(janela, rodape);
+    // Quando: volta ao começo pelo teclado e desce até o fim, escrevendo uma linha nova
+    await caixaDoTexto(janela).press('Control+Home');
+    await caixaDoTexto(janela).press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Linha escrita agora');
+    // Então: o texto acompanha o cursor sem deixar a linha escondida atrás do pé
+    const nova = caixaDoTexto(janela).getByText('Linha escrita agora');
+    await expect(nova).toBeInViewport();
+    await acimaDoPe(janela, nova);
+    await noPe(janela, rodape);
+  });
+
+  // No centro, com 900px ou menos, não há a coluna e quem rola é o conteúdo do cartão; ao lado, quem rola é o painel.
+  for (const { onde, largura, formato } of [
+    { onde: 'no centro, numa janela estreita', largura: 800, formato: 'Abrir no centro da tela' },
+    { onde: 'ao lado', largura: 1440, formato: null }
+  ]) {
+    test(`dada uma anotação com texto longo ${onde}, quando a pessoa rola e escreve no fim, então o "Salvo" e o rodapé continuam no pé da janela, sem cobrir a linha`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize({ width: largura, height: 900 });
+      const janela = await criarAnotacao(page, 'Parecer longo', { texto: TEXTO_LONGO });
+      if (formato) await janela.getByRole('button', { name: formato }).click();
+      await expect(janela.getByRole('button', { name: formato ? 'Abrir ao lado' : 'Abrir no centro da tela' })).toBeVisible();
+      await esperarParar(page);
+      const rodape = janela.getByText(/^Atualizada /);
+      // Então: com o texto no começo, o pé já está no fim da janela
+      await noPe(janela, rodape);
+      // Quando: a pessoa rola até o meio
+      await rolar(page, janela, 1200);
+      // Então
+      await noPe(janela, rodape);
+      // Quando: rola até o fim
+      await rolar(page, janela, 20000);
+      // Então: a última linha aparece inteira, logo acima do pé
+      const ultima = caixaDoTexto(janela).getByText(ULTIMA_LINHA);
+      await expect(ultima).toBeInViewport();
+      await acimaDoPe(janela, ultima);
+      await noPe(janela, rodape);
+      // Quando: escreve uma linha nova no fim do texto
+      await caixaDoTexto(janela).press('Control+End');
+      await page.keyboard.press('Enter');
+      await page.keyboard.type('Linha escrita agora');
+      // Então
+      const nova = caixaDoTexto(janela).getByText('Linha escrita agora');
+      await expect(nova).toBeInViewport();
+      await acimaDoPe(janela, nova);
+      await noPe(janela, rodape);
+      await semRolagemParaOLado(page, janela);
+    });
+  }
+
+  test('dada uma anotação que a pessoa só lê, quando ela a abre no centro e ao lado, então não há a linha da gravação e o rodapé fica no pé da janela', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const janela = await abrirComoQuemSoLe(page, 'Anotação para ler', 'Um texto curto para ler.');
+    const rodape = janela.getByText(/^Atualizada /);
+    for (const formato of ['Abrir no centro da tela', 'Abrir ao lado']) {
+      // Quando
+      await janela.getByRole('button', { name: formato }).click();
+      await esperarParar(page);
+      // Então
+      await expect(situacao(janela)).toHaveCount(0);
+      await expect(rodape).toBeInViewport();
+      const distancia = await ateOFim(janela, rodape);
+      expect(distancia).toBeGreaterThanOrEqual(0);
+      expect(distancia).toBeLessThanOrEqual(PERTO_DO_FIM);
+    }
+  });
+
+  test('dada uma anotação com texto longo num celular, quando a pessoa rola e escreve no fim, então o "Salvo" e o rodapé continuam no pé da janela, sem cobrir a linha e sem rolagem para o lado', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 390, height: 844 });
+    const janela = await criarAnotacao(page, 'Parecer no celular', { texto: TEXTO_LONGO });
+    await esperarParar(page);
+    const rodape = janela.getByText(/^Atualizada /);
+    // Então
+    await noPe(janela, rodape);
+    await semRolagemParaOLado(page, janela);
+    // Quando
+    await rolar(page, janela, 1200);
+    // Então
+    await noPe(janela, rodape);
+    // Quando: escreve no fim do texto
+    await caixaDoTexto(janela).press('Control+End');
+    await page.keyboard.press('Enter');
+    await page.keyboard.type('Linha escrita no celular');
+    // Então
+    const nova = caixaDoTexto(janela).getByText('Linha escrita no celular');
+    await expect(nova).toBeInViewport();
+    await acimaDoPe(janela, nova);
+    await noPe(janela, rodape);
+    await semRolagemParaOLado(page, janela);
+  });
+
+  test('dada uma anotação nova, quando a pessoa escreve, então a linha da gravação continua no mesmo lugar, no pé da janela', async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/documentos/nova/');
+    const janela = anotacaoAberta(page);
+    await janela.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    await esperarParar(page);
+    // Então: antes de escrever, o pé diz que ela ainda não foi gravada
+    await expect(situacao(janela)).toHaveText('Ainda não gravada');
+    await noPe(janela, janela.getByText(/^Anotação nova · gravada/));
+    const antes = (await situacao(janela).boundingBox())!;
+    // Quando
+    await escreverOTitulo(page, 'Anotação escrita agora');
+    await porNoTexto(caixaDoTexto(janela), 'Um texto curto.');
+    await caixaDoTexto(janela).press('Control+s');
+    // Então
+    await expect(situacao(janela)).toHaveText('Salvo');
+    await noPe(janela, janela.getByText(/^Atualizada /));
+    expect(Math.abs((await situacao(janela).boundingBox())!.y - antes.y)).toBeLessThan(1);
+  });
+});

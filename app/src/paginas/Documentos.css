@@ -100,7 +100,26 @@ span.pasta-abrir { cursor: default }
 /* ---------- A anotação aberta e a nova, na janela do cartão ----------
    Larga e limpa, na medida de um documento, com bastante ar entre o topo, o título e o texto. A classe é só dela: a .nota é a
    da peça <Nota>, que vale no sistema todo. */
-.anotacao-aberta { --anotacao-vao: 22px; width: 100%; max-width: var(--medida-documento); margin-inline: auto; display: flex; flex-direction: column; gap: var(--anotacao-vao) }
+.anotacao-aberta { --anotacao-vao: 22px; width: 100%; max-width: var(--medida-documento); margin-inline: auto; display: flex; flex-direction: column; gap: var(--anotacao-vao); flex: 1 0 auto }
+
+/* ---------- O pé da anotação (#372, pedido de 19/11) ----------
+   A linha da gravação ("Salvando…", "Salvo") e o rodapé (o código e as datas) ficam juntos no pé da janela, ao lado, no centro e
+   no celular, na anotação aberta e na nova. Com texto curto, a anotação estica até o fim de quem rola (a janela, ao lado; o corpo
+   do cartão, no centro; o conteúdo, na janela estreita) e o pé desce até lá. Com texto longo, ele fica preso ao pé enquanto o
+   texto rola por baixo dele e, no fim da rolagem, volta ao lugar dele, depois de tudo: não cobre o fim do texto. No celular, a
+   janela já é da altura do conteúdo. Os outros cartões não mudam: tudo aqui vale só onde há uma anotação aberta. */
+.cartao-painel:not(.centro):has(.anotacao-aberta) { display: flex; flex-direction: column }
+.cartao-painel:not(.centro) .cartao-conteudo:has(.anotacao-aberta) { flex: 1 0 auto; display: flex; flex-direction: column }
+@media (max-width: 900px) { .cartao-painel.centro .cartao-conteudo:has(.anotacao-aberta) { display: flex; flex-direction: column } }
+/* O espaço do fim do cartão vira o do pé, para ele ficar à mesma distância do fim da janela, preso ou no lugar dele. */
+.cartao-corpo:has(> .anotacao-aberta) { flex: 1 0 auto; padding-bottom: 0 }
+.anotacao-pe { --anotacao-pe-folga: 24px;   /* entre o rodapé e o fim da janela */
+  position: sticky; bottom: 0; z-index: 2; margin-top: auto; padding-bottom: var(--anotacao-pe-folga); display: flex; flex-direction: column;
+  gap: var(--anotacao-vao); background: var(--superficie) }
+/* O texto que rola por baixo some aos poucos logo acima do pé (no vão da anotação, onde não há nada quando o pé está no lugar dele). */
+.anotacao-pe::before { content: ''; position: absolute; inset: auto 0 100%; height: var(--anotacao-vao); background: linear-gradient(transparent, var(--superficie)); pointer-events: none }
+/* Quem só lê não tem a linha da gravação: o lugar dela não ocupa espaço. */
+.anotacao-pe-situacao:empty { display: none }
 /* Ao lado (e na janela estreita), as seções da coluna ficam aqui, com o vão da anotação, e não o do cartão: o "Expandir tudo"
    delas (#366) desconta este vão, para ficar com o vão de sempre entre botões redondos até a primeira seção. */
 .anotacao-aberta > .cartao-coluna-lugar > .cartao-coluna-secoes > .secoes-todas:first-child { margin-bottom: calc(var(--botao-redondo-vao) - var(--anotacao-vao)) }

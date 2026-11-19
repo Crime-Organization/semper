@@ -5,7 +5,8 @@
 // selos das etiquetas (sem etiquetas, a linha some); depois, o título grande, mudado ali mesmo, e o texto, que já abre na caixa de
 // escrever, com a formatação à vista, e salva sozinho (EditorDeTexto): sem modo de ler à parte. "Comentários" (aberta), "Ligada
 // a" e "Histórico de alterações" (recolhidas) vão para a coluna da direita da janela no centro (NaColunaDoCartao), com o
-// "Expandir tudo" no topo dela; ao lado, ficam embaixo do texto, na mesma ordem.
+// "Expandir tudo" no topo dela; ao lado, ficam embaixo do texto, na mesma ordem. A linha da gravação ("Salvo") e o rodapé ficam
+// juntos no pé da janela, à vista mesmo com o texto longo rolando (#372).
 // Sem lápis: tudo se muda no próprio lugar.
 // Quem a vê só por um item ligado lê tudo (o texto formatado, sem caixa), mas não muda nada; todos podem baixá-la em .md (#345)
 // e duplicá-la (#343): a cópia é de quem a faz e leva só os itens ligados que ela vê. Sair com algo por gravar (ou ainda
@@ -171,6 +172,14 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
   const [rascunhos, setRascunhos] = useState<RascunhosDaAnotacao>({});
   const mudarRascunho = useCallback(<K extends keyof RascunhosDaAnotacao>(campo: K) => (r: RascunhosDaAnotacao[K]) =>
     setRascunhos(atual => ({ ...atual, [campo]: r })), []);
+  /** O lugar, no pé da janela, onde o editor põe a linha da gravação (#372). */
+  const [lugarDaSituacao, setLugarDaSituacao] = useState<HTMLElement | null>(null);
+  const pe = useRef<HTMLDivElement>(null);
+  /** O quanto o pé cobre no fim da janela, com o esmaecido logo acima dele: o cursor do texto não se esconde ali. */
+  const folgaDoPe = useCallback(() => {
+    const p = pe.current;
+    return p ? p.offsetHeight + (parseFloat(getComputedStyle(p, '::before').height) || 0) : 0;
+  }, []);
   /** Para gravar o texto que falta antes de sair da anotação. */
   const editor = useRef<ControleDoEditor | null>(null);
   /** Marcada logo antes de sair por conta própria (a pessoa se tirou da anotação): aí o aviso de sair sem salvar não pergunta. */
@@ -578,7 +587,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
     <EditorDeTexto key={`texto-${edicaoDescartada}-${textoTrocado}`} id={idDoTexto} texto={a.texto} className="anotacao-texto" maximo={TAMANHO_ANOTACAO.texto}
       conferir={erroDoTexto} placeholder={DICA_DO_TEXTO} vazio={<Nota>Sem texto ainda.</Nota>} controle={editor} conflito={!!conflito}
       aindaNaoGravada={emBranco} aoSalvar={mudaNoLugar ? gravarTexto : undefined}
-      aoMudarRascunho={mudarRascunho('texto')} />
+      aoMudarRascunho={mudarRascunho('texto')} lugarDaSituacao={lugarDaSituacao} folgaEmbaixo={folgaDoPe} />
 
     {/* Na coluna da direita da janela no centro (ao lado e na janela estreita, aqui embaixo), na ordem: os comentários (abertos), o
         que a anotação liga e o histórico (recolhidos). Quem vê a anotação comenta, mesmo quem só a lê, como nos outros cartões (#364).
@@ -616,12 +625,18 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
       </Recolhivel>
     </NaColunaDoCartao>
 
-    {/* O rodapé, por último, como nos outros cartões (no centro, as seções de cima vão para a coluna, e ele fica no pé do texto). */}
-    {emBranco
-      ? <footer className="cartao-rodape"><span>Anotação nova · gravada assim que você escrever o título ou o texto</span></footer>
-      : <footer className="cartao-rodape">
-        <span>Anotação <span className="codigo">{a.codigo}</span> · Criada em {dataCurta(a.criado_em)}{a.criado_por ? ' por ' + nomeDe(a.criado_por) : ''}</span>
-        <span>Atualizada {relativo(a.atualizado_em)}</span>
-      </footer>}
+    {/* O pé da janela (#372): a linha da gravação ("Salvando…", "Salvo", que o editor põe no lugar marcado) e o rodapé, por último,
+        como nos outros cartões. Com texto curto, ficam encostados no fim da janela; com texto longo, presos ao pé enquanto o texto
+        rola, e no fim da rolagem logo depois do que há acima, sem cobrir nada (Documentos.css). Ao lado e na janela estreita, as
+        seções da coluna ficam acima dele. */}
+    <div className="anotacao-pe" ref={pe}>
+      <div className="anotacao-pe-situacao" ref={setLugarDaSituacao} />
+      {emBranco
+        ? <footer className="cartao-rodape"><span>Anotação nova · gravada assim que você escrever o título ou o texto</span></footer>
+        : <footer className="cartao-rodape">
+          <span>Anotação <span className="codigo">{a.codigo}</span> · Criada em {dataCurta(a.criado_em)}{a.criado_por ? ' por ' + nomeDe(a.criado_por) : ''}</span>
+          <span>Atualizada {relativo(a.atualizado_em)}</span>
+        </footer>}
+    </div>
   </article>;
 }
