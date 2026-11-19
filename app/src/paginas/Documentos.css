@@ -105,6 +105,10 @@ span.pasta-abrir { cursor: default }
 .anotacao-topo-acoes > .equipe-cartao { margin-right: 6px }
 /* O título grande, como o de uma nota. */
 .anotacao-aberta .anotacao-titulo { margin: 0; font-size: var(--texto-titulo-da-nota); font-weight: 900; letter-spacing: -.02em; line-height: 1.15; color: var(--ink); text-wrap: balance; overflow-wrap: anywhere }
+/* Escrevendo o título, nada em volta dele, como no texto logo abaixo (#367): só o cursor verde. Nos outros cartões, o campo
+   do título guarda o contorno de foco. */
+.anotacao-aberta .anotacao-titulo .titulo-editavel-campo { background: none; caret-color: var(--accent) }
+.anotacao-aberta .anotacao-titulo .titulo-editavel-campo:focus { outline: 0 }
 
 /* O caminho no topo da anotação: pequeno e discreto, cada pedaço um link que leva à pasta. */
 .caminho-da-pasta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; margin-top: 10px; font-size: var(--texto-tabela); line-height: 1.4; color: var(--muted) }

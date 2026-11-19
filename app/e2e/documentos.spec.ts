@@ -1558,3 +1558,59 @@ test.describe('Formatar o texto de uma anotação já criada (#364): o clique es
     await expect.poll(() => textoGuardado(page, 'Varias linhas')).toBe('**primeira linha aqui**\n**forte meio palavra fim**\n**ultima linha final**');
   });
 });
+
+test.describe('Escrever na anotação sem moldura (#367)', () => {
+  /** A cor de destaque (--accent), a do cursor. */
+  const COR_DO_CURSOR = 'rgb(55, 125, 34)';
+  /** Confere que o campo com o foco não tem moldura em volta, e que o cursor está na cor de destaque. */
+  async function semMoldura(campo: Locator) {
+    await expect(campo).toBeFocused();
+    await expect(campo).toHaveCSS('outline-style', 'none');
+    await expect(campo).toHaveCSS('caret-color', COR_DO_CURSOR);
+  }
+
+  test('dada a anotação nova, quando a pessoa escreve o título e desce para o texto pelo teclado, então nenhum dos dois ganha moldura, só o cursor verde', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/');
+    // Quando: o cursor já começa no título
+    await novaAnotacao(page).click();
+    const nota = notaNova(page);
+    // Então
+    await semMoldura(nota.getByRole('textbox', { name: 'Título' }));
+    // Quando: o Enter no título desce para o texto
+    await page.keyboard.type('Sem moldura');
+    await page.keyboard.press('Enter');
+    // Então
+    await semMoldura(caixaDoTexto(nota));
+  });
+
+  test('dada uma anotação aberta, quando a pessoa clica no texto e no título para mudá-los, então nenhum dos dois ganha moldura, e a caixa de comentar continua com a dela', async ({ page }) => {
+    // Dado
+    const anotacao = await criarAnotacao(page, 'Folha limpa', { texto: 'Um texto.' });
+    // Quando
+    await caixaDoTexto(anotacao).click();
+    // Então
+    await semMoldura(caixaDoTexto(anotacao));
+    // Quando
+    await anotacao.getByRole('button', { name: 'Folha limpa' }).click();
+    // Então
+    await semMoldura(anotacao.getByRole('textbox', { name: 'Título' }));
+    // Quando: os outros campos guardam o contorno de foco
+    const comentario = coluna(page).getByRole('textbox', { name: 'Escrever um comentário' });
+    await comentario.click();
+    // Então
+    await expect(comentario).toBeFocused();
+    await expect(comentario).toHaveCSS('outline-style', 'solid');
+  });
+
+  test('dado o cartão de uma demanda, quando a pessoa clica no título para mudá-lo, então ele continua com a moldura de sempre, que mostra que virou campo', async ({ page }) => {
+    // Dado
+    const cartao = await abrirDemanda(page, 'Registro de marca');
+    // Quando
+    await cartao.getByRole('button', { name: 'Registro de marca', exact: true }).click();
+    // Então
+    const campo = cartao.getByRole('textbox', { name: 'Título' });
+    await expect(campo).toBeFocused();
+    await expect(campo).toHaveCSS('outline-style', 'solid');
+  });
+});
