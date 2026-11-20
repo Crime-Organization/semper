@@ -87,6 +87,9 @@
   --texto-titulo-da-nota: clamp(26px, 1.6vw + 14px, 34px);
   /* O espaço entre as letras dos nomes de coluna e de grupo do quadro, que aparecem em maiúsculas (#386) */
   --espaco-dos-nomes-do-quadro: .1em;
+  /* No cartão do quadro (#300): o espaço entre o código do cartão e cada ligação, e entre o ícone da ligação e o código dela */
+  --folga-entre-ligacoes: .8em;
+  --folga-do-icone-da-ligacao: .3em;
   /* A espera da dica das bolinhas da equipe ao passar o mouse (como a do navegador); no foco do teclado, ela aparece na hora */
   --espera-da-dica: .4s;
   /* A largura máxima da dica das bolinhas: um nome comprido quebra em duas linhas, sem atravessar o cartão */
@@ -670,6 +673,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kcartao .kt { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
 /* Detalhes do cartão, um por linha (telefone, cidade, data). */
 .kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px }
+/* O código do cartão e as ligações dele (#300), na mesma linha: o ícone de cada tipo e só o código; quebra entre uma e outra. */
+.codigo-no-quadro { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--folga-entre-ligacoes) }
+.ligacao-no-quadro { display: inline-flex; align-items: center; gap: var(--folga-do-icone-da-ligacao); white-space: nowrap }
+.ligacao-no-quadro svg { flex-shrink: 0 }
 .kcartao .kp { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 26px }
 /* Rodapé só com os responsáveis: ficam no canto direito. */
 .kcartao .kp > :only-child { margin-left: auto }
