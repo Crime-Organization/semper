@@ -1,289 +1,357 @@
-/* Página inicial pública. Tudo preso a .home, com as cores fixas do tema claro da marca (DESIGN.md):
-   a página não muda com o tema escuro do sistema. O motivo é a pasta com aba, das pastas do escritório. */
-.home {
-  --h-papel: #FBFBF9; --h-papel2: #F5F5F2; --h-cinza: #DCDCD4; --h-tinta: #1A1916; --h-texto: #3D3B36; --h-texto2: #57554F;
-  --h-escuro: #1A1916; --h-cartao: #2C2A26; --h-claro: #FBFBF9; --h-claro2: #DCDCD4;
-  --h-verde: #377D22; --h-verde-escuro: #2B6119; --h-verde-vivo: #5FAE3E; --h-verde-fundo: #EEF5EA;
-  --h-campo: var(--h-verde);
-  --h-margem: clamp(16px, 4.5vw, 72px);
-  --h-espaco: clamp(72px, 10vw, 152px);
-  --h-raio: clamp(18px, 2vw, 28px);
-  --h-saida: cubic-bezier(.16, 1, .3, 1);
-  background: var(--h-papel); color: var(--h-tinta); overflow-x: clip;
+/* Página pública (#380). Tudo preso a .pub e feito com as variáveis de estilo.css: a página segue o tema (claro ou escuro).
+   Duas faces, como no DESIGN.md: a vitrine escura do farol (abertura) e a área de trabalho clara, com as telas reais em
+   molduras finas; as faixas (Processos, o pedido do fim e o rodapé) alternam com ela. As medidas próprias da página têm nome aqui. */
+.pub {
+  /* A folga até a borda: 16px no celular (DESIGN.md), até 72px na tela larga; e o conteúdo, no máximo desta largura */
+  --pub-margem: max(16px, min(5vw, 72px));
+  --pub-largura: 1240px;
+  /* O recuo de cada faixa: a folga, ou o que sobra dos lados quando a tela passa da largura do conteúdo */
+  --pub-lado: max(var(--pub-margem), (100% - var(--pub-largura)) / 2);
+  /* O espaço entre as seções, e o menor, entre as partes de uma seção */
+  --pub-espaco: clamp(80px, 10vw, 144px);
+  --pub-espaco-menor: clamp(48px, 6vw, 88px);
+  /* Os vãos dentro de uma seção: entre blocos, entre itens e entre o que vai junto; e o das duas colunas de uma seção */
+  --pub-vao: 32px;
+  --pub-vao-medio: 24px;
+  --pub-vao-pequeno: 16px;
+  --pub-vao-minimo: 8px;
+  --pub-vao-colunas: clamp(32px, 5vw, 72px);
+  /* O vão entre os itens lado a lado (as linhas do índice, os passos, os recursos) e o recheio das caixas (o cartão-índice,
+     a qualificação de exemplo e o pedido do fim) */
+  --pub-vao-itens: clamp(20px, 3vw, 40px);
+  --pub-recheio: clamp(24px, 3vw, 40px);
+  /* As larguras máximas: o texto da vitrine, o pedido do alto e o que fica estreito na tela média (o checklist e os passos) */
+  --pub-largura-do-texto: 780px;
+  --pub-largura-do-pedido: 640px;
+  --pub-largura-estreita: 560px;
+  /* A distância do sublinhado dos links, embaixo das letras */
+  --pub-sublinhado: 6px;
+  /* No celular: a altura do farol, atrás do nome, e onde o texto da vitrine começa */
+  --pub-farol-no-celular: clamp(300px, 80vw, 560px);
+  --pub-topo-da-vitrine-no-celular: clamp(132px, 34vw, 300px);
+  /* As letras, da maior para a menor: "SEMPER." da vitrine (maior que o access-title), a frase do h1 (a maior depois dele),
+     o título grande (Processos e o pedido do fim), o título de cada seção, o das seções em par, o do cartão-índice, o da
+     qualificação, o de cada passo, o de cada pergunta, a frase de apoio (o lead-hero do DESIGN.md), o texto, o menor e o rótulo */
+  --pub-marca: clamp(72px, 13vw, 196px);
+  --pub-tese: clamp(34px, 4.6vw, 68px);
+  --pub-titulo-grande: clamp(42px, 6vw, 88px);
+  --pub-titulo: clamp(32px, 3.6vw, 52px);
+  --pub-titulo-par: clamp(28px, 2.8vw, 40px);
+  --pub-titulo-cartao: clamp(24px, 2.3vw, 32px);
+  --pub-titulo-qualificacao: clamp(24px, 2.4vw, 34px);
+  --pub-titulo-passo: clamp(21px, 1.8vw, 25px);
+  --pub-pergunta: clamp(18px, 1.5vw, 21px);
+  --pub-frase: clamp(19px, 1.7vw, 24px);
+  --pub-texto: 17px;
+  --pub-texto-menor: 15px;
+  --pub-rotulo: 12px;
+  /* O "SEMPER." do rodapé */
+  --pub-marca-do-rodape: clamp(56px, 10vw, 150px);
+  /* A altura da vitrine: quase a da janela, até um limite nas telas muito altas */
+  --pub-altura-da-vitrine: min(94svh, 1000px);
+  /* Quanto o cartão-índice sobe por cima da vitrine, e o espaço entre o pedido, na vitrine, e o cartão */
+  --pub-sobe: clamp(64px, 9vw, 128px);
+  --pub-folga-da-vitrine: clamp(40px, 4vw, 56px);
+  /* No celular, quanto do Início no celular aparece na vitrine, acima do cartão-índice */
+  --pub-tela-na-vitrine: 300px;
+  /* A altura de cada linha do índice e o círculo do número de cada passo */
+  --pub-linha-do-indice: 68px;
+  --pub-circulo-do-passo: 40px;
+  /* Os cantos: o dos cartões e das telas ({rounded.lg}), o da linha do índice, o das pílulas e o do celular */
+  --pub-raio: 12px;
+  --pub-raio-pequeno: 8px;
+  --pub-raio-pilula: 999px;
+  --pub-raio-aparelho: 34px;
+  --pub-borda-aparelho: 8px;
+  /* A largura da coluna do celular (na vitrine e em Recursos) e a da caixa do pedido, no fim */
+  --pub-coluna-celular: 300px;
+  --pub-caixa-pedido: 500px;
+  /* As faixas: a escura (Processos, o pedido do fim e o rodapé), a suave (Segurança), o fio das telas e das linhas sobre a
+     escura e a borda de cima e de baixo de cada faixa (só no tema escuro, onde o fundo da página também é escuro) */
+  --pub-faixa: var(--vitrine);
+  --pub-faixa-suave: var(--soft);
+  --pub-fio-da-faixa: var(--card);
+  --pub-borda-da-faixa: transparent;
+  /* A curva de saída das entradas */
+  --pub-saida: cubic-bezier(.16, 1, .3, 1);
+  background: var(--bg); color: var(--ink); overflow-x: clip;
 }
-.home.campo-m { --h-campo: var(--h-verde-escuro) }
-.home main > section { scroll-margin-top: 0 }
+/* No tema escuro, o fundo da página já é escuro: as faixas ficam mais claras que ele e ganham um fio em cima e embaixo */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .pub { --pub-faixa: var(--card); --pub-faixa-suave: var(--superficie); --pub-fio-da-faixa: var(--line2); --pub-borda-da-faixa: var(--line2) }
+}
+:root[data-tema="escuro"] .pub { --pub-faixa: var(--card); --pub-faixa-suave: var(--superficie); --pub-fio-da-faixa: var(--line2); --pub-borda-da-faixa: var(--line2) }
 
-/* ---------- tipos ---------- */
-.home h1, .home h2, .home h3 { margin: 0; font-weight: 900; text-wrap: balance }
-.home .h-l { font-size: clamp(38px, 5.4vw, 84px); letter-spacing: -.04em; line-height: 1 }
-.home .h-m { font-size: clamp(22px, 2vw, 30px); letter-spacing: -.02em; line-height: 1.15 }
-.home p { margin: 0; font-size: clamp(17px, 1.25vw, 19px); line-height: 1.6; color: var(--h-texto); text-wrap: pretty }
-.home .h-ponto { font-weight: inherit; color: var(--h-verde) }
+.pub ::selection { background: var(--accent-tint); color: var(--ink) }
+/* Sem a margem do navegador; com :where, qualquer classe da página põe a margem que quiser */
+:where(.pub) :is(h1, h2, h3) { margin: 0; text-wrap: balance }
+:where(.pub) p { margin: 0; text-wrap: pretty }
+.pub-ponto { color: var(--accent) }
+.pub :target { scroll-margin-top: var(--pub-vao-medio) }
 
-/* ---------- botões (pílula, como no sistema) ---------- */
-.home .h-botao {
-  display: inline-flex; align-items: center; justify-content: center; min-height: 56px; padding: 0 30px; border: 0; border-radius: 999px;
-  background: var(--h-verde); color: #fff; font: inherit; font-size: 17px; font-weight: 800; cursor: pointer;
-  transition: background-color .25s ease, color .25s ease, transform .2s var(--h-saida);
+/* ---------- topo: os links das seções e Entrar, por cima da vitrine ---------- */
+.pub-topo {
+  position: absolute; z-index: 2; inset: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: var(--pub-vao-pequeno);
+  padding: var(--pub-vao-medio) var(--pub-lado); color: var(--texto-sobre-escuro);
 }
-.home .h-botao:hover { background: var(--h-verde-escuro) }
-.home .h-botao:active { transform: scale(.97) }
-.home .h-botao-claro { background: #fff; color: var(--h-tinta) }
-.home .h-botao-claro:hover { background: var(--h-verde-fundo) }
-.home .h-botao-escuro { background: var(--h-tinta) }
-.home .h-botao-escuro:hover { background: var(--h-cartao) }
-.home .h-botao-pequeno { min-height: 44px; padding: 0 22px; font-size: 15px }
-.home .h-mini {
-  height: 36px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--h-tinta); color: #fff;
-  font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; transition: background-color .2s ease, transform .2s var(--h-saida);
+.pub-topo-secoes { display: flex; flex-wrap: wrap; column-gap: var(--pub-vao) }
+.pub-topo-secoes a { display: inline-flex; align-items: center; min-height: var(--alvo-de-toque); font-size: var(--pub-texto-menor); font-weight: 700; color: var(--texto-sobre-escuro-2); text-underline-offset: var(--pub-sublinhado) }
+.pub-topo-secoes a:hover { color: var(--texto-sobre-escuro); text-decoration: underline }
+.pub-entrar {
+  display: inline-flex; align-items: center; min-height: var(--alvo-de-toque); padding: 0 var(--pub-vao-medio); margin-left: auto; border-radius: var(--pub-raio-pilula);
+  background: var(--card); color: var(--texto-sobre-escuro); font-weight: 900; font-size: var(--pub-texto-menor); transition: background-color .2s ease, color .2s ease;
 }
-.home .h-mini:hover { background: var(--h-verde) }
-.home .h-mini:active { transform: scale(.95) }
+.pub-entrar:hover { background: var(--texto-sobre-escuro); color: var(--dark) }
 
-/* ---------- abertura: o nome, a frase e a pilha de pastas ---------- */
-.h-abertura { display: flex; flex-direction: column; min-height: 100svh; padding-top: clamp(20px, 3vw, 40px); background: var(--h-escuro); color: var(--h-claro) }
-.h-topo { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; padding: 0 var(--h-margem) }
-.h-abertura h1 { overflow: hidden; font-size: clamp(64px, 14.5vw, 232px); line-height: .92; letter-spacing: -.05em; padding-bottom: .02em }
-.h-abertura h1 > span { display: block }
-.h-abertura h1 .h-ponto { color: var(--h-verde-vivo) }
-.h-entrar {
-  margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; padding: 0 22px; border-radius: 999px;
-  background: var(--h-cartao); color: var(--h-claro); font-weight: 800; font-size: 16px; transition: background-color .25s ease, color .25s ease;
+/* ---------- vitrine: o farol, "SEMPER.", o pedido e o Início num celular, que sobe por trás do cartão-índice ---------- */
+.pub-vitrine {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--pub-coluna-celular); column-gap: var(--pub-vao-colunas); align-items: end;
+  min-height: var(--pub-altura-da-vitrine); overflow: hidden;
+  padding: calc(var(--alvo-de-toque) + 2 * var(--pub-vao-medio) + var(--pub-vao-medio)) var(--pub-lado) calc(var(--pub-sobe) + var(--pub-folga-da-vitrine));
+  background: var(--vitrine); color: var(--texto-sobre-escuro);
 }
-.h-entrar:hover { background: var(--h-claro); color: var(--h-tinta) }
-.home .h-frase { margin: clamp(20px, 2.6vw, 40px) var(--h-margem) 0; max-width: 36ch; font-size: clamp(19px, 1.9vw, 28px); font-weight: 300; line-height: 1.45; color: var(--h-claro2) }
+.pub-vitrine ::selection { background: var(--accent); color: var(--on-accent) }
+.pub-vitrine :focus-visible, .pub-faixa :focus-visible, .pub-rodape :focus-visible, .pub-topo :focus-visible { outline-color: var(--accent-bright) }
+.pub-faixa .pub-pedido.completo :focus-visible { outline-color: var(--accent) }
+.pub-farol {
+  position: absolute; inset: 0 0 0 auto; width: 64%; height: 100%; object-fit: cover; object-position: 60% 62%;
+  filter: grayscale(1) brightness(.55); mask-image: linear-gradient(to right, transparent, black 40%);
+}
+.pub-vitrine-texto { position: relative; display: flex; flex-direction: column; gap: var(--pub-vao); max-width: var(--pub-largura-do-texto) }
+.pub-vitrine h1 { display: flex; flex-direction: column; gap: var(--pub-vao-pequeno) }
+.pub-marca { font-size: var(--pub-marca); font-weight: 900; letter-spacing: -.035em; line-height: .84 }
+.pub-marca .pub-ponto, .pub-rodape-marca .pub-ponto, .pub-faixa .pub-titulo .pub-ponto { color: var(--accent-bright) }
+.pub-tese { max-width: 18ch; font-size: var(--pub-tese); font-weight: 900; letter-spacing: -.03em; line-height: 1.02 }
+.pub-lead { max-width: 54ch; font-size: var(--pub-frase); font-weight: 300; line-height: 1.5; color: var(--texto-sobre-escuro-2) }
+/* O celular desce até a borda de baixo da vitrine, que o corta; o cartão-índice cobre o pé dele */
+.pub-vitrine .pub-vitrine-tela { position: relative; align-self: end; margin-bottom: calc(-1 * (var(--pub-sobe) + var(--pub-folga-da-vitrine))) }
 
-.h-pastas { --aba-l: clamp(150px, 15vw, 230px); --aba-a: clamp(40px, 3.6vw, 50px); display: flex; flex-direction: column; margin-top: auto; padding-top: calc(clamp(40px, 7vh, 96px) + var(--aba-a)) }
-.h-pasta { --c: var(--h-cartao); --t: var(--h-claro); position: relative; display: block; height: clamp(44px, 4.6vw, 62px); background: var(--c); color: var(--t) }
-.h-pasta.p1 { --c: var(--h-cartao); --t: var(--h-claro) }
-.h-pasta.p2 { --c: var(--h-cinza); --t: var(--h-tinta) }
-.h-pasta.p3 { --c: var(--h-papel2); --t: var(--h-tinta) }
-.h-pasta.p4 { --c: var(--h-verde-fundo); --t: var(--h-verde-escuro) }
-.h-pasta .h-aba {
-  position: absolute; z-index: 0; bottom: 100%; left: calc(var(--h-margem) + (100% - 2 * var(--h-margem) - var(--aba-l)) * var(--i) / 4);
-  display: flex; align-items: center; justify-content: center; width: max-content; min-width: var(--aba-l); height: var(--aba-a); padding: 0 18px;
-  color: var(--t); font-size: clamp(15px, 1.15vw, 17px); font-weight: 800; white-space: nowrap;
-}
-/* a aba: um trapézio de cantos redondos, da cor da pasta */
-.h-pasta .h-aba::before {
-  content: ''; position: absolute; z-index: -1; inset: 0 0 -2px; border-radius: 14px 14px 0 0; background: var(--c);
-  transform: perspective(48px) rotateX(9deg); transform-origin: bottom;
-}
-.h-pasta:not(.h-frente) { transition: transform .35s var(--h-saida) }
-.h-pasta:not(.h-frente):hover, .h-pasta:not(.h-frente):focus-visible { transform: translateY(-8px) }
-.h-pasta:focus-visible { outline: 0 }
-.h-pasta:focus-visible .h-aba { text-decoration: underline; text-underline-offset: 4px }
-.h-frente { --c: var(--h-campo); --t: #fff; height: auto; padding: clamp(24px, 3vw, 40px) var(--h-margem) clamp(36px, 4vw, 56px); transition: background-color .6s ease }
-.h-frente .h-aba::before { transition: background-color .6s ease }
-.h-frente-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px }
-.h-ver { color: #fff; font-weight: 800; font-size: 17px; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; text-decoration-color: rgb(255 255 255 / .5); transition: text-decoration-color .25s ease }
-.h-ver:hover { text-decoration-color: #fff }
-.h-frente :focus-visible, .h-qual :focus-visible, .h-conhecer :focus-visible { outline-color: #fff }
+/* ---------- o pedido de demonstração ---------- */
+.pub-pedido { display: flex; flex-direction: column; gap: var(--pub-vao-pequeno); max-width: var(--pub-largura-do-pedido) }
+/* O campo e o botão na mesma linha: o rótulo, o campo e a mensagem de erro da .pergunta entram na grade da linha, e o botão
+   fica na linha do campo, também quando o erro aparece embaixo dele */
+.pub-pedido-linha { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--pub-vao-minimo); row-gap: var(--vao-da-pergunta) }
+.pub-pedido-linha .pergunta { display: contents }
+.pub-pedido-linha .pergunta > * { grid-column: 1 }
+.pub-pedido-linha .pub-pedir { grid-column: 2; grid-row: 2 }
+.pub-pedido .pub-pedir { height: var(--altura-campo); padding: 0 var(--pub-vao-medio); font-size: var(--pub-texto-menor) }
+.pub-pedido-nota { font-size: var(--pub-texto-menor); line-height: 1.5; color: var(--muted) }
+.pub-vitrine .pergunta > label { color: var(--texto-sobre-escuro) }
+.pub-vitrine .pergunta .req, .pub-vitrine .pergunta .msg-erro { color: var(--erro-sobre-escuro) }
+.pub-vitrine .pub-pedido-nota { color: var(--texto-sobre-escuro-2) }
 
-/* ---------- qualificação: o controle grande sobre o campo verde ---------- */
-.h-qual {
-  display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); grid-template-areas: "texto controle" "caixa foto";
-  gap: clamp(36px, 4vw, 64px) clamp(32px, 5vw, 88px); align-items: start;
-  padding: clamp(32px, 4vw, 56px) var(--h-margem) var(--h-espaco); background: var(--h-campo); color: #fff; transition: background-color .6s ease;
+/* ---------- o índice: o cartão do SEMPER ---------- */
+.pub-indice { position: relative; z-index: 1; margin-top: calc(-1 * var(--pub-sobe)); padding: 0 var(--pub-lado) }
+.pub-cartao {
+  display: flex; flex-direction: column; gap: var(--pub-vao-medio); padding: var(--pub-recheio);
+  border: 1px solid var(--line); border-radius: var(--pub-raio); background: var(--superficie); box-shadow: var(--sombra-flutuante);
 }
-.h-qual-texto { grid-area: texto; display: flex; flex-direction: column; gap: 24px }
-.h-qual-texto p { color: #fff; max-width: 52ch }
-.h-genero { grid-area: controle; position: relative; display: grid; grid-template-rows: 1fr 1fr; gap: 10px; padding: 10px; border-radius: 40px; background: rgb(0 0 0 / .2) }
-.h-genero button {
-  position: relative; min-height: clamp(84px, 9vw, 140px); padding: 0 24px; border: 0; border-radius: 30px; background: transparent; color: #fff;
-  font: inherit; font-size: clamp(34px, 4.6vw, 72px); font-weight: 900; letter-spacing: -.035em; cursor: pointer;
-  transition: color .35s ease, background-color .35s ease, transform .2s var(--h-saida);
+.pub-cartao-cabeca { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--pub-vao-minimo) var(--pub-vao) }
+.pub-cartao-titulo { font-size: var(--pub-titulo-cartao); font-weight: 900; letter-spacing: -.02em; line-height: 1.15 }
+.pub-cartao-cabeca p { max-width: 52ch; font-size: var(--pub-texto-menor); line-height: 1.6; color: var(--text2) }
+.pub-linhas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--pub-vao-itens); margin: 0; padding: 0; list-style: none }
+.pub-linhas li { border-top: 1px solid var(--line) }
+.pub-linhas a {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--pub-vao-pequeno); min-height: var(--pub-linha-do-indice);
+  padding: var(--pub-vao-minimo); border-radius: var(--pub-raio-pequeno); color: var(--ink); transition: background-color .2s ease;
 }
-.h-genero button:active { transform: scale(.98) }
-.h-genero button[aria-checked="true"] { background: #fff; color: var(--h-campo) }
-.h-genero button:focus-visible { outline: 3px solid #fff; outline-offset: -6px }
-.h-qual-caixa { grid-area: caixa; padding: clamp(22px, 2.6vw, 36px); border-radius: var(--h-raio); background: var(--h-papel); color: var(--h-tinta) }
-.h-qual-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px }
-.h-qual-cabeca h3 { font-size: 17px; letter-spacing: 0 }
-.home .h-qual-gerada { color: var(--h-tinta); font-size: clamp(17px, 1.35vw, 20px); line-height: 1.7 }
-.h-qual-gerada mark { padding: 1px 3px; border-radius: 5px; background: var(--h-verde-fundo); color: var(--h-verde-escuro); font-weight: 700 }
-.h-qual-foto { grid-area: foto; margin: 0; display: flex; flex-direction: column; gap: 14px }
-.h-qual-foto img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: right top; border-radius: var(--h-raio); background: var(--h-papel) }
-.h-qual-foto figcaption { font-size: 15px; line-height: 1.5; color: #fff }
+.pub-linha-icone { display: grid; color: var(--muted) }
+.pub-linha-nome { display: flex; flex-direction: column; gap: calc(var(--pub-vao-minimo) / 2); font-size: var(--pub-rotulo); font-weight: 900; letter-spacing: .14em; text-transform: uppercase }
+.pub-linha-nome small { font-size: var(--pub-texto-menor); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--text2) }
+.pub-linha-seta { display: grid; color: var(--faint); transition: transform .3s var(--pub-saida), color .2s ease }
+.pub-linhas a:hover { background: var(--soft) }
+.pub-linhas a:hover .pub-linha-icone, .pub-linhas a:focus-visible .pub-linha-icone { color: var(--accent-ink) }
+.pub-linhas a:hover .pub-linha-seta, .pub-linhas a:focus-visible .pub-linha-seta { color: var(--accent-ink); transform: translateX(3px) }
 
-/* ---------- o que já funciona: frases com chave ---------- */
-.h-funciona { padding: var(--h-espaco) var(--h-margem) }
-.h-funciona > h2 { margin-bottom: clamp(32px, 4vw, 56px) }
-.h-funciona ul { display: flex; flex-direction: column; gap: 12px; margin: 0; padding: 0; list-style: none }
-.h-faixa {
-  --c: var(--h-verde); --t: #fff; --t2: rgb(255 255 255 / .88);
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 20px 32px;
-  padding: clamp(22px, 2.6vw, 36px) clamp(22px, 3vw, 44px); border-radius: var(--h-raio); background: var(--h-papel2); color: var(--h-tinta);
-  transition: background-color .45s ease, color .45s ease;
+/* ---------- as seções e as partes que se repetem ---------- */
+.pub-secao { padding: var(--pub-espaco) var(--pub-lado) 0 }
+.pub-titulo { font-size: var(--pub-titulo); font-weight: 900; letter-spacing: -.035em; line-height: 1.04 }
+.pub-titulo-grande { font-size: var(--pub-titulo-grande); letter-spacing: -.04em; line-height: 1 }
+.pub-frase { margin-top: var(--pub-vao-pequeno); max-width: 34ch; font-size: var(--pub-frase); font-weight: 300; line-height: 1.45; color: var(--text2) }
+.pub-fatos { display: grid; margin: var(--pub-vao) 0 0; padding: 0; list-style: none }
+.pub-fatos li { max-width: 62ch; padding: var(--pub-vao-pequeno) 0; border-top: 1px solid var(--line); font-size: var(--pub-texto); line-height: 1.6; color: var(--text) }
+.pub-fatos b { font-weight: 900; color: var(--ink) }
+/* Os fatos lado a lado, em colunas, embaixo da tela (Início e Documentos) */
+.pub-fatos-em-linha { grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: var(--pub-vao) }
+/* O título à esquerda e a frase à direita, alinhados embaixo */
+.pub-texto-largo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); column-gap: var(--pub-vao-colunas); align-items: end }
+.pub-texto-largo > .pub-titulo { grid-column: 1; grid-row: 1 / span 3; align-self: start }
+.pub-texto-largo > :not(.pub-titulo) { grid-column: 2 }
+.pub-texto-largo > .pub-frase { margin-top: 0 }
+
+/* As telas: a do tema da página aparece; a outra nem é baixada (imagem preguiçosa escondida não carrega) */
+.pub-tela { margin: 0 }
+.pub-tela picture, .pub-tela img { display: block; width: 100%; height: auto }
+.pub-tela .pub-so-escuro { display: none }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) .pub-tela .pub-so-claro { display: none }
+  :root:not([data-tema="claro"]) .pub-tela .pub-so-escuro { display: block }
 }
-.h-faixa.f2 { --c: var(--h-escuro) }
-.h-faixa.f3 { --c: var(--h-verde-fundo); --t: var(--h-tinta); --t2: var(--h-texto) }
-.h-faixa.f4 { --c: var(--h-cartao) }
-.h-faixa.f5 { --c: var(--h-cinza); --t: var(--h-tinta); --t2: var(--h-texto) }
-.h-faixa.ligada { background: var(--c); color: var(--t) }
-.h-faixa-frase { font-size: clamp(26px, 3.3vw, 52px); letter-spacing: -.035em; line-height: 1.08 }
-.h-chave { position: relative; flex: none; width: 84px; height: 48px; padding: 0; border: 0; border-radius: 999px; background: #6B6A63; cursor: pointer; transition: background-color .3s ease }
-.h-chave span { position: absolute; top: 6px; left: 6px; width: 36px; height: 36px; border-radius: 50%; background: #fff; transition: transform .4s var(--h-saida), background-color .3s ease }
-.h-chave:active span { transform: scale(.9) }
-.ligada .h-chave { background: #fff }
-.ligada .h-chave span { transform: translateX(36px); background: var(--c) }
-.ligada.f3 .h-chave, .ligada.f5 .h-chave { background: var(--h-tinta) }
-.ligada.f3 .h-chave span, .ligada.f5 .h-chave span { background: #fff }
-.h-faixa-mais { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px 40px; align-items: start }
-.home .h-faixa-mais p { max-width: 48ch; color: var(--t2) }
-.h-faixa-mais img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; object-position: left top; border-radius: calc(var(--h-raio) - 6px) }
-.h-faixa-mais:only-child, .h-faixa-mais:not(:has(img)) { grid-template-columns: minmax(0, 1fr) }
+:root[data-tema="escuro"] .pub-tela .pub-so-claro { display: none }
+:root[data-tema="escuro"] .pub-tela .pub-so-escuro { display: block }
+.pub-janela { overflow: hidden; border: 1px solid var(--line2); border-radius: var(--pub-raio); background: var(--superficie) }
+/* O celular: moldura do aparelho, com sombra, porque fica de pé por cima da página */
+.pub-aparelho { overflow: hidden; border: var(--pub-borda-aparelho) solid var(--vitrine); border-radius: var(--pub-raio-aparelho); background: var(--vitrine); box-shadow: var(--sombra-flutuante) }
 
-/* ---------- módulos: índice com a tela ao lado ---------- */
-.h-modulos { padding: var(--h-espaco) var(--h-margem); background: var(--h-escuro); color: var(--h-claro) }
-.h-modulos > h2 { margin-bottom: clamp(32px, 4vw, 56px) }
-.h-indice { position: relative }
-.h-indice ul { margin: 0; padding: 0; list-style: none }
-.h-linha { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 20px; padding: clamp(14px, 1.6vw, 22px) 0; transition: opacity .25s ease }
-.h-linha-nome { font-size: clamp(40px, 6.4vw, 104px); letter-spacing: -.045em; line-height: 1; color: #A8A79F; transition: transform .45s var(--h-saida), color .25s ease }
-.h-linha.pronto .h-linha-nome { color: var(--h-claro) }
-.home .h-linha-texto { flex-basis: 100%; max-width: 54ch; color: var(--h-claro2) }
-.h-linha-texto b { font-weight: 800; color: var(--h-claro) }
-.h-linha.pronto .h-linha-texto b { color: var(--h-verde-vivo) }
-.h-linha-foto { order: -1; flex-basis: 100%; width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; object-position: left top; margin-bottom: 8px; border-radius: calc(var(--h-raio) - 6px) }
-.h-quadro { display: none }
-@media (hover: hover) and (pointer: fine) and (min-width: 900px) {
-  .h-indice ul { max-width: 58% }
-  .h-linha-foto { display: none }
-  .h-indice ul.apontando .h-linha:not(.atual) { opacity: .4 }
-  .h-indice ul.apontando .h-linha.atual .h-linha-nome { transform: translateX(14px) }
-  .h-quadro {
-    display: block; position: absolute; z-index: 1; top: 0; right: 0; width: 40%; aspect-ratio: 16 / 10; overflow: hidden; pointer-events: none;
-    border-radius: var(--h-raio); background: var(--h-cartao); transition: transform .45s var(--h-saida), background-color .3s ease;
-  }
-  .h-quadro.sem-foto { background: var(--h-verde) }
-  .h-quadro img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: left top; opacity: 0; transform: scale(1.04); transition: opacity .3s ease, transform .6s var(--h-saida) }
-  .h-quadro img.visivel { opacity: 1; transform: none }
-  .h-quadro-nome { position: absolute; left: 28px; bottom: 20px; right: 28px; color: #fff; font-size: clamp(36px, 4vw, 64px); font-weight: 900; letter-spacing: -.04em; line-height: 1; opacity: 0; transform: translateY(16px); transition: opacity .3s ease, transform .5s var(--h-saida) }
-  .h-quadro-nome .h-ponto { color: var(--h-tinta) }
-  .h-quadro-nome.visivel { opacity: 1; transform: none }
+/* Início: a janela grande e a busca por cima, no canto; embaixo, os fatos em colunas */
+.pub-montagem { position: relative; margin-top: var(--pub-espaco-menor); padding-bottom: 16% }
+.pub-montagem .pub-janela { width: 84% }
+.pub-flutua { position: absolute; right: 0; bottom: 0; width: 48%; box-shadow: var(--sombra-flutuante) }
+
+/* Pessoas: o texto e o quadro, que vai até a borda da tela; embaixo, a qualificação */
+.pub-lado { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--pub-vao-colunas); align-items: center }
+.pub-sangra { margin-right: calc(-1 * var(--pub-lado)); border-right: 0; border-radius: var(--pub-raio) 0 0 var(--pub-raio) }
+.pub-qualificacao { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pub-vao-colunas); align-items: start; margin-top: var(--pub-espaco-menor) }
+.pub-qual-demo { display: flex; flex-direction: column; gap: var(--pub-vao-medio) }
+.pub-qual-demo h3 { font-size: var(--pub-titulo-qualificacao); font-weight: 900; letter-spacing: -.03em; line-height: 1.1 }
+.pub-qual-demo > p { max-width: 54ch; font-size: var(--pub-texto); line-height: 1.6; color: var(--text) }
+.pub-qual-demo .escolhas { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+.pub-qual-caixa { display: flex; flex-direction: column; align-items: flex-start; gap: var(--pub-vao-pequeno); padding: var(--pub-recheio); border-radius: var(--pub-raio); background: var(--soft) }
+.pub-qual-texto { font-size: var(--pub-texto); line-height: 1.75; color: var(--ink); font-variant-numeric: tabular-nums }
+.pub-qual-texto mark { padding: 0 2px; border-radius: var(--pub-raio-pequeno); background: var(--accent-tint); color: var(--accent-ink); font-weight: 700 }
+
+/* Do contrato à tarefa: três passos em fila, ligados por um traço, cada um com a tela do celular inteira */
+.pub-passos {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pub-vao) var(--pub-vao-itens); align-items: start;
+  margin: var(--pub-espaco-menor) 0 0; padding: 0; list-style: none; counter-reset: passo;
 }
-
-/* ---------- o escritório: painel escuro, farol recortado em forma de pasta ---------- */
-.h-escritorio { padding: var(--h-espaco) var(--h-margem) 0 }
-.h-painel {
-  display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: clamp(36px, 5vw, 88px); align-items: center;
-  padding: clamp(28px, 5vw, 80px); border-radius: calc(var(--h-raio) + 8px); background: var(--h-cartao); color: var(--h-claro);
+.pub-passos li { position: relative; display: flex; flex-direction: column; gap: var(--pub-vao-minimo); counter-increment: passo }
+.pub-passos li::before {
+  content: counter(passo); display: grid; place-items: center; width: var(--pub-circulo-do-passo); height: var(--pub-circulo-do-passo); margin-bottom: var(--pub-vao-minimo);
+  border-radius: 50%; background: var(--sel); color: var(--sel-txt); font-weight: 900; font-variant-numeric: tabular-nums;
 }
-.h-painel-texto { display: flex; flex-direction: column; align-items: flex-start; gap: clamp(24px, 2.6vw, 36px) }
-.h-painel-bloco { display: flex; flex-direction: column; gap: 10px }
-.home .h-painel-bloco p { max-width: 50ch; color: var(--h-claro2) }
-.h-farol { margin: 0; aspect-ratio: 4 / 5; overflow: hidden; clip-path: polygon(0 0, 42% 0, 50% 44px, 100% 44px, 100% 100%, 0 100%); border-radius: 0 0 var(--h-raio) var(--h-raio) }
-.h-farol img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 70% 60%; filter: grayscale(1) contrast(1.05); transform: scale(1.12) }
-
-/* ---------- perguntas: título preso, respostas em blocos ---------- */
-.h-perguntas { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 32px clamp(32px, 5vw, 88px); align-items: start; padding: var(--h-espaco) var(--h-margem) }
-.h-perguntas > h2 { position: sticky; top: 32px }
-.h-respostas { display: flex; flex-direction: column; gap: 10px }
-.h-respostas details { border-radius: var(--h-raio); background: var(--h-papel2); transition: background-color .3s ease }
-.h-respostas details[open] { background: var(--h-verde-fundo) }
-.h-respostas summary { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 22px clamp(20px, 2.4vw, 32px); cursor: pointer; list-style: none; font-size: clamp(18px, 1.5vw, 22px); font-weight: 800; letter-spacing: -.01em; line-height: 1.3 }
-.h-respostas summary::-webkit-details-marker { display: none }
-.h-respostas summary i { position: relative; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--h-tinta); transition: background-color .3s ease, transform .4s var(--h-saida) }
-.h-respostas summary i::before, .h-respostas summary i::after { content: ''; position: absolute; left: 11px; right: 11px; top: 17px; height: 2px; border-radius: 2px; background: #fff }
-.h-respostas summary i::after { transform: rotate(90deg); transition: transform .4s var(--h-saida) }
-.h-respostas details[open] summary i { background: var(--h-verde); transform: rotate(180deg) }
-.h-respostas details[open] summary i::after { transform: rotate(0) }
-.h-respostas summary:hover i { background: var(--h-verde) }
-.h-respostas details p { padding: 0 clamp(20px, 2.4vw, 32px) 24px; max-width: 62ch }
-
-/* ---------- conhecer: o primeiro passo, já aberto ---------- */
-.h-conhecer {
-  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px clamp(32px, 5vw, 88px); align-items: center;
-  padding: var(--h-espaco) var(--h-margem); background: var(--h-verde); color: #fff;
+.pub-passos li:not(:last-child)::after {
+  content: ''; position: absolute; top: calc(var(--pub-circulo-do-passo) / 2); left: calc(var(--pub-circulo-do-passo) + var(--pub-vao-minimo)); right: 0; height: 1px; background: var(--line2);
 }
-.h-conhecer-texto { display: flex; flex-direction: column; gap: 24px }
-.home .h-conhecer-texto p { max-width: 44ch; color: #fff }
-.h-dialogo { display: flex; flex-direction: column; gap: 20px; padding: clamp(24px, 3vw, 40px); border-radius: var(--h-raio); background: var(--h-papel); color: var(--h-tinta) }
-.h-dialogo h3 { font-size: 22px; letter-spacing: -.01em }
-.h-dialogo > label { display: flex; flex-direction: column; gap: 8px; font-size: 15px; font-weight: 800; color: var(--h-texto) }
-.h-dialogo input:not([type]) , .h-dialogo input[type="text"] {
-  height: 54px; padding: 0 16px; border: 1px solid var(--h-cinza); border-radius: 14px; background: #fff; color: var(--h-tinta); font: inherit; font-size: 17px; font-weight: 400;
+.pub-passos h3 { font-size: var(--pub-titulo-passo); font-weight: 900; letter-spacing: -.02em; line-height: 1.2 }
+.pub-passos p { font-size: var(--pub-texto-menor); line-height: 1.6; color: var(--text2) }
+.pub-passos .pub-tela { margin-top: var(--pub-vao-pequeno) }
+
+/* Checklists: a lista ao lado do texto */
+.pub-checklists { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: var(--pub-vao-colunas); align-items: center }
+
+/* As faixas: a escura (Processos e o pedido do fim) e a suave (Segurança) */
+.pub-faixa, .pub-faixa-suave { margin-top: var(--pub-espaco); padding-bottom: var(--pub-espaco); border-block: 1px solid var(--pub-borda-da-faixa) }
+.pub-faixa { background: var(--pub-faixa); color: var(--texto-sobre-escuro) }
+.pub-faixa-suave { background: var(--pub-faixa-suave) }
+.pub-faixa .pub-frase, .pub-faixa .pub-fatos li { color: var(--texto-sobre-escuro-2) }
+.pub-faixa .pub-fatos b { color: var(--texto-sobre-escuro) }
+.pub-faixa .pub-fatos li, .pub-faixa .pub-janela { border-color: var(--pub-fio-da-faixa) }
+.pub-par { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pub-vao-colunas); margin-top: var(--pub-espaco-menor) }
+.pub-par .pub-fatos { margin-top: var(--pub-vao-medio) }
+
+/* Agenda e Mensagens: duas seções lado a lado, sem a lista de fatos */
+.pub-dupla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--pub-espaco-menor) var(--pub-vao-colunas); align-items: start }
+.pub-dupla .pub-titulo { font-size: var(--pub-titulo-par) }
+.pub-dupla .pub-tela { margin: var(--pub-vao) 0 var(--pub-vao-medio) }
+.pub-dupla section > p:last-child { max-width: 56ch; font-size: var(--pub-texto); line-height: 1.6; color: var(--text) }
+
+/* Documentos: o texto em cima, a anotação larga e os fatos em colunas embaixo */
+.pub-documentos > .pub-tela { margin-top: var(--pub-espaco-menor) }
+
+/* Recursos: o celular parado ao lado da lista */
+.pub-recursos { display: grid; grid-template-columns: minmax(0, var(--pub-coluna-celular)) minmax(0, 1fr); gap: var(--pub-vao-colunas); align-items: start }
+.pub-recursos-celular { position: sticky; top: var(--pub-vao) }
+.pub-recursos-lista { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 var(--pub-vao-itens); margin: var(--pub-vao) 0 0; padding: 0; list-style: none }
+.pub-recursos-lista li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--pub-vao-pequeno); padding: var(--pub-vao-medio) 0; border-top: 1px solid var(--line) }
+.pub-recurso-icone { display: grid; place-items: center; width: var(--alvo-de-toque); height: var(--alvo-de-toque); border-radius: 50%; background: var(--accent-tint); color: var(--accent-ink) }
+.pub-recursos-lista h3 { margin-bottom: var(--pub-vao-minimo); font-size: var(--pub-texto); font-weight: 900; letter-spacing: -.01em }
+.pub-recursos-lista p { font-size: var(--pub-texto-menor); line-height: 1.6; color: var(--text2) }
+
+/* Segurança: a lista e a tela da equipe */
+.pub-seguranca-grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--pub-vao-colunas); align-items: start; margin-top: var(--pub-vao-medio) }
+.pub-seguranca-grade .pub-fatos { margin-top: 0 }
+.pub-seguranca-grade .pub-tela { position: sticky; top: var(--pub-vao); margin-top: var(--pub-vao-pequeno) }
+
+/* Perguntas: o título parado à esquerda */
+.pub-perguntas { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: var(--pub-vao) var(--pub-vao-colunas); align-items: start }
+.pub-perguntas > .pub-titulo { position: sticky; top: var(--pub-vao) }
+.pub-respostas details { border-top: 1px solid var(--line) }
+.pub-respostas details:last-child { border-bottom: 1px solid var(--line) }
+.pub-respostas summary {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--pub-vao-medio); min-height: var(--alvo-de-toque); padding: var(--pub-vao-medio) var(--pub-vao-minimo);
+  cursor: pointer; list-style: none; font-size: var(--pub-pergunta); font-weight: 700; letter-spacing: -.01em; line-height: 1.35; color: var(--ink);
 }
-.h-dialogo input::placeholder { color: #8A8981 }
-.h-dialogo input:focus { outline: 2px solid var(--h-verde); outline-offset: 0; border-color: transparent }
-.h-dialogo fieldset { margin: 0; padding: 0; border: 0; min-width: 0 }
-.h-dialogo legend { padding: 0; margin-bottom: 8px; font-size: 15px; font-weight: 800; color: var(--h-texto) }
-.h-escolha { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 999px; background: var(--h-papel2) }
-.h-escolha label { position: relative; display: flex; cursor: pointer }
-.h-escolha input { position: absolute; opacity: 0; pointer-events: none }
-.h-escolha span { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 12px; border-radius: 999px; font-size: 15px; font-weight: 800; color: var(--h-texto2); text-align: center; transition: background-color .25s ease, color .25s ease }
-.h-escolha input:checked + span { background: var(--h-tinta); color: #fff }
-.h-escolha input:focus-visible + span { outline: 2px solid var(--h-verde); outline-offset: 2px }
-.h-dialogo .h-botao { width: 100% }
+.pub-respostas summary::-webkit-details-marker { display: none }
+.pub-respostas summary svg { flex: none; color: var(--muted); transition: transform .35s var(--pub-saida), color .2s ease }
+.pub-respostas summary:hover svg { color: var(--accent-ink) }
+.pub-respostas details[open] summary svg { transform: rotate(180deg); color: var(--accent-ink) }
+.pub-respostas details p { max-width: 62ch; padding: 0 var(--pub-vao-minimo) var(--pub-vao-medio); font-size: var(--pub-texto); line-height: 1.65; color: var(--text) }
 
-/* ---------- rodapé: a marca em blocos ---------- */
-.h-rodape { padding: clamp(48px, 6vw, 96px) var(--h-margem) 32px; background: var(--h-escuro); color: var(--h-claro) }
-.h-blocos { display: block; width: 100%; height: auto; overflow: hidden }
-.h-blocos text { font-family: var(--font); font-size: 180px; font-weight: 900; letter-spacing: -.04em }
-.h-blocos g { --c: var(--h-cartao); --t: var(--h-claro); transform-box: fill-box }
-.h-blocos rect { fill: var(--c) }
-.h-blocos text { fill: var(--t) }
-.h-blocos .b2, .h-blocos .b5 { --c: var(--h-cinza); --t: var(--h-tinta) }
-.h-blocos .b3 { --c: var(--h-verde); --t: #fff }
-.h-blocos .b4 { --c: var(--h-verde-fundo); --t: var(--h-verde-escuro) }
-.h-blocos .b6 { --c: var(--h-papel2); --t: var(--h-tinta) }
-.h-blocos .b7 { --c: var(--h-verde-vivo); --t: var(--h-tinta) }
-.h-rodape-links { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 32px; margin-top: clamp(48px, 6vw, 88px) }
-.h-rodape-links > * { display: flex; flex-direction: column; align-items: flex-start; gap: 10px }
-.h-rodape-links h2 { margin-bottom: 4px; font-size: 17px; letter-spacing: 0; color: var(--h-claro) }
-.h-rodape-links a { color: var(--h-claro2); font-size: 16px; transition: color .2s ease }
-.h-rodape-links a:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px }
-.home .h-rodape-links p { font-size: 16px; color: var(--h-claro2) }
-.h-rodape-fim { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: clamp(48px, 6vw, 80px) }
-.home .h-rodape-fim p { font-size: 15px; color: var(--h-claro2) }
+/* Pedido no fim: faixa escura, o texto e a caixa do formulário */
+.pub-demonstracao { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, var(--pub-caixa-pedido)); gap: var(--pub-vao) var(--pub-vao-colunas); align-items: center }
+.pub-pedido.completo {
+  gap: var(--pub-vao-medio); max-width: none; padding: var(--pub-recheio); border: 1px solid var(--pub-fio-da-faixa); border-radius: var(--pub-raio);
+  background: var(--superficie); color: var(--ink);
+}
+.pub-pedido.completo .pub-pedir { width: 100% }
+.pub-pedido.completo .escolhas { grid-template-columns: repeat(2, minmax(0, 1fr)) }
 
-/* ---------- celular e telas médias ---------- */
+/* ---------- rodapé ---------- */
+.pub-rodape { padding: 0 var(--pub-lado) var(--pub-vao); background: var(--pub-faixa); color: var(--texto-sobre-escuro-2) }
+.pub-rodape-marca {
+  padding-top: var(--pub-espaco-menor); border-top: 1px solid var(--pub-fio-da-faixa); font-size: var(--pub-marca-do-rodape); font-weight: 900;
+  letter-spacing: -.04em; line-height: .9; color: var(--texto-sobre-escuro);
+}
+.pub-rodape-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--pub-vao); margin-top: var(--pub-espaco-menor) }
+.pub-rodape-links > * { display: flex; flex-direction: column; align-items: flex-start }
+.pub-rodape-links h2 { margin-bottom: var(--pub-vao-minimo); font-size: var(--pub-rotulo); font-weight: 900; letter-spacing: .14em; text-transform: uppercase; color: var(--gray) }
+.pub-rodape-links a { display: inline-flex; align-items: center; min-height: var(--alvo-de-toque); font-size: var(--pub-texto-menor); color: var(--texto-sobre-escuro-2); text-underline-offset: var(--pub-sublinhado); overflow-wrap: anywhere }
+.pub-rodape-links a:hover { color: var(--texto-sobre-escuro); text-decoration: underline }
+.pub-rodape-fim { margin-top: var(--pub-espaco-menor); padding-top: var(--pub-vao-medio); border-top: 1px solid var(--pub-fio-da-faixa); font-size: var(--pub-texto-menor); color: var(--gray) }
+
+/* ---------- telas médias e celular ---------- */
+@media (max-width: 1000px) {
+  .pub-linhas { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .pub-passos { grid-template-columns: minmax(0, 1fr); max-width: var(--pub-largura-estreita) }
+  .pub-passos li:not(:last-child)::after { display: none }
+}
 @media (max-width: 900px) {
-  .h-qual { grid-template-columns: minmax(0, 1fr); grid-template-areas: "texto" "controle" "caixa" "foto" }
-  .h-genero { grid-template-rows: none; grid-template-columns: 1fr 1fr; border-radius: 999px; padding: 6px; gap: 6px }
-  .h-abertura { min-height: 0 }
-  .h-genero button { min-height: 64px; padding: 0 8px; border-radius: 999px; font-size: clamp(20px, 6vw, 34px) }
-  .h-faixa-mais { grid-template-columns: minmax(0, 1fr) }
-  .h-painel { grid-template-columns: minmax(0, 1fr) }
-  .h-farol { aspect-ratio: 4 / 3; order: -1 }
-  .h-perguntas { grid-template-columns: minmax(0, 1fr) }
-  .h-perguntas > h2 { position: static }
-  .h-conhecer { grid-template-columns: minmax(0, 1fr) }
-  .h-rodape-links { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  /* No celular, o farol fica no alto, atrás do nome, e some antes do texto; o Início no celular vem embaixo do pedido */
+  .pub-farol { inset: 0 0 auto; width: 100%; height: var(--pub-farol-no-celular); object-position: 82% 62%; mask-image: linear-gradient(to bottom, black 40%, transparent) }
+  .pub-vitrine { grid-template-columns: minmax(0, 1fr); min-height: 0; padding-top: var(--pub-topo-da-vitrine-no-celular) }
+  .pub-vitrine .pub-vitrine-tela {
+    justify-self: center; width: min(78vw, var(--pub-coluna-celular)); margin-top: var(--pub-vao);
+    max-height: calc(var(--pub-tela-na-vitrine) + var(--pub-sobe) + var(--pub-folga-da-vitrine));
+  }
+  .pub-texto-largo, .pub-lado, .pub-qualificacao, .pub-checklists, .pub-par, .pub-dupla, .pub-recursos, .pub-seguranca-grade, .pub-perguntas, .pub-demonstracao { grid-template-columns: minmax(0, 1fr) }
+  .pub-texto-largo > .pub-titulo, .pub-texto-largo > :not(.pub-titulo) { grid-column: 1; grid-row: auto }
+  .pub-texto-largo > .pub-frase { margin-top: var(--pub-vao-pequeno) }
+  .pub-fatos-em-linha { grid-template-columns: minmax(0, 1fr) }
+  .pub-checklists > .pub-tela { order: 2; max-width: var(--pub-largura-estreita) }
+  .pub-recursos-celular { position: static; order: 2; max-width: var(--pub-coluna-celular) }
+  .pub-seguranca-grade .pub-tela, .pub-perguntas > .pub-titulo { position: static }
+  .pub-montagem .pub-janela { width: 100% }
+  .pub-flutua { position: relative; width: 86%; margin: -14% 0 0 auto }
+  .pub-montagem { padding-bottom: 0 }
 }
-@media (max-width: 560px) {
-  .h-entrar { order: -1 }
-  .h-faixa { grid-template-columns: minmax(0, 1fr); gap: 16px }
-  .h-chave { justify-self: start }
-  .h-chave { width: 68px; height: 40px }
-  .h-chave span { width: 28px; height: 28px }
-  .ligada .h-chave span { transform: translateX(28px) }
-  .h-frente-acoes .h-botao { width: 100% }
-  .h-rodape-fim { flex-direction: column-reverse; align-items: flex-start }
+/* Até aqui (o NO_CELULAR de Home.tsx), as telas são as capturadas no celular */
+@media (max-width: 640px) {
+  .pub-topo-secoes { display: none }
+  .pub-linhas, .pub-recursos-lista, .pub-rodape-links { grid-template-columns: minmax(0, 1fr) }
+  .pub-pedido-linha { grid-template-columns: minmax(0, 1fr) }
+  .pub-pedido-linha .pub-pedir { grid-column: 1; grid-row: auto; margin-top: var(--pub-vao-minimo) }
+  .pub-pedido .pub-pedir { width: 100% }
+  .pub-qual-demo .escolhas, .pub-pedido.completo .escolhas { grid-template-columns: minmax(0, 1fr) }
+  .pub-so-computador { display: none }
+  .pub-flutua { width: 100%; margin: 0 }
+  .pub-sangra { margin-right: 0; border-right: 1px solid var(--line2); border-radius: var(--pub-raio) }
+  .pub-passos { max-width: none }
 }
 
-/* ---------- movimento: chegada da abertura, entradas por seção, o farol devagar ---------- */
+/* ---------- movimento: a vitrine chega, o celular e o cartão sobem, as telas assentam ---------- */
 @media (prefers-reduced-motion: no-preference) {
-  html:has(.home) { scroll-behavior: smooth }
-  .h-abertura h1 > span { animation: h-subir-linha .9s var(--h-saida) .1s backwards }
-  .h-frase { animation: h-subir .6s var(--h-saida) .42s backwards }
-  .h-entrar { animation: h-subir .6s var(--h-saida) .5s backwards }
-  .h-pasta { animation: h-pasta .8s var(--h-saida) backwards; animation-delay: calc(.3s + var(--i) * 90ms) }
-  .h-qual-gerada mark { animation: h-marca 1.1s ease backwards }
-  .h-faixa-mais { animation: h-subir .55s var(--h-saida) backwards }
-  .h-farol img { animation: h-deriva 24s ease-in-out infinite alternate }
-  .com-entradas [data-entra] { opacity: 0; transform: translateY(24px); transition: opacity .7s ease var(--d, 0ms), transform .9s var(--h-saida) var(--d, 0ms) }
-  .com-entradas [data-entra="foto"] { transform: scale(.96) }
-  .com-entradas .h-blocos g[data-entra] { transform: translateY(45%); opacity: 1 }
-  .com-entradas [data-entra].entrou { opacity: 1; transform: none }
-  /* depois de entrar, cada parte volta às próprias transições (a faixa muda de cor, a linha esmaece) */
-  .com-entradas .h-faixa.entrou { transition: background-color .45s ease, color .45s ease, opacity .7s ease var(--d, 0ms), transform .9s var(--h-saida) var(--d, 0ms) }
-  .com-entradas .h-linha.entrou { transition: opacity .25s ease, transform .9s var(--h-saida) var(--d, 0ms) }
+  html:has(.pub) { scroll-behavior: smooth }
+  .pub-marca { animation: pub-subir .9s var(--pub-saida) .05s backwards }
+  .pub-tese { animation: pub-subir .8s var(--pub-saida) .18s backwards }
+  .pub-lead, .pub-vitrine .pub-pedido { animation: pub-subir .8s var(--pub-saida) .3s backwards }
+  .pub-vitrine-tela { animation: pub-celular 1.2s var(--pub-saida) .35s backwards }
+  .pub-farol { animation: pub-clarear 1.6s ease backwards }
+  .pub-cartao { animation: pub-cartao 1s var(--pub-saida) .45s backwards }
+  .com-entradas .pub-tela:not(.pub-vitrine-tela) { opacity: 0; transform: translateY(28px) scale(.985); transition: opacity .7s ease, transform 1s var(--pub-saida) }
+  .com-entradas .pub-tela.entrou { opacity: 1; transform: none }
 }
-@keyframes h-subir-linha { from { transform: translateY(105%) } }
-@keyframes h-subir { from { opacity: 0; transform: translateY(16px) } }
-@keyframes h-pasta { from { transform: translateY(70%) } }
-@keyframes h-marca { from { background: var(--h-verde-vivo); color: var(--h-tinta) } }
-@keyframes h-deriva { from { transform: scale(1.12) translate(-2%, 1%) } to { transform: scale(1.12) translate(2%, -2%) } }
+@keyframes pub-subir { from { opacity: 0; transform: translateY(24px) } }
+@keyframes pub-celular { from { opacity: 0; transform: translateY(96px) } }
+@keyframes pub-clarear { from { opacity: 0 } }
+@keyframes pub-cartao { from { opacity: 0; transform: translateY(48px) } }

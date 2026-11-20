@@ -16,7 +16,6 @@ const BANCO_DE_PRODUCAO = {
 export const MARCA = {
   nome: 'SEMPER',
   fotoEntrada,  // fundo da tela de entrada e foto da página inicial
-  cidade: 'Montes Claros/MG',   // onde o SEMPER nasceu (página inicial)
   site: 'https://semper.app.br',
   // Contato da página inicial (quem quer conhecer o SEMPER). WhatsApp só com números, com DDI e DDD
   // (ex.: '5538999990000'); vazio, o botão abre um e-mail para o endereço abaixo.

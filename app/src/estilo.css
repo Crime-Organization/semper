@@ -120,6 +120,8 @@
      crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
   --caixa-de-marcar: 18px;
   --alvo-de-toque: 44px;
+  /* O vão entre o rótulo, o campo e a mensagem de erro de uma pergunta (.pergunta); a página pública (#380) usa o mesmo vão para pôr o botão na linha do campo */
+  --vao-da-pergunta: 8px;
   /* A altura do botão pequeno (.mini) e o desenho de cada botão da barra de formatação (B, I, listas, link), a bolinha do .mini */
   --botao-mini: 34px;
   --botao-da-formatacao: var(--botao-mini);
@@ -157,6 +159,12 @@
   --largura-do-fantasma: 240px;
   /* A sombra do que flutua por cima da página, como o calendário e os menus (vale nos dois temas: sombra é sempre escura) */
   --sombra-flutuante: 0 12px 36px rgba(0,0,0,.2);
+  /* A vitrine da página pública (#380): o fundo escuro do farol, como a metade escura da tela de entrada. No tema escuro
+     fica mais fundo que o --bg, para continuar sendo a parte escura da página. Sobre ela, o texto de apoio (#DCDCD4 do
+     DESIGN.md, "Sobre Escuro") e a mensagem de erro, num vermelho claro que se lê no escuro. */
+  --vitrine: #1A1916;
+  --texto-sobre-escuro-2: #DCDCD4;
+  --erro-sobre-escuro: #F28B78;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -172,6 +180,7 @@
     --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
     --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
     --sombra-gaveta: 8px 0 30px rgba(0,0,0,.5); --veu: rgba(0,0,0,.55); --texto-sobre-escuro: #FBFBF9; --sombra-dica: 0 6px 18px rgba(0,0,0,.5);
+    --vitrine: #0B0A09; --texto-sobre-escuro-2: #DCDCD4; --erro-sobre-escuro: #F28B78;
   }
 }
 :root[data-tema="escuro"] {
@@ -185,6 +194,7 @@
   --faint: #8A887F; --line: #2D2B27; --line2: #3A3833; --soft: #1A1916; --bg: #131210; --white: #22211D;
   --ok: #3FA06A; --ok-bg: #15281C; --ok-ink: #86D3A2; --warn-bg: #33240F; --warn-ink: #F0B47E; --erro: #F28B78; --erro-bg: #3A1713;
   --sombra-gaveta: 8px 0 30px rgba(0,0,0,.5); --veu: rgba(0,0,0,.55); --texto-sobre-escuro: #FBFBF9; --sombra-dica: 0 6px 18px rgba(0,0,0,.5);
+    --vitrine: #0B0A09; --texto-sobre-escuro-2: #DCDCD4; --erro-sobre-escuro: #F28B78;
 }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
@@ -1047,7 +1057,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* Os campos de uma seção (<SecaoDoFormulario>, #359): recuados sob o título, com um fio fino à esquerda, para a seção não
    se confundir com o primeiro campo. O vão entre eles é o da seção. */
 .etapa-campos { display: flex; flex-direction: column; gap: inherit; padding-left: var(--recuo-dos-campos); border-left: 1px solid var(--line2) }
-.pergunta { display: flex; flex-direction: column; gap: 8px }
+.pergunta { display: flex; flex-direction: column; gap: var(--vao-da-pergunta) }
 .pergunta > label, .pergunta > .rot { font-size: 15px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere }
 .pergunta .req { color: var(--erro); margin-left: 2px }
 .pergunta .dica { font-size: 13px; color: var(--muted); margin: -2px 0 2px; line-height: 1.5 }
