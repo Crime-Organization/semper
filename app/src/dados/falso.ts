@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
@@ -229,6 +229,8 @@ interface Banco {
   ligacaoGoogle?: LigacaoGoogle | null;
   /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
   pedidosGoogle?: { estado: string; pedido_em: number }[];
+  /** A sincronização dos contatos (a chave e o problema em privado.ligacoes, a fila em contatos_google_fila no banco). */
+  contatosGoogle?: { ativos: boolean; fila: string[]; com_falha: number; problema: ProblemaDaSincronizacao | null; problema_em: string | null; sincronizado_em: string | null };
   tarefas?: TarefaGuardada[];
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
   tempos?: (RegistroDeTempo & { tarefa_id: string })[];
@@ -766,15 +768,17 @@ function problemaDoLote(lote: ItemImportacao[]): string | null {
 function gravarLinha(item: ItemImportacao, importacaoId: string): Pessoa {
   const existente = item.existente_id ? achar(item.existente_id) : null;
   if (existente) {
+    const antes = { ...existente };
     alterarPessoa(existente, { ...completarVazios(existente, item.dados), observacoes: juntarObservacoes(existente.observacoes, item.observacoes),
       pendencias: juntarPendencias(existente.pendencias, item.pendencias) });
+    if (mudouNoGoogle(antes, existente)) enfileirarNoGoogle(existente);
     return existente;
   }
   const dados = Object.fromEntries(COLUNAS_IMPORTADAS.map(c => [c, item.dados[c] ?? null])) as DadosPessoa;
   const p = novaPessoa({ ...dados, telefones: item.dados.telefones ?? [], emails: item.dados.emails ?? [], observacoes: item.observacoes || null,
     pendencias: juntarPendencias([], item.pendencias) }, { criado_em: criadoEmDaImportacao(item.criado_em), importacao_id: importacaoId,
     referencia: item.referencia || null, resp: [] });
-  bd.pessoas.push(p); auditar('pessoas', 'inclusao', p);
+  bd.pessoas.push(p); auditar('pessoas', 'inclusao', p); enfileirarNoGoogle(p);
   ligarEtiqueta('pessoas', p.id, etiquetaDoSistema('importada').id);
   etiquetaDaPendencia(p, false);
   return p;
@@ -794,6 +798,16 @@ async function dataUrl(arquivo: Blob) {
   let texto = '';
   for (const b of bytes) texto += String.fromCharCode(b);
   return `data:${arquivo.type};base64,${btoa(texto)}`;
+}
+/** O que vai ao Google Contatos: mudar outra coisa da pessoa não põe na fila (como o gatilho contato_google no banco). */
+const CAMPOS_NO_GOOGLE = ['nome', 'tipo', 'telefones', 'emails', 'nascimento', 'abertura'] as const;
+const mudouNoGoogle = (antes: Pick<Pessoa, (typeof CAMPOS_NO_GOOGLE)[number]>, depois: Pessoa) =>
+  CAMPOS_NO_GOOGLE.some(k => JSON.stringify(antes[k] ?? null) !== JSON.stringify(depois[k] ?? null));
+/** Como o gatilho contato_google: pessoa ativa, com a conta ligada e a sincronização ligada, entra na fila (uma vez só). */
+function enfileirarNoGoogle(p: Pessoa) {
+  const c = bd.contatosGoogle;
+  if (!bd.ligacaoGoogle || !c?.ativos || p.arquivado_em || c.fila.includes(p.id)) return;
+  c.fila.push(p.id);
 }
 /** O pedido de ligação com o Google vale 10 minutos (como privado.ligacao_pedidos no banco). */
 const VALIDADE_DO_PEDIDO_GOOGLE = 10 * 60 * 1000;
@@ -2714,13 +2728,15 @@ export const SD: Dados = {
   async pessoaCriar(dados, resp) {
     if (dados.documento && bd.pessoas.some(p => p.documento === dados.documento)) return erro('Já existe um cadastro com este CPF/CNPJ.');
     const p = novaPessoa(dados, { resp: (resp || []).map(perfil_id => ({ perfil_id })) });
-    bd.pessoas.push(p); auditar('pessoas', 'inclusao', p); gravar();
+    bd.pessoas.push(p); auditar('pessoas', 'inclusao', p); enfileirarNoGoogle(p); gravar();
     return espera({ id: p.id, codigo: p.codigo });
   },
   async pessoaAtualizar(id, dados, resp) {
     const p = achar(id);
     if (dados.documento && bd.pessoas.some(x => x.documento === dados.documento && x.id !== id)) return erro('Já existe um cadastro com este CPF/CNPJ.');
+    const antes = { ...p };
     alterarPessoa(p, dados);
+    if (mudouNoGoogle(antes, p)) enfileirarNoGoogle(p);
     if (Array.isArray(resp)) p.resp = resp.map(perfil_id => ({ perfil_id }));
     gravar();
     return espera({ id, codigo: p.codigo });
@@ -2729,7 +2745,9 @@ export const SD: Dados = {
     ids.forEach(id => {
       const p = bd.pessoas.find(x => x.id === id); if (!p) return;
       bd.historico.unshift({ id: Date.now() + Math.random(), pessoa_id: id, alteracoes: { arquivado_em: { de: p.arquivado_em, para: arquivar ? agora() : null } }, feito_por: eu, em: agora() });
+      const desarquivada = !!p.arquivado_em && !arquivar;
       p.arquivado_em = arquivar ? agora() : null; p.atualizado_em = agora();
+      if (desarquivada) enfileirarNoGoogle(p);
     });
     gravar(); return espera(ids.length);
   },
@@ -4655,13 +4673,41 @@ export const SD: Dados = {
     bd.pedidosGoogle = (bd.pedidosGoogle ?? []).filter(p => p.estado !== estado);
     if (!pedido || Date.now() - pedido.pedido_em > VALIDADE_DO_PEDIDO_GOOGLE) { gravar(); return espera('expirado' as const); }
     bd.ligacaoGoogle = { conta_email: 'contato@exemplo.com', escopos: ['https://www.googleapis.com/auth/contacts'], ligado_em: agora(), ligado_por: eu };
+    // Autorização nova: o problema de autorização some (como o gatilho privado.ligacao_renovada).
+    if (bd.contatosGoogle?.problema === 'autorizacao') bd.contatosGoogle = { ...bd.contatosGoogle, problema: null, problema_em: null };
     auditar('ligacoes', 'inclusao', { id: 'google', nome: 'contato@exemplo.com' });
     gravar(); return espera('ligado' as const);
   },
   async ligacaoGoogleDesligar() {
     if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     bd.ligacaoGoogle = null;
+    // Como ligacao_google_desligar_servidor: a ligação (com a chave e o problema) sai, e a fila do escritório é esvaziada.
+    bd.contatosGoogle = undefined;
     gravar(); return espera(undefined);
+  },
+  // ---------- sincronização dos contatos (sem Google: "Sincronizar agora" sempre dá certo) ----------
+  sincronizacaoGoogle() {
+    if (!bd.ligacaoGoogle || !souAdmin()) return espera(null);
+    const c = bd.contatosGoogle;
+    return espera({ ativa: c?.ativos ?? false, pendentes: c?.fila.length ?? 0, com_falha: c?.com_falha ?? 0, problema: c?.problema ?? null,
+      problema_em: c?.problema_em ?? null, sincronizado_em: c?.sincronizado_em ?? null });
+  },
+  async sincronizacaoGoogleLigar(ligar) {
+    if (!souAdmin()) return erro('Apenas administradores ligam e desligam a sincronização dos contatos');
+    if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de sincronizar os contatos');
+    const c = bd.contatosGoogle ??= { ativos: false, fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: null };
+    c.ativos = ligar;
+    // Desligar esvazia a fila: some o que vinha dela (as falhas); o problema de autorização é da ligação e fica.
+    if (!ligar) Object.assign(c, { fila: [], com_falha: 0, ...(c.problema === 'autorizacao' ? {} : { problema: null, problema_em: null }) });
+    auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
+    gravar(); return espera(undefined);
+  },
+  async sincronizarGoogleAgora() {
+    const c = bd.contatosGoogle;
+    if (!souAdmin() || !bd.ligacaoGoogle || !c?.ativos) return espera({ resultado: 'desligada' as const, sincronizados: 0, falhas: 0 });
+    const sincronizados = c.fila.length;
+    Object.assign(c, { fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: sincronizados ? agora() : c.sincronizado_em });
+    gravar(); return espera({ resultado: 'ok' as const, sincronizados, falhas: 0 });
   },
 
   async escritorioSalvar(dados) {

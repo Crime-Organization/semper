@@ -1023,6 +1023,23 @@ export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_
 /** Como terminou a tentativa de ligar a conta Google (a página de Configurações mostra um aviso para cada um). */
 export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
 
+/** O que impede a sincronização dos contatos (public.sincronizacao_google): autorização vencida, Google fora, dados recusados. */
+export type ProblemaDaSincronizacao = 'autorizacao' | 'google-fora' | 'recusado';
+/** Como está a sincronização das pessoas com o Google Contatos do escritório (supabase/migrations/20261120205439_contatos_google.sql). */
+export interface SincronizacaoGoogle {
+  /** O administrador ligou a sincronização (começa desligada). */
+  ativa: boolean;
+  /** Pessoas esperando para ir ao Google; com_falha: as que já falharam 3 vezes ou mais. */
+  pendentes: number;
+  com_falha: number;
+  problema: ProblemaDaSincronizacao | null;
+  problema_em: string | null;
+  /** A última vez que um contato foi criado ou atualizado no Google. */
+  sincronizado_em: string | null;
+}
+/** Como terminou o "Sincronizar agora". 'desligada': a sincronização está desligada (ou quem pediu não é administrador). */
+export interface ResultadoDaSincronizacao { resultado: 'ok' | 'desligada' | 'erro'; sincronizados: number; falhas: number }
+
 /** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
 export interface DadosLigacoes {
   /** A conta Google ligada ao escritório, ou null. */
@@ -1034,8 +1051,14 @@ export interface DadosLigacoes {
    * ligação, ainda administrador do escritório, e uma vez só; senão o resultado é "expirado".
    */
   ligacaoGoogleConcluir(estado: string, codigo: string): Promise<ResultadoDaLigacao>;
-  /** Desliga a conta Google do escritório (apaga a ligação e a autorização guardada). */
+  /** Desliga a conta Google do escritório (apaga a ligação e a autorização guardada, que é revogada no Google). */
   ligacaoGoogleDesligar(): Promise<void>;
+  /** Como está a sincronização dos contatos, ou null sem conta ligada (ou para quem não é administrador). */
+  sincronizacaoGoogle(): Promise<SincronizacaoGoogle | null>;
+  /** Liga ou desliga a sincronização dos contatos (só administradores, com a conta ligada). Desligar esvazia a fila. */
+  sincronizacaoGoogleLigar(ligar: boolean): Promise<void>;
+  /** Leva agora ao Google quem está na fila do escritório, sem esperar a rotina (só administradores). */
+  sincronizarGoogleAgora(): Promise<ResultadoDaSincronizacao>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */

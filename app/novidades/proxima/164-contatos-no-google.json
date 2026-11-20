@@ -1,0 +1,5 @@
+{
+  "titulo": "Pessoas no Google Contatos, sozinhas",
+  "texto": "Com a conta Google do escritório ligada, o administrador pode ligar a sincronização: quem for cadastrado ou editado vira um contato no Google, com o nome em maiúsculas, os telefones, os e-mails e o aniversário. Se o Google falhar, o SEMPER tenta de novo sozinho e avisa o que fazer. Desligar a conta agora também cancela a autorização no Google.",
+  "ondeAchar": "Configurações, no cartão Conta Google: marque \"Criar e atualizar no Google os contatos das pessoas cadastradas e editadas\". Lá ficam também o \"Sincronizar agora\" e os avisos."
+}

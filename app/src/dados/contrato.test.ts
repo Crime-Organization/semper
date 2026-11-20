@@ -5066,6 +5066,72 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Sincronização dos contatos com o Google', () => {
+      // No banco de verdade, a volta do Google traz o código; aqui, o pedido criado por "iniciar" é concluído direto.
+      async function ligarConta() {
+        const [, estado] = /estado=([0-9a-f]{64})/.exec(await SD.ligacaoGoogleIniciar('http://localhost:8091/configuracoes/'))!;
+        expect(await SD.ligacaoGoogleConcluir(estado, 'codigo')).toBe('ligado');
+      }
+
+      it('quando não há conta ligada, então não há sincronização, e ligá-la é recusado', async () => {
+        // Quando / Então
+        expect(await SD.sincronizacaoGoogle()).toBeNull();
+        await expect(SD.sincronizacaoGoogleLigar(true)).rejects.toThrow('Ligue a conta Google do escritório antes de sincronizar os contatos');
+        expect(await SD.sincronizarGoogleAgora()).toEqual({ resultado: 'desligada', sincronizados: 0, falhas: 0 });
+      });
+
+      it('dada a conta ligada, então a sincronização começa desligada, e quem é cadastrado não entra na fila', async () => {
+        // Dado
+        await ligarConta();
+        // Quando
+        await criar('SEM SINCRONIZAR ' + marca());
+        // Então
+        expect(await SD.sincronizacaoGoogle()).toMatchObject({ ativa: false, pendentes: 0, com_falha: 0, problema: null });
+      });
+
+      it('dada a sincronização ligada, quando uma pessoa é cadastrada e editada, então ela fica uma vez só na fila; arquivada não entra', async () => {
+        // Dado
+        await ligarConta();
+        await SD.sincronizacaoGoogleLigar(true);
+        // Quando
+        const { id } = await criar('VAI AO GOOGLE ' + marca(), { telefones: ['38999990000'] });
+        await SD.pessoaAtualizar(id, { tipo: 'pf', nome: 'VAI AO GOOGLE EDITADA ' + marca(), telefones: ['38999990001'] });
+        const arquivada = await criar('ARQUIVADA ' + marca());
+        await SD.pessoasArquivar([arquivada.id]);
+        await SD.pessoaAtualizar(arquivada.id, { tipo: 'pf', nome: 'ARQUIVADA EDITADA ' + marca() });
+        // Então
+        expect(await SD.sincronizacaoGoogle()).toMatchObject({ ativa: true, pendentes: 2 });
+        await SD.pessoasArquivar([arquivada.id], false);
+        expect((await SD.sincronizacaoGoogle())?.pendentes).toBe(2);
+      });
+
+      it('quando o administrador pede "Sincronizar agora", então a fila esvazia e a hora da sincronização aparece', async () => {
+        // Dado
+        await ligarConta();
+        await SD.sincronizacaoGoogleLigar(true);
+        await criar('AGORA ' + marca());
+        // Quando
+        const resultado = await SD.sincronizarGoogleAgora();
+        // Então
+        expect(resultado).toEqual({ resultado: 'ok', sincronizados: 1, falhas: 0 });
+        expect(await SD.sincronizacaoGoogle()).toMatchObject({ ativa: true, pendentes: 0 });
+        expect((await SD.sincronizacaoGoogle())?.sincronizado_em).toBeTruthy();
+      });
+
+      it('quando a sincronização é desligada, então a fila esvazia; quando a conta é desligada, não há mais sincronização', async () => {
+        // Dado
+        await ligarConta();
+        await SD.sincronizacaoGoogleLigar(true);
+        await criar('DESLIGAR ' + marca());
+        // Quando
+        await SD.sincronizacaoGoogleLigar(false);
+        // Então
+        expect(await SD.sincronizacaoGoogle()).toMatchObject({ ativa: false, pendentes: 0 });
+        await SD.ligacaoGoogleDesligar();
+        expect(await SD.sincronizacaoGoogle()).toBeNull();
+      });
+    });
+
     describe('Importação de pessoas', () => {
       // CPFs fictícios (com os dígitos certos), fora da semente.
       const [CPF_1, CPF_2, CPF_3, CPF_4, CPF_5, CPF_6] = ['86288366757', '71428793860', '15350946056', '40713521910', '58392610415', '26047193803'];

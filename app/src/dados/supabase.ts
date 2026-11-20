@@ -6,6 +6,7 @@ import { StorageClient } from '@supabase/storage-js';
 import { MARCA } from '../marca';
 import { CATEGORIAS_DE_AJUSTE } from '../regras/caixa';
 import { normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
+import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
 import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
@@ -32,7 +33,7 @@ import { papeisNoProcesso } from '../regras/processo';
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { papeisNaTarefa } from '../regras/tarefa';
 import { FUNCAO_INICIAL, nomeNaEquipe, RECUSA_DA_RESERVA } from '../regras/equipe';
-import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
+import type { AvisoDePrazo, Lembrete, Mensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, Compromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda, AndamentoDeProcesso, PrazoDeProcesso, LigacaoGoogle, ResultadoDaSincronizacao, SincronizacaoGoogle, RecusaDaReserva, RecusaDaTrocaDeEmail, ResultadoDaLigacao, CartaoComListas, Membro, TempoNaTarefaDoPeriodo, Comentario, Contexto, Contrato, ContratoDoCartao, Dados, Demanda, DemandaDaTarefa, DemandaLigada, EquipeDoContrato, ListaDoCartao, ModeloDeLista, NoDoModelo, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao, Processo, FiltroProcessos, FiltroContratos, FiltroDemandas, FiltroPessoas, FiltroTarefas, Funcao, MarcaPessoas, Ordem, OrdemComPrazo, ModuloComentado, Participacao, ParticipanteGravado, Pessoa, PessoaResumida, RepresentanteVinculado, Tarefa, TarefaLigada, Usuario } from './tipos';
 
 // Só as partes do Supabase que o SEMPER usa (login, banco e as fotos da equipe), montadas como o supabase-js faz:
 // metade do peso do pacote completo. A chave da sessão é a mesma de sempre, então quem já está
@@ -2153,7 +2154,25 @@ export const SD: Dados = {
     const { resultado } = await r.json().catch(() => ({ resultado: 'erro' })) as { resultado?: ResultadoDaLigacao };
     return resultado ?? 'erro';
   },
-  async ligacaoGoogleDesligar() { await rpc('ligacao_google_desligar'); },
+  // Desligar passa pela função do servidor: o banco apaga a ligação e devolve o token, que ela revoga no Google.
+  async ligacaoGoogleDesligar() {
+    const r = await comSessao(`${URL_BASE}/functions/v1/google-desligar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const { resultado } = await r.json().catch(() => ({ resultado: 'erro' })) as { resultado?: string };
+    if (resultado === 'desligada' || resultado === 'sem-ligacao') return;
+    throw new Error(RECUSA_DO_DESLIGAR[resultado === 'sem-permissao' ? 'sem-permissao' : 'erro']);
+  },
+  async sincronizacaoGoogle() {
+    const linhas = await rpc('sincronizacao_google') as SincronizacaoGoogle[];
+    return linhas[0] ?? null;
+  },
+  async sincronizacaoGoogleLigar(ligar) { await rpc('sincronizacao_google_ligar', { p_ligar: ligar }); },
+  // A função do servidor confere se é administrador e leva a fila do escritório ao Google na hora.
+  async sincronizarGoogleAgora() {
+    const r = await comSessao(`${URL_BASE}/functions/v1/google-sincronizar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const corpo = await r.json().catch(() => ({})) as Partial<ResultadoDaSincronizacao>;
+    const resultado = corpo.resultado === 'ok' || corpo.resultado === 'desligada' ? corpo.resultado : 'erro';
+    return { resultado, sincronizados: corpo.sincronizados ?? 0, falhas: corpo.falhas ?? 0 };
+  },
 
   // ---------- equipe e administração ----------
   // A lista do banco é de antes da função (supabase/migrations/20261027000015_funcao_na_equipe.sql): a função de cada um vem dos perfis.

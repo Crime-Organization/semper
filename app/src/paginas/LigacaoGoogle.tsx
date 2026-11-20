@@ -8,6 +8,7 @@ import { avisar, falha } from '../ui/avisos';
 import { BotaoDuplo } from '../ui/Botoes';
 import { Carregando, estiloBotao, Nota, TituloSecao } from '../ui/base';
 import { dataHora } from '../ui/util';
+import { SincronizacaoDosContatos } from './SincronizacaoDosContatos';
 
 /** O que cada resultado da volta do Google mostra (o servidor põe ?google=… no endereço). */
 const RESULTADOS: Record<ResultadoDaLigacao, { ok: boolean; texto: string }> = {
@@ -55,7 +56,7 @@ export function LigacaoGoogle() {
     catch (e) { falha(e); setIndo(false); }
   }
   async function desligar() {
-    try { await SD.ligacaoGoogleDesligar(); avisar('Conta Google desligada. O SEMPER deixou de usar essa conta.'); await carregar(); }
+    try { await SD.ligacaoGoogleDesligar(); avisar('Conta Google desligada. O SEMPER deixou de usar essa conta, e a autorização foi cancelada no Google.'); await carregar(); }
     catch (e) { falha(e); }
   }
 
@@ -70,6 +71,7 @@ export function LigacaoGoogle() {
           <button type="button" className={estiloBotao()} disabled={indo} onClick={conectar}>{indo ? 'Abrindo o Google…' : 'Ligar outra conta'}</button>
           <BotaoDuplo variante="perigo" confirmar="Confirmar: desligar" aoConfirmar={desligar}>Desligar</BotaoDuplo>
         </div>
+        <SincronizacaoDosContatos versao={ligacao.ligado_em} />
       </div>
       : <div className="acoes">
         <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={indo} onClick={conectar}>{indo ? 'Abrindo o Google…' : 'Conectar conta Google'}</button>
