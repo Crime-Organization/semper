@@ -10,6 +10,7 @@ import type { Contexto, DadosPessoa, TipoPessoa } from '../dados';
 import { avisar } from '../ui/avisos';
 import { ESTADO_CIVIL, fmtCNPJ, fmtCPF } from '../regras/pessoa';
 import { normal } from '../regras/texto';
+import { bancoDeVerdadeNoComputador } from '../regras/qualBanco';
 
 // O endereço e o token já são públicos: estão no HTML do formulário do site.
 const ENDERECO_DO_SCRIPT = 'https://script.google.com/macros/s/AKfycbz_Pu4V5qsjc2wMA5sw8GzdZNpOZrZ2Z1lhJP5ofjpX_roF-tOvv6mSzGwv705knB1gdw/exec';
@@ -80,8 +81,10 @@ export function camposDoScript(p: DadosPessoa, profissionais: string[], agora: D
   };
 }
 
-// "npm run dev" fala com o banco de verdade, mas um teste feito ali não pode abrir contato nem cartão.
-const usaAPlanilha = (ctx: Pick<Contexto, 'escritorio'>) => ctx.escritorio?.slug === ESCRITORIO_DA_PLANILHA && import.meta.env.MODE !== 'development';
+// No computador de quem desenvolve, ligado a um banco de verdade ("npm run dev-producao", na produção, ou "npm run dev", no banco
+// local do Docker), um teste não pode abrir linha, contato nem cartão: só o site publicado envia (e o banco fictício, nos testes).
+const usaAPlanilha = (ctx: Pick<Contexto, 'escritorio'>) => ctx.escritorio?.slug === ESCRITORIO_DA_PLANILHA
+  && !bancoDeVerdadeNoComputador(import.meta.env.MODE, import.meta.env.DEV);
 
 /** Não espera nem atrapalha o cadastro, que já está salvo. Como no formulário do site, só uma falha de rede é percebida. */
 export function enviarParaPlanilhaAntiga(p: DadosPessoa, responsaveis: string[], ctx: Pick<Contexto, 'escritorio' | 'equipe'>) {

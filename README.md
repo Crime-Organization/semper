@@ -151,7 +151,11 @@ O endereço e a chave do banco não ficam no código (#74): vêm das variáveis 
 | `npm run dev-producao` | `producao` | Produção, de `app/.env.production` (o mesmo do site publicado). |
 | `npx vite build` (o que a rotina "Publicar o SEMPER" roda) e `npm run ver` | `production` | Produção, de `app/.env.production`. |
 
-Se faltar a variável num modo que precisa de banco (por exemplo, `npx vite` sozinho, no modo `development`, que não tem arquivo), o servidor não liga e a compilação para, com um erro em português dizendo o que falta e em qual arquivo. Assim, nunca sai um site sem banco nem um que caia noutro banco sem avisar.
+Se faltar a variável num modo que precisa de banco (por exemplo, `npx vite` sozinho, no modo `development`, que não tem arquivo), o servidor não liga e a compilação para, com um erro em português dizendo quais variáveis faltam (ou estão erradas) e em qual arquivo. Assim, nunca sai um site sem banco nem um que caia noutro banco sem avisar.
+
+A compilação também põe esse endereço na política de conteúdo do site publicado: em `app/public/.htaccess`, o `connect-src` tem a marca `__ENDERECO_DO_BANCO__`, que o `vite.config.ts` troca pelo endereço do banco ao compilar (se a marca sumir, a compilação para). Por isso, para trocar o banco do site publicado basta mudar o `app/.env.production`: o `.htaccess` acompanha sozinho.
+
+No computador de quem desenvolve, ligado a um banco de verdade (`npm run dev` ou `npm run dev-producao`), o SEMPER não envia nada à planilha antiga (PROVISORIO-219): só o site publicado envia.
 
 Conferir os tipos, o lint e rodar os testes unitários e de componente:
 

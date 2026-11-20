@@ -1,14 +1,30 @@
 /// <reference types="vitest/config" />
-import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite';
+import { defineConfig, loadEnv, searchForWorkspaceRoot, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { arquivoDoModo, qualBanco } from './src/regras/qualBanco.ts';
+import { arquivoDoModo, politicaComOBanco, qualBanco, type Banco } from './src/regras/qualBanco.ts';
 
 /** O fuso dos testes, o de Brasília, para as datas darem o mesmo resultado em qualquer computador, inclusive no Windows e na rotina do GitHub. */
 const FUSO_DOS_TESTES = 'America/Sao_Paulo';
 /** A pasta dos arquivos .env (a do app), qualquer que seja a pasta de onde o comando roda. */
 const PASTA_DO_APP = fileURLToPath(new URL('.', import.meta.url));
+
+/** Na compilação, põe o endereço do banco no connect-src do .htaccess copiado de public/ (#74): o endereço só existe no
+ *  app/.env.<modo>, e o navegador do site publicado só fala com o banco que a política de conteúdo libera. */
+function bancoNaPoliticaDeConteudo(banco: Banco): Plugin {
+  let pastaDeSaida = '';
+  return {
+    name: 'semper-banco-na-politica-de-conteudo',
+    apply: 'build',
+    configResolved: config => { pastaDeSaida = resolve(config.root, config.build.outDir); },
+    closeBundle: () => {
+      const arquivo = resolve(pastaDeSaida, '.htaccess');
+      writeFileSync(arquivo, politicaComOBanco(readFileSync(arquivo, 'utf8'), banco));
+    }
+  };
+}
 
 // "npm run teste" usa o modo "falso": a camada de dados vira um banco fictício na aba do navegador,
 // sem login e sem tocar no Supabase. Os testes (modo "test" do Vitest) também usam o fictício, para que
@@ -21,7 +37,7 @@ export default defineConfig(({ mode }) => {
   const variaveis = loadEnv(arquivoDoModo(mode), PASTA_DO_APP, 'VITE_SUPABASE_');
   const banco = qualBanco(mode, { url: variaveis.VITE_SUPABASE_URL, chave: variaveis.VITE_SUPABASE_CHAVE });
   return {
-  plugins: [react()],
+  plugins: [react(), bancoNaPoliticaDeConteudo(banco)],
   // A versão desta compilação, para o aviso de versão nova (ui/versaoNova.tsx). Vem da variável VERSAO, que só a rotina
   // "Publicar o SEMPER" preenche (a mesma do versao.txt); no npm run dev, no banco fictício e nos testes fica vazia.
   // A data dela (aaaa-mm-dd, DATA_DA_VERSAO, também da rotina) vai junto: as novidades ainda em app/novidades/proxima/ aparecem
