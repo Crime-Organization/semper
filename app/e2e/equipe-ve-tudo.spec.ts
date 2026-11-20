@@ -61,7 +61,7 @@ test.describe('Toda a equipe vê os cartões', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).click();
     await abrirSecao(page.getByRole('dialog'), 'Checklists');
-    await page.getByRole('dialog').getByRole('button', { name: 'Adicionar checklist' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
     await page.getByRole('menuitem', { name: 'Benefício previdenciário' }).click();
     await expect(page.getByRole('dialog').getByRole('region', { name: 'Checklist Benefício previdenciário' })).toBeVisible();
     await ligarAChave(page);

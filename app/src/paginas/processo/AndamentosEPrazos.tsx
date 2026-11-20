@@ -9,8 +9,8 @@ import { falha, useMudancas } from '../../ui/avisos';
 import { Aviso, Carregando } from '../../ui/base';
 import { Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
-import { Andamentos } from './Andamentos';
-import { Prazos } from './Prazos';
+import { Andamentos, ROTULO_DO_NOVO_ANDAMENTO } from './Andamentos';
+import { Prazos, ROTULO_DO_NOVO_PRAZO } from './Prazos';
 import './AndamentosEPrazos.css';
 
 interface Lido { andamentos: AndamentoDeProcesso[]; prazos: PrazoDeProcesso[]; orgaos: Orgao[] }
@@ -62,11 +62,13 @@ const orgaoDe = (p: Processo, orgaos: Orgao[]) => orgaos.find(o => o.sigla === p
 export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false }: { processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean }) {
   const prazos = lido && typeof lido !== 'string' ? lido.prazos : null;
   const alerta = prazos && alertaDosPrazos(prazos, hojeISO());
+  const somenteLer = !!p.arquivado_em || soLeitura;
   return <>
     {alerta && <Aviso tipo="erro">{alerta}</Aviso>}
-    <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={prazos?.filter(z => !z.concluido_em).length}>
+    <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={prazos?.filter(z => !z.concluido_em).length}
+      novo={somenteLer ? undefined : { rotulo: ROTULO_DO_NOVO_PRAZO }}>
       <ConformeLido lido={lido}>
-        {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={!!p.arquivado_em || soLeitura} aoMudar={mudou} />}
+        {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={somenteLer} aoMudar={mudou} />}
       </ConformeLido>
     </Recolhivel>
   </>;
@@ -79,9 +81,11 @@ export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou },
 export function AndamentosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false }: { processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean }) {
   const andamentos = lido && typeof lido !== 'string' ? lido.andamentos : null;
   const aTratarAgora = andamentos?.filter(aTratar).length ?? 0;
-  return <Recolhivel titulo={aTratarAgora ? `Andamentos (${aTratarAgora} a tratar)` : 'Andamentos'} icone="relogio" preferencia="processos.coluna.andamentos" contador={andamentos?.length}>
+  const somenteLer = !!p.arquivado_em || soLeitura;
+  return <Recolhivel titulo={aTratarAgora ? `Andamentos (${aTratarAgora} a tratar)` : 'Andamentos'} icone="relogio" preferencia="processos.coluna.andamentos" contador={andamentos?.length}
+    novo={somenteLer ? undefined : { rotulo: ROTULO_DO_NOVO_ANDAMENTO }}>
     <ConformeLido lido={lido}>
-      {l => <Andamentos processo={p} andamentos={l.andamentos} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={!!p.arquivado_em || soLeitura} aoMudar={mudou} />}
+      {l => <Andamentos processo={p} andamentos={l.andamentos} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={somenteLer} aoMudar={mudou} />}
     </ConformeLido>
   </Recolhivel>;
 }

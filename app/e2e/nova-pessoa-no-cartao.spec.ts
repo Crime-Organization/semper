@@ -123,7 +123,7 @@ test.describe('Cadastrar, no cartão de um item, uma pessoa nova já ligada a el
     const cartao = await abrirCartao(page, 'pessoas', id, 'MARIA APARECIDA EXEMPLO');
     const vinculos = await secao(cartao, 'Vínculos');
     // Quando
-    await vinculos.getByRole('button', { name: 'Nova pessoa vinculada' }).click();
+    await vinculos.getByRole('button', { name: 'Nova pessoa vinculada' }).filter({ hasText: 'Nova pessoa vinculada' }).click();
     const formulario = vinculos.getByRole('form', { name: 'Nova pessoa vinculada' });
     await formulario.getByLabel('Vínculo').selectOption({ label: 'Pai/mãe de' });
     await formulario.getByLabel('Descrição').fill('guarda compartilhada');

@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { useState } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { CriarNoCartao } from './ItensLigados';
 import { iniciarPreferencias, lerPreferencia } from './preferencias';
-import { GrupoDeSecoes, Recolhivel } from './Recolhivel';
+import { GrupoDeSecoes, Recolhivel, usePedidoDeNovo } from './Recolhivel';
 
 describe('Seção recolhível', () => {
   it('quando começa fechada, então só o título aparece', () => {
@@ -111,5 +113,72 @@ describe('Um grupo dentro de outro (#360)', () => {
     // Então
     expect(screen.getByText('As mudanças')).toBeInTheDocument();
     expect(screen.queryByText('Os dados')).not.toBeInTheDocument();
+  });
+});
+
+/** O conteúdo de uma seção como o dos prazos: a lista e, com o pedido do "+" do título, o formulário do item novo. */
+function ComFormulario({ aoPedir = () => {} }: { aoPedir?: (botao: HTMLElement) => void }) {
+  const [novo, setNovo] = useState(false);
+  usePedidoDeNovo(botao => { setNovo(true); aoPedir(botao); });
+  return novo ? <form aria-label="Novo prazo" /> : <p>Os prazos</p>;
+}
+const maisDoTitulo = (titulo: RegExp) => within(screen.getByRole('heading', { name: titulo })).getByRole('button', { name: 'Novo prazo' });
+
+describe('O "+" do título que pede o item novo à própria seção (#390)', () => {
+  it('dada a seção fechada, quando a pessoa clica no "+", então ela abre com o formulário do item novo, e a escolha guardada continua fechada', async () => {
+    // Dado
+    iniciarPreferencias({ 'teste.prazos': false });
+    render(<Recolhivel titulo="Prazos" icone="calendario" preferencia="teste.prazos" novo={{ rotulo: 'Novo prazo' }}><ComFormulario /></Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Novo prazo' }));
+    // Então
+    expect(screen.getByRole('button', { name: 'Prazos' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('form', { name: 'Novo prazo' })).toBeInTheDocument();
+    expect(lerPreferencia('teste.prazos', true)).toBe(false);
+  });
+
+  it('dada a seção já aberta, quando a pessoa clica no "+" duas vezes, então quem está dentro atende cada clique, com o "+" clicado', async () => {
+    // Dado
+    const aoPedir = vi.fn();
+    render(<Recolhivel titulo="Prazos" icone="calendario" abertaAoIniciar novo={{ rotulo: 'Novo prazo' }}><ComFormulario aoPedir={aoPedir} /></Recolhivel>);
+    expect(screen.getByText('Os prazos')).toBeInTheDocument();
+    // Quando
+    await userEvent.click(maisDoTitulo(/^Prazos/));
+    await userEvent.click(maisDoTitulo(/^Prazos/));
+    // Então
+    expect(aoPedir).toHaveBeenCalledTimes(2);
+    expect(aoPedir).toHaveBeenLastCalledWith(maisDoTitulo(/^Prazos/));
+  });
+
+  it('dado o "+", quando o leitor de tela chega a ele, então tem o nome do botão de dentro e só diz que abre um menu quando abre', () => {
+    // Quando
+    render(<>
+      <Recolhivel titulo="Prazos" icone="calendario" novo={{ rotulo: 'Novo prazo' }}><ComFormulario /></Recolhivel>
+      <Recolhivel titulo="Checklists" icone="check" novo={{ rotulo: 'Adicionar checklist', menu: true }}><p>nada</p></Recolhivel>
+    </>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Novo prazo' })).not.toHaveAttribute('aria-haspopup');
+    expect(screen.getByRole('button', { name: 'Adicionar checklist' })).toHaveAttribute('aria-haspopup', 'menu');
+  });
+
+  it('dada uma seção dentro da outra (o histórico das parcelas em Honorários), quando a pessoa clica no "+" da de fora, então a de dentro não recebe o pedido', async () => {
+    // Dado
+    const deDentro = vi.fn();
+    render(<Recolhivel titulo="Honorários" icone="dinheiro" abertaAoIniciar novo={{ rotulo: 'Novo prazo' }}>
+      <ComFormulario />
+      <Recolhivel titulo="Histórico" icone="relogio" abertaAoIniciar><ComFormulario aoPedir={deDentro} /></Recolhivel>
+    </Recolhivel>);
+    // Quando
+    await userEvent.click(maisDoTitulo(/^Honorários/));
+    // Então
+    expect(screen.getAllByRole('form', { name: 'Novo prazo' })).toHaveLength(1);
+    expect(deDentro).not.toHaveBeenCalled();
+  });
+
+  it('dado o cartão arquivado ou só para ler, quando a seção aparece, então não há "+" no título', () => {
+    // Quando
+    render(<CriarNoCartao pode={false}><Recolhivel titulo="Prazos" icone="calendario" novo={{ rotulo: 'Novo prazo' }}><ComFormulario /></Recolhivel></CriarNoCartao>);
+    // Então
+    expect(screen.queryByRole('button', { name: 'Novo prazo' })).not.toBeInTheDocument();
   });
 });

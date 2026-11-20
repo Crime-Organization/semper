@@ -1,0 +1,5 @@
+{
+  "titulo": "\"+\" no título de mais seções",
+  "texto": "Prazos, Andamentos, Checklists, Honorários, Vínculos, Contas, Sócios e \"Ligada a\" (na anotação) também ganharam o \"+\" no título, como as outras seções. Ele abre a seção, se estiver fechada, e já mostra o formulário ou o menu do item novo; o botão com o nome continua embaixo. Abrir pelo \"+\" não muda se a seção vem aberta ou fechada da próxima vez.",
+  "ondeAchar": "Num cartão de processo, demanda, tarefa, contrato, pessoa ou anotação, ou em Financeiro > Contas: o \"+\" fica ao lado do número, no título da seção (ex.: \"Novo prazo\", \"Adicionar checklist\")."
+}

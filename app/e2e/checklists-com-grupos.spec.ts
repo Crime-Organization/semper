@@ -17,7 +17,7 @@ async function abrirCartao(page: Page, rota: string, texto: string) {
 }
 /** Usa um modelo em "Adicionar checklist" e devolve o checklist que entrou. */
 async function usarModelo(page: Page, cartao: Locator, nome: string) {
-  await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
+  await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
   await page.getByRole('menuitem', { name: nome }).click();
   const lista = cartao.getByRole('region', { name: `Checklist ${nome}` });
   await expect(lista).toBeVisible();
@@ -185,7 +185,7 @@ test.describe('Grupos na demanda e na tarefa (#309)', () => {
     test(`dado um checklist em ${rota}, quando a pessoa cria um grupo e um item dentro dele, então eles aparecem como 1. e 1.1`, async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, rota, texto);
-      await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
+      await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
       await page.getByRole('menuitem', { name: 'Checklist em branco' }).click();
       await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('textbox').fill('Documentos');
       await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('button', { name: 'Salvar' }).click();
@@ -243,7 +243,7 @@ test.describe('Lista numerada colada no checklist, gravada de uma vez (#375)', (
   async function colarNoChecklist(page: Page, texto: string) {
     await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
     const cartao = await abrirCartao(page, '/demandas/', 'Busca de anterioridade');
-    await cartao.getByRole('button', { name: 'Adicionar checklist' }).click();
+    await cartao.getByRole('button', { name: 'Adicionar checklist' }).filter({ hasText: 'Adicionar checklist' }).click();
     await page.getByRole('menuitem', { name: 'Checklist em branco' }).click();
     await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('textbox').fill('Documentos');
     await page.getByRole('dialog', { name: 'Nome do checklist' }).getByRole('button', { name: 'Salvar' }).click();

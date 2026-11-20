@@ -5,8 +5,11 @@
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
 // primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
 // só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
-import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
-import { BotaoLink, Contador, propsDaDica } from './base';
+// O "+" do título leva ao cadastro de outro módulo (um endereço) ou, desde a #390, pede à própria seção o formulário ou o menu do
+// item novo (Novo prazo, Adicionar checklist…): abre a seção, se estiver fechada, sem mudar a escolha guardada, e quem está dentro
+// atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre.
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { BotaoLink, Contador, estiloBotao, propsDaDica } from './base';
 import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
@@ -23,6 +26,43 @@ interface Inscricao {
 interface EstadoDoGrupo { primeira: string | null; todasAbertas: boolean; definirTodas: (aberta: boolean) => void }
 const InscricaoNoGrupo = createContext<Inscricao | null>(null);
 const EstadoDoGrupo = createContext<EstadoDoGrupo | null>(null);
+
+/**
+ * O "+" do título que pede à própria seção o item novo (#390), em vez de levar a outra página: quem está dentro atende com
+ * usePedidoDeNovo, como o botão "Novo…" de baixo, que continua. O rótulo é o nome desse botão (na dica e para o leitor de tela).
+ */
+export interface NovoNaSecao {
+  rotulo: string;
+  /** O pedido abre um menu (ex.: "Adicionar checklist"), e não um formulário: o leitor de tela fica sabendo. */
+  menu?: boolean;
+}
+/** O pedido do "+" que a seção ainda não atendeu: o botão clicado, onde o menu do item novo se prende. */
+interface PedidoDeNovo { botao: HTMLElement }
+interface PedidoNaSecao { pedido: PedidoDeNovo | null; atendido: () => void }
+const PedidoNaSecao = createContext<PedidoNaSecao | null>(null);
+
+/**
+ * Atende o "+" do título da seção em que está (veja NovoNaSecao): `atender` abre o formulário ou o menu do item novo, o mesmo que o
+ * botão de baixo abre, e recebe o "+" clicado, onde o menu se prende. Com a seção fechada, o conteúdo só monta depois do clique: o
+ * pedido espera por ele (e pela leitura, se quem atende só aparece depois dela).
+ */
+export function usePedidoDeNovo(atender: (botao: HTMLElement) => void) {
+  const secao = useContext(PedidoNaSecao);
+  const quem = useRef(atender);
+  quem.current = atender;
+  const pedido = secao?.pedido ?? null;
+  useEffect(() => {
+    if (!pedido) return;
+    secao!.atendido();
+    quem.current(pedido.botao);
+  }, [pedido, secao]);
+}
+
+/** Quem atende o "+" quando o estado do item novo fica em quem monta a seção (ex.: o menu dos checklists). */
+export function AoPedirNovo({ atender }: { atender: (botao: HTMLElement) => void }) {
+  usePedidoDeNovo(atender);
+  return null;
+}
 
 /**
  * Põe as seções de dentro num grupo, com o botão de expandir e recolher todas acima da primeira. Com `proprio={false}`, as seções
@@ -86,10 +126,11 @@ interface Props {
   /** Abre a seção ao aparecer, sem mudar a escolha guardada (ex.: a mensagem que leva a um comentário). */
   abertaAoIniciar?: boolean;
   /**
-   * O atalho para criar um item já ligado (ex.: "Nova tarefa deste contrato"): um "+" no título, logo depois do número. No cartão
-   * só para ler, ele não aparece (veja CriarNoCartao, em ItensLigados.tsx).
+   * O atalho para criar um item: um "+" no título, logo depois do número. Com um endereço, leva ao cadastro de um item já ligado (ex.:
+   * "Nova tarefa deste contrato"); sem ele, pede o item novo à própria seção (veja NovoNaSecao). No cartão só para ler, ele não
+   * aparece (veja CriarNoCartao, em ItensLigados.tsx).
    */
-  novo?: NovoLigado;
+  novo?: NovoLigado | NovoNaSecao;
   children: ReactNode;
 }
 
@@ -109,6 +150,10 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
     setAberto(!aberto);
     if (preferencia) salvarPreferencia(preferencia, !aberto);
   };
+  const [aAtender, setAAtender] = useState<PedidoDeNovo | null>(null);
+  const pedidoNaSecao = useMemo<PedidoNaSecao>(() => ({ pedido: aAtender, atendido: () => setAAtender(null) }), [aAtender]);
+  // Abre a seção como o abertaAoIniciar: só agora, sem gravar a escolha (#390).
+  const pedirNovo = (e: MouseEvent<HTMLButtonElement>) => { setAberto(true); setAAtender({ botao: e.currentTarget }); };
   return <>
     {noGrupo && estado?.primeira === id && <ExpandirTudo estado={estado} />}
     <section className="bloco recolhivel">
@@ -121,13 +166,19 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
           {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span>}
         </button>
         {novo && <>
-          <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
+          {'para' in novo
+            ? <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
+            : <button type="button" className={estiloBotao({ forma: 'mini' }, 'secao-novo')} aria-label={novo.rotulo} title={novo.rotulo}
+              aria-haspopup={novo.menu ? 'menu' : undefined} onClick={pedirNovo}><Icone nome="mais" tam={15} /></button>}
           <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span></span>
         </>}
       </h3>
       {/* As seções de dentro desta (ex.: o histórico das parcelas, dentro de Honorários) ficam fora do grupo: o "Expandir
           tudo" abre e fecha só as do cartão, e não diria "Expandir tudo" por causa de uma seção escondida. */}
-      {aberto && <div className="bloco-corpo" id={id}><InscricaoNoGrupo.Provider value={null}><EstadoDoGrupo.Provider value={null}>{children}</EstadoDoGrupo.Provider></InscricaoNoGrupo.Provider></div>}
+      {/* O pedido do "+" também é só desta seção: o de Honorários não chega ao histórico das parcelas, que fica dentro dela. */}
+      {aberto && <div className="bloco-corpo" id={id}><InscricaoNoGrupo.Provider value={null}><EstadoDoGrupo.Provider value={null}>
+        <PedidoNaSecao.Provider value={pedidoNaSecao}>{children}</PedidoNaSecao.Provider>
+      </EstadoDoGrupo.Provider></InscricaoNoGrupo.Provider></div>}
     </section>
   </>;
 }

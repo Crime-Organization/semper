@@ -35,6 +35,7 @@ import './Financeiro.css';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CompromissosLigados } from './CompromissosLigados';
 import { cadastroComVolta } from '../regras/origemDoCadastro';
+import { ORIGEM_DA_PESSOA } from '../regras/origemDaPessoa';
 import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
@@ -267,7 +268,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {podeLigar && <LigarAPessoa modulo="tarefas" pessoaId={id} depois={depoisDeLigar} novo={{ para: '/tarefas/nova/?pessoa=' + id, rotulo: 'Nova tarefa' }} />}
     </Recolhivel>}
 
-    <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}>
+    <Recolhivel titulo="Vínculos" icone="vinculo" preferencia="pessoas.cartao.vinculos" contador={Array.isArray(vinculos) ? vinculos.length : undefined}
+      novo={podeLigar ? { rotulo: ORIGEM_DA_PESSOA.vinculos.novo } : undefined}>
       {vinculos === null ? <Carregando />
         : typeof vinculos === 'string' ? <Aviso tipo="erro">{vinculos}</Aviso>
         : <VinculosPessoa p={p} vinculos={vinculos} aoAbrirPessoa={aoAbrirPessoa} podeCriar={podeLigar} aoMudar={() => { void carregarVinculos(); setVersaoHist(v => v + 1); }} />}

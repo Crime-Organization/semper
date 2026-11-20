@@ -16,6 +16,7 @@ import { Campo, CampoData, CampoDataHora, estiloBotao, Nota, propsDoCampo, Selo 
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { MenuFlutuante } from '../../ui/Menu';
+import { usePedidoDeNovo } from '../../ui/Recolhivel';
 import { useCtx } from '../../ui/sessao';
 import { dataHora, hojeISO } from '../../ui/util';
 import { FormDoPrazo } from './FormDoPrazo';
@@ -25,6 +26,8 @@ import { arquivarTarefaCriada, criarTarefaLigada, quemRecebe } from './tarefaDoP
 const comoEstava = ({ tipo, categoria, data, hora, local, texto, tratada_em }: AndamentoDeProcesso, mudouOTipo: boolean) =>
   ({ tipo, categoria, data, hora, local, texto, ...(mudouOTipo ? { tratada_em } : {}) });
 
+/** O botão do alto da seção e o "+" do título dela (#390), com o mesmo nome. */
+export const ROTULO_DO_NOVO_ANDAMENTO = 'Novo andamento';
 /** O que a lista "Tipo" mostra enquanto o andamento novo ainda não tem tipo (escolher é obrigatório). */
 const SEM_TIPO = 'Escolha o tipo';
 
@@ -95,6 +98,8 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
   const [aberto, setAberto] = useState<Aberto>(null);
   /** O menu "⋯" aberto: o botão que o abriu e o andamento dele. */
   const [menu, setMenu] = useState<{ botao: HTMLElement; andamento: AndamentoDeProcesso } | null>(null);
+  // O "+" do título da seção abre o mesmo formulário do botão de cima.
+  usePedidoDeNovo(() => { if (!somenteLer) setAberto({ o: 'novo' }); });
   const nomeDe = (id: string | null) => ctx.equipe.find(m => m.id === id)?.nome || 'Usuário removido';
 
   async function lancar(f: FormDoAndamento) {
@@ -147,7 +152,7 @@ export function Andamentos({ processo: p, andamentos, prazos, orgao, somenteLer,
     {!andamentos.length && aberto?.o !== 'novo' && <Nota>Nenhum andamento lançado.</Nota>}
     {aberto?.o === 'novo'
       ? <FormDoAndamentoNaTela inicial={andamentoNovo(hoje)} aoSalvar={lancar} aoCancelar={() => setAberto(null)} />
-      : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> Novo andamento</button></div>}
+      : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_ANDAMENTO}</button></div>}
     <ul className="acomp-lista linha-do-tempo" aria-label="Andamentos do processo">
       {andamentos.map(a => {
         if (aberto?.o === 'mudar' && aberto.id === a.id) return <li key={a.id}><FormDoAndamentoNaTela mudando inicial={formDoAndamento(a)} aoSalvar={f => mudar(a, f)} aoCancelar={() => setAberto(null)} /></li>;

@@ -14,7 +14,7 @@ import { Aviso, Carregando, estiloBotao, Nota } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { confirmar, pedirTexto } from '../ui/janela';
 import { MenuFlutuante } from '../ui/Menu';
-import { Recolhivel } from '../ui/Recolhivel';
+import { AoPedirNovo, Recolhivel } from '../ui/Recolhivel';
 import { Lista } from './listas/Lista';
 import './Demandas.css';
 
@@ -24,6 +24,8 @@ const DO_CARTAO: Record<CartaoComListas, { vazio: string }> = {
   tarefas: { vazio: 'Nenhum checklist ainda. Use checklists para os documentos e os passos da tarefa.' },
   contratos: { vazio: 'Nenhum checklist ainda. Use checklists para os documentos e os passos do contrato.' },
 };
+/** O botão de baixo da seção, o "+" do título dela (#390) e o menu que os dois abrem, com o mesmo nome. */
+const ADICIONAR_CHECKLIST = 'Adicionar checklist';
 /** Menu "⋯" de um checklist aberto: de qual, e o botão em que ele se prende. */
 type MenuAberto = { botao: HTMLElement; lista: ListaDoCartao };
 /** Menu de "Adicionar checklist": em branco ou a partir de um modelo (carregados ao abrir). */
@@ -81,16 +83,19 @@ export function ListasDoCartao({ modulo, id, somenteLer = false }: { modulo: Car
     Promise.all(moverNaLista(listas as ListaDoCartao[], i, passo).map(m => SD.listaAtualizar(m.id, { ordem: m.ordem }))));
 
   const total = Array.isArray(listas) ? listas.length : undefined;
-  return <Recolhivel titulo="Checklists" icone="check" preferencia={`${modulo}.cartao.listas`} contador={total}>
+  return <Recolhivel titulo="Checklists" icone="check" preferencia={`${modulo}.cartao.listas`} contador={total}
+    novo={somenteLer ? undefined : { rotulo: ADICIONAR_CHECKLIST, menu: true }}>
+    {/* O "+" do título abre o mesmo menu do botão de baixo, preso a ele, mesmo antes de os checklists chegarem. */}
+    {!somenteLer && <AoPedirNovo atender={abrirMenuNova} />}
     {listas === null ? <Carregando />
       : typeof listas === 'string' ? <Aviso tipo="erro">{listas}</Aviso>
       : <>
         {!listas.length && <Nota>{DO_CARTAO[modulo].vazio}</Nota>}
         {listas.map(l => <Lista key={l.id} lista={l} somenteLer={somenteLer} menuAberto={menu?.lista.id === l.id}
           aoAbrirMenu={botao => setMenu({ botao, lista: l })} mexer={mexer} mudarNaTela={mudarNaTela} />)}
-        {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> Adicionar checklist</button></div>}
+        {!somenteLer && <div><button type="button" className={estiloBotao({ forma: 'mini' })} aria-haspopup="menu" onClick={e => abrirMenuNova(e.currentTarget)}><Icone nome="mais" tam={13} /> {ADICIONAR_CHECKLIST}</button></div>}
       </>}
-    {menuNova && <MenuFlutuante botao={menuNova.botao} aoFechar={() => setMenuNova(null)} rotulo="Adicionar checklist">
+    {menuNova && <MenuFlutuante botao={menuNova.botao} aoFechar={() => setMenuNova(null)} rotulo={ADICIONAR_CHECKLIST}>
       <button type="button" role="menuitem" onClick={() => { setMenuNova(null); void novaLista(); }}><Icone nome="mais" tam={15} /> Checklist em branco</button>
       {menuNova.modelos === null ? <p className="kmenu-nota">Carregando os modelos…</p>
         : menuNova.modelos.length ? <>

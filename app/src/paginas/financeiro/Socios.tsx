@@ -8,6 +8,7 @@ import { BuscaPessoa } from '../../ui/BuscaPessoa';
 import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { usePedidoDeNovo } from '../../ui/Recolhivel';
 
 export function CamposDoPeriodo({ f, erros, mudar }: { f: FormDoSocio; erros: Partial<Record<keyof FormDoSocio, string>>; mudar: (m: Partial<FormDoSocio>) => void }) {
   const id = useId();
@@ -72,9 +73,14 @@ export function FormDoPeriodo({ socio, aoTerminar, aoCancelar }: { socio: Socio;
   </form>;
 }
 
+/** O botão de baixo dos sócios e o "+" do título da seção (#390), com o mesmo nome. */
+export const ROTULO_DO_NOVO_SOCIO = 'Novo sócio';
+
 export function SociosDoEscritorio({ socios, hoje, aoMudar }: { socios: Socio[]; hoje: string; aoMudar: () => void }) {
   const [aberto, setAberto] = useState<{ o: 'novo' } | { o: 'mudar'; socio: Socio } | null>(null);
   const terminou = () => { setAberto(null); aoMudar(); };
+  // O "+" do título da seção abre o mesmo formulário do botão de baixo.
+  usePedidoDeNovo(() => setAberto({ o: 'novo' }));
   async function excluir(s: Socio) {
     try {
       await SD.financeiroSocioExcluir(s.id);
@@ -93,6 +99,6 @@ export function SociosDoEscritorio({ socios, hoje, aoMudar }: { socios: Socio[];
     </li>)}</ul>}
     {aberto?.o === 'novo' && <FormNovoSocio hoje={hoje} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
     {aberto?.o === 'mudar' && <FormDoPeriodo key={aberto.socio.id} socio={aberto.socio} aoTerminar={terminou} aoCancelar={() => setAberto(null)} />}
-    {aberto?.o !== 'novo' && <div className="financeiro-acoes"><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> Novo sócio</button></div>}
+    {aberto?.o !== 'novo' && <div className="financeiro-acoes"><button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_SOCIO}</button></div>}
   </div>;
 }

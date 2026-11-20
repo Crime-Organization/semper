@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DadosListas, DadosModelos, DadosSessao, ItemDaLista, ListaDoCartao } from '../dados';
 import { Avisos } from '../ui/avisos';
-import { iniciarPreferencias } from '../ui/preferencias';
+import { iniciarPreferencias, lerPreferencia } from '../ui/preferencias';
 import { ListasDoCartao } from './ListasDoCartao';
 
 // A seção lê os checklists do cartão, renomeia o checklist e o item, marca e, ao abrir, guarda a preferência; o mock declara
@@ -43,7 +43,9 @@ describe('Checklists no cartão (#358)', () => {
     await secao();
     // Então
     expect(screen.getByRole('button', { name: /^Checklists/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Adicionar checklist' })).toBeInTheDocument();
+    // O botão de baixo mostra o nome; desde a #390, o "+" do título tem o mesmo nome (para o leitor de tela), só com o ícone.
+    expect(screen.getByText('Adicionar checklist', { selector: 'button' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /^Checklists/ })).getByRole('button', { name: 'Adicionar checklist' })).toBeInTheDocument();
     expect(screen.queryByText(/Listas|Adicionar lista/)).not.toBeInTheDocument();
   });
 
@@ -155,5 +157,50 @@ describe('Checklists no cartão (#358)', () => {
     expect(within(lista).getByRole('heading', { name: 'Pessoa jurídica', level: 4 })).toBeInTheDocument();
     expect(within(lista).queryByRole('button')).not.toBeInTheDocument();
     expect(within(lista).getByRole('checkbox', { name: 'Atos constitutivos' })).toBeDisabled();
+  });
+});
+
+describe('O "+" do título dos checklists (#390)', () => {
+  beforeEach(() => {
+    listasDoCartao.mockReset();
+    listasDoCartao.mockResolvedValue([checklist()]);
+  });
+  const doTitulo = () => within(screen.getByRole('heading', { name: /^Checklists/ })).queryByRole('button', { name: 'Adicionar checklist' });
+
+  it('dada a seção fechada, quando a pessoa clica no "+" do título, então a seção abre com o menu de "Adicionar checklist", preso ao "+", e a escolha guardada não muda', async () => {
+    // Dado
+    iniciarPreferencias({ 'demandas.cartao.listas': false });
+    montar();
+    // Quando
+    await userEvent.click(doTitulo()!);
+    // Então
+    const menu = await screen.findByRole('menu', { name: 'Adicionar checklist' });
+    expect(within(menu).getByRole('menuitem', { name: 'Checklist em branco' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Checklists/ })).toHaveAttribute('aria-expanded', 'true');
+    expect(lerPreferencia('demandas.cartao.listas', true)).toBe(false);
+    // Quando: o Esc fecha o menu e devolve o foco a quem o abriu
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(doTitulo()).toHaveFocus();
+  });
+
+  it('dado o "+" do título, quando o leitor de tela chega a ele, então sabe que ele abre um menu', () => {
+    // Quando
+    iniciarPreferencias({});
+    montar();
+    // Então
+    expect(doTitulo()).toHaveAttribute('aria-haspopup', 'menu');
+  });
+
+  it('dado quem só lê, quando a seção aparece, então não há "+" no título', async () => {
+    // Dado
+    iniciarPreferencias({ 'demandas.cartao.listas': true });
+    // Quando
+    montar(true);
+    await secao();
+    // Então
+    expect(doTitulo()).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Adicionar checklist' })).not.toBeInTheDocument();
   });
 });

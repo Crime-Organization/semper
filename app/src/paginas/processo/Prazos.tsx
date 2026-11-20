@@ -11,6 +11,7 @@ import { avisar, falha, feito } from '../../ui/avisos';
 import { estiloBotao, Nota, Selo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { usePedidoDeNovo } from '../../ui/Recolhivel';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO } from '../../ui/util';
 import { FormDoPrazo } from './FormDoPrazo';
@@ -18,6 +19,8 @@ import { arquivarTarefaCriada, criarTarefaLigada, quemRecebe } from './tarefaDoP
 import { LigarDoModulo } from '../../ui/LigarDoModulo';
 import { ligarEAvisar, ligarTarefaNoPrazo } from '../ligarNoCartao';
 
+/** O botão de baixo da seção e o "+" do título dela (#390), com o mesmo nome. */
+export const ROTULO_DO_NOVO_PRAZO = 'Novo prazo';
 /** Na busca da tarefa para ligar ao prazo: o que muda depois. */
 const TAREFA_SEGUE_O_PRAZO = 'O prazo da tarefa passa a ser o último dia deste prazo, e muda junto quando ele mudar. A tarefa sem processo passa a ser deste processo.';
 
@@ -41,6 +44,8 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
   const [editando, setEditando] = useState<string | null>(null);
   // Na hora: a caixa muda já, até a lista voltar do banco como ficou.
   const [marcando, setMarcando] = useState<{ id: string; cumprido: boolean } | null>(null);
+  // O "+" do título da seção abre o mesmo formulário do botão de baixo.
+  usePedidoDeNovo(() => { if (!somenteLer) setEditando('novo'); });
 
   async function lancar(dados: DadosPrazo) {
     const novo = await SD.processoPrazoCriar(p.id, dados);
@@ -120,6 +125,6 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
     {prazos.length >= PRAZOS_DO_PROCESSO && <Nota>Mostrando os {PRAZOS_DO_PROCESSO} prazos de último dia mais novo.</Nota>}
     {editando === 'novo'
       ? <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={lancar} aoCancelar={() => setEditando(null)} />
-      : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setEditando('novo')}><Icone nome="mais" tam={15} /> Novo prazo</button></div>}
+      : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setEditando('novo')}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
   </div>;
 }

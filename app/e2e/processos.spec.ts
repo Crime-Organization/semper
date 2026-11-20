@@ -514,7 +514,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     return cartao;
   }
   async function lancarAndamento(cartao: Locator, tipo: string, texto: string) {
-    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const form = cartao.getByRole('form', { name: 'Novo andamento' });
     await form.getByLabel('Tipo').selectOption({ label: tipo });
     await form.getByLabel('O que aconteceu').fill(texto);
@@ -526,7 +526,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     // Quando
     await form.getByLabel('Que prazo é este').fill('Contestação');
@@ -552,7 +552,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     await form.getByLabel('Que prazo é este').fill('Recurso');
     await form.getByText('Digitar a data').click();
@@ -577,7 +577,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     const resultado = form.getByRole('status', { name: 'Resultado do prazo' });
     await form.getByLabel('Intimação').fill('2026-03-02');
@@ -618,7 +618,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     let form = cartao.getByRole('form', { name: 'Novo prazo' });
     await form.getByLabel('Que prazo é este').fill('Réplica');
     await form.getByText('Digitar a data').click();
@@ -642,7 +642,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Prazos');
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     await form.getByLabel('Que prazo é este').fill('Para excluir');
     await form.getByText('Digitar a data').click();
@@ -665,7 +665,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Andamentos');
-    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const form = cartao.getByRole('form', { name: 'Novo andamento' });
     await expect(form.getByLabel('Hora')).toHaveCount(0);
     // Quando
@@ -686,7 +686,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Andamentos');
-    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const form = cartao.getByRole('form', { name: 'Novo andamento' });
     // Quando
     await form.getByRole('button', { name: 'Lançar andamento' }).click();
@@ -757,7 +757,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     // Dado
     const cartao = await abrirCartao(page);
     await abrirSecao(cartao, 'Andamentos');
-    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const novo = cartao.getByRole('form', { name: 'Novo andamento' });
     await novo.getByLabel('Tipo').selectOption({ label: 'Intimação' });
     await novo.getByLabel('Data da intimação').fill('2026-11-13');
@@ -801,7 +801,7 @@ test.describe('Painel de Processos', () => {
     return cartao;
   }
   async function lancarPrazoDigitado(cartao: Locator, descricao: string, final: string) {
-    await cartao.getByRole('button', { name: 'Novo prazo' }).click();
+    await cartao.getByRole('button', { name: 'Novo prazo' }).filter({ hasText: 'Novo prazo' }).click();
     const form = cartao.getByRole('form', { name: 'Novo prazo' });
     await form.getByLabel('Que prazo é este').fill(descricao);
     await form.getByText('Digitar a data').click();
@@ -811,7 +811,7 @@ test.describe('Painel de Processos', () => {
   }
   async function lancarAndamento(cartao: Locator, tipo: string, texto: string, data?: string) {
     await abrirSecao(cartao, 'Andamentos');
-    await cartao.getByRole('button', { name: 'Novo andamento' }).click();
+    await cartao.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const form = cartao.getByRole('form', { name: 'Novo andamento' });
     await form.getByLabel('Tipo').selectOption({ label: tipo });
     if (data) await form.getByLabel(/^Data/).fill(data);
@@ -1116,7 +1116,7 @@ test.describe('Processo a partir da demanda', () => {
     await salvarCadastro(page, NUMERO_NOVO);
     const processo = await abrirProcessoNovo(page);
     await abrirSecao(processo, 'Andamentos');
-    await processo.getByRole('button', { name: 'Novo andamento' }).click();
+    await processo.getByRole('button', { name: 'Novo andamento' }).filter({ hasText: 'Novo andamento' }).click();
     const form = processo.getByRole('form', { name: 'Novo andamento' });
     await form.getByLabel('Tipo').selectOption({ label: 'Intimação' });
     await form.getByLabel('O que aconteceu').fill('Intimado da demanda');

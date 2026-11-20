@@ -10,6 +10,7 @@ import { cadastroNaAnotacao, modulosDoNovo, NOVO_ESPERA_A_ANOTACAO, NOVO_NA_ANOT
 import { estiloBotao } from '../ui/base';
 import { Icone, type NomeIcone } from '../ui/Icone';
 import { MenuFlutuante } from '../ui/Menu';
+import { usePedidoDeNovo } from '../ui/Recolhivel';
 
 /** O tamanho do "+" no botão (o dos outros botões de baixo das seções) e o do ícone de cada item do menu (o dos outros menus). */
 const ICONE_DO_BOTAO = 13, ICONE_DO_MENU = 15;
@@ -17,9 +18,12 @@ const ICONE_DO_BOTAO = 13, ICONE_DO_MENU = 15;
 const ICONE_DO_MODULO: Record<ModuloDoNovoNaAnotacao, NomeIcone> = {
   tarefas: 'tarefas', demandas: 'demandas', compromissos: 'calendario', pessoas: 'pessoas', contratos: 'contratos'
 };
-/** O texto do botão e o nome do menu. */
+/**
+ * O texto do botão e o nome do menu. O menu dá também o nome do "+" do título de "Ligada a" (#390), que abre o mesmo menu: sozinho,
+ * fora da linha de "Ligar a outro item", "Novo…" não diria ao leitor de tela o que é novo.
+ */
 export const ROTULO_DO_NOVO_NA_ANOTACAO = 'Novo…';
-const NOME_DO_MENU = 'Novo item ligado a esta anotação';
+export const NOME_DO_MENU_NOVO_NA_ANOTACAO = 'Novo item ligado a esta anotação';
 
 interface Props {
   /** Os módulos que se podem ligar à anotação (os ligados no escritório e as pessoas). */
@@ -32,8 +36,10 @@ interface Props {
 
 export function NovoNaAnotacao({ modulos, anotacaoId, itens = [] }: Props) {
   const navegar = useNavigate();
-  const [botao, setBotao] = useState<HTMLButtonElement | null>(null);
+  const [botao, setBotao] = useState<HTMLElement | null>(null);
   const idDoMotivo = useId();
+  // O "+" do título da seção abre o mesmo menu, preso a ele (a anotação nova, que espera, não tem o "+").
+  usePedidoDeNovo(alvo => { if (anotacaoId) setBotao(alvo); });
   const opcoes = modulosDoNovo(modulos);
   if (!opcoes.length) return null;
   const esperando = !anotacaoId;
@@ -48,7 +54,7 @@ export function NovoNaAnotacao({ modulos, anotacaoId, itens = [] }: Props) {
       <Icone nome="mais" tam={ICONE_DO_BOTAO} /> {ROTULO_DO_NOVO_NA_ANOTACAO}
     </button>
     {esperando && <span className="sr" id={idDoMotivo}>{NOVO_ESPERA_A_ANOTACAO}</span>}
-    {botao && <MenuFlutuante botao={botao} aoFechar={() => setBotao(null)} rotulo={NOME_DO_MENU}>
+    {botao && <MenuFlutuante botao={botao} aoFechar={() => setBotao(null)} rotulo={NOME_DO_MENU_NOVO_NA_ANOTACAO}>
       {opcoes.map(m => <button key={m} type="button" role="menuitem" onClick={() => abrir(m)}>
         <Icone nome={ICONE_DO_MODULO[m]} tam={ICONE_DO_MENU} /> {NOVO_NA_ANOTACAO[m].rotulo}
       </button>)}

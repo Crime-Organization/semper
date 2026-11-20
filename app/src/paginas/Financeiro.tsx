@@ -16,8 +16,8 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 import { hojeISO, useTitulo } from '../ui/util';
 import { AjustesDeSaldo } from './financeiro/AjustesDeSaldo';
-import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia } from './financeiro/Formularios';
-import { SociosDoEscritorio } from './financeiro/Socios';
+import { ContasDoEscritorio, DasDoEscritorio, FormLancamento, FormTransferencia, ROTULO_DA_NOVA_CONTA } from './financeiro/Formularios';
+import { ROTULO_DO_NOVO_SOCIO, SociosDoEscritorio } from './financeiro/Socios';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import './Financeiro.css';
 import { AbasDoFinanceiro } from './financeiro/AbasDoFinanceiro';
@@ -94,13 +94,13 @@ export default function Financeiro() {
     <Recolhivel titulo="Todos os ajustes de saldo" icone="relogio" preferencia="financeiro.ajustesDeSaldo">
       <AjustesDeSaldo contas={contas} versao={versao} />
     </Recolhivel>
-    <Recolhivel titulo="Contas" icone="configuracoes" preferencia="financeiro.contas" contador={ativas.length}>
+    <Recolhivel titulo="Contas" icone="configuracoes" preferencia="financeiro.contas" contador={ativas.length} novo={{ rotulo: ROTULO_DA_NOVA_CONTA }}>
       <ContasDoEscritorio contas={contas} hoje={hoje} aoMudar={recarregar} />
     </Recolhivel>
     <Recolhivel titulo="DAS de cada mês" icone="dinheiro" preferencia="financeiro.das">
       <DasDoEscritorio key={mes} lista={das} mesInicial={mes} aoMudar={recarregar} />
     </Recolhivel>
-    <Recolhivel titulo="Sócios" icone="equipe" preferencia="financeiro.socios" contador={socios.length}>
+    <Recolhivel titulo="Sócios" icone="equipe" preferencia="financeiro.socios" contador={socios.length} novo={{ rotulo: ROTULO_DO_NOVO_SOCIO }}>
       <SociosDoEscritorio socios={socios} hoje={hoje} aoMudar={recarregar} />
     </Recolhivel>
     <Recolhivel titulo="Mudanças no saldo inicial, no DAS e nos sócios" icone="relogio" preferencia="financeiro.ajustes">
