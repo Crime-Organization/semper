@@ -8,7 +8,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Membro } from '../dados';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
-import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe } from './EquipeDoCartao';
+import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarALista } from './EquipeDoCartao';
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
 const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · 10%' };
@@ -295,5 +295,55 @@ describe('Equipe do cartão com grupos da equipe (#378)', () => {
     expect(screen.getByRole('list', { name: 'Integrantes do grupo Núcleo Alfa' })).toHaveTextContent('Bruno Exemplo Souza');
     expect(screen.queryByRole('button', { name: 'Tirar o grupo do cartão' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Pôr/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('Equipe do cartão sem responsável principal (#387: os responsáveis da pessoa)', () => {
+  const EQUIPE: Membro[] = [{ id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }, { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }];
+  const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
+  const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Responsável' };
+  const responsaveis = () => screen.getByRole('group', { name: 'Equipe' });
+  const mudar = (extra: Partial<MudarALista> = {}): MudarALista => ({
+    por: 'Pôr responsável', candidatos: () => [EQUIPE[1]], tirar: p => `Tirar ${p.nome} dos responsáveis`, aoPor: vi.fn(), aoTirar: vi.fn(), ...extra
+  });
+
+  it('dados dois responsáveis, quando quem só vê abre o cartão, então os dois são bolinhas iguais, com o nome na dica, sem a bolinha vazia nem o "+"', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao semPrincipal participantes={[ana, bruno]} /></MemoryRouter>);
+    // Então
+    const bolinhas = within(responsaveis()).getAllByRole('img');
+    expect(bolinhas.map(b => b.getAttribute('aria-label'))).toEqual(['Ana Teste Lima, Responsável', 'Bruno Exemplo Souza, Responsável']);
+    expect(bolinhas[1]).toHaveAttribute('data-dica', 'Bruno Exemplo Souza · Responsável');
+    expect(screen.queryByRole('img', { name: 'Sem responsável' })).not.toBeInTheDocument();
+    expect(within(responsaveis()).queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('dado ninguém na lista, quando quem só vê abre o cartão, então nada aparece (nem um grupo vazio)', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao semPrincipal participantes={[]} /></MemoryRouter>);
+    // Então
+    expect(screen.queryByRole('group', { name: 'Equipe' })).not.toBeInTheDocument();
+  });
+
+  it('dado quem altera, quando a lista está vazia, então só aparece o "+" (sem a bolinha vazia de responsável)', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao semPrincipal participantes={[]} mudar={mudar()} /></MemoryRouter>);
+    // Então
+    expect(within(responsaveis()).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Pôr responsável']);
+  });
+
+  it('dado quem altera, quando escolhe alguém pelo "+", então a tela o recebe para pôr; e quando clica na bolinha de um, ele é tirado', async () => {
+    // Dado
+    const m = mudar();
+    render(<MemoryRouter><EquipeDoCartao semPrincipal participantes={[ana]} mudar={m} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Pôr responsável' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Pôr responsável' })).getByRole('button', { name: 'Bruno Exemplo Souza' }));
+    // Então
+    expect(m.aoPor).toHaveBeenCalledWith(EQUIPE[1]);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar Ana Teste Lima dos responsáveis' }));
+    // Então
+    expect(m.aoTirar).toHaveBeenCalledWith(ana);
   });
 });

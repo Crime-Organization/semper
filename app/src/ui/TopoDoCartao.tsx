@@ -35,7 +35,7 @@ interface PropsDoMolde {
   inicio: ReactNode;
   /** O resto da esquerda: o código e os selos do item (prazo, órgão, "Arquivada"…). */
   esquerda?: ReactNode;
-  /** À direita, antes dos botões: a equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo). Sem isto (a pessoa), nada. */
+  /** À direita, antes dos botões: a equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo; na pessoa, EquipeDaPessoaNoTopo). */
   equipe?: ReactNode;
   /** As etiquetas do item: as gravadas (useEtiquetasDoCartao) ou, na anotação nova, as escolhidas na tela. */
   etiquetas: { ids: string[]; marcar: (e: Etiqueta, marcada: boolean) => void };
@@ -84,7 +84,7 @@ interface Props {
   inicio: ReactNode;
   /** O resto da esquerda: o código e os selos do item (prazo, órgão, "Arquivada"…). */
   esquerda?: ReactNode;
-  /** A equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo). Sem isto (a pessoa), nada. */
+  /** A equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo; na pessoa, os responsáveis: EquipeDaPessoaNoTopo). */
   equipe?: ReactNode;
   arquivado: boolean;
   /** Em edição: "Modo de edição" no lugar dos botões, sem a equipe, e os selos sem o x. */

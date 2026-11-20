@@ -8,6 +8,8 @@
 // o motivo na dica (`impedeTirar`, `impedeTrocar`). Quem só lê vê as bolinhas com o nome na dica, sem ação.
 // Os grupos da equipe postos no item (#378) vêm depois dos participantes, em pílulas (GruposNoCartao), e o "+" acha também os
 // grupos (a parte "Grupos da equipe" da busca). Sem grupos no escritório, nada disso aparece.
+// Sem responsável principal (`semPrincipal`, #387: os responsáveis da pessoa, vários e todos iguais), só a lista: cada um é uma
+// bolinha como a de um participante, sem a bolinha do responsável nem o traço, e o "+" põe mais um.
 import { useRef, type CSSProperties, type ReactNode } from 'react';
 import type { GrupoDaEquipe, Membro } from '../dados';
 import { GRUPOS_DEMAIS, nomeDoGrupo, numeroDoGrupo } from '../regras/gruposDaEquipe';
@@ -47,14 +49,15 @@ export function naEquipe(equipe: Membro[], perfilId: string, papel: string): Pes
   return { id: perfilId, nome: m?.nome || 'Usuário removido', cor: m?.cor, papel };
 }
 
-/** O que muda a equipe ali mesmo, no topo do cartão (#356). Quem usa grava (com as regras do lápis do módulo) e relê o cartão. */
-export interface MudarAEquipe {
+/**
+ * O que muda uma lista de pessoas ali mesmo, no topo do cartão (#356): pôr e tirar. Sozinha, serve à lista sem responsável principal
+ * (os responsáveis da pessoa, #387). Quem usa grava (com as regras do lápis do módulo) e relê o cartão.
+ */
+export interface MudarALista {
   /** O nome da bolinha com "+": "Pôr participante". */
   por: string;
   /** Quem a busca do "+" acha: os integrantes ativos que ainda não estão no cartão. */
   candidatos: (termo: string) => Membro[];
-  /** Quem a busca de trocar o responsável acha: os integrantes ativos, menos o responsável de agora. */
-  responsaveis: (termo: string) => Membro[];
   /** O que a bolinha de um participante diz (o clique o tira): "Tirar Ana Souza", ou "Sair da tarefa (Ana Souza)", na própria. */
   tirar: (p: PessoaDaEquipe) => string;
   /** A lista chegou ao máximo: o "+" fica desligado, com este motivo na dica. */
@@ -66,10 +69,16 @@ export interface MudarAEquipe {
    * com o motivo na dica, em vez de oferecer uma ação que seria recusada. undefined: tira.
    */
   impedeTirar?: (p: PessoaDaEquipe) => string | undefined;
-  /** Por que a bolinha do responsável não abre a troca (no contrato, quem a passasse adiante ficaria de fora): o motivo na dica. */
-  impedeTrocar?: string;
   aoPor: (m: Membro) => unknown;
   aoTirar: (p: PessoaDaEquipe) => unknown;
+}
+
+/** O que muda a equipe com responsável principal: a lista e, na bolinha do responsável, a troca. */
+export interface MudarAEquipe extends MudarALista {
+  /** Quem a busca de trocar o responsável acha: os integrantes ativos, menos o responsável de agora. */
+  responsaveis: (termo: string) => Membro[];
+  /** Por que a bolinha do responsável não abre a troca (no contrato, quem a passasse adiante ficaria de fora): o motivo na dica. */
+  impedeTrocar?: string;
   aoTrocarResponsavel: (m: Membro) => unknown;
 }
 
@@ -99,25 +108,43 @@ export interface GruposDoCartao {
   };
 }
 
-interface Props {
-  /** null: o cartão está sem responsável (aparece a bolinha vazia). */
-  responsavel: PessoaDaEquipe | null;
+interface Comum {
   participantes: PessoaDaEquipe[];
-  /** Sem isto, as bolinhas são só para ver (quem só lê o cartão, o cartão arquivado). */
-  mudar?: MudarAEquipe;
   /** Os grupos da equipe do item (#378). */
   grupos?: GruposDoCartao;
 }
+
+/** A equipe de sempre: o responsável (um só), o traço e os participantes. */
+interface ComResponsavel extends Comum {
+  semPrincipal?: false;
+  /** null: o cartão está sem responsável (aparece a bolinha vazia). */
+  responsavel: PessoaDaEquipe | null;
+  /** Sem isto, as bolinhas são só para ver (quem só lê o cartão, o cartão arquivado). */
+  mudar?: MudarAEquipe;
+}
+
+/** Só a lista, sem responsável principal (#387): todos iguais, em `participantes`. */
+interface SoALista extends Comum {
+  semPrincipal: true;
+  /** Sem isto, as bolinhas são só para ver. */
+  mudar?: MudarALista;
+}
+
+type Props = ComResponsavel | SoALista;
 
 /** A dica de quem só vê: o nome e o papel ("Ana Souza · Responsável"). */
 const quemE = (p: PessoaDaEquipe) => `${p.nome} · ${p.papel}`;
 /** O nome da bolinha para o leitor de tela: "Ana Souza, Responsável". */
 const nomeDaBolinha = (p: PessoaDaEquipe) => `${p.nome}, ${p.papel}`;
 
-export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Props) {
+export function EquipeDoCartao(props: Props) {
+  const { participantes, grupos } = props;
+  const mudar: MudarALista | undefined = props.mudar;
   // Depois de tirar alguém, a bolinha dele some: o foco vai à bolinha do "+" (que, desligada, continua no Tab), e o teclado não se perde.
   const mais = useRef<HTMLButtonElement>(null);
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
+  // Só a lista, para quem só vê, e ninguém nela: nada a mostrar (nem um grupo vazio para o leitor de tela).
+  if (props.semPrincipal && !mudar && !participantes.length && !grupos?.doItem.length) return null;
   // Com grupos no escritório, a lista de pessoas cheia não desliga o "+" enquanto houver grupo para pôr (e vice-versa).
   const comGrupos = mudar && grupos?.mudar;
   // O "+" só desliga sem pessoa e sem grupo para pôr; o motivo é o da lista cheia ou, sem ele, o dos grupos demais.
@@ -125,24 +152,13 @@ export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Pr
   const semGrupos = !(comGrupos && !comGrupos.cheio && comGrupos.candidatos('').length);
   const motivoComGrupos = semPessoas && semGrupos ? mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined) : undefined;
   const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : comGrupos ? motivoComGrupos : mudar?.cheia;
-  // A bolinha do responsável que não pode ser passada adiante diz só quem ele é e o motivo, sem o "clique para trocar".
-  const impedeTrocar = responsavel ? mudar?.impedeTrocar : undefined;
-  const motivoDoResponsavel = mudar?.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
   // Desligada, a bolinha de um participante diz quem ele é e por quê; ligada, a ação ("Tirar Ana Souza").
   const motivoDoParticipante = (p: PessoaDaEquipe) => mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.impedeTirar?.(p);
   return <div className="equipe-cartao" role="group" aria-label="Equipe" style={MEDIDA_DA_BOLINHA}>
-    {mudar
-      ? <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={!!motivoDoResponsavel} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
-        bolinha={{
-          tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoResponsavel, classe: 'equipe-bolinha' + (responsavel ? '' : ' vazia'),
-          conteudo: <Bolinha p={responsavel} />,
-          dica: responsavel ? (impedeTrocar ? quemE(responsavel) : `${quemE(responsavel)}. Clique para trocar.`) : `${SEM_RESPONSAVEL}. Clique para escolher.`,
-          rotulo: responsavel ? (impedeTrocar ? nomeDaBolinha(responsavel) : `${nomeDaBolinha(responsavel)}. ${TROCAR_O_RESPONSAVEL}`) : `${SEM_RESPONSAVEL}. Escolher o responsável`,
-          semCandidatos: responsavel ? { dica: `${quemE(responsavel)}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: nomeDaBolinha(responsavel) }
-            : { dica: `${SEM_RESPONSAVEL}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: SEM_RESPONSAVEL }
-        }} />
-      : <SoParaVer dica={responsavel ? quemE(responsavel) : SEM_RESPONSAVEL} rotulo={responsavel ? nomeDaBolinha(responsavel) : SEM_RESPONSAVEL} vazia={!responsavel}><Bolinha p={responsavel} /></SoParaVer>}
-    {(participantes.length > 0 || mudar || !!grupos?.doItem.length) && <span className="equipe-traco" aria-hidden="true" />}
+    {!props.semPrincipal && <>
+      <BolinhaDoResponsavel responsavel={props.responsavel} mudar={props.mudar} />
+      {(participantes.length > 0 || mudar || !!grupos?.doItem.length) && <span className="equipe-traco" aria-hidden="true" />}
+    </>}
     {participantes.length > 0 && <span className="equipe-participantes">
       {participantes.map(p => {
         if (!mudar) return <SoParaVer key={p.id} dica={quemE(p)} rotulo={nomeDaBolinha(p)}><Bolinha p={p} /></SoParaVer>;
@@ -166,6 +182,24 @@ export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Pr
         nome: g => nomeDoGrupo(g, grupos.equipe), texto: g => `${g.nome} · ${numeroDoGrupo(g, grupos.equipe)}`, motivo: comGrupos.cheio ? GRUPOS_DEMAIS : undefined
       } : undefined} />}
   </div>;
+}
+
+/** A bolinha do responsável: para quem altera, abre a troca (sem responsável, vazia, para escolher um); para quem só vê, o nome na dica. */
+function BolinhaDoResponsavel({ responsavel, mudar }: { responsavel: PessoaDaEquipe | null; mudar?: MudarAEquipe }) {
+  if (!mudar) return <SoParaVer dica={responsavel ? quemE(responsavel) : SEM_RESPONSAVEL} rotulo={responsavel ? nomeDaBolinha(responsavel) : SEM_RESPONSAVEL}
+    vazia={!responsavel}><Bolinha p={responsavel} /></SoParaVer>;
+  // A bolinha do responsável que não pode ser passada adiante diz só quem ele é e o motivo, sem o "clique para trocar".
+  const impedeTrocar = responsavel ? mudar.impedeTrocar : undefined;
+  const motivoDoResponsavel = mudar.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
+  return <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={!!motivoDoResponsavel} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
+    bolinha={{
+      tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoResponsavel, classe: 'equipe-bolinha' + (responsavel ? '' : ' vazia'),
+      conteudo: <Bolinha p={responsavel} />,
+      dica: responsavel ? (impedeTrocar ? quemE(responsavel) : `${quemE(responsavel)}. Clique para trocar.`) : `${SEM_RESPONSAVEL}. Clique para escolher.`,
+      rotulo: responsavel ? (impedeTrocar ? nomeDaBolinha(responsavel) : `${nomeDaBolinha(responsavel)}. ${TROCAR_O_RESPONSAVEL}`) : `${SEM_RESPONSAVEL}. Escolher o responsável`,
+      semCandidatos: responsavel ? { dica: `${quemE(responsavel)}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: nomeDaBolinha(responsavel) }
+        : { dica: `${SEM_RESPONSAVEL}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: SEM_RESPONSAVEL }
+    }} />;
 }
 
 /** A bolinha com as iniciais (e a cor) de quem está no cartão; sem ninguém, o ícone de pessoa, para a bolinha vazia. */
