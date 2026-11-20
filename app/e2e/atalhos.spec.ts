@@ -70,6 +70,63 @@ test.describe('Atalhos de teclado em Pessoas', () => {
   });
 });
 
+test.describe('Atalhos de teclado no Financeiro', () => {
+  test('quando a pessoa aperta "N" fora de um campo, então abre a Nova entrada, o mesmo que o botão do cabeçalho; o "?" lista o N', async ({ page }) => {
+    // Dado
+    await page.goto('/financeiro/');
+    await expect(page.getByRole('button', { name: 'Nova entrada' })).toHaveAttribute('title', 'Nova entrada (N)');
+    await expect(page.getByRole('group', { name: /^Desempenho de/ })).toBeVisible();
+    // Quando
+    await page.keyboard.press('?');
+    // Então
+    const lista = page.getByRole('dialog', { name: 'Atalhos do teclado' });
+    await expect(lista.getByRole('region', { name: 'Nesta página' })).toContainText('Nova entrada');
+    // Quando
+    await page.keyboard.press('Escape');
+    await expect(lista).toBeHidden();
+    await page.keyboard.press('n');
+    // Então
+    await expect(page.getByRole('form', { name: 'Nova entrada' })).toBeVisible();
+  });
+});
+
+test.describe('Desligar os atalhos de uma tecla só', () => {
+  test('dados os atalhos desligados em Minha conta, quando a pessoa aperta "N" em Pessoas e "T" no cartão da tarefa, então nada dispara; religados, voltam', async ({ page }) => {
+    // Dado
+    await page.goto('/minha-conta/');
+    const interruptor = page.getByRole('checkbox', { name: /Atalhos de uma tecla só/ });
+    await expect(interruptor).toBeChecked();
+    await interruptor.uncheck();
+    // Quando
+    await page.goto('/pessoas/');
+    await expect(page.getByRole('link', { name: 'Nova pessoa' })).toHaveAttribute('title', 'Nova pessoa');
+    await page.keyboard.press('n');
+    await page.keyboard.press('?');
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/$/);
+    await expect(page.getByRole('dialog', { name: 'Atalhos do teclado' })).toBeHidden();
+    // Quando: no cartão da tarefa, o T também não liga o cronômetro
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('timer')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Iniciar' })).not.toHaveAttribute('aria-keyshortcuts');
+    await page.keyboard.press('t');
+    // Então
+    await expect(cartao.getByText('pausado')).toBeVisible();
+    await expect(cartao.getByText('contando')).toHaveCount(0);
+    // Quando: religa
+    await page.goto('/minha-conta/');
+    await interruptor.check();
+    await page.goto('/pessoas/');
+    await expect(page.getByRole('link', { name: 'Nova pessoa' })).toHaveAttribute('title', 'Nova pessoa (N)');
+    await page.keyboard.press('n');
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/nova\/$/);
+  });
+});
+
 test.describe('Atalhos de teclado em Tarefas', () => {
   test('quando a pessoa aperta "N" fora de um campo, então abre o cadastro de nova tarefa', async ({ page }) => {
     // Dado

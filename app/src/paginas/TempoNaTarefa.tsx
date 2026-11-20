@@ -11,6 +11,7 @@ import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoT
 import { Avatar } from '../ui/Avatar';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, DadoDoGrupo, estiloBotao, GrupoDeDatas, LinhaDoGrupo, Nota } from '../ui/base';
+import { useAtalhosLigados } from '../ui/atalhos';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { dataCurta } from '../ui/util';
@@ -29,6 +30,8 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
   useEffect(() => { void carregar(); }, [carregar]);
   // Só conta quando a pessoa inicia; na tarefa concluída, a contagem já encerrou.
   const relogio = useCronometro(t, !t.concluida_em, () => { void carregar(); });
+  // Com os atalhos de uma tecla desligados (Minha conta), o T não funciona e o botão não o promete.
+  const atalhos = useAtalhosLigados();
 
   if (tempo === null) return <FaixaDoTempo rotulo={ROTULO_DO_TEMPO}><Carregando /></FaixaDoTempo>;
   if (typeof tempo === 'string') return <FaixaDoTempo rotulo={ROTULO_DO_TEMPO}><Aviso tipo="erro">{tempo}</Aviso></FaixaDoTempo>;
@@ -74,8 +77,8 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
         {t.concluida_em
           ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
           : <button type="button" className={estiloBotao({ forma: 'mini' }) + ' cronometro-alternar'} onClick={relogio.alternar}
-            title={`Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`} aria-keyshortcuts={TECLA_DO_CRONOMETRO.toUpperCase()}>
-            {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'} <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd>
+            {...(atalhos ? { title: `Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`, 'aria-keyshortcuts': TECLA_DO_CRONOMETRO.toUpperCase() } : {})}>
+            {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'}{atalhos && <> <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd></>}
           </button>}
         <button type="button" className={estiloBotao({ forma: 'link' })} onClick={ajustar}>Ajustar meu tempo</button>
       </span>

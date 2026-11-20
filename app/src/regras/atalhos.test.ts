@@ -1,6 +1,6 @@
 // Atalhos de teclado das páginas de módulo (#86). Padrão Dado / Quando / Então: app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { ATALHOS, atalhoDaTecla, dicaComAtalho, ehLugarDeEscrever, listaDeAtalhos, type TeclaApertada } from './atalhos';
+import { ATALHOS, atalhoDaTecla, dicaComAtalho, ehLugarDeEscrever, ehTeclaSozinha, listaDeAtalhos, type TeclaApertada } from './atalhos';
 
 const tecla = (key: string, extra: Partial<TeclaApertada> = {}): TeclaApertada => ({ key, ctrlKey: false, altKey: false, metaKey: false, ...extra });
 const LIVRE = { escrevendo: false, algoPorCima: false };
@@ -53,6 +53,40 @@ describe('Qual atalho a tecla pede', () => {
     // Quando / Então
     expect(atalhoDaTecla(tecla('n', { repeat: true }), LIVRE)).toBeNull();
     expect(atalhoDaTecla(tecla('n', { isComposing: true }), LIVRE)).toBeNull();
+  });
+
+  it('dado o teclado ABNT2 sem a tecla "/ ?", quando a pessoa aperta AltGr+Q ou AltGr+W (que o Windows informa como Ctrl+Alt), então pede a busca e a lista', () => {
+    // Dado
+    const altGr = { ctrlKey: true, altKey: true, altGr: true };
+    // Quando / Então
+    expect(atalhoDaTecla(tecla('/', altGr), LIVRE)).toBe('buscar');
+    expect(atalhoDaTecla(tecla('?', altGr), LIVRE)).toBe('atalhos');
+  });
+
+  it('dado o AltGr junto com o Cmd, quando a pessoa aperta a tecla, então continua sendo um atalho de sempre, não da página', () => {
+    // Quando / Então
+    expect(atalhoDaTecla(tecla('/', { ctrlKey: true, altKey: true, altGr: true, metaKey: true }), LIVRE)).toBeNull();
+  });
+
+  it('dados os atalhos de uma tecla desligados pela pessoa, quando ela aperta "/", "N" ou "?", então nenhum dispara', () => {
+    // Dado
+    const desligados = { ...LIVRE, desligados: true };
+    // Quando / Então
+    expect(atalhoDaTecla(tecla('/'), desligados)).toBeNull();
+    expect(atalhoDaTecla(tecla('n'), desligados)).toBeNull();
+    expect(atalhoDaTecla(tecla('?'), desligados)).toBeNull();
+  });
+});
+
+describe('Tecla sozinha (sem Ctrl, Alt ou Cmd)', () => {
+  it('dada a tecla T do cronômetro, quando vem sozinha, com AltGr, com Ctrl, segurada ou num acento, então só vale sozinha ou com AltGr', () => {
+    // Quando / Então
+    expect(ehTeclaSozinha(tecla('t'))).toBe(true);
+    expect(ehTeclaSozinha(tecla('t', { ctrlKey: true, altKey: true, altGr: true }))).toBe(true);
+    expect(ehTeclaSozinha(tecla('t', { ctrlKey: true }))).toBe(false);
+    expect(ehTeclaSozinha(tecla('t', { altKey: true }))).toBe(false);
+    expect(ehTeclaSozinha(tecla('t', { repeat: true }))).toBe(false);
+    expect(ehTeclaSozinha(tecla('t', { isComposing: true }))).toBe(false);
   });
 });
 

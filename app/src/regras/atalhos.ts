@@ -4,6 +4,9 @@
 // ou Cmd apertado (esses são do navegador e dos atalhos de sempre, como o Ctrl+Z e o Ctrl+K), nem com algo aberto por
 // cima da página (uma janela, o cartão, um menu, a busca geral): ali o N criaria outro item por trás do que está aberto, e
 // o "/" levaria o cursor para a busca escondida atrás dele. Fechando o que está por cima, os atalhos voltam.
+// O AltGr não conta como Ctrl+Alt: no teclado ABNT2 sem a tecla "/ ?", a barra é AltGr+Q e a interrogação, AltGr+W.
+// Quem dita por voz ou digita com outro aparelho pode desligar os atalhos de uma tecla só (WCAG 2.1.4), em Minha conta
+// ou na própria lista do "?"; desligados, nenhum deles dispara.
 // Regras puras: a tela (ui/atalhos.tsx) diz que tecla veio e onde a pessoa está; aqui se decide o que fazer.
 
 /** O que cada atalho da página faz. */
@@ -35,6 +38,11 @@ export interface TeclaApertada {
   repeat?: boolean;
   /** No meio de um acento ou de outra letra composta. */
   isComposing?: boolean;
+  /**
+   * O AltGr apertado. O Windows o informa como Ctrl+Alt, mas ele só escolhe outro caractere da tecla (a barra, no AltGr+Q
+   * do ABNT2): a tecla já chega resolvida em "key", e não há Ctrl de verdade para os atalhos de sempre.
+   */
+  altGr?: boolean;
 }
 
 /** Onde a pessoa está quando aperta a tecla. */
@@ -43,12 +51,22 @@ export interface OndeEsta {
   escrevendo: boolean;
   /** Há algo aberto por cima da página: janela, cartão, menu ou a busca geral. */
   algoPorCima: boolean;
+  /** A pessoa desligou os atalhos de uma tecla só (em Minha conta ou na lista do "?"). */
+  desligados?: boolean;
+}
+
+/**
+ * A tecla vale como atalho de uma tecla só: sem Ctrl, Alt ou Cmd (o AltGr não conta), nem segurada, nem no meio de um acento.
+ * Vale também para o T do cronômetro da tarefa.
+ */
+export function ehTeclaSozinha(tecla: TeclaApertada) {
+  const comando = tecla.metaKey || (!tecla.altGr && (tecla.ctrlKey || tecla.altKey));
+  return !comando && !tecla.repeat && !tecla.isComposing;
 }
 
 /** O atalho que a tecla pede, ou null quando ela é só uma letra (ou não é atalho nenhum). */
 export function atalhoDaTecla(tecla: TeclaApertada, onde: OndeEsta): Atalho | null {
-  if (tecla.ctrlKey || tecla.altKey || tecla.metaKey || tecla.repeat || tecla.isComposing) return null;
-  if (onde.escrevendo || onde.algoPorCima) return null;
+  if (!ehTeclaSozinha(tecla) || onde.escrevendo || onde.algoPorCima || onde.desligados) return null;
   return PELA_TECLA.get(tecla.key.toLowerCase()) ?? null;
 }
 

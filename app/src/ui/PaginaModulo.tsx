@@ -5,11 +5,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import type { OrdemComPrazo } from '../dados';
-import { ATALHOS, dicaComAtalho } from '../regras/atalhos';
+import { ATALHOS, dicaComAtalho, type Atalho } from '../regras/atalhos';
 import { PARAMETRO_DA_BUSCA, PARAMETROS_DO_VER_TODOS } from '../regras/buscaGeral';
-import { useAtalhosDaPagina } from './atalhos';
+import { useAtalhosDaPagina, useAtalhosLigados } from './atalhos';
 import { Icone, type NomeIcone } from './Icone';
-import { BotaoLink } from './base';
+import { BotaoLink, estiloBotao } from './base';
 import { MenuFlutuante } from './Menu';
 import { ORDENS, type Ordenacao } from './ordem';
 import { useAtrasado } from './util';
@@ -30,6 +30,12 @@ export interface Filtro {
   aoMudar: (valor: string) => void;
 }
 
+/**
+ * A ação principal da página (o botão verde do cabeçalho, que o "N" também aciona): ou leva a um endereço (o cadastro, como
+ * "Nova pessoa"), ou faz algo na própria página (abre a janela da nova entrada, no Financeiro).
+ */
+export type AcaoPrincipal = { rotulo: string; para: string } | { rotulo: string; aoClicar: () => void };
+
 /** Item do menu "⋯" da barra (exportar, importar e outras ações sobre a lista inteira). */
 export interface AcaoMenu { rotulo: string; icone: NomeIcone; aoEscolher: () => void }
 
@@ -37,7 +43,7 @@ interface Props {
   titulo: string;
   /** Texto curto ao lado do título, como "28 ativas". */
   contador?: ReactNode;
-  acao?: { rotulo: string; para: string };
+  acao?: AcaoPrincipal;
   /** Busca com espera enquanto digita: aoBuscar recebe o termo só quando a pessoa para de digitar. */
   busca?: { placeholder: string; aoBuscar: (termo: string) => void };
   /** Filtros e ordem ficam juntos no painel do botão "Filtros". */
@@ -86,8 +92,12 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
   const navegar = useNavigate();
   useAtalhosDaPagina({
     buscar: busca ? () => { campoDaBusca.current?.focus(); campoDaBusca.current?.select(); } : undefined,
-    novo: acao ? { rotulo: acao.rotulo, abrir: () => { void navegar(acao.para); } } : undefined
+    novo: acao ? { rotulo: acao.rotulo, abrir: 'para' in acao ? () => { void navegar(acao.para); } : acao.aoClicar } : undefined
   });
+  // Com os atalhos de uma tecla desligados pela pessoa, a dica e o leitor de tela não os prometem.
+  const atalhosLigados = useAtalhosLigados();
+  const dicaDoAtalho = (texto: string, atalho: Atalho) => atalhosLigados
+    ? { title: dicaComAtalho(texto, atalho), 'aria-keyshortcuts': ATALHOS[atalho].nome } : { title: texto };
   const ligados = filtros.filter(f => f.valor !== (f.opcoes[0]?.[0] ?? '')).length;
 
   return <div className="miolo largo">
@@ -98,7 +108,7 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
       </div>
       <div className="barra-ferr" role="search">
         {busca && <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar</span>
-          <input ref={campoDaBusca} type="search" placeholder={busca.placeholder} title={dicaComAtalho('Buscar', 'buscar')} aria-keyshortcuts={ATALHOS.buscar.nome} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
+          <input ref={campoDaBusca} type="search" placeholder={busca.placeholder} {...dicaDoAtalho('Buscar', 'buscar')} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
         </label>}
         {(filtros.length > 0 || ordem) && <button type="button" className="barra-botao barra-filtros" aria-haspopup="dialog" aria-expanded={!!painel}
           aria-label={ligados ? `Filtros (${ligados} ligado${ligados > 1 ? 's' : ''})` : 'Filtros'} onClick={e => setPainel(painel ? null : e.currentTarget)}>
@@ -131,10 +141,13 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
           </button>)}
         </div>}
       </div>
-      {acao && <BotaoLink variante="principal" className="cabeca-acao" to={acao.para} title={dicaComAtalho(acao.rotulo, 'novo')}
-        aria-label={acao.rotulo} aria-keyshortcuts={ATALHOS.novo.nome}>
-        <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
-      </BotaoLink>}
+      {acao && ('para' in acao
+        ? <BotaoLink variante="principal" className="cabeca-acao" to={acao.para} {...dicaDoAtalho(acao.rotulo, 'novo')} aria-label={acao.rotulo}>
+          <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
+        </BotaoLink>
+        : <button type="button" className={estiloBotao({ variante: 'principal' }, 'cabeca-acao')} {...dicaDoAtalho(acao.rotulo, 'novo')} aria-label={acao.rotulo} onClick={acao.aoClicar}>
+          <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
+        </button>)}
     </header>
     {children}
     {lote && <div className="lote">{lote}</div>}

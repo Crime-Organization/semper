@@ -115,7 +115,9 @@ export default function Financeiro() {
     : 'Nenhuma conta ainda. Crie as contas do escritório, cada uma com o saldo inicial, para começar.';
 
   // As contas ficam sempre no mesmo lugar: criar a primeira não pode fechar o formulário da segunda.
-  return <PaginaModulo {...cabecalho} contador={conta?.nome}>
+  // "Novo lançamento" é a ação principal da página (no cabeçalho e na tecla N, #86), quando há uma conta para lançar.
+  const acao = conta ? { rotulo: 'Novo lançamento', aoClicar: () => setAberto({ o: 'novo' }) } : undefined;
+  return <PaginaModulo {...cabecalho} contador={conta?.nome} acao={acao}>
     <AbasDoFinanceiro />
     {!conta ? <Vazio>{vazio}</Vazio> : <>
     <div className="financeiro-barra">
@@ -128,7 +130,6 @@ export default function Financeiro() {
         {/* Apagar o campo não muda nada: fica o último mês válido. */}
         <input type="month" className="campo" value={mes} onChange={e => { if (mesValido(e.target.value)) { setMes(e.target.value); setAberto(null); } }} />
       </label>
-      <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setAberto({ o: 'novo' })}><Icone nome="mais" tam={15} /> Novo lançamento</button>
       {ativas.length > 1 && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'transferir' })}>Repasse entre contas</button>}
     </div>
 

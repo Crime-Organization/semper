@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 // Os atalhos de teclado da página de módulo (#86). Padrão Dado / Quando / Então: veja app/TESTES.md.
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { ligarAtalhos } from './atalhos';
 import { Janelas } from './janela';
-import { PaginaModulo } from './PaginaModulo';
+import { PaginaModulo, type AcaoPrincipal } from './PaginaModulo';
 
 /** Mostra o endereço atual, para conferir aonde o "N" levou. */
 function Endereco() {
@@ -13,9 +14,11 @@ function Endereco() {
   return <output aria-label="Endereço">{l.pathname + l.search}</output>;
 }
 
-function montar({ comNovo = true, comBusca = true, porCima = false } = {}) {
+const NOVA_PESSOA: AcaoPrincipal = { rotulo: 'Nova pessoa', para: '/pessoas/nova/' };
+
+function montar({ comNovo = true, comBusca = true, porCima = false, acao = NOVA_PESSOA }: { comNovo?: boolean; comBusca?: boolean; porCima?: boolean; acao?: AcaoPrincipal } = {}) {
   render(<MemoryRouter initialEntries={['/pessoas/']}>
-    <PaginaModulo titulo="Pessoas" acao={comNovo ? { rotulo: 'Nova pessoa', para: '/pessoas/nova/' } : undefined}
+    <PaginaModulo titulo="Pessoas" acao={comNovo ? acao : undefined}
       busca={comBusca ? { placeholder: 'Buscar nome', aoBuscar: vi.fn() } : undefined}>
       <input type="checkbox" aria-label="Marcar a linha" />
       <textarea aria-label="Comentário" />
@@ -31,6 +34,9 @@ const fecharALista = (lista: HTMLElement) => userEvent.click(within(lista).getBy
 const endereco = () => screen.getByRole('status', { name: 'Endereço' });
 
 describe('Página de módulo: os atalhos do teclado', () => {
+  // A preferência é da pessoa e vale para o sistema todo: cada teste começa com os atalhos ligados, como vêm.
+  afterEach(() => { ligarAtalhos(true); });
+
   it('dada a página, quando a pessoa aperta "/", então o cursor vai para a busca, sem a barra entrar nela', async () => {
     // Dado
     montar();
@@ -126,5 +132,73 @@ describe('Página de módulo: os atalhos do teclado', () => {
     expect(novo).toHaveAttribute('title', 'Nova pessoa (N)');
     expect(novo).toHaveAttribute('aria-keyshortcuts', 'N');
     expect(screen.getByRole('searchbox')).toHaveAttribute('title', 'Buscar (/)');
+  });
+
+  it('dada a ação principal que abre algo na própria página (a Nova entrada do Financeiro), quando a pessoa aperta "N", então faz o mesmo que o botão', async () => {
+    // Dado
+    const aoClicar = vi.fn();
+    montar({ acao: { rotulo: 'Nova entrada', aoClicar } });
+    const botao = screen.getByRole('button', { name: 'Nova entrada' });
+    expect(botao).toHaveAttribute('title', 'Nova entrada (N)');
+    expect(botao).toHaveAttribute('aria-keyshortcuts', 'N');
+    // Quando
+    await userEvent.keyboard('n');
+    // Então
+    expect(aoClicar).toHaveBeenCalledTimes(1);
+    expect(endereco()).toHaveTextContent(/^\/pessoas\/$/);
+    // Quando
+    await userEvent.click(botao);
+    // Então
+    expect(aoClicar).toHaveBeenCalledTimes(2);
+  });
+
+  it('dada a ação principal por clique, quando a pessoa aperta "?", então a lista mostra o "N" com o nome dela', async () => {
+    // Dado
+    montar({ acao: { rotulo: 'Nova entrada', aoClicar: vi.fn() } });
+    // Quando
+    await userEvent.keyboard('?');
+    // Então
+    const lista = await screen.findByRole('dialog', { name: 'Atalhos do teclado' });
+    expect(within(lista).getByRole('region', { name: 'Nesta página' })).toHaveTextContent('Nova entrada');
+    await fecharALista(lista);
+  });
+
+  it('dado o teclado ABNT2 sem a tecla "/ ?", quando a pessoa aperta AltGr+Q (a barra, que chega como Ctrl+Alt), então o cursor vai para a busca', () => {
+    // Dado
+    montar();
+    // Quando
+    fireEvent.keyDown(document.body, { key: '/', ctrlKey: true, altKey: true, modifierAltGraph: true });
+    // Então
+    expect(screen.getByRole('searchbox')).toHaveFocus();
+  });
+
+  it('dados os atalhos de uma tecla desligados pela pessoa, quando ela aperta "/", "N" e "?", então nada acontece e a dica não os promete', async () => {
+    // Dado
+    ligarAtalhos(false);
+    montar();
+    // Quando
+    await userEvent.keyboard('/n?');
+    // Então
+    expect(endereco()).toHaveTextContent(/^\/pessoas\/$/);
+    expect(screen.getByRole('searchbox')).not.toHaveFocus();
+    expect(screen.queryByRole('dialog', { name: 'Atalhos do teclado' })).not.toBeInTheDocument();
+    const novo = screen.getByRole('link', { name: 'Nova pessoa' });
+    expect(novo).toHaveAttribute('title', 'Nova pessoa');
+    expect(novo).not.toHaveAttribute('aria-keyshortcuts');
+    expect(screen.getByRole('searchbox')).not.toHaveAttribute('aria-keyshortcuts');
+  });
+
+  it('dada a lista do "?", quando a pessoa desmarca "Atalhos de uma tecla só", então o "N" deixa de abrir o cadastro', async () => {
+    // Dado
+    montar();
+    await userEvent.keyboard('?');
+    const lista = await screen.findByRole('dialog', { name: 'Atalhos do teclado' });
+    // Quando
+    await userEvent.click(within(lista).getByRole('checkbox', { name: /Atalhos de uma tecla só/ }));
+    await fecharALista(lista);
+    await userEvent.keyboard('n');
+    // Então
+    expect(endereco()).toHaveTextContent(/^\/pessoas\/$/);
+    expect(screen.getByRole('link', { name: 'Nova pessoa' })).toHaveAttribute('title', 'Nova pessoa');
   });
 });

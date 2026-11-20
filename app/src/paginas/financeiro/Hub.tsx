@@ -101,8 +101,8 @@ export default function Hub() {
     </select>}
   </div>;
 
+  // "Nova entrada" é a ação principal da página (no cabeçalho, como o "Novo" dos outros módulos, e na tecla N, #86); a saída e as contas ficam aqui.
   const botoes = <div className="financeiro-acoes">
-    <button type="button" className={estiloBotao({ variante: 'principal' })} onClick={() => setAberto({ o: 'entrada' })}><Icone nome="mais" tam={15} /> Nova entrada</button>
     {admin && <button type="button" className={estiloBotao()} onClick={() => setAberto({ o: 'saida' })}><Icone nome="mais" tam={15} /> Nova saída</button>}
     {/* As contas do escritório (saldo inicial, DAS, ajustes): também quando ainda não há nenhuma. */}
     {admin && <BotaoLink forma="link" to="/financeiro/contas/">Contas e DAS</BotaoLink>}
@@ -153,11 +153,13 @@ export default function Hub() {
     </>;
   }
 
-  return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo}>
+  return <PaginaModulo {...cabecalho} contador={nomeDoPeriodo} acao={{ rotulo: TITULOS.entrada, aoClicar: () => setAberto({ o: 'entrada' }) }}>
     {barra}
     {corpo}
     {aberto && <PainelCartao aoFechar={fechar} soNoCentro ajustado={aberto.o !== 'entrada'} rotulo={TITULOS[aberto.o]}>
       <header className="cartao-cabeca"><h2>{TITULOS[aberto.o]}</h2></header>
+      {/* O botão do cabeçalho já aparece enquanto as parcelas carregam. */}
+      {aberto.o === 'entrada' && !atual && <Carregando />}
       {aberto.o === 'entrada' && atual && 'parcelas' in atual && <>
         <NovaEntrada parcelas={atual.parcelas} parcelaInicial={aberto.parcela} aoRegistrar={registrou} />
         {admin && <button type="button" className={estiloBotao({ forma: 'link' })} onClick={() => setAberto({ o: 'avulsa' })}>Entrada sem contrato</button>}
