@@ -56,7 +56,7 @@ async function botoesDoAlto(cartao: Locator) {
 async function conteudoDoTopo(cartao: Locator, tipo: string) {
   const partes: { nome: string; alvo: Locator }[] = [
     { nome: 'tipo', alvo: cartao.getByText(tipo, { exact: true }).first() },
-    { nome: 'equipe', alvo: cartao.getByRole('group', { name: 'Equipe' }) },
+    { nome: 'equipe', alvo: cartao.getByRole('group', { name: 'Equipe', exact: true }) },
     { nome: 'etiquetas', alvo: cartao.getByRole('group', { name: 'Etiquetas' }) },
     { nome: 'título', alvo: cartao.getByRole('heading', { level: 2 }) },
     { nome: 'modo de edição', alvo: cartao.getByRole('status').filter({ hasText: 'Modo de edição' }) }
@@ -97,9 +97,9 @@ test.describe('O topo dos cartões, como o da anotação', () => {
         expect(caixa.y + caixa.height).toBeLessThanOrEqual(titulo.y);
       }
       if (equipe) {
-        const daEquipe = (await cartao.getByRole('group', { name: 'Equipe' }).boundingBox())!;
+        const daEquipe = (await cartao.getByRole('group', { name: 'Equipe', exact: true }).boundingBox())!;
         expect(daEquipe.y + daEquipe.height).toBeLessThanOrEqual(titulo.y);
-      } else await expect(cartao.getByRole('group', { name: 'Equipe' })).toHaveCount(0);
+      } else await expect(cartao.getByRole('group', { name: 'Equipe', exact: true })).toHaveCount(0);
       await expect(cartao.getByRole('heading', { name: 'Etiquetas', level: 3 })).toHaveCount(0);
       await expect(cartao.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
       expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
@@ -128,7 +128,7 @@ test.describe('O topo dos cartões, como o da anotação', () => {
     // Quando
     cartao = await abrirCartao(page, '/tarefas/', 'Renovar a procuração');
     // Então
-    await expect(cartao.getByRole('group', { name: 'Equipe' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true })).toBeVisible();
     await expect(cartao.getByRole('group', { name: 'Etiquetas' }).getByText('Urgente', { exact: true })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Tirar a etiqueta Urgente' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toHaveCount(0);
@@ -195,7 +195,7 @@ test.describe('O topo não fica por baixo dos botões da janela', () => {
       await nadaPorBaixoDosBotoes(cartao, 'Tarefa');
       // Nenhuma bolinha nem pílula passa da largura da janela (com muita gente, elas descem para a linha de baixo).
       const janela = (await cartao.boundingBox())!;
-      for (const caixa of await cartao.getByRole('group', { name: 'Equipe' }).getByRole('button').evaluateAll(bs => bs.map(b => b.getBoundingClientRect().toJSON() as DOMRect))) {
+      for (const caixa of await cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button').evaluateAll(bs => bs.map(b => b.getBoundingClientRect().toJSON() as DOMRect))) {
         expect(caixa.left).toBeGreaterThanOrEqual(janela.x);
         expect(caixa.right).toBeLessThanOrEqual(janela.x + janela.width);
       }
@@ -265,7 +265,7 @@ test.describe('A equipe no topo, como na anotação', () => {
         if (centro) await abrirNoCentro(cartao);
         await voltarAoComeco(cartao);
         // Então
-        const equipe = (await cartao.getByRole('group', { name: 'Equipe' }).boundingBox())!;
+        const equipe = (await cartao.getByRole('group', { name: 'Equipe', exact: true }).boundingBox())!;
         const caixas = await Promise.all(partes(cartao).map(async p => (await p.boundingBox())!));
         const naMesmaLinha = caixas.filter(c => c.y < equipe.y + equipe.height && equipe.y < c.y + c.height);
         expect(naMesmaLinha.length).toBeGreaterThan(0);
@@ -286,7 +286,7 @@ test.describe('A equipe no topo, como na anotação', () => {
       // Então: os centros de todos na mesma altura (com folga de alguns pixels)
       const meio = async (alvo: Locator) => { const c = (await alvo.boundingBox())!; return c.y + c.height / 2; };
       const doX = await meio(cartao.getByRole('button', { name: 'Fechar' }));
-      for (const alvo of [cartao.getByText('Tarefa', { exact: true }).first(), cartao.getByRole('group', { name: 'Equipe' }), menuDoCartao(cartao), cartao.getByRole('button', { name: 'Escolher etiquetas' })]) {
+      for (const alvo of [cartao.getByText('Tarefa', { exact: true }).first(), cartao.getByRole('group', { name: 'Equipe', exact: true }), menuDoCartao(cartao), cartao.getByRole('button', { name: 'Escolher etiquetas' })]) {
         expect(Math.abs(await meio(alvo) - doX)).toBeLessThanOrEqual(3);
       }
     });
