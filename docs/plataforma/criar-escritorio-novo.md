@@ -53,8 +53,10 @@ No mesmo SQL Editor:
 select privado.escritorio_novo_link('email@do.administrador');
 ```
 
-Sai um link novo, e o anterior deixa de valer. Até a versão do site com a correção do ensaio (#295) ser publicada,
-peça para abrir o link novo **numa aba nova**: colado na mesma aba do link recusado, ele ainda seguia com o código antigo.
+Sai um link novo, e o anterior deixa de valer. Peça para abrir o link novo **numa aba nova**: colado na mesma aba do
+link recusado, o site publicado ainda segue com o código antigo e responde "Convite não encontrado ou vencido". A
+correção está numa tarefa à parte (ramo `convite-mesma-aba`), ainda não publicada.
+<!-- PROVISORIO-convite-mesma-aba: tirar a frase da aba nova (aqui e no "Ensaio feito") quando a correção do link na mesma aba for publicada. -->
 
 ### O e-mail saiu errado
 
@@ -98,7 +100,8 @@ quadros (Pessoas, Contratos com a coluna do assinado, Processos judiciais e admi
 com as colunas de início e de concluído), o Financeiro fora do menu (o endereço /financeiro/ volta ao Início), nenhuma
 pessoa ou tarefa do outro escritório na busca, e uma tarefa nova com o botão **Concluir**, que a leva à coluna
 "Concluída". Também: e-mail que já tem conta, link substituído, link vencido, link já usado e e-mail corrigido. O único
-defeito achado foi o do link novo na mesma aba (corrigido no site; veja acima).
+defeito achado foi o do link novo na mesma aba: corrigido no código, numa tarefa à parte, e ainda não publicado. Até
+lá, abra o link novo numa aba nova (veja acima).
 
 ## Pontos de atenção
 
