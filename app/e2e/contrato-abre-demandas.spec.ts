@@ -1,7 +1,7 @@
 // Quem está num contrato vê as demandas e as tarefas dele, só para ler (#326). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mateus,
+// Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mauro,
 // não está na demanda "Busca de anterioridade" (ligada a esse contrato) e é colaborador da demanda "Registro de marca". A tarefa
-// "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante.
+// "Renovar a procuração" é avulsa, da Ana, com o Mauro de participante.
 // O banco fictício ainda lista todas as demandas e tarefas; aqui o teste confere o cartão e a lista de quem chega a eles pelo contrato.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
@@ -99,7 +99,7 @@ test.describe('Quem está no contrato vê as demandas dele', () => {
 });
 
 test.describe('Quem está no contrato pode ser mencionado nas demandas e tarefas dele', () => {
-  test('dado o Bruno no contrato, quando o Mateus escreve @ num comentário de uma demanda dele em que o Bruno não está, então o Bruno pode ser escolhido', async ({ page }) => {
+  test('dado o Bruno no contrato, quando o Mauro escreve @ num comentário de uma demanda dele em que o Bruno não está, então o Bruno pode ser escolhido', async ({ page }) => {
     // Dado
     await brunoNoContrato(page);
     const cartao = await abrirDemanda(page, 'Busca de anterioridade');
@@ -113,7 +113,7 @@ test.describe('Quem está no contrato pode ser mencionado nas demandas e tarefas
   });
 
   for (const a of ['demanda', 'contrato'] as const) {
-    test(`dado o Bruno no contrato e a tarefa ligada ${a === 'demanda' ? 'a uma demanda dele' : 'a ele'}, quando o Mateus escreve @ num comentário da tarefa, então o Bruno pode ser escolhido`, async ({ page }) => {
+    test(`dado o Bruno no contrato e a tarefa ligada ${a === 'demanda' ? 'a uma demanda dele' : 'a ele'}, quando o Mauro escreve @ num comentário da tarefa, então o Bruno pode ser escolhido`, async ({ page }) => {
       // Dado
       await brunoNoContrato(page);
       await procuracaoLigada(page, a);

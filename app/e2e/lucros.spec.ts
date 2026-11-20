@@ -1,12 +1,12 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O lucro dos sócios. Quem está logado é o Mateus (administrador), responsável pelo contrato de JOSÉ DA SILVA TESTE, de R$ 3.000,00 em 5
+// O lucro dos sócios. Quem está logado é o Mauro (administrador), responsável pelo contrato de JOSÉ DA SILVA TESTE, de R$ 3.000,00 em 5
 // parcelas. O banco fictício começa sem contas e sem sócios.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirNoFinanceiro, abrirSecao } from './ajudantes';
 
 const dinheiro = (texto: string) => new RegExp(`R\\$\\s${texto.replace('.', '\\.')}`);
 
-/** A conta PJ com o DAS de 4,5%, e Mateus na lista de sócios desde 2020. */
+/** A conta PJ com o DAS de 4,5%, e Mauro na lista de sócios desde 2020. */
 async function prepararCaixa(page: Page) {
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
@@ -27,8 +27,8 @@ async function prepararCaixa(page: Page) {
   await abrirSecao(page, 'Sócios');
   await page.getByRole('button', { name: 'Novo sócio' }).filter({ hasText: 'Novo sócio' }).click();
   const socio = page.getByRole('form', { name: 'Novo sócio' });
-  await socio.getByLabel('Pessoa').fill('MATEUS FREITAS');
-  await socio.getByRole('button', { name: /MATEUS FREITAS/ }).click();
+  await socio.getByLabel('Pessoa').fill('MAURO TEIXEIRA');
+  await socio.getByRole('button', { name: /MAURO TEIXEIRA/ }).click();
   await socio.getByLabel('Desde').fill('2020-01-01');
   await socio.getByRole('button', { name: 'Salvar sócio' }).click();
   await expect(page.getByRole('list', { name: 'Sócios' })).toContainText('desde 01/01/2020');
@@ -71,10 +71,10 @@ test.describe('Lucro dos sócios', () => {
     await abrirNoFinanceiro(page, 'Lucro dos sócios');
     // Então: R$ 647,50, a parte da planilha, e não os R$ 925,00 que ficaram na conta
     const comoResponsavel = page.getByRole('table', { name: 'Lucro como responsável' });
-    const linha = comoResponsavel.getByRole('row').filter({ hasText: 'MATEUS FREITAS' });
+    const linha = comoResponsavel.getByRole('row').filter({ hasText: 'MAURO TEIXEIRA' });
     await expect(linha).toContainText(dinheiro('647,50'));
     await expect(linha).not.toContainText(dinheiro('925,00'));
-    await expect(page.getByRole('table', { name: 'Lucro como indicador' }).getByRole('row').filter({ hasText: 'MATEUS FREITAS' })).not.toContainText(dinheiro('647,50'));
+    await expect(page.getByRole('table', { name: 'Lucro como indicador' }).getByRole('row').filter({ hasText: 'MAURO TEIXEIRA' })).not.toContainText(dinheiro('647,50'));
 
     // Quando: paga. O formulário já vem com o que está em aberto
     await page.getByRole('button', { name: 'Pagar lucro' }).click();
@@ -85,7 +85,7 @@ test.describe('Lucro dos sócios', () => {
     await expect(form).toHaveCount(0);
     await expect(linha.getByRole('cell').nth(1)).toHaveText(dinheiro('0,00'));
     const pagamentos = page.getByRole('list', { name: /Pagamentos de lucro/ });
-    await expect(pagamentos).toContainText('MATEUS FREITAS');
+    await expect(pagamentos).toContainText('MAURO TEIXEIRA');
 
     // E no caixa ela aparece como divisão de lucro, sem poder mudar por lá
     await abrirNoFinanceiro(page, 'Caixa');
@@ -136,7 +136,7 @@ test.describe('Lucro dos sócios', () => {
     // Então
     await expect(page.getByRole('combobox', { name: /^Ano/ })).toHaveValue(String(ano - 1));
     await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('columnheader', { name: `Em aberto no fim de ${ano - 1}` })).toBeVisible();
-    await expect(page.getByRole('list', { name: `Pagamentos de lucro de ${ano - 1}` })).toContainText('MATEUS FREITAS');
+    await expect(page.getByRole('list', { name: `Pagamentos de lucro de ${ano - 1}` })).toContainText('MAURO TEIXEIRA');
   });
 
   test('quando move dinheiro entre contas, então não conta como lucro, e a divisão de lucro não se lança à mão', async ({ page }) => {
@@ -162,7 +162,7 @@ test.describe('Lucro dos sócios', () => {
     await expect(page.getByRole('form', { name: 'Novo lançamento' }).getByLabel('Categoria').getByRole('option', { name: /Divisão de lucro/ })).toHaveCount(0);
     // E o em aberto continua o mesmo
     await abrirNoFinanceiro(page, 'Lucro dos sócios');
-    await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MATEUS FREITAS' }).getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));
+    await expect(page.getByRole('table', { name: 'Lucro como responsável' }).getByRole('row').filter({ hasText: 'MAURO TEIXEIRA' }).getByRole('cell').nth(1)).toHaveText(dinheiro('647,50'));
     await expect(page.getByText('Nenhum pagamento de lucro neste ano.')).toBeVisible();
   });
 });

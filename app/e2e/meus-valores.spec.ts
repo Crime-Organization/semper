@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// A tela "Meus valores" e a seção "A passar" das Parcelas. Quem está logado é o Mateus (administrador), responsável pelo contrato de
+// A tela "Meus valores" e a seção "A passar" das Parcelas. Quem está logado é o Mauro (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
@@ -52,7 +52,7 @@ async function receberComContrato(page: Page, ajustar: (cartao: Lugar) => Promis
 }
 
 const tudoNaConta = (cartao: Lugar) => cartao.getByText('100% do que o cliente pagar').click();
-/** Quem está logado é o Mateus: com a Ana como responsável, ele entra como participante ou indicador. */
+/** Quem está logado é o Mauro: com a Ana como responsável, ele entra como participante ou indicador. */
 const comAnaResponsavel = (ajustar: (cartao: Lugar) => Promise<void>) => async (cartao: Lugar) => {
   await cartao.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
   await ajustar(cartao);
@@ -105,8 +105,8 @@ test.describe('Meus valores', () => {
     await expect(page.getByText('Além dos recebimentos do mês, aparecem os valores ainda a receber de antes dele.', { exact: false })).toBeVisible();
     // Quando
     await page.goto('/parcelas/');
-    await page.getByRole('button', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).click();
-    await page.getByRole('form', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
+    await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');
     await page.goto('/meus-valores/');
     // Então
@@ -132,7 +132,7 @@ test.describe('Meus valores', () => {
   test('dado que sou participante, quando o valor é marcado como pago, então minha linha passa a recebido; e desfazer volta', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', 'Mateus Freitas Gonçalves')));
+    await receberComContrato(page, comAnaResponsavel(comParticipante('mauro', 'Mauro Teixeira Duarte')));
     await page.goto('/meus-valores/');
     const participante = linhas(page).filter({ hasText: 'Participante' });
     await expect(participante).toContainText('A receber');
@@ -163,8 +163,8 @@ test.describe('Meus valores', () => {
     await prepararCaixa(page);
     await receberComContrato(page, comAnaResponsavel(async cartao => {
       await tudoNaConta(cartao);
-      await cartao.getByRole('textbox', { name: 'Indicador', exact: true }).fill('mateus');
-      await cartao.getByRole('button', { name: /MATEUS FREITAS/ }).click();
+      await cartao.getByRole('textbox', { name: 'Indicador', exact: true }).fill('mauro');
+      await cartao.getByRole('button', { name: /MAURO TEIXEIRA/ }).click();
       await cartao.getByRole('textbox', { name: '% do indicador' }).fill('5');
     }));
     await page.goto('/meus-valores/');
@@ -199,7 +199,7 @@ test.describe('Meus valores', () => {
   test('dado o responsável que também é participante, quando abre, então há uma linha só, com o que é dele, e nada a passar a si mesmo', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comParticipante('mateus', 'Mateus Freitas Gonçalves'));
+    await receberComContrato(page, comParticipante('mauro', 'Mauro Teixeira Duarte'));
     // Quando
     await page.goto('/meus-valores/');
     // Então
@@ -213,7 +213,7 @@ test.describe('Meus valores', () => {
   test('dado um valor a receber, quando abre um mês seguinte, então ele continua na tela e no total; recebido, fica só no mês dele', async ({ page }) => {
     // Dado
     await prepararCaixa(page);
-    await receberComContrato(page, comAnaResponsavel(comParticipante('mateus', 'Mateus Freitas Gonçalves')));
+    await receberComContrato(page, comAnaResponsavel(comParticipante('mauro', 'Mauro Teixeira Duarte')));
     await page.goto('/meus-valores/');
     // Quando
     await page.getByLabel('Mês').fill('2099-12');
@@ -284,7 +284,7 @@ test.describe('A passar a participantes e indicadores', () => {
   });
 
   test('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então quem paga é o responsável da época', async ({ page }) => {
-    // Dado: o Mateus recebe, e o contrato passa para a Ana
+    // Dado: o Mauro recebe, e o contrato passa para a Ana
     await prepararCaixa(page);
     await receberComContrato(page, comParticipante('bruno', 'Bruno Exemplo Souza'));
     const cartao = await abrirContrato(page);
@@ -298,7 +298,7 @@ test.describe('A passar a participantes e indicadores', () => {
     const tabela = secao(page).getByRole('table');
     await expect(tabela.getByRole('columnheader', { name: 'Quem paga' })).toBeVisible();
     const linha = tabela.getByRole('row').filter({ hasText: 'BRUNO EXEMPLO SOUZA' });
-    await expect(linha).toContainText('Mateus Freitas Gonçalves');
+    await expect(linha).toContainText('Mauro Teixeira Duarte');
     await expect(linha).not.toContainText('Ana Teste Lima');
   });
 
@@ -327,7 +327,7 @@ test.describe('A passar a participantes e indicadores', () => {
     // Então
     const tabela = secao(page).getByRole('table');
     await tabela.getByRole('columnheader', { name: 'Para' }).scrollIntoViewIfNeeded();
-    await expect(tabela.getByRole('cell', { name: 'Mateus Freitas Gonçalves' })).toBeInViewport({ ratio: 1 });
+    await expect(tabela.getByRole('cell', { name: 'Mauro Teixeira Duarte' })).toBeInViewport({ ratio: 1 });
   });
 
   test('dada a tela de computador, quando abre, então a tabela cabe inteira, com a parcela junto do contrato e o botão de marcar à vista', async ({ page }) => {

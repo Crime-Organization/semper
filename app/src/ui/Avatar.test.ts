@@ -4,7 +4,7 @@ import { corDe, iniciais } from './Avatar';
 
 describe('Avatar da equipe', () => {
   it.each([
-    ['Mateus Freitas Gonçalves', 'MG'],
+    ['Mauro Teixeira Duarte', 'MD'],
     ['ana', 'A'],
     ['  bruno   souza  ', 'BS'],
     ['', '?'],

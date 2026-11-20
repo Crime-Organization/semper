@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O caixa do escritório. Quem está logado é o Mateus (administrador). O banco fictício começa sem contas.
+// O caixa do escritório. Quem está logado é o Mauro (administrador). O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 

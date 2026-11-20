@@ -3,7 +3,7 @@
 // Processos da demanda. Cada uma tem o "+" no título e o "+ Novo …" embaixo; depois de gravar, a tela volta ao cartão de origem,
 // com o item na seção e o contador atualizado. No cartão arquivado, nenhum "+" aparece.
 // A semente do banco fictício: LUCIANA ROCHA AMOSTRA não tem contratos nem processos; JOSÉ DA SILVA TESTE é cliente do contrato
-// "Registro de marca" (com as demandas "Registro de marca" e "Busca de anterioridade"). Quem está logado é o Mateus (administrador).
+// "Registro de marca" (com as demandas "Registro de marca" e "Busca de anterioridade"). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 

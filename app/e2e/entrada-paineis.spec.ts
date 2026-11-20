@@ -13,7 +13,7 @@ test.describe('Painéis da tela de entrada', () => {
     // Quando
     await page.getByRole('button', { name: 'Esqueci minha senha' }).click();
     await titulo(page, 'Recuperar senha');
-    await page.getByLabel('E-mail da conta').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail da conta').fill('mauro@exemplo.com');
     await page.getByRole('button', { name: 'Enviar link' }).click();
     // Então
     await abaSelecionada(page, 'Equipe');
@@ -49,7 +49,7 @@ test.describe('Painéis da tela de entrada', () => {
 
   test('quando a pessoa troca de painel, então os campos do novo painel começam vazios', async ({ page }) => {
     // Dado
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     // Quando
     await page.getByRole('tab', { name: 'Sou cliente' }).click();
     // Então
@@ -77,7 +77,7 @@ test.describe('Verificação em duas etapas', () => {
     await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
     await sair(page);
     // Quando
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     await page.getByLabel('Senha').fill('senha-de-teste');
     await page.getByRole('button', { name: 'Entrar' }).click();
     await titulo(page, 'Código de verificação');
@@ -98,7 +98,7 @@ test.describe('Verificação em duas etapas', () => {
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();
     await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
     await sair(page);
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     await page.getByLabel('Senha').fill('senha-de-teste');
     await page.getByRole('button', { name: 'Entrar' }).click();
     await titulo(page, 'Código de verificação');

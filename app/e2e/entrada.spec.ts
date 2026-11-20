@@ -14,7 +14,7 @@ test.describe('Entrar e sair', () => {
     await expect(page.getByText('Sua sessão foi encerrada. Entre de novo para continuar.')).toBeVisible();
     await expect(page).toHaveURL(/\/entrar\/\?encerrada/);
     // Quando
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     await page.getByLabel('Senha').fill('senha-de-teste');
     await page.getByRole('button', { name: 'Entrar' }).click();
     // Então
@@ -38,7 +38,7 @@ test.describe('Entrar e sair', () => {
     await page.goto('/');
     // Quando
     await page.getByRole('link', { name: 'Entrar' }).first().click();
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     await page.getByLabel('Senha').fill('senha-de-teste');
     await page.getByRole('button', { name: 'Entrar' }).click();
     // Então
@@ -49,7 +49,7 @@ test.describe('Entrar e sair', () => {
     // Dado
     await sair(page);
     // Quando
-    await page.getByLabel('E-mail').fill('mateus@exemplo.com');
+    await page.getByLabel('E-mail').fill('mauro@exemplo.com');
     await page.getByRole('button', { name: 'Entrar' }).click();
     // Então
     await expect(page.getByText('Informe o e-mail e a senha.')).toBeVisible();

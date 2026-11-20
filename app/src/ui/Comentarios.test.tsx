@@ -15,14 +15,14 @@ const SD = vi.hoisted(() => ({
   comentarioEditar: vi.fn<DadosComentarios['comentarioEditar']>(), comentarioExcluir: vi.fn<DadosComentarios['comentarioExcluir']>()
 }));
 vi.mock('../dados', () => ({ SD: SD satisfies DadosComentarios }));
-// Quem está logado é o Mateus; se é administrador, cada caso diz.
+// Quem está logado é o Mauro; se é administrador, cada caso diz.
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 const EQUIPE: Membro[] = [
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', funcao: 'advogado', ativo: true },
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', funcao: 'advogado', ativo: true },
   { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', funcao: 'advogado', ativo: true },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', funcao: 'estagiario', ativo: true }
 ];
-vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin }) }));
+vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin }) }));
 
 const comentario = (id: string, autor: string, texto: string, criado_em: string): Comentario =>
   ({ id, autor_id: autor, texto, mencoes: [], criado_em, editado_em: null });
@@ -35,8 +35,8 @@ describe('Comentários do cartão', () => {
     sessao.ehAdmin = false;
     Object.values(SD).forEach(f => f.mockReset());
     SD.comentariosListar.mockResolvedValue([
-      comentario('c2', 'u-ana', 'Falei com @mateus.goncalves', '2026-10-29T15:00:00Z'),
-      comentario('c1', 'u-mateus', 'Primeiro contato', '2026-10-28T15:00:00Z')
+      comentario('c2', 'u-ana', 'Falei com @mauro.duarte', '2026-10-29T15:00:00Z'),
+      comentario('c1', 'u-mauro', 'Primeiro contato', '2026-10-28T15:00:00Z')
     ]);
   });
 
@@ -45,8 +45,8 @@ describe('Comentários do cartão', () => {
     render(<SecaoComentarios modulo="pessoas" cartaoId="p1" />);
     // Então
     const itens = await screen.findAllByRole('listitem', { name: /Comentário de/ });
-    expect(itens.map(i => i.getAttribute('aria-label'))).toEqual(['Comentário de Ana Teste Lima', 'Comentário de Mateus Freitas Gonçalves']);
-    expect(within(itens[0]).getByText('@mateus.goncalves')).toHaveAttribute('title', 'Mateus Freitas Gonçalves');
+    expect(itens.map(i => i.getAttribute('aria-label'))).toEqual(['Comentário de Ana Teste Lima', 'Comentário de Mauro Teixeira Duarte']);
+    expect(within(itens[0]).getByText('@mauro.duarte')).toHaveAttribute('title', 'Mauro Teixeira Duarte');
   });
 
   it('dado o endereço de uma mensagem, quando o cartão abre, então a seção vem aberta e o comentário citado aparece destacado', async () => {
@@ -112,7 +112,7 @@ describe('Comentários do cartão', () => {
 
   it('quando a pessoa envia com Ctrl+Enter, então o comentário novo entra no topo e a caixa fica vazia', async () => {
     // Dado
-    SD.comentarioCriar.mockResolvedValue(comentario('c3', 'u-mateus', 'Novo', '2026-10-29T16:00:00Z'));
+    SD.comentarioCriar.mockResolvedValue(comentario('c3', 'u-mauro', 'Novo', '2026-10-29T16:00:00Z'));
     render(<SecaoComentarios modulo="pessoas" cartaoId="p1" />);
     await screen.findAllByRole('listitem', { name: /Comentário de/ });
     // Quando
@@ -125,7 +125,7 @@ describe('Comentários do cartão', () => {
   });
 
   it.each([
-    ['quem escreveu', 'Comentário de Mateus Freitas Gonçalves', false, ['Editar', 'Excluir']],
+    ['quem escreveu', 'Comentário de Mauro Teixeira Duarte', false, ['Editar', 'Excluir']],
     ['um administrador, no comentário de outra pessoa', 'Comentário de Ana Teste Lima', true, ['Excluir']],
     ['quem não escreveu e não é administrador', 'Comentário de Ana Teste Lima', false, []]
   ])('quando %s vê o comentário, então as ações são %j', async (_quem, item, ehAdmin, acoes) => {

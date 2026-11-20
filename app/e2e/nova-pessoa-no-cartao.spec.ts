@@ -4,7 +4,7 @@
 // cartão de origem, com a pessoa já na seção e o número dela maior. A semente do banco fictício: MARIA APARECIDA EXEMPLO é a única
 // cliente da demanda avulsa "Notificar o devedor"; JOSÉ DA SILVA TESTE (CPF 529.982.247-25) é o cliente do processo judicial
 // 0001234-97.2026.8.13.0024; "Renovar a procuração" é uma tarefa avulsa da Ana, sem pessoas, e "Reunião de equipe" é um compromisso
-// da Agenda geral, sem pessoas. Quem está logado é o Mateus (administrador); o Bruno é estagiário e não está em "Renovar a procuração".
+// da Agenda geral, sem pessoas. Quem está logado é o Mauro (administrador); o Bruno é estagiário e não está em "Renovar a procuração".
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
 

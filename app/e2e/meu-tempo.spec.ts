@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Meu tempo trabalhado. Na semente do banco fictício, de ontem: Mateus tem 1 h 20 min em "Emitir a GRU"; Bruno tem
+// Meu tempo trabalhado. Na semente do banco fictício, de ontem: Mauro tem 1 h 20 min em "Emitir a GRU"; Bruno tem
 // 40 min em "Emitir a GRU" e 50 min em "Organizar a pasta", menos um ajuste de 10 min feito hoje. Quem está logado é o
-// Mateus (administrador).
+// Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 
 /** Uma data de N dias atrás (ou adiante), no formato do campo de data. */

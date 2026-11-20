@@ -2,7 +2,7 @@
 // Checklists com grupos e subgrupos numerados (#309), na demanda, na tarefa, no contrato e nos modelos. Na semente do banco
 // fictício há o modelo "Benefício previdenciário" (1. Documentos pessoais › 1.1 RG, 1.2 CPF; 2. Benefício › 2.1 Aposentadoria
 // por idade › 2.1.1 CNIS, 2.1.2 Carteira de trabalho; 2.2 Auxílio-doença › 2.2.1 Laudo médico) e o modelo de antes, sem grupos,
-// "Documentos de pessoa física". O contrato de JOSÉ DA SILVA TESTE é do Mateus, que está logado.
+// "Documentos de pessoa física". O contrato de JOSÉ DA SILVA TESTE é do Mauro, que está logado.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 

@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Foto do perfil. No banco fictício, quem está logado é o Mateus (master); a foto fica guardada na aba.
+// Foto do perfil. No banco fictício, quem está logado é o Mauro (master); a foto fica guardada na aba.
 import { expect, test, type Page } from '@playwright/test';
 
 /** Uma foto de teste em PNG, desenhada no próprio navegador (sem arquivo no repositório): um degradê de 1600×1200. */
@@ -48,7 +48,7 @@ test.describe('Foto do perfil', () => {
     await page.getByRole('button', { name: 'Salvar foto' }).click();
     await expect(page.getByText('Foto salva. Ela já aparece nas bolinhas.')).toBeVisible({ timeout: 30_000 });
     // Então: a bolinha do menu traz a foto (e não as iniciais)
-    const bolinha = page.getByRole('complementary').getByRole('img', { name: 'Mateus Freitas Gonçalves' });
+    const bolinha = page.getByRole('complementary').getByRole('img', { name: 'Mauro Teixeira Duarte' });
     await expect(bolinha).toBeVisible();
     const links = [await page.getByRole('link', { name: '1000×1000' }).getAttribute('href'), await page.getByRole('link', { name: '150×150' }).getAttribute('href')];
     const medidas = await page.evaluate(async enderecos => {
@@ -81,7 +81,7 @@ test.describe('Foto do perfil', () => {
     await page.getByRole('button', { name: 'Confirmar: tirar a foto' }).click();
     // Então
     await expect(page.getByText('Foto tirada. As bolinhas voltam às iniciais.')).toBeVisible();
-    await expect(page.getByRole('complementary').getByLabel('Mateus Freitas Gonçalves')).toHaveText('MG');
+    await expect(page.getByRole('complementary').getByLabel('Mauro Teixeira Duarte')).toHaveText('MD');
     await expect(page.getByRole('button', { name: 'Escolher foto' })).toBeVisible();
   });
 });

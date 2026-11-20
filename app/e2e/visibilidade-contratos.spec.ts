@@ -1,6 +1,6 @@
 // Quem vê cada contrato (#107). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Na semente do banco fictício, Bruno (estagiário, não é administrador) é responsável só pelo contrato de JOÃO PEDRO FICTÍCIO
-// e colaborador da demanda "Registro de marca", ligada ao contrato de JOSÉ DA SILVA TESTE, de Mateus.
+// e colaborador da demanda "Registro de marca", ligada ao contrato de JOSÉ DA SILVA TESTE, de Mauro.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
 

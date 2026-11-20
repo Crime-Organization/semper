@@ -1,5 +1,5 @@
 // Toda a equipe vê os cartões, sem os valores de contrato para quem não é parte (#271). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mateus,
+// Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mauro,
 // e não está na demanda "Busca de anterioridade".
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
@@ -56,7 +56,7 @@ test.describe('Toda a equipe vê os cartões', () => {
   });
 
   test('dada a chave ligada e um checklist com grupos na demanda, quando quem não participa o abre, então vê os grupos, os números e as contagens, sem alterar (#309)', async ({ page }) => {
-    // Dado: o Mateus põe o modelo agrupado na demanda
+    // Dado: o Mauro põe o modelo agrupado na demanda
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'Busca de anterioridade' }).click();

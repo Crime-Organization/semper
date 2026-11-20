@@ -11,13 +11,13 @@ import MeuTempo from './MeuTempo';
 // A página usa só a soma do tempo por tarefa; o mock declara exatamente essa operação.
 const SD = vi.hoisted(() => ({ tempoPorTarefa: vi.fn<DadosTempo['tempoPorTarefa']>() }));
 vi.mock('../dados', () => ({ SD: SD satisfies Pick<DadosTempo, 'tempoPorTarefa'> }));
-// Quem está logado é o Mateus; se é administrador, cada caso diz.
+// Quem está logado é o Mauro; se é administrador, cada caso diz.
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 const EQUIPE: Membro[] = [
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', ativo: true },
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', ativo: true },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }
 ];
-vi.mock('../ui/sessao', () => ({ useSessao: () => ({ ctx: { perfil: { id: 'u-mateus' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin } }) }));
+vi.mock('../ui/sessao', () => ({ useSessao: () => ({ ctx: { perfil: { id: 'u-mauro' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin } }) }));
 
 const abrir = () => render(<MemoryRouter><MeuTempo /></MemoryRouter>);
 
@@ -37,7 +37,7 @@ describe('Meu tempo trabalhado', () => {
     // Então
     await screen.findByRole('table', { name: 'Tempo por tarefa' });
     expect(screen.queryByLabelText('De quem')).toBeNull();
-    expect(SD.tempoPorTarefa.mock.calls.every(([perfil]) => perfil === 'u-mateus')).toBe(true);
+    expect(SD.tempoPorTarefa.mock.calls.every(([perfil]) => perfil === 'u-mauro')).toBe(true);
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Meu tempo trabalhado.');
   });
 

@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { codigoDeBancoValido, contaDeDestino, nomeDoBanco, receitasDoRecebimento, textosDoRecebimento, tipoDoRecebimento } from './recebimento';
 
 const CONTEXTO = {
-  codigo: 'MA24-AG39-108/26', clientes: ['Agencia Digital LEF Ltda'], objetos: ['Defesa processual/contestação'],
-  responsavel: 'Mateus Freitas Gonçalves', participantes: ['Olenka Caroline de Freitas Cardoso'], parcela: '2/2'
+  codigo: 'MA24-AG39-108/26', clientes: ['Agencia Ficticia Teste Ltda'], objetos: ['Defesa processual/contestação'],
+  responsavel: 'Mauro Teixeira Duarte', participantes: ['Ana Teste Lima'], parcela: '2/2'
 };
 const RECEBIMENTO = {
   data: '2026-09-28', valor: 119375, parte_na_conta: 20, na_conta: 23875, responsavel_fica: 40000, escritorio_final: 23875,
-  terceiros: [{ id: 'p-ind', nome: 'Indicador', percentual: 20, papel: 'indicador' as const, valor: 23875 }, { id: 'p-par', nome: 'Olenka', percentual: 10, papel: 'participante' as const, valor: 9000 }],
+  terceiros: [{ id: 'p-ind', nome: 'Indicador', percentual: 20, papel: 'indicador' as const, valor: 23875 }, { id: 'p-par', nome: 'Ana', percentual: 10, papel: 'participante' as const, valor: 9000 }],
   socio_indicador: null
 };
 
@@ -18,7 +18,7 @@ describe('O texto de cada um, para mandar com o comprovante', () => {
     const textos = textosDoRecebimento(RECEBIMENTO, CONTEXTO);
     // Então
     expect(textos.map(t => t.quem)).toEqual(['escritorio', 'indicador', 'participante']);
-    expect(textos[0].texto).toBe('20% - ENTRADA - MA24-AG39-108/26 - AGENCIA DIGITAL LEF LTDA - DEFESA PROCESSUAL/CONTESTAÇÃO - MATEUS FREITAS GONÇALVES/OLENKA CAROLINE DE FREITAS CARDOSO - 2/2 - R$ 238,75 - 28/09/2026');
+    expect(textos[0].texto).toBe('20% - ENTRADA - MA24-AG39-108/26 - AGENCIA FICTICIA TESTE LTDA - DEFESA PROCESSUAL/CONTESTAÇÃO - MAURO TEIXEIRA DUARTE/ANA TESTE LIMA - 2/2 - R$ 238,75 - 28/09/2026');
     expect(textos[1].texto).toMatch(/^20% - SAÍDA - .* - R\$\s238,75 - 28\/09\/2026$/);
     expect(textos[2].texto).toMatch(/^10% - SAÍDA - .* - R\$\s90,00 - 28\/09\/2026$/);
   });

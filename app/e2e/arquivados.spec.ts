@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Arquivados à vista em todos os módulos: a coluna fixa "Arquivados" no fim do quadro e a seção recolhível
 // "Arquivados" embaixo da tabela. Na semente do banco fictício, "Renovar a procuração" é uma tarefa em "Para fazer" e o
-// contrato de MARIA APARECIDA EXEMPLO está ativo. Quem está logado é o Mateus (administrador).
+// contrato de MARIA APARECIDA EXEMPLO está ativo. Quem está logado é o Mauro (administrador).
 import { expect, test } from '@playwright/test';
 import { acaoNoMenuDoCartao, acoesNoMenuDoCartao } from './ajudantes';
 
