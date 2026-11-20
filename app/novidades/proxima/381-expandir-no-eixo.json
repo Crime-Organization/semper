@@ -1,0 +1,5 @@
+{
+  "titulo": "Botões do cartão alinhados",
+  "texto": "O botão de expandir e recolher todas as seções agora fica bem no meio das setas das seções, um embaixo do outro. No cartão aberto no centro, ele fica também logo abaixo do X, no mesmo alinhamento, em qualquer computador e com qualquer zoom.",
+  "ondeAchar": "Em qualquer cartão com seções (Pessoas, Contratos, Demandas, Tarefas, Processos, Agenda e as anotações de Documentos): o botão redondo com as duas setas, acima da primeira seção."
+}

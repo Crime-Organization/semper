@@ -11,6 +11,9 @@ import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 
+/** O tamanho da seta na ponta direita do título da seção: o mesmo de --seta-da-secao (estilo.css), em cujo meio fica o do "Expandir tudo" (#381). */
+const TAMANHO_DA_SETA = 16;
+
 /** A inscrição, que não muda enquanto o painel está aberto (a seção se inscreve uma vez e mantém a ordem). */
 interface Inscricao {
   inscrever: (id: string, definir: (aberta: boolean) => void) => () => void;
@@ -115,11 +118,11 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
         <button type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
           <Icone nome={icone} tam={14} />{titulo}
           {contador !== undefined && <Contador apagado={!contador}>{contador}</Contador>}
-          {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span>}
+          {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span>}
         </button>
         {novo && <>
           <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
-          <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={16} /></span></span>
+          <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span></span>
         </>}
       </h3>
       {/* As seções de dentro desta (ex.: o histórico das parcelas, dentro de Honorários) ficam fora do grupo: o "Expandir

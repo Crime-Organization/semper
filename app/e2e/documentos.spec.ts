@@ -539,12 +539,16 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     expect(Math.abs((await folga()) - folgaAoLado)).toBeLessThan(1);
     // Quando: "Expandir tudo", acima de "Comentários"
     expect((await expandir.boundingBox())!.y).toBeLessThan((await secoes.nth(0).boundingBox())!.y);
-    // Desde a #366: só o ícone, sem texto, no alto da coluna, encostado à direita como as setas das seções e logo abaixo dos
-    // botões da janela (o formato e o X), sem passar por baixo deles
+    // Desde a #366: só o ícone, sem texto, no alto da coluna, logo abaixo dos botões da janela (o formato e o X), sem passar por
+    // baixo deles. Desde a #381, com o meio dele no eixo do X e no da seta de "Comentários" (o último ícone do título), e não mais
+    // com a borda encostada na ponta da linha
     expect(await expandir.innerText()).toBe('');
-    const [botao, secao, fechar, formato] = await Promise.all([expandir.boundingBox(), secoes.nth(0).boundingBox(),
+    const [botao, seta, fechar, formato] = await Promise.all([expandir.boundingBox(),
+      janela.getByRole('heading', { level: 3, name: /^Comentários/ }).locator('svg').last().boundingBox(),
       janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox()]);
-    expect(Math.abs((botao!.x + botao!.width) - (secao!.x + secao!.width))).toBeLessThan(2);
+    const meio = (caixa: { x: number; width: number }) => caixa.x + caixa.width / 2;
+    expect(Math.abs(meio(botao!) - meio(seta!))).toBeLessThan(2);
+    expect(Math.abs(meio(botao!) - meio(fechar!))).toBeLessThan(2);
     expect(botao!.y).toBeGreaterThanOrEqual(Math.max(fechar!.y + fechar!.height, formato!.y + formato!.height));
     // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai de "Comentários" e volta para ele)
     const dicaVisivel = (b: typeof expandir) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
