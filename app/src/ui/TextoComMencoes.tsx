@@ -36,16 +36,20 @@ function MencaoDeItem({ t, itens }: PropsDoTrecho) {
   const codigo = t.codigo ?? '';
   const item = itens?.get(codigo) ?? undefined;
   const mostrar = MOSTRAR_ITEM_MENCIONADO[situacaoDaMencaoDeItem(itens, codigo)];
-  const aviso = mostrar.aviso && <small className="mencao-aviso"> · {mostrar.aviso}</small>;
+  // O espaço antes do aviso fica fora do <small>: assim ele conta também no nome do link, que é o texto da tela.
+  const aviso = mostrar.aviso && <>{' '}<small className="mencao-aviso">· {mostrar.aviso}</small></>;
   if (mostrar.abre && item) return <AtalhoDoItem item={item} texto={t.texto} explicacao={mostrar.explicacao(item)}>{aviso}</AtalhoDoItem>;
   return <span className="mencao" title={mostrar.explicacao(item)}>{t.texto}{aviso}</span>;
 }
 
-/** A menção do item que quem lê vê: o código e o título, como link do cartão (Ctrl+clique abre numa aba nova). */
+/**
+ * A menção do item que quem lê vê: o código e o título, como link do cartão (Ctrl+clique abre numa aba nova). O nome do link é o que
+ * aparece na tela (quem usa comando de voz diz o que vê, WCAG 2.5.3); o que ele faz ("Abrir Tarefa ...") vem como dica e descrição.
+ */
 function AtalhoDoItem({ item, texto, explicacao, children }: { item: ItemDaAnotacao; texto: string; explicacao: string; children: ReactNode }) {
   const navegar = useNavigate();
   const para = enderecoDoItem(item);
-  return <a className="mencao mencao-item" href={para} aria-label={explicacao} title={explicacao} {...cliquesQueAbrem(para, () => navegar(para))}>
+  return <a className="mencao mencao-item" href={para} title={explicacao} {...cliquesQueAbrem(para, () => navegar(para))}>
     {texto} <span className="mencao-nome">{item.nome}</span>{children}
   </a>;
 }

@@ -53,17 +53,17 @@ export function SecaoComentarios({ modulo, cartaoId, motivoSemMencao, aviso, bus
   }, [modulo, cartaoId]);
   useEffect(() => { void carregar(); }, [carregar]);
 
-  // Os itens chamados com ! nos comentários: cada código é consultado uma vez (só os que quem lê vê voltam, regras/comentarios.ts).
+  // Os itens chamados com ! nos comentários (regras/comentarios.ts): só os que quem lê vê voltam. Os códigos são consultados de novo a
+  // cada mudança da lista (abrir, comentar, editar, excluir), então um item arquivado, excluído ou que deixou de ser visível com o
+  // cartão aberto aparece como está agora. Se a consulta falhar, fica o que já se sabia (ou só o destaque) até a próxima mudança.
   const [consultados, setConsultados] = useState<ReadonlyMap<string, ItemDaAnotacao | null>>(new Map());
-  const faltam = codigosNoTexto(...(lista ?? []).map(c => c.texto)).filter(c => !consultados.has(c)).join(' ');
   useEffect(() => {
-    if (!faltam) return;
+    const codigos = codigosNoTexto(...(lista ?? []).map(c => c.texto));
+    if (!codigos.length) return;
     let valendo = true;
-    const codigos = faltam.split(' ');
-    // Se a consulta falhar, as menções ficam só em destaque, sem atalho, até a próxima.
-    SD.itensMencionados(codigos).then(itens => { if (valendo) setConsultados(atual => new Map([...atual, ...itensPeloCodigo(codigos, itens)])); }, () => undefined);
+    SD.itensMencionados(codigos).then(itens => { if (valendo) setConsultados(itensPeloCodigo(codigos, itens)); }, () => undefined);
     return () => { valendo = false; };
-  }, [faltam]);
+  }, [lista]);
 
   async function comentar() {
     if (!rascunho.trim() || enviando.current) return;
@@ -231,11 +231,11 @@ function CaixaComentario({ modulo, motivoSemMencao, buscarItens, rotulo, botao, 
       if (passo) { e.preventDefault(); setDestaque(i => (i + passo + lista.quantas) % lista.quantas); return; }
       if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); lista.escolher(Math.min(destaque, lista.quantas - 1)); return; }
     }
-    const digitando = !!(mencao || item);
-    if (e.key === 'Escape' && (digitando || aoCancelar)) {
-      // Fecha a lista (ou cancela a edição) sem fechar o cartão.
+    // Com a lista aberta, o Esc só a fecha; sem lista, cancela a edição. Os dois sem fechar o cartão. Sem lista e sem edição, o Esc
+    // segue para o cartão (um !palavra que não achou nada não prende a tecla).
+    if (e.key === 'Escape' && (lista || aoCancelar)) {
       e.preventDefault(); e.stopPropagation();
-      if (digitando) fechar(); else aoCancelar?.();
+      if (lista) fechar(); else aoCancelar?.();
       return;
     }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void aoEnviar(); }

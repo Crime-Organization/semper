@@ -38,8 +38,18 @@ describe('Texto com menções', () => {
     // Dado
     abrir('Fazer !C0FFEE12', new Map([['C0FFEE12', TAREFA]]));
     // Quando
-    await userEvent.click(screen.getByRole('link', { name: 'Abrir Tarefa C0FFEE12: Emitir a GRU' }));
-    // Então
+    const atalho = screen.getByRole('link', { name: '!C0FFEE12 Emitir a GRU' });
+    await userEvent.click(atalho);
+    // Então: o nome do link é o texto que aparece (quem usa comando de voz diz o que vê); o que ele faz vem como descrição
+    expect(atalho).toHaveAccessibleDescription('Abrir Tarefa C0FFEE12: Emitir a GRU');
     expect(screen.getByRole('status', { name: 'Endereço' })).toHaveTextContent('/tarefas/?id=t1');
+  });
+
+  it('dado um item arquivado que a pessoa vê, quando a menção aparece, então o nome do link começa pelo texto da tela, com o aviso', () => {
+    // Quando
+    abrir('Ver !C0FFEE12', new Map([['C0FFEE12', { ...TAREFA, arquivado_em: '2026-11-01T00:00:00Z' }]]));
+    // Então
+    const atalho = screen.getByRole('link', { name: '!C0FFEE12 Emitir a GRU · arquivado' });
+    expect(atalho).toHaveAccessibleDescription('Abrir Tarefa C0FFEE12: Emitir a GRU, que está arquivado');
   });
 });

@@ -1583,11 +1583,11 @@ const ABRE_COM_A_CHAVE: Record<ModuloDaAnotacao, Record<keyof ChavesDaEquipe, bo
   tarefas: { equipeVeTudo: true, equipeEditaTudo: true },
   compromissos: { equipeVeTudo: false, equipeEditaTudo: true }
 };
-/** Quem está logado vê o item, pelas regras do módulo ou pela chave da equipe que abre esse módulo? */
 /** As linhas de cada módulo mencionável com !código nos comentários (#297). */
 const ITENS_MENCIONAVEIS: Record<ModuloMencionavel, () => { id: string; codigo: string }[]> = {
   tarefas: () => bd.tarefas!, demandas: () => bd.demandas!, contratos: () => bd.contratos!, processos: () => bd.processos!, pessoas: () => bd.pessoas
 };
+/** Quem está logado vê o item, pelas regras do módulo ou pela chave da equipe que abre esse módulo? */
 const vejoOItem = (modulo: ModuloDaAnotacao, id: string) => {
   const x = ITEM_NO_FALSO[modulo](id), chaves = chavesDaEquipe(), abre = ABRE_COM_A_CHAVE[modulo];
   return !!x && (x.vejo || (chaves.equipeVeTudo && abre.equipeVeTudo) || (chaves.equipeEditaTudo && abre.equipeEditaTudo));

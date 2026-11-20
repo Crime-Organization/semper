@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -284,15 +284,83 @@ describe('Menções de itens pelo código, com ! (#297)', () => {
     // Quando
     abrir();
     // Então
-    const visto = await screen.findByRole('link', { name: 'Abrir Demanda D3A1F09C: Registro de marca' });
+    const visto = await screen.findByRole('link', { name: '!D3A1F09C Registro de marca' });
     expect(visto).toHaveAttribute('href', '/demandas/?id=d1');
     expect(visto).toHaveTextContent('!D3A1F09C Registro de marca');
-    const arquivado = screen.getByRole('link', { name: /Demanda 7B42C0DE: Busca de anterioridade, que está arquivado/ });
-    expect(arquivado).toHaveTextContent('arquivado');
+    const arquivado = screen.getByRole('link', { name: '!7B42C0DE Busca de anterioridade · arquivado' });
+    expect(arquivado).toHaveAccessibleDescription('Abrir Demanda 7B42C0DE: Busca de anterioridade, que está arquivado');
     const semAcesso = screen.getByTitle('Você não tem acesso a este item, ou ele não existe mais');
     expect(semAcesso).toHaveTextContent('!FFFF0000 · sem acesso ou excluído');
     expect(screen.getAllByRole('link')).toHaveLength(2);
     expect(SD.itensMencionados).toHaveBeenCalledTimes(1);
     expect(SD.itensMencionados).toHaveBeenCalledWith(['7B42C0DE', 'D3A1F09C', 'FFFF0000']);
+  });
+
+  it('dado uma consulta dos itens que falhou, quando um comentário novo entra, então os códigos são consultados de novo e o atalho aparece', async () => {
+    // Dado
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Ver !D3A1F09C', '2026-11-20T15:00:00Z')]);
+    SD.itensMencionados.mockRejectedValueOnce(new Error('Sem conexão')).mockResolvedValue([REGISTRO]);
+    SD.comentarioCriar.mockResolvedValue(comentario('c2', 'u-mauro', 'Combinado', '2026-11-20T16:00:00Z'));
+    abrir();
+    await waitFor(() => expect(SD.itensMencionados).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('!D3A1F09C')).toHaveAttribute('title', 'Item mencionado');
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    // Quando
+    await userEvent.type(caixa(), 'Combinado');
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    // Então
+    expect(await screen.findByRole('link', { name: '!D3A1F09C Registro de marca' })).toHaveAttribute('href', '/demandas/?id=d1');
+    expect(SD.itensMencionados).toHaveBeenCalledTimes(2);
+  });
+
+  it('dado um item arquivado com o cartão aberto, quando a lista muda, então a menção passa a avisar que ele está arquivado', async () => {
+    // Dado
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Ver !D3A1F09C', '2026-11-20T15:00:00Z')]);
+    SD.itensMencionados.mockResolvedValueOnce([REGISTRO]).mockResolvedValue([{ ...REGISTRO, arquivado_em: '2026-11-20T15:30:00Z' }]);
+    SD.comentarioCriar.mockResolvedValue(comentario('c2', 'u-mauro', 'Arquivei', '2026-11-20T16:00:00Z'));
+    abrir();
+    await screen.findByRole('link', { name: '!D3A1F09C Registro de marca' });
+    // Quando
+    await userEvent.type(caixa(), 'Arquivei');
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    // Então
+    expect(await screen.findByRole('link', { name: '!D3A1F09C Registro de marca · arquivado' })).toBeInTheDocument();
+  });
+
+  it('dado um !palavra que não achou nada na edição, quando a pessoa aperta Esc, então a edição é cancelada já na primeira vez', async () => {
+    // Dado
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-mauro', 'Primeiro contato', '2026-11-20T15:00:00Z')]);
+    buscarItens.mockResolvedValue([]);
+    abrir();
+    await userEvent.click(await screen.findByRole('button', { name: 'Editar' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Editar o comentário' }), ' !urgente');
+    await esperarAPausa();
+    expect(buscarItens).toHaveBeenCalledWith('urgente', ['pessoas']);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('textbox', { name: 'Editar o comentário' })).not.toBeInTheDocument();
+    expect(screen.getByText('Primeiro contato')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['sem lista aberta (o !palavra não achou nada)', [], 'Ver !urgente', 1],
+    ['com a lista do ! aberta', [REGISTRO], 'Ver !regis', 0]
+  ])('dado a caixa nova %s, quando a pessoa aperta Esc, então o cartão recebe a tecla %#: %i vez(es)', async (_caso, achados, texto, vezes) => {
+    // Dado
+    buscarItens.mockResolvedValue(achados);
+    const cartaoRecebeuOEsc = vi.fn();
+    render(<MemoryRouter><div onKeyDown={e => { if (e.key === 'Escape') cartaoRecebeuOEsc(); }}>
+      <SecaoComentarios modulo="tarefas" cartaoId="t1" buscarItens={buscarItens} />
+    </div></MemoryRouter>);
+    await userEvent.type(caixa(), texto);
+    await esperarAPausa();
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(cartaoRecebeuOEsc).toHaveBeenCalledTimes(vezes);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(caixa()).toHaveValue(texto);
   });
 });

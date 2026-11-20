@@ -29,12 +29,26 @@ test.describe('Menções de itens com !', () => {
     await expect(cartao.getByText('!C0FFEE12', { exact: true })).toBeVisible();
     // Quando
     await cartao.getByRole('button', { name: 'Comentar' }).click();
-    const atalho = doCartao(cartao).first().getByRole('link', { name: 'Abrir Tarefa C0FFEE12: Emitir a GRU' });
-    await expect(atalho).toContainText('!C0FFEE12 Emitir a GRU');
+    const atalho = doCartao(cartao).first().getByRole('link', { name: '!C0FFEE12 Emitir a GRU' });
+    await expect(atalho).toHaveAttribute('title', 'Abrir Tarefa C0FFEE12: Emitir a GRU');
     await atalho.click();
     // Então
     await expect(page).toHaveURL(/\/tarefas\/\?id=/);
     await expect(page.getByRole('dialog')).toContainText('Emitir a GRU');
+  });
+
+  test('quando a pessoa digita ! e o começo do código da tarefa, então a lista sugere a tarefa e o código entra no texto', async ({ page }) => {
+    // Dado
+    const cartao = await abrirOJose(page);
+    const caixa = cartao.getByRole('textbox', { name: 'Escrever um comentário' });
+    // Quando
+    await caixa.pressSequentially('Ver !c0ffee');
+    const opcao = cartao.getByRole('option', { name: /Emitir a GRU/ });
+    // Então
+    await expect(opcao).toContainText('Tarefa · !C0FFEE12');
+    await caixa.press('Enter');
+    await expect(caixa).toHaveValue('Ver !C0FFEE12 ');
+    await expect(cartao.getByRole('listbox')).toHaveCount(0);
   });
 
   test('quando a pessoa escreve "Urgente!" ou um ! seguido de espaço, então nenhuma lista abre', async ({ page }) => {
@@ -53,7 +67,7 @@ test.describe('Menções de itens com !', () => {
     let cartao = await abrirOJose(page);
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Ver !F00D1234 e !ABCDEF12 hoje');
     await cartao.getByRole('button', { name: 'Comentar' }).click();
-    await expect(doCartao(cartao).first().getByRole('link', { name: 'Abrir Tarefa F00D1234: Renovar a procuração' })).toBeVisible();
+    await expect(doCartao(cartao).first().getByRole('link', { name: '!F00D1234 Renovar a procuração' })).toBeVisible();
     // Quando
     await entrarComo(page, 'u-bruno');
     cartao = await abrirOJose(page);
