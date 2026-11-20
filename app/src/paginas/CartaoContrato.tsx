@@ -15,7 +15,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
 import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao } from './ProcessosDoCartao';
-import { ParcelasDoContrato } from './financeiro/Parcelas';
+import { ParcelasDoContrato, ROTULO_DA_NOVA_PARCELA } from './financeiro/Parcelas';
 import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
 import { EquipeDoContratoNoTopo } from './EquipeDoContratoNoTopo';
@@ -221,7 +221,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     </Recolhivel>
 
     {/* Honorários, divisão e parcelas juntos: as parcelas são o detalhe do que foi combinado. O número é o de parcelas. */}
-    {!oculto && <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" contador={parcelas}>
+    {!oculto && <Recolhivel titulo="Honorários" icone="dinheiro" preferencia="contratos.cartao.honorarios" contador={parcelas}
+      novo={veParcelas ? { rotulo: ROTULO_DA_NOVA_PARCELA } : undefined}>
       <dl className="dados">{([
       ['Categoria', V('categoria')],
       ['Valor do contrato', V('valor')],

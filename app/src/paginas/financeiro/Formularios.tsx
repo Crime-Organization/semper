@@ -13,6 +13,7 @@ import { avisar, falha, feito } from '../../ui/avisos';
 import { Campo, CampoData, estiloBotao, Nota, propsDoCampo } from '../../ui/base';
 import { Botao } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
+import { usePedidoDeNovo } from '../../ui/Recolhivel';
 
 const DICA_DO_AJUSTE = 'Por que o saldo precisou deste acerto: é o que se confere na auditoria. O ajuste muda o saldo da conta, mas não conta como receita, despesa nem lucro.';
 
@@ -124,6 +125,9 @@ export function FormTransferencia({ inicial, contas, aoTerminar, aoCancelar }: P
 }
 
 /** As contas do escritório: criar, mudar e arquivar. */
+/** O botão de baixo das contas e o "+" do título da seção (#390), com o mesmo nome. */
+export const ROTULO_DA_NOVA_CONTA = 'Nova conta';
+
 export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFinanceira[]; hoje: string; aoMudar: () => void }) {
   const id = useId();
   const [edicao, setEdicao] = useState<{ id?: string } | null>(null);
@@ -137,6 +141,8 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
     setEdicao(c ? { id: c.id } : {});
     setConferido(false);
   }
+  // O "+" do título da seção abre o mesmo formulário do botão de baixo (que some com um formulário aberto).
+  usePedidoDeNovo(() => { if (!edicao) abrir(); });
   async function salvar(ev: FormEvent) {
     ev.preventDefault();
     setConferido(true);
@@ -180,7 +186,7 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
       </div>
       <label className="financeiro-marcar"><input type="checkbox" checked={f.temDas} onChange={e => mudar({ temDas: e.target.checked })} /> Esta conta recolhe DAS (é a conta da empresa)</label>
       <Acoes rotulo={edicao.id ? 'Salvar conta' : 'Criar conta'} ocupado={ocupado} aoCancelar={() => setEdicao(null)} />
-    </form> : <div><button type="button" className={estiloBotao()} onClick={() => abrir()}><Icone nome="mais" tam={15} /> Nova conta</button></div>}
+    </form> : <div><button type="button" className={estiloBotao()} onClick={() => abrir()}><Icone nome="mais" tam={15} /> {ROTULO_DA_NOVA_CONTA}</button></div>}
   </div>;
 }
 

@@ -11,7 +11,7 @@ type Lugar = ReturnType<Page['getByRole']>;
 async function prepararCaixa(page: Page) {
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
-  await page.getByRole('button', { name: 'Nova conta' }).click();
+  await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
   const conta = page.getByRole('form', { name: 'Nova conta' });
   await conta.getByLabel('Nome da conta').fill('PJ');
   await conta.getByLabel('Saldo inicial').fill('0,00');

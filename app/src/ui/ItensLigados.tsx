@@ -50,7 +50,7 @@ export function CriarNoCartao({ pode, children }: { pode: boolean; children: Rea
 }
 
 /** O atalho, se o cartão deixa criar (veja CriarNoCartao); senão, nada. */
-export function useNovoNoCartao(novo: NovoLigado | undefined): NovoLigado | undefined {
+export function useNovoNoCartao<T>(novo: T | undefined): T | undefined {
   return useContext(PodeCriar) ? novo : undefined;
 }
 

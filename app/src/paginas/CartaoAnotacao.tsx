@@ -30,6 +30,7 @@ import {
   type EscolhidoNaAnotacaoNova, type EscritoNaAnotacaoNova, type RascunhosDaAnotacao
 } from '../regras/anotacao';
 import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown';
+import { modulosDoNovo } from '../regras/novoNaAnotacao';
 import { nomeDaEtiqueta } from '../regras/etiquetas';
 import { caminhoDaPasta } from '../regras/pastas';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
@@ -59,7 +60,7 @@ import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ENDERECO_DA_ANOTACAO } from './AnotacoesDoCartao';
 import { plural } from './importarPessoas/textos';
-import { NovoNaAnotacao } from './NovoNaAnotacao';
+import { NOME_DO_MENU_NOVO_NA_ANOTACAO, NovoNaAnotacao } from './NovoNaAnotacao';
 import { LigadosDoRascunho, TopoDoRascunho, useRascunhoDaAnotacao, type AnotacaoNova } from './RascunhoDaAnotacao';
 import './Documentos.css';
 
@@ -601,7 +602,8 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
           <Nota>Para comentar, escreva antes o título ou o texto: a anotação é gravada assim que você escreve.</Nota>
         </Recolhivel>
         : <SecaoComentarios modulo="anotacoes" cartaoId={a.id} motivoSemMencao={motivoSemMencaoNaAnotacao(a, chavesDaMencao)} />}
-      <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={emBranco ? rascunho.itens.length : totalLigados} abertaAoIniciar={emBranco || !!criada}>
+      <Recolhivel titulo="Ligada a" icone="vinculo" preferencia="anotacoes.cartao.ligada" contador={emBranco ? rascunho.itens.length : totalLigados} abertaAoIniciar={emBranco || !!criada}
+        novo={!emBranco && podeLigar && (totalLigados ?? 0) < ITENS_DA_ANOTACAO && modulosDoNovo(modulos).length ? { rotulo: NOME_DO_MENU_NOVO_NA_ANOTACAO, menu: true } : undefined}>
         {emBranco ? <LigadosDoRascunho rascunho={rascunho} />
           : itens === null ? <Carregando />
           : typeof itens === 'string' ? <Aviso tipo="erro">{itens}</Aviso>

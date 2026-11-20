@@ -16,7 +16,7 @@ import { Icone, type NomeIcone } from '../../ui/Icone';
 import { confirmar } from '../../ui/janela';
 import { MenuFlutuante } from '../../ui/Menu';
 import { useCtx } from '../../ui/sessao';
-import { Recolhivel } from '../../ui/Recolhivel';
+import { AoPedirNovo, Recolhivel } from '../../ui/Recolhivel';
 import { hojeISO } from '../../ui/util';
 import { HistoricoDoCartao } from '../HistoricoDoCartao';
 import { CorrigirRecebimento } from './CorrigirRecebimento';
@@ -299,6 +299,9 @@ export function GestaoDeParcelas<P extends Parcela>({ lista, hoje, contrato, tot
   </>;
 }
 
+/** O botão de baixo das parcelas e o "+" do título de Honorários (#390), com o mesmo nome. */
+export const ROTULO_DA_NOVA_PARCELA = 'Nova parcela';
+
 /** A seção do cartão do contrato. */
 /** `versao` vem do cartão, que muda quando o contrato muda de coluna: é aí que as parcelas nascem. */
 export function ParcelasDoContrato({ k, versao, aoMudar }: { k: Contrato; versao: number; aoMudar: () => void }) {
@@ -335,13 +338,15 @@ export function ParcelasDoContrato({ k, versao, aoMudar }: { k: Contrato; versao
     : 'Nenhuma parcela ainda. Elas nascem quando o contrato chega à coluna de assinado.';
   const soma = avisoDaSoma(lista, k.valor, k.descontos);
   return <div className="financeiro-form">
+    {/* O "+" do título de Honorários abre o mesmo formulário do botão de baixo: só depois da leitura, para o foco ir a ele. */}
+    <AoPedirNovo atender={() => setNova(true)} />
     {!lista.length && <Vazio>{vazio}</Vazio>}
     {soma && <Aviso tipo="info">{soma}</Aviso>}
     <GestaoDeParcelas lista={lista} hoje={hoje} total={k.parcelas} aoMudar={mudou} />
-    {nova && <FormParcela rotulo="Nova parcela" inicial={parcelaNova(hoje)} salvar={criar} aoCancelar={() => setNova(false)} />}
+    {nova && <FormParcela rotulo={ROTULO_DA_NOVA_PARCELA} inicial={parcelaNova(hoje)} salvar={criar} aoCancelar={() => setNova(false)} />}
     <div className="financeiro-acoes">
       {podeGerar && <Botao variante="principal" onClick={gerar}>Gerar parcelas</Botao>}
-      {!nova && <button type="button" className={estiloBotao()} onClick={() => setNova(true)}><Icone nome="mais" tam={15} /> Nova parcela</button>}
+      {!nova && <button type="button" className={estiloBotao()} onClick={() => setNova(true)}><Icone nome="mais" tam={15} /> {ROTULO_DA_NOVA_PARCELA}</button>}
     </div>
     <Recolhivel titulo="Histórico das parcelas" icone="relogio" preferencia="contratos.cartao.parcelas.historico">
       <HistoricoDoCartao carregar={() => SD.parcelasHistorico(k.id)} campos={{}} valor={(_campo, v) => v === null || v === undefined ? '—' : String(v)} versao={versao} />

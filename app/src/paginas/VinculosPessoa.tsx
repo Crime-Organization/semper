@@ -15,6 +15,7 @@ import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, ItensLigados } from '../ui/ItensLigados';
 import { janela } from '../ui/janela';
+import { usePedidoDeNovo } from '../ui/Recolhivel';
 import { useCtx } from '../ui/sessao';
 
 const NOVO_TIPO = '__novo';
@@ -56,6 +57,8 @@ export function VinculosPessoa({ p, vinculos, aoMudar, aoAbrirPessoa, podeCriar 
     setFormulario(qual);
     if (!tipos) SD.vinculoTiposListar().then(setTipos).catch(falha);
   }
+  // O "+" do título da seção abre o mesmo formulário do "+ Nova pessoa vinculada" de baixo (que some com um formulário aberto).
+  usePedidoDeNovo(() => { if (podeCriar && !formulario) abrirFormulario('nova'); });
   function fecharFormulario() { setFormulario(null); setOpcao(''); setOutra(null); setDescricao(''); }
 
   async function vincular(e: FormEvent) {

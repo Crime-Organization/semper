@@ -11,7 +11,7 @@ async function criarContas(page: Page) {
   await page.goto('/financeiro/contas/');
   await abrirSecao(page, 'Contas');
   for (const [nome, saldo, das] of [['PJ', '1.000,00', true], ['PF', '0,00', false]] as const) {
-    await page.getByRole('button', { name: 'Nova conta' }).click();
+    await page.getByRole('button', { name: 'Nova conta' }).filter({ hasText: 'Nova conta' }).click();
     const form = page.getByRole('form', { name: 'Nova conta' });
     await form.getByLabel('Nome da conta').fill(nome);
     await form.getByLabel('Saldo inicial').fill(saldo);
