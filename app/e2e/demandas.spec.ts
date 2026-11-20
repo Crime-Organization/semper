@@ -446,3 +446,39 @@ for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, heig
     await barraEquilibradaNoCelular(barra);
   });
 }
+
+test.describe('A descrição no topo do cartão da demanda (#385)', () => {
+  test('dado quem usa só o teclado, quando chega à descrição da demanda com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
+    // Dado: o foco no título, logo acima da descrição
+    const cartao = await abrirDemanda(page, 'Notificar o devedor');
+    await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
+    await cartao.getByRole('button', { name: 'Notificar o devedor', exact: true }).focus();
+    // Quando
+    await page.keyboard.press('Tab');
+    // Então
+    const texto = cartao.getByRole('group', { name: 'Descrição', exact: true });
+    await expect(texto).toBeFocused();
+    // Quando
+    await page.keyboard.press('Enter');
+    // Então
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toBeFocused();
+    await expect(caixa).toHaveValue('Mandar a notificação extrajudicial antes da ação.');
+    // Quando
+    await cartao.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(texto).toBeFocused();
+  });
+
+  test('dado o cartão de uma demanda, quando ele abre, então o vão entre o título e a descrição é, no mínimo, a medida da variável de estilo', async ({ page }) => {
+    // Quando
+    const cartao = await abrirDemanda(page, 'Notificar o devedor');
+    // Então
+    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-do-titulo-a-descricao')));
+    expect(vao).toBeGreaterThan(0);
+    const titulo = (await cartao.getByRole('heading', { name: 'Notificar o devedor', level: 2 }).boundingBox())!;
+    const descricao = (await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').boundingBox())!;
+    expect(descricao.y - (titulo.y + titulo.height)).toBeGreaterThanOrEqual(vao);
+  });
+});
