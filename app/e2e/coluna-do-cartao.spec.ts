@@ -9,6 +9,8 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
 const PESSOA = 'JOSÉ DA SILVA TESTE';
+/** O rodapé do cartão da pessoa: a data e quem cadastrou (a faixa das datas, #383, no alto, tem só a data). */
+const RODAPE_DA_PESSOA = /^Cadastrada em \d{2}\/\d{2}\/\d{4} por /;
 /** As três seções da coluna, pelo título (o número vem logo depois). */
 const SECOES = /^(Comentários|Anotações|Histórico de alterações)/;
 const ORDEM = [/^Comentários\s*\d+$/, /^Anotações\s*\d+$/, /^Histórico de alterações\s*\d+$/];
@@ -76,7 +78,7 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     await expect(secoes.nth(1)).toHaveAttribute('aria-expanded', 'false');
     await expect(secoes.nth(2)).toHaveAttribute('aria-expanded', 'false');
     // E o histórico saiu do corpo do cartão: o rodapé, o último do corpo, fica na metade esquerda
-    await expect.poll(() => naMetadeDireita(cartao, cartao.getByText(/^Cadastrada em/))).toBe(false);
+    await expect.poll(() => naMetadeDireita(cartao, cartao.getByText(RODAPE_DA_PESSOA))).toBe(false);
     // Quando: o "Expandir tudo" da coluna (o do corpo do cartão vem antes, na ordem da página)
     await cartao.getByRole('button', { name: 'Expandir tudo' }).last().click();
     // Então: as três abrem
@@ -141,7 +143,7 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     const altura = async (alvo: Locator) => (await alvo.boundingBox())!.y;
     const dados = await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ }));
     const comentarios = await altura(secoes.nth(0)), historico = await altura(secoes.nth(2));
-    const rodape = await altura(cartao.getByText(/^Cadastrada em/));
+    const rodape = await altura(cartao.getByText(RODAPE_DA_PESSOA));
     expect(dados).toBeLessThan(comentarios);
     expect(historico).toBeLessThan(rodape);
   });
@@ -173,7 +175,7 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     await expect(secoes).toHaveText(ORDEM);
     const altura = async (alvo: Locator) => (await alvo.boundingBox())!.y;
     expect(await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ }))).toBeLessThan(await altura(secoes.nth(0)));
-    expect(await altura(secoes.nth(2))).toBeLessThan(await altura(cartao.getByText(/^Cadastrada em/)));
+    expect(await altura(secoes.nth(2))).toBeLessThan(await altura(cartao.getByText(RODAPE_DA_PESSOA)));
     // E um "Expandir tudo" só, o do cartão
     await expect(cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ })).toHaveCount(1);
   });

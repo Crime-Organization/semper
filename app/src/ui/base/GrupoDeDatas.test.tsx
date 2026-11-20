@@ -13,28 +13,44 @@ function Apelido({ aoSalvar, aoMudarRascunho }: { aoSalvar?: (v: { apelido: stri
     campos={({ rascunho, mudar, marcar }) => <input aria-label="Apelido" {...marcar('apelido')} value={rascunho.apelido} onChange={e => mudar({ apelido: e.target.value })} />} />;
 }
 
-describe('Grupo das datas do cartão (#361)', () => {
-  it('dado o tempo e as datas, quando o grupo aparece, então cada dado tem o nome e o valor, e a linha inteira vem depois deles', () => {
+describe('Faixa das datas do cartão (#361, #383)', () => {
+  it('dadas as datas, quando a faixa aparece, então cada dado tem o nome e o valor, com o nome antes do valor', () => {
     // Quando
-    render(<GrupoDeDatas rotulo="Tempo e datas">
+    render(<GrupoDeDatas rotulo="Datas">
       <DadoDoGrupo rotulo="Criada em"><b>18/11/2026</b></DadoDoGrupo>
-      <DadoDoGrupo rotulo="Prazo"><b>20/11/2026</b></DadoDoGrupo>
-      <DadoDoGrupo rotulo="Seu tempo">0:10:00</DadoDoGrupo>
-      <LinhaDoGrupo><p>Total da equipe: 1h</p></LinhaDoGrupo>
+      <DadoDoGrupo rotulo="Prazo"><b>Sem prazo</b></DadoDoGrupo>
     </GrupoDeDatas>);
     // Então
-    const grupo = screen.getByRole('group', { name: 'Tempo e datas' });
-    expect(within(grupo).getByRole('group', { name: 'Seu tempo' })).toHaveTextContent('0:10:00');
-    expect(within(grupo).getByRole('group', { name: 'Criada em' })).toHaveTextContent('Criada em 18/11/2026');
-    expect(within(grupo).getByRole('group', { name: 'Prazo' })).toHaveTextContent('20/11/2026');
-    expect(within(grupo).getByText('Total da equipe: 1h')).toBeInTheDocument();
+    const faixa = screen.getByRole('group', { name: 'Datas' });
+    expect(within(faixa).getByRole('group', { name: 'Criada em' })).toHaveTextContent('Criada em 18/11/2026');
+    expect(within(faixa).getByRole('group', { name: 'Prazo' })).toHaveTextContent('Prazo Sem prazo');
   });
 
-  it('dado um grupo sem o tempo (a demanda), quando aparece, então só as datas aparecem', () => {
+  it('dado um grupo de uma data só (o compromisso), quando aparece, então só ela aparece', () => {
     // Quando
-    render(<GrupoDeDatas rotulo="Datas"><DadoDoGrupo rotulo="Criada em">18/11/2026</DadoDoGrupo></GrupoDeDatas>);
+    render(<GrupoDeDatas rotulo="Datas"><DadoDoGrupo rotulo="Criado em">18/11/2026</DadoDoGrupo></GrupoDeDatas>);
     // Então
     expect(screen.getAllByRole('group')).toHaveLength(2);
+  });
+
+  it('dado o tempo numa faixa própria, logo abaixo das datas (#383), quando aparece, então o cronômetro e o resumo ficam na faixa do tempo, e nada dele na das datas', () => {
+    // Quando
+    render(<>
+      <GrupoDeDatas rotulo="Datas"><DadoDoGrupo rotulo="Criada em"><b>18/11/2026</b></DadoDoGrupo></GrupoDeDatas>
+      <GrupoDeDatas rotulo="Tempo">
+        <DadoDoGrupo rotulo="Seu tempo" largo><span role="timer">0:10:00</span><button type="button">Iniciar</button></DadoDoGrupo>
+        <LinhaDoGrupo><p>Total da equipe: 1 h</p></LinhaDoGrupo>
+      </GrupoDeDatas>
+    </>);
+    // Então
+    const datas = screen.getByRole('group', { name: 'Datas' }), tempo = screen.getByRole('group', { name: 'Tempo' });
+    expect(within(datas).queryByRole('timer')).not.toBeInTheDocument();
+    const relogio = within(tempo).getByRole('group', { name: 'Seu tempo' });
+    expect(within(relogio).getByRole('timer')).toHaveTextContent('0:10:00');
+    expect(within(relogio).getByRole('button', { name: 'Iniciar' })).toBeInTheDocument();
+    expect(within(tempo).getByText('Total da equipe: 1 h')).toBeInTheDocument();
+    // E a faixa do tempo vem depois da das datas
+    expect(datas.compareDocumentPosition(tempo) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

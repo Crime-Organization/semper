@@ -1,32 +1,51 @@
-/* O grupo das datas e do tempo no topo do cartão (#361; ui/base/GrupoDeDatas.tsx). Fica num arquivo só dele: as datas lado a lado,
-   uma embaixo da outra no cartão estreito (o celular), e o dado que se muda no próprio lugar (prazo, data e horário). A aparência do
-   botão e dos campos é a da data de início (#357): .data-editavel-botao e .data-editavel-campo, em estilo.css. */
+/* A faixa das datas do cartão (#361, redesenhada na #383; ui/base/GrupoDeDatas.tsx), a mesma em todos os cartões, e a faixa do
+   tempo logo abaixo dela. Fica num arquivo só dela: as datas lado a lado, uma linha por data na faixa estreita (o celular), e o dado
+   que se muda no próprio lugar (prazo, data e horário). A aparência do botão e dos campos é a da data de início (#357):
+   .data-editavel-botao e .data-editavel-campo, em estilo.css. */
 :root {
-  /* A largura de partida de cada dado no grupo (cresce para ocupar a linha; o que tem conteúdo maior, como o relógio, fica com a
-     largura dele): quatro cabem lado a lado no painel do cartão (560px menos o recuo), e o que não cabe desce para a linha de baixo */
-  --dado-do-grupo: 96px;
-  /* O vão entre os dados lado a lado (entre as linhas e na linha) */
-  --vao-do-grupo: 14px 20px;
+  /* A largura mínima de cada data na faixa: as colunas têm o mesmo ritmo em todos os cartões, e o valor curto ("Sem prazo") não
+     fica espremido. Três cabem lado a lado no painel do cartão ao lado (560px menos o recuo), com o prazo, a hora e o lembrete */
+  --dado-do-grupo: 112px;
+  /* O vão entre os dados lado a lado: entre as linhas e entre as colunas */
+  --vao-do-grupo: 14px 32px;
+  /* Na faixa estreita (o celular): entre uma data e a de baixo, e entre o nome, à esquerda, e o valor */
+  --vao-do-grupo-estreito: 10px 16px;
   /* O vão entre o nome do dado e o valor dele, e entre o prazo e o lembrete */
   --vao-do-dado: 4px;
-  /* A folga em cima e embaixo do grupo, entre as linhas finas que o separam do título e da situação */
+  /* A folga em cima e embaixo da faixa, entre as linhas finas que a separam do título, da outra faixa e da situação */
   --folga-do-grupo: 14px;
   /* O vão entre os campos do formulário pequeno, e entre eles e Cancelar e Salvar */
   --vao-dos-campos: 8px;
+  /* A folga em cima e embaixo do valor que se muda com um clique (o fundo dele no hover), devolvida pela margem */
+  --folga-do-valor-que-se-muda: 2px;
 }
 
-/* Os dados numa linha que quebra (flex), cada um com a largura do próprio conteúdo como mínimo: as datas, o prazo e o cronômetro
-   ficam lado a lado no painel e na janela do cartão, e o que não cabe desce. No grupo estreito (o celular), um embaixo do outro;
-   a largura do grupo decide, e as condições do @container não aceitam variável (420px é a mesma medida dos indicadores). */
+/* Os dados numa linha que quebra (flex), cada um com a largura do próprio conteúdo (o nome e o valor nunca quebram), no mínimo
+   --dado-do-grupo: os nomes ficam todos na mesma linha e os valores na de baixo, alinhados, no painel e na janela do cartão; o que
+   não cabe desce inteiro. Duas faixas seguidas (as datas e o tempo) dividem a linha fina entre elas. */
 .grupo-datas { container-type: inline-size; margin-top: var(--folga-do-grupo); padding-block: var(--folga-do-grupo); border-block: 1px solid var(--line) }
+.grupo-datas + .grupo-datas { margin-top: 0; border-top: 0 }
 .grupo-datas-dados { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--vao-do-grupo) }
-.grupo-datas-dado { flex: 1 1 var(--dado-do-grupo); display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-dado) }
-/* Embaixo dos dados, na largura toda (o esforço da equipe); e o dado aberto para mudar, que precisa de espaço para o formulário. */
-.grupo-datas-linha, .grupo-datas-dado:has(.editando) { flex-basis: 100%; min-width: 0 }
+.grupo-datas-dado { flex: 0 0 auto; min-width: var(--dado-do-grupo); display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-dado) }
+.grupo-datas-rotulo { white-space: nowrap }
+/* O dado largo (o cronômetro), o que vem embaixo dos dados (o resumo do tempo) e o dado aberto para mudar, que precisa de espaço
+   para o formulário: na largura toda. */
+.grupo-datas-dado.largo, .grupo-datas-linha, .grupo-datas-dado:has(.editando) { flex: 1 1 100%; min-width: 0 }
+.grupo-datas-dado.largo > .grupo-datas-valor { width: 100% }
 .grupo-datas-linha:empty { display: none }
-@container (max-width: 420px) { .grupo-datas-dado { flex-basis: 100%; min-width: 0 } }
 .grupo-datas-valor { min-width: 0; max-width: 100%; font-size: var(--texto-corrido); color: var(--text) }
-.grupo-datas-valor b { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums }
+.grupo-datas-valor b { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap }
+/* O valor que se muda tem fundo no hover; a margem devolve a folga dele, e o texto fica na mesma altura do valor que só se lê
+   (a criação), com os valores todos alinhados. */
+.grupo-datas-valor .data-editavel-botao { padding-block: var(--folga-do-valor-que-se-muda); margin-block: calc(-1 * var(--folga-do-valor-que-se-muda)) }
+/* Na faixa estreita (o celular), uma linha por data: o nome à esquerda, na largura do maior, e o valor à direita, na linha de base
+   do nome, com os valores todos começando na mesma coluna (subgrid; o vão "normal" é o da faixa, entre o nome e o valor). O dado largo e o aberto para mudar continuam com o nome em
+   cima, na largura toda. As condições do @container não aceitam variável (420px é a mesma medida dos indicadores). */
+@container (max-width: 420px) {
+  .grupo-datas-dados { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--vao-do-grupo-estreito) }
+  .grupo-datas-dado, .grupo-datas-linha { grid-column: 1 / -1; min-width: 0 }
+  .grupo-datas-dado:not(.largo, :has(.editando)) { display: grid; grid-template-columns: subgrid; column-gap: normal; align-items: baseline }
+}
 
 /* O valor que se muda com um clique: o prazo em cima e o sino do lembrete embaixo, alinhados à esquerda. */
 .dado-editavel-botao { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-dado); max-width: 100%; text-align: left; overflow-wrap: anywhere }

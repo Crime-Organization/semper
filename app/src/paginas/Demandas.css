@@ -93,20 +93,47 @@
   border-radius: var(--cantos-da-moldura-do-modelo); background: var(--superficie); container-type: inline-size }
 .modelo-form { display: flex; flex-direction: column; gap: 14px }
 .modelo-form-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto }
-/* Cronômetro no cartão da tarefa (TempoNaTarefa): o relógio grande, se está contando e os botões, numa linha. */
-.cronometro { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px }
-.cronometro-relogio { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
-.cronometro-situacao { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted) }
+/* A faixa do tempo no cartão da tarefa (TempoNaTarefa, #383), logo abaixo da faixa das datas: o relógio e a situação juntos e,
+   ao lado, Iniciar/Pausar e "Ajustar meu tempo"; quando não cabem (o celular), os botões descem juntos para a linha de baixo. */
+:root {
+  /* O tamanho do relógio: maior que as datas (é o que muda enquanto a pessoa trabalha), sem dominar o cartão */
+  --texto-do-relogio: var(--texto-titulo-1);
+  /* O vão entre o relógio e a situação, e entre os dois botões */
+  --vao-do-cronometro: 10px 16px;
+  /* O vão entre o relógio com a situação e os botões ao lado: entre as linhas e na linha */
+  --vao-entre-relogio-e-botoes: 8px 24px;
+  /* O tamanho da bolinha verde de "contando" */
+  --bolinha-contando: 8px;
+  /* A largura da situação, a de "contando" com a bolinha: ao trocar de "pausado" para "contando" (o botão ou a tecla T), o botão
+     ao lado não sai do lugar, e o segundo clique cai nele */
+  --largura-da-situacao: calc(var(--bolinha-contando) + var(--vao-do-dado) + 8.5ch);
+  /* A largura mínima de Iniciar/Retomar/Pausar, a do maior deles ("Retomar" com a tecla): o botão não muda de tamanho ao trocar */
+  --largura-do-alternar: 8.5em;
+}
+.cronometro { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-entre-relogio-e-botoes) }
+.cronometro-leitura, .cronometro-acoes { display: inline-flex; align-items: center; gap: var(--vao-do-cronometro); white-space: nowrap }
+.cronometro-leitura { align-items: baseline }
+.cronometro-relogio, .tempo-da-demanda { font-size: var(--texto-do-relogio); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
+.cronometro-situacao { display: inline-flex; align-items: center; gap: var(--vao-do-dado); min-width: var(--largura-da-situacao); font-size: var(--texto-apoio); color: var(--muted) }
 .cronometro-situacao.contando { color: var(--accent-ink); font-weight: 700 }
-.cronometro-situacao.contando::before { content: ''; width: 8px; height: 8px; border-radius: 999px; background: var(--accent) }
-/* O esforço da equipe: o total, a parte de cada um e, para administradores, os ajustes. */
-.tempo-equipe { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--superficie) }
-.tempo-equipe-total { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text) }
-.tempo-equipe-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px }
-.tempo-equipe-lista li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; font-size: 14px; color: var(--ink) }
-.tempo-ajustes { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text) }
+.cronometro-situacao.contando::before { content: ''; width: var(--bolinha-contando); height: var(--bolinha-contando); border-radius: 999px; background: var(--accent) }
+.cronometro-alternar { min-width: var(--largura-do-alternar); justify-content: center }
+/* Na tarefa concluída, a nota e "Ajustar meu tempo" na mesma linha de base; quando a nota não cabe inteira ao lado, o link desce. */
+.cronometro-acoes:has(> .nota) { flex-wrap: wrap; align-items: baseline }
+.cronometro-acoes .nota { white-space: normal }
+/* A soma do tempo da demanda sem tempo (ou com erro): o texto de apoio, na altura do relógio, e a faixa não muda de tamanho. */
+.tempo-da-demanda.sem-tempo, .tempo-da-demanda.erro { display: block; font-size: var(--texto-apoio); font-weight: 400; line-height: var(--texto-do-relogio); color: var(--muted) }
+/* Uma duração ("0 min", "2 h 15 min") nunca quebra entre o número e a unidade. */
+.tempo-equipe-total .duracao { white-space: nowrap }
+/* O resumo de quem registrou tempo, na mesma faixa, logo embaixo do relógio: o total, a parte de cada um e, para administradores,
+   os ajustes (ou "Ninguém registrou tempo nesta tarefa ainda."). Sem caixa nem linha: a faixa já o junta ao relógio. */
+.tempo-equipe { display: flex; flex-direction: column; gap: var(--vao-dos-campos) }
+.tempo-equipe-total { margin: 0; font-size: var(--texto-tabela); line-height: 1.5; color: var(--text) }
+.tempo-equipe-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--vao-dos-campos) }
+.tempo-equipe-lista li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--vao-dos-campos); font-size: var(--texto-tabela); color: var(--ink) }
+.tempo-ajustes { display: flex; flex-direction: column; gap: var(--vao-do-dado); font-size: var(--texto-apoio); color: var(--text) }
 .tempo-ajustes p { margin: 0 }
-.tempo-ajustes ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px }
+.tempo-ajustes ul { margin: 0; padding-left: var(--recuo-dos-campos); display: flex; flex-direction: column; gap: var(--vao-do-dado) }
 /* A janela do ajuste: o tanto e o motivo, um embaixo do outro. */
 .ajuste-tempo { display: flex; flex-direction: column; gap: 14px }
 /* A tecla do atalho, dentro do botão do cronômetro. */
