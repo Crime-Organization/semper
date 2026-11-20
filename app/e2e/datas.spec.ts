@@ -558,15 +558,143 @@ test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', ()
   });
 });
 
-test.describe('Dada uma demanda com tempo nas tarefas, a faixa do tempo (#383)', () => {
-  test('quando a pessoa abre o cartão, então a soma da equipe fica na faixa do tempo, logo abaixo das datas', async ({ page }) => {
-    // Quando: as tarefas de "Registro de marca" têm 2 h 40 min (as do Mateus, do Bruno e o ajuste)
-    const cartao = await abrirCartao(page, 'demandas', 'Registro de marca');
+test.describe('Dada uma demanda, a faixa do tempo (#383)', () => {
+  test('com tempo nas tarefas, quando a pessoa abre o cartão, então a soma da equipe fica na faixa do tempo, logo abaixo das datas, e nada embaixo pula quando ela chega', async ({ page }) => {
+    // Dado: as tarefas de "Registro de marca" têm 2 h 40 min (as do Mateus, do Bruno e o ajuste)
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    // Onde a "Situação" (o que vem logo abaixo das faixas) aparece a cada mudança da tela, enquanto o cartão abre
+    await page.evaluate(() => {
+      const alturas: number[] = [];
+      (window as unknown as { alturasDaSituacao: number[] }).alturasDaSituacao = alturas;
+      new MutationObserver(() => {
+        const situacao = [...document.querySelectorAll('[role=dialog] h3')].find(h => h.textContent === 'Situação');
+        if (situacao) alturas.push(Math.round(situacao.getBoundingClientRect().y));
+      }).observe(document.body, { subtree: true, childList: true, characterData: true });
+    });
+    // Quando
+    await page.getByRole('row').filter({ hasText: 'Registro de marca' }).first().click();
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Registro de marca', level: 2 }) });
     // Então
     const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
-    await expect(tempo.getByRole('group', { name: 'Tempo nas tarefas desta demanda', exact: true })).toContainText(/\d+ h/);
-    await expect(tempo).toContainText('Soma do tempo de toda a equipe nas tarefas desta demanda.');
+    await expect(tempo.getByRole('group', { name: 'Tempo da equipe nas tarefas', exact: true })).toHaveText(/^Tempo da equipe nas tarefas\s*2 h 40 min$/);
     const datas = (await cartao.getByRole('group', { name: 'Datas', exact: true }).boundingBox())!;
     expect((await tempo.boundingBox())!.y).toBeGreaterThanOrEqual(datas.y + datas.height);
+    // E a Situação nasceu onde ficou: a faixa do tempo já estava lá enquanto a soma chegava
+    const alturas = await page.evaluate(() => (window as unknown as { alturasDaSituacao: number[] }).alturasDaSituacao);
+    expect(alturas.length).toBeGreaterThan(0);
+    expect(new Set(alturas).size).toBe(1);
+  });
+
+  test('sem tempo nas tarefas, quando a pessoa abre o cartão, então a faixa do tempo diz que ninguém registrou tempo', async ({ page }) => {
+    // Quando: ninguém registrou tempo nas tarefas de "Busca de anterioridade"
+    const cartao = await abrirCartao(page, 'demandas', 'Busca de anterioridade');
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Tempo da equipe nas tarefas', exact: true })).toContainText('Ninguém registrou tempo ainda');
+  });
+});
+
+test.describe('Dada a tarefa com o cronômetro, o botão Iniciar/Pausar (#383)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('quando a pessoa aperta T para contar e de novo para pausar, então o botão continua no mesmo lugar e do mesmo tamanho', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, 'tarefas', 'Emitir a GRU');
+    const tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+    const botao = tempo.getByRole('button', { name: /^(Iniciar|Retomar|Pausar)/ });
+    await expect(botao).toHaveText(/^Retomar/);
+    await esperarOCartao(tempo);
+    const antes = (await botao.boundingBox())!;
+    // Quando
+    await page.keyboard.press('t');
+    // Então
+    await expect(botao).toHaveText(/^Pausar/);
+    await expect(tempo.getByText('contando', { exact: true })).toBeVisible();
+    const contando = (await botao.boundingBox())!;
+    expect(contando.x).toBeCloseTo(antes.x, 0);
+    expect(contando.width).toBeCloseTo(antes.width, 0);
+    // E de novo
+    await page.keyboard.press('t');
+    await expect(botao).toHaveText(/^Retomar/);
+    expect((await botao.boundingBox())!.x).toBeCloseTo(antes.x, 0);
+  });
+});
+
+/** Abre o cartão da primeira linha da tabela do módulo e espera ele entrar. */
+async function abrirOPrimeiro(page: Page, endereco: string) {
+  await page.goto(endereco);
+  await page.getByRole('button', { name: 'Tabela' }).click();
+  await page.getByRole('row').nth(1).click();
+  const cartao = page.getByRole('dialog');
+  await expect(cartao.getByRole('heading', { level: 2 })).toBeVisible();
+  return cartao;
+}
+/** Os nomes da faixa ficam todos na mesma altura, e os valores também, cada um numa linha só. */
+async function conferirAFaixa(cartao: Locator, dados: string[]) {
+  const medidas = await dadosDaFaixa(cartao.getByRole('group', { name: 'Datas', exact: true }), dados);
+  for (const m of medidas) {
+    expect(m.nome.y).toBeCloseTo(medidas[0].nome.y, 0);
+    expect(m.valor.y).toBeCloseTo(medidas[0].valor.y, 0);
+    expect(m.valor.linhas).toBe(1);
+  }
+}
+
+test.describe('Dados a pessoa, o contrato, o processo e a anotação, a faixa das datas (#383)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+
+  test('quando a pessoa abre o cartão da pessoa, então a data do cadastro fica na faixa, como nos outros cartões', async ({ page }) => {
+    // Quando
+    const cartao = await abrirOPrimeiro(page, '/pessoas/');
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Cadastrada em', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+    await conferirAFaixa(cartao, ['Cadastrada em']);
+  });
+
+  test('quando a pessoa abre o cartão do contrato, então a criação e a assinatura ficam lado a lado na faixa, e a assinatura sai de Honorários', async ({ page }) => {
+    // Quando: o contrato da Antônia foi assinado em 10/03/2026
+    await page.goto('/contratos/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'ANTÔNIA SOUZA DEMONSTRAÇÃO' }).first().click();
+    const cartao = page.getByRole('dialog');
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Assinado em', exact: true })).toContainText('10/03/2026');
+    await conferirAFaixa(cartao, ['Criado em', 'Assinado em']);
+    await abrirSecao(cartao, 'Honorários');
+    await expect(cartao.getByRole('term').filter({ hasText: 'Assinado em' })).toHaveCount(0);
+  });
+
+  test('quando a pessoa abre o cartão do processo, então a criação fica na faixa, como nos outros cartões', async ({ page }) => {
+    // Quando
+    const cartao = await abrirOPrimeiro(page, '/processos/judicial/');
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Criado em', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
+    await conferirAFaixa(cartao, ['Criado em']);
+  });
+
+  test('quando a pessoa escreve uma anotação, então a criação fica na faixa, entre o título e o texto', async ({ page }) => {
+    // Quando: a anotação nova vai ao banco quando a pessoa escreve o título
+    await page.goto('/documentos/nova/');
+    const titulo = page.getByRole('article', { name: 'Anotação nova' }).getByRole('textbox', { name: 'Título' });
+    await titulo.fill('Estratégia do depósito');
+    await titulo.press('Enter');
+    const anotacao = page.getByRole('dialog', { name: 'Anotação', exact: true });
+    // Então
+    await expect(anotacao.getByRole('group', { name: 'Criada em', exact: true })).toContainText(hoje());
+    await conferirAFaixa(anotacao, ['Criada em']);
+    const faixa = (await anotacao.getByRole('group', { name: 'Datas', exact: true }).boundingBox())!;
+    const nome = (await anotacao.getByRole('heading', { name: 'Estratégia do depósito', level: 2 }).boundingBox())!;
+    expect(faixa.y).toBeGreaterThanOrEqual(nome.y + nome.height);
+  });
+});
+
+test.describe('Dado um celular, a faixa das datas da anotação nova (#383)', () => {
+  test.use({ viewport: { width: 375, height: 812 } });
+
+  test('quando a anotação ainda não foi gravada, então não há faixa das datas', async ({ page }) => {
+    // Quando
+    await page.goto('/documentos/nova/');
+    // Então
+    await expect(page.getByRole('article', { name: 'Anotação nova' })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
   });
 });

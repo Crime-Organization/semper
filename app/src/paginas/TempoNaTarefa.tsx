@@ -73,7 +73,7 @@ export function TempoNaTarefa({ t }: { t: Tarefa }) {
       <span className="cronometro-acoes">
         {t.concluida_em
           ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
-          : <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={relogio.alternar}
+          : <button type="button" className={estiloBotao({ forma: 'mini' }) + ' cronometro-alternar'} onClick={relogio.alternar}
             title={`Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`} aria-keyshortcuts={TECLA_DO_CRONOMETRO.toUpperCase()}>
             {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'} <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd>
           </button>}
@@ -91,14 +91,34 @@ function FaixaDoTempo({ rotulo, resumo, children }: { rotulo: string; resumo?: R
   </GrupoDeDatas>;
 }
 
-/** No cartão da demanda, na faixa do tempo logo abaixo das datas (#383): o esforço aproximado dela, a soma do tempo de todos nas tarefas. */
+/** O nome do dado na faixa do tempo da demanda: a soma do tempo de todos nas tarefas dela. */
+const ROTULO_DA_SOMA = 'Tempo da equipe nas tarefas';
+
+/** Em que pé está a soma do tempo da demanda: chegando do banco, com tempo, sem tempo ainda ou com erro. */
+type EstadoDaSoma = 'somando' | 'com-tempo' | 'sem-tempo' | 'erro';
+type Soma = number | 'erro' | null;
+const estadoDaSoma = (s: Soma): EstadoDaSoma => s === null ? 'somando' : s === 'erro' ? 'erro' : s > 0 ? 'com-tempo' : 'sem-tempo';
+/** O que a faixa mostra em cada estado. Enquanto soma, o lugar do valor já está lá, na mesma altura, e o cartão não pula. */
+const TEXTO_DA_SOMA: Record<EstadoDaSoma, (segundos: number) => string> = {
+  'somando': () => '…',
+  'com-tempo': segundos => fmtDuracao(segundos),
+  'sem-tempo': () => 'Ninguém registrou tempo ainda',
+  'erro': () => 'Não foi possível somar agora'
+};
+
+/**
+ * No cartão da demanda, na faixa do tempo logo abaixo das datas (#383): o esforço aproximado dela, a soma do tempo de todos nas
+ * tarefas, no mesmo desenho do relógio da tarefa. A faixa aparece junto com o cartão (sem tempo, diz que ninguém registrou), para o
+ * que vem embaixo não pular quando a soma chega do banco.
+ */
 export function TempoDaDemanda({ demandaId, versao }: { demandaId: string; versao: number }) {
-  const [segundos, setSegundos] = useState<number | null>(null);
-  useEffect(() => { SD.tempoDaDemanda(demandaId).then(setSegundos).catch(() => setSegundos(null)); }, [demandaId, versao]);
-  if (!segundos) return null;
-  return <FaixaDoTempo rotulo="Tempo nas tarefas desta demanda">
-    <b className="num">{fmtDuracao(segundos)}</b>
-    <Nota>Soma do tempo de toda a equipe nas tarefas desta demanda.</Nota>
+  const [segundos, setSegundos] = useState<Soma>(null);
+  useEffect(() => { SD.tempoDaDemanda(demandaId).then(setSegundos).catch(() => setSegundos('erro')); }, [demandaId, versao]);
+  const estado = estadoDaSoma(segundos);
+  return <FaixaDoTempo rotulo={ROTULO_DA_SOMA}>
+    <span className={'tempo-da-demanda ' + estado} aria-busy={estado === 'somando' || undefined}>
+      {TEXTO_DA_SOMA[estado](typeof segundos === 'number' ? segundos : 0)}
+    </span>
   </FaixaDoTempo>;
 }
 
@@ -114,8 +134,8 @@ function TempoDaEquipe({ t, tempo }: { t: Tarefa; tempo: TempoDaTarefa }) {
   if (!tempo.equipe.length) return ctx.ehAdmin ? <div className="tempo-equipe"><Nota>Ninguém registrou tempo nesta tarefa ainda.</Nota></div> : null;
   return <div className="tempo-equipe">
     <p className="tempo-equipe-total">
-      <b>{t.concluida_em ? 'Total da equipe' : 'Total até agora'}: {fmtDuracao(tempo.total)}</b>
-      {t.concluida_em && <span> · Da criação à conclusão: {fmtDecorrido(t.criado_em, t.concluida_em)}</span>}
+      <b>{t.concluida_em ? 'Total da equipe' : 'Total até agora'}: <span className="duracao">{fmtDuracao(tempo.total)}</span></b>
+      {t.concluida_em && <span> · Da criação à conclusão: <span className="duracao">{fmtDecorrido(t.criado_em, t.concluida_em)}</span></span>}
     </p>
     <ul className="tempo-equipe-lista" aria-label="Parte de cada um">
       {tempo.equipe.map(p => <li key={p.perfil_id ?? 'removido'}>

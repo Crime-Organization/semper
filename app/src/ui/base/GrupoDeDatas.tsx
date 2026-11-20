@@ -1,5 +1,5 @@
-// A faixa das datas do cartão (#361, redesenhada na #383), a mesma em todos os cartões que têm datas (tarefa, demanda,
-// compromisso): cada dado com o nome em cima, pequeno, numa linha só, e o valor embaixo, sem quebrar ("Sem prazo",
+// A faixa das datas do cartão (#361, redesenhada na #383), a mesma em todos os cartões (pessoa, contrato, demanda, tarefa,
+// processo, compromisso e anotação): cada dado com o nome em cima, pequeno, numa linha só, e o valor embaixo, sem quebrar ("Sem prazo",
 // "20/12/2030 às 14:30"). Os nomes ficam todos na mesma linha e os valores na de baixo, alinhados. Na faixa estreita (o celular),
 // cada dado vira uma linha, com o nome à esquerda e o valor à direita, e os valores começam todos na mesma coluna. Quem decide é a
 // largura da própria faixa (container query), nunca uma conta em JavaScript.

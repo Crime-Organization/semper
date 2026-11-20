@@ -1,5 +1,5 @@
 {
   "titulo": "Datas e tempo alinhados nos cartões",
-  "texto": "As datas do cartão ficam numa faixa só, com os nomes numa linha e os valores alinhados embaixo, sem quebrar \"Sem prazo\". O tempo ganhou uma faixa própria, logo abaixo: o relógio, pausado ou contando, Iniciar e \"Ajustar meu tempo\" lado a lado, com o resumo de quem registrou tempo junto. No celular, cada data fica numa linha.",
-  "ondeAchar": "No cartão de uma tarefa, de uma demanda ou de um compromisso, logo abaixo da descrição. Na demanda, a soma do tempo das tarefas fica nessa faixa do tempo."
+  "texto": "Todos os cartões mostram as datas numa faixa logo abaixo do título, com os nomes numa linha e os valores alinhados embaixo. No contrato, a data da assinatura saiu de Honorários e foi para essa faixa. Na tarefa e na demanda, o tempo ganhou uma faixa própria, logo abaixo: o relógio, Iniciar e \"Ajustar meu tempo\" lado a lado, com o resumo de quem registrou tempo junto.",
+  "ondeAchar": "Em qualquer cartão (pessoa, contrato, demanda, tarefa, processo, compromisso) e na anotação, em Documentos, logo abaixo do título."
 }
