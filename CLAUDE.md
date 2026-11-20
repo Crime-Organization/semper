@@ -58,7 +58,8 @@ O banco guarda dados reais de clientes. Um erro nele não tem "desfazer".
 - **Só `app/src/dados/supabase.ts` fala com o banco.** Função nova de dados entra no contrato `Dados`
   (`app/src/dados/tipos.ts`, dividido por área: `DadosPessoas`, `DadosEquipe`…), em `supabase.ts` **e** no banco
   fictício `falso.ts`, que precisa se comportar igual (o `contrato.test.ts` confere).
-- A chave do Supabase em `app/src/marca.ts` é a *publishable* (pública por natureza). Nunca coloque no código
+- O endereço e a chave do Supabase ficam em `app/.env.production` (produção) e `app/.env.docker` (banco local), não no código;
+  a chave é a *publishable* (pública por natureza). Nunca coloque no código nem nesses arquivos
   a senha do banco, a chave `service_role` ou qualquer outro segredo.
 
 ## Antes de criar algo, procure o que já existe

@@ -39,9 +39,10 @@ Quem escreve a mudança ainda não sabe o número da versão, por isso a novidad
 | `app/src/regras/` | Regras puras, sem banco nem internet: formatos, validação, qualificação, conversão das respostas de CNPJ e CEP, vínculos, texto comparável (`texto.ts`), o CSV do Google Contatos (`contatosGoogle.ts`) e a agenda (`compromisso.ts` e `agenda.ts`, com o dia, a semana e o mês no horário de Brasília), com os testes. |
 | `app/e2e/` e `app/TESTES.md` | Testes de ponta a ponta (Playwright, no banco fictício) e o padrão dos testes (BDD: Dado / Quando / Então). |
 | `app/novidades/` | O que mudou em cada versão, para o botão Novidades: `proxima/` (a versão que ainda não saiu) e uma pasta por versão publicada (veja "Novidades de cada versão", acima). |
-| `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
+| `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores e contato. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
+| `app/.env.production` e `app/.env.docker` | Qual banco o site usa (#74): o endereço e a chave pública do Supabase, nas variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_CHAVE`, e não no código. Veja "Qual banco cada comando usa", abaixo. |
 | `supabase/` | Estrutura do banco: `migrations/` (uma migração por mudança, na ordem da data no nome; as vinte primeiras eram os scripts `banco/001` a `020`) e `config.toml` (banco local do Supabase CLI, nas portas 553xx). |
 | `banco/emails/` | Modelos de e-mail do Supabase em português. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
@@ -138,6 +139,19 @@ Com o banco de produção, em http://localhost:8090/. **Grava em dados reais**, 
 ```bash
 npm run dev-producao --prefix app
 ```
+
+### Qual banco cada comando usa
+
+O endereço e a chave do banco não ficam no código (#74): vêm das variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_CHAVE`, lidas pelo `app/vite.config.ts` do arquivo `app/.env.<modo>` (uma variável de mesmo nome no ambiente tem prioridade). A chave é a *publishable*, pública por natureza: nunca ponha nesses arquivos a senha do banco, a chave `service_role` ou outro segredo.
+
+| Comando | Modo | Banco |
+|---|---|---|
+| `npm run teste` e os testes (`npm run verificar`, `npm run testar-telas`) | `falso` e `test` | Fictício, na aba do navegador. Não lê arquivo `.env`. |
+| `npm run dev` | `docker` | Local do Docker, de `app/.env.docker`. |
+| `npm run dev-producao` | `producao` | Produção, de `app/.env.production` (o mesmo do site publicado). |
+| `npx vite build` (o que a rotina "Publicar o SEMPER" roda) e `npm run ver` | `production` | Produção, de `app/.env.production`. |
+
+Se faltar a variável num modo que precisa de banco (por exemplo, `npx vite` sozinho, no modo `development`, que não tem arquivo), o servidor não liga e a compilação para, com um erro em português dizendo o que falta e em qual arquivo. Assim, nunca sai um site sem banco nem um que caia noutro banco sem avisar.
 
 Conferir os tipos, o lint e rodar os testes unitários e de componente:
 
