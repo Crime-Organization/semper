@@ -13,13 +13,15 @@
 // do dono de 18/11).
 // Uma tela dentro do painel pode travá-lo com useTravarPainel(motivo) (ex.: enquanto grava uma importação): aí o Esc,
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
-// As seções que recolhem ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" acima da primeira.
+// As seções que recolhem ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" acima da primeira. Em volta de tudo, a coluna
+// também, o registro dos botões rápidos do cartão (ComAtalhosDoCartao, #351): as seções da coluna oferecem os delas à linha do corpo.
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { avisar } from './avisos';
 import { Icone, type NomeIcone } from './Icone';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { GrupoDeSecoes } from './Recolhivel';
+import { ComAtalhosDoCartao } from './registroDeAtalhos';
 import { travarRolagem } from './rolagem';
 
 type FormatoCartao = 'lado' | 'centro';
@@ -155,6 +157,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
         <button type="button" className="cartao-botao" aria-label="Fechar" onClick={pedirParaFechar}><Icone nome="fechar" tam={18} /></button>
       </div>
       <div className="cartao-conteudo">
+        <ComAtalhosDoCartao>
         <TravaDoPainel.Provider value={travar}>
           <ColunaDoCartao.Provider value={comColuna ? coluna : null}>
             {/* Sem a coluna, os botões do painel ficam por cima do cartão: os do cartão vão para junto deles. */}
@@ -165,6 +168,7 @@ export function PainelCartao({ aoFechar, soNoCentro = false, rotulo, ajustado = 
             </BotoesNoPainel.Provider>
           </ColunaDoCartao.Provider>
         </TravaDoPainel.Provider>
+        </ComAtalhosDoCartao>
         {comColuna && <div className="cartao-coluna" ref={setColuna} />}
       </div>
     </aside>

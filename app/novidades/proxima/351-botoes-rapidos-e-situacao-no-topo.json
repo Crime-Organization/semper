@@ -1,0 +1,5 @@
+{
+  "titulo": "Botões rápidos e a situação no topo do cartão",
+  "texto": "A situação do cartão virou um menu pequeno no topo, ao lado do código, como no Trello. Logo abaixo das datas, uma linha de botões rápidos (Datas, Checklist, Anotação, Ligação) abre cada coisa ali mesmo; cada cartão mostra só os que tem, e o cartão arquivado não mostra nenhum.",
+  "ondeAchar": "Em qualquer cartão de tarefa, demanda, processo, compromisso, contrato, pessoa ou anotação: a situação fica no alto, e os botões rápidos logo abaixo das datas, com o \"Expandir tudo\" à direita."
+}

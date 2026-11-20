@@ -3,6 +3,7 @@
 // (<CampoDataHora>, com o calendário pequeno da #357 aberto logo de cara) e o lembrete no botão com o sino, ao lado, em tamanho de
 // cartão. As conferências e o que se grava ficam em regras/datasNoCartao.ts.
 import { camposDoPrazo, lembreteDoPrazo, resumoDoPrazo, textoDoPrazo, type CamposDoPrazo, type ErrosDosCampos, type PrazoGravado } from '../../regras/datasNoCartao';
+import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
 import { Icone } from '../Icone';
 import { BotaoDoLembrete } from './BotaoDoLembrete';
 import { CampoDataHora } from './CampoDataHora';
@@ -20,9 +21,11 @@ interface Props {
   aoSalvar?: (c: CamposDoPrazo) => unknown;
   /** Avisa o cartão do prazo mudado e ainda não salvo (para perguntar antes de fechar). */
   aoMudarRascunho?: (rascunho: string | null) => void;
+  /** O botão rápido que o prazo oferece ao cartão (#351; veja DadoEditavel). */
+  atalho?: TipoDeAtalho;
 }
 
-export function PrazoEditavel({ nome, valor, conferir, aoSalvar, aoMudarRascunho }: Props) {
+export function PrazoEditavel({ nome, valor, conferir, aoSalvar, aoMudarRascunho, atalho }: Props) {
   const lembrete = lembreteDoPrazo(valor), marcado = valor.lembrete !== null && valor.lembrete !== undefined;
   const lido = <>
     <b className="num">{textoDoPrazo(valor)}</b>
@@ -31,7 +34,7 @@ export function PrazoEditavel({ nome, valor, conferir, aoSalvar, aoMudarRascunho
     </span>}
   </>;
   return <DadoEditavel nome={nome} titulo={`Mudar o ${nome.toLowerCase()}`} resumo={resumoDoPrazo(valor)} lido={lido} inicial={() => camposDoPrazo(valor)}
-    conferir={conferir} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} campos={({ rascunho, mudar, marcar }) => {
+    conferir={conferir} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} atalho={atalho} campos={({ rascunho, mudar, marcar }) => {
       const doPrazo = marcar('prazo'), daHora = marcar('hora'), doLembrete = marcar('lembrete');
       return <CampoDataHora discreto aria-label={nome} {...doPrazo} valor={rascunho.prazo} abrirAoAparecer aoMudar={prazo => mudar({ prazo })}
         hora={rascunho.hora} aoMudarHora={hora => mudar({ hora })} rotuloDaHora={`Hora do ${nome.toLowerCase()}`} horaComErro={!!daHora['aria-invalid']}

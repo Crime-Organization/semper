@@ -1,8 +1,9 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo (TopoDoCartao, #382, como o da
 // anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
-// ⋯ à direita; os selos das etiquetas; o título e a situação; depois, cada tópico numa seção que recolhe (demanda, pessoas,
+// ⋯ à direita, e a situação num menu compacto (#351); os selos das etiquetas; o título; depois, cada tópico numa seção que recolhe (demanda, pessoas,
 // contrato, comentários, histórico). Logo depois da descrição, a faixa das datas (#361, #383): a criação, o início e o prazo com a
-// hora e o lembrete, que quem altera muda ali mesmo (o lápis não os repete); e, abaixo dela, a faixa do tempo (TempoNaTarefa).
+// hora e o lembrete, que quem altera muda ali mesmo (o lápis não os repete); e, abaixo dela, a faixa do tempo (TempoNaTarefa) e a
+// linha dos botões rápidos (#351: Datas, Checklist, Anotação), com o "Expandir tudo" das seções à direita.
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -44,11 +45,15 @@ import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
+import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+
+/** O tamanho do ícone do Concluir e do Reabrir, ao lado da Situação (o dos botões pequenos). */
+const ICONE_DA_ACAO = 15;
 
 interface Props {
   id: string;
@@ -68,7 +73,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
   // Concluir e Reabrir trocam de lugar: o foco do teclado passa para o botão novo, em vez de cair no começo da página.
-  const acaoDaSituacao = useRef<HTMLDivElement>(null);
+  const acaoDaSituacao = useRef<HTMLSpanElement>(null);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // O título e a descrição em edição no próprio lugar (#346).
   const noLugar = useEdicaoNoLugar();
@@ -176,7 +181,15 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        situacao={<SituacaoDoCartao acao={podeAlterar && !t.arquivado_em && <span className="situacao-acao" ref={acaoDaSituacao}>
+          {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
+          {concluida
+            ? inicio && <Botao key="reabrir" forma="mini" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={ICONE_DA_ACAO} />Reabrir</Botao>
+            : fim && <Botao key="concluir" forma="mini" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={ICONE_DA_ACAO} />Concluir</Botao>}
+        </span>}>
+          <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
+        </SituacaoDoCartao>} />
       <TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'titulo', titulo)}
         aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />
@@ -193,21 +206,13 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
             aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Prazo">
-          <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
+          <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" atalho="datas" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
             aoMudarRascunho={noLugar.rascunhoDe('prazo')}
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(t)) : undefined} />
         </DadoDoGrupo>
       </FaixaDasDatas>
       {podeAlterar && <TempoNaTarefa t={t} />}
-      {!editando && <SituacaoDoCartao>
-        <div className="situacao-com-acao" ref={acaoDaSituacao}>
-          <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-          {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
-          {podeAlterar && !t.arquivado_em && (concluida
-            ? inicio && <Botao key="reabrir" forma="botao" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={16} />Reabrir</Botao>
-            : fim && <Botao key="concluir" forma="botao" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={16} />Concluir</Botao>)}
-        </div>
-      </SituacaoDoCartao>}
+      {!editando && <AtalhosDoCartao />}
     </header>
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>

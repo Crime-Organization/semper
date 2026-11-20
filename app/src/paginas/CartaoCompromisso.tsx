@@ -39,6 +39,7 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
+import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
@@ -145,7 +146,10 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         }} />}
         mudaEtiquetas={!somenteLer} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeMudar ? arquivar : undefined} aoExcluir={podeMudar && podeExcluir ? excluir : undefined}
-        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        situacao={<SituacaoDoCartao>
+          <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
+        </SituacaoDoCartao>} />
       {/* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */}
       <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
@@ -157,9 +161,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
             aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
         </DadoDoGrupo>
       </FaixaDasDatas>
-      {!editando && <SituacaoDoCartao>
-        <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
-      </SituacaoDoCartao>}
+      {!editando && <AtalhosDoCartao />}
     </header>
 
     {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>

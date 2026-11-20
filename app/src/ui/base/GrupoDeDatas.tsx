@@ -8,13 +8,15 @@
 // DadoEditavel é o dado que quem pode alterar o cartão muda ali mesmo, no jeito do título (#346) e da data de início (#357): um
 // clique abre um formulário pequeno no lugar do valor, com Salvar e Cancelar; Enter num campo salva e Esc desfaz, sem fechar o
 // cartão. O rascunho mudado e não salvo é avisado ao cartão (aoMudarRascunho), que pergunta antes de fechar. Quem só lê vê o
-// valor como texto.
+// valor como texto. Com `atalho` (#351), ele oferece ao cartão o botão rápido ("Datas") que abre o mesmo formulário.
 // FaixaDasDatas é a faixa das datas de um cartão (#385): a criação e as outras datas. Quando a criação seria a única, a faixa
 // some, porque o rodapé de todo cartão já diz "Criada em … por …".
 import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { dataDaCriacao } from '../../regras/dataDeInicio';
 import { temErro, type ErrosDosCampos } from '../../regras/datasNoCartao';
+import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
 import { falha } from '../avisos';
+import { useAtalhoDoCartao } from '../registroDeAtalhos';
 import { estiloBotao } from './botao';
 import { Aviso } from '.';
 import './GrupoDeDatas.css';
@@ -107,9 +109,11 @@ interface PropsDadoEditavel<V extends object> {
   aoMudarRascunho?: (rascunho: string | null) => void;
   /** Os campos do formulário. */
   campos: (c: CamposDoDado<V>) => ReactNode;
+  /** O botão rápido que o dado oferece ao cartão (#351), para quem pode mudá-lo: abre o formulário, como o clique no valor. */
+  atalho?: TipoDeAtalho;
 }
 
-export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, inicial, conferir, aoSalvar, aoMudarRascunho, campos }: PropsDadoEditavel<V>) {
+export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, inicial, conferir, aoSalvar, aoMudarRascunho, campos, atalho }: PropsDadoEditavel<V>) {
   const [rascunho, setRascunho] = useState<V | null>(null);
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -137,6 +141,9 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
     setRascunho(null);
     setConferido(false);
   }, [podeMudar, editando]);
+
+  // O botão rápido abre o formulário (aberto, ele fica como está).
+  useAtalhoDoCartao(atalho, podeMudar ? { nome: titulo, abrir: () => { if (!editando) setRascunho(inicial()); } } : null);
 
   if (!aoSalvar) return <span className="dado-editavel">{lido}</span>;
 
