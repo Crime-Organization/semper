@@ -229,7 +229,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       if (x.telefones.length) n.telefones = x.telefones.map(t => linha(t));
       if (x.emails.length) n.emails = x.emails.map(t => linha(t));
       mudar(n);
-      setRetornoCNPJ({ tipo: 'ok', conteudo: <>Encontrado: <b>{x.nome}</b>{x.tipo_entidade ? ' · ' + x.tipo_entidade : ''}. Confira os dados nas próximas etapas.</> });
+      setRetornoCNPJ({ tipo: 'ok', conteudo: <>Encontrado: <b>{x.nome}</b>{x.tipo_entidade ? ' · ' + x.tipo_entidade : ''}. Confira os dados nos próximos passos.</> });
     } catch (e) {
       setRetornoCNPJ({ tipo: 'erro', conteudo: (e as Error).message + ' Você pode preencher manualmente.' });
     }

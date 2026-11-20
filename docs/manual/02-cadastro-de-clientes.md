@@ -11,7 +11,7 @@ Conferido no código da versão 1.18.0, em 09/11/2026. Não testado com um cadas
 ```
 *O cadastro de clientes já pode ser feito no SEMPER!*
 
-*Como cadastrar:* no menu, clique em *Pessoas* e depois no *+* ao lado. Escolha o tipo (pessoa física, pessoa jurídica ou somente contato) e siga as etapas.
+*Como cadastrar:* no menu, clique em *Pessoas* e depois no *+* ao lado. Escolha o tipo (pessoa física, pessoa jurídica ou somente contato) e siga os passos.
 
 *Obrigatório:*
 • *Pessoa física:* nome, gênero, CPF e um telefone com DDD.
@@ -31,11 +31,11 @@ O próprio cliente ainda não consegue se cadastrar pelo SEMPER.
 
 Toda a equipe pode cadastrar. Clientes, indicadores e colegas ficam todos em **Pessoas**.
 
-1. **Abra o cadastro.** No menu lateral, clique no **+** ao lado de **Pessoas**, ou em **Cadastrar pessoa** no Início. O topo da tela mostra em qual etapa você está.
+1. **Abra o cadastro.** No menu lateral, clique no **+** ao lado de **Pessoas**, ou em **Cadastrar pessoa** no Início. O topo da tela mostra em qual passo você está.
 2. **Escolha o tipo de cadastro:** **Pessoa física**, **Pessoa jurídica** ou **Somente informações de contato**. Ao escolher, o sistema já avança.
-3. **Preencha cada etapa** e clique em **Próxima**. Use **Voltar** para corrigir algo.
+3. **Preencha cada passo** e clique em **Próxima**. Use **Voltar** para corrigir algo.
 
-| Etapa | Pessoa física | Pessoa jurídica | Somente contato |
+| Passo | Pessoa física | Pessoa jurídica | Somente contato |
 |---|---|---|---|
 | Identificação | **Nome** | **Nome** e **CNPJ**. O botão **Buscar** traz os dados da Receita. Também há a natureza jurídica. | **Nome** |
 | Tipo de entidade | Não tem | Aparece se a natureza jurídica foi escolhida | Não tem |
@@ -45,7 +45,7 @@ Toda a equipe pode cadastrar. Clientes, indicadores e colegas ficam todos em **P
 
 Os campos em **negrito** são obrigatórios. Dá para acrescentar mais de um telefone e mais de um e-mail.
 
-4. Na última etapa, clique em **Salvar cadastro**. O cartão da pessoa abre em seguida, e o aviso no pé da tela permite desfazer.
+4. No último passo, clique em **Salvar cadastro**. O cartão da pessoa abre em seguida, e o aviso no pé da tela permite desfazer.
 
 ### Se o CPF ou o CNPJ já existir
 
@@ -75,7 +75,7 @@ Se o telefone já existir em outro cadastro, o sistema só avisa.
 | 1. Abertura | 0–5s | Fichas de papel se organizam e viram um cartão do SEMPER. | "Agora, todo cliente é cadastrado no SEMPER." | Cadastro de clientes |
 | 2. Onde fica | 5–13s | Menu lateral; destaque em "Pessoas" e no + ao lado, que é clicado. | "No menu, clique no sinal de mais ao lado de Pessoas." | Pessoas + |
 | 3. Tipo | 13–22s | As três opções em blocos; "Pessoa física" é escolhida e a tela avança sozinha. | "Escolha o tipo: pessoa física, jurídica ou somente contato. O sistema já avança." | Qual é o tipo de cadastro? |
-| 4. Etapas | 22–28s | Close em "Etapa 2 de 5" e na barra de progresso, que anda. | "O cadastro vai por etapas, e o topo mostra quanto falta." | Etapa 2 de 5 |
+| 4. Passos | 22–28s | Close em "Passo 2 de 5" e na barra de progresso, que anda. | "O cadastro vai por passos, e o topo mostra quanto falta." | Passo 2 de 5 |
 | 5. Dados | 28–42s | Nome, gênero e CPF são preenchidos com dados fictícios; os obrigatórios ficam em verde. O cursor clica em "Próxima". | "Preencha o nome, o gênero e o CPF. Na pessoa jurídica, o CNPJ: o botão Buscar traz os dados da Receita." | Campos obrigatórios |
 | 6. Endereço | 42–50s | CEP digitado; "Buscar" é clicado e os campos se preenchem. | "O endereço é opcional. Com o CEP, o botão Buscar preenche o resto." | CEP + Buscar |
 | 7. Contato | 50–60s | Telefone com DDD é digitado; o link "+ Adicionar outro telefone" pisca. | "Informe ao menos um telefone com DDD. Dá para acrescentar outros." | Telefone com DDD |
@@ -88,4 +88,4 @@ Se o telefone já existir em outro cadastro, o sistema só avisa.
 - Quando o aviso de sair sem salvar for publicado (#82), trocar "O que não foi salvo se perde" por: "Se tentar sair sem salvar, o sistema pergunta antes."
 - Quando a sincronização oficial com o Google Contatos entrar no ar (#164), o envio à planilha antiga sai (#219): reescrever os cuidados e a cena 10.
 - Formulário público do site: não foi confirmado se os dados dele chegam ao SEMPER.
-- Os quadros dependem das etapas da versão publicada: conferir de novo antes de gravar o vídeo.
+- Os quadros dependem dos passos da versão publicada: conferir de novo antes de gravar o vídeo.

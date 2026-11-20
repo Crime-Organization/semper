@@ -34,6 +34,20 @@ test.describe('Indicador do cadastro (#83)', () => {
     await expect(page.getByText('Passo 2 de 5', { exact: true })).toBeVisible();
     await expect(page.getByText(/Etapa \d+ de \d+/)).toHaveCount(0);
   });
+
+  test('dado um CNPJ achado na Receita, quando a busca traz os dados, então o aviso manda conferir nos próximos passos, e não nas etapas', async ({ page }) => {
+    // Dado (a Receita, de mentira: o teste não sai para a internet)
+    await page.route('https://publica.cnpj.ws/cnpj/**', rota => rota.fulfill({ json: { razao_social: 'Padaria da Busca E2E Ltda' } }));
+    await page.goto('/pessoas/nova/');
+    await page.getByText('Pessoa jurídica', { exact: true }).click();
+    await etapa(page, 'Dados da empresa');
+    await page.getByLabel('CNPJ').fill(CNPJ_LIVRE.replace(/\D/g, ''));
+    // Quando
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    // Então
+    await expect(page.getByText(/Encontrado: PADARIA DA BUSCA E2E LTDA\. Confira os dados nos próximos passos\./)).toBeVisible();
+    await expect(page.getByText(/próximas etapas/)).toHaveCount(0);
+  });
 });
 
 test.describe('Dica do nome e do código (#84)', () => {
