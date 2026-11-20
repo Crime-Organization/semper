@@ -20,7 +20,7 @@ import { abrirBuscaGeral, alternarPedido, buscaGeralAberta, buscarEmTudo, fechar
 import { Icone, type NomeIcone } from './Icone';
 import { haJanelaAberta } from './janela';
 import { travarRolagem } from './rolagem';
-import { useAtrasado } from './util';
+import { ehMac, useAtrasado } from './util';
 import './BuscaGeral.css';
 
 /** O ícone de cada grupo: o mesmo do módulo no menu. */
@@ -28,8 +28,6 @@ const ICONE_DO_GRUPO: Record<GrupoDaBusca, NomeIcone> = {
   pessoas: 'pessoas', judiciais: 'processos', administrativos: 'processos', contratos: 'contratos', demandas: 'demandas', tarefas: 'tarefas',
   compromissos: 'calendario', anotacoes: 'documentos'
 };
-/** O aparelho é um Mac (ou iPhone, iPad): o atalho é com Cmd, e a dica mostra ⌘. */
-const ehMac = () => typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
 
 /**
  * O atalho Ctrl+K (Cmd+K no Mac), em qualquer página: abre a busca; com ela aberta, volta ao campo e seleciona o que está escrito.

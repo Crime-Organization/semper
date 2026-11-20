@@ -2,10 +2,12 @@
 // cabeçalho numa linha só (título, contador, busca, Filtros, menu ⋯, troca Tabela/Kanban e a ação principal),
 // a visualização e a barra de ações em lote. O módulo só declara o conteúdo; o desenho vem daqui e do
 // estilo comum (DESIGN.md, "Página de módulo"). Nunca escreva essa estrutura à mão numa página.
-import { useEffect, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import type { OrdemComPrazo } from '../dados';
+import { ATALHOS, dicaComAtalho } from '../regras/atalhos';
 import { PARAMETRO_DA_BUSCA, PARAMETROS_DO_VER_TODOS } from '../regras/buscaGeral';
+import { useAtalhosDaPagina } from './atalhos';
 import { Icone, type NomeIcone } from './Icone';
 import { BotaoLink } from './base';
 import { MenuFlutuante } from './Menu';
@@ -79,6 +81,13 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
     setBuscado(atrasado);
     aoBuscar?.(atrasado);
   }, [atrasado, buscado, aoBuscar]);
+  // Os atalhos de teclado (#86): "/" vai à busca, "N" faz o mesmo que a ação principal e "?" mostra a lista.
+  const campoDaBusca = useRef<HTMLInputElement>(null);
+  const navegar = useNavigate();
+  useAtalhosDaPagina({
+    buscar: busca ? () => { campoDaBusca.current?.focus(); campoDaBusca.current?.select(); } : undefined,
+    novo: acao ? { rotulo: acao.rotulo, abrir: () => { void navegar(acao.para); } } : undefined
+  });
   const ligados = filtros.filter(f => f.valor !== (f.opcoes[0]?.[0] ?? '')).length;
 
   return <div className="miolo largo">
@@ -89,7 +98,7 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
       </div>
       <div className="barra-ferr" role="search">
         {busca && <label className="busca-campo"><Icone nome="buscar" tam={18} /><span className="sr">Buscar</span>
-          <input type="search" placeholder={busca.placeholder} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
+          <input ref={campoDaBusca} type="search" placeholder={busca.placeholder} title={dicaComAtalho('Buscar', 'buscar')} aria-keyshortcuts={ATALHOS.buscar.nome} autoComplete="off" value={termo} onChange={e => setTermo(e.target.value)} />
         </label>}
         {(filtros.length > 0 || ordem) && <button type="button" className="barra-botao barra-filtros" aria-haspopup="dialog" aria-expanded={!!painel}
           aria-label={ligados ? `Filtros (${ligados} ligado${ligados > 1 ? 's' : ''})` : 'Filtros'} onClick={e => setPainel(painel ? null : e.currentTarget)}>
@@ -122,7 +131,8 @@ export function PaginaModulo({ titulo, contador, acao, busca, filtros = [], orde
           </button>)}
         </div>}
       </div>
-      {acao && <BotaoLink variante="principal" className="cabeca-acao" to={acao.para} title={acao.rotulo} aria-label={acao.rotulo}>
+      {acao && <BotaoLink variante="principal" className="cabeca-acao" to={acao.para} title={dicaComAtalho(acao.rotulo, 'novo')}
+        aria-label={acao.rotulo} aria-keyshortcuts={ATALHOS.novo.nome}>
         <Icone nome="mais" tam={18} /><span className="cabeca-acao-rotulo">{acao.rotulo}</span>
       </BotaoLink>}
     </header>

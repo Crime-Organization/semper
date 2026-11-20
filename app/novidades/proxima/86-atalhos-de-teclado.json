@@ -1,0 +1,5 @@
+{
+  "titulo": "Atalhos de teclado nas páginas dos módulos",
+  "texto": "Em Pessoas, Contratos, Demandas, Tarefas e nos outros módulos, a tecla / leva à busca da página e a tecla N abre o cadastro novo (Nova pessoa, Novo contrato…). A tecla ? mostra a lista de atalhos.",
+  "ondeAchar": "Em qualquer página de módulo, com o cursor fora de um campo de texto e sem cartão aberto."
+}
