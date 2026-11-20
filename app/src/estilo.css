@@ -740,10 +740,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    demais para ler. No celular, sobe do pé da tela como os outros cartões (veja abaixo). */
 :root { --medida-documento: 720px }
 .cartao-painel.centro.largo { width: calc(100vw - 2 * var(--janela-margem)); height: var(--janela-altura) }
-.cartao-painel.centro.largo .cartao-corpo { padding-inline: max(var(--cartao-corpo-lado), (100% - var(--medida-documento)) / 2) }
+/* À direita, o que sobra além da medida e do recuo da esquerda (o mesmo recuo, quando há espaço), mas nunca menos que o recuo do eixo
+   dos botões (#381): na janela estreita, quando o texto não chega à medida, as setas das seções ficam no eixo do X. */
+.cartao-painel.centro.largo .cartao-corpo { --anotacao-recuo-esquerdo: max(var(--cartao-corpo-lado), (100% - var(--medida-documento)) / 2);
+  padding-inline: var(--anotacao-recuo-esquerdo) max(var(--cartao-corpo-direita), 100% - var(--medida-documento) - var(--anotacao-recuo-esquerdo)) }
 /* Sempre da altura da janela, o conteúdo também a ocupa toda: a linha da coluna da direita vai até o pé. */
 .cartao-painel.centro.largo .cartao-conteudo { flex: 1 }
-.cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: var(--cartao-topo) clamp(16px, 2vw, 24px) 40px; display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
+.cartao-coluna { overflow-y: auto; border-left: 1px solid var(--line); padding: var(--cartao-topo) var(--ate-o-eixo-dos-botoes) 40px clamp(16px, 2vw, 24px); display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
 /* O que vai para a coluna (NaColunaDoCartao) fica numa caixa e num lugar marcado no fluxo, que não desenham nada: as seções contam
    como filhas da coluna (ou do cartão, ao lado), com o vão de sempre entre elas. */
 .cartao-coluna-secoes, .cartao-coluna-lugar { display: contents }
@@ -765,7 +768,32 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    começa o que fica abaixo deles: o "Expandir tudo" da coluna (#366) e a barra de formatação da anotação ao rolar (#373). */
 :root { --botao-redondo: 40px; --botao-redondo-vao: 8px; --cartao-botoes-margem: 14px; --cartao-topo: 28px; --cartao-vao-secoes: 26px;
   --abaixo-dos-botoes-da-janela: calc(var(--cartao-botoes-margem) + var(--botao-redondo) + var(--botao-redondo-vao)) }
-.cartao-botoes { position: sticky; top: var(--cartao-botoes-margem); margin: var(--cartao-botoes-margem) var(--cartao-botoes-margem) calc(-1 * (var(--cartao-botoes-margem) + var(--botao-redondo))) auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
+/* Um eixo só (#381): o meio do X, o do "Expandir tudo" e o das setas das seções ficam um embaixo do outro. A seta (--seta-da-secao,
+   o ícone de Recolhivel.tsx) é menor que o botão redondo: com os meios juntos, o botão passa dela --sobra-do-botao-redondo de cada
+   lado. Quem rola guarda o lugar da barra de rolagem (--barra-de-rolagem, medida em ui/barraDeRolagem.ts: uns 15px no Windows, 0 no
+   Mac e no celular), que empurra o conteúdo para dentro; os botões da janela ficam fora de quem rola no centro, e por isso:
+   - --botoes-margem-direita: no centro, os botões ficam pelo menos --folga-do-foco antes da barra de quem rola embaixo deles. Com os
+     meios no mesmo eixo, a borda do "Expandir tudo" fica onde fica a do X, e essa folga é o que sobra para ele dentro de quem rola: o
+     anel do foco do teclado (o contorno e o afastamento de :focus-visible) e o alvo do toque (--alvo-de-toque, um pouco maior que o
+     botão) cabem sem a barra cortar o anel nem o alvo fazer a área rolar de lado. Vale também com o zoom pequeno, em que a barra
+     passa da margem de sempre;
+   - --barra-sob-os-botoes: a barra entre a borda da janela e o conteúdo que fica embaixo dos botões (ao lado, quem rola é o próprio
+     painel, com os botões dentro: nenhuma);
+   - --ate-o-eixo-dos-botoes: o recuo da direita que põe o meio das setas no meio do X (nunca menos que a sobra do botão mais a folga
+     do foco). A coluna da direita o usa sempre; o corpo do cartão, quando tem seções e não tem a coluna (--cartao-corpo-direita),
+     também no celular, onde o conteúdo fica um pouco mais estreito à direita para o X entrar no eixo. As janelas sem seções (Equipe,
+     Financeiro, o cadastro novo) ficam com o recuo de sempre dos dois lados. Nada pula quando a área passa a rolar: o lugar da barra
+     continua guardado (scrollbar-gutter), e a conta já o desconta desde o início. */
+:root { --seta-da-secao: 16px; --sobra-do-botao-redondo: calc((var(--botao-redondo) - var(--seta-da-secao)) / 2); --barra-de-rolagem: 0px;
+  /* O que o anel do foco do teclado ocupa além do botão: os 2px do contorno mais os 2px do afastamento (:focus-visible, .cartao-botao). */
+  --folga-do-foco: 4px }
+.cartao-painel { --botoes-margem-direita: var(--cartao-botoes-margem); --barra-sob-os-botoes: 0px;
+  --ate-o-eixo-dos-botoes: calc(var(--botoes-margem-direita) + var(--sobra-do-botao-redondo) - var(--barra-sob-os-botoes));
+  --cartao-corpo-direita: var(--cartao-corpo-lado) }
+.cartao-painel.centro { --botoes-margem-direita: max(var(--cartao-botoes-margem), var(--barra-de-rolagem) + var(--folga-do-foco)); --barra-sob-os-botoes: var(--barra-de-rolagem) }
+/* Com a coluna, os botões ficam sobre ela, e não sobre o corpo do cartão: o corpo fica com o recuo de sempre. */
+.cartao-painel:has(.recolhivel):not(:has(.cartao-coluna)) { --cartao-corpo-direita: var(--ate-o-eixo-dos-botoes) }
+.cartao-botoes { position: sticky; top: var(--cartao-botoes-margem); margin: var(--cartao-botoes-margem) var(--botoes-margem-direita) calc(-1 * (var(--cartao-botoes-margem) + var(--botao-redondo))) auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
 .cartao-botao { width: var(--botao-redondo); height: var(--botao-redondo); border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
 /* O desligado e o foco do teclado: em todos os cartões. */
@@ -818,7 +846,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
 /* O espaço entre o conteúdo do cartão e as bordas dele, dos lados (a janela larga centraliza o conteúdo a partir dele). */
 :root { --cartao-corpo-lado: clamp(18px, 4vw, 32px) }
-.cartao-corpo { padding: var(--cartao-topo) var(--cartao-corpo-lado) 40px; display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
+.cartao-corpo { padding: var(--cartao-topo) var(--cartao-corpo-direita, var(--cartao-corpo-lado)) 40px var(--cartao-corpo-lado); display: flex; flex-direction: column; gap: var(--cartao-vao-secoes) }
 .cartao-cabeca h2 { margin: 6px 0 0; font-size: 24px; font-weight: 900; letter-spacing: -.02em; line-height: 1.2; overflow-wrap: anywhere; padding-right: 92px }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }
 /* Linha abaixo do título do cartão: a equipe em bolinhas, na ponta direita. */
@@ -964,9 +992,11 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .recolher-resto:hover { color: var(--ink) }
 .com-novo:has(.recolher[aria-expanded="true"]) .recolher-seta { transform: rotate(180deg) }
 /* "Expandir tudo / Recolher tudo" (#366): só o ícone, num botão redondo do cartão (.cartao-botao), logo acima da primeira seção,
-   encostado à direita. A margem negativa troca o vão entre as seções pelo vão entre botões redondos, para ele ficar junto da
-   seção que abre. O alvo do clique tem --alvo-de-toque, um pouco maior que o desenho (o ::before; o ::after é a dica). */
-.secoes-todas { display: flex; justify-content: flex-end; margin-bottom: calc(var(--botao-redondo-vao) - var(--cartao-vao-secoes)) }
+   à direita, com o meio dele no eixo das setas das seções (#381): a margem da direita, negativa, o leva --sobra-do-botao-redondo
+   além da ponta da linha, para dentro do recuo de quem o contém (sempre maior que ela). A margem de baixo, negativa, troca o vão
+   entre as seções pelo vão entre botões redondos, para ele ficar junto da seção que abre. O alvo do clique tem --alvo-de-toque, um
+   pouco maior que o desenho (o ::before; o ::after é a dica). */
+.secoes-todas { display: flex; justify-content: flex-end; margin-right: calc(-1 * var(--sobra-do-botao-redondo)); margin-bottom: calc(var(--botao-redondo-vao) - var(--cartao-vao-secoes)) }
 .recolher-todas { flex-shrink: 0; padding: 0 }
 .recolher-todas::before { content: ''; position: absolute; inset: calc((var(--botao-redondo) - var(--alvo-de-toque)) / 2); border-radius: 999px }
 .recolher-contador { font-size: 12px; font-weight: 700; letter-spacing: 0; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line) }
