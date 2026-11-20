@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-XKyaHtl9.js";import{_ as t,a as n}from"./react-CV-9wCDr.js";var r=e(t(),1);function i(e){let[t,i]=n(),[a]=(0,r.useState)(()=>t.get(e)),o=t.has(e);return(0,r.useEffect)(()=>{o&&i(t=>(t.delete(e),t),{replace:!0})},[o,e,i]),a}export{i as t};
