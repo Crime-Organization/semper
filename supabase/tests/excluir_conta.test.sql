@@ -3,7 +3,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(11);
+select plan(15);
 
 -- Dado um escritório com o financeiro, a administradora, uma colega que não é administradora e um cliente; e um outro
 -- escritório, com uma conta arquivada.
@@ -24,23 +24,46 @@ insert into public.pessoas (id, escritorio_id, tipo, nome, documento) values
   ('b0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'pf', 'Admin', '52998224725');
 update public.perfis set pessoa_id = 'b0000000-0000-0000-0000-000000000002' where id = 'a0000000-0000-0000-0000-000000000001';
 
--- As contas: ativa; arquivada sem nada; arquivada com um lançamento já excluído; arquivada destino de um contrato; e a do
--- outro escritório, com uma conta arquivada e outra ativa, com lançamento.
+-- As contas: ativa; arquivada sem nada; arquivada com um lançamento já excluído; arquivada destino de um contrato; arquivadas
+-- só com um recebimento, só com uma retirada ou só sugerida num repasse; e a do outro escritório, com uma conta arquivada e
+-- outra ativa, com lançamento.
 insert into public.financeiro_contas (id, escritorio_id, nome, saldo_inicial_em, arquivada_em) values
   ('c0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'Ativa', date '2026-01-01', null),
   ('c0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001', 'Vazia', date '2026-01-01', null),
   ('c0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 'Com lançamento', date '2026-01-01', null),
   ('c0000000-0000-0000-0000-000000000004', 'e0000000-0000-0000-0000-000000000001', 'Destino', date '2026-01-01', null),
   ('c0000000-0000-0000-0000-000000000005', 'e0000000-0000-0000-0000-000000000002', 'De fora', date '2026-01-01', now()),
-  ('c0000000-0000-0000-0000-000000000006', 'e0000000-0000-0000-0000-000000000002', 'De fora ativa', date '2026-01-01', null);
-insert into public.financeiro_lancamentos (escritorio_id, conta_id, data, tipo, categoria, valor, descricao, excluido_em) values
-  ('e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', date '2026-03-01', 'saida', 'despesa', 100, 'Lançado e excluído', now()),
-  ('e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000006', date '2026-03-01', 'entrada', 'outra_entrada', 100, 'De fora', null);
-insert into public.contratos (escritorio_id, cliente_id, responsavel_id, servico, categoria, criado_por, conta_destino_id)
-  values ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Consultoria',
+  ('c0000000-0000-0000-0000-000000000006', 'e0000000-0000-0000-0000-000000000002', 'De fora ativa', date '2026-01-01', null),
+  ('c0000000-0000-0000-0000-000000000007', 'e0000000-0000-0000-0000-000000000001', 'Só recebimento', date '2026-01-01', null),
+  ('c0000000-0000-0000-0000-000000000008', 'e0000000-0000-0000-0000-000000000001', 'Só retirada', date '2026-01-01', null),
+  ('c0000000-0000-0000-0000-000000000009', 'e0000000-0000-0000-0000-000000000001', 'Só repasse', date '2026-01-01', null);
+insert into public.financeiro_lancamentos (id, escritorio_id, conta_id, data, tipo, categoria, valor, descricao, excluido_em) values
+  ('d0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', date '2026-03-01', 'entrada', 'outra_entrada', 100, 'Na ativa', null),
+  (gen_random_uuid(), 'e0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', date '2026-03-01', 'saida', 'despesa', 100, 'Lançado e excluído', now()),
+  (gen_random_uuid(), 'e0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000006', date '2026-03-01', 'entrada', 'outra_entrada', 100, 'De fora', null);
+insert into public.contratos (id, escritorio_id, cliente_id, responsavel_id, servico, categoria, criado_por, conta_destino_id)
+  values ('90000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000001',
+          'a0000000-0000-0000-0000-000000000001', 'Consultoria',
           'pro_labore', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004');
+-- O recebimento de uma parcela do contrato entrou na conta 'Só recebimento' (o lançamento dele ficou na ativa); a retirada
+-- saiu da 'Só retirada'; e o repasse do recebimento sugere a 'Só repasse'.
+insert into public.contrato_parcelas (id, escritorio_id, contrato_id, numero, vencimento, valor) values
+  ('f0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', '90000000-0000-0000-0000-000000000001', 1, date '2026-03-01', 100);
+insert into public.financeiro_recebimentos (id, escritorio_id, parcela_id, contrato_id, conta_id, data, valor, taxa_maquina, aliquota_das,
+  parte_na_conta, responsavel_socio, na_conta, ficou_com_advogado, das, liquido, escritorio, responsavel_recebe, responsavel_fica,
+  escritorio_final, contribuicao_socio, terceiros, lancamento_id) values
+  ('70000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'f0000000-0000-0000-0000-000000000001',
+   '90000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000007', date '2026-03-01', 100, 0, 0, 100, false, 100, 0, 0, 100,
+   100, 0, 0, 100, 0, '[]', 'd0000000-0000-0000-0000-000000000001');
+insert into public.financeiro_retiradas (escritorio_id, pessoa_id, nome, conta_id, data, valor, descricao, lancamento_id) values
+  ('e0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000002', 'Admin', 'c0000000-0000-0000-0000-000000000008',
+   date '2026-03-01', 100, 'Retirada', 'd0000000-0000-0000-0000-000000000001');
+insert into public.financeiro_repasses (escritorio_id, recebimento_id, tipo, nome, descricao, valor, conta_sugerida) values
+  ('e0000000-0000-0000-0000-000000000001', '70000000-0000-0000-0000-000000000001', 'responsavel', 'Admin', 'Repasse', 10,
+   'c0000000-0000-0000-0000-000000000009');
 update public.financeiro_contas set arquivada_em = now()
-  where id in ('c0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000004');
+  where id in ('c0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000004',
+               'c0000000-0000-0000-0000-000000000007', 'c0000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000009');
 
 create function pg_temp.entrar(n integer) returns void language sql as $$
   select set_config('request.jwt.claims', jsonb_build_object('sub', 'a0000000-0000-0000-0000-00000000000' || n, 'role', 'authenticated', 'aal', 'aal1',
@@ -70,6 +93,14 @@ select throws_ok($$ delete from public.financeiro_contas where id = 'c0000000-00
   'P0001', 'A conta não pode ser excluída enquanto tiver lançamentos, mesmo os já excluídos, que ficam guardados para a auditoria.',
   'A conta com lançamentos, mesmo excluídos, não é excluída');
 
+-- Quando tenta excluir a que só recebeu, a que só teve uma retirada e a que só aparece num repasse, então o banco explica.
+select throws_ok($$ delete from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000007' $$,
+  'P0001', 'A conta não pode ser excluída enquanto tiver lançamentos, mesmo os já excluídos, que ficam guardados para a auditoria.', 'A conta com recebimento não é excluída');
+select throws_ok($$ delete from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000008' $$,
+  'P0001', 'A conta não pode ser excluída enquanto tiver lançamentos, mesmo os já excluídos, que ficam guardados para a auditoria.', 'A conta com retirada não é excluída');
+select throws_ok($$ delete from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000009' $$,
+  'P0001', 'A conta não pode ser excluída: há repasses do caixa ligados a ela.', 'A conta sugerida num repasse não é excluída');
+
 -- Quando tenta excluir a do outro escritório, então nada sai.
 delete from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000005';
 
@@ -80,6 +111,8 @@ reset role;
 select ok(not exists (select 1 from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000002'), 'A arquivada vazia saiu');
 select ok(not exists (select 1 from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000004'), 'A arquivada destino saiu');
 select is((select conta_destino_id from public.contratos where servico = 'Consultoria'), null, 'O contrato fica sem conta de destino');
+select is((select alteracoes from public.contrato_historico where contrato_id = '90000000-0000-0000-0000-000000000001' order by em desc, id desc limit 1),
+  '{"conta_destino_id": {"de": "Destino", "para": null}}'::jsonb, 'O histórico do contrato guarda o nome da conta que saiu');
 select ok(exists (select 1 from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000005'), 'A conta de outro escritório não é excluída');
 select ok(exists (select 1 from public.financeiro_contas where id = 'c0000000-0000-0000-0000-000000000003'), 'A conta com lançamentos continua');
 

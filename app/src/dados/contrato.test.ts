@@ -3502,6 +3502,22 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(ids).toEqual(expect.arrayContaining([ativa.id, comLancamento.id]));
       });
 
+      it('dado uma conta arquivada que é a conta de destino de um contrato, quando é excluída, então o contrato fica sem conta e o histórico guarda o nome dela (#347)', async () => {
+        // Dado
+        const { id } = await criar('DESTINO ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        const nome = 'DESTINO ' + marca();
+        const conta = await novaConta({ nome });
+        await SD.contratoAtualizar(contratoId, { conta_destino_id: conta.id });
+        await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        await SD.financeiroContaExcluir(conta.id);
+        // Então
+        expect((await SD.contratoObter(contratoId))!.conta_destino_id).toBeNull();
+        const [ultima] = await SD.contratoHistorico(contratoId);
+        expect(ultima.alteracoes).toEqual({ conta_destino_id: { de: nome, para: null } });
+      });
+
       it('quando o início da conta passaria de um lançamento, então é recusado; o lançamento excluído não conta, mas não volta antes do início', async () => {
         // Dado
         const { id } = await novaConta();

@@ -26,8 +26,9 @@ const icone = (botao: HTMLElement) => botao.querySelector('svg')?.getAttribute('
 
 function montar() {
   const aoMudar = vi.fn();
-  render(<ContasDoEscritorio contas={[ATIVA, VAZIA, COM_LANCAMENTOS]} hoje="2026-11-20" aoMudar={aoMudar} />);
-  return { aoMudar };
+  const { rerender } = render(<ContasDoEscritorio contas={[ATIVA, VAZIA, COM_LANCAMENTOS]} hoje="2026-11-20" aoMudar={aoMudar} />);
+  const trocarContas = (contas: ContaFinanceira[]) => rerender(<ContasDoEscritorio contas={contas} hoje="2026-11-20" aoMudar={aoMudar} />);
+  return { aoMudar, trocarContas };
 }
 
 describe('As contas do escritório', () => {
@@ -61,7 +62,7 @@ describe('As contas do escritório', () => {
   it('quando a arquivada nunca teve lançamento, então tem a lixeira, que só exclui no segundo clique', async () => {
     // Dado
     const { aoMudar } = montar();
-    const excluir = await waitFor(() => linha('ANTIGA').getByRole('button', { name: 'Excluir' }));
+    const excluir = await waitFor(() => linha('ANTIGA').getByRole('button', { name: 'Excluir a conta ANTIGA' }));
     expect(icone(excluir)).toBe('lixeira');
     // Quando: o primeiro clique só pede a confirmação
     await userEvent.click(excluir);
@@ -80,8 +81,8 @@ describe('As contas do escritório', () => {
     montar();
     // Então
     expect(await linha('PF').findByText(CONTA_COM_LANCAMENTOS)).toBeTruthy();
-    expect(linha('PF').queryByRole('button', { name: 'Excluir' })).toBeNull();
-    expect(linha('PJ').queryByRole('button', { name: 'Excluir' })).toBeNull();
+    expect(linha('PF').queryByRole('button', { name: /Excluir/ })).toBeNull();
+    expect(linha('PJ').queryByRole('button', { name: /Excluir/ })).toBeNull();
     expect(linha('ANTIGA').queryByText(CONTA_COM_LANCAMENTOS)).toBeNull();
   });
 
@@ -91,10 +92,34 @@ describe('As contas do escritório', () => {
     SD.financeiroContaExcluir.mockRejectedValue(recusa);
     const { aoMudar } = montar();
     // Quando
-    await userEvent.click(await waitFor(() => linha('ANTIGA').getByRole('button', { name: 'Excluir' })));
+    await userEvent.click(await waitFor(() => linha('ANTIGA').getByRole('button', { name: 'Excluir a conta ANTIGA' })));
     await userEvent.click(linha('ANTIGA').getByRole('button', { name: 'Confirmar exclusão de ANTIGA' }));
     // Então
     expect(avisos.falha).toHaveBeenCalledWith(recusa);
     expect(aoMudar).not.toHaveBeenCalled();
+  });
+
+  it('dado duas arquivadas sem lançamento, quando a pessoa ouve os botões, então cada lixeira diz qual conta exclui', async () => {
+    // Dado
+    const OUTRA = conta('c4', 'RESERVA', true);
+    SD.financeiroArquivadasComLancamentos.mockResolvedValue([]);
+    render(<ContasDoEscritorio contas={[VAZIA, OUTRA]} hoje="2026-11-20" aoMudar={vi.fn()} />);
+    // Quando
+    const lixeiras = await screen.findAllByRole('button', { name: /^Excluir/ });
+    // Então
+    expect(lixeiras.map(b => b.textContent?.trim())).toEqual(['Excluir a conta ANTIGA', 'Excluir a conta RESERVA']);
+    expect(lixeiras.map(icone)).toEqual(['lixeira', 'lixeira']);
+  });
+
+  it('dado a lista carregada, quando uma conta com lançamentos acaba de ser arquivada, então ela não ganha a lixeira enquanto a nova lista não chega', async () => {
+    // Dado
+    const { trocarContas } = montar();
+    await waitFor(() => linha('ANTIGA').getByRole('button', { name: 'Excluir a conta ANTIGA' }));
+    SD.financeiroArquivadasComLancamentos.mockReturnValue(new Promise(() => {}));
+    // Quando: a PJ, que tem lançamentos, volta arquivada, e a consulta nova ainda não respondeu
+    trocarContas([{ ...ATIVA, arquivada_em: '2026-11-20T10:00:00Z' }, VAZIA, COM_LANCAMENTOS]);
+    // Então: nem lixeira nem explicação, em nenhuma conta
+    expect(screen.queryByRole('button', { name: /Excluir/ })).toBeNull();
+    expect(screen.queryByText(CONTA_COM_LANCAMENTOS)).toBeNull();
   });
 });

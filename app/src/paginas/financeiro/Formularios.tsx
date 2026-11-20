@@ -142,13 +142,14 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
     setConferido(false);
   }
   // As arquivadas com lançamentos (mesmo excluídos) não podem ser excluídas: no lugar da lixeira, a explicação. Enquanto não
-  // chega a lista, nem uma nem outra.
-  const [comLancamentos, setComLancamentos] = useState<Set<string> | null>(null);
+  // chega a lista destas contas, nem uma nem outra: a lista de antes não vale para a conta que acabou de ser arquivada.
+  const [lista, setLista] = useState<{ de: ContaFinanceira[]; ids: Set<string> } | null>(null);
   useEffect(() => {
     let vivo = true;
-    SD.financeiroArquivadasComLancamentos().then(ids => { if (vivo) setComLancamentos(new Set(ids)); }).catch(falha);
+    SD.financeiroArquivadasComLancamentos().then(ids => { if (vivo) setLista({ de: contas, ids: new Set(ids) }); }).catch(falha);
     return () => { vivo = false; };
   }, [contas]);
+  const comLancamentos = lista?.de === contas ? lista.ids : null;
   // O "+" do título da seção abre o mesmo formulário do botão de baixo (que some com um formulário aberto).
   usePedidoDeNovo(() => { if (!edicao) abrir(); });
   async function salvar(ev: FormEvent) {
@@ -190,7 +191,7 @@ export function ContasDoEscritorio({ contas, hoje, aoMudar }: { contas: ContaFin
           : <Botao forma="mini" aria-label={`Arquivar a conta ${c.nome}`} onClick={() => arquivar(c, true)}><Icone nome="arquivo" tam={ICONE_DO_BOTAO_PEQUENO} /> Arquivar</Botao>}
         {c.arquivada_em && comLancamentos && !comLancamentos.has(c.id) &&
           <BotaoDuplo forma="mini" variante="perigo" confirmar={`Confirmar exclusão de ${c.nome}`} aoConfirmar={() => excluir(c)}>
-            <Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir</BotaoDuplo>}
+            <Icone nome="lixeira" tam={ICONE_DO_BOTAO_PEQUENO} /> Excluir <span className="sr">a conta {c.nome}</span></BotaoDuplo>}
       </span>
     </li>)}</ul>}
     {edicao ? <form className="financeiro-form" noValidate aria-label={edicao.id ? 'Mudar conta' : 'Nova conta'} onSubmit={salvar}>

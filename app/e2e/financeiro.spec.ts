@@ -431,10 +431,10 @@ test.describe('Caixa', () => {
     // Então: as duas mostram Desarquivar com a caixa aberta; só a PF tem a lixeira; a PJ explica
     await expect(page.getByRole('button', { name: 'Desarquivar a conta PF' }).locator('svg')).toHaveAttribute('data-icone', 'arquivoAberto');
     await expect(pj.getByText('não pode ser excluída enquanto tiver lançamentos', { exact: false })).toBeVisible();
-    await expect(pj.getByRole('button', { name: 'Excluir' })).toHaveCount(0);
-    await expect(pf.getByRole('button', { name: 'Excluir' }).locator('svg')).toHaveAttribute('data-icone', 'lixeira');
+    await expect(pj.getByRole('button', { name: /Excluir/ })).toHaveCount(0);
+    await expect(pf.getByRole('button', { name: 'Excluir a conta PF', exact: true }).locator('svg')).toHaveAttribute('data-icone', 'lixeira');
     // Quando: o primeiro clique só pede a confirmação; o segundo exclui
-    await pf.getByRole('button', { name: 'Excluir' }).click();
+    await pf.getByRole('button', { name: 'Excluir a conta PF', exact: true }).click();
     await pf.getByRole('button', { name: 'Confirmar exclusão de PF' }).click();
     // Então
     await expect(page.getByText('Conta PF excluída definitivamente.')).toBeVisible();

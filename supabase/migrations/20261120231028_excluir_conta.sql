@@ -27,6 +27,9 @@ begin
   if exists (select 1 from public.financeiro_repasses where conta_sugerida = old.id or conta_paga = old.id) then
     raise exception 'A conta não pode ser excluída: há repasses do caixa ligados a ela.';
   end if;
+  -- O contrato que a tinha como conta de destino fica sem conta. Feito aqui, com a conta ainda gravada, para o histórico do
+  -- contrato guardar o nome dela (o on delete set null rodaria depois, já sem a conta, e o histórico ficaria vazio).
+  update public.contratos set conta_destino_id = null where conta_destino_id = old.id;
   return old;
 end $$;
 create trigger conferir_exclusao before delete on public.financeiro_contas

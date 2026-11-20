@@ -3797,8 +3797,9 @@ export const SD: Dados = {
       temRepasses: bd.repasses!.some(r => r.conta_sugerida === id || r.conta_paga === id)
     });
     if (motivo) return erro(motivo);
+    // Como o gatilho: o contrato fica sem conta de destino, e o histórico dele guarda o nome da conta, antes de ela sair.
+    bd.contratos!.filter(k => k.conta_destino_id === id).forEach(k => { historicoContrato(k, { conta_destino_id: null }); k.conta_destino_id = null; });
     bd.contasFinanceiras!.splice(bd.contasFinanceiras!.indexOf(c), 1);
-    bd.contratos!.forEach(k => { if (k.conta_destino_id === id) k.conta_destino_id = null; });
     auditar('financeiro_contas', 'exclusao', c); gravar();
     return espera(undefined);
   },
