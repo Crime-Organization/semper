@@ -13,12 +13,12 @@ import {
 } from '../regras/gruposDaEquipe';
 import { Avatar } from './Avatar';
 import { estiloBotao, Nota, propsDaDica } from './base';
-import { Icone } from './Icone';
+import { Icone, ICONE_NO_QUADRO } from './Icone';
 import { MenuFlutuante } from './Menu';
 import { useCtx } from './sessao';
 
-/** Tamanho do ícone de equipe dentro da pílula do topo do cartão e dentro da do quadro. */
-const ICONE_DA_PILULA = 15, ICONE_NO_QUADRO = 12;
+/** Tamanho do ícone de equipe dentro da pílula do topo do cartão (a do quadro usa ICONE_NO_QUADRO, o mesmo das ligações). */
+const ICONE_DA_PILULA = 15;
 /** Tamanho da bolinha de cada integrante na lista do grupo. */
 const BOLINHA_NA_LISTA = 24;
 /** O que o botão de dentro da lista faz. */

@@ -677,6 +677,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .codigo-no-quadro { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--folga-entre-ligacoes) }
 .ligacao-no-quadro { display: inline-flex; align-items: center; gap: var(--folga-do-icone-da-ligacao); white-space: nowrap }
 .ligacao-no-quadro svg { flex-shrink: 0 }
+/* A dica da ligação (propsDaDica) encosta à esquerda: as ligações ficam no lado esquerdo do cartão, e a dica encostada à direita
+   (a das bolinhas) passaria da borda da coluna. */
+.ligacao-no-quadro[data-dica]::after { right: auto; left: 0 }
 .kcartao .kp { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; min-height: 26px }
 /* Rodapé só com os responsáveis: ficam no canto direito. */
 .kcartao .kp > :only-child { margin-left: auto }

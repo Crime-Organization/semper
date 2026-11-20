@@ -18,10 +18,10 @@ test.describe('Ligações no cartão do quadro', () => {
     const demanda = cartao.getByRole('img', { name: 'Demanda D3A1F09C' });
     await expect(demanda).toBeVisible();
     await expect(demanda).toHaveText('D3A1F09C');
-    await expect(demanda).toHaveAttribute('title', 'Demanda D3A1F09C');
+    await expect(demanda).toHaveAttribute('data-dica', 'Demanda D3A1F09C');
     const contrato = cartao.getByRole('img', { name: /^Contrato MA96-0001/ });
     await expect(contrato).toHaveText(/^MA96-0001/);
-    await expect(contrato).toHaveAttribute('title', /^Contrato MA96-0001/);
+    await expect(contrato).toHaveAttribute('data-dica', /^Contrato MA96-0001/);
     await expect(cartao).not.toContainText(/demanda|contrato/i);
   });
 
@@ -52,5 +52,13 @@ test.describe('Ligações no cartão do quadro', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     // Então
     await expect(page.getByRole('row').filter({ hasText: 'Emitir a GRU' })).toContainText(/demanda D3A1F09C · contrato MA96-0001/);
+  });
+
+  test('dada uma demanda ligada a um contrato, quando a pessoa olha a tabela de Demandas, então a ligação continua por extenso (#300)', async ({ page }) => {
+    // Quando
+    await page.goto('/demandas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    // Então
+    await expect(page.getByRole('row').filter({ hasText: 'Registro de marca' })).toContainText(/contrato MA96-0001/);
   });
 });
