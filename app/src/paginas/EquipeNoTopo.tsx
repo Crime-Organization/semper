@@ -7,7 +7,7 @@
 import { useRef, useState } from 'react';
 import type { GrupoDaEquipe, ModuloDoPedido } from '../dados';
 import {
-  candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDeQuemEstaPeloGrupo, SAIRIA_SEM_O_GRUPO, saiComOGrupo, soPeloGrupo,
+  candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDoGrupoNoTopo, SAIRIA_SEM_O_GRUPO, saiComOGrupo,
   type TipoDeMudancaNosGrupos
 } from '../regras/gruposDaEquipe';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
@@ -89,14 +89,13 @@ export function useGruposNoTopo(modulo: ModuloDoPedido, id: string, quem: { resp
   const lista = gruposDoItem(doEscritorio, grupos);
   if (!doEscritorio.length && !lista.length) return undefined;
   const meus = meusGrupos(doEscritorio, eu);
-  const soPelo = soPeloGrupo({ eu, ...quem, meus }, lista);
   const pedir = (m: GruposAMudar, tipo: TipoDeMudancaNosGrupos, g: GrupoDaEquipe) => m.umaDeCadaVez(async () => {
     await mudarOsGrupos(modulo, id, tipo, g);
     m.depois();
   }, m.depois);
   return {
     doItem: lista, equipe: ctx.equipe, eu,
-    nota: g => soPelo && g.integrantes.includes(eu) ? notaDeQuemEstaPeloGrupo(g.nome) : null,
+    nota: g => notaDoGrupoNoTopo({ eu, ...quem, meus, podeSair: !!mudar?.podeSair, peloLigado: mudar?.peloLigado }, g, lista),
     mudar: mudar && doEscritorio.length ? {
       candidatos: termo => candidatosDeGrupo(doEscritorio, termo, grupos), cheio: grupos.length >= GRUPOS_POR_ITEM, por: mudar.por,
       aoPor: g => pedir(mudar, 'porGrupo', g), aoTirar: g => pedir(mudar, 'tirarGrupo', g),

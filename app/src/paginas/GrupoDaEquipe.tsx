@@ -4,7 +4,7 @@
 import { useId, useRef, useState, type FormEvent } from 'react';
 import { SD, type GrupoDaEquipe as Grupo, type ItensDoGrupo } from '../dados';
 import { TAMANHO_GRUPO_DA_EQUIPE } from '../dados/limites';
-import { corpoDaExclusao, ondeOGrupoEsta, tituloDaExclusao } from '../regras/gruposDaEquipe';
+import { corpoDaExclusao, notaDaContagem, tituloDaExclusao } from '../regras/gruposDaEquipe';
 import { avisar, falha, feito } from '../ui/avisos';
 import { Campo, estiloBotao, Nota, propsDoCampo, SecaoDoFormulario, Selo } from '../ui/base';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
@@ -16,8 +16,8 @@ export const EXCLUIR_O_GRUPO = 'Excluir o grupo';
 
 interface Props {
   g: Grupo;
-  /** Em quantos itens o grupo está (null: ainda contando). */
-  itens: ItensDoGrupo[] | null;
+  /** Em quantos itens o grupo está (null: ainda contando; 'falhou': a contagem não veio). */
+  itens: ItensDoGrupo[] | null | 'falhou';
   /** Depois de cada mudança: relê o contexto (os grupos) e as contagens. */
   aoMudar: () => Promise<void>;
   /** O grupo foi excluído: o painel fecha. */
@@ -99,7 +99,7 @@ export function GrupoDaEquipe({ g, itens, aoMudar, aoExcluir }: Props) {
       </section>
 
       <SecaoDoFormulario titulo="Onde o grupo está" nivel={3}>
-        <Nota>{itens ? `${ondeOGrupoEsta(itens)}, contando os arquivados.` : 'Contando os itens…'}</Nota>
+        <Nota>{notaDaContagem(itens)}</Nota>
       </SecaoDoFormulario>
 
       <SecaoDoFormulario titulo={EXCLUIR_O_GRUPO} nivel={3}>

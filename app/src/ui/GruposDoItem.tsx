@@ -8,12 +8,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import {
-  dicaDaPilula, integrantesAtivos, maisGrupos, nomeDoGrupo, numeroDoGrupo, PILULAS_NO_QUADRO, PILULAS_NO_TOPO, quantasPessoas,
-  rotuloDoGrupoNoQuadro
+  dicaDaPilula, gruposDoItem, integrantesAtivos, linhaDosGruposNoLapis, maisGrupos, nomeDoGrupo, numeroDoGrupo, PILULAS_NO_QUADRO,
+  PILULAS_NO_TOPO, quantasPessoas, rotuloDoGrupoNoQuadro
 } from '../regras/gruposDaEquipe';
 import { Avatar } from './Avatar';
 import { estiloBotao, Nota, propsDaDica } from './base';
-import { gruposDoItem, linhaDosGruposNoLapis } from '../regras/gruposDaEquipe';
 import { Icone } from './Icone';
 import { MenuFlutuante } from './Menu';
 import { useCtx } from './sessao';

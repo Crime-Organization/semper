@@ -81,6 +81,8 @@ describe('Grupos da equipe no topo do cartão', () => {
     // Dado
     montar(['ga'], true);
     await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
+    // Então: ela tira o grupo pelo botão, sem a nota que manda pedir a um administrador
+    expect(screen.queryByText(/Para sair, peça a um administrador/)).not.toBeInTheDocument();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Tirar o grupo do cartão' }));
     // Então

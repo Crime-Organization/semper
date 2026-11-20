@@ -29,7 +29,7 @@ import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comen
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
-import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
+import { fmtHora, mencaoNegadaNoCompromisso, nomeDoCompromisso, papeisNoCompromisso, participaDoCompromisso, TIPOS_COMPROMISSO, veOCompromisso } from '../regras/compromisso';
 import { colunaCancelada, DIAS_DO_AVISO_DE_PRAZO, paginaDoPrazo } from '../regras/mensagens';
 import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
@@ -159,7 +159,9 @@ interface Banco {
   historicoContratos?: (Historico & { contrato_id: string })[];
   /** Lista de objetos do escritório (objeto_sugestoes no banco). */
   objetosSugeridos?: string[];
-  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string; autor_sem_vinculo?: boolean })[];
+  comentarios?: (Comentario & { modulo: ModuloComentado; cartao_id: string; autor_sem_vinculo?: boolean;
+    /** No contrato: quem foi mencionado estando num grupo dele (#378); para essas pessoas, a menção não dá os valores. */
+    mencoes_pelo_grupo?: string[] })[];
   mensagens?: { id: string; perfil_id: string; tipo: TipoMensagem; comentario_id: string | null; criado_em: string; lido_em: string | null;
     /** Só no aviso de prazo: o módulo e o item (o prazo do processo, ou o próprio cartão), a data e qual aviso é. */
     modulo?: ModuloDoPrazo; item_id?: string; prazo_data?: string; prazo_aviso?: AvisoDePrazo;
@@ -898,9 +900,11 @@ const ENTRAR_NO_PROCESSO: Record<ComoEntrarNoProcesso, (p: ProcessoGuardado) => 
   colaborador: p => p.responsavel_id === eu || p.colaboradores.includes(eu) ? {} : { colaboradores: [...p.colaboradores, eu] },
   responsavel: p => p.responsavel_id === eu ? {} : { responsavel_id: eu, colaboradores: [...p.colaboradores.filter(c => c !== eu), p.responsavel_id] }
 };
-/** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta, nem a menção de quem não era parte ao comentar. */
+/** Como privado.contratos_em_que_me_mencionaram: mencionar a si mesmo não conta, nem a menção de quem não era parte ao comentar,
+ *  nem a de quem estava num grupo do contrato ao ser mencionado (#378). */
 const meMencionaramNoContrato = (id: string) =>
-  bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu) && !c.autor_sem_vinculo);
+  bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu) && !c.autor_sem_vinculo
+    && !c.mencoes_pelo_grupo?.includes(eu));
 /** Como a regra de leitura dos contratos no banco. */
 const vejoContrato = (k: QuemEstaNoContrato) => veOContrato(pessoasDoContrato(k), membroLogado(), meMencionaramNoContrato(k.id));
 /** Quem está num grupo da equipe do contrato o alcança sem os valores (#378), como a view contratos_da_equipe. */
@@ -2322,7 +2326,7 @@ function textoDoComentario(bruto: string) {
  * só advogados; na demanda, na tarefa e no compromisso, só quem os vê). Só roda depois de o cartão ser alcançado (CARTAO_ALCANCADO),
  * como no banco, onde a conferência das menções vem depois das regras de acesso (#365).
  */
-function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: string) {
+function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: string, peloGrupoAntes: readonly string[] = []) {
   const texto = textoDoComentario(bruto);
   const mencoes = mencoesNoTexto(texto, EQUIPE), primeiro = (lista: typeof mencoes) => lista.sort((a, b) => a.nome.localeCompare(b.nome))[0];
   const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
@@ -2350,7 +2354,11 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   if (foraDoProcesso) throw new Error(mencaoNegadaNoProcesso(foraDoProcesso.nome));
   // Como o gatilho do banco: o comentário de quem não é parte (pela chave ou por um grupo do contrato, #378) guarda a marca de que a
   // menção dele não vale, com a chave ligada ou desligada.
-  return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !vejoContratoDoId(cartaoId) };
+  // E guarda quem foi mencionado estando num grupo do contrato: a menção não dá os valores a essa pessoa, nem depois de ela sair do
+  // grupo. Na edição, quem já estava marcado e continua mencionado segue marcado.
+  const contrato = modulo === 'contratos' ? bd.contratos!.find(k => k.id === cartaoId) : null;
+  const mencoesPeloGrupo = contrato ? mencoes.filter(m => estaPeloGrupo(contrato.grupos, gruposDoMembro(m)) || peloGrupoAntes.includes(m.id)).map(m => m.id) : [];
+  return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !vejoContratoDoId(cartaoId), mencoes_pelo_grupo: mencoesPeloGrupo };
 }
 /**
  * O cartão de cada módulo existe e quem está logado chega a ele, como na listagem do módulo? (No banco, as regras dos comentários
@@ -2550,7 +2558,10 @@ const GRUPOS_AO_GRAVAR: Record<ModuloDoPedido, (id: string, grupos: string[]) =>
     return SD.processoAtualizar(id, { grupos });
   },
   compromissos: async (id, grupos) => {
-    if (!vejoComOsGrupos(acharCompromisso(id), grupos, () => vejoNoModulo('compromissos', id))) return erro(SEM_PERMISSAO);
+    // Como a regra "alterar" (privado.estou_no_compromisso): quem só vê o compromisso da Agenda geral, sem participar, não muda nada.
+    const c = acharCompromisso(id);
+    const altero = !!bd.equipeEditaTudo || participaDoCompromisso(c, membroLogado(), processoDoCompromisso(c), meusGruposNoFalso());
+    if (!altero || !vejoComOsGrupos(c, grupos, () => vejoNoModulo('compromissos', id))) return erro(SEM_PERMISSAO);
     return SD.compromissoAtualizar(id, { grupos });
   },
   anotacoes: async (id, grupos) => {
@@ -3317,7 +3328,7 @@ export const SD: Dados = {
   async compromissoCriar(dados) {
     const pronto = prepararCompromisso({ participantes: [], pessoas: [], processo_id: null, ...dados });
     const c = { titulo: null, hora: null, hora_fim: null, modalidade: null, local: null, resultado: null, observacoes: null, geral: false, processo_codigo: null, processo_numero: null, etapa_id: null, etapa_ordem: null,
-      arquivado_em: null, arquivado_por: null, ...pronto, id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as CompromissoGuardado;
+      arquivado_em: null, arquivado_por: null, grupos: [], ...pronto, id: novoId(), codigo: codigo(), criado_por: eu, criado_em: agora(), atualizado_por: eu, atualizado_em: agora() } as CompromissoGuardado;
     bd.compromissos!.push(c); avisarInclusao('compromissos', c.id, null); auditar('compromissos', 'inclusao', { id: c.id, codigo: c.codigo }); gravar();
     return espera({ id: c.id, codigo: c.codigo });
   },
@@ -4462,7 +4473,7 @@ export const SD: Dados = {
   async comentarioEditar(id, texto) {
     const c = bd.comentarios!.find(x => x.id === id);
     if (!c || c.autor_id !== eu || !CARTAO_ALCANCADO[c.modulo](c.cartao_id)) return erro('Só quem escreveu o comentário pode editá-lo.');
-    Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id), { editado_em: agora() }); mensagensDoComentario(c); gravar();
+    Object.assign(c, prepararComentario(c.modulo, texto, c.cartao_id, c.mencoes_pelo_grupo), { editado_em: agora() }); mensagensDoComentario(c); gravar();
     return espera(comentarioLido(c));
   },
   async comentarioExcluir(id) {

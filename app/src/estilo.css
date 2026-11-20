@@ -167,6 +167,10 @@
   --vao-da-pilula: 6px;
   /* A largura do painel com os integrantes do grupo, aberto pela pílula */
   --largura-dos-integrantes: 280px;
+  /* Cada seção de Equipe e acessos: o vão entre o título, a nota, a tabela e o resto, e a nota logo abaixo do título, que sobe um
+     pouco para ficar junto dele */
+  --vao-da-secao-da-equipe: 14px;
+  --subida-da-nota-da-secao: -6px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */

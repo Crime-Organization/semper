@@ -36,6 +36,8 @@
 .usuario-acesso { margin: 0; font-size: 14px; color: var(--text) }
 
 /* Grupos da equipe (#378): o título com o "Novo grupo" na mesma linha, e as bolinhas de quem está em cada grupo com o número. */
+.grupos-da-equipe { display: flex; flex-direction: column; gap: var(--vao-da-secao-da-equipe) }
+.grupos-da-equipe > .nota { margin-top: var(--subida-da-nota-da-secao) }
 .grupos-da-equipe-cabeca { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap }
 .integrantes-do-grupo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
 .tabela table.tabela-grupos { min-width: 560px }

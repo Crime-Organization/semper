@@ -7,6 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Membro } from '../dados';
+import { GRUPOS_POR_ITEM } from '../dados/limites';
 import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe } from './EquipeDoCartao';
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
@@ -259,6 +260,30 @@ describe('Equipe do cartão com grupos da equipe (#378)', () => {
     const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
     expect(mais).toHaveAttribute('aria-disabled', 'true');
     expect(mais).toHaveAttribute('data-dica', 'Cheia.');
+  });
+
+  it('dado o item com o máximo de grupos e a lista de pessoas com vaga, quando o topo aparece, então o "+" continua ligado e a busca mostra as pessoas e o motivo dos grupos', async () => {
+    // Dado
+    const m = mudar();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={m} grupos={grupos({ cheio: true })} /></MemoryRouter>);
+    const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
+    expect(mais).not.toHaveAttribute('aria-disabled');
+    // Quando
+    await userEvent.click(mais);
+    // Então
+    const busca = screen.getByRole('dialog', { name: 'Pôr colaborador ou grupo' });
+    expect(within(busca).getByText(`Um item pode ter até ${GRUPOS_POR_ITEM} grupos.`)).toBeInTheDocument();
+    await userEvent.click(within(busca).getByRole('button', { name: /Bruno Exemplo Souza/ }));
+    expect(m.aoPor).toHaveBeenCalledWith(EQUIPE[1]);
+  });
+
+  it('dado o item com o máximo de grupos e ninguém mais para pôr, quando o topo aparece, então o "+" desliga com o motivo dos grupos', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar({ candidatos: () => [] })} grupos={grupos({ cheio: true })} /></MemoryRouter>);
+    // Então
+    const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
+    expect(mais).toHaveAttribute('aria-disabled', 'true');
+    expect(mais).toHaveAttribute('data-dica', `Um item pode ter até ${GRUPOS_POR_ITEM} grupos.`);
   });
 
   it('dado quem só lê, quando o topo aparece, então a pílula mostra quem está, sem "+" nem "Tirar"', async () => {

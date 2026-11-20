@@ -82,6 +82,11 @@ export const tituloDaExclusao = (nome: string) => `Excluir o grupo ${nome}?`;
 export const corpoDaExclusao = (nome: string, contagem: readonly ItensDoGrupo[]) => avisoDaExclusao(nome, contagem).slice(tituloDaExclusao(nome).length + 1);
 /** Onde o grupo está, na linha da tabela e no painel dele: "5 demandas e 1 tarefa", ou "Nenhum item". */
 export const ondeOGrupoEsta = (contagem: readonly ItensDoGrupo[]) => contagem.some(c => c.quantos > 0) ? itensPorModulo(contagem) : 'Nenhum item';
+/** Quando a contagem dos itens do grupo não veio (rede, permissão): a tabela e o painel dizem isso, em vez de esperar para sempre. */
+export const NAO_FOI_POSSIVEL_CONTAR = 'Não foi possível contar os itens.';
+/** A contagem no painel do grupo: ainda contando (null), não veio ('falhou') ou quantos itens, contando os arquivados. */
+export const notaDaContagem = (contagem: readonly ItensDoGrupo[] | null | 'falhou') =>
+  contagem === 'falhou' ? NAO_FOI_POSSIVEL_CONTAR : contagem ? `${ondeOGrupoEsta(contagem)}, contando os arquivados.` : 'Contando os itens…';
 
 /** A pergunta antes de excluir o grupo, com em quantos itens ele está (contando os arquivados). */
 export function avisoDaExclusao(nome: string, contagem: readonly ItensDoGrupo[]) {
@@ -171,6 +176,13 @@ export const soPeloGrupo = (q: Pick<QuemEstaNoCartao, 'eu' | 'responsavel_id' | 
 
 /** A nota de quem está no cartão só pelo grupo: não sai sozinho (a mesma ideia da recusa de public.cartao_sair). */
 export const notaDeQuemEstaPeloGrupo = (nome: string) => `Você participa deste cartão pelo grupo ${nome}. Para sair, peça a um administrador.`;
+/**
+ * A nota do grupo no topo do cartão: só para quem está no cartão só por grupos, está neste grupo e de fato não sai sozinho. Quem grava
+ * fora do cartão (administradora, quem criou, a fase de adaptação) ou continua nele pelo item ligado tira o grupo pelo botão: a nota
+ * mandaria pedir a um administrador o que ela mesma faz.
+ */
+export const notaDoGrupoNoTopo = (q: Omit<QuemEstaNoCartao, 'grupos'>, grupo: GrupoDaEquipe, doItem: readonly GrupoDaEquipe[]) =>
+  !q.podeSair && !q.peloLigado && grupo.integrantes.includes(q.eu) && soPeloGrupo(q, doItem) ? notaDeQuemEstaPeloGrupo(grupo.nome) : null;
 /**
  * Por que a pessoa não tira o grupo que é o único caminho dela até o cartão: ela deixaria de participar (e o banco recusa, porque ela
  * deixaria de ver o item). Como sair do cartão, quem está só pelo grupo pede a um administrador.

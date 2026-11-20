@@ -5,7 +5,7 @@ import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import {
   avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, estaPeloGrupo, filtroQueVale, FILTRO_DOS_MEUS_GRUPOS, gruposDoFiltro, INTEGRANTES_NA_DICA,
   integrantesAtivos, itensPorModulo, meusGrupos, textoDoGrupo, AVISO_DOS_GRUPOS, desfazerNosGrupos, dicaDaPilula, gruposDoItem, GRUPOS_DEMAIS, linhaDosGruposNoLapis,
-  maisGrupos, MUDANCAS_NOS_GRUPOS, corpoDaExclusao, linksDoGrupo, ondeOGrupoEsta, quantasPessoas, rotuloDoGrupoNoQuadro, textoDaMensagemDeGrupo, tituloDaExclusao, nomeDoGrupo, notaDeQuemEstaPeloGrupo, saiComOGrupo, soPeloGrupo, type QuemEstaNoCartao
+  maisGrupos, MUDANCAS_NOS_GRUPOS, corpoDaExclusao, linksDoGrupo, ondeOGrupoEsta, quantasPessoas, rotuloDoGrupoNoQuadro, textoDaMensagemDeGrupo, tituloDaExclusao, nomeDoGrupo, notaDaContagem, notaDeQuemEstaPeloGrupo, notaDoGrupoNoTopo, saiComOGrupo, soPeloGrupo, type QuemEstaNoCartao
 } from './gruposDaEquipe';
 
 const membro = (id: string, nome: string, extra: Partial<Membro> = {}): Membro => ({ id, nome, ativo: true, ...extra });
@@ -168,6 +168,19 @@ describe('Grupos da equipe na tela (#378)', () => {
     expect(notaDeQuemEstaPeloGrupo('Núcleo A')).toBe('Você participa deste cartão pelo grupo Núcleo A. Para sair, peça a um administrador.');
   });
 
+  it.each([
+    ['só pelo grupo, sem gravar fora do cartão', {}, 'Você participa deste cartão pelo grupo Núcleo Bê. Para sair, peça a um administrador.'],
+    ['podendo gravar fora do cartão (administradora, quem criou)', { podeSair: true }, null],
+    ['também pelo item ligado', { peloLigado: true }, null],
+    ['também na lista do cartão', { lista: ['u2'] }, null]
+  ] as const)('dada a pessoa no cartão %s, quando abre a pílula do grupo dela, então a nota é: %s', (_caso, muda, nota) => {
+    // Dado
+    const q = { eu: 'u2', responsavel_id: 'u1', lista: [] as readonly string[], meus: ['gb'], podeSair: false, ...muda };
+    // Então
+    expect(notaDoGrupoNoTopo(q, nucleoB, [nucleoB])).toBe(nota);
+    expect(notaDoGrupoNoTopo({ ...q, meus: [] }, nucleoA, [nucleoA])).toBeNull();
+  });
+
   it('dado o lápis de um item, quando ele tem grupos, então a linha diz quais; sem grupos, não há linha', () => {
     // Então
     expect(linhaDosGruposNoLapis(['Núcleo A', 'Núcleo Bê'])).toBe('Grupos: Núcleo A e Núcleo Bê (mude no topo do cartão)');
@@ -183,6 +196,9 @@ describe('Grupos da equipe: textos da tela (#378)', () => {
       'Ele está em 2 itens, contando os arquivados (2 documentos). Quem participa só pelo grupo deixa de ver esses itens. As pessoas continuam na equipe. Não dá para desfazer.');
     expect(ondeOGrupoEsta([{ modulo: 'demandas', quantos: 5 }, { modulo: 'tarefas', quantos: 1 }])).toBe('5 demandas e 1 tarefa');
     expect(ondeOGrupoEsta([])).toBe('Nenhum item');
+    expect(notaDaContagem([{ modulo: 'tarefas', quantos: 2 }])).toBe('2 tarefas, contando os arquivados.');
+    expect(notaDaContagem(null)).toBe('Contando os itens…');
+    expect(notaDaContagem('falhou')).toBe('Não foi possível contar os itens.');
   });
 
   it('dado um grupo, quando a tela fala dele, então conta as pessoas e diz quem está para o leitor de tela', () => {

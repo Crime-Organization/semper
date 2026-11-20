@@ -153,6 +153,7 @@ select ok(not (has_table_privilege('authenticated', t, 'INSERT') or has_table_pr
   'Ninguém grava direto em ' || t)
 from unnest(array['public.grupos_da_equipe', 'public.grupo_integrantes', 'public.mensagens_de_grupo']) t;
 select ok(has_column_privilege('authenticated', 'public.mensagens_de_grupo', 'lido_em', 'UPDATE'), 'A mensagem de grupo só pode ser marcada como lida');
+select ok(not has_column_privilege('authenticated', 'public.comentarios', 'mencoes_pelo_grupo', 'UPDATE'), 'Ninguém muda direto a lista de quem foi mencionado pelo grupo (só o gatilho)');
 select ok(not has_table_privilege('anon', t, 'SELECT'), 'Quem não entrou não lê ' || t)
 from unnest(array['public.grupos_da_equipe', 'public.grupo_integrantes', 'public.mensagens_de_grupo']) t;
 -- As funções novas ou trocadas rodam sem search_path (e as que já rodavam como dono continuam assim).
@@ -168,7 +169,7 @@ where n.nspname in ('public', 'privado') and p.proname in (
   'altero_a_anotacao', 'contratos_em_que_estou', 'contrato_alterar_sem_valores', 'preparar_comentario', 'conferir_mencoes', 'mencao_no_processo',
   'mencao_no_compromisso', 'mencao_na_anotacao', 'cartao_sair', 'ainda_faz_parte', 'tarefas_dos_grupos', 'inclusao_na_tarefa', 'inclusao_na_demanda', 'inclusao_no_processo',
   'inclusao_no_compromisso', 'inclusao_na_anotacao', 'inclusao_no_contrato', 'historico_demanda', 'historico_tarefa', 'historico_processo',
-  'historico_compromisso', 'historico_contrato', 'historico_anotacao', 'painel_de_processos');
+  'historico_compromisso', 'historico_contrato', 'historico_anotacao', 'painel_de_processos', 'contratos_em_que_me_mencionaram');
 select results_eq($$ select p.proname::text collate "default" from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                      where n.nspname in ('public', 'privado') and not p.prosecdef and p.proname in (
                        'preparar_andamento', 'preparar_prazo', 'processo_ativo', 'altero_a_lista', 'conferir_processo_da_tarefa', 'painel_de_processos',
@@ -192,7 +193,8 @@ select is((select array_agg(p.oid::regprocedure::text) from pg_proc p join pg_na
 --   conta o grupo: altero_a_anotacao, anotacoes_pelos_itens, conferir_mencoes, contratos_em_que_estou, estou_*, mencao_*, painel_de_processos;
 --   não conta, de propósito: altero_o_contrato e perfil_no_contrato (os valores do contrato), contrato_participantes (a divisão),
 --     contrato_definir_grupos (exige ser parte por conta própria), por_no_item e processo_me_incluir (põem a pessoa por conta própria),
---     preparar_* (conferem só quem é posto um a um), preparar_comentario (quem está só pelo grupo não é parte do contrato) e as antigas vejo_*.
+--     preparar_* (conferem só quem é posto um a um), preparar_comentario (quem está só pelo grupo não é parte do contrato; quem é
+--     mencionado estando num grupo do contrato não ganha os valores pela menção) e as antigas vejo_*.
 -- Função nova com esse padrão faz este teste falhar até alguém decidir.
 select results_eq($$ select p.proname::text collate "default" from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                      where n.nspname in ('public', 'privado') and p.prosrc ~* '(= *any *\(.*(colaboradores|participantes)\)|participantes *@>)' order by 1 $$,
@@ -496,6 +498,25 @@ select pg_temp.entrar(9); set local role authenticated;
 select results_eq($$ select ve_financeiro, valor from public.contratos_da_equipe where codigo = 'AN11-0001-2030' $$, $$ values (true, 9000::numeric) $$,
   'A menção de quem é parte dá os valores, como hoje');
 reset role;
+-- Dada a Bia só pelo grupo no contrato, quando a Ana (parte) a menciona, então a menção não dá os valores a ela
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ insert into public.comentarios (contrato_id, texto) values ('c0000000-0000-0000-0000-000000000001', 'Veja isto, @bia e @juca') $$,
+  'A Ana menciona a Bia (do grupo) e o Juca no contrato');
+reset role;
+select is((select mencoes_pelo_grupo from public.comentarios where texto = 'Veja isto, @bia e @juca'), array[pg_temp.id(2)],
+  'O comentário guarda que a Bia foi mencionada estando num grupo do contrato (o Juca, não)');
+select pg_temp.entrar(2); set local role authenticated;
+select results_eq($$ select ve_financeiro, valor from public.contratos_da_equipe where codigo = 'AN11-0001-2030' $$, $$ values (false, null::numeric) $$,
+  'A Bia, mencionada pela parte, continua lendo o contrato sem os valores');
+select is((select count(*) from public.contratos) + (select count(*) from public.contrato_participantes) + (select count(*) from public.contrato_historico)
+  + (select count(*) from public.contrato_parcelas), 0::bigint, 'E continua sem a tabela, a divisão, o histórico e as parcelas');
+reset role;
+-- Quando alguém manda a lista de mencionadas pelo grupo vazia, então o banco ignora e preenche de novo
+select pg_temp.entrar(1); set local role authenticated;
+select lives_ok($$ insert into public.comentarios (contrato_id, texto, mencoes_pelo_grupo) values ('c0000000-0000-0000-0000-000000000001', 'De novo, @bia', '{}') $$,
+  'A Ana grava um comentário mandando a lista vazia');
+reset role;
+select is((select mencoes_pelo_grupo from public.comentarios where texto = 'De novo, @bia'), array[pg_temp.id(2)], 'E a Bia fica marcada mesmo assim');
 
 -- ===== Sair e entrar no grupo =====
 -- Quando a Bia sai do Núcleo A, então deixa de ver os itens; quando o Davi entra, passa a ver
@@ -506,6 +527,16 @@ reset role;
 select pg_temp.entrar(2); set local role authenticated;
 select is(pg_temp.vejo('demandas') || pg_temp.vejo('tarefas') || pg_temp.vejo('processos') || pg_temp.vejo('anotacoes') || pg_temp.vejo('contratos_da_equipe'), '',
   'A Bia, fora do grupo, deixa de ver os itens dele');
+select is((select count(*) from public.contratos) + (select count(*) from public.contratos_da_equipe), 0::bigint,
+  'Nem o contrato em que foi mencionada pela parte quando estava no grupo');
+reset role;
+-- Quando a Ana edita o comentário que mencionou a Bia, então a menção continua sem dar o contrato a ela
+select pg_temp.entrar(1); set local role authenticated;
+select is(pg_temp.mudou($$ update public.comentarios set texto = 'Veja isto (editado), @bia e @juca' where texto = 'Veja isto, @bia e @juca' $$), 1, 'A Ana edita o comentário');
+reset role;
+select is((select mencoes_pelo_grupo from public.comentarios where texto = 'Veja isto (editado), @bia e @juca'), array[pg_temp.id(2)], 'A marca da Bia fica');
+select pg_temp.entrar(2); set local role authenticated;
+select is((select count(*) from public.contratos) + (select count(*) from public.contratos_da_equipe), 0::bigint, 'E a Bia continua sem o contrato');
 select is(pg_temp.vejo('compromissos'), 'C4', 'Fica só a Agenda geral');
 select throws_ok($$ select public.cartao_sair('demandas', '71000000-0000-0000-0000-000000000001') $$, 'P0001', 'Você não está entre as pessoas deste cartão.',
   'E não sai de um cartão em que não está');

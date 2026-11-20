@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react';
 import { SD, type ItensDoGrupo } from '../dados';
 import { TAMANHO_GRUPO_DA_EQUIPE } from '../dados/limites';
-import { integrantesAtivos, ondeOGrupoEsta, quantasPessoas } from '../regras/gruposDaEquipe';
+import { integrantesAtivos, NAO_FOI_POSSIVEL_CONTAR, ondeOGrupoEsta, quantasPessoas } from '../regras/gruposDaEquipe';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha } from '../ui/avisos';
 import { estiloBotao, Nota, TituloSecao, Vazio } from '../ui/base';
@@ -30,14 +30,17 @@ export function GruposDaEquipe() {
   const [aberto, setAberto] = useState<string | null>(null);
   // Em quantos itens cada grupo está, contando os arquivados: lido à parte, para a tabela não esperar a contagem.
   const [itens, setItens] = useState<Record<string, ItensDoGrupo[]>>({});
+  // A contagem falhou (rede, permissão): a coluna e o painel dizem que não foi possível contar, em vez de esperar para sempre.
+  const [semContagem, setSemContagem] = useState(false);
   const chave = grupos.map(g => g.id).join('|');
   const [versao, setVersao] = useState(0);
   useEffect(() => {
     let vivo = true;
     const ids = chave ? chave.split('|') : [];
+    setSemContagem(false);
     Promise.all(ids.map(async id => [id, await SD.grupoDaEquipeContarItens(id)] as const))
       .then(lista => { if (vivo) setItens(Object.fromEntries(lista)); })
-      .catch(() => {});
+      .catch(e => { if (vivo) { setSemContagem(true); falha(e); } });
     return () => { vivo = false; };
   }, [chave, versao]);
 
@@ -55,12 +58,12 @@ export function GruposDaEquipe() {
     } catch (e) { falha(e); }
   }
 
-  return <section aria-labelledby="tGrupos" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+  return <section aria-labelledby="tGrupos" className="grupos-da-equipe">
     <div className="grupos-da-equipe-cabeca">
       <TituloSecao id="tGrupos">Grupos da equipe</TituloSecao>
       <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={() => void novo()}><Icone nome="mais" tam={ICONE_DO_NOVO} /> Novo grupo</button>
     </div>
-    <Nota style={{ marginTop: -6 }}>Um grupo junta pessoas da equipe, como um núcleo do escritório. Posto num item, todos do grupo participam dele; quem entra no grupo depois também participa, e quem sai deixa de participar (a não ser que esteja no item por conta própria).</Nota>
+    <Nota>Um grupo junta pessoas da equipe, como um núcleo do escritório. Posto num item, todos do grupo participam dele; quem entra no grupo depois também participa, e quem sai deixa de participar (a não ser que esteja no item por conta própria).</Nota>
     {!grupos.length
       ? <Vazio>Nenhum grupo ainda. Um grupo junta pessoas da equipe (por exemplo, um núcleo) para pôr todas de uma vez numa demanda, tarefa ou contrato.</Vazio>
       : <div className="tabela"><table className="tabela-grupos">
@@ -73,12 +76,12 @@ export function GruposDaEquipe() {
               {ativos.length > 0 && <Avatares ids={ativos.map(m => m.id)} equipe={ctx.equipe} max={BOLINHAS_NA_LINHA} />}
               <span className="sub">{ativos.length ? quantasPessoas(ativos.length) : 'Ninguém ainda'}</span>
             </div></td>
-            <td><span className="sub">{itens[g.id] ? ondeOGrupoEsta(itens[g.id]) : '…'}</span></td>
+            <td><span className="sub">{itens[g.id] ? ondeOGrupoEsta(itens[g.id]) : semContagem ? NAO_FOI_POSSIVEL_CONTAR : '…'}</span></td>
           </tr>;
         })}</tbody>
       </table></div>}
     {doAberto && <PainelCartao aoFechar={() => setAberto(null)} soNoCentro ajustado rotulo={`Grupo ${doAberto.nome}`}>
-      <GrupoDaEquipe key={doAberto.id} g={doAberto} itens={itens[doAberto.id] ?? null} aoMudar={mudou}
+      <GrupoDaEquipe key={doAberto.id} g={doAberto} itens={itens[doAberto.id] ?? (semContagem ? 'falhou' : null)} aoMudar={mudou}
         aoExcluir={async () => { setAberto(null); await mudou(); }} />
     </PainelCartao>}
   </section>;

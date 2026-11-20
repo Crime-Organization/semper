@@ -9,16 +9,16 @@ import type { GrupoDaEquipe as Grupo } from '../dados';
 import { GrupoDaEquipe } from './GrupoDaEquipe';
 import { GruposDaEquipe } from './GruposDaEquipe';
 
-const { SD, feito, avisar, confirmar, pedirTexto, sessao } = vi.hoisted(() => ({
+const { SD, feito, avisar, falha, confirmar, pedirTexto, sessao } = vi.hoisted(() => ({
   SD: {
     grupoDaEquipeCriar: vi.fn(), grupoDaEquipeRenomear: vi.fn(), grupoDaEquipeIncluir: vi.fn(), grupoDaEquipeTirar: vi.fn(),
     grupoDaEquipeContarItens: vi.fn(), grupoDaEquipeExcluir: vi.fn()
   },
-  feito: vi.fn(), avisar: vi.fn(), confirmar: vi.fn(), pedirTexto: vi.fn(),
+  feito: vi.fn(), avisar: vi.fn(), falha: vi.fn(), confirmar: vi.fn(), pedirTexto: vi.fn(),
   sessao: { grupos: [] as Grupo[], recarregar: vi.fn() }
 }));
 vi.mock('../dados', () => ({ SD }));
-vi.mock('../ui/avisos', () => ({ feito, avisar, falha: vi.fn() }));
+vi.mock('../ui/avisos', () => ({ feito, avisar, falha }));
 vi.mock('../ui/janela', () => ({ confirmar, pedirTexto }));
 const EQUIPE = [
   { id: 'u-ana', nome: 'Ana Exemplo', ativo: true },
@@ -74,6 +74,21 @@ describe('Grupos da equipe em Equipe e acessos (#378)', () => {
     expect(await within(linha).findByText('5 demandas e 1 tarefa')).toBeInTheDocument();
     await userEvent.click(within(linha).getByRole('button', { name: 'Abrir o grupo Núcleo Alfa' }));
     expect(screen.getByRole('dialog', { name: 'Grupo Núcleo Alfa' })).toBeInTheDocument();
+  });
+
+  it('dado um grupo, quando a contagem dos itens falha, então o erro aparece e a tabela e o painel dizem que não foi possível contar', async () => {
+    // Dado
+    sessao.grupos = [NUCLEO];
+    const erro = new Error('Sem conexão');
+    SD.grupoDaEquipeContarItens.mockRejectedValue(erro);
+    // Quando
+    render(<MemoryRouter><GruposDaEquipe /></MemoryRouter>);
+    // Então
+    const linha = screen.getByRole('row', { name: /Núcleo Alfa/ });
+    expect(await within(linha).findByText('Não foi possível contar os itens.')).toBeInTheDocument();
+    expect(falha).toHaveBeenCalledWith(erro);
+    await userEvent.click(within(linha).getByRole('button', { name: 'Abrir o grupo Núcleo Alfa' }));
+    expect(within(screen.getByRole('dialog', { name: 'Grupo Núcleo Alfa' })).getByText('Não foi possível contar os itens.')).toBeInTheDocument();
   });
 });
 

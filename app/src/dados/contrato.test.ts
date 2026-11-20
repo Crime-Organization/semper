@@ -8139,6 +8139,31 @@ describe('Grupos da equipe (banco fictício, #378)', () => {
     await expect(SD.contratoDefinirGrupos(k.id, [])).rejects.toThrow('Só quem é parte do contrato põe ou tira grupos.');
   });
 
+  it('dado o Bruno (advogado) só pelo grupo no contrato, quando a parte o menciona, então continua sem os valores; saindo do grupo, perde o contrato', async () => {
+    // Dado
+    falso().fecharVisibilidade(true);
+    await SD.equipeDefinirFuncao('u-bruno', 'advogado');
+    const grupo = await nucleoComBruno();
+    const k = await contratoDoMaster();
+    await SD.contratoDefinirGrupos(k.id, [grupo]);
+    // Quando
+    entrarComo('u-master');
+    const comentario = await SD.comentarioCriar('contratos', k.id, 'Veja isto, @bruno.souza');
+    // Então
+    entrarComo('u-bruno');
+    expect(await SD.contratoVer(k.id)).toMatchObject({ ve_financeiro: false, valor: null });
+    expect(await SD.contratoObter(k.id)).toBeNull();
+    // Quando: a administradora o tira do grupo, e quem escreveu edita o comentário
+    entrarComo('u-ana');
+    await SD.grupoDaEquipeTirar(grupo, 'u-bruno');
+    entrarComo('u-master');
+    await SD.comentarioEditar(comentario.id, 'Veja isto de novo, @bruno.souza');
+    // Então
+    entrarComo('u-bruno');
+    expect(await SD.contratoVer(k.id)).toBeNull();
+    expect(await SD.contratoObter(k.id)).toBeNull();
+  });
+
   it('dado o grupo em vários itens (um arquivado), quando a administradora conta e exclui o grupo, então ele sai de todos, com a linha no histórico', async () => {
     // Dado
     falso().fecharVisibilidade(true);
@@ -8242,5 +8267,24 @@ describe('Grupos da equipe (banco fictício, #378)', () => {
     expect((await SD.anotacaoObter(anotacao))?.grupos).toEqual([grupo]);
     expect((await SD.demandaObter(demanda))?.grupos).toEqual([grupo]);
     await expect(SD.itemDefinirGrupos('anotacoes', outra, [grupo])).rejects.toThrow('Você não tem permissão para fazer isso.');
+  });
+
+  it('dado um compromisso da Agenda geral de que o Bruno não participa, quando ele define os grupos, então é recusado, e nada muda', async () => {
+    // Dado
+    falso().fecharVisibilidade(true);
+    const grupo = await nucleoComBruno();
+    const c = await SD.compromissoCriar({ tipo: 'reuniao', titulo: 'Reunião da Agenda geral', data: hojeISO(), hora: '10:00', responsavel_id: 'u-ana', geral: true });
+    entrarComo('u-bruno');
+    expect((await SD.compromissoObter(c.id))?.titulo).toBe('Reunião da Agenda geral');
+    // Quando / Então
+    await expect(SD.itemDefinirGrupos('compromissos', c.id, [grupo])).rejects.toThrow('Você não tem permissão para fazer isso.');
+    expect((await SD.compromissoObter(c.id))?.grupos).toEqual([]);
+    // Quando: posto no compromisso pelo grupo, ele já altera
+    entrarComo('u-ana');
+    await SD.itemDefinirGrupos('compromissos', c.id, [grupo]);
+    entrarComo('u-bruno');
+    // Então
+    await SD.itemDefinirGrupos('compromissos', c.id, [grupo]);
+    expect((await SD.compromissoObter(c.id))?.grupos).toEqual([grupo]);
   });
 });

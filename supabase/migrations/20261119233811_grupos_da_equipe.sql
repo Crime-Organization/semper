@@ -17,7 +17,9 @@
 --   - no contrato: participa SEM os valores. Lê pela view contratos_da_equipe (com ve_financeiro falso, como a equipe com a chave
 --     "equipe vê tudo"), muda só o que contrato_alterar_sem_valores muda e não lê contrato_participantes nem contrato_historico.
 --     Pôr e tirar grupo do contrato é só por public.contrato_definir_grupos, por quem é parte por conta própria. A menção de quem
---     está só pelo grupo não dá os valores a ninguém (autor_sem_vinculo);
+--     está só pelo grupo não dá os valores a ninguém (autor_sem_vinculo). E a menção a quem está num grupo do contrato também não
+--     dá os valores a essa pessoa, nem depois de ela sair do grupo (mencoes_pelo_grupo): o grupo participa sem os valores, e quem
+--     sai dele deixa de participar. Quem é mencionado sem estar num grupo do contrato continua ganhando os valores, como hoje;
 --   - pode ser mencionado nos comentários do item; no contrato, continua valendo "só advogados";
 --   - recebe o aviso de inclusão da #377 quando o grupo é posto no item ("pelo grupo X"); quem entra no grupo depois recebe uma
 --     mensagem só, a do grupo (mensagens_de_grupo), e não uma por item;
@@ -1112,6 +1114,24 @@ begin
   return null;
 end $function$;
 
+-- Quem foi mencionado num comentário de contrato estando num grupo dele: para essas pessoas, a menção não conta como "parte" (não dá
+-- os valores), nem depois de saírem do grupo. O gatilho preparar_comentario preenche; o que a tela manda nessa coluna é ignorado.
+-- A versão anterior do site não conhece a coluna; os comentários de antes ficam com a lista vazia e continuam valendo como hoje.
+alter table public.comentarios add column mencoes_pelo_grupo uuid[] not null default '{}';
+
+-- A de 20261109102349_equipe_ve_tudo.sql, sem a menção a quem estava num grupo do contrato.
+create or replace function privado.contratos_em_que_me_mencionaram() returns uuid[]
+language sql stable security definer set search_path = '' as $$
+  select coalesce(array_agg(distinct c.contrato_id), '{}')
+  from public.comentarios c
+  where c.contrato_id is not null
+    and c.mencoes @> array[auth.uid()]
+    and c.escritorio_id = privado.meu_escritorio()
+    and c.autor_id is distinct from auth.uid()
+    and not c.autor_sem_vinculo
+    and not auth.uid() = any(c.mencoes_pelo_grupo)
+$$;
+
 CREATE OR REPLACE FUNCTION privado.preparar_comentario()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -1132,6 +1152,14 @@ begin
                     and (privado.sou_admin() or auth.uid() = k.criado_por or auth.uid() = k.responsavel_id
                          or k.participantes @> jsonb_build_array(jsonb_build_object('pessoa_id', privado.minha_pessoa()))))
     and not new.contrato_id = any(privado.contratos_em_que_me_mencionaram());
+  -- Quem está num grupo do contrato ao ser mencionado (#378). Na edição, quem já estava marcado e continua mencionado segue marcado:
+  -- editar o comentário depois de a pessoa sair do grupo não passa a dar os valores a ela.
+  new.mencoes_pelo_grupo := case when new.contrato_id is null then '{}'::uuid[] else (
+    select coalesce(array_agg(distinct m.perfil), '{}')
+    from unnest(new.mencoes) as m(perfil)
+    join public.contratos k on k.id = new.contrato_id
+    where privado.perfil_nos_grupos(k.escritorio_id, m.perfil, k.grupos)
+       or (tg_op = 'UPDATE' and m.perfil = any(old.mencoes_pelo_grupo))) end;
   return new;
 end $function$;
 

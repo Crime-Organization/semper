@@ -118,8 +118,11 @@ export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Pr
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
   // Com grupos no escritório, a lista de pessoas cheia não desliga o "+" enquanto houver grupo para pôr (e vice-versa).
   const comGrupos = mudar && grupos?.mudar;
-  const gruposParaPor = comGrupos && !comGrupos.cheio ? comGrupos.candidatos('') : [];
-  const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : gruposParaPor.length ? undefined : mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined);
+  // O "+" só desliga sem pessoa e sem grupo para pôr; o motivo é o da lista cheia ou, sem ele, o dos grupos demais.
+  const semPessoas = !!mudar?.cheia || !mudar?.candidatos('').length;
+  const semGrupos = !(comGrupos && !comGrupos.cheio && comGrupos.candidatos('').length);
+  const motivoComGrupos = semPessoas && semGrupos ? mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined) : undefined;
+  const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : comGrupos ? motivoComGrupos : mudar?.cheia;
   // A bolinha do responsável que não pode ser passada adiante diz só quem ele é e o motivo, sem o "clique para trocar".
   const impedeTrocar = responsavel ? mudar?.impedeTrocar : undefined;
   const motivoDoResponsavel = mudar?.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
