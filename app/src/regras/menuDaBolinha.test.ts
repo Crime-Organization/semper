@@ -1,7 +1,24 @@
 // O menu da bolinha da equipe (#388). Padrão Dado / Quando / Então: app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
-import { ACOES_NA_BOLINHA, acoesSem, PERFIL_SO_DE_ADMINISTRADOR, perfilNaBolinha } from './menuDaBolinha';
+import { ACOES_NA_BOLINHA, acoesSem, impedeResponder, NAO_PODE_RESPONDER, PERFIL_SO_DE_ADMINISTRADOR, perfilNaBolinha } from './menuDaBolinha';
+
+describe('Quem pode passar a responder pelo menu', () => {
+  const EQUIPE: Membro[] = [{ id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }, { id: 'u-desligado', nome: 'Davi', ativo: false },
+    { id: 'u-saiu', nome: 'Carla (excluída)', ativo: false, excluido: true }];
+
+  it('dado alguém ativo na equipe, quando o menu dele abre, então "Tornar responsável" fica livre', () => {
+    // Quando / Então
+    expect(impedeResponder('u-ana', EQUIPE)).toBeUndefined();
+  });
+
+  it('dado alguém desativado, excluído ou que não está mais na equipe, quando o menu dele abre, então o motivo fica no lugar de "Tornar responsável"', () => {
+    // Quando / Então
+    expect(impedeResponder('u-desligado', EQUIPE)).toBe(NAO_PODE_RESPONDER);
+    expect(impedeResponder('u-saiu', EQUIPE)).toBe(NAO_PODE_RESPONDER);
+    expect(impedeResponder('u-sumiu', EQUIPE)).toBe(NAO_PODE_RESPONDER);
+  });
+});
 
 describe('As ações de cada bolinha', () => {
   it('dado um participante, quando o menu abre, então ele pode virar responsável, sair e ter o perfil aberto, nessa ordem', () => {

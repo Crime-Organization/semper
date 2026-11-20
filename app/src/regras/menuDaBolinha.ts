@@ -3,6 +3,7 @@
 // bolinha tem, por esta tabela (o lugar de quem está na bolinha): tipo novo de bolinha = entrada nova, sem mexer nas outras.
 // A ação que não pode ser feita aparece no menu com o motivo, no lugar dela.
 import type { Membro } from '../dados/tipos';
+import { ativoNaEquipe } from './equipe';
 
 /** O que o menu de uma bolinha pode oferecer. */
 export type AcaoDaBolinha = 'tornarResponsavel' | 'trocarResponsavel' | 'tirar' | 'verPerfil';
@@ -52,3 +53,13 @@ export function perfilNaBolinha(perfilId: string, quem: { eu: string; ehAdmin: b
   if (perfilId === quem.eu) return { para: '/minha-conta/' };
   return quem.ehAdmin ? { para: '/equipe/perfil/?id=' + perfilId } : { motivo: PERFIL_SO_DE_ADMINISTRADOR };
 }
+
+/** Por que alguém da lista não pode passar a responder: quem foi desativado (ou excluído) da equipe não assume o item. */
+export const NAO_PODE_RESPONDER = 'Quem está desativado na equipe não pode ser o responsável.';
+
+/**
+ * O motivo no lugar de "Tornar responsável" para quem está na lista mas não poderia ser escolhido na busca de trocar o responsável
+ * (a equipe ativa): quem foi desativado ou excluído, ou não está mais na equipe. undefined: pode responder.
+ */
+export const impedeResponder = (perfilId: string, equipe: readonly Membro[]) =>
+  equipe.some(m => m.id === perfilId && ativoNaEquipe(m)) ? undefined : NAO_PODE_RESPONDER;

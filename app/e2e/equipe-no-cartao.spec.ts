@@ -191,6 +191,20 @@ test.describe('Equipe no topo do cartão de tarefa', () => {
     await expect(bolinha(cartao, doResponsavel('Bruno Exemplo Souza'))).toBeVisible();
   });
 
+  test('dado o responsável trocado pelo menu, quando abre o menu do novo e clica fora, então o menu fecha e o foco volta à bolinha dele', async ({ page }) => {
+    // Dado: a troca pelo menu (a ação escolhida antes não pode deixar o próximo menu sem devolver o foco)
+    const cartao = await abrirTarefa(page, 'Pedir documentos ao cliente');
+    await trocarOResponsavel(page, cartao, 'Bruno Exemplo Souza', 'ana', 'Ana Teste Lima');
+    const daAna = bolinha(cartao, doResponsavel('Ana Teste Lima'));
+    await expect(daAna).toBeVisible();
+    await abrirMenuDaBolinha(page, cartao, doResponsavel('Ana Teste Lima'));
+    // Quando: o clique cai num canto vazio do cartão, fora do menu
+    await cartao.click({ position: { x: 4, y: 4 } });
+    // Então
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(daAna).toBeFocused();
+  });
+
   test('dado quem não pode ficar fora da tarefa, quando escolhe "Sair da tarefa" no menu da própria bolinha, então confirma a saída e o cartão fecha', async ({ page }) => {
     // Dado: o Mateus põe o Bruno em "Renovar a procuração", que não é dele nem está numa demanda do Bruno
     const cartao = await abrirTarefa(page, 'Renovar a procuração');

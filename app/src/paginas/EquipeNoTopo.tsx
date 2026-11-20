@@ -13,7 +13,7 @@ import {
 } from '../regras/gruposDaEquipe';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import type { GruposDoCartao } from '../ui/EquipeDoCartao';
-import { ACOES_NA_BOLINHA, perfilNaBolinha } from '../regras/menuDaBolinha';
+import { ACOES_NA_BOLINHA, impedeResponder, perfilNaBolinha } from '../regras/menuDaBolinha';
 import { EQUIPE_DO_MODULO, planoDaMudanca, tirarPelaBolinha, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe, type SaidaDaPessoa } from '../regras/equipeNoCartao';
 import { candidatosDaEquipe } from '../regras/equipe';
 import { falha } from '../ui/avisos';
@@ -148,6 +148,8 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
     perfil,
     cheia: equipe.lista.length >= m.maximo ? m.cheia : undefined,
     ocupado,
+    // Quem foi desativado continua na lista, mas não assume o item (a busca de trocar o responsável também não o acha).
+    impedeTornar: p => impedeResponder(p.id, ctx.equipe),
     aoPor: x => pedir({ tipo: 'por', id: x.id, nome: x.nome }),
     aoTirar: p => pedir({ tipo: 'tirar', id: p.id, nome: p.nome }),
     aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome }),

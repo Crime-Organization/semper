@@ -281,7 +281,13 @@ function BolinhaComMenu({ p, itens, botao, busca }: {
   const ref = botao ?? proprio;
   const [aberto, setAberto] = useState<{ botao: HTMLElement; o: 'menu' | 'busca' } | null>(null);
   // A pessoa escolheu uma ação: quem a faz cuida do foco (o menu fecha pelo mesmo clique, e não devolve o foco à bolinha).
+  // Volta a false a cada menu aberto: no navegador, o menu some antes de o clique na ação chegar à página, e o fecharOMenu
+  // daquele clique não roda; sem isso, o próximo clique fora não devolveria o foco à bolinha.
   const escolheu = useRef(false);
+  function abrirOuFechar(b: HTMLElement) {
+    escolheu.current = false;
+    setAberto(a => a ? null : { botao: b, o: 'menu' });
+  }
   const devolverFoco = () => setTimeout(() => ref.current?.focus(), 0);
   function escolher(i: ItemDoMenu) {
     escolheu.current = true;
@@ -302,7 +308,7 @@ function BolinhaComMenu({ p, itens, botao, busca }: {
   const visiveis = itens.filter((i, n) => !i.motivo || itens.findIndex(x => x.motivo === i.motivo) === n);
   return <>
     <button ref={ref} type="button" className="equipe-bolinha" aria-label={nomeDaBolinha(p)} {...propsDaDica(quemE(p))}
-      aria-haspopup="menu" aria-expanded={!!aberto} onClick={e => { const b = e.currentTarget; setAberto(a => a ? null : { botao: b, o: 'menu' }); }}>
+      aria-haspopup="menu" aria-expanded={!!aberto} onClick={e => abrirOuFechar(e.currentTarget)}>
       <Bolinha p={p} />
     </button>
     {aberto?.o === 'menu' && <MenuFlutuante botao={aberto.botao} rotulo={nomeDaBolinha(p)} aoFechar={fecharOMenu}>
