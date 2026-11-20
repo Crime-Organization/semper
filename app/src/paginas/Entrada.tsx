@@ -22,6 +22,11 @@ const AVISO_AO_CHEGAR: Record<string, string> = {
   encerrada: 'Sua sessão foi encerrada. Entre de novo para continuar.'
 };
 
+/** O código do convite, que vem depois do "#" no link do convite ('' se não houver). */
+const codigoDoEndereco = () => new URLSearchParams(location.hash.slice(1)).get('convite') || '';
+/** Tira o código do endereço: ele fica só na memória, para não ficar no histórico do navegador. */
+const tirarCodigoDoEndereco = () => history.replaceState(history.state, '', location.pathname + location.search);
+
 export default function Entrada() {
   useTitulo('Entrar');
   const navegar = useNavigate();
@@ -37,10 +42,9 @@ export default function Entrada() {
     return codigo && tipo && (['email', 'recovery', 'email_change'] as string[]).includes(tipo) ? { codigo, tipo } : null;
   })();
   const porRecuperacao = location.hash.includes('type=recovery') || params.has('nova-senha') || linkEmail?.tipo === 'recovery';
-  // Código do convite: vem depois do "#" no link do convite. Fica só na memória e sai do endereço,
-  // para não ficar no histórico do navegador.
-  const [codigoConvite] = useState(() => new URLSearchParams(location.hash.slice(1)).get('convite') || '');
-  useEffect(() => { if (codigoConvite) history.replaceState(history.state, '', location.pathname + location.search); }, [codigoConvite]);
+  // Código do convite: vem depois do "#" no link do convite. Fica só na memória e sai do endereço.
+  const [codigoConvite, setCodigoConvite] = useState(codigoDoEndereco);
+  useEffect(() => { if (codigoConvite) tirarCodigoDoEndereco(); }, [codigoConvite]);
   const inicial: Painel = porRecuperacao ? 'nova' : params.has('primeiro-acesso') ? 'primeiro' : params.has('recuperar') ? 'recuperar' : params.has('cliente') ? 'cliente' : 'entrar';
 
   const [painel, setPainel] = useState<Painel>(inicial);
@@ -54,6 +58,21 @@ export default function Entrada() {
   useLayoutEffect(() => {
     mostrarTema('claro');
     return () => mostrarTema(temaGuardado());
+  }, []);
+
+  // Um link de convite novo aberto na mesma aba (o anterior venceu ou o e-mail foi corrigido) só troca o que vem depois do "#":
+  // o navegador não recarrega a página, e sem isto o cadastro seguiria com o código do link antigo, recusado pelo banco.
+  useEffect(() => {
+    const aoTrocarOEndereco = () => {
+      const novo = codigoDoEndereco();
+      if (!novo) return;
+      setCodigoConvite(novo);
+      tirarCodigoDoEndereco();
+      setPainel('primeiro');
+      setMsg(null);
+    };
+    addEventListener('hashchange', aoTrocarOEndereco);
+    return () => removeEventListener('hashchange', aoTrocarOEndereco);
   }, []);
 
   const mostrar = (p: Painel) => { setPainel(p); setMsg(null); };
