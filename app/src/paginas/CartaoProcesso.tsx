@@ -33,6 +33,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
 import { quantosPreenchidos } from '../regras/secoes';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
@@ -100,8 +101,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!p) return <Vazio>Este processo não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
-  const podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m));
-  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil) && !p.arquivado_em;
+  const meus = meusGrupos(ctx.grupos, ctx.perfil.id), podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m, meus));
+  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil, meus) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !p.arquivado_em;
   // Criar um compromisso já ligado (#273, #376): quem altera o processo e, na fase de adaptação, o advogado (ele marca audiência
@@ -185,7 +186,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <div className="cartao-acoes">
       {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
-      <EquipeNoTopo modulo="processos" id={p.id} equipe={{ responsavel_id: p.responsavel_id, lista: p.colaboradores }} mudar={mudaNoLugar ? {
+      <EquipeNoTopo modulo="processos" id={p.id} equipe={{ responsavel_id: p.responsavel_id, lista: p.colaboradores }} grupos={p.grupos} mudar={mudaNoLugar ? {
         saida: { podeSair: gravaForaDoCartao(ctx, p.criado_por === eu) }, depois: depoisDeLigar,
         aoSair: equipeVeTudo(ctx.escritorio) ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
       } : null} />

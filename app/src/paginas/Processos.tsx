@@ -23,6 +23,8 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
+import { gruposDoItem, meusGrupos } from '../regras/gruposDaEquipe';
+import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
 import { dataDaOrdem, useOrdem } from '../ui/ordem';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
@@ -169,7 +171,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<ProcessoLista> quadro={quadro} podeArrastar={p => !soLeOCartao(ctx, m => alteraOProcesso(p, m))}
+        ? <Kanban<ProcessoLista> quadro={quadro} podeArrastar={p => !soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id)))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.processosDaEtapa(colunaId, { ...f, ordem: ordemDaColuna, situacao: 'ativos' }, deslocamento, POR_COLUNA)}
           ordemDe={p => p.etapa_ordem}
@@ -207,7 +209,7 @@ function CartaoKanban({ p, ordem }: { p: ProcessoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, p), local = localDoProcesso(p);
   return <>
-    <EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m))} />
+    <EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id)))} />
     {p.orgao && <div><Selo tipo="arq">{p.orgao}</Selo></div>}
     <div className="kt">{nomeDoProcesso(p)}</div>
     <div className="km">
@@ -216,7 +218,8 @@ function CartaoKanban({ p, ordem }: { p: ProcessoLista; ordem: Ordem }) {
       {local && <span>{local}</span>}
       {data && <span>{data}</span>}
     </div>
-    <div className="kp"><Avatares ids={[p.responsavel_id, ...p.colaboradores]} equipe={ctx.equipe} tam={24} /></div>
+    <div className="kp"><GruposDoItem grupos={gruposDoItem(ctx.grupos, p.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} />
+      <Avatares ids={[p.responsavel_id, ...p.colaboradores]} equipe={ctx.equipe} tam={24} /></div>
   </>;
 }
 
@@ -244,7 +247,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, cadastro,
     : <>Nenhum processo ainda. <BotaoLink forma="link" to={cadastro}>Cadastre o primeiro</BotaoLink>.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const alteraveis = linhas.filter(p => !soLeOCartao(ctx, m => alteraOProcesso(p, m)));
+  const alteraveis = linhas.filter(p => !soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id))));
   const todas = alteraveis.length > 0 && alteraveis.every(p => selecionadas.has(p.id));
   // Ordenando pela data de cadastro, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const porCadastro = ordem === 'novos' || ordem === 'antigos';
@@ -257,11 +260,12 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, cadastro,
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.codigo}`} checked={selecionadas.has(p.id)} disabled={!alteraveis.includes(p)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m))} /><NomeDaLinha>{nomeDoProcesso(p)}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={p.etq} modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || soLeOCartao(ctx, m => alteraOProcesso(p, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{nomeDoProcesso(p)}</NomeDaLinha>
           <div className="sub"><span className="codigo">{p.numero}</span>{p.titulo && p.cliente_nome ? ' · ' + clientesPorExtenso(p.cliente_nome) : ''}{localDoProcesso(p) ? ' · ' + localDoProcesso(p) : ''}</div></td>
         <td>{p.orgao ? <Selo tipo="arq">{p.orgao}</Selo> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(p.etapa_id)}</span></td>
-        <td><Avatares ids={[p.responsavel_id, ...p.colaboradores]} equipe={ctx.equipe} /></td>
+        <td><div className="equipe-da-linha"><Avatares ids={[p.responsavel_id, ...p.colaboradores]} equipe={ctx.equipe} />
+          <GruposDoItem grupos={gruposDoItem(ctx.grupos, p.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(p.criado_em) : relativo(p.atualizado_em)}</td>
       </LinhaQueAbre>)}</tbody>
     </table></div>

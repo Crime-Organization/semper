@@ -1,7 +1,8 @@
 // A equipe mudada no topo do cartão (#356): as gravações. Cada uma lê a equipe gravada no item logo antes de gravar, para não
 // apagar o que outra pessoa acabou de pôr, e usa a mesma função de dados do lápis de cada módulo (o histórico do cartão registra
 // a mudança como registra a do lápis). As regras de cada passo estão em regras/equipeNoCartao.ts.
-import { SD } from '../dados';
+import { SD, type GrupoDaEquipe, type ModuloDoPedido } from '../dados';
+import { AVISO_DOS_GRUPOS, desfazerNosGrupos, MUDANCAS_NOS_GRUPOS, type TipoDeMudancaNosGrupos } from '../regras/gruposDaEquipe';
 import {
   AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, planoDaMudanca, saidaPelaBolinhaFalhou, type EquipeAGravar, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe,
   type SaidaDaPessoa
@@ -74,4 +75,51 @@ export async function desfazerNoItem(modulo: ModuloDaEquipe, itemId: string, ped
   if (volta && 'aviso' in volta) throw new Error(volta.aviso);
   if (volta) await l.gravar(itemId, volta);
   return { tipo: l.mudanca, id: itemId };
+}
+
+// ---------- os grupos da equipe nas bolinhas (#378) ----------
+/** Os grupos gravados agora em cada item (null: o item não foi encontrado, ou a pessoa não o vê mais). */
+const GRUPOS_GRAVADOS: Record<ModuloDoPedido, (id: string) => Promise<string[] | null>> = {
+  tarefas: async id => { const x = await SD.tarefaObter(id); return x && (x.grupos ?? []); },
+  demandas: async id => { const x = await SD.demandaObter(id); return x && (x.grupos ?? []); },
+  processos: async id => { const x = await SD.processoObter(id); return x && (x.grupos ?? []); },
+  compromissos: async id => { const x = await SD.compromissoObter(id); return x && (x.grupos ?? []); },
+  anotacoes: async id => { const x = await SD.anotacaoObter(id); return x && (x.grupos ?? []); },
+  contratos: async id => { const x = await SD.contratoObter(id); return x && (x.grupos ?? []); }
+};
+/** As palavras de cada item nos avisos dos grupos e o sinal de "dados mudaram" do Desfazer. */
+const ITEM_DOS_GRUPOS: Record<ModuloDoPedido, { noItem: string; doItem: string; mudanca: string }> = {
+  tarefas: { noItem: 'na tarefa', doItem: 'da tarefa', mudanca: 'tarefaAtualizada' },
+  demandas: { noItem: 'na demanda', doItem: 'da demanda', mudanca: 'demandaAtualizada' },
+  processos: { noItem: 'no processo', doItem: 'do processo', mudanca: 'processoAtualizado' },
+  compromissos: { noItem: 'no compromisso', doItem: 'do compromisso', mudanca: 'compromissoAtualizado' },
+  anotacoes: { noItem: 'na anotação', doItem: 'da anotação', mudanca: 'anotacaoAtualizada' },
+  contratos: { noItem: 'no contrato', doItem: 'do contrato', mudanca: 'contratoAtualizado' }
+};
+/** As palavras de um item, para quem pergunta antes de tirar o grupo. */
+export const palavrasDosGrupos = (modulo: ModuloDoPedido) => ITEM_DOS_GRUPOS[modulo];
+
+/**
+ * Põe ou tira um grupo da equipe do item, sobre os grupos gravados logo antes (para não apagar o que outra pessoa acabou de pôr), e
+ * avisa, com o Desfazer. (O grupo que é o único caminho de quem muda até o item a tela nem oferece tirar.)
+ */
+export async function mudarOsGrupos(modulo: ModuloDoPedido, itemId: string, tipo: TipoDeMudancaNosGrupos, grupo: Pick<GrupoDaEquipe, 'id' | 'nome'>): Promise<FimDaMudanca> {
+  const palavras = ITEM_DOS_GRUPOS[modulo];
+  const antes = await GRUPOS_GRAVADOS[modulo](itemId);
+  if (!antes) throw new Error(ITEM_SUMIU);
+  const plano = MUDANCAS_NOS_GRUPOS[tipo](antes, grupo, palavras.noItem);
+  if ('aviso' in plano) {
+    avisar(plano.aviso, plano.tipo);
+    return 'nada';
+  }
+  await SD.itemDefinirGrupos(modulo, itemId, plano.gravar);
+  feito(AVISO_DOS_GRUPOS[tipo](grupo.nome, palavras.noItem, palavras.doItem), `mudança nos grupos ${palavras.doItem}`, async () => {
+    const agora = await GRUPOS_GRAVADOS[modulo](itemId);
+    if (!agora) throw new Error(ITEM_SUMIU);
+    const volta = desfazerNosGrupos(tipo, agora, grupo.id);
+    if (volta && 'aviso' in volta) throw new Error(volta.aviso);
+    if (volta) await SD.itemDefinirGrupos(modulo, itemId, volta);
+    return { tipo: palavras.mudanca, id: itemId };
+  });
+  return 'gravou';
 }

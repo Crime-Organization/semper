@@ -224,15 +224,16 @@ export const participaDoCompromisso = (c: QuemEstaNoCompromisso, m: Membro, proc
   ehAdministrador(m) || m.id === c.criado_por || m.id === c.responsavel_id || c.participantes.includes(m.id) || estaPeloGrupo(c.grupos, meusGrupos)
   || (!!processo && (m.id === processo.criado_por || m.id === processo.responsavel_id || processo.colaboradores.includes(m.id) || estaPeloGrupo(processo.grupos, meusGrupos)));
 /** Na tela: quem pode mudar. Quem o vê pelo processo ligado recebe o processo junto; os outros recebem null. */
-export const podeMudarCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'processo'>, eu: string, ehAdmin: boolean) =>
-  ehAdmin || eu === c.criado_por || eu === c.responsavel_id || c.participantes.includes(eu)
-  || (!!c.processo && (eu === c.processo.criado_por || eu === c.processo.responsavel_id || c.processo.colaboradores.includes(eu)));
+export const podeMudarCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'processo'>, eu: string, ehAdmin: boolean, meusGrupos: readonly string[] = []) =>
+  ehAdmin || eu === c.criado_por || eu === c.responsavel_id || c.participantes.includes(eu) || estaPeloGrupo(c.grupos, meusGrupos)
+  || (!!c.processo && (eu === c.processo.criado_por || eu === c.processo.responsavel_id || c.processo.colaboradores.includes(eu)
+    || estaPeloGrupo(c.processo.grupos, meusGrupos)));
 /**
  * Na lista: o compromisso está aí só porque é da Agenda geral? A lista não sabe se a pessoa vê o processo ligado, então quem o
  * vê por ele muda as etiquetas pelo cartão, e o banco tem a palavra final.
  */
-export const soLeNaLista = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, eu: string, ehAdmin: boolean) =>
-  c.geral && !ehAdmin && eu !== c.criado_por && eu !== c.responsavel_id && !c.participantes.includes(eu);
+export const soLeNaLista = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, eu: string, ehAdmin: boolean, meusGrupos: readonly string[] = []) =>
+  c.geral && !ehAdmin && eu !== c.criado_por && eu !== c.responsavel_id && !c.participantes.includes(eu) && !estaPeloGrupo(c.grupos, meusGrupos);
 /** Quem vê o compromisso: quem participa e, na Agenda geral, todos do escritório. */
 export const veOCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, m: Membro, processo: QuemEstaNoProcesso | null = null, meusGrupos: readonly string[] = []) =>
   c.geral || participaDoCompromisso(c, m, processo, meusGrupos);

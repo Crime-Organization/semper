@@ -104,6 +104,8 @@ type ModeloGuardado = Omit<ModeloDeLista, 'arvore'> & { arvore: NoDoModelo[] | n
 /** O aviso de quem entrou num item (#377), como uma linha de mensagens_de_inclusao: só ids, nada do item. */
 interface MensagemDeInclusaoGuardada {
   id: string; perfil_id: string; incluido_por: string | null; modulo: ModuloDoPedido; item_id: string; entrou_como: EntrouComo; criado_em: string; lido_em: string | null;
+  /** O grupo da equipe pelo qual a pessoa entrou (#378), quando não estava no item por conta própria. */
+  grupo_id?: string | null;
 }
 
 interface Banco {
@@ -818,7 +820,7 @@ const contratoCompleto = (k: ContratoGuardado): Contrato =>
 const contratoLista = (k: ContratoGuardado): ContratoLista => ({
   id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
   responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
-  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k),
+  criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k), grupos: k.grupos ?? [],
   ...(vejoContrato(k) ? { ve_financeiro: true } : { ve_financeiro: false, categoria: null as unknown as ContratoLista['categoria'], valor: null })
 });
 /** Como cliente_nome no banco: os nomes de todos os clientes, juntos ("A; B"). */
@@ -1009,7 +1011,7 @@ const demandaCompleta = (d: DemandaGuardada): Demanda =>
   ({ ...d, clientes: d.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(d.clientes), contrato: contratoDoCartao(d.contrato_id) });
 const demandaLista = (d: DemandaGuardada): DemandaLista => ({
   id: d.id, codigo: d.codigo, titulo: d.titulo, prazo: d.prazo, prazo_hora: d.prazo_hora ?? null, data_inicio: d.data_inicio, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores,
-  cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
+  grupos: d.grupos ?? [], cliente_nome: nomesDosClientes(d.clientes), contrato_codigo: d.contrato_codigo, etapa_id: d.etapa_id, etapa_ordem: d.etapa_ordem,
   arquivado_em: d.arquivado_em, criado_por: d.criado_por, criado_em: d.criado_em, atualizado_em: d.atualizado_em
 });
 const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
@@ -1220,7 +1222,7 @@ const tarefaCompleta = (t: TarefaGuardada): Tarefa => {
   const contratoDaDemanda = contratoQueVejo(d?.contrato_id);
   return { ...t, pessoas: t.pessoas.map(id => resumoDe(id)!), pessoa_nome: nomesDosClientes(t.pessoas),
     demanda: d ? { id: d.id, codigo: d.codigo, titulo: d.titulo, etapa_id: d.etapa_id, criado_por: d.criado_por, responsavel_id: d.responsavel_id,
-      colaboradores: d.colaboradores, contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) } : null,
+      colaboradores: d.colaboradores, grupos: d.grupos ?? [], contrato_id: d.contrato_id, contrato: contratoDaDemanda && equipeDoContrato(contratoDaDemanda) } : null,
     contrato: contratoDoCartao(t.contrato_id),
     processo: processoDaTarefa(t.processo_id) };
 };
@@ -1229,9 +1231,9 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   const d = demandaDaTarefaNoFalso(t);
   return {
     id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, data_inicio: t.data_inicio, responsavel_id: t.responsavel_id, participantes: t.participantes,
-    pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
+    grupos: t.grupos ?? [], pessoa_nome: nomesDosClientes(t.pessoas), demanda_codigo: t.demanda_codigo, contrato_codigo: t.contrato_codigo, etapa_id: t.etapa_id,
     etapa_ordem: t.etapa_ordem, arquivado_em: t.arquivado_em, criado_por: t.criado_por, criado_em: t.criado_em, atualizado_em: t.atualizado_em,
-    equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores } : null
+    equipe_da_demanda: d ? { criado_por: d.criado_por, responsavel_id: d.responsavel_id, colaboradores: d.colaboradores, grupos: d.grupos ?? [] } : null
   };
 };
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
@@ -1354,13 +1356,13 @@ bd.processos!.forEach(p => { p.campos ??= {}; });
 const processoDoCompromisso = (c: CompromissoGuardado) => bd.processos!.find(p => p.id === c.processo_id) ?? null;
 const compromissoLista = (c: CompromissoGuardado): CompromissoLista => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, modalidade: c.modalidade, local: c.local, geral: c.geral, responsavel_id: c.responsavel_id,
-  participantes: c.participantes, pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_codigo: c.processo_codigo, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero,
+  participantes: c.participantes, grupos: c.grupos ?? [], pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_codigo: c.processo_codigo, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero,
   etapa_id: c.etapa_id, etapa_ordem: c.etapa_ordem, arquivado_em: c.arquivado_em, criado_por: c.criado_por, criado_em: c.criado_em, atualizado_em: c.atualizado_em
 });
 const compromissoCompleto = (c: CompromissoGuardado): Compromisso => {
   const p = processoDoCompromisso(c);
   return { ...c, pessoa_nome: nomesDosClientes(c.pessoas), pessoas: c.pessoas.map(id => resumoDe(id)!), processo_numero: p?.numero ?? c.processo_numero,
-    processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores } };
+    processo: p && { id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), criado_por: p.criado_por, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [] } };
 };
 const compromissoLigado = (c: CompromissoGuardado, papeis: CompromissoLigado['papeis']): CompromissoLigado => ({
   id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, hora_fim: c.hora_fim, pessoa_nome: nomesDosClientes(c.pessoas),
@@ -1658,9 +1660,28 @@ function avisarInclusao(modulo: ModuloDoPedido, id: string, antes: EquipeDoItem 
     bd.mensagensDeInclusao = bd.mensagensDeInclusao!.filter(m => !(daSequencia(m) && !m.lido_em && m.entrou_como !== aviso));
     if (!aviso || mudanca.perfil === eu || !recebeAviso(mudanca.perfil) || bd.mensagensDeInclusao.some(m => daSequencia(m) && m.entrou_como === aviso)) continue;
     const ja = bd.mensagensDeInclusao.find(m => daPessoa(m) && m.entrou_como === aviso);
-    if (ja) Object.assign(ja, { criado_em: agora(), lido_em: null, incluido_por: eu });
-    else bd.mensagensDeInclusao.push({ id: novoId(), perfil_id: mudanca.perfil, incluido_por: eu, modulo, item_id: id, entrou_como: aviso, criado_em: agora(), lido_em: null });
+    const grupo_id = grupoDoAviso(modulo, id, mudanca.perfil);
+    if (ja) Object.assign(ja, { criado_em: agora(), lido_em: null, incluido_por: eu, grupo_id });
+    else bd.mensagensDeInclusao.push({ id: novoId(), perfil_id: mudanca.perfil, incluido_por: eu, modulo, item_id: id, entrou_como: aviso, criado_em: agora(), lido_em: null, grupo_id });
   }
+}
+/**
+ * Como a marca do grupo nos avisos de inclusão (#378): quem não está no item por conta própria entrou pelo primeiro grupo do item
+ * que o tem, em ordem de nome; quem está por conta própria, por nenhum (null).
+ */
+function grupoDoAviso(modulo: ModuloDoPedido, id: string, perfil: string) {
+  const i = itemDoPedido(modulo, id);
+  if (!i || i.responsavel_id === perfil || i.equipe.includes(perfil)) return null;
+  const doItem = GRUPOS_DO_ITEM[modulo](id) ?? [];
+  return bd.gruposDaEquipe!.filter(g => doItem.includes(g.id) && g.integrantes.includes(perfil))
+    .toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0]?.id ?? null;
+}
+/** Como a regra de leitura de mensagens_de_grupo (#378): cada um lê as suas; o grupo excluído leva as dele (a chave estrangeira). */
+const minhasMensagensDeGrupo = () => bd.mensagensDeGrupo!.filter(m => m.perfil_id === eu && bd.gruposDaEquipe!.some(g => g.id === m.grupo_id));
+function mensagemDeGrupoLida(m: NonNullable<Banco['mensagensDeGrupo']>[number]): Mensagem {
+  const g = bd.gruposDaEquipe!.find(x => x.id === m.grupo_id)!;
+  return { id: m.id, tipo: 'grupo', criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+    grupo: { grupo_id: g.id, nome: g.nome, incluido_por: m.incluido_por } };
 }
 /** O item apagado leva os avisos dele (a chave estrangeira do banco). */
 const minhasMensagensDeInclusao = () => bd.mensagensDeInclusao!.filter(m => m.perfil_id === eu && !!itemDoPedido(m.modulo, m.item_id));
@@ -1683,7 +1704,8 @@ const ITEM_DA_INCLUSAO_NO_FALSO: Record<ModuloDoPedido, (id: string) => ItemDaIn
 function mensagemDeInclusaoLida(m: MensagemDeInclusaoGuardada): Mensagem {
   const i = itemDoPedido(m.modulo, m.item_id)!, fazParte = i.responsavel_id === eu || i.equipe.includes(eu) || integrantesDoItem(m.modulo, m.item_id).includes(eu);
   return { id: m.id, tipo: 'inclusao', criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null, pedido: null,
-    inclusao: { modulo: m.modulo, entrou_como: m.entrou_como, incluido_por: m.incluido_por, item: fazParte && i.vejo() ? ITEM_DA_INCLUSAO_NO_FALSO[m.modulo](m.item_id) : null } };
+    inclusao: { modulo: m.modulo, entrou_como: m.entrou_como, incluido_por: m.incluido_por, item: fazParte && i.vejo() ? ITEM_DA_INCLUSAO_NO_FALSO[m.modulo](m.item_id) : null,
+      grupo: bd.gruposDaEquipe!.find(g => g.id === m.grupo_id)?.nome ?? null } };
 }
 /** Como o gatilho preparar e as regras check da migração: confere só quem está entrando na equipe da anotação. */
 function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao {
@@ -1752,7 +1774,7 @@ function soltarDasAnotacoes(modulo: ModuloDaAnotacao, itemId: string) {
   saem.forEach(l => refazerLigadaA(l.anotacao_id));
 }
 const anotacaoLista = (a: Anotacao): AnotacaoLista => comEtq('anotacoes', (x: Anotacao) => ({
-  id: x.id, codigo: x.codigo, titulo: x.titulo, responsavel_id: x.responsavel_id, participantes: x.participantes, ligada_a: x.ligada_a,
+  id: x.id, codigo: x.codigo, titulo: x.titulo, responsavel_id: x.responsavel_id, participantes: x.participantes, grupos: x.grupos ?? [], ligada_a: x.ligada_a,
   pasta_id: x.pasta_id ?? null, criado_por: x.criado_por, criado_em: x.criado_em, atualizado_em: x.atualizado_em, arquivado_em: x.arquivado_em
 }))(a);
 const anotacaoLigada = (a: Anotacao): AnotacaoLigada => ({
@@ -1951,7 +1973,7 @@ function conferirPrazo(p: PrazoGuardado) {
 // ---------- processos ----------
 const processoCompleto = (p: ProcessoGuardado): Processo => ({ ...p, clientes: p.clientes.map(id => resumoDe(id)!), cliente_nome: nomesDosClientes(p.clientes) });
 const processoLista = (p: ProcessoGuardado): ProcessoLista => ({
-  id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, cliente_nome: nomesDosClientes(p.clientes),
+  id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, responsavel_id: p.responsavel_id, colaboradores: p.colaboradores, grupos: p.grupos ?? [], cliente_nome: nomesDosClientes(p.clientes),
   orgao: p.orgao, comarca: p.comarca, vara: p.vara, etapa_id: p.etapa_id, etapa_ordem: p.etapa_ordem, arquivado_em: p.arquivado_em, criado_por: p.criado_por, criado_em: p.criado_em, atualizado_em: p.atualizado_em
 });
 const buscaProcesso = (p: ProcessoGuardado) => normal([p.codigo, p.numero, p.numero.replace(/\D/g, ''), p.titulo, nomesDosClientes(p.clientes), p.orgao, p.comarca, p.vara].join(' '));
@@ -2497,6 +2519,51 @@ const LINKS_DA_TROCA_DE_EMAIL = 2;
 const meuEmail = () => bd.emailDaConta ?? EQUIPE[0].email;
 const emailDaConta = () => ({ atual: meuEmail(), pendente: bd.emailPendente?.email ?? null });
 
+/**
+ * Como as regras de leitura do banco conferem a linha nova: com estes grupos, quem está logado continua vendo o item? (Quem tira o único
+ * grupo pelo qual via o item é recusado, com ou sem a leitura de volta.)
+ */
+function vejoComOsGrupos(item: { grupos?: string[] }, grupos: string[], vejo: () => boolean) {
+  const antes = item.grupos;
+  item.grupos = grupos;
+  try { return vejo(); } finally { item.grupos = antes; }
+}
+/**
+ * Como as bolinhas gravam os grupos de cada item (#378, SD.itemDefinirGrupos): quem não altera o item é recusado, e quem deixaria de
+ * vê-lo com os grupos novos também (vejoComOsGrupos). O contrato vai pela função própria.
+ */
+const GRUPOS_AO_GRAVAR: Record<ModuloDoPedido, (id: string, grupos: string[]) => Promise<unknown>> = {
+  contratos: (id, grupos) => SD.contratoDefinirGrupos(id, grupos),
+  demandas: async (id, grupos) => {
+    const d = acharDemanda(id);
+    if (soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso())) || !vejoComOsGrupos(d, grupos, () => vejoNoModulo('demandas', id))) return erro(SEM_PERMISSAO);
+    return SD.demandaAtualizar(id, { grupos });
+  },
+  tarefas: async (id, grupos) => {
+    const t = acharTarefa(id);
+    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso())) || !vejoComOsGrupos(t, grupos, () => vejoNoModulo('tarefas', id))) return erro(SEM_PERMISSAO);
+    return SD.tarefaAtualizar(id, { grupos });
+  },
+  processos: async (id, grupos) => {
+    const p = acharProcesso(id);
+    if (soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso())) || !vejoComOsGrupos(p, grupos, () => vejoNoModulo('processos', id))) return erro(SEM_PERMISSAO);
+    return SD.processoAtualizar(id, { grupos });
+  },
+  compromissos: async (id, grupos) => {
+    if (!vejoComOsGrupos(acharCompromisso(id), grupos, () => vejoNoModulo('compromissos', id))) return erro(SEM_PERMISSAO);
+    return SD.compromissoAtualizar(id, { grupos });
+  },
+  anotacoes: async (id, grupos) => {
+    const a = bd.anotacoes!.find(x => x.id === id);
+    if (!a || !alteroAnotacao(a) || !vejoComOsGrupos(a, grupos, () => vejoAnotacao(a))) return erro(SEM_PERMISSAO);
+    const novos = prepararAnotacao({ grupos }, a), antes = equipeDoItemNoFalso('anotacoes', id);
+    historicoAnotacao(a, novos);
+    Object.assign(a, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('anotacoes', id, antes);
+    auditar('anotacoes', 'alteracao', { id: a.id, codigo: a.codigo }); gravar();
+  }
+};
+
 export const SD: Dados = {
   sessao: () => espera(bd.logado ? { user: { id: eu, email: meuEmail() } } : null),
   entrar: async () => { bd.logado = true; bd.semCodigo = !!bd.duasEtapas?.some(f => f.ativo); gravar(); },
@@ -2575,6 +2642,9 @@ export const SD: Dados = {
     bd.gruposDaEquipe = bd.gruposDaEquipe!.filter(x => x.id !== id);
     bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.grupo_id !== id);
     auditar('grupos_da_equipe', 'exclusao', { id, nome: g.nome }); gravar();
+  },
+  async itemDefinirGrupos(modulo, id, grupos) {
+    await GRUPOS_AO_GRAVAR[modulo](id, grupos);
   },
   async contexto() {
     if (!bd.logado) return null;
@@ -4404,17 +4474,18 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------
   mensagensListar: () => espera(juntarAsCaixas([
+    minhasMensagensDeGrupo().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeGrupoLida),
     minhasMensagensDeInclusao().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).slice(0, MENSAGENS_DA_CAIXA).map(mensagemDeInclusaoLida),
     minhasMensagensDePedido().sort((a, b) => b.criado_em.localeCompare(a.criado_em)).map(mensagemDePedidoLida),
     minhasMensagens().sort((a, b) => b.criado_em.localeCompare(a.criado_em) || (a.prazo_data ?? '').localeCompare(b.prazo_data ?? '')).slice(0, MENSAGENS_DA_CAIXA).map(mensagemLida)
   ], MENSAGENS_DA_CAIXA)),
-  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()].filter(m => !m.lido_em).length),
+  mensagensNaoLidas: () => espera([...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].filter(m => !m.lido_em).length),
   async mensagemMarcarLida(id) {
-    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()].find(x => x.id === id && !x.lido_em);
+    const m = [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()].find(x => x.id === id && !x.lido_em);
     if (m) { m.lido_em = agora(); gravar(); }
   },
   async mensagensMarcarTodasLidas() {
-    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao()]) m.lido_em ??= agora();
+    for (const m of [...minhasMensagens(), ...minhasMensagensDePedido(), ...minhasMensagensDeInclusao(), ...minhasMensagensDeGrupo()]) m.lido_em ??= agora();
     gravar();
   },
 

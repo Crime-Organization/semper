@@ -232,7 +232,7 @@ const mensagemDePedido = ({ pedido, ...m }: LinhaDaMensagemDePedido): Mensagem =
 const CAMPOS_MENSAGEM_DE_INCLUSAO = 'id, criado_em, lido_em, modulo, entrou_como, incluido_por, ainda_faz_parte, '
   + 'tarefa:tarefas(id, codigo, titulo), demanda:demandas(id, codigo, titulo), processo:processos(id, codigo, titulo, numero, tipo), '
   + 'compromisso:compromissos(id, codigo, titulo, tipo, pessoa_nome, processo_numero), anotacao:anotacoes(id, codigo, titulo), '
-  + 'contrato:contratos_da_equipe(id, codigo, servico)';
+  + 'contrato:contratos_da_equipe(id, codigo, servico), grupo:grupos_da_equipe(nome)';
 type ItemComTitulo = { id: string; codigo: string; titulo: string | null };
 type LinhaDaMensagemDeInclusao = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & Omit<InclusaoDaMensagem, 'item'> & {
   ainda_faz_parte: boolean;
@@ -240,6 +240,8 @@ type LinhaDaMensagemDeInclusao = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> 
   processo: (ItemComTitulo & { numero: string | null; tipo: TipoProcesso }) | null;
   compromisso: Pick<Compromisso, 'id' | 'codigo' | 'titulo' | 'tipo' | 'pessoa_nome' | 'processo_numero'> | null;
   contrato: { id: string; codigo: string; servico: string | null } | null;
+  /** O grupo da equipe pelo qual a pessoa entrou (#378); null: entrou por conta própria. */
+  grupo: { nome: string } | null;
 };
 const comTitulo = (x: ItemComTitulo | null): ItemDaInclusao | null => x && { id: x.id, codigo: x.codigo, nome: x.titulo, tipo_do_processo: null };
 /** De cada módulo, o item do aviso. A ligação vem vazia quando é de outro módulo ou quando a pessoa não vê o item. */
@@ -254,10 +256,21 @@ const ITEM_DA_INCLUSAO: Record<ModuloDoPedido, (l: LinhaDaMensagemDeInclusao) =>
 };
 const mensagemDeInclusao = (l: LinhaDaMensagemDeInclusao): Mensagem => ({
   id: l.id, tipo: 'inclusao', criado_em: l.criado_em, lido_em: l.lido_em, comentario: null, prazo: null, pedido: null,
-  inclusao: { modulo: l.modulo, entrou_como: l.entrou_como, incluido_por: l.incluido_por, item: l.ainda_faz_parte ? ITEM_DA_INCLUSAO[l.modulo](l) : null }
+  inclusao: { modulo: l.modulo, entrou_como: l.entrou_como, incluido_por: l.incluido_por, item: l.ainda_faz_parte ? ITEM_DA_INCLUSAO[l.modulo](l) : null,
+    grupo: l.grupo?.nome ?? null }
 });
-/** As tabelas da caixa: a de sempre, a dos pedidos para participar e a dos avisos de inclusão. Marcar como lida vale em todas (o id só existe numa). */
-const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao'] as const;
+/** A mensagem de quem entrou num grupo da equipe (#378), da tabela própria (a versão anterior do site não a lê). */
+const CAMPOS_MENSAGEM_DE_GRUPO = 'id, criado_em, lido_em, incluido_por, grupo_id, grupo:grupos_da_equipe(nome)';
+type LinhaDaMensagemDeGrupo = Pick<Mensagem, 'id' | 'criado_em' | 'lido_em'> & { incluido_por: string | null; grupo_id: string; grupo: { nome: string } | null };
+const mensagemDeGrupo = (l: LinhaDaMensagemDeGrupo): Mensagem => ({
+  id: l.id, tipo: 'grupo', criado_em: l.criado_em, lido_em: l.lido_em, comentario: null, prazo: null, pedido: null, inclusao: null,
+  grupo: l.grupo && { grupo_id: l.grupo_id, nome: l.grupo.nome, incluido_por: l.incluido_por }
+});
+/**
+ * As tabelas da caixa: a de sempre, a dos pedidos para participar, a dos avisos de inclusão e a das mensagens de grupo (#378).
+ * Marcar como lida vale em todas (o id só existe numa).
+ */
+const CAIXAS = ['mensagens', 'mensagens_de_participacao', 'mensagens_de_inclusao', 'mensagens_de_grupo'] as const;
 
 /** A coluna da tabela comentarios que diz de qual cartão é o comentário, em cada módulo. */
 const CARTAO_DO_COMENTARIO: Record<ModuloComentado, string> = { pessoas: 'pessoa_id', contratos: 'contrato_id', demandas: 'demanda_id', tarefas: 'tarefa_id', compromissos: 'compromisso_id', anotacoes: 'anotacao_id', processos: 'processo_id' };
@@ -771,6 +784,12 @@ export const SD: Dados = {
   async grupoDaEquipeTirar(id, perfilId) { await rpc('grupo_tirar_integrante', { p_id: id, p_perfil: perfilId }); },
   grupoDaEquipeContarItens: id => rpc('grupo_contar_itens', { p_id: id }),
   async grupoDaEquipeExcluir(id) { await rpc('grupo_excluir', { p_id: id }); },
+  async itemDefinirGrupos(modulo, id, grupos) {
+    if (modulo === 'contratos') return SD.contratoDefinirGrupos(id, grupos);
+    // Só a coluna dos grupos; a contagem diz se mudou (quem não altera o item não muda nenhuma linha).
+    const { count } = await rodar(sb.from(modulo).update({ grupos }, { count: 'exact' }).eq('id', id));
+    if (!count) throw new Error(NAO_MUDOU);
+  },
 
   // ---------- pessoas ----------
   async pessoasListar(f = {}) {
@@ -2088,12 +2107,13 @@ export const SD: Dados = {
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------
   async mensagensListar() {
-    const [sempre, pedidos, inclusoes] = await Promise.all([
+    const [sempre, pedidos, inclusoes, grupos] = await Promise.all([
       rodar(sb.from('mensagens').select(CAMPOS_MENSAGEM).order('criado_em', { ascending: false }).order('prazo_data', { ascending: true }).limit(MENSAGENS_DA_CAIXA)),
       rodar(sb.from('mensagens_de_participacao').select(CAMPOS_MENSAGEM_DE_PEDIDO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
-      rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
+      rodar(sb.from('mensagens_de_inclusao').select(CAMPOS_MENSAGEM_DE_INCLUSAO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA)),
+      rodar(sb.from('mensagens_de_grupo').select(CAMPOS_MENSAGEM_DE_GRUPO).order('criado_em', { ascending: false }).limit(MENSAGENS_DA_CAIXA))
     ]);
-    return juntarAsCaixas([(inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
+    return juntarAsCaixas([(grupos.data as LinhaDaMensagemDeGrupo[]).map(mensagemDeGrupo), (inclusoes.data as LinhaDaMensagemDeInclusao[]).map(mensagemDeInclusao), (pedidos.data as LinhaDaMensagemDePedido[]).map(mensagemDePedido),
       (sempre.data as LinhaDaMensagem[]).map(mensagemLida)], MENSAGENS_DA_CAIXA);
   },
   async mensagensNaoLidas() {

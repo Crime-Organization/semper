@@ -6941,7 +6941,8 @@ describe('Visibilidade dos contratos (banco fictício)', () => {
       // Então: só as pessoas (sem o %), para saber quem pode ser mencionado
       expect(lida?.contrato).toMatchObject({ id, participantes: ['p-bruno'] });
       expect(daTarefa?.demanda).toMatchObject({ contrato_id: id, contrato: { id, participantes: ['p-bruno'] } });
-      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [] });
+      // Desde a #378, quem está na demanda inclui os grupos da equipe dela (como o banco lê equipe_da_demanda).
+      expect(naLista?.equipe_da_demanda).toEqual({ criado_por: 'u-master', responsavel_id: 'u-master', colaboradores: [], grupos: [] });
     });
 
     it('dada a demanda de um contrato que quem lê não pode abrir, quando ele abre a tarefa dela, então o contrato da demanda vem vazio', async () => {
@@ -7700,7 +7701,8 @@ describe('Aviso ao ser incluído num item (banco fictício, #377)', () => {
     // Então
     entrarComo('u-bruno');
     const [aviso] = await avisos();
-    expect(aviso.inclusao).toEqual({ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: { id, codigo, nome: 'Demanda do aviso', tipo_do_processo: null } });
+    // Desde a #378, o aviso diz também por qual grupo da equipe a pessoa entrou: aqui, por conta própria (null).
+    expect(aviso.inclusao).toEqual({ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: { id, codigo, nome: 'Demanda do aviso', tipo_do_processo: null }, grupo: null });
     expect(aviso.lido_em).toBeNull();
     const antes = await SD.mensagensNaoLidas();
     await SD.mensagemMarcarLida(aviso.id);
@@ -7764,7 +7766,7 @@ describe('Aviso ao ser incluído num item (banco fictício, #377)', () => {
     // Então: ele ainda vê a demanda (a visualização está aberta), mas o aviso não mostra mais o item
     entrarComo('u-bruno');
     expect(await SD.demandaObter(id)).not.toBeNull();
-    expect((await avisos()).map(m => m.inclusao)).toEqual([{ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: null }]);
+    expect((await avisos()).map(m => m.inclusao)).toEqual([{ modulo: 'demandas', entrou_como: 'participante', incluido_por: 'u-ana', item: null, grupo: null }]);
     falso().fecharVisibilidade(true);
     expect(await SD.demandaObter(id)).toBeNull();
     expect((await avisos())[0].inclusao?.item).toBeNull();
@@ -8172,6 +8174,73 @@ describe('Grupos da equipe (banco fictício, #378)', () => {
     expect((await SD.mensagensListar()).filter(m => m.tipo === 'inclusao')).toEqual([]);
     entrarComo('u-bruno');
     const [aviso] = (await SD.mensagensListar()).filter(m => m.tipo === 'inclusao');
-    expect(aviso.inclusao).toMatchObject({ modulo: 'demandas', entrou_como: 'participante', item: { id } });
+    expect(aviso.inclusao).toMatchObject({ modulo: 'demandas', entrou_como: 'participante', item: { id }, grupo: 'Núcleo do Teste' });
+  });
+
+  it('dado o Bruno posto no grupo, quando ele abre a caixa, então há uma mensagem só, a do grupo, que se marca como lida; saindo logo, ela some', async () => {
+    // Dado
+    const grupo = await nucleoComBruno();
+    // Quando
+    entrarComo('u-bruno');
+    const doGrupo = (await SD.mensagensListar()).filter(m => m.tipo === 'grupo');
+    // Então
+    expect(doGrupo.map(m => m.grupo)).toEqual([{ grupo_id: grupo, nome: 'Núcleo do Teste', incluido_por: 'u-ana' }]);
+    expect(await SD.mensagensNaoLidas()).toBeGreaterThan(0);
+    const antes = await SD.mensagensNaoLidas();
+    await SD.mensagemMarcarLida(doGrupo[0].id);
+    expect(await SD.mensagensNaoLidas()).toBe(antes - 1);
+    // Quando: outro grupo, e a administradora o tira logo (o Desfazer)
+    entrarComo('u-ana');
+    const outro = await nucleoComBruno('Núcleo Dois');
+    await SD.grupoDaEquipeTirar(outro, 'u-bruno');
+    // Então
+    entrarComo('u-bruno');
+    expect((await SD.mensagensListar()).filter(m => m.tipo === 'grupo').map(m => m.grupo?.nome)).toEqual(['Núcleo do Teste']);
+  });
+
+  it('dado o grupo do Bruno nos itens, quando as bolinhas põem e tiram grupos, então cada módulo grava, e o contrato vai pela função dele', async () => {
+    // Dado
+    const grupo = await nucleoComBruno();
+    const demanda = (await SD.demandaCriar({ titulo: 'Demanda das bolinhas', responsavel_id: 'u-ana' })).id;
+    const tarefa = (await SD.tarefaCriar({ titulo: 'Tarefa das bolinhas', responsavel_id: 'u-ana' })).id;
+    const anotacao = (await SD.anotacaoCriar({ titulo: 'Anotação das bolinhas', texto: '', responsavel_id: 'u-ana', participantes: [] }, [], [])).id;
+    const k = await contratoDoMaster();
+    entrarComo('u-master');
+    // Quando
+    await SD.itemDefinirGrupos('demandas', demanda, [grupo]);
+    await SD.itemDefinirGrupos('tarefas', tarefa, [grupo]);
+    await SD.itemDefinirGrupos('anotacoes', anotacao, [grupo]);
+    await SD.itemDefinirGrupos('contratos', k.id, [grupo]);
+    // Então
+    expect((await SD.demandaObter(demanda))?.grupos).toEqual([grupo]);
+    expect((await SD.tarefaObter(tarefa))?.grupos).toEqual([grupo]);
+    expect((await SD.anotacaoObter(anotacao))?.grupos).toEqual([grupo]);
+    expect((await SD.contratoObter(k.id))?.grupos).toEqual([grupo]);
+    // Quando: o Bruno, que só está no contrato pelo grupo, tenta tirar o grupo dele
+    entrarComo('u-bruno');
+    // Então
+    await expect(SD.itemDefinirGrupos('contratos', k.id, [])).rejects.toThrow('Só quem é parte do contrato põe ou tira grupos.');
+    await expect(SD.itemDefinirGrupos('demandas', demanda, [grupo, 'grupo-que-nao-existe'])).rejects.toThrow('Grupo não encontrado neste escritório.');
+  });
+
+  it('dada a visualização fechada e itens vistos só pelo grupo, quando o Bruno tira o grupo, então é recusado (deixaria de vê-los); quem não altera, também', async () => {
+    // Dado
+    falso().fecharVisibilidade(true);
+    const grupo = await nucleoComBruno();
+    const anotacao = (await SD.anotacaoCriar({ titulo: 'Anotação só do grupo', texto: '', responsavel_id: 'u-ana', participantes: [] }, [], [])).id;
+    const outra = (await SD.anotacaoCriar({ titulo: 'Anotação sem o Bruno', texto: '', responsavel_id: 'u-ana', participantes: [] }, [], [])).id;
+    await SD.itemDefinirGrupos('anotacoes', anotacao, [grupo]);
+    entrarComo('u-bruno');
+    expect((await SD.anotacaoObter(anotacao))?.titulo).toBe('Anotação só do grupo');
+    entrarComo('u-ana');
+    const demanda = (await SD.demandaCriar({ titulo: 'Demanda só do grupo', responsavel_id: 'u-ana' })).id;
+    await SD.itemDefinirGrupos('demandas', demanda, [grupo]);
+    entrarComo('u-bruno');
+    // Quando / Então: as regras de leitura conferem a linha nova
+    await expect(SD.itemDefinirGrupos('anotacoes', anotacao, [])).rejects.toThrow('Você não tem permissão para fazer isso.');
+    await expect(SD.itemDefinirGrupos('demandas', demanda, [])).rejects.toThrow('Você não tem permissão para fazer isso.');
+    expect((await SD.anotacaoObter(anotacao))?.grupos).toEqual([grupo]);
+    expect((await SD.demandaObter(demanda))?.grupos).toEqual([grupo]);
+    await expect(SD.itemDefinirGrupos('anotacoes', outra, [grupo])).rejects.toThrow('Você não tem permissão para fazer isso.');
   });
 });

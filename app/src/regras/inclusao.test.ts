@@ -1,7 +1,7 @@
 // Aviso na caixa de Mensagens para quem entra num item (#377). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import type { InclusaoDaMensagem, ItemDaInclusao, ModuloDoPedido } from '../dados/tipos';
-import { AVISO_DA_MUDANCA, avisoDaMudanca, enderecoDaInclusao, INCLUSAO_DO_MODULO, mudancasDaEquipe, nomeDoItemDaInclusao, rotulosDaInclusao, type MudancaDePapel, type SequenciaDeMudancas } from './inclusao';
+import { acaoDaInclusao, AVISO_DA_MUDANCA, avisoDaMudanca, enderecoDaInclusao, INCLUSAO_DO_MODULO, mudancasDaEquipe, nomeDoItemDaInclusao, rotulosDaInclusao, type MudancaDePapel, type SequenciaDeMudancas } from './inclusao';
 import { AVISO_DESFEITO, MINUTO, SEGUNDO } from '../ui/tempos';
 
 const item = (extra: Partial<ItemDaInclusao> = {}): ItemDaInclusao => ({ id: 'i1', codigo: 'F00D1234', nome: 'Pedir documentos', tipo_do_processo: null, ...extra });
@@ -53,6 +53,16 @@ describe('Aviso ao ser incluído: as palavras (#377)', () => {
       marcarLida: 'Marcar como lida a mensagem de Ana Teste Lima sobre a demanda Pedir documentos' });
     expect(rotulosDaInclusao(inclusao({ entrou_como: 'responsavel', modulo: 'processos' }), 'Ana Teste Lima', 'lido').linha)
       .toBe('Aviso lido: Ana Teste Lima pôs você como responsável pelo processo Pedir documentos');
+  });
+
+  it('dado o aviso de quem entrou pelo grupo (#378), quando a caixa o mostra, então diz por qual grupo; como responsável, não', () => {
+    // Quando / Então
+    expect(acaoDaInclusao({ modulo: 'demandas', entrou_como: 'participante', grupo: 'Núcleo A' })).toBe('incluiu você, pelo grupo Núcleo A, na demanda');
+    expect(acaoDaInclusao({ modulo: 'anotacoes', entrou_como: 'participante', grupo: 'Núcleo A' })).toBe('compartilhou com você, pelo grupo Núcleo A, a anotação');
+    expect(acaoDaInclusao({ modulo: 'demandas', entrou_como: 'responsavel', grupo: 'Núcleo A' })).toBe('pôs você como responsável pela demanda');
+    expect(acaoDaInclusao({ modulo: 'tarefas', entrou_como: 'participante', grupo: null })).toBe('incluiu você na tarefa');
+    expect(rotulosDaInclusao(inclusao({ grupo: 'Núcleo A' }), 'Ana Teste Lima', 'não lido').linha)
+      .toBe('Aviso não lido: Ana Teste Lima incluiu você, pelo grupo Núcleo A, na demanda Pedir documentos');
   });
 
   it('dado o aviso de um item de que a pessoa não faz mais parte, quando monta os rótulos, então eles não têm nada do item nem quem incluiu', () => {

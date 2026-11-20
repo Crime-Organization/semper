@@ -26,6 +26,7 @@ import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, p
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { GruposNoLapis } from '../ui/GruposDoItem';
 import { EscolhaDeProcessos, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { mudancasNosProcessos } from '../regras/processo';
 import {
@@ -325,6 +326,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       </Campo>
       <EscolhaDaEquipe rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha na demanda (e passa a vê-la)." adicionar="Adicionar colaborador"
         equipe={ctx.equipe} escolhidos={c.colaboradores} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={colaboradores => mudar({ colaboradores })} />
+      <GruposNoLapis ids={alvo?.grupos} />
       <CampoDeVarios rotulo="Clientes" erro={erros.clientes} grupo={grupoDosClientes}>
         {c.clientes.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">

@@ -26,6 +26,9 @@ import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { colunaComMarco } from '../regras/quadro';
 import { useColunas } from '../ui/quadro/useColunas';
+import { filtroQueVale, gruposDoItem, meusGrupos, PARAMETRO_DO_GRUPO } from '../regras/gruposDaEquipe';
+import { filtroDeGrupo } from '../ui/filtroDeGrupo';
+import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
 import { colunaDaOrdem, dataDaOrdem, ORDENS_COM_INICIO, ORDENS_COM_PRAZO, ORDENS_DO_QUADRO, useOrdem } from '../ui/ordem';
 import { filtroDoInicio } from '../ui/filtroDoInicio';
@@ -63,10 +66,13 @@ export default function Demandas() {
 
   // Vindo do painel do Início (?pessoa=eu), a lista abre no que é de quem está logado; senão, na última escolha da pessoa. O parâmetro sai do endereço depois de lido.
   const pessoaPedida = useParametroLido(PARAMETRO_DA_PESSOA);
+  // O grupo da equipe (#378): o do endereço (o link da mensagem de quem entrou no grupo) ou o guardado; o que não existe mais volta a todos.
+  const grupoPedido = useParametroLido(PARAMETRO_DO_GRUPO);
   const [f, setF] = useState<FiltroDemandas>(() => {
     let pessoa = pessoaDoEndereco(pessoaPedida, eu, lerPreferencia('demandas.pessoa', ''));
     if (pessoa && !ctx.equipe.some(m => m.id === pessoa)) pessoa = '';
-    return { termo: '', pessoa, situacao: 'ativas', pagina: 0 };
+    const grupo = filtroQueVale(grupoPedido ?? lerPreferencia('demandas.grupo', ''), ctx.grupos);
+    return { termo: '', pessoa, grupo, situacao: 'ativas', pagina: 0 };
   });
   // O filtro "Início" (#357): só o período escolhido. Os dias dele saem do período a cada desenho, a partir de hoje (Brasília): com a
   // página aberta depois da meia-noite, "Começa hoje" passa a ser o dia novo. É o filtro com os dias (filtro) que vai ao banco.
@@ -105,7 +111,7 @@ export default function Demandas() {
     SD.demandasListar({ ...filtro, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -115,10 +121,10 @@ export default function Demandas() {
     SD.demandasListar({ ...filtro, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.demandasListar({ ...filtro, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.etiqueta || inicio);
+  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || inicio);
   const mudarFiltro = (campos: Partial<FiltroDemandas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
 
@@ -147,7 +153,7 @@ export default function Demandas() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -158,6 +164,7 @@ export default function Demandas() {
         { id: 'pessoa', rotulo: 'Pessoa da equipe', valor: f.pessoa || '',
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('demandas.pessoa', pessoa); },
           opcoes: [['', 'Todas as demandas'], [eu, 'Comigo (responsável ou colaborador)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
+        ...filtroDeGrupo(ctx.grupos, eu, f.grupo, grupo => { mudarFiltro({ grupo: grupo || undefined }); salvarPreferencia('demandas.grupo', grupo); }),
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
       ]}
@@ -165,7 +172,7 @@ export default function Demandas() {
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))}
+        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.demandasDaEtapa(colunaId, { ...filtro, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={d => d.etapa_ordem}
@@ -205,7 +212,7 @@ function CartaoKanban({ d, ordem, concluido }: { d: DemandaLista; ordem: OrdemCo
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, d);
   return <>
-    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))} />
+    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} />
     <div className="kt">{d.titulo}</div>
     <div className="km">
       <span className="codigo">{d.codigo}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</span>
@@ -213,7 +220,8 @@ function CartaoKanban({ d, ordem, concluido }: { d: DemandaLista; ordem: OrdemCo
       <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
     </div>
-    <div className="kp"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} tam={24} /></div>
+    <div className="kp"><GruposDoItem grupos={gruposDoItem(ctx.grupos, d.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} />
+      <Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} tam={24} /></div>
   </>;
 }
 
@@ -242,7 +250,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
     : <>Nenhuma demanda ainda. Elas nascem dos contratos assinados, ou <BotaoLink forma="link" to="/demandas/nova/">cadastre a primeira</BotaoLink>.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const alteraveis = linhas.filter(d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m)));
+  const alteraveis = linhas.filter(d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id))));
   const todas = alteraveis.length > 0 && alteraveis.every(d => selecionadas.has(d.id));
   // Ordenando pela data de cadastro ou pela de início, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const ultima = colunaDaOrdem(ordem);
@@ -255,11 +263,12 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       </tr></thead>
       <tbody>{linhas.map(d => <LinhaQueAbre key={d.id} para={endereco(d.id)} aoAbrir={() => aoAbrir(d.id)} marcada={selecionadas.has(d.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · contrato ' + d.contrato_codigo : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>
-        <td><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} /></td>
+        <td><div className="equipe-da-linha"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} />
+          <GruposDoItem grupos={gruposDoItem(ctx.grupos, d.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{ultima.valor(d)}</td>
       </LinhaQueAbre>)}</tbody>
     </table></div>

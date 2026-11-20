@@ -706,5 +706,15 @@ select ok(not (select public.ainda_faz_parte(m) from public.mensagens_de_inclusa
   'E o aviso da demanda diz que ele não faz mais parte');
 reset role;
 
+-- ===== Tirar o próprio grupo pelas bolinhas (a tela, #378) =====
+-- Dado o Caio, que vê a demanda D2 só pelo Núcleo B. Quando ele tira o grupo, com ou sem a leitura de volta (returning), então a regra
+-- de leitura recusa a linha nova (quem está só pelo grupo não sai sozinho: a tela não oferece o "Tirar" e manda pedir a um administrador).
+select pg_temp.entrar(3); set local role authenticated;
+select throws_ok($$ update public.demandas set grupos = '{}' where codigo = 'D2' returning id $$, '42501', null,
+  'Com a leitura de volta, o Caio não tira o único grupo pelo qual vê a demanda');
+select throws_ok($$ update public.demandas set grupos = '{}' where codigo = 'D2' $$, '42501', null, 'Nem sem ela');
+select is(pg_temp.vejo('demandas'), 'D2', 'E continua vendo a demanda');
+reset role;
+
 select * from finish();
 rollback;

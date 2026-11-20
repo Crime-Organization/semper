@@ -33,6 +33,7 @@ import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
@@ -76,7 +77,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (c === undefined) return <Carregando />;
   if (!c) return <Vazio>Este compromisso não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
-  const podeMudar = equipeEditaTudo(ctx.escritorio) || podeMudarCompromisso(c, eu, ctx.ehAdmin);
+  const podeMudar = equipeEditaTudo(ctx.escritorio) || podeMudarCompromisso(c, eu, ctx.ehAdmin, meusGrupos(ctx.grupos, eu));
   const podeExcluir = !!c.arquivado_em && (c.criado_por === eu || ctx.ehAdmin);
   const somenteLer = !!c.arquivado_em || !podeMudar;
   const doProcesso = TIPOS_COMPROMISSO[c.tipo].doProcesso;
@@ -158,7 +159,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
     <div className="cartao-acoes">
       {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora
           dele, o cartão diria "não encontrado": fecha. */}
-      <EquipeNoTopo modulo="compromissos" id={c.id} equipe={{ responsavel_id: c.responsavel_id, lista: c.participantes }} mudar={somenteLer ? null : {
+      <EquipeNoTopo modulo="compromissos" id={c.id} equipe={{ responsavel_id: c.responsavel_id, lista: c.participantes }} grupos={c.grupos} mudar={somenteLer ? null : {
         saida: { podeSair: gravaForaDoCartao(ctx, c.criado_por === eu, continuaPeloProcesso(c, c.processo_id)), peloLigado: continuaPeloProcesso(c, c.processo_id) },
         depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }, aoSair: () => { aoMudar(); aoFechar(); }
       }} />

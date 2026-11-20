@@ -4,7 +4,8 @@ import { GRUPOS_POR_ITEM } from '../dados/limites';
 import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import {
   avisoDaExclusao, candidatosDeGrupo, dicaDosIntegrantes, estaPeloGrupo, filtroQueVale, FILTRO_DOS_MEUS_GRUPOS, gruposDoFiltro, INTEGRANTES_NA_DICA,
-  integrantesAtivos, itensPorModulo, meusGrupos, textoDoGrupo
+  integrantesAtivos, itensPorModulo, meusGrupos, textoDoGrupo, AVISO_DOS_GRUPOS, desfazerNosGrupos, dicaDaPilula, gruposDoItem, GRUPOS_DEMAIS, linhaDosGruposNoLapis,
+  maisGrupos, MUDANCAS_NOS_GRUPOS, corpoDaExclusao, linksDoGrupo, ondeOGrupoEsta, quantasPessoas, rotuloDoGrupoNoQuadro, textoDaMensagemDeGrupo, tituloDaExclusao, nomeDoGrupo, notaDeQuemEstaPeloGrupo, saiComOGrupo, soPeloGrupo, type QuemEstaNoCartao
 } from './gruposDaEquipe';
 
 const membro = (id: string, nome: string, extra: Partial<Membro> = {}): Membro => ({ id, nome, ativo: true, ...extra });
@@ -102,5 +103,101 @@ describe('Grupos da equipe (#378)', () => {
       + 'As pessoas continuam na equipe. Não dá para desfazer.');
     expect(avisoDaExclusao('Núcleo A', [{ modulo: 'compromissos', quantos: 1 }])).toContain('Ele está em 1 item, contando os arquivados (1 compromisso). Quem participa só pelo grupo deixa de ver esse item.');
     expect(avisoDaExclusao('Núcleo A', [])).toBe('Excluir o grupo Núcleo A? Ele não está em nenhum item. As pessoas continuam na equipe. Não dá para desfazer.');
+  });
+});
+
+describe('Grupos da equipe na tela (#378)', () => {
+  it('dado o item com um grupo que já foi excluído, quando a tela pede os grupos dele, então vêm só os que existem, na ordem do item', () => {
+    // Então
+    expect(gruposDoItem([nucleoA, nucleoB], ['gb', 'gx', 'ga']).map(g => g.id)).toEqual(['gb', 'ga']);
+    expect(gruposDoItem(undefined, ['ga'])).toEqual([]);
+    expect(gruposDoItem([nucleoA], undefined)).toEqual([]);
+  });
+
+  it('dado um grupo com um desativado, quando a pílula se apresenta, então conta só os ativos e marca o grupo de quem está logado', () => {
+    // Então
+    expect(nomeDoGrupo(nucleoB, equipe)).toBe('Grupo Núcleo Bê, 2 pessoas');
+    expect(nomeDoGrupo(grupo('gc', 'Só Um', ['u1']), equipe)).toBe('Grupo Só Um, 1 pessoa');
+    expect(dicaDaPilula(nucleoA, equipe, 'u1')).toBe('Núcleo A · 2 pessoas: Ana Exemplo e Beto Teste. Você está neste grupo');
+    expect(dicaDaPilula(nucleoA, equipe, 'u3')).toBe('Núcleo A · 2 pessoas: Ana Exemplo e Beto Teste');
+    expect(maisGrupos(1)).toBe('+1 grupo');
+    expect(maisGrupos(7)).toBe('+7 grupos');
+  });
+
+  it('dados os grupos do item, quando se põe e se tira um grupo, então grava a lista nova; repetido, ausente e cheio dão o aviso', () => {
+    // Então
+    expect(MUDANCAS_NOS_GRUPOS.porGrupo(['ga'], { id: 'gb', nome: 'Núcleo Bê' }, 'na demanda')).toEqual({ gravar: ['ga', 'gb'] });
+    expect(MUDANCAS_NOS_GRUPOS.porGrupo(['ga'], { id: 'ga', nome: 'Núcleo A' }, 'na demanda')).toEqual({ aviso: 'O grupo Núcleo A já estava na demanda.', tipo: 'info' });
+    const cheio = Array.from({ length: GRUPOS_POR_ITEM }, (_, i) => 'g' + i);
+    expect(MUDANCAS_NOS_GRUPOS.porGrupo(cheio, { id: 'gz', nome: 'Z' }, 'na demanda')).toEqual({ aviso: GRUPOS_DEMAIS, tipo: 'erro' });
+    expect(MUDANCAS_NOS_GRUPOS.tirarGrupo(['ga', 'gb'], { id: 'ga', nome: 'Núcleo A' }, 'na tarefa')).toEqual({ gravar: ['gb'] });
+    expect(MUDANCAS_NOS_GRUPOS.tirarGrupo(['gb'], { id: 'ga', nome: 'Núcleo A' }, 'na tarefa')).toEqual({ aviso: 'O grupo Núcleo A já não estava na tarefa.', tipo: 'info' });
+    expect(AVISO_DOS_GRUPOS.porGrupo('Núcleo A', 'na demanda', 'da demanda')).toBe('Grupo Núcleo A posto na demanda.');
+    expect(AVISO_DOS_GRUPOS.tirarGrupo('Núcleo A', 'na demanda', 'da demanda')).toBe('Grupo Núcleo A tirado da demanda.');
+  });
+
+  it('dada uma mudança nos grupos, quando se desfaz sobre os grupos lidos de novo, então volta só o que ela fez', () => {
+    // Então
+    expect(desfazerNosGrupos('porGrupo', ['ga', 'gb'], 'gb')).toEqual(['ga']);
+    expect(desfazerNosGrupos('porGrupo', ['ga'], 'gb')).toBeNull();
+    expect(desfazerNosGrupos('tirarGrupo', ['gb'], 'ga')).toEqual(['gb', 'ga']);
+    expect(desfazerNosGrupos('tirarGrupo', ['ga'], 'ga')).toBeNull();
+    expect(desfazerNosGrupos('tirarGrupo', Array.from({ length: GRUPOS_POR_ITEM }, (_, i) => 'g' + i), 'ga')).toEqual({ aviso: GRUPOS_DEMAIS });
+  });
+
+  const quem = (extra: Partial<QuemEstaNoCartao> = {}): QuemEstaNoCartao =>
+    ({ eu: 'u2', responsavel_id: 'u1', lista: [], grupos: ['ga'], meus: ['ga', 'gb'], podeSair: false, ...extra });
+  it.each([
+    ['só pelo grupo', quem(), true],
+    ['também por outro grupo do item', quem({ grupos: ['ga', 'gb'] }), false],
+    ['também na lista', quem({ lista: ['u2'] }), false],
+    ['como responsável', quem({ responsavel_id: 'u2' }), false],
+    ['podendo gravar fora do cartão', quem({ podeSair: true }), false],
+    ['também pelo item ligado', quem({ peloLigado: true }), false],
+    ['sem estar no grupo tirado', quem({ meus: ['gb'] }), false]
+  ] as const)('dada a pessoa no cartão %s, quando quer tirar o grupo Núcleo A, então sairia do cartão (e não pode): %s', (_caso, q, sai) => {
+    // Então
+    expect(saiComOGrupo(q, 'ga')).toBe(sai);
+  });
+
+  it('dada a pessoa que não está na lista nem é responsável, quando está num grupo do item, então ela está só por ele, com a nota', () => {
+    // Então
+    expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: [], meus: ['gb'] }, [nucleoA, nucleoB])?.nome).toBe('Núcleo Bê');
+    expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: ['u2'], meus: ['gb'] }, [nucleoB])).toBeNull();
+    expect(soPeloGrupo({ eu: 'u2', responsavel_id: 'u1', lista: [], meus: [] }, [nucleoB])).toBeNull();
+    expect(notaDeQuemEstaPeloGrupo('Núcleo A')).toBe('Você participa deste cartão pelo grupo Núcleo A. Para sair, peça a um administrador.');
+  });
+
+  it('dado o lápis de um item, quando ele tem grupos, então a linha diz quais; sem grupos, não há linha', () => {
+    // Então
+    expect(linhaDosGruposNoLapis(['Núcleo A', 'Núcleo Bê'])).toBe('Grupos: Núcleo A e Núcleo Bê (mude no topo do cartão)');
+    expect(linhaDosGruposNoLapis([])).toBeNull();
+  });
+});
+
+describe('Grupos da equipe: textos da tela (#378)', () => {
+  it('dada a contagem dos itens, quando a tela pergunta antes de excluir, então o título e o corpo vêm separados, para a janela', () => {
+    // Então
+    expect(tituloDaExclusao('Núcleo A')).toBe('Excluir o grupo Núcleo A?');
+    expect(corpoDaExclusao('Núcleo A', [{ modulo: 'anotacoes', quantos: 2 }])).toBe(
+      'Ele está em 2 itens, contando os arquivados (2 documentos). Quem participa só pelo grupo deixa de ver esses itens. As pessoas continuam na equipe. Não dá para desfazer.');
+    expect(ondeOGrupoEsta([{ modulo: 'demandas', quantos: 5 }, { modulo: 'tarefas', quantos: 1 }])).toBe('5 demandas e 1 tarefa');
+    expect(ondeOGrupoEsta([])).toBe('Nenhum item');
+  });
+
+  it('dado um grupo, quando a tela fala dele, então conta as pessoas e diz quem está para o leitor de tela', () => {
+    // Então
+    expect(quantasPessoas(1)).toBe('1 pessoa');
+    expect(quantasPessoas(0)).toBe('0 pessoas');
+    expect(rotuloDoGrupoNoQuadro(nucleoA, equipe)).toBe('Grupo Núcleo A · 2 pessoas: Ana Exemplo e Beto Teste');
+  });
+
+  it('dada a pessoa posta num grupo, quando a caixa mostra a mensagem, então há o texto sem número e os dois links filtrados no grupo', () => {
+    // Então
+    expect(textoDaMensagemDeGrupo('Ana Exemplo', 'Núcleo A')).toEqual({ titulo: 'Ana Exemplo incluiu você no grupo Núcleo A.', trecho: 'Você passa a participar dos itens dele.' });
+    expect(linksDoGrupo('ga')).toEqual([
+      { texto: 'Ver as demandas do grupo', para: '/demandas/?grupo=ga' },
+      { texto: 'Ver as tarefas do grupo', para: '/tarefas/?grupo=ga' }
+    ]);
   });
 });

@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Membro } from '../dados/tipos';
 import { alteraAAnotacao, veAAnotacao } from './anotacao';
-import { participaDoCompromisso, veOCompromisso } from './compromisso';
+import { participaDoCompromisso, podeMudarCompromisso, soLeNaLista, veOCompromisso } from './compromisso';
 import { estaNaDemanda, veADemanda } from './demanda';
 import { alteraOProcesso } from './processo';
 import { estaNaTarefa, soLeATarefaNaLista, veATarefa } from './tarefa';
@@ -61,5 +61,27 @@ describe('Quem está pelo grupo da equipe (#378)', () => {
     expect(alteraAAnotacao(a, bia, semChaves, ['g-a'])).toBe(true);
     expect(veAAnotacao(a, bia, semChaves, false, ['g-a'])).toBe(true);
     expect(veAAnotacao(a, bia, semChaves, false, [])).toBe(false);
+  });
+});
+
+describe('O compromisso pelo grupo, no cartão e na lista (#378)', () => {
+  it('dado um compromisso com o Núcleo A, ou do processo com ele, quando a Bia está no grupo, então ela muda o compromisso', () => {
+    // Dado
+    const c = { ...doGrupo, participantes: [], processo: null };
+    const processo = { id: 'p1', codigo: 'P1', tipo: 'judicial' as const, numero: '1', titulo: null, cliente_nome: '', ...ninguem, colaboradores: [], grupos: ['g-a'] };
+    const doProcesso = { ...ninguem, participantes: [], processo };
+    // Então
+    expect(podeMudarCompromisso(c, 'u-bia', false, ['g-a'])).toBe(true);
+    expect(podeMudarCompromisso(doProcesso, 'u-bia', false, ['g-a'])).toBe(true);
+    expect(podeMudarCompromisso(c, 'u-bia', false, ['g-b'])).toBe(false);
+    expect(podeMudarCompromisso(c, 'u-bia', false)).toBe(false);
+  });
+
+  it('dado um compromisso da Agenda geral com o Núcleo A, quando a Bia está no grupo, então a lista não o trata como só para ler', () => {
+    // Dado
+    const c = { ...doGrupo, participantes: [], geral: true };
+    // Então
+    expect(soLeNaLista(c, 'u-bia', false, ['g-a'])).toBe(false);
+    expect(soLeNaLista(c, 'u-bia', false, [])).toBe(true);
   });
 });

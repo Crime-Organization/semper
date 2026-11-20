@@ -28,6 +28,7 @@ import { quantosPreenchidos } from '../regras/secoes';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { gruposDoItem, meusGrupos, peloGrupoSemOsValores } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovoContrato from './NovoContrato';
 import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
@@ -88,7 +89,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // Quem só foi mencionado num comentário lê e comenta, mas não altera.
   const podeAlterar = alteraOContrato({ ...k, participantes: k.participantes.map(p => p.pessoa.id) }, ctx.perfil);
   // Quem não é parte vê o contrato sem o que é financeiro: as seções de valores nem aparecem, para "vazio" não parecer "zero".
-  const oculto = k.ve_financeiro === false, semValores = !podeAlterar && equipeEditaTudo(ctx.escritorio);
+  // Quem está no contrato só por um grupo da equipe (#378) participa sem os valores, como a equipe com a chave "equipe_edita_tudo".
+  const meus = meusGrupos(ctx.grupos, ctx.perfil.id), peloGrupo = podeAlterar ? undefined : gruposDoItem(ctx.grupos, k.grupos).find(g => meus.includes(g.id));
+  const oculto = k.ve_financeiro === false, semValores = !podeAlterar && (equipeEditaTudo(ctx.escritorio) || !!peloGrupo);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
@@ -168,7 +171,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       {/* Quem altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. */}
       <EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />
     </div>
-    {!podeAlterar && <Nota>{semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
+    {!podeAlterar && <Nota>{peloGrupo && !equipeEditaTudo(ctx.escritorio) ? peloGrupoSemOsValores(peloGrupo.nome) : semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
     {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
     {k.arquivado_em && <div className="cartao-arquivada">
       <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'

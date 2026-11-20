@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. O resto do comportamento da busca (teclado, Esc, Tab,
 // foco no grupo) é conferido pelo EscolhaDaEquipe.test.tsx, que a usa.
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { Membro } from '../dados/tipos';
-import { BuscaNaEquipe } from './BuscaNaEquipe';
+import type { GrupoDaEquipe, Membro } from '../dados/tipos';
+import { BuscaNaEquipe, type GruposNaBusca } from './BuscaNaEquipe';
 
 const EQUIPE: Membro[] = [
   { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true },
@@ -155,5 +155,104 @@ describe('Busca na equipe na bolinha "+" do topo do cartão', () => {
     await userEvent.tab();
     // Então
     expect(screen.getByRole('button', { name: 'Pôr participante' })).toHaveFocus();
+  });
+});
+
+describe('Busca na equipe com grupos da equipe no escritório (#378)', () => {
+  const GRUPOS: GrupoDaEquipe[] = [{ id: 'ga', nome: 'Núcleo Alfa', integrantes: ['u-ana'] }, { id: 'gb', nome: 'Núcleo Beta', integrantes: [] }];
+  const grupos = (extra: Partial<GruposNaBusca> = {}): GruposNaBusca => ({
+    buscar: termo => GRUPOS.filter(g => g.nome.toLowerCase().includes(termo.toLowerCase())), aoEscolher: vi.fn(),
+    nome: g => `Grupo ${g.nome}, ${g.integrantes.length} pessoas`, texto: g => `${g.nome} · ${g.integrantes.length}`, ...extra
+  });
+  const abrirBusca = async (props: Partial<Parameters<typeof BuscaNaEquipe>[0]> = {}) => {
+    render(<BuscaNaEquipe buscar={todos} aoEscolher={vi.fn()} adicionar="Pôr participante ou grupo" bolinha={{ tamanho: 34 }} grupos={grupos()} {...props} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Pôr participante ou grupo' }));
+    return screen.getByRole('dialog', { name: 'Pôr participante ou grupo' });
+  };
+
+  it('quando a busca abre, então mostra primeiro as pessoas e depois os grupos da equipe, em duas partes com título', async () => {
+    // Quando
+    const painel = await abrirBusca();
+    // Então
+    expect(within(painel).getAllByRole('group').map(g => g.getAttribute('aria-label'))).toEqual(['Pessoas', 'Grupos da equipe']);
+    expect(within(painel).getByRole('list', { name: 'Pessoas' })).toHaveTextContent('Ana Teste Lima');
+    expect(within(painel).getByRole('button', { name: 'Grupo Núcleo Alfa, 1 pessoas' })).toHaveTextContent('Núcleo Alfa · 1');
+  });
+
+  it('dado um termo que acha uma pessoa e um grupo, quando a pessoa tecla Enter, então escolhe a pessoa', async () => {
+    // Dado
+    const aoEscolher = vi.fn(), g = grupos();
+    await abrirBusca({ aoEscolher, grupos: g });
+    // Quando
+    await userEvent.type(screen.getByRole('textbox'), 'a{Enter}');
+    // Então
+    expect(aoEscolher).toHaveBeenCalledWith(EQUIPE[0]);
+    expect(g.aoEscolher).not.toHaveBeenCalled();
+  });
+
+  it('dado um termo que só acha um grupo, quando a pessoa tecla Enter, então escolhe o grupo, e a busca fecha', async () => {
+    // Dado
+    const g = grupos();
+    await abrirBusca({ grupos: g });
+    // Quando
+    await userEvent.type(screen.getByRole('textbox'), 'beta{Enter}');
+    // Então
+    expect(g.aoEscolher).toHaveBeenCalledWith(GRUPOS[1]);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('quando a pessoa usa as setas, então anda das pessoas para os grupos e volta ao campo', async () => {
+    // Dado
+    await abrirBusca();
+    // Quando
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{ArrowDown}');
+    // Então
+    expect(screen.getByRole('button', { name: 'Grupo Núcleo Alfa, 1 pessoas' })).toHaveFocus();
+    // Quando
+    await userEvent.keyboard('{ArrowUp}{ArrowUp}{ArrowUp}');
+    // Então
+    expect(screen.getByRole('textbox')).toHaveFocus();
+  });
+
+  it('dada a lista de pessoas cheia, quando a busca abre, então a parte das pessoas diz o motivo e os grupos continuam', async () => {
+    // Quando
+    const painel = await abrirBusca({ buscar: () => [], motivoSemPessoas: 'Uma demanda pode ter até 20 colaboradores.' });
+    // Então
+    expect(within(painel).getByRole('group', { name: 'Pessoas' })).toHaveTextContent('Uma demanda pode ter até 20 colaboradores.');
+    expect(within(painel).getByRole('list', { name: 'Grupos da equipe' })).toHaveTextContent('Núcleo Beta');
+  });
+
+  it('dado o item com o máximo de grupos, quando a busca abre, então a parte dos grupos diz o motivo e as pessoas continuam', async () => {
+    // Quando
+    const painel = await abrirBusca({ grupos: grupos({ buscar: () => [], motivo: 'Um item pode ter até 10 grupos.' }) });
+    // Então
+    expect(within(painel).getByRole('group', { name: 'Grupos da equipe' })).toHaveTextContent('Um item pode ter até 10 grupos.');
+    expect(within(painel).getByRole('list', { name: 'Pessoas' })).toHaveTextContent('Bruno Exemplo Souza');
+  });
+
+  it('dado um termo que não acha nada, então a busca diz que não há grupo nem pessoa com esse nome', async () => {
+    // Dado
+    await abrirBusca();
+    // Quando
+    await userEvent.type(screen.getByRole('textbox'), 'zzz');
+    // Então
+    expect(screen.getByText('Nenhum grupo ou pessoa com esse nome.')).toBeInTheDocument();
+  });
+
+  it('dado ninguém e nenhum grupo para pôr, quando a bolinha aparece, então ela vem desligada; só com grupos, ligada', () => {
+    // Quando
+    render(<><BuscaNaEquipe buscar={() => []} aoEscolher={vi.fn()} adicionar="Sem nada" bolinha={{ tamanho: 34 }} grupos={grupos({ buscar: () => [] })} />
+      <BuscaNaEquipe buscar={() => []} aoEscolher={vi.fn()} adicionar="Só grupos" bolinha={{ tamanho: 34 }} grupos={grupos()} /></>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Sem nada' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Só grupos' })).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('dado um escritório sem grupos, quando a busca abre, então ela fica como sempre, sem partes', async () => {
+    // Quando
+    const painel = await abrirBusca({ grupos: undefined });
+    // Então
+    expect(within(painel).queryByRole('group')).not.toBeInTheDocument();
+    expect(within(painel).getByRole('list', { name: 'Equipe' })).toHaveTextContent('Ana Teste Lima');
   });
 });

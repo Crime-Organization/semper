@@ -33,6 +33,7 @@ import { Aviso, CaixaFormatada, Campo, CampoDeVarios, Carregando, estiloBotao, p
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { GruposNoLapis } from '../ui/GruposDoItem';
 import { EscolhaDeProcessos, nomeDoEscolhido, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
 import { Icone } from '../ui/Icone';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -328,6 +329,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       </Campo>
       <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também trabalha na tarefa (e passa a vê-la)." adicionar="Adicionar participante"
         equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
+      <GruposNoLapis ids={alvo?.grupos} />
       <CampoDeVarios rotulo="Pessoas ligadas" erro={erros.pessoas} grupo={grupoDasPessoas}>
         {c.pessoas.map((_, i) => <div className="linha-cliente" key={chaves[i]}>
           <div className="campo-busca">

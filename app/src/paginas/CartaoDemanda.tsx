@@ -30,6 +30,7 @@ import { colunaComMarco } from '../regras/quadro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { relativo } from '../ui/util';
@@ -91,7 +92,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
-  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m), m => contratosEmQueEsta([d.contrato], m).length > 0);
+  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)), m => contratosEmQueEsta([d.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // Ligar à demanda um item que já existe (#341): quem altera a demanda, com ela ativa. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !d.arquivado_em;
@@ -186,7 +187,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <div className="cartao-acoes">
       {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
-      <EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} mudar={mudaNoLugar ? {
+      <EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} grupos={d.grupos} mudar={mudaNoLugar ? {
         saida: { podeSair: gravaForaDoCartao(ctx, d.criado_por === eu) }, depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
       } : null} />
     </div>

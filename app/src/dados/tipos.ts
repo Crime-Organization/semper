@@ -1182,7 +1182,7 @@ export interface ComentarioDaMensagem {
  * A menção, o aviso de prazo, do pedido para participar (#363) o pedido (para quem aprova) e a resposta (para quem pediu), e o aviso
  * de quem entrou num item (#377).
  */
-export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao';
+export type TipoMensagem = 'mencao' | 'prazo' | 'pedido' | 'resposta' | 'inclusao' | 'grupo';
 export type ModuloDoPrazo = 'processos' | 'demandas' | 'tarefas' | 'compromissos';
 export type PrazoParado = 'cancelado' | 'excluido' | 'arquivado';
 /** Qual aviso é (prazo_aviso no banco): até 3 dias antes, no dia, ou o lembrete marcado na tarefa ou na demanda (#286). */
@@ -1218,6 +1218,18 @@ export interface Mensagem {
   pedido: PedidoDaMensagem | null;
   /** No aviso de quem entrou num item (#377). */
   inclusao: InclusaoDaMensagem | null;
+  /** Na mensagem de quem entrou num grupo da equipe (#378). Ausente nas outras. */
+  grupo?: GrupoDaMensagem | null;
+}
+/**
+ * A mensagem de quem foi posto num grupo da equipe (#378, tabela mensagens_de_grupo): uma só, a do grupo, e não uma por item (a
+ * pessoa passa a participar de todos os itens dele). Entrar de novo renova a mensagem.
+ */
+export interface GrupoDaMensagem {
+  grupo_id: string;
+  nome: string;
+  /** Quem pôs a pessoa no grupo; null se não existe mais. */
+  incluido_por: string | null;
 }
 
 /** A caixa de mensagens: cada pessoa só lê e marca as suas. */
@@ -1868,6 +1880,11 @@ export interface InclusaoDaMensagem {
    * tudo", ser administrador, ter criado o item).
    */
   item: ItemDaInclusao | null;
+  /**
+   * O grupo da equipe pelo qual a pessoa entrou no item (#378): o nome dele, quando ela não estava no item por conta própria. null ou
+   * ausente: entrou por conta própria (ou o grupo foi excluído).
+   */
+  grupo?: string | null;
 }
 /** Pedir para participar: as regras ficam no banco (supabase/migrations/20261118220000_pedidos_de_participacao.sql). */
 export interface DadosPedidos {
@@ -1900,6 +1917,12 @@ export interface DadosGrupos {
   grupoDaEquipeExcluir(id: string): Promise<void>;
   /** Põe e tira os grupos do contrato: só quem é parte por conta própria (administrador, quem criou, o responsável, a divisão). */
   contratoDefinirGrupos(id: string, grupos: string[]): Promise<void>;
+  /**
+   * Grava os grupos de um item, nas bolinhas do topo do cartão (no contrato, por contratoDefinirGrupos), sem mexer nos outros campos.
+   * Quem não altera o item é recusado; quem deixaria de vê-lo com os grupos novos (o grupo era o único caminho dele até o item)
+   * também: as regras de leitura conferem a linha nova (a tela nem oferece isso: quem está só pelo grupo pede a um administrador).
+   */
+  itemDefinirGrupos(modulo: ModuloDoPedido, id: string, grupos: string[]): Promise<void>;
 }
 
 export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}

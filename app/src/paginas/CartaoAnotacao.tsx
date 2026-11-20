@@ -49,6 +49,7 @@ import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
 import { Recolhivel } from '../ui/Recolhivel';
 import { decidirGravacao, juntarTextoNoHistorico } from '../regras/salvamento';
 import { JUNTAR_TEXTO_NO_HISTORICO } from '../ui/tempos';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { useQuantos } from '../ui/useQuantos';
 import { baixarArquivo, dataCurta, relativo } from '../ui/util';
@@ -221,7 +222,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
   if (!a) return <Vazio>{NAO_ENCONTRADA}</Vazio>;
 
   const chaves = { equipeEditaTudo: equipeEditaTudo(ctx.escritorio) };
-  const podeAlterar = alteraAAnotacao(a, ctx.perfil, chaves);
+  const podeAlterar = alteraAAnotacao(a, ctx.perfil, chaves, meusGrupos(ctx.grupos, ctx.perfil.id));
   const podeLigar = ligaNaAnotacao(a, ctx.perfil, chaves);
   const podeExcluir = excluiAAnotacao(a, ctx.perfil);
   // Os módulos que se podem ligar: os ligados no escritório (as pessoas sempre existem).
@@ -478,7 +479,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
       await gravacoes.current.fila;
       const original = await SD.anotacaoObter(a!.id);
       if (!original) throw new Error(NAO_ENCONTRADA);
-      const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves), equipe: ctx.equipe };
+      const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves, meusGrupos(ctx.grupos, ctx.perfil.id)), equipe: ctx.equipe };
       const copia = await SD.anotacaoDuplicar(original.id, dadosDaCopia(original, quem));
       feito(`Anotação ${original.codigo} duplicada como ${copia.codigo}.`, 'cópia da anotação', async () => {
         await SD.anotacoesArquivar([copia.id], true);
@@ -549,7 +550,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
         <div className="anotacao-topo-acoes">
           {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {/* Quem altera muda a equipe nas bolinhas (#356), com as regras de sair da anotação (#276). */}
-          <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} mudar={mudaNoLugar ? {
+          <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} grupos={a.grupos} mudar={mudaNoLugar ? {
             saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
           } : null} />
           {/* A etiqueta e o ⋯ ficam junto dos botões da janela (o formato e o X), como os botões do topo dos outros cartões. A etiqueta

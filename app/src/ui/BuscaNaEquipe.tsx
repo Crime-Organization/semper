@@ -5,8 +5,11 @@
 // mesma busca, com a bolinha dele (ou a vazia) no lugar do "+": clicar nela abre direto a troca.
 // A lista dos achados mostra só os nomes, um embaixo do outro e alinhados à esquerda (a bolinha na frente de cada nome
 // atrapalhava a leitura, e a lista centralizava os nomes dentro do painel: veja .achados em estilo.css).
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
-import type { Membro } from '../dados/tipos';
+// Com `grupos` (#378: o escritório tem grupos da equipe), a lista vem em duas partes com título, primeiro "Pessoas" e depois
+// "Grupos da equipe"; o Enter escolhe a primeira pessoa e só escolhe um grupo quando não há pessoa achada. Sem grupos no
+// escritório, a busca fica como sempre, inclusive os textos.
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import type { GrupoDaEquipe, Membro } from '../dados/tipos';
 import { estiloBotao, Nota, propsDaDica } from './base';
 import { Icone } from './Icone';
 import { MenuFlutuante } from './Menu';
@@ -18,6 +21,29 @@ export const BOLINHA_DA_EQUIPE = 24;
 const MAIS_NA_BOLINHA = 16;
 /** Quando já estão todos da equipe ativa: no lugar do botão de adicionar, e na dica da bolinha "+" desligada. */
 const NINGUEM_MAIS = 'Não há mais ninguém na equipe.';
+/** Os títulos das duas partes da lista, com grupos no escritório (#378). */
+const PARTE_DAS_PESSOAS = 'Pessoas', PARTE_DOS_GRUPOS = 'Grupos da equipe';
+/** Nada achado, com grupos no escritório: nem pessoa nem grupo. */
+const NADA_ACHADO_COM_GRUPOS = 'Nenhum grupo ou pessoa com esse nome.';
+/** Nada achado em uma das partes, com o termo digitado. */
+const NINGUEM_COM_ESSE_NOME = 'Ninguém da equipe com esse nome.', NENHUM_GRUPO_COM_ESSE_NOME = 'Nenhum grupo com esse nome.';
+/** Todos os grupos do escritório já estão no item. */
+const TODOS_OS_GRUPOS = 'Todos os grupos já estão aqui.';
+/** Tamanho do ícone de grupo na frente do nome de cada grupo achado (#378). */
+const ICONE_DO_GRUPO = 14;
+
+/** Os grupos da equipe que a busca também acha (#378). */
+export interface GruposNaBusca {
+  /** Os grupos que ainda podem entrar, pelo termo digitado. */
+  buscar: (termo: string) => GrupoDaEquipe[];
+  aoEscolher: (g: GrupoDaEquipe) => void;
+  /** O nome do botão de cada grupo: "Grupo Núcleo A, 4 pessoas". */
+  nome: (g: GrupoDaEquipe) => string;
+  /** O que o botão mostra: "Núcleo A · 4". */
+  texto: (g: GrupoDaEquipe) => string;
+  /** Por que nenhum grupo pode entrar (o item já tem o máximo): o motivo, na parte dos grupos. */
+  motivo?: string;
+}
 
 interface Props {
   /** Quem da equipe a busca acha com o que foi digitado (sem nada digitado, todos os que ainda podem entrar). */
@@ -49,15 +75,20 @@ interface Props {
     tamanho: number; motivoDesligado?: string; conteudo?: ReactNode; dica?: string; rotulo?: string; classe?: string;
     semCandidatos?: { dica: string; rotulo: string };
   };
+  /** Os grupos da equipe, que a busca acha depois das pessoas (#378). Sem isto (o escritório não tem grupos), só as pessoas. */
+  grupos?: GruposNaBusca;
+  /** Por que ninguém pode entrar (a lista de pessoas está cheia), na parte das pessoas: a lista cheia não impede os grupos. */
+  motivoSemPessoas?: string;
 }
 
-export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao: botaoDeFora, focoReserva, focarAoEscolher, desligado, bolinha }: Props) {
+export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao: botaoDeFora, focoReserva, focarAoEscolher, desligado, bolinha, grupos, motivoSemPessoas }: Props) {
   // Na bolinha, a busca aberta fica presa ao botão que a abriu (o painel por cima); no botão "+ Adicionar…", ela toma o lugar dele.
   const [aberta, setAberta] = useState<HTMLElement | null>(null);
   const botaoProprio = useRef<HTMLButtonElement>(null);
   const botao = botaoDeFora ?? botaoProprio;
 
   const podemEntrar = buscar('');
+  const gruposPodem = grupos?.buscar('') ?? [];
 
   // Ao fechar a busca, o foco vai ao botão de adicionar ou, se não sobrou ninguém para entrar, ao lugar de reserva: o teclado não se perde.
   const focarDepois = () => setTimeout(() => (botao.current ?? focoReserva?.current)?.focus(), 0);
@@ -70,10 +101,12 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
     setAberta(null);
     if (focarAoEscolher) setTimeout(() => focarAoEscolher(m), 0); else focarDepois();
   }
+  // O grupo escolhido: a busca fecha e o foco volta ao botão, como com a pessoa.
+  const comGrupos = grupos && { ...grupos, aoEscolher: (g: GrupoDaEquipe) => { grupos.aoEscolher(g); setAberta(null); focarDepois(); } };
 
   if (bolinha) {
-    const semNinguem = !desligado && !podemEntrar.length;
-    const motivo = desligado ? bolinha.motivoDesligado : semNinguem ? NINGUEM_MAIS : undefined;
+    const semNinguem = !desligado && !podemEntrar.length && !gruposPodem.length;
+    const motivo = desligado ? bolinha.motivoDesligado : semNinguem ? motivoSemPessoas ?? NINGUEM_MAIS : undefined;
     const desligada = !!desligado || semNinguem;
     const { conteudo = <Icone nome="mais" tam={MAIS_NA_BOLINHA} />, classe = 'equipe-mais' } = bolinha;
     // Sem ninguém para achar, a bolinha que tem dica própria (a do responsável) diz só isso, sem o "clique para trocar".
@@ -88,7 +121,8 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
       </button>
       {/* O painel fecha sozinho no clique fora e no Esc (que devolve o foco à bolinha); sair dele pelo Tab também a devolve. */}
       {aberta && <MenuFlutuante botao={aberta} painel rotulo={adicionar} aoFechar={() => setAberta(null)}>
-        <div className="pergunta"><CaixaDaBusca buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir} aoFechar={fechar} aoSair={fechar} /></div>
+        <div className="pergunta"><CaixaDaBusca buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir} aoFechar={fechar} aoSair={fechar}
+          grupos={comGrupos} motivoSemPessoas={motivoSemPessoas} /></div>
       </MenuFlutuante>}
     </>;
   }
@@ -113,16 +147,19 @@ interface PropsDaCaixa {
   aoSair: () => void;
   /** Fecha com o clique fora dela (no painel da bolinha, quem fecha é o próprio painel). */
   fecharAoClicarFora?: boolean;
+  grupos?: GruposNaBusca;
+  motivoSemPessoas?: string;
 }
 
 /** O campo de busca e a lista dos achados, com o teclado: Enter escolhe o primeiro, as setas andam na lista, Esc fecha. */
-function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSair, fecharAoClicarFora = false }: PropsDaCaixa) {
+function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSair, fecharAoClicarFora = false, grupos, motivoSemPessoas }: PropsDaCaixa) {
   const [termo, setTermo] = useState('');
   const raiz = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const sair = useRef(aoSair);
   sair.current = aoSair;
   const achados = buscar(termo);
+  const gruposAchados = grupos?.buscar(termo) ?? [];
 
   useEffect(() => { campo.current?.focus(); }, []);
   useEffect(() => {
@@ -131,6 +168,16 @@ function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSa
     document.addEventListener('mousedown', foraDaBusca);
     return () => document.removeEventListener('mousedown', foraDaBusca);
   }, [fecharAoClicarFora]);
+
+  // As setas andam pelos achados (também de uma parte para a outra) e, acima do primeiro, voltam ao campo; Esc fecha só a busca.
+  function andar(e: KeyboardEvent) {
+    if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); aoFechar(); return; }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const lista = [...(raiz.current?.querySelectorAll<HTMLButtonElement>('.achados button') ?? [])];
+    const i = lista.indexOf(document.activeElement as HTMLButtonElement);
+    (e.key === 'ArrowDown' ? lista[i + 1] : lista[i - 1] ?? campo.current)?.focus();
+  }
 
   return <div className="busca-equipe" ref={raiz} onBlur={e => {
     // Saindo da busca pelo teclado (Tab), ela fecha, para a lista não ficar aberta por cima dos campos seguintes. Sem
@@ -151,18 +198,35 @@ function CaixaDaBusca({ buscar, adicionar, descricao, aoEscolher, aoFechar, aoSa
         e.preventDefault();
         e.stopPropagation();
         if (achados[0]) aoEscolher(achados[0]);
+        else if (gruposAchados[0]) grupos?.aoEscolher(gruposAchados[0]);
       }} />
-    <ul className="achados" aria-label="Equipe" onKeyDown={e => {
-      if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); aoFechar(); return; }
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-      e.preventDefault();
-      const lista = [...(raiz.current?.querySelectorAll<HTMLButtonElement>('.achados button') ?? [])];
-      const i = lista.indexOf(document.activeElement as HTMLButtonElement);
-      (e.key === 'ArrowDown' ? lista[i + 1] : lista[i - 1] ?? campo.current)?.focus();
-    }}>
-      {achados.length
-        ? achados.map(m => <li key={m.id}><button type="button" onClick={() => aoEscolher(m)}>{m.nome}</button></li>)
-        : <li className="nota sem-achados">Ninguém da equipe com esse nome.</li>}
-    </ul>
+    {grupos
+      ? <div className="achados achados-em-partes" onKeyDown={andar}>
+        {!achados.length && !gruposAchados.length
+          ? <p className="nota sem-achados">{termo.trim() ? NADA_ACHADO_COM_GRUPOS : motivoSemPessoas ?? NINGUEM_MAIS}</p>
+          : <>
+            <ParteDosAchados titulo={PARTE_DAS_PESSOAS} vazia={termo.trim() ? NINGUEM_COM_ESSE_NOME : motivoSemPessoas ?? NINGUEM_MAIS}>
+              {achados.map(m => <li key={m.id}><button type="button" onClick={() => aoEscolher(m)}>{m.nome}</button></li>)}
+            </ParteDosAchados>
+            <ParteDosAchados titulo={PARTE_DOS_GRUPOS} vazia={grupos.motivo ?? (termo.trim() ? NENHUM_GRUPO_COM_ESSE_NOME : TODOS_OS_GRUPOS)}>
+              {gruposAchados.map(g => <li key={g.id}><button type="button" className="achado-grupo" aria-label={grupos.nome(g)} onClick={() => grupos.aoEscolher(g)}>
+                <span><Icone nome="equipe" tam={ICONE_DO_GRUPO} />{grupos.texto(g)}</span>
+              </button></li>)}
+            </ParteDosAchados>
+          </>}
+      </div>
+      : <ul className="achados" aria-label="Equipe" onKeyDown={andar}>
+        {achados.length
+          ? achados.map(m => <li key={m.id}><button type="button" onClick={() => aoEscolher(m)}>{m.nome}</button></li>)
+          : <li className="nota sem-achados">{NINGUEM_COM_ESSE_NOME}</li>}
+      </ul>}
+  </div>;
+}
+
+/** Uma parte da lista de achados, com o título; vazia, o motivo. */
+function ParteDosAchados({ titulo, vazia, children }: { titulo: string; vazia: string; children: ReactNode[] }) {
+  return <div role="group" aria-label={titulo} className="achados-parte">
+    <p className="achados-titulo" aria-hidden="true">{titulo}</p>
+    {children.length ? <ul aria-label={titulo}>{children}</ul> : <p className="nota sem-achados">{vazia}</p>}
   </div>;
 }

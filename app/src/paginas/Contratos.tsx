@@ -21,6 +21,8 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
+import { gruposDoItem } from '../regras/gruposDaEquipe';
+import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
 import { dataDaOrdem, useOrdem } from '../ui/ordem';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
@@ -188,7 +190,8 @@ function CartaoKanban({ k, ordem }: { k: ContratoLista; ordem: Ordem }) {
       {k.ve_financeiro !== false && <span>{CATEGORIAS[k.categoria]}{k.valor !== null ? ' · ' + fmtDinheiro(k.valor) : ''}</span>}
       {data && <span>{data}</span>}
     </div>
-    <div className="kp"><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} tam={24} /></div>
+    <div className="kp"><GruposDoItem grupos={gruposDoItem(ctx.grupos, k.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} />
+      <Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} tam={24} /></div>
   </>;
 }
 
@@ -233,7 +236,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
         <td>{k.ve_financeiro === false ? VALOR_OCULTO : CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : fmtDinheiro(k.valor)}</td>
         <td><span className="etapa-txt">{situacao(k.etapa_id)}</span></td>
-        <td><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} /></td>
+        <td><div className="equipe-da-linha"><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} />
+          <GruposDoItem grupos={gruposDoItem(ctx.grupos, k.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(k.criado_em) : relativo(k.atualizado_em)}</td>
       </LinhaQueAbre>)}</tbody>
     </table></div>

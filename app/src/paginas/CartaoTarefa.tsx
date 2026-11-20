@@ -31,6 +31,7 @@ import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { Botao } from '../ui/Botoes';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { relativo } from '../ui/util';
@@ -88,7 +89,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!t) return <Vazio>Esta tarefa não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!t.arquivado_em && (t.criado_por === eu || ctx.ehAdmin);
-  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, t.demanda), m => contratosEmQueEsta([t.contrato, t.demanda?.contrato], m).length > 0);
+  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaTarefa(t, m, t.demanda, meusGrupos(ctx.grupos, m.id)), m => contratosEmQueEsta([t.contrato, t.demanda?.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // Ligar à tarefa um item que já existe (#341): quem altera a tarefa, com ela ativa. A demanda e o contrato, só enquanto a tarefa
   // não tem (mais de um é a #283). Depois, o cartão lê tudo de novo.
@@ -204,7 +205,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     <div className="cartao-acoes">
       {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
-      <EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} mudar={mudaNoLugar ? {
+      <EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos} mudar={mudaNoLugar ? {
         saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, t.demanda_id)), peloLigado: continuaPelaDemanda(t, t.demanda_id) },
         depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
       } : null} />

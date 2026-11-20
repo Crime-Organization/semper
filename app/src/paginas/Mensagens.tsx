@@ -1,6 +1,7 @@
 // Caixa de mensagens de cada pessoa: onde ela foi citada com @ (#112), os avisos dos prazos dela (#113), os lembretes marcados nas tarefas e
 // demandas em que ela está (#286), os pedidos para participar de um item (#363: quem aprova recebe o pedido, com "Aprovar" e
-// "Recusar"; quem pediu recebe a resposta) e o aviso de quando alguém a põe num item (#377). Clicar abre o cartão e marca como lida.
+// "Recusar"; quem pediu recebe a resposta), o aviso de quando alguém a põe num item (#377; pelo grupo da equipe, diz qual) e a
+// mensagem de quando um administrador a põe num grupo da equipe (#378). Clicar abre o cartão e marca como lida.
 // O número no menu vem de ui/mensagens.ts; quem cria as mensagens é o banco: ao salvar o comentário ou a equipe de um item, na rotina
 // diária dos prazos e na dos lembretes.
 import { useCallback, useEffect, useState, type ComponentType, type ReactNode } from 'react';
@@ -8,7 +9,8 @@ import { Link } from 'react-router';
 import { SD, type Mensagem, type TipoMensagem } from '../dados';
 import { AVISO_AO_RESPONDER, enderecoDaResposta, enderecoDoItemDoPedido, PEDIDO_DO_MODULO, RESPOSTA_DO_PEDIDO, respostaDoPedido, type RespostaDoPedido } from '../regras/pedidoDeParticipacao';
 import { hojeNaAgenda } from '../regras/agenda';
-import { enderecoDaInclusao, INCLUSAO_DO_MODULO, nomeDoItemDaInclusao, rotulosDaInclusao } from '../regras/inclusao';
+import { acaoDaInclusao, enderecoDaInclusao, INCLUSAO_DO_MODULO, nomeDoItemDaInclusao, rotulosDaInclusao } from '../regras/inclusao';
+import { linksDoGrupo, textoDaMensagemDeGrupo } from '../regras/gruposDaEquipe';
 import { CARTAO_DO_MODULO, dataDoAviso, enderecoDoComentario, enderecoDoPrazo, NOME_DO_AVISO, NOME_DO_PRAZO, rotuloDoAviso, trechoDaMensagem } from '../regras/mensagens';
 import { Avatar } from '../ui/Avatar';
 import { avisar, falha } from '../ui/avisos';
@@ -46,7 +48,7 @@ export default function Mensagens() {
     <header className="mensagens-cabeca">
       <div>
         <h1 className="titulo">Mensagens<span className="ponto">.</span></h1>
-        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar e quando incluem você num item.</p>
+        <p className="lead">Menções com @, prazos, lembretes, pedidos para participar e quando incluem você num item ou num grupo.</p>
       </div>
       {/* O número do menu conta todas; a lista mostra só as mais novas. */}
       {quantasNaoLidas > 0 && <Botao pequeno onClick={marcarTodas}>Marcar todas como lidas</Botao>}
@@ -197,13 +199,42 @@ function ItemDaInclusao(props: PropsDoItem) {
   return <LinhaDaMensagem {...props} rotulo={rotulos.linha} marcarLida={rotulos.marcarLida}>
     <Avatar p={quem} tam={32} />
     <LinkDaMensagem {...props} para={para}>
-      <span className="mensagem-titulo"><b>{nome}</b> {modulo.acao[i.entrou_como]} <b>{nomeDoItemDaInclusao(i.item)}</b></span>
+      <span className="mensagem-titulo"><b>{nome}</b> {acaoDaInclusao(i)} <b>{nomeDoItemDaInclusao(i.item)}</b></span>
       <span className="mensagem-trecho">{modulo.agora[i.entrou_como]}</span>
     </LinkDaMensagem>
   </LinhaDaMensagem>;
 }
 
+/**
+ * A mensagem de quem foi posto num grupo da equipe (#378): uma só, a do grupo, com os links para as demandas e as tarefas dele
+ * (filtradas no grupo). Abrir um link marca como lida.
+ */
+function ItemDoGrupo(props: PropsDoItem) {
+  const { m, aoMarcarLida } = props;
+  const ctx = useCtx();
+  const g = m.grupo;
+  if (!g) {
+    return <LinhaDaMensagem {...props} rotulo={`Mensagem ${situacaoDa(m)} de um grupo que não existe mais`} marcarLida="Marcar como lida a mensagem de um grupo que não existe mais">
+      <CartaoQueNaoVe texto="Este grupo da equipe não existe mais." />
+    </LinhaDaMensagem>;
+  }
+  const quem = ctx.equipe.find(x => x.id === g.incluido_por), nome = quem?.nome ?? 'Usuário removido';
+  const texto = textoDaMensagemDeGrupo(nome, g.nome);
+  const abrir = () => { if (!m.lido_em) void aoMarcarLida(m.id); };
+  return <LinhaDaMensagem {...props} rotulo={`Mensagem ${situacaoDa(m)}: ${texto.titulo}`} marcarLida={`Marcar como lida a mensagem do grupo ${g.nome}`}>
+    <Avatar p={quem} tam={32} />
+    <div className="mensagem-miolo mensagem-pedido">
+      <span className="mensagem-titulo"><b>{nome}</b> incluiu você no grupo <b>{g.nome}</b>.</span>
+      <span className="mensagem-trecho">{texto.trecho}</span>
+      <div className="mensagem-acoes">
+        {linksDoGrupo(g.grupo_id).map(l => <Link key={l.para} className="mensagem-codigo" to={l.para} onClick={abrir}
+          onAuxClick={e => { if (e.button === BOTAO_DO_MEIO) abrir(); }}>{l.texto}</Link>)}
+      </div>
+    </div>
+  </LinhaDaMensagem>;
+}
+
 /** Como cada tipo de mensagem aparece. Tipo novo = uma entrada nova. */
 const ITEM_DO_TIPO: Record<TipoMensagem, ComponentType<PropsDoItem>> = {
-  mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao
+  mencao: ItemDaMencao, prazo: ItemDoPrazo, pedido: ItemDoPedido, resposta: ItemDaResposta, inclusao: ItemDaInclusao, grupo: ItemDoGrupo
 };
