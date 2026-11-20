@@ -71,13 +71,19 @@ export async function criarContaReservadaNoLogin(email: string, convite: string)
   return false;
 }
 
-/** Revoga um token no Google(a conta que saiu do SEMPER deixa de valer lá também). Se o Google não responder, segue. */
+/**
+ * Revoga um token no Google (a conta que saiu do SEMPER deixa de valer lá também). Se o Google não responder, segue: a conta
+ * já saiu do SEMPER. Um token que o Google já não reconhece (400) já não vale, e conta como revogado. Devolve se deu certo.
+ */
 export async function revogarNoGoogle(token: string) {
   try {
-    await fetch('https://oauth2.googleapis.com/revoke', {
+    const r = await fetch('https://oauth2.googleapis.com/revoke', {
       method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token })
     });
+    if (r.ok || r.status === 400) return true;
+    console.error('revogar no Google', r.status);
   } catch (e) { console.error('revogar no Google', (e as Error).message); }
+  return false;
 }
 
 /** Redireciona o navegador. */

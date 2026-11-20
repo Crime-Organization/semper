@@ -425,6 +425,15 @@ verify_jwt = false
 [functions.google-concluir]
 verify_jwt = false
 
+# Desligar a conta Google (#164): confere o login dentro da função, pelo mesmo motivo, e revoga o token no Google.
+[functions.google-desligar]
+verify_jwt = false
+
+# Sincronização dos contatos (#164): quem chama é a rotina do banco (com a senha da rotina) ou o administrador logado
+# ("Sincronizar agora"); as duas coisas são conferidas na função.
+[functions.google-sincronizar]
+verify_jwt = false
+
 # Troca de e-mail pelo administrador (#222): também confere o login dentro da função, pelo mesmo motivo.
 [functions.equipe-trocar-email]
 verify_jwt = false
