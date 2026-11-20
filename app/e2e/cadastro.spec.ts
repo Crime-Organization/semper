@@ -36,6 +36,40 @@ test.describe('Indicador do cadastro (#83)', () => {
   });
 });
 
+test.describe('Dica do nome e do código (#84)', () => {
+  test('dado um nome digitado em minúsculas, quando o cadastro é salvo, então a dica avisou que as letras ficam maiúsculas sozinhas e o nome é gravado em maiúsculas', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/nova/');
+    await page.getByText('Somente informações de contato', { exact: true }).click();
+    await etapa(page, 'Identificação');
+    await expect(page.getByLabel('Nome')).toHaveAccessibleDescription('Nome completo. As letras ficam maiúsculas sozinhas.');
+    await page.getByLabel('Nome').fill('joana minuscula e2e');
+    await proxima(page);
+    await page.getByRole('textbox', { name: 'Telefone' }).fill('38999990001');
+    // Quando
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('searchbox').fill('joana minuscula');
+    // Então
+    const linha = page.getByRole('row').filter({ hasText: 'JOANA MINUSCULA E2E' });
+    await expect(linha).toBeVisible();
+    await expect(linha.getByText(/^[0-9A-F]{8}$/)).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+  });
+
+  test('dado o cartão de uma pessoa, quando ele abre, então o código dela explica o que é ao passar o mouse', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').nth(1).getByRole('link').first().click();
+    // Quando
+    const cartao = page.getByRole('dialog');
+    // Então
+    await expect(cartao.getByText(/^[0-9A-F]{8}$/).first()).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+  });
+});
+
 test.describe('Cadastro de pessoa jurídica', () => {
   test('quando escolhe uma opção mais abaixo na lista, na janela do cadastro, então o cadastro continua visível e segue com essa opção', async ({ page }) => {
     // Dado

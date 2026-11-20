@@ -28,7 +28,7 @@ function EtapaIdentificacao() {
   const { c, pj, mudar, buscarCNPJ, retornoCNPJ, botaoCNPJ, erroDe, texto, retorno, nivel } = useFormulario();
   return <SecaoDoFormulario nivel={nivel} titulo={pj ? 'Dados da empresa' : c.tipo === 'pf' ? 'Dados pessoais' : 'Identificação'}>
     <Campo rotulo="Nome" para="nome" obrigatorio erro={erroDe('nome')}
-      dica={pj ? 'Razão social, em letras maiúsculas.' : 'Nome completo, em letras maiúsculas.'}>
+      dica={pj ? 'Razão social. As letras ficam maiúsculas sozinhas.' : 'Nome completo. As letras ficam maiúsculas sozinhas.'}>
       {texto('nome', { maximo: TAMANHO_PESSOA.nome, maiusculas: true })}
     </Campo>
     {pj && <>

@@ -177,6 +177,11 @@ export function Selo({ tipo, children }: { tipo?: TipoSelo; children: ReactNode 
   return <span className={tipo ? 'selo ' + tipo : 'selo'}>{children}</span>;
 }
 
+/** O código do item no SEMPER (ex.: CA222B4B), em letra miúda; com `dica`, ela explica o código ao passar o mouse (propsDaDica). */
+export function Codigo({ dica, children }: { dica?: string; children: ReactNode }) {
+  return <span className="codigo" {...(dica ? propsDaDica(dica) : {})}>{children}</span>;
+}
+
 /** Caixa branca com borda fina, para agrupar um conteúdo. */
 export function Cartao({ className, ...resto }: ComponentProps<'div'>) {
   return <div className={className ? 'cartao ' + className : 'cartao'} {...resto} />;
