@@ -60,6 +60,14 @@ h3.perfil-bloco { margin: 0; font-size: 17px; font-weight: 900; color: var(--ink
 /* Contatos no Google (#164): abaixo da conta ligada, separado por uma linha. */
 .config-google-contatos { display: flex; flex-direction: column; gap: var(--recuo-da-pasta); padding-top: var(--recuo-dos-campos); border-top: 1px solid var(--line) }
 .config-google-situacao { margin: 0; color: var(--text) }
+/* Para conferir (#164, etapa 2): um cartão por contato do Google, com as pessoas possíveis e as decisões. */
+.config-conferir { display: flex; flex-direction: column; gap: var(--recuo-da-pasta) }
+.config-conferir-titulo { margin: 0; display: flex; align-items: center; gap: var(--vao-da-pergunta); font-size: var(--texto-titulo-3); font-weight: 900; color: var(--ink) }
+.config-conferir-lista, .config-conferir-pessoas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--vao-da-linha-do-tempo) }
+.config-conferir-item { display: flex; flex-direction: column; gap: var(--vao-da-pergunta) }
+.config-conferir-contato, .config-conferir-motivo { margin: 0; color: var(--text) }
+.config-conferir-pessoas li { display: flex; align-items: center; justify-content: space-between; gap: var(--vao-da-linha-do-tempo); flex-wrap: wrap; padding-top: var(--vao-da-pergunta); border-top: 1px solid var(--line) }
+.config-conferir-pessoa { min-width: 0; overflow-wrap: anywhere }
 /* Campos dos processos: a lista, as ações de cada campo e os apagados. */
 .config-campos { display: flex; flex-direction: column; gap: 16px; margin-top: 18px }
 .config-campos-form { display: flex; flex-direction: column; gap: 16px }

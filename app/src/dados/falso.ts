@@ -4,7 +4,7 @@
 // Os testes de ponta a ponta (app/e2e/) usam as pessoas, colunas e o escritório da semente pelo nome:
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
-  AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
+  AcessoSigilo, LigacaoGoogle, ProblemaDaSincronizacao, ContatoParaConferir, MotivoParaConferir, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
   Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
@@ -17,6 +17,8 @@ import { compararPeloInicio, INICIO_VAZIO, inicioDoCriadoEm, inicioNosLimites } 
 import { erroDoNovoEmail, normalizarEmail, RECUSA_DA_TROCA } from '../regras/conta';
 import { RECUSA_DA_RESERVA, erroDoNomeDaEquipe, nomeNaEquipe } from '../regras/equipe';
 import { LINK_VENCIDO } from './erros';
+// A primeira sincronização com o Google Contatos usa as mesmas regras de correspondência da função do servidor.
+import { corresponder, type ContatoDaConta } from '../../../supabase/functions/_compartilhado/correspondenciaDeContatos';
 import { CATEGORIAS_DE_ANDAMENTO, categoriaCombina, comCategoriaAcertada, linhaDoAndamento, linhaDoPrazo, porDataDoAndamento } from '../regras/andamentos';
 import { dasDoMes, dividirRecebimento, erroDoDas, PARTE_INTEGRAL } from '../regras/financeiro';
 import { resumoDaConferencia } from '../regras/conferencia';
@@ -230,7 +232,17 @@ interface Banco {
   /** Pedidos de ligação ainda não concluídos (privado.ligacao_pedidos no banco). */
   pedidosGoogle?: { estado: string; pedido_em: number }[];
   /** A sincronização dos contatos (a chave e o problema em privado.ligacoes, a fila em contatos_google_fila no banco). */
-  contatosGoogle?: { ativos: boolean; fila: string[]; com_falha: number; problema: ProblemaDaSincronizacao | null; problema_em: string | null; sincronizado_em: string | null };
+  contatosGoogle?: {
+    ativos: boolean; fila: string[]; com_falha: number; problema: ProblemaDaSincronizacao | null; problema_em: string | null; sincronizado_em: string | null;
+    /** Quando terminou a primeira sincronização (contatos_primeira_em em privado.ligacoes); vazio: por fazer. */
+    primeira_em?: string | null;
+    /** Pessoa → o contato ligado a ela no Google (contatos_google no banco). */
+    ligados?: Record<string, string>;
+    /** A lista Para conferir, com as decisões (contatos_google_conferir no banco). */
+    conferir?: DuvidaGuardada[];
+    /** A conta Google simulada: os contatos que já estão lá antes da primeira sincronização (os testes põem aqui). */
+    noGoogle?: ContatoDaConta[];
+  };
   tarefas?: TarefaGuardada[];
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
   tempos?: (RegistroDeTempo & { tarefa_id: string })[];
@@ -808,6 +820,46 @@ function enfileirarNoGoogle(p: Pessoa) {
   const c = bd.contatosGoogle;
   if (!bd.ligacaoGoogle || !c?.ativos || p.arquivado_em || c.fila.includes(p.id)) return;
   c.fila.push(p.id);
+}
+/** Uma dúvida da primeira sincronização, como contatos_google_conferir no banco. */
+interface DuvidaGuardada {
+  id: string; recurso: string; nome: string | null; telefones: string[]; emails: string[]; aniversario: string | null;
+  motivo: MotivoParaConferir; candidatos: string[]; criado_em: string; decisao: 'ligada' | 'outra' | 'ignorada' | null;
+}
+/** Como privado.contato_google_em_duvida: a pessoa está numa dúvida aberta e ainda sem contato; não vai ao Google até a decisão. */
+function emDuvidaNoGoogle(id: string) {
+  const c = bd.contatosGoogle;
+  return !c?.ligados?.[id] && !!c?.conferir?.some(k => !k.decisao && k.candidatos.includes(id));
+}
+const duvidasAbertas = () => (bd.contatosGoogle?.conferir ?? []).filter(k => !k.decisao);
+/** Como contatos_google_primeira_concluir: liga os certos, guarda as dúvidas (a decidida não volta) e põe na fila quem ficou sem contato. */
+function primeiraSincronizacaoFalsa(c: NonNullable<Banco['contatosGoogle']>) {
+  const ligados = c.ligados ??= {};
+  const conferir = c.conferir ??= [];
+  const r = corresponder(c.noGoogle ?? [], bd.pessoas.map(p => ({
+    id: p.id, tipo: p.tipo, nome: p.nome, telefones: p.telefones, emails: p.emails, nascimento: p.nascimento, abertura: p.abertura, recurso: ligados[p.id] ?? null
+  })));
+  const jaLigados = new Set(Object.values(ligados));
+  let novosLigados = 0;
+  for (const l of r.ligar) {
+    if (ligados[l.pessoa_id] || jaLigados.has(l.recurso)) continue;
+    ligados[l.pessoa_id] = l.recurso; jaLigados.add(l.recurso); novosLigados++;
+  }
+  for (const k of r.conferir) {
+    if (!conferir.some(x => x.recurso === k.recurso)) conferir.push({ ...k, id: novoId(), criado_em: agora(), decisao: null });
+  }
+  for (const p of bd.pessoas) if (!p.arquivado_em && !ligados[p.id] && !emDuvidaNoGoogle(p.id) && !c.fila.includes(p.id)) c.fila.push(p.id);
+  c.primeira_em = agora();
+  auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle?.conta_email });
+  return { ligados: novosLigados, para_conferir: duvidasAbertas().length, novos: c.fila.filter(id => !ligados[id] && !emDuvidaNoGoogle(id)).length };
+}
+/** A dúvida como a tela recebe (contatos_google_para_conferir): as pessoas possíveis com os dados de hoje. */
+function duvidaParaATela(k: DuvidaGuardada): ContatoParaConferir {
+  const candidatos = k.candidatos.map(id => bd.pessoas.find(p => p.id === id)).filter((p): p is Pessoa => !!p).map(p => ({
+    id: p.id, codigo: p.codigo, tipo: p.tipo, nome: p.nome, telefones: p.telefones ?? [], emails: p.emails ?? [], nascimento: p.nascimento, abertura: p.abertura,
+    arquivada: !!p.arquivado_em
+  }));
+  return { id: k.id, nome: k.nome, telefones: k.telefones, emails: k.emails, aniversario: k.aniversario, motivo: k.motivo, criado_em: k.criado_em, candidatos };
 }
 /** O pedido de ligação com o Google vale 10 minutos (como privado.ligacao_pedidos no banco). */
 const VALIDADE_DO_PEDIDO_GOOGLE = 10 * 60 * 1000;
@@ -4681,8 +4733,11 @@ export const SD: Dados = {
   async ligacaoGoogleDesligar() {
     if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     bd.ligacaoGoogle = null;
-    // Como ligacao_google_desligar_servidor: a ligação (com a chave e o problema) sai, e a fila do escritório é esvaziada.
-    bd.contatosGoogle = undefined;
+    // Como ligacao_google_desligar_servidor: a ligação (com a chave, o problema, a primeira sincronização e as dúvidas) sai,
+    // e a fila do escritório é esvaziada. As ligações pessoa ↔ contato ficam (são da conta: religar a mesma reaproveita).
+    const antes = bd.contatosGoogle;
+    bd.contatosGoogle = antes && { ativos: false, fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: null,
+      ligados: antes.ligados, noGoogle: antes.noGoogle };
     gravar(); return espera(undefined);
   },
   // ---------- sincronização dos contatos (sem Google: "Sincronizar agora" sempre dá certo) ----------
@@ -4690,12 +4745,14 @@ export const SD: Dados = {
     if (!bd.ligacaoGoogle || !souAdmin()) return espera(null);
     const c = bd.contatosGoogle;
     return espera({ ativa: c?.ativos ?? false, pendentes: c?.fila.length ?? 0, com_falha: c?.com_falha ?? 0, problema: c?.problema ?? null,
-      problema_em: c?.problema_em ?? null, sincronizado_em: c?.sincronizado_em ?? null });
+      problema_em: c?.problema_em ?? null, sincronizado_em: c?.sincronizado_em ?? null, primeira_em: c?.primeira_em ?? null, para_conferir: duvidasAbertas().length });
   },
   async sincronizacaoGoogleLigar(ligar) {
     if (!souAdmin()) return erro('Apenas administradores ligam e desligam a sincronização dos contatos');
     if (!bd.ligacaoGoogle) return erro('Ligue a conta Google do escritório antes de sincronizar os contatos');
     const c = bd.contatosGoogle ??= { ativos: false, fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: null };
+    // Ligar (de novo, inclusive) pede uma primeira sincronização nova.
+    if (ligar && !c.ativos) c.primeira_em = null;
     c.ativos = ligar;
     // Desligar esvazia a fila: some o que vinha dela (as falhas); o problema de autorização é da ligação e fica.
     if (!ligar) Object.assign(c, { fila: [], com_falha: 0, ...(c.problema === 'autorizacao' ? {} : { problema: null, problema_em: null }) });
@@ -4705,9 +4762,38 @@ export const SD: Dados = {
   async sincronizarGoogleAgora() {
     const c = bd.contatosGoogle;
     if (!souAdmin() || !bd.ligacaoGoogle || !c?.ativos) return espera({ resultado: 'desligada' as const, sincronizados: 0, falhas: 0 });
-    const sincronizados = c.fila.length;
-    Object.assign(c, { fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: sincronizados ? agora() : c.sincronizado_em });
-    gravar(); return espera({ resultado: 'ok' as const, sincronizados, falhas: 0 });
+    // Como a função do servidor: a primeira sincronização antes da fila; quem está em dúvida espera a decisão.
+    const primeira = c.primeira_em ? undefined : primeiraSincronizacaoFalsa(c);
+    const ligados = c.ligados ??= {};
+    const vao = c.fila.filter(id => !emDuvidaNoGoogle(id));
+    vao.forEach(id => { ligados[id] ??= 'people/falso' + id.replace(/[^A-Za-z0-9]/g, ''); });
+    Object.assign(c, { fila: c.fila.filter(emDuvidaNoGoogle), com_falha: 0, problema: null, problema_em: null, sincronizado_em: vao.length ? agora() : c.sincronizado_em });
+    gravar(); return espera({ resultado: 'ok' as const, sincronizados: vao.length, falhas: 0, ...(primeira ? { primeira } : {}) });
+  },
+  contatosParaConferir() {
+    if (!bd.ligacaoGoogle || !souAdmin()) return espera([]);
+    return espera(duvidasAbertas().map(duvidaParaATela));
+  },
+  async contatoParaConferirDecidir(id, decisao) {
+    if (!souAdmin()) return erro('Apenas administradores decidem os contatos para conferir');
+    const c = bd.contatosGoogle;
+    const k = c?.conferir?.find(x => x.id === id && !x.decisao);
+    if (!c || !k) return erro('Este contato já foi conferido');
+    if (!bd.ligacaoGoogle) return erro('A conta Google deste contato não está mais ligada');
+    const ligados = c.ligados ??= {};
+    if (decisao.acao === 'ligar') {
+      if (!bd.pessoas.some(p => p.id === decisao.pessoa_id)) return erro('Escolha uma pessoa do escritório');
+      if (ligados[decisao.pessoa_id]) return erro('Esta pessoa já está ligada a outro contato do Google');
+      if (Object.values(ligados).includes(k.recurso)) return erro('Este contato do Google já está ligado a outra pessoa');
+      ligados[decisao.pessoa_id] = k.recurso;
+    }
+    k.decisao = ({ ligar: 'ligada', outra: 'outra', ignorar: 'ignorada' } as const)[decisao.acao];
+    // Ligar ou "é outra pessoa": quem era possível e ficou sem contato (e sem outra dúvida) vai para a fila e ganha um contato novo.
+    if (decisao.acao !== 'ignorar' && c.ativos) {
+      k.candidatos.map(cid => bd.pessoas.find(p => p.id === cid)).filter((p): p is Pessoa => !!p && !p.arquivado_em && !ligados[p.id] && !emDuvidaNoGoogle(p.id) && !c.fila.includes(p.id)).forEach(p => c.fila.push(p.id));
+    }
+    auditar('contatos_google_conferir', 'alteracao', { id: k.id, nome: k.decisao });
+    gravar(); return espera(undefined);
   },
 
   async escritorioSalvar(dados) {

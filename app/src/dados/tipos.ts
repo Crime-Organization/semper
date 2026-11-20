@@ -1036,9 +1036,46 @@ export interface SincronizacaoGoogle {
   problema_em: string | null;
   /** A última vez que um contato foi criado ou atualizado no Google. */
   sincronizado_em: string | null;
+  /**
+   * Quando terminou a primeira sincronização (ler os contatos que já estão na conta e ligar os que são de pessoas do
+   * escritório); null enquanto ela não terminou, e então nada é criado no Google.
+   */
+  primeira_em: string | null;
+  /** Contatos do Google que podem ser de alguém do escritório, esperando o administrador decidir (a lista Para conferir). */
+  para_conferir: number;
 }
 /** Como terminou o "Sincronizar agora". 'desligada': a sincronização está desligada (ou quem pediu não é administrador). */
-export interface ResultadoDaSincronizacao { resultado: 'ok' | 'desligada' | 'erro'; sincronizados: number; falhas: number }
+export interface ResultadoDaSincronizacao {
+  resultado: 'ok' | 'desligada' | 'erro'; sincronizados: number; falhas: number;
+  /** Só quando a primeira sincronização terminou agora: contatos ligados, contatos para conferir e pessoas que vão ganhar um contato novo. */
+  primeira?: { ligados: number; para_conferir: number; novos: number };
+}
+
+/**
+ * Por que um contato do Google ficou para conferir (supabase/functions/_compartilhado/correspondenciaDeContatos.ts): mais de uma
+ * pessoa possível, só o nome bate, o telefone ou o aniversário não combina, ou a pessoa já tem outro contato (repetido no Google).
+ */
+export type MotivoParaConferir = 'varios' | 'so-nome' | 'conflito' | 'repetido';
+/** Uma pessoa do escritório que pode ser o contato. */
+export interface PessoaPossivel {
+  id: string; codigo: string; tipo: TipoPessoa; nome: string; telefones: string[]; emails: string[];
+  nascimento: string | null; abertura: string | null; arquivada: boolean;
+}
+/** Um contato da conta Google que pode ser de alguém do escritório (com os dados como estão no Google). */
+export interface ContatoParaConferir {
+  id: string;
+  nome: string | null;
+  telefones: string[];
+  emails: string[];
+  /** "aaaa-mm-dd", ou "mm-dd" quando o Google não tem o ano. */
+  aniversario: string | null;
+  motivo: MotivoParaConferir;
+  criado_em: string;
+  /** As pessoas possíveis, a mais provável primeiro. */
+  candidatos: PessoaPossivel[];
+}
+/** O que o administrador decide: o contato é desta pessoa; é de outra pessoa (o SEMPER cria um contato novo); ou deixa como está. */
+export type DecisaoDoContato = { acao: 'ligar'; pessoa_id: string } | { acao: 'outra' } | { acao: 'ignorar' };
 
 /** Ligações com contas de fora (hoje, a conta Google do escritório). Ligar e desligar: só administradores. */
 export interface DadosLigacoes {
@@ -1059,6 +1096,10 @@ export interface DadosLigacoes {
   sincronizacaoGoogleLigar(ligar: boolean): Promise<void>;
   /** Leva agora ao Google quem está na fila do escritório, sem esperar a rotina (só administradores). */
   sincronizarGoogleAgora(): Promise<ResultadoDaSincronizacao>;
+  /** Os contatos do Google para conferir, os mais antigos primeiro (só administradores; os outros recebem a lista vazia). */
+  contatosParaConferir(): Promise<ContatoParaConferir[]>;
+  /** Decide um contato para conferir; ele sai da lista e não volta (só administradores). */
+  contatoParaConferirDecidir(id: string, decisao: DecisaoDoContato): Promise<void>;
 }
 
 /** Uma linha do arquivo pronta para gravar (montada por planejar(), em regras/importacao.ts). */

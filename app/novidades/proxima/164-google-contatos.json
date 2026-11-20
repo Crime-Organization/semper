@@ -1,0 +1,5 @@
+{
+  "titulo": "Pessoas no Google Contatos, sem contatos repetidos",
+  "texto": "Com a conta Google ligada, o administrador pode ligar a sincronização: o SEMPER primeiro liga às pessoas os contatos que já estão no Google, sem criar cópias, e mostra os duvidosos para conferir. Depois, quem for cadastrado ou editado vira um contato no Google, com o nome em maiúsculas, os telefones, os e-mails e o aniversário.",
+  "ondeAchar": "Configurações, cartão Conta Google: marque \"Criar e atualizar no Google os contatos…\". Lá ficam o \"Sincronizar agora\" e a lista \"Para conferir\"."
+}

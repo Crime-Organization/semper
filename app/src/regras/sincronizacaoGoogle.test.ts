@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, situacaoDaFila } from './sincronizacaoGoogle';
+import { AO_DECIDIR, aniversarioParaMostrar, MOTIVOS_PARA_CONFERIR, PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, resumoDaPrimeira, situacaoDaFila } from './sincronizacaoGoogle';
 
 describe('Textos da sincronização com o Google Contatos', () => {
   it.each([
@@ -38,5 +38,41 @@ describe('Textos da sincronização com o Google Contatos', () => {
       expect(oQueFazer.length).toBeGreaterThan(titulo.length);
     }
     expect(PROBLEMAS_DA_SINCRONIZACAO.autorizacao.oQueFazer).toContain('Ligar outra conta');
+  });
+
+  it.each([
+    [{ ligados: 1, para_conferir: 0, novos: 0 }, 'Primeira sincronização feita: 1 contato do Google ligado a pessoas do SEMPER.'],
+    [{ ligados: 12, para_conferir: 3, novos: 40 }, 'Primeira sincronização feita: 12 contatos do Google ligados a pessoas do SEMPER, 3 contatos para conferir.']
+  ])('dada a primeira sincronização com %o, quando termina, então o resumo diz "%s"', (primeira, texto) => {
+    // Quando / Então
+    expect(resumoDaPrimeira(primeira)).toBe(texto);
+  });
+
+  it('dada a primeira sincronização feita no "Sincronizar agora", quando termina, então o aviso começa pelo resumo e segue com a fila', () => {
+    // Quando
+    const comFila = RESULTADO_DO_AGORA.ok({ resultado: 'ok', sincronizados: 2, falhas: 0, primeira: { ligados: 0, para_conferir: 1, novos: 2 } });
+    const semFila = RESULTADO_DO_AGORA.ok({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira: { ligados: 3, para_conferir: 0, novos: 0 } });
+    // Então
+    expect(comFila).toEqual({ ok: true, texto: 'Primeira sincronização feita: 0 contatos do Google ligados a pessoas do SEMPER, 1 contato para conferir. 2 pessoas foram ao Google.' });
+    expect(semFila).toEqual({ ok: true, texto: 'Primeira sincronização feita: 3 contatos do Google ligados a pessoas do SEMPER.' });
+  });
+
+  it('dado cada motivo para conferir e cada decisão, quando são mostrados, então têm texto', () => {
+    // Quando / Então
+    for (const { selo, texto } of Object.values(MOTIVOS_PARA_CONFERIR)) {
+      expect(selo.length).toBeGreaterThan(0);
+      expect(texto).toMatch(/\.$/);
+    }
+    expect(Object.values(AO_DECIDIR).every(t => t.endsWith('.'))).toBe(true);
+  });
+
+  it.each([
+    ['1980-05-17', '17/05/1980'],
+    ['05-17', '17/05'],
+    [null, ''],
+    ['sem data', '']
+  ])('dado o aniversário do Google %s, quando é mostrado, então fica "%s"', (aniversario, texto) => {
+    // Quando / Então
+    expect(aniversarioParaMostrar(aniversario)).toBe(texto);
   });
 });

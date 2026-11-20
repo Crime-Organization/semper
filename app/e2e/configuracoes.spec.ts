@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
 
 test.describe('Configurações do escritório', () => {
@@ -69,7 +69,23 @@ test.describe('Conta Google do escritório', () => {
     await expect(page).toHaveURL(/\/configuracoes\/$/);
   });
 
-  test('quando o administrador liga a sincronização dos contatos e cadastra alguém, então a pessoa espera na fila e "Sincronizar agora" a leva ao Google', async ({ page }) => {
+  test('quando o administrador liga a sincronização dos contatos, então a primeira sincronização fica por fazer, e o primeiro "Sincronizar agora" a faz', async ({ page }) => {
+    // Dado
+    await page.goto('/configuracoes/');
+    const google = page.getByRole('region', { name: 'Conta Google' });
+    await google.getByRole('button', { name: 'Conectar conta Google' }).click();
+    const contatos = google.getByRole('group', { name: 'Contatos no Google' });
+    // Quando
+    await contatos.getByRole('checkbox', { name: 'Criar e atualizar no Google os contatos das pessoas cadastradas e editadas' }).check();
+    // Então
+    await expect(contatos).toContainText('A primeira sincronização ainda não terminou');
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    await expect(page.getByText('Primeira sincronização feita: 0 contatos do Google ligados a pessoas do SEMPER.', { exact: false })).toBeVisible();
+    await expect(contatos).not.toContainText('A primeira sincronização ainda não terminou');
+    await expect(contatos).toContainText('Tudo em dia: não há ninguém esperando para ir ao Google.');
+  });
+
+  test('dada a primeira sincronização feita, quando o administrador cadastra alguém, então a pessoa espera na fila e "Sincronizar agora" a leva ao Google', async ({ page }) => {
     // Dado
     await page.goto('/configuracoes/');
     const google = page.getByRole('region', { name: 'Conta Google' });
@@ -81,6 +97,8 @@ test.describe('Conta Google do escritório', () => {
     // Quando
     await chave.check();
     await expect(page.getByText('Sincronização ligada', { exact: false })).toBeVisible();
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    await expect(page.getByText('Primeira sincronização feita', { exact: false })).toBeVisible();
     // O cadastro pelo banco fictício da própria página (o Vite serve o módulo pelo caminho do arquivo).
     await page.evaluate(async () => {
       const caminho = '/src/dados/falso.ts';
@@ -94,6 +112,73 @@ test.describe('Conta Google do escritório', () => {
     await expect(page.getByText('1 pessoa foi ao Google.')).toBeVisible();
     await expect(contatos).toContainText('Tudo em dia: não há ninguém esperando para ir ao Google.');
     await expect(contatos).toContainText('Última sincronização:');
+  });
+
+  /** Liga a conta e a sincronização e põe contatos na conta Google simulada (o que ela já tinha antes do SEMPER). */
+  async function contaComContatos(page: Page, noGoogle: unknown[]) {
+    await page.goto('/configuracoes/');
+    const google = page.getByRole('region', { name: 'Conta Google' });
+    await google.getByRole('button', { name: 'Conectar conta Google' }).click();
+    const contatos = google.getByRole('group', { name: 'Contatos no Google' });
+    await contatos.getByRole('checkbox', { name: 'Criar e atualizar no Google os contatos das pessoas cadastradas e editadas' }).check();
+    await expect(contatos).toContainText('A primeira sincronização ainda não terminou');
+    await page.evaluate(lista => {
+      const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { contatosGoogle: Record<string, unknown> };
+      bd.contatosGoogle.noGoogle = lista;
+      sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    }, noGoogle);
+    await page.reload();
+    return contatos;
+  }
+
+  test('dados contatos que já estão no Google, quando a primeira sincronização roda, então os duvidosos aparecem em "Para conferir" e o administrador decide cada um', async ({ page }) => {
+    // Dado: a conta Google já tem um contato certo de uma pessoa da semente (nome e telefone), o telefone da recepção (de
+    // várias pessoas da equipe) e um contato só com o nome de outra pessoa.
+    const contatos = await contaComContatos(page, [
+      { resourceName: 'people/c1', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '+55 38 99000-1000' }] },
+      { resourceName: 'people/c2', names: [{ displayName: 'Recepção' }], phoneNumbers: [{ value: '(38) 3222-0000' }], birthdays: [{ date: { month: 3, day: 9 } }] },
+      { resourceName: 'people/c3', names: [{ displayName: 'Maria Aparecida Exemplo' }] }
+    ]);
+    // Quando
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    // Então
+    await expect(page.getByText('Primeira sincronização feita: 1 contato do Google ligado a pessoas do SEMPER, 2 contatos para conferir.', { exact: false })).toBeVisible();
+    const lista = contatos.getByRole('region', { name: /Para conferir/ });
+    await expect(lista.getByRole('heading', { name: /Para conferir/ })).toContainText('2');
+    const maria = lista.getByRole('group', { name: 'Contato do Google: Maria Aparecida Exemplo' });
+    await expect(maria).toContainText('Só o nome bate');
+    await maria.getByRole('button', { name: 'Ligar a MARIA APARECIDA EXEMPLO' }).click();
+    await expect(page.getByText('Contato ligado à pessoa.', { exact: false })).toBeVisible();
+    await expect(maria).toHaveCount(0);
+    const recepcao = lista.getByRole('group', { name: 'Contato do Google: Recepção' });
+    await expect(recepcao).toContainText('No Google: (38) 3222-0000 · aniversário 09/03');
+    await expect(recepcao.getByRole('list', { name: 'Pessoas possíveis' }).getByRole('listitem')).not.toHaveCount(1);
+    await recepcao.getByRole('button', { name: 'É outra pessoa' }).click();
+    await expect(page.getByText('Marcado como outra pessoa', { exact: false })).toBeVisible();
+    await expect(contatos.getByRole('region', { name: /Para conferir/ })).toHaveCount(0);
+    await expect(contatos).toContainText(/pessoas? esperando para ir ao Google\./);
+  });
+
+  test('dado um contato para conferir, quando o administrador procura outra pessoa e a escolhe, então o contato é ligado a ela', async ({ page }) => {
+    // Dado
+    const contatos = await contaComContatos(page, [{ resourceName: 'people/c3', names: [{ displayName: 'Maria Aparecida Exemplo' }] }]);
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    await expect(page.getByText('Primeira sincronização feita', { exact: false })).toBeVisible();
+    // Uma pessoa cadastrada depois, ainda sem contato no Google (pelo banco fictício da própria página).
+    await page.evaluate(async () => {
+      const caminho = '/src/dados/falso.ts';
+      const { SD } = await import(/* @vite-ignore */ caminho) as typeof import('../src/dados/falso');
+      await SD.pessoaCriar({ tipo: 'pf', nome: 'MARIA APARECIDA DE OUTRA FAMILIA' });
+    });
+    await page.reload();
+    const item = contatos.getByRole('group', { name: 'Contato do Google: Maria Aparecida Exemplo' });
+    // Quando
+    await item.getByRole('button', { name: 'Procurar outra pessoa' }).click();
+    await item.getByLabel('Ligar a outra pessoa do escritório').fill('outra familia');
+    await item.getByRole('button', { name: /MARIA APARECIDA DE OUTRA FAMILIA/ }).click();
+    // Então
+    await expect(page.getByText('Contato ligado à pessoa.', { exact: false })).toBeVisible();
+    await expect(contatos.getByRole('region', { name: /Para conferir/ })).toHaveCount(0);
   });
 
   test('dada a autorização do Google vencida, quando o administrador abre Configurações, então vê o aviso com o que fazer', async ({ page }) => {

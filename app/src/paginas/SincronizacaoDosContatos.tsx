@@ -1,17 +1,20 @@
 // Contatos no Google (#164), em Configurações, dentro da Conta Google: o administrador liga a sincronização (começa
 // desligada), vê se há alguém esperando para ir ao Google, o problema que a impede (com o que fazer) e pode pedir
 // "Sincronizar agora". Quem leva as pessoas ao Google é o servidor (a rotina do banco e a função google-sincronizar).
+// Ao ligar, o servidor faz antes a primeira sincronização (liga os contatos que já estão no Google às pessoas); os
+// duvidosos aparecem na lista Para conferir (ContatosParaConferir.tsx).
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type SincronizacaoGoogle } from '../dados';
-import { PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, situacaoDaFila } from '../regras/sincronizacaoGoogle';
+import { PRIMEIRA_POR_FAZER, PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, situacaoDaFila } from '../regras/sincronizacaoGoogle';
 import { avisar, falha } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { Botao } from '../ui/Botoes';
 import { dataHora } from '../ui/util';
+import { ContatosParaConferir } from './ContatosParaConferir';
 
 /** O que a tela confirma depois de ligar ou desligar. */
 const AO_MUDAR: Record<'ligada' | 'desligada', string> = {
-  ligada: 'Sincronização ligada: quem for cadastrado ou editado vai para o Google Contatos.',
+  ligada: 'Sincronização ligada: o SEMPER lê os contatos que já estão no Google e depois leva quem for cadastrado ou editado.',
   desligada: 'Sincronização desligada: o SEMPER deixou de mandar contatos ao Google.'
 };
 
@@ -52,7 +55,9 @@ export function SincronizacaoDosContatos({ versao }: { versao: string }) {
       Criar e atualizar no Google os contatos das pessoas cadastradas e editadas
     </label>
     <Nota>Vão o nome em maiúsculas, os telefones, os e-mails e o aniversário (nascimento; para empresa, a abertura), sem a qualificação.
-      Arquivar ou excluir uma pessoa não apaga o contato no Google. Ligue depois de conferir a base, para não repetir contatos que já estão na conta.</Nota>
+      Arquivar ou excluir uma pessoa não apaga o contato no Google. Ao ligar, o SEMPER primeiro procura nos contatos que já estão no
+      Google os que são de pessoas do escritório (pelo telefone, pelo e-mail e pelo nome) e os liga a elas, sem criar cópias.</Nota>
+    {s.ativa && !s.primeira_em && <p className="config-google-situacao">{PRIMEIRA_POR_FAZER}</p>}
     {s.ativa && <p className="config-google-situacao">
       {situacaoDaFila(s)}{s.sincronizado_em && <span className="nota"> Última sincronização: {dataHora(s.sincronizado_em)}.</span>}
     </p>}
@@ -60,5 +65,7 @@ export function SincronizacaoDosContatos({ versao }: { versao: string }) {
     {s.ativa && <div className="acoes">
       <Botao forma="botao" ocupadoTexto="Sincronizando…" onClick={agora}>Sincronizar agora</Botao>
     </div>}
+    {/* A lista é lida de novo quando o número de dúvidas muda (depois do "Sincronizar agora", por exemplo). */}
+    {s.para_conferir > 0 && <ContatosParaConferir key={s.para_conferir} aoMudar={carregar} />}
   </div>;
 }
