@@ -22,6 +22,20 @@ async function comecarEmpresa(page: Page, nome: string, cnpj = CNPJ_LIVRE.replac
   await etapa(page, 'Entidades empresariais');
 }
 
+test.describe('Indicador do cadastro (#83)', () => {
+  test('quando a pessoa avança no formulário, então o indicador mostra "Passo N de 5", e "Etapa" fica só para o quadro', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/nova/');
+    await expect(page.getByText('Passo 1 de 5', { exact: true })).toBeVisible();
+    // Quando
+    await page.getByText('Pessoa física', { exact: true }).click();
+    await etapa(page, 'Dados pessoais');
+    // Então
+    await expect(page.getByText('Passo 2 de 5', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Etapa \d+ de \d+/)).toHaveCount(0);
+  });
+});
+
 test.describe('Cadastro de pessoa jurídica', () => {
   test('quando escolhe uma opção mais abaixo na lista, na janela do cadastro, então o cadastro continua visível e segue com essa opção', async ({ page }) => {
     // Dado

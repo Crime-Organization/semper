@@ -1,0 +1,5 @@
+{
+  "titulo": "Cadastros contam passos, não etapas",
+  "texto": "Nos cadastros (pessoa, contrato, processo, demanda, tarefa, compromisso e importação), o indicador no topo passou a dizer \"Passo 2 de 5\". A palavra \"Etapa\" fica só para as colunas do quadro, como a etapa do atendimento.",
+  "ondeAchar": "Pessoas, botão \"Nova pessoa\": o indicador fica acima do formulário."
+}

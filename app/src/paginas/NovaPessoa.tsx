@@ -521,7 +521,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       : <Aviso tipo="info" className="faixa-atualizar">{faixaDaOrigem(origem.modulo, leituraDaOrigem.nome)}</Aviso>)}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
-        <span>Etapa {passo + 1} de {total}</span>
+        <span>Passo {passo + 1} de {total}</span>
         <div className="progresso"><i style={{ width: Math.round(100 * passo / Math.max(1, total - 1)) + '%' }} /></div>
       </div>
 

@@ -535,7 +535,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     {demanda && <Aviso tipo="info">{demandaFora || OBJETOS_AINDA_VIRAM_DEMANDAS}</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
-        <span>Etapa {passo + 1} de {total}</span>
+        <span>Passo {passo + 1} de {total}</span>
         <div className="progresso"><i style={{ width: Math.round(100 * passo / (total - 1)) + '%' }} /></div>
       </div>
 

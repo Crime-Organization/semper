@@ -82,7 +82,7 @@ test.describe('Cadastro de processo', () => {
   test('quando cadastra um processo judicial, então o número indica o órgão e ele entra em "Distribuído"', async ({ page }) => {
     // Dado
     await page.goto('/processos/novo/');
-    await expect(page.getByText('Etapa 1 de 3')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 3')).toBeVisible();
     // Quando
     await page.getByLabel('Número do processo').fill('00056781320268130433');
     // Então
@@ -349,7 +349,7 @@ test.describe('Campos do escritório', () => {
     await page.getByLabel('Origem do caso').selectOption({ label: 'Site' });
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então: a data errada avisa e não salva
-    await expect(page.getByText('Etapa 3 de 3')).toBeVisible();
+    await expect(page.getByText('Passo 3 de 3')).toBeVisible();
     await expect(page.getByRole('alert').first()).toBeVisible();
     // Quando
     await page.getByLabel('Data da perícia').fill('10122026');

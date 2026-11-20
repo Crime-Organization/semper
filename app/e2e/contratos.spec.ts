@@ -58,7 +58,7 @@ test.describe('Cadastro de contratos', () => {
     // Quando
     await page.goto('/contratos/novo/');
     // Então
-    await expect(page.getByText('Etapa 1 de 5')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 5')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Cliente e responsável', level: 2 })).toBeVisible();
   });
 
