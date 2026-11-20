@@ -1,0 +1,1 @@
+import{f as e}from"./tema-Bz18GBa2.js";import{s as t}from"./posicao-CNA5OiiK.js";async function n(n){let[r,i]=await Promise.all([e.colunasListar(n),e.gruposListar(n)]);return t(r,i)?.id??null}export{n as t};
