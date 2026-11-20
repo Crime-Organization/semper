@@ -3,6 +3,7 @@
 // "Arquivados" embaixo da tabela. Na semente do banco fictício, "Renovar a procuração" é uma tarefa em "Para fazer" e o
 // contrato de MARIA APARECIDA EXEMPLO está ativo. Quem está logado é o Mateus (administrador).
 import { expect, test } from '@playwright/test';
+import { acaoNoMenuDoCartao, acoesNoMenuDoCartao } from './ajudantes';
 
 test.describe('Arquivados no quadro', () => {
   // Tela bem larga: as colunas de "Para fazer" até "Arquivados" ficam todas à vista, para arrastar entre elas.
@@ -57,8 +58,10 @@ test.describe('Arquivados na tabela', () => {
   });
 });
 
-test.describe('Botões do cartão arquivado', () => {
+test.describe('Ações do cartão arquivado', () => {
   // Em cada módulo, um item ativo da semente do banco fictício. Quem está logado é administrador, então pode excluir.
+  // Desde a #382, Arquivar, Desarquivar e Excluir ficam no menu ⋯ do topo (como na anotação); o lápis continua no topo, e a faixa
+  // do arquivado traz o Desarquivar à vista.
   const CARTOES = [
     { modulo: 'pessoas', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir a pessoa?' },
     { modulo: 'contratos', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir o contrato?' },
@@ -69,34 +72,52 @@ test.describe('Botões do cartão arquivado', () => {
   ];
 
   for (const { modulo, item, titulo } of CARTOES) {
-    test(`quando a pessoa arquiva e desarquiva em ${modulo}, então os botões do cartão acompanham, e a lixeira pede confirmação`, async ({ page }) => {
+    test(`quando a pessoa arquiva e desarquiva em ${modulo}, então o ⋯ e o lápis acompanham, e o Excluir pede confirmação`, async ({ page }) => {
       // Dado
       await page.goto(`/${modulo}/`);
       await page.getByRole('button', { name: 'Tabela' }).click();
       await page.getByRole('row').filter({ hasText: item }).first().getByText(item).first().click();
       const cartao = page.getByRole('dialog');
       const botao = (name: string) => cartao.getByRole('button', { name, exact: true });
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
+      await expect(botao('Editar')).toBeVisible();
       // Quando
-      await botao('Arquivar').click();
-      // Então
+      await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
+      // Então: o ⋯ troca Arquivar por Desarquivar e ganha o Excluir; o lápis sai; a faixa diz onde excluir e traz o Desarquivar
+      await expect(cartao.getByText(/pode ser excluíd[ao] definitivamente pelo menu ⋯\./)).toBeVisible();
       await expect(botao('Desarquivar')).toBeVisible();
-      await expect(botao('Excluir')).toBeVisible();
       await expect(botao('Editar')).toHaveCount(0);
-      await expect(botao('Arquivar')).toHaveCount(0);
-      // Quando: a lixeira, cancelando na janela
-      await botao('Excluir').click();
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Desarquivar', 'Excluir']);
+      // Quando: o Excluir, cancelando na janela
+      await acaoNoMenuDoCartao(page, cartao, 'Excluir');
       const janela = page.getByRole('dialog', { name: titulo });
       await expect(janela).toContainText('não pode ser desfeita');
       await janela.getByRole('button', { name: 'Cancelar' }).click();
       // Então: nada foi excluído
       await expect(janela).toHaveCount(0);
       await expect(botao('Desarquivar')).toBeVisible();
-      // Quando
+      // Quando: o Desarquivar da faixa
       await botao('Desarquivar').click();
       // Então
-      await expect(botao('Arquivar')).toBeVisible();
+      await expect(page.getByText(/desarquivad[ao]\./)).toBeVisible();
       await expect(botao('Editar')).toBeVisible();
-      await expect(botao('Excluir')).toHaveCount(0);
+      await expect(botao('Desarquivar')).toHaveCount(0);
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
     });
   }
+
+  test('quando a pessoa desarquiva pelo ⋯ e não pela faixa, então o cartão volta do mesmo jeito', async ({ page }) => {
+    // Dado
+    await page.goto('/tarefas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).first().getByText('Renovar a procuração').first().click();
+    const cartao = page.getByRole('dialog');
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
+    await expect(cartao.getByRole('button', { name: 'Desarquivar', exact: true })).toBeVisible();
+    // Quando
+    await acaoNoMenuDoCartao(page, cartao, 'Desarquivar');
+    // Então
+    await expect(cartao.getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Desarquivar', exact: true })).toHaveCount(0);
+  });
 });

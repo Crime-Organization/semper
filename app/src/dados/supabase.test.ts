@@ -26,6 +26,8 @@ describe('Troca do e-mail de acesso no supabase.ts', () => {
       const metodo = init?.method ?? 'GET', url = String(entrada);
       pedidos.push({ metodo, url });
       if (metodo !== 'GET') return new Response(null, { status: 204 });
+      // O contexto lê também os grupos da equipe (#378): o escritório do teste não tem nenhum.
+      if (url.includes('/grupos_da_equipe')) return Response.json([]);
       return Response.json(url.includes('/perfis') ? [{ id: ID, escritorio_id: 'e1', papel: 'usuario', nome: 'Pessoa' }] : [{ id: 'e1' }]);
     });
   });

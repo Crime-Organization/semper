@@ -59,7 +59,7 @@ export function NaColunaDoCartao({ children }: { children: ReactNode }) {
   </>;
 }
 /**
- * O lugar, na linha dos botões do painel (ao lado do formato e do "X"), para os botões do cartão (Arquivar e Editar).
+ * O lugar, na linha dos botões do painel (ao lado do formato e do "X"), para os botões do cartão (a etiqueta, o lápis e o ⋯, #382).
  * Vale no painel ao lado e na janela estreita, onde os botões do painel ficam por cima do cartão; na janela larga
  * (null), eles ficam no próprio cartão, encostados à direita do conteúdo.
  */

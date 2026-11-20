@@ -31,6 +31,7 @@ import { Aviso, Campo, CampoData, CampoDeVarios, Carregando, Escolhas, estiloBot
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { GruposNoLapis } from '../ui/GruposDoItem';
 import { Icone } from '../ui/Icone';
 import { pedirTexto } from '../ui/janela';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
@@ -442,6 +443,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       </Campo>
       <EscolhaDaEquipe rotulo="Colaboradores" erro={erros.colaboradores} dica="Quem da equipe também trabalha no processo (e passa a vê-lo)." adicionar="Adicionar colaborador"
         equipe={ctx.equipe} escolhidos={c.colaboradores} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={colaboradores => mudar({ colaboradores })} />
+      <GruposNoLapis ids={alvo?.grupos} />
     </>,
     detalhes: () => <>
       {listaDe('sistema')}

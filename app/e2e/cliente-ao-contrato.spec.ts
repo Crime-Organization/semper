@@ -3,7 +3,7 @@
 // com ela como cliente e o objeto "A definir"; o contrato assinado assim avisa que nenhuma demanda nasceu.
 // Quem está logado é o Mateus (advogado e administrador): ele fica como responsável do contrato.
 import { expect, test } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 
 const SEM_OBJETO = 'Os objetos deste contrato ainda estão "A definir"';
 
@@ -71,8 +71,8 @@ test.describe('Do cliente ao contrato', () => {
       await page.goto('/pessoas/');
       await page.getByRole('button', { name: 'Tabela' }).click();
       await page.getByRole('row').filter({ hasText: 'MARLENE PEREIRA PILOTO' }).click();
-      await page.getByRole('dialog').getByRole('button', { name: 'Arquivar' }).click();
-      await expect(page.getByText('Pessoa arquivada.', { exact: false })).toBeVisible();
+      await acaoNoMenuDoCartao(page, page.getByRole('dialog'), 'Arquivar');
+      await expect(page.getByText('Pessoa arquivada. Arquivadas podem ser excluídas depois.')).toBeVisible();
       await page.goto('/pessoas/');
       await page.getByRole('button', { name: 'Kanban' }).click();
       const arquivados = page.getByRole('list', { name: 'Arquivados', exact: true });

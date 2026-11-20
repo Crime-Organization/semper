@@ -2,7 +2,7 @@
 // Na semente do banco fictício, Bruno (estagiário, não é administrador) não é parte do contrato de JOSÉ DA SILVA TESTE, de Mateus,
 // e não está na demanda "Busca de anterioridade".
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
 
 async function ligarAChave(page: Page) {
   await page.goto('/inicio/');
@@ -27,7 +27,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: /Documento e observações/ })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: /Histórico de alterações/ })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
-    await expect(cartao.getByRole('button', { name: 'Arquivar' })).toHaveCount(0);
+    // Sem o ⋯ (o Arquivar mora nele desde a #382): o caso de controle, de quem altera, está em "pode alterar", mais abaixo.
+    await expect(menuDoCartao(cartao)).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação do contrato' })).toBeDisabled();
     // Quando
     await abrirSecao(cartao, 'Comentários');
@@ -98,7 +99,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     // Quando
     await cartao.getByRole('button', { name: 'Entrar como colaborador' }).click();
-    // Então
+    // Então: o aviso diz onde a pessoa passa a aparecer (a equipe fica no topo do cartão, #382)
+    await expect(page.getByText('Você entrou neste processo como colaborador (a equipe fica no topo do cartão).')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
     await expect(cartao.getByText('Para alterar, entre nele.')).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Assumir como responsável' })).toHaveCount(0);
@@ -130,6 +132,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await page.getByRole('row').filter({ hasText: 'Registro de marca' }).first().click();
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('button', { name: /Honorários/ })).toHaveCount(0);
+    // O lápis do topo (#382), com o nome que diz o que ele edita.
+    await expect(cartao.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('data-dica', 'Editar sem os valores');
     await cartao.getByRole('button', { name: 'Editar sem os valores' }).click();
     // Então
     await expect(cartao.getByLabel('Valor do contrato')).toHaveCount(0);
@@ -154,6 +158,7 @@ test.describe('Toda a equipe vê os cartões', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeEnabled();
     await expect(cartao.getByText('toda a equipe vê este cartão', { exact: false })).toHaveCount(0);
   });

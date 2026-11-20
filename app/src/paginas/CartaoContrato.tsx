@@ -1,5 +1,6 @@
-// Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo, os clientes e a situação; as ações, com a
-// equipe em bolinhas ao lado; depois as etiquetas e cada tópico numa seção que recolhe, com o número de itens ao lado do
+// Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo (TopoDoCartao, #382, como o da anotação), a
+// categoria e o código, com a equipe em bolinhas (com o % de cada um na dica), a etiqueta, o lápis e o ⋯ à direita; os selos das
+// etiquetas; os clientes e a situação. Quem edita sem os valores tem o mesmo lápis, com esse nome. Depois, cada tópico numa seção que recolhe, com o número de itens ao lado do
 // título (objetos, que abrem as demandas deles, partes, honorários com divisão e parcelas, documento, demandas, tarefas,
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
@@ -7,9 +8,9 @@ import { SD, type Contrato, type Historico, type Participacao, type PessoaResumi
 import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
-import { Botao } from '../ui/Botoes';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
+import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, Vazio } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -27,7 +28,7 @@ import { useLista, useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { gruposDoItem, meusGrupos, peloGrupoSemOsValores } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovoContrato from './NovoContrato';
 import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
@@ -37,6 +38,9 @@ import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem } from './ligarNoCartao';
+
+/** O valor de "Assinado em", na faixa das datas, enquanto o contrato não tem a data da assinatura. */
+const NAO_ASSINADO = 'Ainda não';
 
 interface Props {
   id: string;
@@ -88,7 +92,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // Quem só foi mencionado num comentário lê e comenta, mas não altera.
   const podeAlterar = alteraOContrato({ ...k, participantes: k.participantes.map(p => p.pessoa.id) }, ctx.perfil);
   // Quem não é parte vê o contrato sem o que é financeiro: as seções de valores nem aparecem, para "vazio" não parecer "zero".
-  const oculto = k.ve_financeiro === false, semValores = !podeAlterar && equipeEditaTudo(ctx.escritorio);
+  // Quem está no contrato só por um grupo da equipe (#378) participa sem os valores, como a equipe com a chave "equipe_edita_tudo".
+  const meus = meusGrupos(ctx.grupos, ctx.perfil.id), peloGrupo = podeAlterar ? undefined : gruposDoItem(ctx.grupos, k.grupos).find(g => meus.includes(g.id));
+  const oculto = k.ve_financeiro === false, semValores = !podeAlterar && (equipeEditaTudo(ctx.escritorio) || !!peloGrupo);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
@@ -148,15 +154,29 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
     <header className="cartao-cabeca">
-      <div className="linha">
-        {!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}<span className="codigo">{k.codigo}</span>
-        {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
-        {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!k.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o contrato', aoConfirmar: excluir } : undefined} />}
-        {semValores && !k.arquivado_em && !editando && <Botao pequeno onClick={() => setEditando(true)}>Editar sem os valores</Botao>}
-      </div>
+      {/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
+          altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. Quem
+          edita sem os valores tem o mesmo lápis, com esse nome (antes, um botão de texto à parte). As etiquetas: quem vê os valores
+          ou edita sem eles. */}
+      <TopoDoCartao modulo="contratos" id={k.id} arquivado={!!k.arquivado_em} editando={editando}
+        inicio={!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}
+        esquerda={<>
+          <span className="codigo">{k.codigo}</span>
+          {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
+          {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
+        </>}
+        equipe={<EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />}
+        mudaEtiquetas={!k.arquivado_em && !(oculto && !semValores)} aoMudarEtiquetas={aoMudar}
+        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => setEditando(true) } : undefined} />
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
-      {!editando && <section className="bloco campos cartao-situacao">
+      {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
+          valores do contrato também não vê a assinatura, como antes. */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(k.criado_em)}</b></DadoDoGrupo>
+        {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
+      </GrupoDeDatas>
+      {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
       </section>}
@@ -164,18 +184,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>
 
-    <div className="cartao-acoes">
-      {/* Quem altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. */}
-      <EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />
-    </div>
-    {!podeAlterar && <Nota>{semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {k.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Contrato arquivado. Se não for mais necessário, pode ser excluído definitivamente. Se for o último contrato do ano, o número dele volta a ser usado.'
-        : 'Contrato arquivado. Só quem cadastrou este contrato ou um administrador pode excluí-lo.'}</span>
-    </div>}
-
-    <SecaoEtiquetas modulo="contratos" id={k.id} somenteLer={!!k.arquivado_em || (oculto && !semValores)} aoMudar={aoMudar} />
+    {!podeAlterar && <Nota>{peloGrupo && !equipeEditaTudo(ctx.escritorio) ? peloGrupoSemOsValores(peloGrupo.nome) : semValores ? EDITA_SEM_OS_VALORES : oculto ? SO_LEITURA_DO_CONTRATO : 'Você vê este contrato porque foi mencionado num comentário. Pode ler e comentar, mas não alterar.'}</Nota>}
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {k.arquivado_em && <FaixaDoArquivado modulo="contratos" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     {/* Os checklists do contrato (#309): mexe quem altera o contrato (ou, com a equipe editando tudo, quem o vê), como nas
         anotações e nos processos; arquivado, só se lê. */}
@@ -220,7 +231,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Parcelas', V('parcelas')],
       ['Valor da parcela', parcela === null ? '—' : <>{fmtDinheiro(parcela)} <small className="nota">{k.entrada ? 'depois da entrada' : 'calculado'}</small></>],
       ['Descontos', V('descontos')],
-      ['Assinado em', V('assinado_em')],
       ['Primeiro pagamento', V('primeiro_pagamento')]
       ] as [string, ReactNode][]).map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
       <span className="rotulo-caps">Divisão</span>

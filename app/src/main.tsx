@@ -9,7 +9,10 @@ import '@fontsource/lato/900.css';
 import './estilo.css';
 import { App } from './App';
 import { FaixaDoBanco } from './ui/base';
+import { acompanharBarraDeRolagem } from './ui/barraDeRolagem';
 import { aplicarCoresDaMarca } from './ui/tema';
 
 aplicarCoresDaMarca();
+// O eixo dos botões do cartão (#381) depende da largura da barra de rolagem deste navegador.
+acompanharBarraDeRolagem();
 createRoot(document.getElementById('raiz')!).render(<StrictMode><FaixaDoBanco /><App /></StrictMode>);

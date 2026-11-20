@@ -8,6 +8,7 @@ import { doContratoEmQueEsta, estaNaDemanda, valorLegivelDemanda } from './deman
 import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao } from './lembrete';
 import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
+import { estaPeloGrupo } from './gruposDaEquipe';
 
 /** Rótulo das tarefas fora das colunas do quadro. */
 export const SEM_SITUACAO_TAREFA = 'Sem situação';
@@ -206,29 +207,29 @@ const CONFERE_PAPEL: Record<PapelNaTarefa, (t: PessoasDaTarefa, pessoaId: string
 export const papeisNaTarefa = (t: PessoasDaTarefa, pessoaId: string, perfilId: string | null = null) =>
   (Object.keys(CONFERE_PAPEL) as PapelNaTarefa[]).filter(papel => CONFERE_PAPEL[papel](t, pessoaId, perfilId));
 
-type QuemEstaNaTarefa = Pick<Tarefa, 'criado_por' | 'responsavel_id' | 'participantes'>;
-type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+type QuemEstaNaTarefa = Pick<Tarefa, 'criado_por' | 'responsavel_id' | 'participantes' | 'grupos'>;
+type QuemEstaNaDemanda = Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
 /**
  * Na lista: a tarefa está aí só para ler? Altera quem está nela ou na demanda ligada (`equipe_da_demanda`, que vem quando quem lê
  * pode ver a demanda). Quem a vê só pelo contrato, o dela ou o da demanda, só lê (#326), como no cartão.
  */
-export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: QuemEstaNaDemanda | null }, m: Pick<Membro, 'id' | 'papel'>) =>
-  !estaNaTarefa(t, m as Membro, t.equipe_da_demanda);
+export const soLeATarefaNaLista = (t: QuemEstaNaTarefa & { equipe_da_demanda: QuemEstaNaDemanda | null }, m: Pick<Membro, 'id' | 'papel'>, meusGrupos: readonly string[] = []) =>
+  !estaNaTarefa(t, m as Membro, t.equipe_da_demanda, meusGrupos);
 /**
- * Quem está na tarefa (como privado.vejo_tarefa, sem a fase de adaptação): os administradores, quem criou, o responsável, os
- * participantes e quem está na demanda ligada a ela (a demanda vem quando está ligada e quem pergunta pode vê-la). É quem altera
- * a tarefa.
+ * Quem está na tarefa (como privado.estou_na_tarefa, sem a fase de adaptação): os administradores, quem criou, o responsável, os
+ * participantes, quem está num grupo da equipe posto nela (`meusGrupos`, #378) e quem está na demanda ligada a ela (a demanda vem
+ * quando está ligada e quem pergunta pode vê-la; também pelos grupos dela). É quem altera a tarefa.
  */
-export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null) =>
+export const estaNaTarefa = (t: QuemEstaNaTarefa, m: Membro, demanda: QuemEstaNaDemanda | null = null, meusGrupos: readonly string[] = []) =>
   m.papel === 'master' || m.papel === 'admin' || m.id === t.criado_por || m.id === t.responsavel_id || t.participantes.includes(m.id)
-  || (!!demanda && estaNaDemanda(demanda, m));
+  || estaPeloGrupo(t.grupos, meusGrupos) || (!!demanda && estaNaDemanda(demanda, m, meusGrupos));
 /**
  * Quem vê a tarefa (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato da tarefa ou no
  * contrato da demanda ligada a ela (`contratosEmQueEsta`, como em veADemanda).
  */
 export const veATarefa = (t: QuemEstaNaTarefa & { contrato_id?: string | null }, m: Membro,
-  demanda: (QuemEstaNaDemanda & { contrato_id?: string | null }) | null = null, contratosDaPessoa: readonly string[] = []) =>
-  estaNaTarefa(t, m, demanda) || doContratoEmQueEsta(t.contrato_id, contratosDaPessoa) || doContratoEmQueEsta(demanda?.contrato_id, contratosDaPessoa);
+  demanda: (QuemEstaNaDemanda & { contrato_id?: string | null }) | null = null, contratosDaPessoa: readonly string[] = [], meusGrupos: readonly string[] = []) =>
+  estaNaTarefa(t, m, demanda, meusGrupos) || doContratoEmQueEsta(t.contrato_id, contratosDaPessoa) || doContratoEmQueEsta(demanda?.contrato_id, contratosDaPessoa);
 /** O cartão com o contrato que veio com quem está nele (null: quem lê não pode abrir o contrato, e não se sabe quem está nele). */
 type ComAEquipeDoContrato = { contrato_id?: string | null; contrato?: EquipeDoContrato | null };
 /**

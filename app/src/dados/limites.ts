@@ -237,3 +237,9 @@ export const BUSCA_GERAL_POR_MODULO = 5;
 export const BUSCA_GERAL_CANDIDATOS = 25;
 /** Quantas letras ou números é preciso digitar para a busca geral começar (com menos, quase tudo combinaria). */
 export const BUSCA_GERAL_MINIMO = 2;
+
+// ---------- Grupos da equipe (#378) ----------
+/** Nome de um grupo da equipe (exigido pelo banco: supabase/migrations/20261119233811_grupos_da_equipe.sql). */
+export const TAMANHO_GRUPO_DA_EQUIPE = 60;
+/** Quantos grupos da equipe um item pode ter (exigido pelo banco, mesma migração: ele recusa o 11º). */
+export const GRUPOS_POR_ITEM = 10;

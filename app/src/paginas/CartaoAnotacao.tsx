@@ -1,7 +1,8 @@
 // A anotação aberta, como uma nota do Obsidian, na janela do cartão (PainelCartao), no centro ou ao lado, como a pessoa escolhe
 // nos outros cartões (pedidos do dono de 18/11; antes, #303, #339, #340, #342): no topo, numa linha só, o caminho da pasta (que
 // leva à pasta e, para quem altera, muda a pasta) e, à direita, a equipe em bolinhas, o ícone de etiqueta (abre a escolha das
-// etiquetas) e o menu ⋯ (duplicar, baixar .md, arquivar, excluir), junto dos botões da janela (NoTopoDoCartao). Logo abaixo, os
+// etiquetas) e o menu ⋯ (duplicar, baixar .md, arquivar, excluir), junto dos botões da janela: o topo comum dos cartões
+// (MoldeDoTopo, #382), o mesmo de demanda, tarefa, processo, compromisso, contrato e pessoa. Logo abaixo, os
 // selos das etiquetas (sem etiquetas, a linha some); depois, o título grande, mudado ali mesmo, e o texto, que já abre na caixa de
 // escrever, com a formatação à vista, e salva sozinho (EditorDeTexto): sem modo de ler à parte. "Comentários" (aberta), "Ligada
 // a" e "Histórico de alterações" (recolhidas) vão para a coluna da direita da janela no centro (NaColunaDoCartao), com o
@@ -32,13 +33,14 @@ import { markdownDaAnotacao, nomeDoArquivo } from '../regras/anotacaoEmMarkdown'
 import { nomeDaEtiqueta } from '../regras/etiquetas';
 import { caminhoDaPasta } from '../regras/pastas';
 import { equipeEditaTudo, equipeVeTudo } from '../regras/equipeVeTudo';
-import { ICONE_DO_TOPO, MenuDoCartao, NoTopoDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
+import { MenuDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, EditorDeTexto, estiloBotao, Nota, Selo, TituloEditavel, Vazio, type ControleDoEditor } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, EditorDeTexto, estiloBotao, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio, type ControleDoEditor } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { EquipeNoTopo } from './EquipeNoTopo';
-import { BotaoDasEtiquetas, SelosDasEtiquetas, useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
+import { useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { buscarEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
@@ -49,7 +51,10 @@ import { buscarPastas, usePastas } from '../ui/pastasDoEscritorio';
 import { Recolhivel } from '../ui/Recolhivel';
 import { decidirGravacao, juntarTextoNoHistorico } from '../regras/salvamento';
 import { JUNTAR_TEXTO_NO_HISTORICO } from '../ui/tempos';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
+import { FaixaDoArquivado, MoldeDoTopo, useFocoAoDesarquivar } from '../ui/TopoDoCartao';
+import { TOPO_DO_CARTAO } from '../regras/topoDoCartao';
 import { useQuantos } from '../ui/useQuantos';
 import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -216,12 +221,15 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
   useMudancas(() => { void carregar(); void carregarItens(); setVersaoHist(v => v + 1); });
   const historico = useQuantos(() => historicoJunto(id!), `${id}:${versaoHist}`, !emBranco);
 
+  // Desarquivada pela faixa (que some com o botão), o foco vai para o ⋯ do topo.
+  const menuDoTopo = useFocoAoDesarquivar(!!a?.arquivado_em);
+
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (a === undefined) return <Carregando />;
   if (!a) return <Vazio>{NAO_ENCONTRADA}</Vazio>;
 
   const chaves = { equipeEditaTudo: equipeEditaTudo(ctx.escritorio) };
-  const podeAlterar = alteraAAnotacao(a, ctx.perfil, chaves);
+  const podeAlterar = alteraAAnotacao(a, ctx.perfil, chaves, meusGrupos(ctx.grupos, ctx.perfil.id));
   const podeLigar = ligaNaAnotacao(a, ctx.perfil, chaves);
   const podeExcluir = excluiAAnotacao(a, ctx.perfil);
   // Os módulos que se podem ligar: os ligados no escritório (as pessoas sempre existem).
@@ -478,7 +486,7 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
       await gravacoes.current.fila;
       const original = await SD.anotacaoObter(a!.id);
       if (!original) throw new Error(NAO_ENCONTRADA);
-      const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves), equipe: ctx.equipe };
+      const quem = { id: ctx.perfil.id, alteraAOriginal: alteraAAnotacao(original, ctx.perfil, chaves, meusGrupos(ctx.grupos, ctx.perfil.id)), equipe: ctx.equipe };
       const copia = await SD.anotacaoDuplicar(original.id, dadosDaCopia(original, quem));
       feito(`Anotação ${original.codigo} duplicada como ${copia.codigo}.`, 'cópia da anotação', async () => {
         await SD.anotacoesArquivar([copia.id], true);
@@ -544,27 +552,20 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
     {/* O topo num lugar só (o da anotação nova ou o da gravada): o título e o texto, logo abaixo, continuam os mesmos quando a
         anotação nova vai ao banco. */}
     {emBranco ? <TopoDoRascunho rascunho={rascunho} pastas={pastas} /> : <>
-      <header className="anotacao-topo">
-        <CaminhoDaPasta pastas={pastas} pastaId={a.pasta_id} comLinks aoMudar={mudaNoLugar ? mudarPasta : undefined} />
-        <div className="anotacao-topo-acoes">
+      {/* O topo comum dos cartões (MoldeDoTopo, #382): à esquerda o caminho da pasta (leva à pasta e, para quem altera, muda a
+          pasta); à direita a equipe em bolinhas, que quem altera muda ali (#356), com as regras de sair da anotação (#276); a etiqueta
+          e o ⋯ junto dos botões da janela; embaixo, os selos das etiquetas (sem etiquetas, a linha não aparece). Quem só lê vê só os
+          selos. */}
+      <MoldeDoTopo inicio={<CaminhoDaPasta pastas={pastas} pastaId={a.pasta_id} comLinks aoMudar={mudaNoLugar ? mudarPasta : undefined} />}
+        equipe={<>
           {a.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-          {/* Quem altera muda a equipe nas bolinhas (#356), com as regras de sair da anotação (#276). */}
-          <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} mudar={mudaNoLugar ? {
+          <EquipeNoTopo modulo="anotacoes" id={a.id} equipe={{ responsavel_id: a.responsavel_id, lista: a.participantes }} grupos={a.grupos} mudar={mudaNoLugar ? {
             saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
           } : null} />
-          {/* A etiqueta e o ⋯ ficam junto dos botões da janela (o formato e o X), como os botões do topo dos outros cartões. A etiqueta
-              abre a mesma escolha da seção "Etiquetas" dos outros cartões; quem só lê vê só os selos. */}
-          <NoTopoDoCartao>
-            {mudaNoLugar && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={depois} rotulo="Etiquetas" className="cartao-botao" comDica>
-              <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
-            </BotaoDasEtiquetas>}
-            <MenuDoCartao arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
-              excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoMenu} />
-          </NoTopoDoCartao>
-        </div>
-      </header>
-      {/* As etiquetas escolhidas, numa linha entre o topo e o título (sem etiquetas, ela não aparece). */}
-      <SelosDasEtiquetas ids={etiquetas.ids} rotulo="Etiquetas" aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
+        </>}
+        etiquetas={etiquetas} mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={depois}
+        botoes={<MenuDoCartao rotulo={TOPO_DO_CARTAO.anotacoes.menu} arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
+          refDoBotao={menuDoTopo} excluir={podeExcluir ? { oQue: TOPO_DO_CARTAO.anotacoes.oQue, aoConfirmar: excluir } : undefined} extras={acoesDoMenu} />} />
     </>}
 
     {/* A anotação nova abre com o cursor no título; sem título (ou com o provisório), ele aparece como "Sem título", apagado. */}
@@ -572,11 +573,14 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
       exibido={titulo ? undefined : TITULO_PROVISORIO} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo}
       maximo={TAMANHO_ANOTACAO.titulo} placeholder={TITULO_PROVISORIO} aoMudarRascunho={mudarRascunho('titulo')}
       editandoAoAbrir={emBranco} depoisDoEnter={emBranco ? focarTexto : undefined} />
+    {/* A faixa das datas (#383), a mesma dos outros cartões, entre o título e o texto: a criação. A última gravação fica no pé
+        ("Atualizada agora", que acompanha o salvar sozinho). A anotação nova ainda não tem datas, nem a que acabou de ir ao banco
+        e ainda não foi lida de volta (se a leitura falhar, ela continua a em branco, sem a data do banco). */}
+    {!emBranco && a.criado_em && <GrupoDeDatas rotulo="Datas">
+      <DadoDoGrupo rotulo="Criada em"><b className="num">{dataDaCriacao(a.criado_em)}</b></DadoDoGrupo>
+    </GrupoDeDatas>}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
-    {a.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Anotação arquivada. Se não for mais necessária, pode ser excluída definitivamente, pelo menu ⋯.'
-        : 'Anotação arquivada. Só quem a escreveu ou um administrador pode excluí-la.'}</span>
-    </div>}
+    {a.arquivado_em && <FaixaDoArquivado modulo="anotacoes" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     {conflito && <Aviso tipo="erro" className="anotacao-conflito">
       <p>Outra pessoa mudou o texto desta anotação enquanto você escrevia. Nada foi gravado por cima: escolha qual texto fica.</p>

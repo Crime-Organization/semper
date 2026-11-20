@@ -8,6 +8,7 @@ import { blocosDoTexto, textoDosPedacos, type TipoBloco } from './formatacao';
 import { clientesPorExtenso } from './contrato';
 import { ativoNaEquipe } from './equipe';
 import { fmtData } from './pessoa';
+import { estaPeloGrupo } from './gruposDaEquipe';
 import { equipeVeTudo } from './equipeVeTudo';
 import { TIPOS_PROCESSO } from './processo';
 import { gravaForaDoCartao, pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
@@ -74,22 +75,24 @@ export const ABRE_A_ANOTACAO: Record<ModuloDaAnotacao, boolean> = {
 };
 
 // ---------- quem vê e quem altera ----------
-type QuemEstaNaAnotacao = Pick<Anotacao, 'criado_por' | 'responsavel_id' | 'participantes'>;
+type QuemEstaNaAnotacao = Pick<Anotacao, 'criado_por' | 'responsavel_id' | 'participantes' | 'grupos'>;
 /** As chaves do escritório que abrem os cartões para toda a equipe. */
 export interface ChavesDaEquipe { equipeVeTudo: boolean; equipeEditaTudo: boolean }
 const ehAdministrador = (m: Pick<Membro, 'papel'>) => m.papel === 'master' || m.papel === 'admin';
 /**
  * Quem altera a anotação (texto, título, responsável, participantes, ligações, arquivar), como a regra do banco: os
- * administradores, toda a equipe com "equipe_edita_tudo", quem criou, o responsável e os participantes.
+ * administradores, toda a equipe com "equipe_edita_tudo", quem criou, o responsável, os participantes e quem está num grupo da
+ * equipe posto nela (`meusGrupos`, #378).
  */
-export const alteraAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'papel'>, chaves: Pick<ChavesDaEquipe, 'equipeEditaTudo'>) =>
-  ehAdministrador(m) || chaves.equipeEditaTudo || m.id === a.criado_por || m.id === a.responsavel_id || a.participantes.includes(m.id);
+export const alteraAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'papel'>, chaves: Pick<ChavesDaEquipe, 'equipeEditaTudo'>, meusGrupos: readonly string[] = []) =>
+  ehAdministrador(m) || chaves.equipeEditaTudo || m.id === a.criado_por || m.id === a.responsavel_id || a.participantes.includes(m.id)
+  || estaPeloGrupo(a.grupos, meusGrupos);
 /**
  * Quem vê a anotação, como a regra do banco: quem a altera, toda a equipe com "equipe_ve_tudo", e quem vê algum item ligado a
  * ela que a abre (veja ABRE_A_ANOTACAO). Quem a vê só pelo item ligado só lê.
  */
-export const veAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'papel'>, chaves: ChavesDaEquipe, vejoUmItemQueAbre = false) =>
-  alteraAAnotacao(a, m, chaves) || chaves.equipeVeTudo || vejoUmItemQueAbre;
+export const veAAnotacao = (a: QuemEstaNaAnotacao, m: Pick<Membro, 'id' | 'papel'>, chaves: ChavesDaEquipe, vejoUmItemQueAbre = false, meusGrupos: readonly string[] = []) =>
+  alteraAAnotacao(a, m, chaves, meusGrupos) || chaves.equipeVeTudo || vejoUmItemQueAbre;
 /**
  * Por que o membro não pode ser mencionado nos comentários da anotação (null se pode), como o gatilho privado.mencao_na_anotacao:
  * só quem a vê sem depender de um item ligado (quem a altera, ou toda a equipe com uma das chaves). Quem a vê só por um item ligado
@@ -100,8 +103,8 @@ export const motivoSemMencaoNaAnotacao = (a: QuemEstaNaAnotacao, chaves: ChavesD
 /** A mensagem de quando alguém que não pode ser mencionado aparece num comentário da anotação (a mesma do banco). */
 export const mencaoNegadaNaAnotacao = (nome: string) => `Não é possível mencionar ${nome} nesta anotação: inclua essa pessoa como participante antes.`;
 /** Ligar e desligar itens: quem altera, e só com a anotação ativa (a arquivada fica como está). */
-export const ligaNaAnotacao = (a: QuemEstaNaAnotacao & Pick<Anotacao, 'arquivado_em'>, m: Pick<Membro, 'id' | 'papel'>, chaves: Pick<ChavesDaEquipe, 'equipeEditaTudo'>) =>
-  !a.arquivado_em && alteraAAnotacao(a, m, chaves);
+export const ligaNaAnotacao = (a: QuemEstaNaAnotacao & Pick<Anotacao, 'arquivado_em'>, m: Pick<Membro, 'id' | 'papel'>, chaves: Pick<ChavesDaEquipe, 'equipeEditaTudo'>,
+  meusGrupos: readonly string[] = []) => !a.arquivado_em && alteraAAnotacao(a, m, chaves, meusGrupos);
 /** Excluir de vez: só a anotação arquivada, por quem criou ou por um administrador (o padrão de todos os módulos). */
 export const excluiAAnotacao = (a: Pick<Anotacao, 'criado_por' | 'arquivado_em'>, m: Pick<Membro, 'id' | 'papel'>) =>
   !!a.arquivado_em && (ehAdministrador(m) || m.id === a.criado_por);

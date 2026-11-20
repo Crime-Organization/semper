@@ -168,3 +168,32 @@ describe('Mensagens: aviso de quem entrou num item (#377)', () => {
     expect(marcar).toHaveBeenCalledWith('m-inclusao');
   });
 });
+
+describe('Mensagens: grupos da equipe (#378)', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('dado o aviso de quem entrou numa demanda pelo grupo, quando a caixa abre, então diz por qual grupo', async () => {
+    // Quando
+    montar([avisoDeInclusao(inclusao({ grupo: 'Núcleo Alfa' }))]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: 'Aviso não lido: Ana Teste Lima incluiu você, pelo grupo Núcleo Alfa, na demanda Busca de anterioridade' });
+    expect(item).toHaveTextContent('Ana Teste Lima incluiu você, pelo grupo Núcleo Alfa, na demanda Busca de anterioridade');
+  });
+
+  it('dada a pessoa posta num grupo, quando a caixa abre, então há uma mensagem só, com os links para as demandas e as tarefas do grupo', async () => {
+    // Dado
+    const marcar = vi.spyOn(SD, 'mensagemMarcarLida').mockResolvedValue();
+    // Quando
+    montar([{ id: 'm-grupo', tipo: 'grupo', criado_em: '2026-11-19T12:00:00Z', lido_em: null, comentario: null, prazo: null, pedido: null, inclusao: null,
+      grupo: { grupo_id: 'ga', nome: 'Núcleo Alfa', incluido_por: 'u-ana' } }]);
+    // Então
+    const item = await screen.findByRole('listitem', { name: 'Mensagem não lida: Ana Teste Lima incluiu você no grupo Núcleo Alfa.' });
+    expect(item).toHaveTextContent('Você passa a participar dos itens dele.');
+    expect(within(item).getByRole('link', { name: 'Ver as demandas do grupo' })).toHaveAttribute('href', '/demandas/?grupo=ga');
+    expect(within(item).getByRole('link', { name: 'Ver as tarefas do grupo' })).toHaveAttribute('href', '/tarefas/?grupo=ga');
+    // Quando
+    await userEvent.click(within(item).getByRole('link', { name: 'Ver as tarefas do grupo' }));
+    // Então
+    expect(marcar).toHaveBeenCalledWith('m-grupo');
+  });
+});

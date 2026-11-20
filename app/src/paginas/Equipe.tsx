@@ -1,5 +1,5 @@
 // Equipe e acessos (master e administradores): liberar acesso a uma pessoa cadastrada, funções, papéis,
-// desativar, reativar e excluir, convites pendentes e o registro de ações exigido pela LGPD.
+// desativar, reativar e excluir, os grupos da equipe (#378, GruposDaEquipe.tsx), convites pendentes e o registro de ações exigido pela LGPD.
 // A tabela mostra o essencial; clicar no usuário abre a janela dele (UsuarioDaEquipe.tsx), onde se muda o nome, a
 // função, o papel, a sociedade, o e-mail e a situação.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -21,6 +21,7 @@ import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, hojeISO, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
 import { PainelCartao } from '../ui/PainelCartao';
 import { periodoAtualDoSocio } from '../regras/parcelas';
+import { GruposDaEquipe } from './GruposDaEquipe';
 import { seloDaSituacao, UsuarioDaEquipe } from './UsuarioDaEquipe';
 import './Equipe.css';
 
@@ -225,6 +226,8 @@ function PainelEquipe() {
           aoDefinirAtivo={a => definirAtivo(doAberto, a)} aoExcluir={() => excluir(doAberto)} aoMudar={mudouEquipe} />
       </PainelCartao>}
     </section>
+
+    <GruposDaEquipe />
 
     <section aria-labelledby="tPend" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <TituloSecao id="tPend">Convites pendentes</TituloSecao>

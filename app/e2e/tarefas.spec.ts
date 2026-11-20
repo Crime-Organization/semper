@@ -4,7 +4,7 @@
 // e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante e o prazo
 // vencido. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, alturaParada, entrarComo } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao, alturaParada, entrarComo } from './ajudantes';
 
 /** Abre o cartão de uma tarefa pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
 async function abrirTarefa(page: Page, titulo: string, ...secoes: string[]) {
@@ -795,7 +795,7 @@ test.describe('Concluir a tarefa', () => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     // Então
     await expect(cartao.getByText('Arquivada', { exact: true })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);

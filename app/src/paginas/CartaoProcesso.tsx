@@ -1,5 +1,7 @@
-// Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo, o nome
-// e o número; as ações, com a equipe em bolinhas ao lado (responsável e colaboradores), e a situação; depois, cada tópico
+// Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo (TopoDoCartao,
+// #382, como o da anotação), o tipo e o código, com a equipe em bolinhas (responsável e colaboradores), a etiqueta, o lápis e o ⋯
+// à direita; os selos das etiquetas; o nome, o número e a situação. "Entrar como colaborador" e "Assumir como responsável" ficam
+// logo abaixo, junto da nota de quem só lê (no ⋯, ninguém os acharia), e o aviso diz que a equipe está no topo. Depois, cada tópico
 // numa seção que recolhe (prazos, dados, clientes, demandas, contratos, tarefas, compromissos). Na coluna da direita (no centro) ou
 // no pé do cartão (ao lado), desde a #362: comentários, andamentos (a linha do tempo), anotações e histórico de alterações.
 // Desde a #346, quem altera o processo muda o nome do cartão no próprio lugar, como na anotação (o lápis não o repete). Sem
@@ -17,13 +19,13 @@ import {
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -33,6 +35,7 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useLista, useQuantos } from '../ui/useQuantos';
 import { ContratosDoProcesso } from './ContratosDoProcesso';
 import { quantosPreenchidos } from '../regras/secoes';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import { dataCurta, relativo } from '../ui/util';
 import { CartoesLigados } from './CartoesLigados';
@@ -58,8 +61,8 @@ interface Props {
 
 /** O que a tela confirma depois de a pessoa entrar no processo. */
 const ENTRADA_NO_PROCESSO: Record<ComoEntrarNoProcesso, string> = {
-  colaborador: 'Você entrou neste processo como colaborador.',
-  responsavel: 'Você agora é o responsável por este processo. Quem era responsável continua como colaborador.'
+  colaborador: 'Você entrou neste processo como colaborador (a equipe fica no topo do cartão).',
+  responsavel: 'Você agora é o responsável por este processo (a equipe fica no topo do cartão). Quem era responsável continua como colaborador.'
 };
 
 export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
@@ -100,8 +103,8 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!p) return <Vazio>Este processo não foi encontrado. Ele pode ter sido excluído, ou você não participa dele.</Vazio>;
 
   const podeExcluir = !!p.arquivado_em && (p.criado_por === eu || ctx.ehAdmin);
-  const podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m));
-  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil) && !p.arquivado_em;
+  const meus = meusGrupos(ctx.grupos, ctx.perfil.id), podeAlterar = !soLeOCartao(ctx, m => alteraOProcesso(p, m, meus));
+  const advogado = advogadoNaAdaptacao(ctx), podeEntrar = advogado && !alteraOProcesso(p, ctx.perfil, meus) && !p.arquivado_em;
   // Ligar ao processo um item que já existe (#341): só quem altera o processo, com ele ativo. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !p.arquivado_em;
   // Criar um compromisso já ligado (#273, #376): quem altera o processo e, na fase de adaptação, o advogado (ele marca audiência
@@ -165,17 +168,31 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   return <CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
     <header className="cartao-cabeca">
-      <div className="linha">
-        <Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo><span className="codigo">{p.codigo}</span>
-        {p.orgao && <Selo tipo="arq">{p.orgao}</Selo>}
-        {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o processo', aoConfirmar: excluir } : undefined} />}
-      </div>
+      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+          lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
+      <TopoDoCartao modulo="processos" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo>}
+        esquerda={<>
+          <span className="codigo">{p.codigo}</span>
+          {p.orgao && <Selo tipo="arq">{p.orgao}</Selo>}
+          {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
+        </>}
+        equipe={<EquipeNoTopo modulo="processos" id={p.id} equipe={{ responsavel_id: p.responsavel_id, lista: p.colaboradores }} grupos={p.grupos} mudar={mudaNoLugar ? {
+          saida: { podeSair: gravaForaDoCartao(ctx, p.criado_por === eu) }, depois: depoisDeLigar,
+          aoSair: equipeVeTudo(ctx.escritorio) ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+        } : null} />}
+        mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
+        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
       <TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
         maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />
       <p className="demanda-descricao">{p.numero}</p>
-      {!editando && <section className="bloco campos cartao-situacao">
+      {/* A faixa das datas (#383), a mesma dos outros cartões: a criação do cartão (a distribuição fica nos dados do processo). */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
+      </GrupoDeDatas>
+      {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
       </section>}
@@ -183,26 +200,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 
-    <div className="cartao-acoes">
-      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
-      <EquipeNoTopo modulo="processos" id={p.id} equipe={{ responsavel_id: p.responsavel_id, lista: p.colaboradores }} mudar={mudaNoLugar ? {
-        saida: { podeSair: gravaForaDoCartao(ctx, p.criado_por === eu) }, depois: depoisDeLigar,
-        aoSair: equipeVeTudo(ctx.escritorio) ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
-      } : null} />
-    </div>
     {!podeAlterar && <Nota>{podeEntrar ? SO_LEITURA_DO_PROCESSO_ADVOGADO : SO_LEITURA_DO_PROCESSO}</Nota>}
     {podeEntrar && <div className="cartao-acoes">
       <Botao pequeno onClick={() => entrar('colaborador')}>Entrar como colaborador</Botao>
       <BotaoDuplo pequeno confirmar="Confirmar: assumir como responsável" aoConfirmar={() => entrar('responsavel')}>Assumir como responsável</BotaoDuplo>
     </div>}
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {p.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Processo arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
-        : 'Processo arquivado. Só quem cadastrou este processo ou um administrador pode excluí-lo.'}</span>
-    </div>}
-
-
-    <SecaoEtiquetas modulo="processos" id={p.id} somenteLer={!!p.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {p.arquivado_em && <FaixaDoArquivado modulo="processos" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} />
 

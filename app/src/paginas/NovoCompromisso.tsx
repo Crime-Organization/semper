@@ -25,6 +25,7 @@ import { Aviso, Campo, CampoDataHora, CampoDeVarios, Carregando, Escolhas, estil
 import { BuscaPessoa } from '../ui/BuscaPessoa';
 import { CampoComSugestoes } from '../ui/CampoComSugestoes';
 import { EscolhaDaEquipe } from '../ui/EscolhaDaEquipe';
+import { GruposNoLapis } from '../ui/GruposDoItem';
 import { Icone } from '../ui/Icone';
 import { colunaInicial } from '../ui/quadro/colunaInicial';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -323,6 +324,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       </Campo>
       <EscolhaDaEquipe rotulo="Participantes" erro={erros.participantes} dica="Quem da equipe também vai (e passa a ver o compromisso)." adicionar="Adicionar participante"
         equipe={ctx.equipe} escolhidos={c.participantes} fora={c.responsavelId ? [c.responsavelId] : []} aoMudar={participantes => mudar({ participantes })} />
+      <GruposNoLapis ids={alvo?.grupos} />
       <Escolhas rotulo="Agenda geral" dica="Todos do escritório veem. Mudar, só quem participa.">
         <label><input type="checkbox" checked={c.geral} onChange={e => mudar({ geral: e.target.checked })} />Mostrar na Agenda geral</label>
       </Escolhas>

@@ -3,7 +3,7 @@
 // (TJMG, em "Distribuído"), e o administrativo 912345678, "Registro da marca Exemplo", de MARIA APARECIDA EXEMPLO (INPI,
 // em "Protocolado"). Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
 
@@ -314,8 +314,8 @@ test.describe('Cartão do processo', () => {
     // Dado
     const cartao = await abrirProcesso(page);
     // Quando
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
-    await cartao.getByRole('button', { name: 'Excluir' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
+    await acaoNoMenuDoCartao(page, cartao, 'Excluir');
     await page.getByRole('dialog', { name: 'Excluir o processo?' }).getByRole('button', { name: 'Excluir definitivamente' }).click();
     // Então
     await expect(page.getByText('Processo excluído definitivamente.')).toBeVisible();
@@ -781,7 +781,7 @@ test.describe('Andamentos, prazos e intimações', () => {
     await abrirSecao(cartao, 'Andamentos');
     await lancarAndamento(cartao, 'Petição', 'Juntada');
     // Quando
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(page.getByText('Processo arquivado.', { exact: false }).first()).toBeVisible();
     // Então: "Mudar" e "Excluir" ficam no menu "⋯" de cada andamento (#362), que não aparece
     await expect(cartao.getByRole('list', { name: 'Andamentos do processo' })).toContainText('Juntada');

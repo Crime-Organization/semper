@@ -6,8 +6,12 @@
 // com o aviso no pé da tela e o Desfazer; e, depois dos participantes, a bolinha com "+" abre a busca só na equipe
 // (BuscaNaEquipe) para pôr mais alguém. A bolinha cuja ação seria recusada (no contrato, sair dele sem poder) fica desligada, com
 // o motivo na dica (`impedeTirar`, `impedeTrocar`). Quem só lê vê as bolinhas com o nome na dica, sem ação.
-import { useRef, type ReactNode } from 'react';
-import type { Membro } from '../dados';
+// Os grupos da equipe postos no item (#378) vêm depois dos participantes, em pílulas (GruposNoCartao), e o "+" acha também os
+// grupos (a parte "Grupos da equipe" da busca). Sem grupos no escritório, nada disso aparece.
+import { useRef, type CSSProperties, type ReactNode } from 'react';
+import type { GrupoDaEquipe, Membro } from '../dados';
+import { GRUPOS_DEMAIS, nomeDoGrupo, numeroDoGrupo } from '../regras/gruposDaEquipe';
+import { GruposNoCartao } from './GruposDoItem';
 import { Avatar } from './Avatar';
 import { propsDaDica } from './base';
 import { BuscaNaEquipe } from './BuscaNaEquipe';
@@ -15,6 +19,8 @@ import { Icone } from './Icone';
 
 /** Tamanho das bolinhas da equipe no cartão (maiores que as do quadro, para clicar com folga). Vale também para a do "+". */
 const TAMANHO_BOLINHA = 34;
+/** A mesma medida para o estilo (o vão entre as bolinhas no topo, no celular, em estilo.css): o número fica só aqui. */
+const MEDIDA_DA_BOLINHA = { '--bolinha-da-equipe': TAMANHO_BOLINHA + 'px' } as CSSProperties;
 /** Tamanho do ícone de pessoa dentro da bolinha vazia do responsável. */
 const ICONE_DA_VAZIA = 16;
 /** A dica do "+" enquanto uma mudança na equipe ainda grava. */
@@ -67,12 +73,40 @@ export interface MudarAEquipe {
   aoTrocarResponsavel: (m: Membro) => unknown;
 }
 
+/** Os grupos da equipe no topo do cartão (#378). */
+export interface GruposDoCartao {
+  /** Os grupos postos no item, já na ordem do item. */
+  doItem: GrupoDaEquipe[];
+  /** A equipe do escritório (conta quem está em cada grupo). */
+  equipe: Membro[];
+  eu: string;
+  /** A nota de quem está no cartão só por um grupo. */
+  nota?: (g: GrupoDaEquipe) => string | null;
+  /**
+   * Quem altera o cartão: os grupos que o "+" acha (os que ainda não estão no item), o pôr e o tirar. Sem isto, as pílulas são
+   * só para ver. Sem grupos no escritório, quem usa não passa nada.
+   */
+  mudar?: {
+    candidatos: (termo: string) => GrupoDaEquipe[];
+    /** O item já tem o máximo de grupos. */
+    cheio: boolean;
+    /** O nome do "+" com grupos no escritório: "Pôr participante ou grupo". */
+    por: string;
+    aoPor: (g: GrupoDaEquipe) => unknown;
+    aoTirar: (g: GrupoDaEquipe) => unknown;
+    /** Por que este grupo não sai do cartão (ele é o único caminho de quem muda até o item): o motivo no lugar do "Tirar". */
+    impedeTirar?: (g: GrupoDaEquipe) => string | undefined;
+  };
+}
+
 interface Props {
   /** null: o cartão está sem responsável (aparece a bolinha vazia). */
   responsavel: PessoaDaEquipe | null;
   participantes: PessoaDaEquipe[];
   /** Sem isto, as bolinhas são só para ver (quem só lê o cartão, o cartão arquivado). */
   mudar?: MudarAEquipe;
+  /** Os grupos da equipe do item (#378). */
+  grupos?: GruposDoCartao;
 }
 
 /** A dica de quem só vê: o nome e o papel ("Ana Souza · Responsável"). */
@@ -80,17 +114,23 @@ const quemE = (p: PessoaDaEquipe) => `${p.nome} · ${p.papel}`;
 /** O nome da bolinha para o leitor de tela: "Ana Souza, Responsável". */
 const nomeDaBolinha = (p: PessoaDaEquipe) => `${p.nome}, ${p.papel}`;
 
-export function EquipeDoCartao({ responsavel, participantes, mudar }: Props) {
+export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Props) {
   // Depois de tirar alguém, a bolinha dele some: o foco vai à bolinha do "+" (que, desligada, continua no Tab), e o teclado não se perde.
   const mais = useRef<HTMLButtonElement>(null);
   const focarNoMais = () => setTimeout(() => mais.current?.focus(), 0);
-  const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.cheia;
+  // Com grupos no escritório, a lista de pessoas cheia não desliga o "+" enquanto houver grupo para pôr (e vice-versa).
+  const comGrupos = mudar && grupos?.mudar;
+  // O "+" só desliga sem pessoa e sem grupo para pôr; o motivo é o da lista cheia ou, sem ele, o dos grupos demais.
+  const semPessoas = !!mudar?.cheia || !mudar?.candidatos('').length;
+  const semGrupos = !(comGrupos && !comGrupos.cheio && comGrupos.candidatos('').length);
+  const motivoComGrupos = semPessoas && semGrupos ? mudar?.cheia ?? (comGrupos?.cheio ? GRUPOS_DEMAIS : undefined) : undefined;
+  const motivoDoMais = mudar?.ocupado ? GRAVANDO_A_EQUIPE : comGrupos ? motivoComGrupos : mudar?.cheia;
   // A bolinha do responsável que não pode ser passada adiante diz só quem ele é e o motivo, sem o "clique para trocar".
   const impedeTrocar = responsavel ? mudar?.impedeTrocar : undefined;
   const motivoDoResponsavel = mudar?.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
   // Desligada, a bolinha de um participante diz quem ele é e por quê; ligada, a ação ("Tirar Ana Souza").
   const motivoDoParticipante = (p: PessoaDaEquipe) => mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.impedeTirar?.(p);
-  return <div className="equipe-cartao" role="group" aria-label="Equipe">
+  return <div className="equipe-cartao" role="group" aria-label="Equipe" style={MEDIDA_DA_BOLINHA}>
     {mudar
       ? <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={!!motivoDoResponsavel} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
         bolinha={{
@@ -102,7 +142,7 @@ export function EquipeDoCartao({ responsavel, participantes, mudar }: Props) {
             : { dica: `${SEM_RESPONSAVEL}. ${NINGUEM_PARA_ASSUMIR}`, rotulo: SEM_RESPONSAVEL }
         }} />
       : <SoParaVer dica={responsavel ? quemE(responsavel) : SEM_RESPONSAVEL} rotulo={responsavel ? nomeDaBolinha(responsavel) : SEM_RESPONSAVEL} vazia={!responsavel}><Bolinha p={responsavel} /></SoParaVer>}
-    {(participantes.length > 0 || mudar) && <span className="equipe-traco" aria-hidden="true" />}
+    {(participantes.length > 0 || mudar || !!grupos?.doItem.length) && <span className="equipe-traco" aria-hidden="true" />}
     {participantes.length > 0 && <span className="equipe-participantes">
       {participantes.map(p => {
         if (!mudar) return <SoParaVer key={p.id} dica={quemE(p)} rotulo={nomeDaBolinha(p)}><Bolinha p={p} /></SoParaVer>;
@@ -116,8 +156,15 @@ export function EquipeDoCartao({ responsavel, participantes, mudar }: Props) {
           }}><Bolinha p={p} /></button>;
       })}
     </span>}
-    {mudar && <BuscaNaEquipe bolinha={{ tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoMais }} desligado={!!motivoDoMais} adicionar={mudar.por}
-      buscar={mudar.candidatos} aoEscolher={m => void mudar.aoPor(m)} botao={mais} />}
+    {grupos && <GruposNoCartao grupos={grupos.doItem} equipe={grupos.equipe} eu={grupos.eu} nota={grupos.nota} ocupado={mudar?.ocupado}
+      tirar={comGrupos ? g => { focarNoMais(); return comGrupos.aoTirar(g); } : undefined} impedeTirar={comGrupos?.impedeTirar} />}
+    {mudar && <BuscaNaEquipe bolinha={{ tamanho: TAMANHO_BOLINHA, motivoDesligado: motivoDoMais }} desligado={!!motivoDoMais} adicionar={comGrupos ? comGrupos.por : mudar.por}
+      buscar={termo => comGrupos && mudar.cheia ? [] : mudar.candidatos(termo)} aoEscolher={m => void mudar.aoPor(m)} botao={mais}
+      motivoSemPessoas={comGrupos ? mudar.cheia : undefined}
+      grupos={comGrupos ? {
+        buscar: termo => comGrupos.cheio ? [] : comGrupos.candidatos(termo), aoEscolher: g => void comGrupos.aoPor(g),
+        nome: g => nomeDoGrupo(g, grupos.equipe), texto: g => `${g.nome} · ${numeroDoGrupo(g, grupos.equipe)}`, motivo: comGrupos.cheio ? GRUPOS_DEMAIS : undefined
+      } : undefined} />}
   </div>;
 }
 

@@ -13,17 +13,16 @@ import {
 import { candidatosDaEquipe } from '../regras/equipe';
 import { AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, MUDANCAS, type EquipeGravada, type TipoDeMudanca } from '../regras/equipeNoCartao';
 import { etiquetasQueExistem } from '../regras/etiquetas';
-import { ICONE_DO_TOPO, NoTopoDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, feito } from '../ui/avisos';
 import { Aviso, Nota } from '../ui/base';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
-import { BotaoDasEtiquetas, SelosDasEtiquetas } from '../ui/Etiquetas';
 import { lojaDeEtiquetas } from '../ui/etiquetasDoEscritorio';
 import { Icone } from '../ui/Icone';
 import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
 import { CaminhoDaPasta } from '../ui/Pastas';
 import { useCtx } from '../ui/sessao';
+import { MoldeDoTopo } from '../ui/TopoDoCartao';
 import { desfazerNoItem } from './equipeNoCartao';
 import { NovoNaAnotacao } from './NovoNaAnotacao';
 
@@ -128,31 +127,21 @@ export function TopoDoRascunho({ rascunho, pastas }: { rascunho: RascunhoDaAnota
   const { equipe, pedir } = rascunho;
   const responsavel = equipe.responsavelId ? naEquipe(ctx.equipe, equipe.responsavelId, 'Responsável') : null;
   const participantes = equipe.participantes.map(x => naEquipe(ctx.equipe, x, EQUIPE.papel));
-  return <>
-    <header className="anotacao-topo">
-      {/* Sem link nos pedaços do caminho: abrir a pasta agora fecharia a anotação, que ainda não foi gravada. */}
-      <CaminhoDaPasta pastas={pastas} pastaId={rascunho.pasta} aoMudar={rascunho.mudarPasta} />
-      <div className="anotacao-topo-acoes">
-        <EquipeDoCartao responsavel={responsavel} participantes={participantes} mudar={{
-          por: EQUIPE.por,
-          candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId, ...equipe.participantes]),
-          responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId]),
-          // Na anotação nova, ninguém "sai": quem escreve é sempre dela.
-          tirar: p => `Tirar ${p.nome}`,
-          cheia: equipe.participantes.length >= EQUIPE.maximo ? EQUIPE.cheia : undefined,
-          aoPor: m => pedir('por', m.id, m.nome),
-          aoTirar: p => pedir('tirar', p.id, p.nome),
-          aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome)
-        }} />
-        <NoTopoDoCartao>
-          <BotaoDasEtiquetas ids={rascunho.etiquetas} aoMarcar={rascunho.marcarEtiqueta} rotulo="Etiquetas" className="cartao-botao" comDica>
-            <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
-          </BotaoDasEtiquetas>
-        </NoTopoDoCartao>
-      </div>
-    </header>
-    <SelosDasEtiquetas ids={rascunho.etiquetas} rotulo="Etiquetas" aoTirar={e => rascunho.marcarEtiqueta(e, false)} />
-  </>;
+  // O topo comum dos cartões (MoldeDoTopo), com as etiquetas escolhidas na tela (ainda não há o que ler do banco).
+  // Sem link nos pedaços do caminho: abrir a pasta agora fecharia a anotação, que ainda não foi gravada.
+  return <MoldeDoTopo inicio={<CaminhoDaPasta pastas={pastas} pastaId={rascunho.pasta} aoMudar={rascunho.mudarPasta} />}
+    etiquetas={{ ids: rascunho.etiquetas, marcar: rascunho.marcarEtiqueta }} mudaEtiquetas
+    equipe={<EquipeDoCartao responsavel={responsavel} participantes={participantes} mudar={{
+      por: EQUIPE.por,
+      candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId, ...equipe.participantes]),
+      responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId]),
+      // Na anotação nova, ninguém "sai": quem escreve é sempre dela.
+      tirar: p => `Tirar ${p.nome}`,
+      cheia: equipe.participantes.length >= EQUIPE.maximo ? EQUIPE.cheia : undefined,
+      aoPor: m => pedir('por', m.id, m.nome),
+      aoTirar: p => pedir('tirar', p.id, p.nome),
+      aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome)
+    }} />} />;
 }
 
 /** O que vai dentro de "Ligada a" na anotação nova: os itens escolhidos (sem link, que fecharia a anotação) e o ligar a mais um. */

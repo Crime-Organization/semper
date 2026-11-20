@@ -21,6 +21,8 @@ export interface EquipeDoModulo {
   papel: string;
   /** O botão redondo com "+": "Pôr participante". */
   por: string;
+  /** O mesmo botão com grupos da equipe no escritório (#378): "Pôr participante ou grupo". */
+  porOuGrupo: string;
   /** O que a própria bolinha faz (tirarPelaBolinha) e o aviso de sair: "Sair da tarefa". */
   sair: string;
   /** "na tarefa": "Ana já estava na tarefa." */
@@ -39,23 +41,23 @@ export interface EquipeDoModulo {
 
 export const EQUIPE_DO_MODULO: Record<ModuloDaEquipe, EquipeDoModulo> = {
   tarefas: {
-    papel: 'Participante', por: 'Pôr participante', sair: 'Sair da tarefa', noItem: 'na tarefa', doItem: 'da tarefa',
+    papel: 'Participante', por: 'Pôr participante', porOuGrupo: 'Pôr participante ou grupo', sair: 'Sair da tarefa', noItem: 'na tarefa', doItem: 'da tarefa',
     peloItem: 'pela tarefa', maximo: COLABORADORES_MAXIMOS, cheia: `Uma tarefa pode ter até ${COLABORADORES_MAXIMOS} participantes.`, oQue: 'mudança na equipe da tarefa'
   },
   demandas: {
-    papel: 'Colaborador', por: 'Pôr colaborador', sair: 'Sair da demanda', noItem: 'na demanda', doItem: 'da demanda',
+    papel: 'Colaborador', por: 'Pôr colaborador', porOuGrupo: 'Pôr colaborador ou grupo', sair: 'Sair da demanda', noItem: 'na demanda', doItem: 'da demanda',
     peloItem: 'pela demanda', maximo: COLABORADORES_MAXIMOS, cheia: `Uma demanda pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`, oQue: 'mudança na equipe da demanda'
   },
   processos: {
-    papel: 'Colaborador', por: 'Pôr colaborador', sair: 'Sair do processo', noItem: 'no processo', doItem: 'do processo',
+    papel: 'Colaborador', por: 'Pôr colaborador', porOuGrupo: 'Pôr colaborador ou grupo', sair: 'Sair do processo', noItem: 'no processo', doItem: 'do processo',
     peloItem: 'pelo processo', maximo: COLABORADORES_MAXIMOS, cheia: `Um processo pode ter até ${COLABORADORES_MAXIMOS} colaboradores.`, oQue: 'mudança na equipe do processo'
   },
   compromissos: {
-    papel: 'Participante', por: 'Pôr participante', sair: 'Sair do compromisso', noItem: 'no compromisso', doItem: 'do compromisso',
+    papel: 'Participante', por: 'Pôr participante', porOuGrupo: 'Pôr participante ou grupo', sair: 'Sair do compromisso', noItem: 'no compromisso', doItem: 'do compromisso',
     peloItem: 'pelo compromisso', maximo: COLABORADORES_MAXIMOS, cheia: `Um compromisso pode ter até ${COLABORADORES_MAXIMOS} participantes.`, oQue: 'mudança na equipe do compromisso'
   },
   anotacoes: {
-    papel: 'Compartilhada', por: 'Compartilhar com mais alguém', sair: 'Sair da anotação', noItem: 'na anotação', doItem: 'da anotação',
+    papel: 'Compartilhada', por: 'Compartilhar com mais alguém', porOuGrupo: 'Compartilhar com alguém ou um grupo', sair: 'Sair da anotação', noItem: 'na anotação', doItem: 'da anotação',
     peloItem: 'pela anotação', maximo: COLABORADORES_MAXIMOS, cheia: `Uma anotação pode ser compartilhada com até ${COLABORADORES_MAXIMOS} pessoas.`, oQue: 'mudança na equipe da anotação'
   }
 };

@@ -3,7 +3,7 @@
 // fictício: "Reunião de equipe" hoje às 09:00 (Agenda geral), a audiência do processo de JOSÉ DA SILVA TESTE amanhã às 14:00,
 // e as tarefas "Renovar a procuração" (prazo ontem) e "Emitir a GRU" (prazo em dois dias). Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');
 const HOJE = '04/11/2026';
@@ -352,10 +352,10 @@ test.describe('Quadro e cartão', () => {
     await agenda(page).getByRole('link', { name: /Reunião cancelada/ }).click();
     const cartao = page.getByRole('dialog');
     // Quando
-    await page.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(cartao.getByText('Compromisso arquivado.')).toBeVisible();
     await expect(agenda(page).getByRole('link', { name: /Reunião cancelada/ })).toHaveCount(0);
-    await cartao.getByRole('button', { name: 'Excluir' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Excluir');
     await page.getByRole('dialog', { name: 'Excluir o compromisso?' }).getByRole('button', { name: 'Excluir definitivamente' }).click();
     // Então
     await expect(page.getByText('Compromisso excluído definitivamente.')).toBeVisible();

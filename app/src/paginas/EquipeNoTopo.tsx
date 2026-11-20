@@ -2,14 +2,23 @@
 // bolinha para quem pode alterar o cartão (#356): a do responsável troca, a de um participante o tira na hora. O cartão diz se a pessoa muda a equipe (as mesmas regras que mostram o lápis) e
 // como ela sai dele (as do lápis do módulo); esta peça grava (equipeNoCartao.ts) e avisa o cartão para ler de novo. O contrato tem a
 // sua (EquipeDoContratoNoTopo), porque lá cada participante tem o seu % da divisão; as duas fazem uma mudança de cada vez (useUmaMudancaDeCadaVez).
+// Os grupos da equipe do item (#378) vêm em pílulas depois dos participantes; quem altera o cartão os põe pelo "+" e os tira pela
+// lista da pílula (useGruposNoTopo, que serve também ao contrato).
 import { useRef, useState } from 'react';
+import type { GrupoDaEquipe, ModuloDoPedido } from '../dados';
+import {
+  candidatosDeGrupo, estaPeloGrupo, gruposDoItem, meusGrupos, notaDoGrupoNoTopo, SAIRIA_SEM_O_GRUPO, saiComOGrupo,
+  type TipoDeMudancaNosGrupos
+} from '../regras/gruposDaEquipe';
+import { GRUPOS_POR_ITEM } from '../dados/limites';
+import type { GruposDoCartao } from '../ui/EquipeDoCartao';
 import { EQUIPE_DO_MODULO, planoDaMudanca, tirarPelaBolinha, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe, type SaidaDaPessoa } from '../regras/equipeNoCartao';
 import { candidatosDaEquipe } from '../regras/equipe';
 import { falha } from '../ui/avisos';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { confirmar } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
-import { mudarAEquipe } from './equipeNoCartao';
+import { mudarAEquipe, mudarOsGrupos } from './equipeNoCartao';
 
 /** Quem muda a equipe ali mesmo: como sai do cartão e o que o cartão faz depois. */
 export interface MudancaNoTopo {
@@ -24,6 +33,8 @@ interface Props {
   modulo: ModuloDaEquipe;
   id: string;
   equipe: EquipeGravada;
+  /** Os grupos da equipe postos no item (#378). */
+  grupos?: string[];
   /** null: a pessoa só lê o cartão (ou ele está arquivado), e as bolinhas são só para ver. */
   mudar: MudancaNoTopo | null;
 }
@@ -53,17 +64,62 @@ export function useUmaMudancaDeCadaVez() {
   return { ocupado, umaDeCadaVez };
 }
 
-export function EquipeNoTopo({ modulo, id, equipe, mudar }: Props) {
+/** O que os grupos do topo precisam saber de quem muda: o "+" com grupos, o que pôr e tirar faz e como a pessoa sai do cartão. */
+interface GruposAMudar {
+  /** O nome do "+" com grupos no escritório: "Pôr participante ou grupo". */
+  por: string;
+  /** Quem muda o cartão grava fora dele (administradora, quem criou…): tirar o próprio grupo não a tira do cartão. */
+  podeSair: boolean;
+  /** Continua no cartão pelo item ligado. */
+  peloLigado?: boolean;
+  umaDeCadaVez: ReturnType<typeof useUmaMudancaDeCadaVez>['umaDeCadaVez'];
+  depois: () => void;
+}
+
+/**
+ * Os grupos da equipe no topo do cartão (#378): as pílulas, a nota de quem está só pelo grupo e, para quem altera (`mudar`), o pôr
+ * pelo "+" e o tirar pela lista. O grupo que é o único caminho de quem muda até o item não tem "Tirar" (ela deixaria de vê-lo, e o banco
+ * recusa): no lugar, o motivo, que manda pedir a um administrador, como a saída de quem está só pelo grupo. Sem grupos no escritório e
+ * no item, nada (undefined): o topo fica como sempre.
+ */
+export function useGruposNoTopo(modulo: ModuloDoPedido, id: string, quem: { responsavel_id: string | null; lista: readonly string[] },
+  doItem: readonly string[] | undefined, mudar: GruposAMudar | null): GruposDoCartao | undefined {
+  const ctx = useCtx();
+  const eu = ctx.perfil.id, doEscritorio = ctx.grupos ?? [], grupos = doItem ?? [];
+  const lista = gruposDoItem(doEscritorio, grupos);
+  if (!doEscritorio.length && !lista.length) return undefined;
+  const meus = meusGrupos(doEscritorio, eu);
+  const pedir = (m: GruposAMudar, tipo: TipoDeMudancaNosGrupos, g: GrupoDaEquipe) => m.umaDeCadaVez(async () => {
+    await mudarOsGrupos(modulo, id, tipo, g);
+    m.depois();
+  }, m.depois);
+  return {
+    doItem: lista, equipe: ctx.equipe, eu,
+    nota: g => notaDoGrupoNoTopo({ eu, ...quem, meus, podeSair: !!mudar?.podeSair, peloLigado: mudar?.peloLigado }, g, lista),
+    mudar: mudar && doEscritorio.length ? {
+      candidatos: termo => candidatosDeGrupo(doEscritorio, termo, grupos), cheio: grupos.length >= GRUPOS_POR_ITEM, por: mudar.por,
+      aoPor: g => pedir(mudar, 'porGrupo', g), aoTirar: g => pedir(mudar, 'tirarGrupo', g),
+      impedeTirar: g => saiComOGrupo({ eu, ...quem, grupos, meus, podeSair: mudar.podeSair, peloLigado: mudar.peloLigado }, g.id) ? SAIRIA_SEM_O_GRUPO : undefined
+    } : undefined
+  };
+}
+
+export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
   const ctx = useCtx();
   const m = EQUIPE_DO_MODULO[modulo], eu = ctx.perfil.id;
   // Sem responsável gravado (o usuário foi excluído), a bolinha dele aparece vazia, para escolher outro.
   const responsavel = equipe.responsavel_id ? naEquipe(ctx.equipe, equipe.responsavel_id, 'Responsável') : null;
   const participantes = equipe.lista.map(x => naEquipe(ctx.equipe, x, m.papel));
   const { ocupado, umaDeCadaVez } = useUmaMudancaDeCadaVez();
-  if (!mudar) return <EquipeDoCartao responsavel={responsavel} participantes={participantes} />;
+  // Quem também está no cartão por um grupo dele continua nele ao se tirar da lista (sem o "você pode deixar de ver").
+  const peloGrupo = estaPeloGrupo(grupos, meusGrupos(ctx.grupos, eu));
+  const doTopo = useGruposNoTopo(modulo, id, { responsavel_id: equipe.responsavel_id || null, lista: equipe.lista }, grupos, mudar && {
+    por: m.porOuGrupo, podeSair: mudar.saida.podeSair, peloLigado: mudar.saida.peloLigado, umaDeCadaVez, depois: mudar.depois
+  });
+  if (!mudar) return <EquipeDoCartao responsavel={responsavel} participantes={participantes} grupos={doTopo} />;
 
   const pedir = (pedido: PedidoNaEquipe) => umaDeCadaVez(async () => {
-    const saida = { eu, ...mudar.saida };
+    const saida = { eu, ...mudar.saida, peloLigado: mudar.saida.peloLigado || peloGrupo };
     // Quem sai do cartão com isto pode deixar de vê-lo: pergunta antes (o lápis pergunta pelo Salvar).
     const previsto = planoDaMudanca(modulo, pedido, equipe, saida);
     if ('sai' in previsto && previsto.sai
@@ -73,7 +129,7 @@ export function EquipeNoTopo({ modulo, id, equipe, mudar }: Props) {
   }, mudar.depois);
 
   const noCartao = [equipe.responsavel_id, ...equipe.lista];
-  return <EquipeDoCartao responsavel={responsavel} participantes={participantes} mudar={{
+  return <EquipeDoCartao responsavel={responsavel} participantes={participantes} grupos={doTopo} mudar={{
     por: m.por,
     candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, noCartao),
     responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavel_id]),

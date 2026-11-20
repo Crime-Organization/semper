@@ -497,7 +497,7 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     await expect(texto).toHaveText('Um texto para ler e escrever.');
     await expect(janela.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     await expect(janela.getByRole('button', { name: 'Modo de leitura' })).toHaveCount(0);
-    await expect(janela.getByRole('button', { name: 'Etiquetas', exact: true })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     await expect(anotacao.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(anotacao.getByRole('region', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(anotacao.getByText('Nenhuma etiqueta.')).toHaveCount(0);
@@ -539,12 +539,16 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     expect(Math.abs((await folga()) - folgaAoLado)).toBeLessThan(1);
     // Quando: "Expandir tudo", acima de "Comentários"
     expect((await expandir.boundingBox())!.y).toBeLessThan((await secoes.nth(0).boundingBox())!.y);
-    // Desde a #366: só o ícone, sem texto, no alto da coluna, encostado à direita como as setas das seções e logo abaixo dos
-    // botões da janela (o formato e o X), sem passar por baixo deles
+    // Desde a #366: só o ícone, sem texto, no alto da coluna, logo abaixo dos botões da janela (o formato e o X), sem passar por
+    // baixo deles. Desde a #381, com o meio dele no eixo do X e no da seta de "Comentários" (o último ícone do título), e não mais
+    // com a borda encostada na ponta da linha
     expect(await expandir.innerText()).toBe('');
-    const [botao, secao, fechar, formato] = await Promise.all([expandir.boundingBox(), secoes.nth(0).boundingBox(),
+    const [botao, seta, fechar, formato] = await Promise.all([expandir.boundingBox(),
+      janela.getByRole('heading', { level: 3, name: /^Comentários/ }).locator('svg').last().boundingBox(),
       janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox()]);
-    expect(Math.abs((botao!.x + botao!.width) - (secao!.x + secao!.width))).toBeLessThan(2);
+    const meio = (caixa: { x: number; width: number }) => caixa.x + caixa.width / 2;
+    expect(Math.abs(meio(botao!) - meio(seta!))).toBeLessThan(2);
+    expect(Math.abs(meio(botao!) - meio(fechar!))).toBeLessThan(2);
     expect(botao!.y).toBeGreaterThanOrEqual(Math.max(fechar!.y + fechar!.height, formato!.y + formato!.height));
     // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai de "Comentários" e volta para ele)
     const dicaVisivel = (b: typeof expandir) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
@@ -872,7 +876,7 @@ test.describe('A anotação nos casos de canto', () => {
     await expect(anotacao.getByText('Anotação arquivada.', { exact: false }).first()).toBeVisible();
     await expect(anotacao.getByText('Sem texto ainda.', { exact: true })).toBeVisible();
     await expect(anotacao.getByRole('textbox', { name: 'Texto', exact: true })).toHaveCount(0);
-    await expect(anotacao.getByRole('button', { name: 'Etiquetas', exact: true })).toHaveCount(0);
+    await expect(anotacao.getByRole('button', { name: 'Escolher etiquetas' })).toHaveCount(0);
     await anotacao.getByText('Sem texto ainda.', { exact: true }).click();
     await expect(anotacao.getByRole('textbox', { name: 'Texto', exact: true })).toHaveCount(0);
   });
@@ -1214,7 +1218,7 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
     await expect(anotacao.getByRole('textbox')).toHaveCount(1);
     await expect(anotacao.getByRole('textbox')).toHaveAccessibleName('Escrever um comentário');
     await expect(anotacao.getByRole('button', { name: 'Lida pelo Bruno' })).toHaveCount(0);
-    await expect(anotacao.getByRole('button', { name: 'Etiquetas', exact: true })).toHaveCount(0);
+    await expect(anotacao.getByRole('button', { name: 'Escolher etiquetas' })).toHaveCount(0);
     await expect(anotacao.getByRole('toolbar', { name: 'Formatação do texto' })).toHaveCount(0);
     await expect(anotacao.getByRole('heading', { name: 'Lida pelo Bruno', level: 2 })).toBeVisible();
   });
@@ -1371,7 +1375,7 @@ const idDaPasta = (page: Page, nome: string) => page.evaluate(([chave, n]) =>
   (JSON.parse(sessionStorage.getItem(chave)!) as { pastas: { id: string; nome: string }[] }).pastas.find(p => p.nome === n)!.id, [CHAVE, nome]);
 /** Cria a etiqueta pelo ícone de etiqueta, no topo da anotação (ela já fica marcada), e fecha a escolha. */
 async function criarEtiquetaPeloIcone(page: Page, lugar: Locator, texto: string, cor: string) {
-  await lugar.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+  await lugar.getByRole('button', { name: 'Escolher etiquetas' }).click();
   const escolha = page.getByRole('dialog', { name: 'Escolher etiquetas' });
   const form = escolha.getByRole('form', { name: 'Nova etiqueta' });
   await form.getByLabel('Texto').fill(texto);
@@ -1495,7 +1499,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     // (o título: um campo enquanto a nota abre, um botão "Sem título" depois de a pessoa clicar em outro lugar)
     const titulo = nota.getByRole('heading', { level: 2 });
     // Então: só o ícone, sem a seção nem a linha dos selos
-    await expect(janela.getByRole('button', { name: 'Etiquetas', exact: true })).toBeVisible();
+    await expect(janela.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     await expect(nota.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(nota.getByRole('region', { name: 'Etiquetas' })).toHaveCount(0);
     await expect(nota.getByText('Nenhuma etiqueta.')).toHaveCount(0);
@@ -1509,7 +1513,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     const [linha, caixaDoTitulo] = [(await selos.boundingBox())!, (await titulo.boundingBox())!];
     expect(linha.y + linha.height).toBeLessThanOrEqual(caixaDoTitulo.y);
     // Quando: desmarca "Reunião" e escreve o título
-    await janela.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    await janela.getByRole('button', { name: 'Escolher etiquetas' }).click();
     await page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Reunião' }).uncheck();
     await page.keyboard.press('Escape');
     await escreverOTitulo(page, 'POP de atendimento');
@@ -1522,7 +1526,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     await expect(daAnotacao.getByText('Reunião', { exact: true })).toHaveCount(0);
     expect((await daAnotacao.boundingBox())!.y).toBeLessThan((await tituloSalvo.boundingBox())!.y);
     // E "Reunião", criada ali, fica para o escritório: aparece na escolha da anotação já salva
-    await anotacao.getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    await anotacao.getByRole('button', { name: 'Escolher etiquetas' }).click();
     await expect(page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('checkbox', { name: 'Reunião' })).not.toBeChecked();
     await page.keyboard.press('Escape');
     await fecharAnotacao(page);
@@ -1535,7 +1539,7 @@ test.describe('Pastas e etiquetas dos documentos (#342)', () => {
     await criarEtiquetaPeloIcone(page, anotacaoAberta(page), 'Transitória', 'Amarelo');
     await criarEtiquetaPeloIcone(page, anotacaoAberta(page), 'POP', 'Azul');
     // Quando: exclui "Transitória" pelo painel do ícone de etiqueta
-    await anotacaoAberta(page).getByRole('button', { name: 'Etiquetas', exact: true }).click();
+    await anotacaoAberta(page).getByRole('button', { name: 'Escolher etiquetas' }).click();
     const escolha = page.getByRole('dialog', { name: 'Escolher etiquetas' });
     await escolha.getByRole('button', { name: 'Mudar a etiqueta Transitória' }).click();
     const form = escolha.getByRole('form', { name: 'Mudar a etiqueta Transitória' });
@@ -2206,7 +2210,7 @@ test.describe('A barra de formatação presa no alto da anotação ao rolar (#37
   /** Os botões da janela à vista: a etiqueta, o ⋯, o formato (que não há no celular) e o X. */
   async function botoesDaJanela(janela: Locator) {
     const todos = [
-      janela.getByRole('button', { name: 'Etiquetas', exact: true }), janela.getByRole('button', { name: 'Mais ações' }),
+      janela.getByRole('button', { name: 'Escolher etiquetas' }), janela.getByRole('button', { name: 'Mais ações' }),
       janela.getByRole('button', { name: /^Abrir (no centro da tela|ao lado)$/ }), janela.getByRole('button', { name: 'Fechar', exact: true })
     ];
     const visiveis: Locator[] = [];

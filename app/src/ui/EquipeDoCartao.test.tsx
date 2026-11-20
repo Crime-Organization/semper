@@ -7,7 +7,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Membro } from '../dados';
-import { EquipeDoCartao, type MudarAEquipe } from './EquipeDoCartao';
+import { GRUPOS_POR_ITEM } from '../dados/limites';
+import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe } from './EquipeDoCartao';
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
 const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · 10%' };
@@ -207,5 +208,92 @@ describe('Equipe do cartão que a pessoa pode alterar (#356)', () => {
     // Então
     expect(m.aoTirar).toHaveBeenCalledWith(bruno);
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Pôr participante' })).toHaveFocus());
+  });
+});
+
+describe('Equipe do cartão com grupos da equipe (#378)', () => {
+  const EQUIPE: Membro[] = [{ id: 'u-ana', nome: 'Ana Teste Lima', ativo: true }, { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true }];
+  const NUCLEO = { id: 'ga', nome: 'Núcleo Alfa', integrantes: ['u-bruno'] }, OUTRO = { id: 'gb', nome: 'Núcleo Beta', integrantes: ['u-ana'] };
+  const mudar = (extra: Partial<MudarAEquipe> = {}): MudarAEquipe => ({
+    por: 'Pôr colaborador', candidatos: () => [EQUIPE[1]], responsaveis: () => [EQUIPE[1]], tirar: p => `Tirar ${p.nome}`,
+    aoPor: vi.fn(), aoTirar: vi.fn(), aoTrocarResponsavel: vi.fn(), ...extra
+  });
+  const grupos = (extra: Partial<NonNullable<GruposDoCartao['mudar']>> = {}, doItem = [NUCLEO]): GruposDoCartao => ({
+    doItem, equipe: EQUIPE, eu: 'u-ana',
+    mudar: { candidatos: () => [OUTRO], cheio: false, por: 'Pôr colaborador ou grupo', aoPor: vi.fn(), aoTirar: vi.fn(), ...extra }
+  });
+
+  it('dado um item com grupo, quando o topo aparece, então a pílula do grupo vem depois das bolinhas, e o "+" acha pessoas e grupos', async () => {
+    // Dado
+    const g = grupos();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar()} grupos={g} /></MemoryRouter>);
+    // Então
+    expect(within(grupo()).getByRole('button', { name: 'Grupo Núcleo Alfa, 1 pessoa. Ver quem está' })).toHaveTextContent('Núcleo Alfa · 1');
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Pôr colaborador ou grupo' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Grupo Núcleo Beta, 1 pessoa' }));
+    // Então
+    expect(g.mudar!.aoPor).toHaveBeenCalledWith(OUTRO);
+  });
+
+  it('dado quem altera, quando tira o grupo pela lista, então o cartão recebe o grupo e o foco vai ao "+"', async () => {
+    // Dado
+    const g = grupos();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar()} grupos={g} /></MemoryRouter>);
+    await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Tirar o grupo do cartão' }));
+    // Então
+    expect(g.mudar!.aoTirar).toHaveBeenCalledWith(NUCLEO);
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Pôr colaborador ou grupo' })).toHaveFocus());
+  });
+
+  it('dada a lista de pessoas cheia, quando ainda há grupo para pôr, então o "+" continua ligado; sem grupo, desliga com o motivo', () => {
+    // Quando
+    const { unmount } = render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar({ cheia: 'Cheia.' })} grupos={grupos()} /></MemoryRouter>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Pôr colaborador ou grupo' })).not.toHaveAttribute('aria-disabled');
+    unmount();
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar({ cheia: 'Cheia.' })} grupos={grupos({ cheio: true })} /></MemoryRouter>);
+    // Então
+    const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
+    expect(mais).toHaveAttribute('aria-disabled', 'true');
+    expect(mais).toHaveAttribute('data-dica', 'Cheia.');
+  });
+
+  it('dado o item com o máximo de grupos e a lista de pessoas com vaga, quando o topo aparece, então o "+" continua ligado e a busca mostra as pessoas e o motivo dos grupos', async () => {
+    // Dado
+    const m = mudar();
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={m} grupos={grupos({ cheio: true })} /></MemoryRouter>);
+    const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
+    expect(mais).not.toHaveAttribute('aria-disabled');
+    // Quando
+    await userEvent.click(mais);
+    // Então
+    const busca = screen.getByRole('dialog', { name: 'Pôr colaborador ou grupo' });
+    expect(within(busca).getByText(`Um item pode ter até ${GRUPOS_POR_ITEM} grupos.`)).toBeInTheDocument();
+    await userEvent.click(within(busca).getByRole('button', { name: /Bruno Exemplo Souza/ }));
+    expect(m.aoPor).toHaveBeenCalledWith(EQUIPE[1]);
+  });
+
+  it('dado o item com o máximo de grupos e ninguém mais para pôr, quando o topo aparece, então o "+" desliga com o motivo dos grupos', () => {
+    // Quando
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} mudar={mudar({ candidatos: () => [] })} grupos={grupos({ cheio: true })} /></MemoryRouter>);
+    // Então
+    const mais = screen.getByRole('button', { name: 'Pôr colaborador ou grupo' });
+    expect(mais).toHaveAttribute('aria-disabled', 'true');
+    expect(mais).toHaveAttribute('data-dica', `Um item pode ter até ${GRUPOS_POR_ITEM} grupos.`);
+  });
+
+  it('dado quem só lê, quando o topo aparece, então a pílula mostra quem está, sem "+" nem "Tirar"', async () => {
+    // Dado
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[]} grupos={{ doItem: [NUCLEO], equipe: EQUIPE, eu: 'u-bruno' }} /></MemoryRouter>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: /Grupo Núcleo Alfa/ }));
+    // Então
+    expect(screen.getByRole('list', { name: 'Integrantes do grupo Núcleo Alfa' })).toHaveTextContent('Bruno Exemplo Souza');
+    expect(screen.queryByRole('button', { name: 'Tirar o grupo do cartão' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Pôr/ })).not.toBeInTheDocument();
   });
 });

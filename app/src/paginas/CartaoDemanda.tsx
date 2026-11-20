@@ -1,7 +1,6 @@
-// Cartão da demanda (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de contrato: no topo, o
-// título e o prazo em destaque; as ações, com a equipe da demanda em bolinhas ao lado (responsável e colaboradores), e
-// a situação; depois, cada
-// tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
+// Cartão da demanda (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de contrato: no topo (TopoDoCartao,
+// #382, como o da anotação), o tipo, o código e o prazo, com a equipe da demanda em bolinhas (responsável e colaboradores), a
+// etiqueta, o lápis e o ⋯ à direita; os selos das etiquetas; o título e a situação; depois, cada tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 // Desde a #346, quem altera a demanda muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useState } from 'react';
@@ -13,7 +12,7 @@ import { descricaoAoGravar, erroNoLugar } from '../regras/edicaoNoLugar';
 import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, GrupoDeDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
@@ -29,7 +28,7 @@ import { useQuantos } from '../ui/useQuantos';
 import { colunaComMarco } from '../regras/quadro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
+import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { relativo } from '../ui/util';
@@ -91,7 +90,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   if (!d) return <Vazio>Esta demanda não foi encontrada. Ela pode ter sido excluída, ou você não participa dela.</Vazio>;
 
   const podeExcluir = !!d.arquivado_em && (d.criado_por === eu || ctx.ehAdmin);
-  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m), m => contratosEmQueEsta([d.contrato], m).length > 0);
+  const soLeitura = motivoDeSoLerOCartao(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)), m => contratosEmQueEsta([d.contrato], m).length > 0);
   const podeAlterar = !soLeitura, veTudo = equipeVeTudo(ctx.escritorio);
   // Ligar à demanda um item que já existe (#341): quem altera a demanda, com ela ativa. Depois, o cartão lê tudo de novo.
   const podeLigar = podeAlterar && !d.arquivado_em;
@@ -149,12 +148,21 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
     <header className="cartao-cabeca">
-      <div className="linha">
-        <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
-        <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={quadro.pronto ? colunaComMarco(quadro.colunas, d.etapa_id, 'concluido') && 'demandas' : null} />
-        {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!d.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a demanda', aoConfirmar: excluir } : undefined} />}
-      </div>
+      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+          lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
+      <TopoDoCartao modulo="demandas" id={d.id} arquivado={!!d.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">Demanda</Selo>}
+        esquerda={<>
+          <span className="codigo">{d.codigo}</span>
+          <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={quadro.pronto ? colunaComMarco(quadro.colunas, d.etapa_id, 'concluido') && 'demandas' : null} />
+          {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+        </>}
+        equipe={<EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} grupos={d.grupos} mudar={mudaNoLugar ? {
+          saida: { podeSair: gravaForaDoCartao(ctx, d.criado_por === eu) }, depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+        } : null} />}
+        mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
+        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
       <TituloEditavel key={'titulo-' + noLugar.chave} valor={d.titulo} maximo={TAMANHO_DEMANDA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'titulo', titulo)}
         aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: d.titulo }) : undefined} />
@@ -176,6 +184,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(d)) : undefined} />
         </DadoDoGrupo>
       </GrupoDeDatas>
+      {/* Logo abaixo das datas, na faixa própria do tempo (#383): a soma do tempo de toda a equipe nas tarefas desta demanda. */}
+      {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
@@ -184,21 +194,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
 
-    <div className="cartao-acoes">
-      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
-      <EquipeNoTopo modulo="demandas" id={d.id} equipe={{ responsavel_id: d.responsavel_id, lista: d.colaboradores }} mudar={mudaNoLugar ? {
-        saida: { podeSair: gravaForaDoCartao(ctx, d.criado_por === eu) }, depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
-      } : null} />
-    </div>
     {soLeitura && <Nota>{soLeitura}</Nota>}
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {d.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Demanda arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
-        : 'Demanda arquivada. Só quem cadastrou esta demanda ou um administrador pode excluí-la.'}</span>
-    </div>}
-
-
-    <SecaoEtiquetas modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {d.arquivado_em && <FaixaDoArquivado modulo="demandas" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     <ListasDoCartao modulo="demandas" id={d.id} somenteLer={!podeAlterar} />
 
@@ -211,7 +209,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
           aoEscolher={t => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava nesta demanda.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
-      <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}

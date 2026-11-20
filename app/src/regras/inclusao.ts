@@ -52,6 +52,15 @@ export const INCLUSAO_DO_MODULO: Record<ModuloDoPedido, InclusaoDoModulo> = {
   }
 };
 
+/**
+ * O que quem incluiu fez, com o grupo pelo qual a pessoa entrou (#378): "incluiu você, pelo grupo Núcleo A, na demanda". Sem grupo
+ * (ou como responsável), a frase de sempre.
+ */
+export const acaoDaInclusao = (i: Pick<InclusaoDaMensagem, 'modulo' | 'entrou_como' | 'grupo'>) => {
+  const acao = INCLUSAO_DO_MODULO[i.modulo].acao[i.entrou_como];
+  return i.grupo && i.entrou_como === 'participante' ? acao.replace('você', `você, pelo grupo ${i.grupo},`) : acao;
+};
+
 /** O nome do item na mensagem: o título (no contrato, o serviço); sem ele, o código. */
 export const nomeDoItemDaInclusao = (item: ItemDaInclusao) => item.nome || item.codigo;
 
@@ -69,7 +78,7 @@ export function rotulosDaInclusao(i: InclusaoDaMensagem, quem: string, situacao:
     return { linha: `Aviso ${situacao}: ${m.naoFazMais.replace(/\.$/, '')}`, marcarLida: `Marcar como lida a mensagem de ${m.umItem} de que você não faz mais parte` };
   }
   const nome = nomeDoItemDaInclusao(i.item);
-  return { linha: `Aviso ${situacao}: ${quem} ${m.acao[i.entrou_como]} ${nome}`, marcarLida: `Marcar como lida a mensagem de ${quem} sobre ${m.oItem} ${nome}` };
+  return { linha: `Aviso ${situacao}: ${quem} ${acaoDaInclusao(i)} ${nome}`, marcarLida: `Marcar como lida a mensagem de ${quem} sobre ${m.oItem} ${nome}` };
 }
 
 /** A equipe de um item: o responsável e os perfis da equipe (no contrato, os das pessoas participantes da divisão). */

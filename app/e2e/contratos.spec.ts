@@ -127,8 +127,11 @@ test.describe('Cadastro de contratos', () => {
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
     // Os participantes são da equipe: ficam em bolinhas com o responsável, ao lado das ações; o indicador, de fora, fica nas partes.
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
-    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);
+    // A situação fica logo abaixo do nome; as etiquetas ficam no topo (#382: o ícone e os selos acima do nome, conferidos em
+    // topo-do-cartao.spec.ts), e não numa seção.
+    expect(blocos[0]).toBe('Situação');
+    expect(blocos).not.toContain('Etiquetas');
+    await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza · 10%' })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /RAIMUNDO NONATO ENSAIO/ })).toContainText('Indicador · 10%');
   });
@@ -507,8 +510,11 @@ test.describe('Ligações em quadrinhos', () => {
     // O responsável é da equipe: fica em bolinha ao lado das ações, fora das partes (as pessoas de fora do escritório).
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável. Trocar o responsável' })).toBeVisible();
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    // A situação fica logo abaixo do nome, e as etiquetas são a primeira seção.
-    expect(blocos.slice(0, 2)).toEqual(['Situação', 'Etiquetas']);
+    // A situação fica logo abaixo do nome; as etiquetas ficam no topo (#382: o ícone e os selos acima do nome, conferidos em
+    // topo-do-cartao.spec.ts), e não numa seção.
+    expect(blocos[0]).toBe('Situação');
+    expect(blocos).not.toContain('Etiquetas');
+    await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     // Quando
     await cartao.getByRole('link', { name: /TEREZA CRISTINA PILOTO/ }).click();
     // Então

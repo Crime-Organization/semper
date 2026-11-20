@@ -1,4 +1,5 @@
-// Cartão da pessoa (painel lateral): ações, etapa, responsáveis, qualificação, observações e pendências (da importação),
+// Cartão da pessoa (painel lateral): o topo (TopoDoCartao, #382, como o da anotação: o tipo e o código; a etiqueta, o lápis e o
+// ⋯ à direita; os selos das etiquetas), o nome, a etapa, responsáveis, qualificação, observações e pendências (da importação),
 // o que está ligado a ela nos outros módulos (contratos e, depois, demandas, tarefas...), vínculos, dados, informações
 // sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -7,7 +8,7 @@ import { TAMANHO_SIGILO } from '../dados/limites';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { useNavigate } from 'react-router';
 import { contratoDaPessoaFechada } from './clienteAoContrato';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
@@ -15,7 +16,8 @@ import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, estiloBotao, GrupoDeDatas, Nota, Selo, Vazio } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
@@ -24,7 +26,6 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { quantosPreenchidos } from '../regras/secoes';
 import type { Quadro } from '../ui/quadro/useColunas';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { useCtx } from '../ui/sessao';
 import NovaPessoa from './NovaPessoa';
 import { copiarTexto, dataCurta, dataHora, relativo } from '../ui/util';
@@ -178,15 +179,25 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   // Na pessoa arquivada, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
     <header className="cartao-cabeca">
-      <div className="linha">
-        <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
-        {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
-        <AcoesDoCartao editando={editando} arquivado={!!p.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a pessoa', aoConfirmar: excluir } : undefined} />
-      </div>
+      {/* O topo da anotação (#382): o tipo e o código; a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. A pessoa não tem
+          equipe em bolinhas: quem a atende fica na seção "Responsáveis". */}
+      <TopoDoCartao modulo="pessoas" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
+        esquerda={<>
+          <span className="codigo">{p.codigo}</span>
+          {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+          {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
+        </>}
+        mudaEtiquetas={!p.arquivado_em} aoMudarEtiquetas={aoMudar}
+        aoArquivar={arquivar} aoExcluir={podeExcluir ? excluir : undefined}
+        lapis={{ rotulo: 'Editar', aoEditar: () => setEditando(true) }} />
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
-      {!editando && <section className="bloco campos cartao-situacao">
+      {/* A faixa das datas (#383), a mesma dos outros cartões: aqui, só a do cadastro. */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Cadastrada em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
+      </GrupoDeDatas>
+      {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
         <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
           <option value="">Sem etapa</option>
@@ -197,14 +208,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {p.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Pessoa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
-        : 'Pessoa arquivada. Só quem cadastrou esta pessoa ou um administrador pode excluí-la.'}</span>
-    </div>}
-
-
-    <SecaoEtiquetas modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} aoMudar={aoMudar} />
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {p.arquivado_em && <FaixaDoArquivado modulo="pessoas" podeExcluir={podeExcluir} aoDesarquivar={arquivar} />}
 
     <section className="bloco separada">
       <h3><Icone nome="conta" tam={14} />Responsáveis</h3>

@@ -37,6 +37,8 @@ import { ArvoreDePastas, levarAnotacaoParaPasta, useNavegacaoRecolhida } from '.
 import { usePastas, useProcurarPastas } from '../ui/pastasDoEscritorio';
 import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { SecaoArquivados } from '../ui/SecaoArquivados';
+import { gruposDoItem, meusGrupos } from '../regras/gruposDaEquipe';
+import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
@@ -197,7 +199,7 @@ export default function Documentos() {
   const naArvore = (id: string) => daArvore?.linhas.find(a => a.id === id);
   const mudarNaArvore = (id: string, pasta_id: string | null) => setDaArvore(p => p && { ...p, linhas: p.linhas.map(a => a.id === id ? { ...a, pasta_id } : a) });
   const mover = {
-    pode: (id: string) => { const a = naArvore(id); return !!a && !a.arquivado_em && alteraAAnotacao(a, ctx.perfil, chavesDaEquipe); },
+    pode: (id: string) => { const a = naArvore(id); return !!a && !a.arquivado_em && alteraAAnotacao(a, ctx.perfil, chavesDaEquipe, meusGrupos(ctx.grupos, ctx.perfil.id)); },
     aoMover: async (id: string, destino: string | null) => {
       const antes = naArvore(id)?.pasta_id ?? null;
       mudarNaArvore(id, destino);
@@ -318,7 +320,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, endereco, aoAbrir, 
   if (!linhas.length) return <Vazio>{LISTA_VAZIA[motivoDaListaVazia({ filtrada: filtrado, arquivadas: f.situacao === 'arquivadas', pasta: naPasta })](cadastro)}</Vazio>;
   // O x das etiquetas na lista: só para quem altera a anotação ativa (como no cartão).
   const chaves = { equipeEditaTudo: equipeEditaTudo(ctx.escritorio) };
-  const soLe = (a: AnotacaoLista) => !!a.arquivado_em || !alteraAAnotacao(a, ctx.perfil, chaves);
+  const soLe = (a: AnotacaoLista) => !!a.arquivado_em || !alteraAAnotacao(a, ctx.perfil, chaves, meusGrupos(ctx.grupos, ctx.perfil.id));
 
   const { selecionadas, marcar } = selecao;
   const todas = linhas.every(a => selecionadas.has(a.id));
@@ -341,7 +343,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, endereco, aoAbrir, 
         </td>
         <td className={a.ligada_a.length ? undefined : 'anotacao-sem-ligacao'}>{a.ligada_a.length ? ligadaA(a.ligada_a) : 'Nenhum item'}</td>
         <td>{nomeDe(a.criado_por)}</td>
-        <td><Avatares ids={[a.responsavel_id, ...a.participantes]} equipe={ctx.equipe} /></td>
+        <td><div className="equipe-da-linha"><Avatares ids={[a.responsavel_id, ...a.participantes]} equipe={ctx.equipe} />
+          <GruposDoItem grupos={gruposDoItem(ctx.grupos, a.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td className="anotacao-data">{porCadastro ? dataCurta(a.criado_em) : relativo(a.atualizado_em)}</td>
       </LinhaQueAbre>)}</tbody>
     </table></div>

@@ -25,6 +25,8 @@ import { lerPreferencia, salvarPreferencia } from '../ui/preferencias';
 import { moverNoArquivo } from '../ui/quadro/arquivo';
 import { Kanban } from '../ui/quadro/Kanban';
 import { useColunas } from '../ui/quadro/useColunas';
+import { gruposDoItem, meusGrupos } from '../regras/gruposDaEquipe';
+import { GruposDoItem } from '../ui/GruposDoItem';
 import { useCtx } from '../ui/sessao';
 import { dataDaOrdem, ORDENS } from '../ui/ordem';
 import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
@@ -206,7 +208,7 @@ function CartaoKanban({ c, ordem }: { c: CompromissoLista; ordem: Ordem }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, c);
   return <>
-    <EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin) && !equipeEditaTudo(ctx.escritorio))} />
+    <EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin, meusGrupos(ctx.grupos, ctx.perfil.id)) && !equipeEditaTudo(ctx.escritorio))} />
     <div><Selo tipo="arq">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo></div>
     <div className="kt">{nomeDoCompromisso(c)}</div>
     <div className="km">
@@ -215,7 +217,8 @@ function CartaoKanban({ c, ordem }: { c: CompromissoLista; ordem: Ordem }) {
       {c.local && <span>{c.local}</span>}
       {data && <span>{data}</span>}
     </div>
-    <div className="kp"><Avatares ids={[c.responsavel_id, ...c.participantes]} equipe={ctx.equipe} tam={24} /></div>
+    <div className="kp"><GruposDoItem grupos={gruposDoItem(ctx.grupos, c.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} />
+      <Avatares ids={[c.responsavel_id, ...c.participantes]} equipe={ctx.equipe} tam={24} /></div>
   </>;
 }
 
@@ -250,12 +253,13 @@ function Tabela({ pagina, erro, f, filtrado, selecao, situacao, endereco, aoAbri
       </tr></thead>
       <tbody>{linhas.map(c => <LinhaQueAbre key={c.id} para={endereco(c.id)} aoAbrir={() => aoAbrir(c.id)} marcada={selecionadas.has(c.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${c.codigo}`} checked={selecionadas.has(c.id)} onChange={e => marcar([c.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin) && !equipeEditaTudo(ctx.escritorio))} /><NomeDaLinha>{nomeDoCompromisso(c)}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={c.etq} modulo="compromissos" id={c.id} somenteLer={!!c.arquivado_em || (soLeNaLista(c, ctx.perfil.id, ctx.ehAdmin, meusGrupos(ctx.grupos, ctx.perfil.id)) && !equipeEditaTudo(ctx.escritorio))} /><NomeDaLinha>{nomeDoCompromisso(c)}</NomeDaLinha>
           <div className="sub"><span className="codigo">{c.codigo}</span>{c.local ? ' · ' + c.local : ''}{c.processo_numero ? ' · ' + c.processo_numero : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{quandoDoCompromisso(c)}</td>
         <td><Selo tipo="arq">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo></td>
         <td><span className="etapa-txt">{situacao(c.etapa_id)}</span></td>
-        <td><Avatares ids={[c.responsavel_id, ...c.participantes]} equipe={ctx.equipe} /></td>
+        <td><div className="equipe-da-linha"><Avatares ids={[c.responsavel_id, ...c.participantes]} equipe={ctx.equipe} />
+          <GruposDoItem grupos={gruposDoItem(ctx.grupos, c.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
       </LinhaQueAbre>)}</tbody>
     </table></div>
     <Paginacao pagina={f.pagina || 0} porPagina={POR_PAGINA} naPagina={linhas.length} total={total} aoPaginar={aoPaginar} />

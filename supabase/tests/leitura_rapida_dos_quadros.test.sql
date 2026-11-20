@@ -109,7 +109,7 @@ select pg_temp.confere(3, '', '', '', 'pessoa desativada, então não vê nada')
 select set_config('role', 'none', true);
 select ok(not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'demandas' and policyname = 'leitura' and qual ~ 'vejo_demanda'), 'a leitura de demandas não chama a função a cada cartão');
 select ok(not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'processos' and policyname = 'leitura' and qual ~ 'vejo_processo'), 'a leitura de processos não chama a função a cada cartão');
-select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'tarefas' and policyname = 'leitura' and qual ~ 'demanda_id IS NOT NULL.*vejo_tarefa'), 'a leitura de tarefas só chama a função para o caso da demanda ligada');
+select ok(exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'tarefas' and policyname = 'leitura' and qual ~ 'demanda_id IS NOT NULL.*estou_na_tarefa'), 'a leitura de tarefas só chama a função para o caso da demanda ligada (#378: estou_na_tarefa, que substituiu vejo_tarefa)');
 
 select * from finish();
 rollback;
