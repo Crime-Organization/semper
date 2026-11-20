@@ -26,7 +26,6 @@ import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
@@ -45,6 +44,7 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoProcesso from './NovoProcesso';
 import { AndamentosDoProcesso, PrazosDoProcesso, useAcompanhamento } from './processo/AndamentosEPrazos';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
@@ -192,10 +192,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <GrupoDeDatas rotulo="Datas">
         <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
       </GrupoDeDatas>
-      {!editando &&<section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+      {!editando && <SituacaoDoCartao>
         <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>

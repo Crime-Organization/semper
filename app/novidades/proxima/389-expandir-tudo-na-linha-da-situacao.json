@@ -1,0 +1,5 @@
+{
+  "titulo": "\"Expandir tudo\" na linha da Situação",
+  "texto": "Em processos, demandas, tarefas, compromissos, contratos e pessoas, o botão que abre e fecha todas as seções do cartão fica na mesma linha do menu Situação (na pessoa, Etapa do atendimento), à direita, alinhado com as setas das seções. Nas anotações, ele continua acima da primeira seção.",
+  "ondeAchar": "Abra qualquer cartão: o botão das duas setas fica à direita do menu Situação."
+}

@@ -25,7 +25,6 @@ import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Icone } from '../ui/Icone';
 import { CriarNoCartao, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
@@ -40,6 +39,7 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
@@ -159,10 +159,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(c.criado_em)}</b></DadoDoGrupo>
       </GrupoDeDatas>
-      {!editando && <section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+      {!editando && <SituacaoDoCartao>
         <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>

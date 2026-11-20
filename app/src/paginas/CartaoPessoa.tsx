@@ -38,6 +38,7 @@ import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 
 interface Props {
   id: string;
@@ -197,13 +198,12 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       <GrupoDeDatas rotulo="Datas">
         <DadoDoGrupo rotulo="Cadastrada em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
       </GrupoDeDatas>
-      {!editando &&<section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
+      {!editando && <SituacaoDoCartao titulo="Etapa do atendimento">
         <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
           <option value="">Sem etapa</option>
           {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
