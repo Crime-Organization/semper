@@ -1,0 +1,5 @@
+{
+  "titulo": "O quadro mostra quando há mais colunas",
+  "texto": "Quando as colunas não cabem na tela, a borda do quadro fica esmaecida do lado em que há mais para ver: à direita até chegar à última coluna, e à esquerda depois de rolar.",
+  "ondeAchar": "Abra o quadro (Kanban) de qualquer módulo numa tela menor e role de lado."
+}

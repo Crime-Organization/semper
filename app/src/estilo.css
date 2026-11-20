@@ -184,6 +184,9 @@
   /* O vão entre o título do cartão e a descrição logo abaixo (#385): o mesmo para a descrição lida, a caixa aberta e o convite
      da descrição vazia */
   --vao-do-titulo-a-descricao: 14px;
+  /* O degradê na borda do quadro quando há colunas fora da tela (#87): a largura dele e quanto leva para acender e apagar */
+  --largura-do-degrade-do-quadro: 56px;
+  --tempo-do-degrade-do-quadro: .2s;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -645,6 +648,15 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 
 /* ---------- quadro kanban ---------- */
 .quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth }
+/* Colunas fora da tela (#87): o degradê da borda, da cor do fundo da página (muda com o tema), mostra que o quadro continua
+   daquele lado. Acende à direita enquanto há o que rolar e à esquerda depois de rolar (ui/quadro/useMaisNosLados.ts); com
+   tudo cabendo, nenhum. Fica por cima das colunas sem pegar o clique. */
+.area-quadro { position: relative }
+.area-quadro::before, .area-quadro::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: var(--largura-do-degrade-do-quadro); pointer-events: none; opacity: 0; transition: opacity var(--tempo-do-degrade-do-quadro) ease-out }
+.area-quadro::before { left: 0; background: linear-gradient(to right, var(--bg), transparent) }
+.area-quadro::after { right: 0; background: linear-gradient(to left, var(--bg), transparent) }
+.area-quadro[data-mais-a-esquerda]::before, .area-quadro[data-mais-a-direita]::after { opacity: 1 }
+@media (prefers-reduced-motion: reduce) { .area-quadro::before, .area-quadro::after { transition: none } }
 .coluna { flex: 0 0 284px; display: flex; flex-direction: column; max-height: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
 .coluna.sem-etapa { background: var(--soft2) }
 /* Coluna-marco (ex.: a do contrato assinado): cor própria, para se ver de longe qual é o ponto do fluxo. */

@@ -158,3 +158,44 @@ describe('Ordem pelo prazo na coluna (#291)', () => {
     expect(screen.getAllByRole('menuitemradio').map(o => o.textContent)).not.toContain('Prazo (o mais próximo primeiro)');
   });
 });
+
+describe('Colunas fora da tela (#87)', () => {
+  /** O jsdom não desenha: as medidas da rolagem de lado do quadro são dadas aqui, e a rolagem avisa o quadro. */
+  function rolar(quadro: HTMLElement, rolado: number, total: number, visivel: number) {
+    Object.defineProperty(quadro, 'scrollLeft', { configurable: true, value: rolado });
+    Object.defineProperty(quadro, 'scrollWidth', { configurable: true, value: total });
+    Object.defineProperty(quadro, 'clientWidth', { configurable: true, value: visivel });
+    fireEvent.scroll(quadro);
+  }
+  /** Os lados acesos ficam na área em volta do quadro, que desenha o degradê. */
+  const ladosAcesos = (quadro: HTMLElement) => ({
+    esquerda: quadro.parentElement!.hasAttribute('data-mais-a-esquerda'),
+    direita: quadro.parentElement!.hasAttribute('data-mais-a-direita')
+  });
+
+  it.each([
+    ['tudo cabe na tela', 0, 900, { esquerda: false, direita: false }],
+    ['há colunas à direita e o quadro está no começo', 0, 2000, { esquerda: false, direita: true }],
+    ['o quadro está rolado até o meio', 400, 2000, { esquerda: true, direita: true }],
+    ['o quadro está rolado até o fim', 800, 2000, { esquerda: true, direita: false }]
+  ])('quando %s, então a borda mostra que há mais nos lados %j', async (_caso, rolado, total, esperado) => {
+    // Dado
+    montar(false, []);
+    const quadro = await screen.findByRole('region', { name: 'Quadro' });
+    // Quando
+    rolar(quadro, rolado, total, 1200);
+    // Então
+    expect(ladosAcesos(quadro)).toEqual(esperado);
+  });
+
+  it('dado o quadro com mais à direita, quando a pessoa rola até o fim, então o indicador da direita some e o da esquerda acende', async () => {
+    // Dado
+    montar(false, []);
+    const quadro = await screen.findByRole('region', { name: 'Quadro' });
+    rolar(quadro, 0, 2000, 1200);
+    // Quando
+    rolar(quadro, 800, 2000, 1200);
+    // Então
+    expect(ladosAcesos(quadro)).toEqual({ esquerda: true, direita: false });
+  });
+});

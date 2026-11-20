@@ -21,6 +21,7 @@ import { ordemNoFim } from './posicao';
 import { Campo, Carregando, estiloBotao, propsDoCampo } from '../base';
 import { numero } from '../util';
 import type { Quadro } from './useColunas';
+import { useMaisNosLados } from './useMaisNosLados';
 
 export interface Movimento { de: string | null; para: string | null; ordem: number; ordemAnterior: number | null }
 
@@ -66,6 +67,13 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
   const ordemDe = (it: T) => ordens.current[it.id] ?? p.current.ordemDe(it);
 
   const elQuadro = useRef<HTMLDivElement>(null);
+  // Colunas fora da tela (#87): o degradê da borda acende do lado em que há mais para rolar.
+  const { lados, ligar } = useMaisNosLados();
+  const refDoQuadro = useCallback((el: HTMLDivElement | null) => {
+    elQuadro.current = el;
+    const desligar = ligar(el);
+    return () => { elQuadro.current = null; desligar?.(); };
+  }, [ligar]);
   const arrasto = useRef<{ item: T; de: string | null } | null>(null);
   const [arrastando, setArrastando] = useState<string | null>(null);
   const [alvo, setAlvo] = useState<{ k: string; antes: string | null } | null>(null);
@@ -403,8 +411,8 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
   if (!quadro.pronto) return <div className="area-quadro"><Carregando /></div>;
 
   const existentes = new Set(quadro.colunas.map(c => normal(c.nome)));
-  return <div className="area-quadro">
-    <div className="quadro" role="region" aria-label="Quadro" ref={elQuadro}
+  return <div className="area-quadro" data-mais-a-esquerda={lados.esquerda || undefined} data-mais-a-direita={lados.direita || undefined}>
+    <div className="quadro" role="region" aria-label="Quadro" ref={refDoQuadro}
       onDragOver={e => {
         if (grupoArrasto.current || (colArrasto.current && noTopo(colArrasto.current))) {
           e.preventDefault();
