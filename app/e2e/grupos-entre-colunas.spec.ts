@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Grupo do quadro entre colunas sem grupo (#296), no quadro de Tarefas do banco fictício: "Para fazer", "Fazendo",
-// "Aguardando retorno" e "Concluída", sem grupos. Quem está logado é o Mateus (administrador).
+// "Aguardando retorno" e "Concluída", sem grupos. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 
 test.use({ viewport: { width: 2000, height: 1000 } });

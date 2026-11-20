@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Feriados e prazos. Na semente do banco fictício há três órgãos: INPI, TJMG (segue o recesso) e TRF6 (segue o recesso
-// e os feriados da Justiça Federal). Nenhum dia lançado. Quem está logado é o Mateus (administrador).
+// e os feriados da Justiça Federal). Nenhum dia lançado. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 import { abrir } from './ajudantes';
 

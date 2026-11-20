@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Comentários com @ nos cartões. No banco fictício, quem está logado é o Mateus (administrador e advogado); a Ana é
+// Comentários com @ nos cartões. No banco fictício, quem está logado é o Mauro (administrador e advogado); a Ana é
 // advogada e o Bruno, estagiário. JOSÉ DA SILVA TESTE já tem um comentário da Ana.
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';

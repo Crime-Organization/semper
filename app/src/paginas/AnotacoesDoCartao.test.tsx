@@ -26,10 +26,10 @@ vi.mock('../dados', () => ({
 }));
 // O módulo Documentos está ligado no escritório, salvo quando o caso diz que não.
 const sessao = vi.hoisted(() => ({ anotacoes: true }));
-vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus' }, equipe: [{ id: 'u-mateus', nome: 'Mateus Freitas Gonçalves' }], ehAdmin: false, escritorio: { modulos: { anotacoes: sessao.anotacoes } } }) }));
+vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro' }, equipe: [{ id: 'u-mauro', nome: 'Mauro Teixeira Duarte' }], ehAdmin: false, escritorio: { modulos: { anotacoes: sessao.anotacoes } } }) }));
 
 const ligada = (id: string, titulo: string, campos: Partial<AnotacaoLigada> = {}): AnotacaoLigada => ({
-  id, codigo: 'C-' + id, titulo, criado_por: 'u-mateus', criado_em: '2026-11-10T12:00:00Z', atualizado_em: '2026-11-16T12:00:00Z', arquivado_em: null, ...campos
+  id, codigo: 'C-' + id, titulo, criado_por: 'u-mauro', criado_em: '2026-11-10T12:00:00Z', atualizado_em: '2026-11-16T12:00:00Z', arquivado_em: null, ...campos
 });
 const paraLigar = (id: string, titulo: string, itens = 1): AnotacaoParaLigar => ({ id, codigo: 'C-' + id, titulo, atualizado_em: '2026-11-16T12:00:00Z', itens });
 const montar = (props: Partial<Parameters<typeof AnotacoesDoCartao>[0]> = {}) =>
@@ -197,8 +197,8 @@ describe('Anotações no cartão de um item', () => {
     // Então: o link que abre a anotação se chama pelo título; quem escreveu, quando mudou, o código e o começo do texto o descrevem
     const anotacao = await within(await screen.findByRole('list', { name: 'Anotações ligadas' })).findByRole('link', { name: 'Abrir a anotação Estratégia da defesa' });
     expect(anotacao).toHaveAttribute('href', '/documentos/?id=a1');
-    expect(anotacao).toHaveAccessibleDescription(/^Mateus Freitas Gonçalves Atualizada .+ C-a1 Linha do tempo/);
-    expect(anotacao).toHaveTextContent('Mateus Freitas Gonçalves');
+    expect(anotacao).toHaveAccessibleDescription(/^Mauro Teixeira Duarte Atualizada .+ C-a1 Linha do tempo/);
+    expect(anotacao).toHaveTextContent('Mauro Teixeira Duarte');
     expect(anotacao).toHaveTextContent(/Atualizada \S/);
     expect(within(anotacao).getByText('Linha do tempo\nJuntar a procuração até sexta.\nPedir o RG…', { normalizer: t => t })).toBeInTheDocument();
     expect(anotacao).not.toHaveTextContent('Conferir o CPF');

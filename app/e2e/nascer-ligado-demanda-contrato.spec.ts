@@ -4,7 +4,7 @@
 // item novo na seção e o contador atualizado. A semente do banco fictício: "Renovar a procuração" é uma tarefa avulsa (sem demanda,
 // contrato, processo nem pessoas); JOSÉ DA SILVA TESTE é cliente do processo judicial 0001234-97.2026.8.13.0024; "Notificar o
 // devedor" é uma demanda avulsa de MARIA APARECIDA EXEMPLO, sem contrato; "Registro de marca" é uma demanda de contrato. Quem está
-// logado é o Mateus (administrador).
+// logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
 

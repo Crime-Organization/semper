@@ -18,9 +18,9 @@ const SD = vi.hoisted(() => ({
 }));
 vi.mock('../dados', () => ({ SD: SD satisfies Pick<Dados, 'pessoasListar' | 'colunasListar' | 'sugestoesListar' | 'gruposListar' | 'etiquetasListar'> }));
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
-const EQUIPE: Membro[] = [{ id: 'u-mateus', nome: 'Mateus Exemplo Gonçalves', ativo: true }];
+const EQUIPE: Membro[] = [{ id: 'u-mauro', nome: 'Mauro Exemplo Gonçalves', ativo: true }];
 vi.mock('../ui/sessao', () => {
-  const ctx = () => ({ perfil: { id: 'u-mateus' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin, escritorio: null });
+  const ctx = () => ({ perfil: { id: 'u-mauro' }, equipe: EQUIPE, ehAdmin: sessao.ehAdmin, escritorio: null });
   return { useCtx: ctx, useSessao: () => ({ ctx: ctx() }) };
 });
 

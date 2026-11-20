@@ -6,7 +6,7 @@ import { avisarDaTroca, mensagensDoAviso, reenviarAvisos, senhaDaRotinaConfere, 
 const EMAIL_NOVO = 'nova@exemplo.com';
 const DADOS: DadosDoAviso = {
   escritorio: 'Escritório Exemplo', alvo: 'Bruno Souza', autor: 'Ana Lima', autor_email: 'ana@exemplo.com', em: '2026-11-03T17:30:00Z',
-  email_antigo: 'bruno@exemplo.com', gestao: ['mateus@exemplo.com', 'carla@exemplo.com']
+  email_antigo: 'bruno@exemplo.com', gestao: ['mauro@exemplo.com', 'carla@exemplo.com']
 };
 const REGISTRO = 7;
 
@@ -28,7 +28,7 @@ describe('mensagensDoAviso', () => {
     const mensagens = mensagensDoAviso(DADOS, 'trocada');
     // Então
     expect(mensagens.map(m => [m.destino, m.para])).toEqual([
-      ['antigo', 'bruno@exemplo.com'], ['gestao', 'mateus@exemplo.com'], ['gestao', 'carla@exemplo.com']
+      ['antigo', 'bruno@exemplo.com'], ['gestao', 'mauro@exemplo.com'], ['gestao', 'carla@exemplo.com']
     ]);
   });
 
@@ -142,8 +142,8 @@ describe('avisarDaTroca', () => {
   it.each([
     ['o e-mail antigo', ['bruno@exemplo.com'], ['antigo'], []],
     ['uma pessoa da administração', ['carla@exemplo.com'], ['gestao'], ['carla@exemplo.com']],
-    ['duas pessoas da administração', ['carla@exemplo.com', 'mateus@exemplo.com'], ['gestao'], ['mateus@exemplo.com', 'carla@exemplo.com']],
-    ['todos', ['bruno@exemplo.com', 'carla@exemplo.com', 'mateus@exemplo.com'], ['antigo', 'gestao'], ['mateus@exemplo.com', 'carla@exemplo.com']]
+    ['duas pessoas da administração', ['carla@exemplo.com', 'mauro@exemplo.com'], ['gestao'], ['mauro@exemplo.com', 'carla@exemplo.com']],
+    ['todos', ['bruno@exemplo.com', 'carla@exemplo.com', 'mauro@exemplo.com'], ['antigo', 'gestao'], ['mauro@exemplo.com', 'carla@exemplo.com']]
   ])('dado que o envio falha para %s, quando avisa, então os outros recebem e o registro diz para quem não saiu', async (_caso, enderecos, falhas, gestaoSemAviso) => {
     // Dado
     const p = passos({ enviar: vi.fn(falharPara(...enderecos)) });

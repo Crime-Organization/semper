@@ -354,8 +354,8 @@ test.describe('Equipe e acessos', () => {
 
     test('quando olha a própria linha, então não há como trocar o e-mail por aqui', async ({ page }) => {
       // Então
-      await expect(linha(page, 'Mateus Freitas Gonçalves')).toContainText('Você');
-      await expect(page.getByRole('button', { name: 'Trocar e-mail de Mateus Freitas Gonçalves' })).toHaveCount(0);
+      await expect(linha(page, 'Mauro Teixeira Duarte')).toContainText('Você');
+      await expect(page.getByRole('button', { name: 'Trocar e-mail de Mauro Teixeira Duarte' })).toHaveCount(0);
     });
   });
 

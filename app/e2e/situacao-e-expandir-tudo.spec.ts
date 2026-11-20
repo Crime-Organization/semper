@@ -2,7 +2,7 @@
 // e pessoa, nesta a "Etapa do atendimento"), o botão que abre e fecha as seções fica na linha do menu, à direita, com o meio no
 // eixo das setas das seções e do X (#381). Na tarefa, o menu, o Concluir e o botão cabem sem se cruzar. Na anotação, sem Situação,
 // o botão continua acima da primeira seção (veja documentos.spec.ts).
-// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mateus (master).
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 type Caixa = { x: number; y: number; width: number; height: number };

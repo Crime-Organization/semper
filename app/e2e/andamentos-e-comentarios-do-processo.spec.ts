@@ -2,7 +2,7 @@
 // O cartão do processo com comentários e andamentos na coluna da direita (#362): o andamento é lançado com um tipo da lista pronta
 // (despacho, decisão, sentença, intimação, petição, audiência), que aparece na caixa dele; "Mudar" e "Excluir" ficam no "⋯" à direita
 // da caixa, que aparece ao passar o mouse e no foco do teclado; quem só lê o processo vê comentários e andamentos, sem o "⋯". Na
-// semente do banco fictício, o processo judicial de JOSÉ DA SILVA TESTE é do Mateus (administrador, quem está logado), sem
+// semente do banco fictício, o processo judicial de JOSÉ DA SILVA TESTE é do Mauro (administrador, quem está logado), sem
 // andamentos; o Bruno (estagiário) não está nele.
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
@@ -126,7 +126,7 @@ test.describe('Andamentos com tipo e comentários no processo (#362)', () => {
   });
 
   test('dado quem só lê o processo, quando abre o cartão, então lê comentários e andamentos e comenta, mas não vê o "⋯" nem lança andamento', async ({ page }) => {
-    // Dado: o Mateus lança um andamento e comenta; a chave "toda a equipe vê" está ligada, e o Bruno não está no processo
+    // Dado: o Mauro lança um andamento e comenta; a chave "toda a equipe vê" está ligada, e o Bruno não está no processo
     let cartao = await abrirProcesso(page);
     await abrirAndamentos(cartao);
     await lancarAndamento(cartao, 'Petição', 'Juntada a contestação.');

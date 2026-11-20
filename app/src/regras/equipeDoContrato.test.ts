@@ -94,7 +94,7 @@ describe('Quem grava e ficaria fora do contrato', () => {
 
   it('dado um administrador participante, quando se tira, então grava: ele continua vendo o contrato', () => {
     // Dado / Quando
-    const r = planoNoContrato({ tipo: 'tirar', id: 'p-master', nome: 'Mateus' }, contrato([['p-master', 10]]), administrador);
+    const r = planoNoContrato({ tipo: 'tirar', id: 'p-master', nome: 'Mauro' }, contrato([['p-master', 10]]), administrador);
     // Então
     expect(r).toEqual({ gravar: { participantes: [] } });
   });

@@ -16,16 +16,16 @@ vi.mock('./equipeDoContrato', () => ({ mudarAEquipeDoContrato }));
 const EQUIPE = [
   { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true, funcao: 'advogado' as const, pessoa_id: 'p-ana' },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true, funcao: 'estagiario' as const, pessoa_id: 'p-bruno' },
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', ativo: true, funcao: 'advogado' as const, pessoa_id: 'p-mateus' }
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', ativo: true, funcao: 'advogado' as const, pessoa_id: 'p-mauro' }
 ];
-const EU = { id: 'u-mateus', pessoa_id: 'p-mateus', papel: 'master' };
-/** Quem está logado em cada teste (o Mateus, administrador, se o teste não diz outro). */
+const EU = { id: 'u-mauro', pessoa_id: 'p-mauro', papel: 'master' };
+/** Quem está logado em cada teste (o Mauro, administrador, se o teste não diz outro). */
 let eu: typeof EU = EU;
 vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: eu, equipe: EQUIPE, ehAdmin: true, escritorio: { modulos: {} } }) }));
 
-/** Um contrato do Mateus, com o Bruno participante a 10% e um participante de fora da equipe (que fica nas Partes). */
+/** Um contrato do Mauro, com o Bruno participante a 10% e um participante de fora da equipe (que fica nas Partes). */
 const CONTRATO = {
-  id: 'k1', responsavel_id: 'u-mateus', indicador_id: null, criado_por: 'u-mateus',
+  id: 'k1', responsavel_id: 'u-mauro', indicador_id: null, criado_por: 'u-mauro',
   participantes: [
     { pessoa: { id: 'p-bruno', codigo: '2', nome: 'BRUNO EXEMPLO SOUZA', tipo: 'pf' }, percentual: 10 },
     { pessoa: { id: 'p-fora', codigo: '9', nome: 'PARCEIRO DE FORA', tipo: 'pf' }, percentual: 5 }
@@ -40,7 +40,7 @@ describe('Equipe no topo do cartão do contrato', () => {
     // Quando
     render(<MemoryRouter><EquipeDoContratoNoTopo contrato={CONTRATO} depois={null} /></MemoryRouter>);
     // Então
-    expect(within(equipe()).getByRole('img', { name: 'Mateus Freitas Gonçalves, Advogado responsável' })).toBeInTheDocument();
+    expect(within(equipe()).getByRole('img', { name: 'Mauro Teixeira Duarte, Advogado responsável' })).toBeInTheDocument();
     expect(within(equipe()).getByRole('img', { name: 'Bruno Exemplo Souza, Participante · 10%' })).toBeInTheDocument();
     expect(within(equipe()).queryByRole('button')).not.toBeInTheDocument();
     expect(equipe()).not.toHaveTextContent('PARCEIRO');
@@ -82,7 +82,7 @@ describe('Equipe no topo do cartão do contrato', () => {
     expect(within(menu).getByRole('menuitem', { name: 'Tirar do contrato' })).toBeInTheDocument();
   });
 
-  it('dada a Ana, participante advogada, quando a pessoa escolhe "Tornar responsável", então a troca é pedida pelo usuário dela, sabendo a pessoa do Mateus', async () => {
+  it('dada a Ana, participante advogada, quando a pessoa escolhe "Tornar responsável", então a troca é pedida pelo usuário dela, sabendo a pessoa do Mauro', async () => {
     // Dado
     const comAna = { ...CONTRATO, participantes: [...CONTRATO.participantes, { pessoa: { id: 'p-ana', codigo: '3', nome: 'ANA TESTE LIMA', tipo: 'pf' }, percentual: 0 }] } as unknown as Contrato;
     render(<MemoryRouter><EquipeDoContratoNoTopo contrato={comAna} depois={vi.fn()} /></MemoryRouter>);
@@ -91,19 +91,19 @@ describe('Equipe no topo do cartão do contrato', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Tornar responsável' }));
     // Então
     expect(mudarAEquipeDoContrato).toHaveBeenCalledWith('k1', { tipo: 'tornarResponsavel', id: 'u-ana', nome: 'Ana Teste Lima' }, EU, expect.any(Function));
-    // A pessoa do Mateus, responsável de agora, é a que continua como participante.
+    // A pessoa do Mauro, responsável de agora, é a que continua como participante.
     const pessoaDe = mudarAEquipeDoContrato.mock.calls[0][3] as (perfilId: string) => string | null | undefined;
-    expect(pessoaDe('u-mateus')).toBe('p-mateus');
+    expect(pessoaDe('u-mauro')).toBe('p-mauro');
   });
 
   it('dado quem altera o contrato, quando troca o responsável pelo menu, então a busca mostra só os outros advogados e a troca é pedida pelo usuário', async () => {
     // Dado
     render(<MemoryRouter><EquipeDoContratoNoTopo contrato={CONTRATO} depois={vi.fn()} /></MemoryRouter>);
     // Quando
-    await userEvent.click(within(equipe()).getByRole('button', { name: 'Mateus Freitas Gonçalves, Advogado responsável' }));
+    await userEvent.click(within(equipe()).getByRole('button', { name: 'Mauro Teixeira Duarte, Advogado responsável' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Trocar o responsável' }));
     const busca = screen.getByRole('dialog', { name: 'Trocar o responsável' });
-    // Então: o Bruno é estagiário, e o Mateus já responde pelo contrato
+    // Então: o Bruno é estagiário, e o Mauro já responde pelo contrato
     expect(within(within(busca).getByRole('list', { name: 'Equipe' })).getAllByRole('button').map(b => b.textContent)).toEqual(['Ana Teste Lima']);
     await userEvent.click(within(busca).getByRole('button', { name: 'Ana Teste Lima' }));
     expect(mudarAEquipeDoContrato).toHaveBeenCalledWith('k1', { tipo: 'responsavel', id: 'u-ana', nome: 'Ana Teste Lima' }, EU, expect.any(Function));
@@ -140,7 +140,7 @@ describe('Equipe no topo do cartão do contrato', () => {
     expect(mudarAEquipeDoContrato).not.toHaveBeenCalled();
     // Quando: o menu do responsável continua trocando, porque o Bruno segue no contrato como participante.
     await userEvent.keyboard('{Escape}');
-    await userEvent.click(within(equipe()).getByRole('button', { name: 'Mateus Freitas Gonçalves, Advogado responsável' }));
+    await userEvent.click(within(equipe()).getByRole('button', { name: 'Mauro Teixeira Duarte, Advogado responsável' }));
     // Então
     expect(screen.getByRole('menuitem', { name: 'Trocar o responsável' })).toBeInTheDocument();
   });

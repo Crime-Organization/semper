@@ -1,11 +1,11 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Caixa de mensagens (#112). No banco fictício, quem está logado é o Mateus; a Ana é advogada e o Bruno, estagiário.
+// Caixa de mensagens (#112). No banco fictício, quem está logado é o Mauro; a Ana é advogada e o Bruno, estagiário.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirSecao, entrarComo } from './ajudantes';
 
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Seções' });
 
-/** Comenta no cartão do JOSÉ, como o Mateus. */
+/** Comenta no cartão do JOSÉ, como o Mauro. */
 async function comentar(page: Page, texto: string) {
   await page.goto('/pessoas/');
   await page.getByRole('button', { name: 'Tabela' }).click();
@@ -83,7 +83,7 @@ test.describe('Avisos de prazo', () => {
   }
 
   test('quando um prazo está perto de vencer, então o responsável vê o aviso, abre o cartão e o aviso fica lido', async ({ page }) => {
-    // Dado: a tarefa "Emitir a GRU" é do Mateus e vence em 2 dias
+    // Dado: a tarefa "Emitir a GRU" é do Mauro e vence em 2 dias
     await rodarARotina(page);
     // Quando
     await page.goto('/mensagens/');
@@ -111,7 +111,7 @@ test.describe('Avisos de prazo', () => {
   }
 
   test('quando um compromisso é hoje, então o aviso não fala em vencimento e mostra a hora', async ({ page }) => {
-    // Dado: a reunião de equipe do Mateus é hoje, às 9h
+    // Dado: a reunião de equipe do Mauro é hoje, às 9h
     await rodarARotina(page);
     // Quando
     await page.goto('/mensagens/');

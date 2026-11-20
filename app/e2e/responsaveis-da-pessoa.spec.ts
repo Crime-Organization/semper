@@ -1,8 +1,8 @@
 // Os responsáveis da pessoa no topo do cartão (#387): em bolinhas, como a equipe dos outros cartões, todos iguais, sem um
 // principal; o "+" põe mais um e o menu da bolinha (#388) tira ou abre o perfil, com o aviso e o Desfazer. A seção "Responsáveis"
 // do corpo saiu.
-// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mateus
-// (master), e o José da Silva Teste tem dois responsáveis: o Mateus e o Bruno.
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro
+// (master), e o José da Silva Teste tem dois responsáveis: o Mauro e o Bruno.
 import { expect, test, type Page } from '@playwright/test';
 import { abrirMenuDaBolinha, acaoDaBolinha, acaoNoMenuDoCartao } from './ajudantes';
 
@@ -22,7 +22,7 @@ test.describe('Responsáveis da pessoa no topo do cartão', () => {
     const cartao = await abrirJose(page);
     // Então
     const equipe = cartao.getByRole('group', { name: 'Equipe', exact: true });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Responsável', exact: true })).toBeVisible();
     await expect(equipe.getByRole('button', { name: 'Bruno Exemplo Souza, Responsável', exact: true })).toHaveAttribute('data-dica', 'Bruno Exemplo Souza · Responsável');
     const topo = (await equipe.boundingBox())!, titulo = (await cartao.getByRole('heading', { level: 2 }).boundingBox())!;
     expect(topo.y + topo.height).toBeLessThanOrEqual(titulo.y);
@@ -55,7 +55,7 @@ test.describe('Responsáveis da pessoa no topo do cartão', () => {
     await expect(page.getByText('Bruno Exemplo Souza saiu dos responsáveis.')).toHaveCount(0);
     // Quando
     await page.keyboard.press('Escape');
-    menu = await abrirMenuDaBolinha(page, cartao, 'Mateus Freitas Gonçalves, Responsável');
+    menu = await abrirMenuDaBolinha(page, cartao, 'Mauro Teixeira Duarte, Responsável');
     // Então
     await expect(menu.getByRole('menuitem')).toHaveText(['Deixar de ser responsável', 'Ver perfil']);
   });
@@ -83,7 +83,7 @@ test.describe('Responsáveis da pessoa no topo do cartão', () => {
     // Então
     const equipe = cartao.getByRole('group', { name: 'Equipe', exact: true });
     await expect(equipe.getByRole('img', { name: 'Bruno Exemplo Souza, Responsável' })).toBeVisible();
-    await expect(equipe.getByRole('img', { name: 'Mateus Freitas Gonçalves, Responsável' })).toBeVisible();
+    await expect(equipe.getByRole('img', { name: 'Mauro Teixeira Duarte, Responsável' })).toBeVisible();
     await expect(equipe.getByRole('button')).toHaveCount(0);
   });
 });

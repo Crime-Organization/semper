@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Minha conta e perfil profissional. No banco fictício, quem está logado é o Mateus (master); Ana é administradora.
+// Minha conta e perfil profissional. No banco fictício, quem está logado é o Mauro (master); Ana é administradora.
 import { expect, test } from '@playwright/test';
 import { abrirUsuario } from './ajudantes';
 
@@ -12,7 +12,7 @@ test.describe('Minha conta', () => {
     // Então
     await expect(page).toHaveURL(/\/minha-conta\/$/);
     await expect(page.getByRole('heading', { name: 'Minha conta', level: 1 })).toBeVisible();
-    await expect(page.getByLabel('Usuário para menções', { exact: false })).toHaveValue('mateus.goncalves');
+    await expect(page.getByLabel('Usuário para menções', { exact: false })).toHaveValue('mauro.duarte');
     await expect(page.getByRole('button', { name: 'Ativar verificação em duas etapas' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Perfil profissional' })).toBeVisible();
   });
@@ -20,20 +20,20 @@ test.describe('Minha conta', () => {
   test('quando a pessoa pede a troca do e-mail, então o atual continua valendo e a tela mostra o que falta confirmar', async ({ page }) => {
     // Dado
     await page.goto('/minha-conta/');
-    await expect(page.getByText('mateus@exemplo.com')).toBeVisible();
+    await expect(page.getByText('mauro@exemplo.com')).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('Mateus.Novo@Exemplo.com');
+    await page.getByLabel('E-mail novo').fill('Mauro.Novo@Exemplo.com');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     // Então
     await expect(page.getByText('Pedido enviado. Confirme pelo link que chegará por e-mail.')).toBeVisible();
-    await expect(page.getByRole('status').filter({ hasText: 'Troca aguardando confirmação para mateus.novo@exemplo.com' })).toBeVisible();
-    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus@exemplo.com');
+    await expect(page.getByRole('status').filter({ hasText: 'Troca aguardando confirmação para mauro.novo@exemplo.com' })).toBeVisible();
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mauro@exemplo.com');
   });
 
   for (const [caso, email, mensagem] of [
-    ['inválido', 'mateus@', 'Informe um e-mail válido.'],
-    ['igual ao atual', 'MATEUS@exemplo.com', 'Este já é o seu e-mail de acesso.'],
+    ['inválido', 'mauro@', 'Informe um e-mail válido.'],
+    ['igual ao atual', 'MAURO@exemplo.com', 'Este já é o seu e-mail de acesso.'],
     ['de outra pessoa da equipe', 'ana@exemplo.com', 'Este e-mail já é usado em outra conta do SEMPER.']
   ]) test(`quando o e-mail novo é ${caso}, então a tela avisa no campo e nada fica pendente`, async ({ page }) => {
     // Dado
@@ -51,7 +51,7 @@ test.describe('Minha conta', () => {
     // Dado
     await page.goto('/minha-conta/');
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByLabel('E-mail novo').fill('mauro.novo@exemplo.com');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
     // Quando
@@ -62,7 +62,7 @@ test.describe('Minha conta', () => {
     await page.goto('/?token_hash=link-do-novo&type=email_change');
     // Então
     await expect(page).toHaveURL(/\/minha-conta\/$/);
-    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mauro.novo@exemplo.com');
     await expect(page.getByText('Troca aguardando confirmação')).toHaveCount(0);
   });
 
@@ -70,7 +70,7 @@ test.describe('Minha conta', () => {
     // Dado
     await page.goto('/minha-conta/');
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('mateus@');
+    await page.getByLabel('E-mail novo').fill('mauro@');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     await expect(page.getByRole('alert').filter({ hasText: 'Informe um e-mail válido.' })).toBeVisible();
     // Quando
@@ -121,11 +121,11 @@ test.describe('Minha conta', () => {
     // Dado
     await page.goto('/minha-conta/');
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByLabel('E-mail novo').fill('mauro.novo@exemplo.com');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
     // Quando
-    await page.getByLabel('Nome', { exact: true }).fill('Mateus Outro Nome');
+    await page.getByLabel('Nome', { exact: true }).fill('Mauro Outro Nome');
     await page.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
     await expect(page.getByText('Conta atualizada.')).toBeVisible();
@@ -139,7 +139,7 @@ test.describe('Minha conta', () => {
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();
     await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByLabel('E-mail novo').fill('mauro.novo@exemplo.com');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
     await page.goto('/?token_hash=link-do-atual&type=email_change');
@@ -153,7 +153,7 @@ test.describe('Minha conta', () => {
     await page.getByRole('button', { name: 'Confirmar' }).click();
     // Então
     await expect(page).toHaveURL(/\/minha-conta\/$/);
-    await expect(page.getByText('E-mail de acesso:')).toContainText('mateus.novo@exemplo.com');
+    await expect(page.getByText('E-mail de acesso:')).toContainText('mauro.novo@exemplo.com');
   });
 
   test('quando a pessoa desiste no código e entra com outra conta, então vai para o Início, e não para Minha conta', async ({ page }) => {
@@ -164,7 +164,7 @@ test.describe('Minha conta', () => {
     await page.getByRole('button', { name: 'Ativar', exact: true }).click();
     await expect(page.getByText('Verificação em duas etapas ativada.', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Trocar e-mail' }).click();
-    await page.getByLabel('E-mail novo').fill('mateus.novo@exemplo.com');
+    await page.getByLabel('E-mail novo').fill('mauro.novo@exemplo.com');
     await page.getByRole('button', { name: 'Enviar confirmação' }).click();
     await expect(page.getByText('Troca aguardando confirmação', { exact: false })).toBeVisible();
     await page.goto('/?token_hash=link-do-atual&type=email_change');
@@ -215,7 +215,7 @@ test.describe('Minha conta', () => {
     // Dado
     await page.goto('/minha-conta/');
     // Quando
-    await page.getByLabel('LinkedIn').fill('linkedin.com/in/mateus');
+    await page.getByLabel('LinkedIn').fill('linkedin.com/in/mauro');
     await page.getByRole('button', { name: 'Salvar perfil' }).click();
     // Então
     await expect(page.getByLabel('LinkedIn')).toHaveAttribute('aria-invalid', 'true');

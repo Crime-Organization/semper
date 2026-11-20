@@ -10,7 +10,7 @@
   const telNormal = t => { let d = String(t || '').replace(/\D/g, ''); if ((d.length === 12 || d.length === 13) && d.startsWith('55')) d = d.slice(2); return d; };
 
   const EQUIPE = [
-    { id: 'u-master', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com' },
+    { id: 'u-master', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mauro', email: 'mauro@exemplo.com' },
     { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com' },
     { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com' },
     { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com' }
@@ -88,7 +88,7 @@
   const erro = t => Promise.reject(new Error(t));
 
   const SD = {
-    sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mateus@exemplo.com' } } : null),
+    sessao: () => espera(bd.logado ? { user: { id: eu, email: 'mauro@exemplo.com' } } : null),
     entrar: async () => { bd.logado = true; gravar(); },
     primeiroAcesso: async () => ({ entrou: false }),
     recuperarSenha: async () => {},

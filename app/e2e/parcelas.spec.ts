@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mateus (administrador), responsável pelo contrato de
+// As parcelas do contrato, o recebimento e os repasses. Quem está logado é o Mauro (administrador), responsável pelo contrato de
 // JOSÉ DA SILVA TESTE, já assinado, de R$ 3.000,00 em 5 parcelas, com 30% para a conta da empresa. O banco fictício começa sem contas.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirNoFinanceiro, abrirSecao, acaoDaParcela, adicionarParticipante } from './ajudantes';
@@ -255,8 +255,8 @@ test.describe('Receber', () => {
     const repasses = page.getByRole('table', { name: 'Repasses' });
     await expect(repasses).toContainText(dinheiro('647,50'));
     await expect(repasses).toContainText('A pagar');
-    await page.getByRole('button', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).click();
-    await page.getByRole('form', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
+    await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     // Então
     await expect(repasses).toContainText('Pago');
     // Quando: abre o caixa
@@ -266,7 +266,7 @@ test.describe('Receber', () => {
     await expect(caixa.getByRole('row')).toHaveCount(4);
     await expect(caixa).toContainText('Recebimento: JOSÉ DA SILVA TESTE');
     await expect(caixa).toContainText('Taxa da máquina');
-    await expect(caixa).toContainText('Repasse a Mateus Freitas Gonçalves');
+    await expect(caixa).toContainText('Repasse a Mauro Teixeira Duarte');
     await expect(caixa.getByText('Veio de uma parcela')).toHaveCount(2);
     await expect(caixa.getByText('Veio de um repasse')).toHaveCount(1);
     await expect(caixa.getByRole('button')).toHaveCount(0);
@@ -318,8 +318,8 @@ test.describe('Receber', () => {
     await form.getByRole('button', { name: 'Registrar recebimento' }).click();
     await expect(form).toHaveCount(0);
     await page.goto('/parcelas/');
-    await page.getByRole('button', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).click();
-    await page.getByRole('form', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
+    await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     const repasses = page.getByRole('table', { name: 'Repasses' });
     await expect(repasses).toContainText('Pago');
     // Quando
@@ -335,7 +335,7 @@ test.describe('Receber', () => {
     // Então
     await expect(repasses).toContainText('A pagar');
     await page.goto('/financeiro/contas/');
-    await expect(page.getByRole('table', { name: 'Lançamentos do mês' })).not.toContainText('Repasse a Mateus');
+    await expect(page.getByRole('table', { name: 'Lançamentos do mês' })).not.toContainText('Repasse a Mauro');
   });
 
   test('quando o responsável é sócio, então a parte dele fica no escritório, sem repasse', async ({ page }) => {
@@ -343,8 +343,8 @@ test.describe('Receber', () => {
     await abrirSecao(page, 'Sócios');
     await page.getByRole('button', { name: 'Novo sócio' }).filter({ hasText: 'Novo sócio' }).click();
     const socio = page.getByRole('form', { name: 'Novo sócio' });
-    await socio.getByLabel('Pessoa').fill('MATEUS FREITAS');
-    await socio.getByRole('button', { name: /MATEUS FREITAS/ }).click();
+    await socio.getByLabel('Pessoa').fill('MAURO TEIXEIRA');
+    await socio.getByRole('button', { name: /MAURO TEIXEIRA/ }).click();
     await socio.getByLabel('Desde').fill('2020-01-01');
     await socio.getByRole('button', { name: 'Salvar sócio' }).click();
     await expect(page.getByRole('list', { name: 'Sócios' })).toContainText('desde 01/01/2020');
@@ -551,8 +551,8 @@ test.describe('Corrigir uma parcela já recebida (#267)', () => {
     await expect(cartao.getByRole('table', { name: 'Parcelas' }).getByRole('row').nth(1)).toContainText(dinheiro('900,00'));
     // Quando: o repasse é pago, e tenta corrigir de novo
     await page.goto('/parcelas/');
-    await page.getByRole('button', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).click();
-    await page.getByRole('form', { name: 'Pagar o repasse a Mateus Freitas Gonçalves' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
+    await page.getByRole('button', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).click();
+    await page.getByRole('form', { name: 'Pagar o repasse a Mauro Teixeira Duarte' }).getByRole('button', { name: 'Confirmar pagamento' }).click();
     await expect(page.getByRole('table', { name: 'Repasses' })).toContainText('Pago');
     const novoCartao = await abrirContrato(page, 'JOSÉ DA SILVA TESTE');
     await abrirSecao(novoCartao, 'Honorários');

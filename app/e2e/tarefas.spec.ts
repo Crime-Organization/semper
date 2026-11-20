@@ -1,8 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Módulo Tarefas. Na semente do banco fictício, a demanda "Registro de marca" (do contrato de JOSÉ DA SILVA TESTE) tem
-// três tarefas: "Pedir documentos ao cliente" (Para fazer, do Bruno), "Emitir a GRU" (Fazendo, do Mateus, com o Bruno)
-// e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante e o prazo
-// vencido. Quem está logado é o Mateus (administrador).
+// três tarefas: "Pedir documentos ao cliente" (Para fazer, do Bruno), "Emitir a GRU" (Fazendo, do Mauro, com o Bruno)
+// e "Organizar a pasta" (Concluída). "Renovar a procuração" é avulsa, da Ana, com o Mauro de participante e o prazo
+// vencido. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, acaoNoMenuDoCartao, alturaParada, entrarComo } from './ajudantes';
 
@@ -80,7 +80,7 @@ test.describe('Cadastro de tarefas', () => {
     await expect(cartao.getByRole('heading', { name: 'Mandar a notificação' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Responsável', exact: true })).toBeVisible();
     await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante', exact: true })).toBeVisible();
     await abrirSecao(cartao, 'Pessoas');
     await abrirSecao(cartao, 'Demanda');
@@ -548,7 +548,7 @@ test.describe('Cronômetro da tarefa', () => {
   });
 
   test('quando a pessoa ajusta o próprio tempo com um motivo, então o tempo muda e o ajuste fica registrado', async ({ page }) => {
-    // Dado: o Mateus tem 1 h 20 min em "Emitir a GRU"
+    // Dado: o Mauro tem 1 h 20 min em "Emitir a GRU"
     await page.clock.install();
     const cartao = await abrirTarefa(page, 'Emitir a GRU');
     // Quando
@@ -560,7 +560,7 @@ test.describe('Cronômetro da tarefa', () => {
     // Então
     await expect(page.getByText('Tempo ajustado: −20 min.')).toBeVisible();
     await expect(cartao.getByRole('timer')).toHaveText('1:00:00');
-    await expect(cartao.getByText(/Mateus Freitas Gonçalves: −20 min · Contei a mais/)).toBeVisible();
+    await expect(cartao.getByText(/Mauro Teixeira Duarte: −20 min · Contei a mais/)).toBeVisible();
   });
 
   test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {
@@ -580,25 +580,25 @@ test.describe('Equipe da tarefa', () => {
   // A regra mudou (pedido do dono, 18/11): a bolinha não abre mais a ficha com o nome, o papel e o link para o cartão da pessoa.
   // O nome aparece na dica, ao passar o mouse e no foco; o clique abre o menu da bolinha (#388), conferido em equipe-no-cartao.spec.ts.
   test('quando a pessoa passa o mouse ou chega pelo Tab numa bolinha da equipe, então vê o nome e o papel na dica', async ({ page }) => {
-    // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
+    // Dado: "Renovar a procuração" é da Ana, com o Mauro de participante
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
     const ana = equipe.getByRole('button', { name: 'Ana Teste Lima, Responsável', exact: true });
-    const mateus = equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Participante', exact: true });
+    const mauro = equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Participante', exact: true });
     await expect(ana).toHaveText('AL');
-    await expect(mateus).toHaveText('MG');
+    await expect(mauro).toHaveText('MD');
     // Quando
     await ana.hover();
     // Então: a dica é desenhada pelo estilo, com o texto de data-dica
     await expect(ana).toHaveAttribute('data-dica', 'Ana Teste Lima · Responsável');
     await expect.poll(() => ana.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
     // Quando: pelo teclado (o foco vindo do Tab)
-    await mateus.focus();
+    await mauro.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     // Então
-    await expect(mateus).toBeFocused();
-    await expect.poll(() => mateus.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
+    await expect(mauro).toBeFocused();
+    await expect.poll(() => mauro.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
     await expect(page.getByRole('dialog', { name: 'Ana Teste Lima' })).toHaveCount(0);
   });
 });
@@ -687,7 +687,7 @@ test.describe('Tarefas ligadas', () => {
   });
 
   test('quando o comentário da tarefa menciona quem não a vê, então a pessoa aparece desligada na lista do @', async ({ page }) => {
-    // Dado: "Renovar a procuração" é da Ana, com o Mateus; o Bruno não está nela e ela não tem demanda
+    // Dado: "Renovar a procuração" é da Ana, com o Mauro; o Bruno não está nela e ela não tem demanda
     const cartao = await abrirTarefa(page, 'Renovar a procuração', 'Comentários');
     // Quando
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Veja isto, @');
@@ -728,12 +728,12 @@ test.describe('Checklists da tarefa', () => {
 test.describe('Sair da tarefa (#276)', () => {
   test('dado um participante sem outro vínculo, quando se tira e salva, então sai de verdade e a saída fica no histórico', async ({ page }) => {
     // Dado
-    const doMateus = await abrirTarefa(page, 'Renovar a procuração');
-    await doMateus.getByRole('button', { name: 'Editar' }).click();
-    await doMateus.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
-    await doMateus.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza' }).click();
-    await doMateus.getByRole('button', { name: 'Salvar', exact: true }).click();
-    await expect(doMateus.getByRole('form', { name: 'Editar tarefa' })).toHaveCount(0);
+    const doMauro = await abrirTarefa(page, 'Renovar a procuração');
+    await doMauro.getByRole('button', { name: 'Editar' }).click();
+    await doMauro.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
+    await doMauro.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza' }).click();
+    await doMauro.getByRole('button', { name: 'Salvar', exact: true }).click();
+    await expect(doMauro.getByRole('form', { name: 'Editar tarefa' })).toHaveCount(0);
     await entrarComo(page, 'u-bruno');
     // Quando
     const doBruno = await abrirTarefa(page, 'Renovar a procuração');

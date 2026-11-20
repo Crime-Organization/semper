@@ -8,8 +8,8 @@ import { desfazerUltimo } from '../ui/avisos';
 import { mudarAEquipeDoContrato } from './equipeDoContrato';
 
 const marca = () => 'EQUIPE ' + Math.random().toString(36).slice(2, 8).toUpperCase();
-const comoAdministrador = { id: 'u-master', pessoa_id: 'p-mateus', papel: 'master' };
-/** Um contrato do Mateus, com os participantes dados (a pessoa e o %). */
+const comoAdministrador = { id: 'u-master', pessoa_id: 'p-mauro', papel: 'master' };
+/** Um contrato do Mauro, com os participantes dados (a pessoa e o %). */
 async function contrato(participantes: { pessoa_id: string; percentual: number | null }[] = []) {
   const cliente = (await SD.pessoaCriar({ tipo: 'pf', nome: marca() })).id;
   return (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: [marca()], categoria: 'pro_labore', participantes })).id;
@@ -45,12 +45,12 @@ describe('Mudar a equipe do contrato pelas bolinhas do cartão', () => {
     const id = await contrato([{ pessoa_id: 'p-ana', percentual: 15 }, { pessoa_id: 'p-bruno', percentual: 5 }]);
     await mudarAEquipeDoContrato(id, { tipo: 'tirar', id: 'p-ana', nome: 'Ana Teste Lima' }, comoAdministrador);
     expect(await participantesDo(id)).toEqual([{ pessoa_id: 'p-bruno', percentual: 5 }]);
-    await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: 'p-bruno', percentual: 5 }, { pessoa_id: 'p-mateus', percentual: 0 }] });
+    await SD.contratoAtualizar(id, { participantes: [{ pessoa_id: 'p-bruno', percentual: 5 }, { pessoa_id: 'p-mauro', percentual: 0 }] });
     // Quando
     desfazerUltimo();
     // Então
     await vi.waitFor(async () => expect(await participantesDo(id)).toEqual([
-      { pessoa_id: 'p-ana', percentual: 15 }, { pessoa_id: 'p-bruno', percentual: 5 }, { pessoa_id: 'p-mateus', percentual: 0 }]));
+      { pessoa_id: 'p-ana', percentual: 15 }, { pessoa_id: 'p-bruno', percentual: 5 }, { pessoa_id: 'p-mauro', percentual: 0 }]));
   });
 
   it('dado um contrato com participantes, quando a Ana passa a responder por ele, então só o responsável muda', async () => {
