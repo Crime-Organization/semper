@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type DemandaLigada, type TarefaLigada } from '../dados';
 import { PAPEIS_NA_DEMANDA, rotuloDoPrazoComHora, SEM_SITUACAO_DEMANDA } from '../regras/demanda';
-import { colunaComMarco } from '../regras/quadro';
+import { colunaComMarco, situacaoDoItem } from '../regras/quadro';
 import { PAPEIS_NA_TAREFA, SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -45,7 +45,7 @@ export function CartoesLigados({ modulo, carregar, vazio, nova, versao = 0, ante
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
   const { endereco, papeis, semSituacao } = MODULOS[modulo];
-  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || semSituacao;
+  const situacao = (etapa: string | null) => situacaoDoItem(colunas, etapa, semSituacao);
   // Concluído (na coluna-marco das concluídas), o prazo não aparece como vencido: a situação já diz que terminou.
   const prazo = (x: Ligado) => {
     const r = rotuloDoPrazoComHora(x.prazo, x.prazo_hora, hojeISO(), colunaComMarco(colunas, x.etapa_id, 'concluido'));

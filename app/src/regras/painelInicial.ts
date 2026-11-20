@@ -9,6 +9,7 @@ import { ORIGENS_DE_PRAZO } from './agenda';
 import { nomeDoAndamento, rotuloDoPrazo } from './andamentos';
 import { fmtHora } from './compromisso';
 import { compararPeloPrazo, type ComPrazo } from './ordemPorPrazo';
+import { emCaixaAlta } from './texto';
 import { enderecoDoProcesso, linhaDoProcesso } from './painelProcessos';
 import { fmtData } from './pessoa';
 import { somarDias } from './prazos';
@@ -158,18 +159,18 @@ export interface SituacaoComItens { chave: string; nome: string; n: number }
 export const SEM_COLUNA = 'sem';
 /**
  * As contagens por situação, na ordem das colunas do quadro, só as que têm itens, com os de fora do quadro no fim. Sem a coluna
- * das concluídas: o painel mostra o que está em aberto.
+ * das concluídas: o painel mostra o que está em aberto. Os nomes saem em maiúsculas, como no quadro (#386).
  */
 export function situacoesEmAberto(colunas: Pick<Coluna, 'id' | 'nome' | 'marco'>[], contagens: ContagemDaColuna[], semSituacao: string): SituacaoComItens[] {
   const n = (etapa: string | null) => contagens.find(c => c.etapa_id === etapa)?.n ?? 0;
-  const abertas = colunasEmAberto(colunas).map(c => ({ chave: c.id, nome: c.nome, n: n(c.id) }));
-  return [...abertas, { chave: SEM_COLUNA, nome: semSituacao, n: n(null) }].filter(s => s.n > 0);
+  const abertas = colunasEmAberto(colunas).map(c => ({ chave: c.id, nome: emCaixaAlta(c.nome), n: n(c.id) }));
+  return [...abertas, { chave: SEM_COLUNA, nome: emCaixaAlta(semSituacao), n: n(null) }].filter(s => s.n > 0);
 }
 /** Quantos itens em aberto há, somando as situações. */
 export const totalEmAberto = (situacoes: Pick<SituacaoComItens, 'n'>[]) => situacoes.reduce((soma, s) => soma + s.n, 0);
-/** O nome da coluna em que o item está (ou o de fora do quadro). */
+/** O nome da coluna em que o item está (ou o de fora do quadro), em maiúsculas como no quadro (#386). */
 export const nomeDaColuna = (colunas: Pick<Coluna, 'id' | 'nome'>[], etapa: string | null, semSituacao: string) =>
-  colunas.find(c => c.id === etapa)?.nome ?? semSituacao;
+  emCaixaAlta(colunas.find(c => c.id === etapa)?.nome ?? semSituacao);
 
 // ---------- processos ----------
 type ProcessoNoBloco = Pick<ProcessoNoPainel, 'id' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome'>;

@@ -1,6 +1,7 @@
 // Colunas-marco dos quadros: o código fixo de cada uma diz ao sistema qual ponto do fluxo ela marca, mesmo que a coluna
 // seja renomeada. Elas têm cor própria no quadro e não podem ser excluídas nem criadas à mão (supabase/migrations/20261027000014_colunas_marco.sql).
 import type { GrupoDeColunas, MarcoColuna } from '../dados/tipos';
+import { emCaixaAlta } from './texto';
 
 export const MARCOS: Record<MarcoColuna, { rotulo: string; explicacao: string }> = {
   assinado: {
@@ -98,12 +99,20 @@ export interface SituacaoDoQuadro<C> { coluna: C; rotulo: string }
 
 /**
  * As situações do quadro na ordem da tela, para o menu "Situação" do cartão (#302): a coluna de um grupo vem com o nome do
- * grupo na frente, para quem escolhe pelo menu saber em que grupo ela fica.
+ * grupo na frente, para quem escolhe pelo menu saber em que grupo ela fica. O rótulo sai em maiúsculas, como no quadro (#386):
+ * num menu nativo o CSS não muda a caixa das opções, por isso a caixa alta já vem no texto.
  */
 export function situacoesDoQuadro<C extends ColunaNoQuadro & { nome: string }>(colunas: C[], grupos: GrupoDeColunas[]): SituacaoDoQuadro<C>[] {
   return blocosDoQuadro(colunas, grupos).flatMap(b =>
-    b.colunas.map(c => ({ coluna: c, rotulo: b.grupo ? b.grupo.nome + SEPARADOR_DO_GRUPO + c.nome : c.nome })));
+    b.colunas.map(c => ({ coluna: c, rotulo: emCaixaAlta(b.grupo ? b.grupo.nome + SEPARADOR_DO_GRUPO + c.nome : c.nome) })));
 }
+
+/**
+ * A situação de um item ligado (na seção de um cartão), em maiúsculas como no quadro (#386): o nome da coluna em que ele está,
+ * ou o de fora do quadro ("Sem situação").
+ */
+export const situacaoDoItem = (colunas: { id: string; nome: string }[], etapa: string | null, semSituacao: string) =>
+  emCaixaAlta(colunas.find(c => c.id === etapa)?.nome || semSituacao);
 
 /** A ordem de quem entra no fim do quadro (coluna sem grupo nova, grupo novo, coluna que sai do grupo): depois de tudo. */
 export const ordemNoFimDoQuadro = (colunas: { ordem: number }[], grupos: { ordem: number }[]) =>

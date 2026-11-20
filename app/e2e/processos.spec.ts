@@ -102,7 +102,7 @@ test.describe('Cadastro de processo', () => {
     await expect(cartao.getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA', level: 2 })).toBeVisible();
     await expect(cartao).toContainText(NUMERO_NOVO);
     // No quadro de processos toda coluna fica num grupo, e o menu mostra o grupo na frente (#302).
-    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Início: Distribuído');
+    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('INÍCIO: DISTRIBUÍDO');
     await abrirSecao(cartao, 'Dados do processo');
     await expect(cartao.getByRole('definition').filter({ hasText: 'Montes Claros' })).toBeVisible();
     await expect(cartao.getByRole('definition').filter({ hasText: 'R$' })).toContainText('1.500,50');
@@ -161,7 +161,7 @@ test.describe('Cadastro de processo', () => {
     await page.getByRole('button', { name: 'Salvar processo' }).click();
     // Então
     await expect(page).toHaveURL(/\/processos\/administrativo\/\?id=/);
-    await expect(page.getByRole('dialog').getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolo: Protocolado');
+    await expect(page.getByRole('dialog').getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('PROTOCOLO: PROTOCOLADO');
   });
 
   test('quando falta o cliente, então a etapa avisa e não segue', async ({ page }) => {
@@ -195,7 +195,7 @@ test.describe('Cadastro de processo', () => {
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('heading', { name: 'Oposição à marca', level: 2 })).toBeVisible();
-    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('Protocolo: Protocolado');
+    await expect(cartao.getByLabel('Situação do processo').getByRole('option', { selected: true })).toHaveText('PROTOCOLO: PROTOCOLADO');
     await expect(page).toHaveURL(/\/processos\/administrativo\//);
   });
 
@@ -305,9 +305,9 @@ test.describe('Cartão do processo', () => {
     // Dado
     const cartao = await abrirProcesso(page);
     // Quando
-    await cartao.getByLabel('Situação do processo').selectOption({ label: 'Conhecimento: Contestação/defesa' });
+    await cartao.getByLabel('Situação do processo').selectOption({ label: 'CONHECIMENTO: CONTESTAÇÃO/DEFESA' });
     // Então
-    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toContainText('Contestação/defesa');
+    await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toContainText('CONHECIMENTO: CONTESTAÇÃO/DEFESA');
   });
 
   test('quando arquiva o processo, então pode excluí-lo definitivamente, e ele some', async ({ page }) => {
@@ -495,7 +495,7 @@ test.describe('Filtros e cartão da pessoa', () => {
     await abrirSecao(pessoa, 'Processos');
     const link = pessoa.getByRole('link', { name: /0001234-97\.2026\.8\.13\.0024/ });
     await expect(link).toContainText('Cliente');
-    await expect(link).toContainText('Distribuído');
+    await expect(link).toContainText('DISTRIBUÍDO');
     await link.click();
     // Então
     await expect(page).toHaveURL(/\/processos\/judicial\/\?id=/);
@@ -917,9 +917,9 @@ test.describe('Painel de Processos', () => {
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toBeVisible();
     await page.getByRole('button', { name: 'Filtros' }).click();
     const situacao = page.getByRole('dialog', { name: 'Filtros' }).getByLabel('Situação');
-    await expect(situacao.locator('option:checked')).toHaveText('Distribuído');
+    await expect(situacao.locator('option:checked')).toHaveText('DISTRIBUÍDO');
     // Quando: troca por uma coluna sem processo
-    await situacao.selectOption({ label: 'Sentença proferida' });
+    await situacao.selectOption({ label: 'SENTENÇA PROFERIDA' });
     await page.getByRole('button', { name: 'Filtros' }).click();
     // Então: a lista acompanha, e o endereço também
     await expect(page.getByRole('row').filter({ hasText: 'JOSÉ DA SILVA TESTE' })).toHaveCount(0);
@@ -1014,7 +1014,7 @@ test.describe('Processo a partir da demanda', () => {
     // Dado
     const cartao = await abrirDemanda(page);
     // Quando
-    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'CONCLUÍDO' });
     // Então
     const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
     await expect(pergunta).toContainText('Registro de marca');
@@ -1040,12 +1040,12 @@ test.describe('Processo a partir da demanda', () => {
   test('quando desfaz a conclusão com a pergunta aberta, então aceitar não abre o cadastro', async ({ page }) => {
     // Dado
     const cartao = await abrirDemanda(page);
-    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'CONCLUÍDO' });
     const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
     await expect(pergunta).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Desfazer' }).last().click();
-    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).not.toHaveText('Concluído');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).not.toHaveText('CONCLUÍDO');
     await pergunta.getByRole('button', { name: 'Criar processo' }).click();
     // Então
     await expect(page.getByText('A demanda não está mais concluída.', { exact: false })).toBeVisible();
@@ -1083,13 +1083,13 @@ test.describe('Processo a partir da demanda', () => {
     await page.getByRole('dialog', { name: 'Concluir a demanda?' }).getByRole('button', { name: 'Concluir a demanda' }).click();
     // Então
     await expect(page.getByRole('dialog', { name: 'Criar o processo?' })).toBeVisible();
-    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Concluído');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('CONCLUÍDO');
   });
 
   test('quando recusa a pergunta, então nada é criado; e não pergunta para quem já tem processo', async ({ page }) => {
     // Dado
     let cartao = await abrirDemanda(page);
-    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'CONCLUÍDO' });
     const pergunta = page.getByRole('dialog', { name: 'Criar o processo?' });
     // Quando
     await pergunta.getByRole('button', { name: 'Cancelar' }).click();
@@ -1102,7 +1102,7 @@ test.describe('Processo a partir da demanda', () => {
     await salvarCadastro(page, NUMERO_NOVO);
     cartao = await abrirDemanda(page);
     await cartao.getByLabel('Situação da demanda').selectOption({ index: 1 });
-    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'CONCLUÍDO' });
     await expect(page.getByText('Movida para "Concluído"').last()).toBeVisible();
     // Então
     await expect(page.getByRole('dialog', { name: 'Criar o processo?' })).toHaveCount(0);

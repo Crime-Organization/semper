@@ -71,7 +71,7 @@ test.describe('Grupos de colunas', () => {
     await criarGrupo(page, 'Conhecimento');
     // Quando
     await page.getByLabel('Nova coluna').fill('Contestação');
-    await page.getByLabel('Grupo da coluna').selectOption({ label: 'Conhecimento' });
+    await page.getByLabel('Grupo da coluna').selectOption({ label: 'CONHECIMENTO' });
     await page.getByRole('button', { name: 'Criar coluna' }).click();
     // Então
     await expect(page.getByRole('region', { name: 'Grupo Conhecimento' }).getByRole('list', { name: 'Contestação' })).toBeVisible();

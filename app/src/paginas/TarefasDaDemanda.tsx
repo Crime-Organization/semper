@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router';
 import { SD, type Coluna, type TarefaLigada } from '../dados';
 import { rotuloDoPrazoComHora } from '../regras/demanda';
 import { progressoDaLista } from '../regras/listas';
+import { situacaoDoItem } from '../regras/quadro';
 import { SEM_SITUACAO_TAREFA } from '../regras/tarefa';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
@@ -40,7 +41,7 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
   if (typeof tarefas === 'string') return <Aviso tipo="erro">{tarefas}</Aviso>;
   const ativas = tarefas.filter(t => !t.arquivado_em);
   const { feitos, total, percentual } = progressoDaLista(ativas.map(t => ({ feito_em: t.etapa_id === concluida ? t.etapa_id : null })));
-  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO_TAREFA;
+  const situacao = (etapa: string | null) => situacaoDoItem(colunas, etapa, SEM_SITUACAO_TAREFA);
 
   async function marcar(t: TarefaLigada, marcada: boolean) {
     const para = marcada ? concluida : inicio, de = t.etapa_id;

@@ -11,6 +11,8 @@ import { contratoDaPessoaFechada } from './clienteAoContrato';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
+import { situacaoDoItem } from '../regras/quadro';
+import { emCaixaAlta } from '../regras/texto';
 import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -197,8 +199,8 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
         <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
-          <option value="">Sem etapa</option>
-          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{c.nome}{c.oculta ? ' (oculta para você)' : ''}</option>)}
+          <option value="">{emCaixaAlta('Sem etapa')}</option>
+          {quadro.colunas.map(c => <option key={c.id} value={c.id}>{emCaixaAlta(c.nome)}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
       </section>}
     </header>
@@ -313,7 +315,7 @@ function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pes
   // A situação de cada contrato é o nome da coluna dele no quadro de contratos.
   const [colunas, setColunas] = useState<Coluna[]>([]);
   useEffect(() => { SD.colunasListar('contratos').then(setColunas).catch(() => {}); }, []);
-  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO;
+  const situacao = (etapa: string | null) => situacaoDoItem(colunas, etapa, SEM_SITUACAO);
   return <>
     <ItensLigados vazio="Nenhum contrato ligado a esta pessoa." itens={lista.map(k => ({
       id: k.id, para: '/contratos/?id=' + k.id, codigo: k.codigo, titulo: k.servico, selo: k.arquivado_em ? 'Arquivado' : undefined,

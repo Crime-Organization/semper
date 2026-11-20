@@ -107,7 +107,8 @@ test.describe('Grupo entre colunas sem grupo', () => {
 });
 
 test.describe('Menu "Situação" do cartão com o grupo na frente (#302)', () => {
-  test('dado uma coluna dentro de um grupo, quando a pessoa muda a situação pelo menu do cartão, então vê o grupo na frente da coluna, na ordem do quadro', async ({ page }) => {
+  // Desde a #386, os nomes aparecem em maiúsculas no menu (o nome guardado continua "Aguardado" e "Aguardando retorno").
+  test('dado uma coluna dentro de um grupo, quando a pessoa muda a situação pelo menu do cartão, então vê o grupo na frente da coluna, na ordem do quadro e em maiúsculas', async ({ page }) => {
     // Dado: o grupo "Aguardado" entre "Fazendo" e "Concluída", com "Aguardando retorno" dentro dele
     await abrirComGrupo(page);
     await page.getByRole('button', { name: 'Opções do grupo Aguardado' }).click();
@@ -117,11 +118,11 @@ test.describe('Menu "Situação" do cartão com o grupo na frente (#302)', () =>
     await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).click();
     const menu = page.getByRole('dialog').getByRole('combobox', { name: 'Situação da tarefa' });
     // Então
-    await expect(menu.getByRole('option')).toHaveText(['Sem situação', 'Para fazer', 'Fazendo', 'Aguardado: Aguardando retorno', 'Concluída']);
+    await expect(menu.getByRole('option')).toHaveText(['SEM SITUAÇÃO', 'PARA FAZER', 'FAZENDO', 'AGUARDADO: AGUARDANDO RETORNO', 'CONCLUÍDA']);
     // Quando
-    await menu.selectOption({ label: 'Aguardado: Aguardando retorno' });
+    await menu.selectOption({ label: 'AGUARDADO: AGUARDANDO RETORNO' });
     // Então
-    await expect(menu.getByRole('option', { selected: true })).toHaveText('Aguardado: Aguardando retorno');
-    await expect(page.getByText('Movida para "Aguardado: Aguardando retorno".')).toBeVisible();
+    await expect(menu.getByRole('option', { selected: true })).toHaveText('AGUARDADO: AGUARDANDO RETORNO');
+    await expect(page.getByText('Movida para "AGUARDADO: AGUARDANDO RETORNO".')).toBeVisible();
   });
 });

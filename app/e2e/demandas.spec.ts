@@ -39,7 +39,7 @@ test.describe('Cadastro de demandas', () => {
     await expect(equipe.getByRole('button', { name: 'Tirar Ana Teste Lima' })).toBeVisible();
     await abrirSecao(cartao, 'Clientes');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente');
-    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Para fazer');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('PARA FAZER');
   });
 
   test('quando chega à etapa do contrato, então a busca tem a altura dos outros campos', async ({ page }) => {
@@ -73,10 +73,10 @@ test.describe('Demandas automáticas', () => {
     await page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' }).click();
     const contrato = page.getByRole('dialog');
     // Quando
-    await contrato.getByLabel('Situação do contrato').selectOption({ label: 'Assinado / em andamento' });
+    await contrato.getByLabel('Situação do contrato').selectOption({ label: 'ASSINADO / EM ANDAMENTO' });
     // Então
     await abrirSecao(contrato, 'Demandas');
-    await expect(contrato.getByRole('link', { name: /Ação de cobrança/ })).toContainText('Para fazer');
+    await expect(contrato.getByRole('link', { name: /Ação de cobrança/ })).toContainText('PARA FAZER');
     await contrato.getByRole('link', { name: /Ação de cobrança/ }).click();
     const demanda = page.getByRole('dialog');
     await expect(demanda.getByRole('heading', { name: 'Ação de cobrança', level: 2 })).toBeVisible();
@@ -296,7 +296,7 @@ test.describe('Prazo da demanda concluída', () => {
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
     await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
     // Quando
-    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'Concluído' });
+    await cartao.getByLabel('Situação da demanda').selectOption({ label: 'CONCLUÍDO' });
     await page.getByRole('dialog', { name: 'Criar o processo?' }).getByRole('button', { name: 'Cancelar' }).click();
     // Então
     await expect(cartao.getByText(/^Concluído · Prazo: /)).toBeVisible();

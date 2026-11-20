@@ -136,14 +136,14 @@ describe('Painel da página inicial', () => {
     expect(await within(bloco('Anotações recentes')).findByText('Nenhuma anotação sua entre as alteradas por último.')).toBeInTheDocument();
   });
 
-  it('quando a pessoa tem demandas, então o bloco conta por situação, com link para a lista dela', async () => {
+  it('quando a pessoa tem demandas, então o bloco conta por situação, com os nomes em maiúsculas como no quadro (#386) e link para a lista dela', async () => {
     // Dado
     diaCheio();
     // Quando
     montar();
     // Então
     const situacoes = await within(bloco('Suas demandas')).findByRole('list', { name: 'Demandas por situação' });
-    expect(within(situacoes).getByRole('link', { name: '3 Para fazer' })).toHaveAttribute('href', '/demandas/?pessoa=eu');
+    expect(within(situacoes).getByRole('link', { name: '3 PARA FAZER' })).toHaveAttribute('href', '/demandas/?pessoa=eu');
   });
 
   it('quando quem entra vê o Financeiro, então vê as parcelas da semana', async () => {

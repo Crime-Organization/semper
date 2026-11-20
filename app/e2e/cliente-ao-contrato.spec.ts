@@ -14,7 +14,7 @@ test.describe('Do cliente ao contrato', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'LUCIANA ROCHA AMOSTRA' }).click();
     // Quando
-    await page.getByRole('dialog').getByLabel('Etapa do atendimento').selectOption({ label: 'Contrato fechado' });
+    await page.getByRole('dialog').getByLabel('Etapa do atendimento').selectOption({ label: 'CONTRATO FECHADO' });
     // Então
     await expect(page.getByText('LUCIANA ROCHA AMOSTRA tem um contrato em "Aguardando assinatura".')).toBeVisible();
     await abrirSecao(page.getByRole('dialog'), 'Contratos');
@@ -25,14 +25,14 @@ test.describe('Do cliente ao contrato', () => {
     const contrato = page.getByRole('dialog');
     await expect(page).toHaveURL(/\/contratos\/\?id=/);
     await expect(contrato.getByRole('heading', { name: 'LUCIANA ROCHA AMOSTRA', level: 2 })).toBeVisible();
-    await expect(contrato.getByLabel('Situação do contrato').locator('option:checked')).toHaveText('Aguardando assinatura');
+    await expect(contrato.getByLabel('Situação do contrato').locator('option:checked')).toHaveText('AGUARDANDO ASSINATURA');
     await abrirSecao(contrato, 'Demandas');
     await expect(contrato.getByText(SEM_OBJETO)).toBeVisible();
     // Quando: o contrato é assinado ainda sem objeto
-    await contrato.getByLabel('Situação do contrato').selectOption({ label: 'Assinado / em andamento' });
+    await contrato.getByLabel('Situação do contrato').selectOption({ label: 'ASSINADO / EM ANDAMENTO' });
     // Então: o aviso diz que nenhuma demanda nasceu, e leva à edição
     await expect(page.getByRole('button', { name: 'Editar o contrato' })).toBeVisible();
-    await expect(contrato.getByRole('link', { name: /Para fazer/ })).toHaveCount(0);
+    await expect(contrato.getByRole('link', { name: /PARA FAZER/ })).toHaveCount(0);
   });
 
   test('quando alguém cadastra uma pessoa direto em "Contrato fechado" e desfaz, então a pessoa e o contrato dela somem', async ({ page }) => {
@@ -91,11 +91,11 @@ test.describe('Do cliente ao contrato', () => {
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').filter({ hasText: 'PAULO HENRIQUE SIMULADO' }).click();
     const cartao = page.getByRole('dialog');
-    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'Contrato fechado' });
+    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'CONTRATO FECHADO' });
     await expect(page.getByText('PAULO HENRIQUE SIMULADO tem um contrato em "Aguardando assinatura".')).toBeVisible();
     // Quando
-    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'Em negociação' });
-    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'Contrato fechado' });
+    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'EM NEGOCIAÇÃO' });
+    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'CONTRATO FECHADO' });
     // Então
     await abrirSecao(cartao, 'Contratos');
     await expect(cartao.getByRole('link', { name: /A definir/ })).toHaveCount(1);
@@ -109,7 +109,7 @@ test.describe('Do cliente ao contrato', () => {
     await page.getByRole('row').filter({ hasText: 'TEREZA CRISTINA PILOTO' }).click();
     const cartao = page.getByRole('dialog');
     // Quando
-    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'Contrato fechado' });
+    await cartao.getByLabel('Etapa do atendimento').selectOption({ label: 'CONTRATO FECHADO' });
     // Então
     await expect(page.getByText(/TEREZA CRISTINA PILOTO já tem o contrato .*: nenhum outro foi criado./)).toBeVisible();
     await abrirSecao(cartao, 'Contratos');
