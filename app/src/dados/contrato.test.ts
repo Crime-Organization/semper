@@ -8155,7 +8155,7 @@ describe('Grupos da equipe (banco fictício, #378)', () => {
     expect((await SD.demandaObter(id))?.titulo).toBe('Demanda do grupo');
     await SD.demandaAtualizar(id, { titulo: 'Demanda mudada pelo Bruno' });
     await expect(SD.cartaoSair('demandas', id)).rejects.toThrow(
-      'Você está neste cartão pelo grupo Núcleo do Teste. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.');
+      'Você está neste cartão pelo grupo Núcleo do Teste. Para sair, peça a outra pessoa do cartão que tire o grupo dele (saem todos do grupo) ou a um administrador que tire você do grupo.');
     // Quando
     entrarComo('u-ana');
     await SD.grupoDaEquipeTirar(grupo, 'u-bruno');

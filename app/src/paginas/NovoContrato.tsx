@@ -339,8 +339,9 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
       if (alvo) {
         // Para desfazer: o contrato como estava, no mesmo formato que o cadastro grava.
         const antes = dadosDoContrato(camposDoContrato(alvo));
-        // Quem se tirou do contrato (ou o passou adiante) e ficaria fora dele: o banco recusa, e o aviso diz o que fazer (#274).
-        await SD.contratoAtualizar(alvo.id, dados).catch((e: unknown) => { throw recusaNoLapis(e, equipeDoContrato(alvo), dados, ctx.perfil); });
+        // Quem se tirou do contrato (ou o passou adiante) e ficaria fora dele: o banco recusa, e o aviso diz o que fazer e a quem pedir,
+        // pela situação do financeiro (#274).
+        await SD.contratoAtualizar(alvo.id, dados).catch((e: unknown) => { throw recusaNoLapis(e, equipeDoContrato(alvo), dados, { ...ctx.perfil, financeiro: comFinanceiro }); });
         await gravarProcessosDoContrato(alvo.id);
         feito('Contrato atualizado.', 'atualização do contrato', async () => {
           await SD.contratoAtualizar(alvo.id, antes);

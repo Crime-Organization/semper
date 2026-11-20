@@ -1,5 +1,5 @@
 {
-  "titulo": "Aviso claro ao tentar sair de um contrato",
-  "texto": "Quem tenta sair de um contrato sem poder agora recebe a explicação: peça a outra pessoa do contrato ou a um administrador para tirar você. Antes aparecia só um erro de falta de permissão.",
-  "ondeAchar": "No cartão do contrato: lápis (Editar), o X ao lado do seu nome em Participantes e Salvar; ou o menu da sua bolinha, no topo do cartão."
+  "titulo": "Aviso claro ao tentar sair de um contrato ou de um cartão do grupo",
+  "texto": "Quem tenta sair de um contrato sem poder agora recebe a explicação de a quem pedir: outra pessoa do contrato ou um administrador (só um administrador, se o contrato já tem parcelas). Quem está num cartão só por um grupo também fica sabendo que outra pessoa do cartão pode tirar o grupo.",
+  "ondeAchar": "No cartão do contrato: lápis (Editar), o X ao lado do seu nome em Participantes e Salvar; ou o menu da sua bolinha, no topo do cartão. Nos outros cartões, a pílula do grupo, no topo."
 }

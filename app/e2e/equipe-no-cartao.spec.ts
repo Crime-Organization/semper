@@ -404,7 +404,8 @@ test.describe('Equipe no topo do cartão do contrato', () => {
     // Quando
     const menu = await abrirMenuDaBolinha(page, doBruno, 'Bruno Exemplo Souza, Participante · 0%');
     // Então: sem a saída que pergunta antes (o contrato não a tem), a ação nem é oferecida
-    const motivo = 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você.';
+    // O banco fictício tem o financeiro ligado: o motivo diz também o caso do contrato com parcelas (só um administrador).
+    const motivo = 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você. Se o contrato já tem parcelas, só um administrador pode tirar você.';
     await expect(menu).toContainText(motivo);
     await expect(menu.getByRole('menuitem', { name: 'Sair do contrato' })).toHaveCount(0);
   });
@@ -459,9 +460,9 @@ test.describe('Sair de um cartão pelo lápis (#274)', () => {
     await doBruno.getByRole('button', { name: 'Editar' }).click();
     await doBruno.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
     await doBruno.getByRole('button', { name: 'Salvar', exact: true }).click();
-    // Então
+    // Então (o banco fictício tem o financeiro ligado: o motivo diz também o caso do contrato com parcelas)
     await expect(page.getByRole('status').filter({
-      hasText: 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você.'
+      hasText: 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você. Se o contrato já tem parcelas, só um administrador pode tirar você.'
     })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Você não tem permissão para fazer isso.' })).toHaveCount(0);
     // E ele continua no contrato (o cartão aberto de novo, sem a edição)

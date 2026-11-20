@@ -2,19 +2,25 @@
 // Erro novo é uma linha nova numa das listas abaixo. A ordem importa: vale a primeira regra que casar.
 // Uma regra casa quando o código (se houver) e o padrão da mensagem (se houver) batem os dois.
 import { INICIO_VAZIO } from '../regras/dataDeInicio';
+import { recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
 import { PASTA_COM_CONTEUDO, PASTA_NOME_LONGO, PASTA_REPETIDA, PASTA_SEM_NOME, PASTA_SUMIU } from '../regras/pastas';
 
 type ErroBanco = { message?: string; code?: string } | null | undefined;
 interface Regra {
   codigo?: string;
   padrao?: RegExp;
-  /** null: a própria mensagem do banco (as funções do banco já escrevem em português). */
-  mensagem: string | null;
+  /** null: a própria mensagem do banco (as funções do banco já escrevem em português). Função: o texto feito da mensagem do banco. */
+  mensagem: string | null | ((msg: string) => string);
 }
 
 /** A recusa de sempre do banco por falta de permissão (a linha que a regra RLS barra, ou a função que confere quem pode). */
 export const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
 export const LINK_VENCIDO = 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.';
+/**
+ * A recusa de public.cartao_sair a quem está só por um grupo, como o banco a escreve (só cita o administrador): o nome do grupo vem
+ * nela, e a tela mostra recusaDeSairPeloGrupo, que cita também a outra pessoa do cartão (#274).
+ */
+const SAIR_PELO_GRUPO = /^Você está neste cartão pelo grupo (.+?)\. Para sair, peça a um administrador/;
 
 // Registro repetido (código 23505): a mensagem depende da restrição que barrou.
 const REPETIDO: Regra[] = [
@@ -59,6 +65,7 @@ const ERROS: Regra[] = [
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
   { codigo: '42501', mensagem: SEM_PERMISSAO },
   { padrao: /permission denied|row-level security/i, mensagem: SEM_PERMISSAO },
+  { padrao: SAIR_PELO_GRUPO, mensagem: msg => recusaDeSairPeloGrupo(SAIR_PELO_GRUPO.exec(msg)?.[1] ?? '') },
   { codigo: 'P0001', mensagem: null },
   { padrao: /Invalid login credentials/i, mensagem: 'E-mail ou senha incorretos.' },
   // Antes da regra do código do aplicativo: esta mensagem traz o próprio e-mail, que pode conter "code".
@@ -79,6 +86,9 @@ const ERROS: Regra[] = [
   { padrao: /JWT expired|invalid JWT/i, mensagem: 'Sua sessão expirou. Entre de novo.' }
 ];
 
+/** O texto de uma regra: o fixo, o feito da mensagem do banco, ou a própria mensagem (null). */
+const textoDaRegra = (mensagem: Regra['mensagem'], msg: string) => typeof mensagem === 'function' ? mensagem(msg) : mensagem ?? msg;
+
 export function traduzir(e: unknown): Error {
   const x = e as ErroBanco;
   const msg = String(x?.message || e || '');
@@ -86,6 +96,6 @@ export function traduzir(e: unknown): Error {
   const casa = (r: Regra) => (!r.codigo || r.codigo === cod) && (!r.padrao || r.padrao.test(msg));
   const repetido = cod === '23505' || /duplicate key/.test(msg);
   const regra = (repetido ? REPETIDO : ERROS).find(casa);
-  const texto = regra ? regra.mensagem ?? msg : 'Não foi possível concluir agora. Tente de novo.';
+  const texto = regra ? textoDaRegra(regra.mensagem, msg) : 'Não foi possível concluir agora. Tente de novo.';
   return Object.assign(new Error(texto), { original: e });
 }
