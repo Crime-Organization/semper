@@ -186,18 +186,18 @@ describe('Painel da página inicial', () => {
       expect(itens.map(i => i.id)).toEqual(['e', 'c', 'a', 'd']);
     });
 
-    it('quando as contagens chegam, então ficam na ordem do quadro, só as com itens e sem as concluídas, com os de fora do quadro no fim', () => {
+    it('quando as contagens chegam, então ficam na ordem do quadro, só as com itens e sem as concluídas, com os de fora do quadro no fim, em maiúsculas como no quadro (#386)', () => {
       // Quando
       const situacoes = situacoesEmAberto(colunas, [{ etapa_id: 'c3', n: 2 }, { etapa_id: 'c1', n: 1 }, { etapa_id: 'c4', n: 9 }, { etapa_id: null, n: 3 }], 'Sem situação');
       // Então
-      expect(situacoes).toEqual([{ chave: 'c1', nome: 'Para fazer', n: 1 }, { chave: 'c3', nome: 'Aguardando', n: 2 }, { chave: SEM_COLUNA, nome: 'Sem situação', n: 3 }]);
+      expect(situacoes).toEqual([{ chave: 'c1', nome: 'PARA FAZER', n: 1 }, { chave: 'c3', nome: 'AGUARDANDO', n: 2 }, { chave: SEM_COLUNA, nome: 'SEM SITUAÇÃO', n: 3 }]);
       expect(totalEmAberto(situacoes)).toBe(6);
     });
 
-    it('quando o item está fora do quadro, então o nome da coluna é o de sem situação', () => {
+    it('quando o item está fora do quadro, então o nome da coluna é o de sem situação, em maiúsculas como no quadro (#386)', () => {
       // Quando / Então
-      expect(nomeDaColuna(colunas, 'c2', 'Sem situação')).toBe('Fazendo');
-      expect(nomeDaColuna(colunas, null, 'Sem situação')).toBe('Sem situação');
+      expect(nomeDaColuna(colunas, 'c2', 'Sem situação')).toBe('FAZENDO');
+      expect(nomeDaColuna(colunas, null, 'Sem situação')).toBe('SEM SITUAÇÃO');
     });
   });
 
