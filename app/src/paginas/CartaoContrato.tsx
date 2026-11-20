@@ -9,7 +9,8 @@ import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDin
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, Vazio } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -37,6 +38,9 @@ import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem } from './ligarNoCartao';
+
+/** O valor de "Assinado em", na faixa das datas, enquanto o contrato não tem a data da assinatura. */
+const NAO_ASSINADO = 'Ainda não';
 
 interface Props {
   id: string;
@@ -166,7 +170,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
         lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => setEditando(true) } : undefined} />
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
-      {!editando && <section className="bloco campos cartao-situacao">
+      {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
+          valores do contrato também não vê a assinatura, como antes. */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(k.criado_em)}</b></DadoDoGrupo>
+        {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
+      </GrupoDeDatas>
+      {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
       </section>}
@@ -221,7 +231,6 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       ['Parcelas', V('parcelas')],
       ['Valor da parcela', parcela === null ? '—' : <>{fmtDinheiro(parcela)} <small className="nota">{k.entrada ? 'depois da entrada' : 'calculado'}</small></>],
       ['Descontos', V('descontos')],
-      ['Assinado em', V('assinado_em')],
       ['Primeiro pagamento', V('primeiro_pagamento')]
       ] as [string, ReactNode][]).map(([rotulo, valor]) => <Par key={rotulo} rotulo={rotulo} valor={valor} />)}</dl>
       <span className="rotulo-caps">Divisão</span>

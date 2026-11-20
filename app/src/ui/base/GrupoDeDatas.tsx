@@ -1,7 +1,10 @@
-// O grupo das datas e do tempo no topo do cartão (#361): cada dado com o nome em cima, pequeno, e o valor embaixo, lado a lado, e
-// um embaixo do outro quando o cartão fica estreito (o celular). Quem decide é a largura do próprio grupo (container query), nunca
-// uma conta em JavaScript. O cronômetro da tarefa é mais um dado do grupo, ao lado das datas; o que precisa da largura toda (o
-// esforço da equipe) vai numa LinhaDoGrupo, embaixo deles.
+// A faixa das datas do cartão (#361, redesenhada na #383), a mesma em todos os cartões (pessoa, contrato, demanda, tarefa,
+// processo, compromisso e anotação): cada dado com o nome em cima, pequeno, numa linha só, e o valor embaixo, sem quebrar ("Sem prazo",
+// "20/12/2030 às 14:30"). Os nomes ficam todos na mesma linha e os valores na de baixo, alinhados. Na faixa estreita (o celular),
+// cada dado vira uma linha, com o nome à esquerda e o valor à direita, e os valores começam todos na mesma coluna. Quem decide é a
+// largura da própria faixa (container query), nunca uma conta em JavaScript.
+// O tempo (o cronômetro da tarefa, o total da demanda) fica numa faixa própria, logo abaixo da das datas (#383): um dado largo,
+// que ocupa a linha toda com o nome sempre em cima, e o resumo de quem registrou tempo numa LinhaDoGrupo, embaixo dele.
 // DadoEditavel é o dado que quem pode alterar o cartão muda ali mesmo, no jeito do título (#346) e da data de início (#357): um
 // clique abre um formulário pequeno no lugar do valor, com Salvar e Cancelar; Enter num campo salva e Esc desfaz, sem fechar o
 // cartão. O rascunho mudado e não salvo é avisado ao cartão (aoMudarRascunho), que pergunta antes de fechar. Quem só lê vê o
@@ -13,23 +16,31 @@ import { estiloBotao } from './botao';
 import { Aviso } from '.';
 import './GrupoDeDatas.css';
 
-/** O grupo: os dados lado a lado (as datas e, na tarefa, o cronômetro) e, se houver, as linhas inteiras embaixo deles. */
+/** A faixa: os dados lado a lado (as datas; na faixa do tempo, o dado largo) e, se houver, as linhas inteiras embaixo deles. */
 export function GrupoDeDatas({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   return <div className="grupo-datas" role="group" aria-label={rotulo}>
     <div className="grupo-datas-dados">{children}</div>
   </div>;
 }
 
-/** Um dado do grupo: o nome em cima (ex.: "Prazo") e o valor (o texto, a data que se muda, o cronômetro). */
-export function DadoDoGrupo({ rotulo, children }: { rotulo: string; children: ReactNode }) {
+interface PropsDoDado {
+  /** O nome do dado (ex.: "Prazo"), em cima do valor. */
+  rotulo: string;
+  /** O dado que precisa da linha toda (o cronômetro, com os botões ao lado dele): o nome sempre em cima, também no celular. */
+  largo?: boolean;
+  children: ReactNode;
+}
+
+/** Um dado da faixa: o nome em cima (ex.: "Prazo") e o valor (o texto, a data que se muda, o cronômetro). */
+export function DadoDoGrupo({ rotulo, largo, children }: PropsDoDado) {
   const id = useId();
-  return <div className="grupo-datas-dado" role="group" aria-labelledby={id}>
+  return <div className={'grupo-datas-dado' + (largo ? ' largo' : '')} role="group" aria-labelledby={id}>
     <span className="rotulo-caps grupo-datas-rotulo" id={id}>{rotulo}</span>{' '}
     <div className="grupo-datas-valor">{children}</div>
   </div>;
 }
 
-/** O que ocupa a largura toda do grupo, embaixo dos dados (ex.: o esforço da equipe, embaixo do cronômetro). */
+/** O que ocupa a largura toda da faixa, embaixo dos dados (ex.: o resumo de quem registrou tempo, embaixo do cronômetro). */
 export function LinhaDoGrupo({ children }: { children: ReactNode }) {
   return <div className="grupo-datas-linha">{children}</div>;
 }

@@ -184,6 +184,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(d)) : undefined} />
         </DadoDoGrupo>
       </GrupoDeDatas>
+      {/* Logo abaixo das datas, na faixa própria do tempo (#383): a soma do tempo de toda a equipe nas tarefas desta demanda. */}
+      {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
@@ -207,7 +209,6 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
           aoEscolher={t => ligarEAvisar(() => ligarTarefaNaDemanda(t.id, d.id),
             { feito: `Tarefa ligada: ${t.titulo}.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava nesta demanda.' }, depoisDeLigar)} />
       </AcoesDosLigados>}
-      <TempoDaDemanda demandaId={d.id} versao={versaoHist} />
     </Recolhivel>}
 
     {ctx.escritorio?.modulos?.processos && <Recolhivel titulo="Processos" icone="processos" preferencia="demandas.cartao.processos" contador={ligados.processos}

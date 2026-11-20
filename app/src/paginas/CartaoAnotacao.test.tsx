@@ -450,7 +450,8 @@ describe('Os comentários da anotação (#364)', () => {
     await screen.findByText('Primeiro comentário');
     // Então
     const historico = screen.getByRole('button', { name: /^Histórico de alterações/ });
-    const rodape = screen.getByText(/Criada em/);
+    // O rodapé, com a data (o "Criada em" da faixa das datas, #383, fica no alto, sem a data junto)
+    const rodape = screen.getByText(/Criada em \d{2}\/\d{2}\/\d{4}/);
     expect(historico.compareDocumentPosition(rodape) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 

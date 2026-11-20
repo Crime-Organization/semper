@@ -37,7 +37,8 @@ import { MenuDoCartao, type AcaoDoTopo } from '../ui/AcoesDoCartao';
 import { AvisoAoSair } from '../ui/AvisoAoSair';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, EditorDeTexto, estiloBotao, Nota, Selo, TituloEditavel, Vazio, type ControleDoEditor } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, EditorDeTexto, estiloBotao, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio, type ControleDoEditor } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { useEtiquetas, useEtiquetasDoCartao } from '../ui/Etiquetas';
 import { buscarEtiquetas } from '../ui/etiquetasDoEscritorio';
@@ -572,6 +573,12 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
       exibido={titulo ? undefined : TITULO_PROVISORIO} aoSalvar={mudaNoLugar ? salvarTitulo : undefined} conferir={erroDoTitulo}
       maximo={TAMANHO_ANOTACAO.titulo} placeholder={TITULO_PROVISORIO} aoMudarRascunho={mudarRascunho('titulo')}
       editandoAoAbrir={emBranco} depoisDoEnter={emBranco ? focarTexto : undefined} />
+    {/* A faixa das datas (#383), a mesma dos outros cartões, entre o título e o texto: a criação. A última gravação fica no pé
+        ("Atualizada agora", que acompanha o salvar sozinho). A anotação nova ainda não tem datas, nem a que acabou de ir ao banco
+        e ainda não foi lida de volta (se a leitura falhar, ela continua a em branco, sem a data do banco). */}
+    {!emBranco && a.criado_em && <GrupoDeDatas rotulo="Datas">
+      <DadoDoGrupo rotulo="Criada em"><b className="num">{dataDaCriacao(a.criado_em)}</b></DadoDoGrupo>
+    </GrupoDeDatas>}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
     {a.arquivado_em && <FaixaDoArquivado modulo="anotacoes" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 

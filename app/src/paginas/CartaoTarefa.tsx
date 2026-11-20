@@ -1,8 +1,8 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo (TopoDoCartao, #382, como o da
 // anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
 // ⋯ à direita; os selos das etiquetas; o título e a situação; depois, cada tópico numa seção que recolhe (demanda, pessoas,
-// contrato, comentários, histórico). Logo depois da descrição, o tempo e as datas lado a lado (#361): o cronômetro
-// (TempoNaTarefa), a criação, o início e o prazo com a hora e o lembrete, que quem altera muda ali mesmo; o lápis não os repete.
+// contrato, comentários, histórico). Logo depois da descrição, a faixa das datas (#361, #383): a criação, o início e o prazo com a
+// hora e o lembrete, que quem altera muda ali mesmo (o lápis não os repete); e, abaixo dela, a faixa do tempo (TempoNaTarefa).
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -183,10 +183,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />
-      {/* As datas e o tempo lado a lado (#361): a criação (fixa), o início (#357) e o prazo com a hora e o lembrete, que quem altera
-          muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer); e o cronômetro de quem altera, com o esforço da
-          equipe na linha de baixo. */}
-      <GrupoDeDatas rotulo="Tempo e datas">
+      {/* As datas lado a lado (#361, #383): a criação (fixa), o início (#357) e o prazo com a hora e o lembrete, que quem altera
+          muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). Logo abaixo, na faixa própria do tempo, o
+          cronômetro de quem altera, com o resumo de quem registrou tempo. */}
+      <GrupoDeDatas rotulo="Datas">
         <DadoDoGrupo rotulo="Criada em"><b className="num">{dataDaCriacao(t.criado_em)}</b></DadoDoGrupo>
         <DadoDoGrupo rotulo="Início">
           <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
@@ -197,8 +197,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
             aoMudarRascunho={noLugar.rascunhoDe('prazo')}
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(t)) : undefined} />
         </DadoDoGrupo>
-        {podeAlterar && <TempoNaTarefa t={t} />}
       </GrupoDeDatas>
+      {podeAlterar && <TempoNaTarefa t={t} />}
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>

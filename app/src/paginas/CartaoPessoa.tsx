@@ -16,7 +16,8 @@ import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, estiloBotao, GrupoDeDatas, Nota, Selo, Vazio } from '../ui/base';
+import { dataDaCriacao } from '../regras/dataDeInicio';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
@@ -192,7 +193,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         lapis={{ rotulo: 'Editar', aoEditar: () => setEditando(true) }} />
       <h2>{p.nome}</h2>
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
-      {!editando && <section className="bloco campos cartao-situacao">
+      {/* A faixa das datas (#383), a mesma dos outros cartões: aqui, só a do cadastro. */}
+      <GrupoDeDatas rotulo="Datas">
+        <DadoDoGrupo rotulo="Cadastrada em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
+      </GrupoDeDatas>
+      {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
         <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
           <option value="">Sem etapa</option>

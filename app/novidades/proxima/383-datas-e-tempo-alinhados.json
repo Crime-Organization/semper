@@ -1,0 +1,5 @@
+{
+  "titulo": "Datas e tempo alinhados nos cartões",
+  "texto": "Todos os cartões mostram as datas numa faixa logo abaixo do título, com os nomes numa linha e os valores alinhados embaixo. No contrato, a data da assinatura saiu de Honorários e foi para essa faixa. Na tarefa e na demanda, o tempo ganhou uma faixa própria, logo abaixo: o relógio, Iniciar e \"Ajustar meu tempo\" lado a lado, com o resumo de quem registrou tempo junto.",
+  "ondeAchar": "Em qualquer cartão (pessoa, contrato, demanda, tarefa, processo, compromisso) e na anotação, em Documentos, logo abaixo do título."
+}
