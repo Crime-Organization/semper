@@ -91,7 +91,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
   const [antesNoTopo, setAntesNoTopo] = useState<string | null>(null);
   const antesNoTopoRef = useRef(antesNoTopo);
   antesNoTopoRef.current = antesNoTopo;
-  const [menu, setMenu] = useState<{ c: Coluna | null; k: string; botao: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<{ c: Coluna | null; k: string; nome: string; botao: HTMLElement } | null>(null);
   const [menuGrupo, setMenuGrupo] = useState<{ g: GrupoDeColunas; botao: HTMLElement } | null>(null);
   const [grupoDaNova, setGrupoDaNova] = useState('');
   const [novoGrupo, setNovoGrupo] = useState('');
@@ -308,7 +308,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
           {arquivo && <span className="coluna-marco-selo" title="Arraste um cartão para cá para arquivar; arraste daqui para outra coluna para desarquivar." aria-hidden="true"><Icone nome="arquivo" tam={13} /></span>}
           <span className="coluna-n">{l ? numero(l.total) : '…'}</span>
           {!arquivo && <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
-            onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
+            onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, nome, botao }); }}>
             <Icone nome="pontos" tam={16} />
           </button>}
         </div>
@@ -476,18 +476,21 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
         </div>}
       </section>
     </div>
-    {menu && <MenuColuna c={menu.c} botao={menu.botao} quadro={quadro} aoFechar={() => setMenu(null)} />}
+    {menu && <MenuColuna c={menu.c} nome={menu.nome} botao={menu.botao} quadro={quadro} aoFechar={() => setMenu(null)} />}
     {menuGrupo && <MenuGrupo g={menuGrupo.g} botao={menuGrupo.botao} quadro={quadro} aoFechar={() => setMenuGrupo(null)} aoMudarComeco={() => { focoGrupo.current = menuGrupo.g.id; }} />}
   </div>;
 }
 
 // ---------- menu da coluna ----------
-function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
+function MenuColuna({ c, nome, botao, quadro, aoFechar }: { c: Coluna | null; nome: string; botao: HTMLElement; quadro: Quadro; aoFechar: () => void }) {
   // Mover para os lados vale dentro do grupo da coluna; sem grupo, no topo do quadro (passando por grupos).
   const visiveis = c ? quadro.filaDaColuna(c) : [], i = c ? visiveis.findIndex(x => x.id === c.id) : -1;
   const agir = (fn: () => unknown) => () => { aoFechar(); fn(); };
   const atual = quadro.ordemDe(c ? c.id : null);
-  return <MenuFlutuante botao={botao} aoFechar={aoFechar}>
+  return <MenuFlutuante botao={botao} rotulo={`Opções da coluna ${nome}`} aoFechar={aoFechar}>
+    {/* O nome inteiro da coluna (#352): o do topo dela pode estar cortado em três linhas, e a dica dele não aparece no toque nem
+        pelo teclado; o "⋯" recebe os dois. */}
+    <p className="kmenu-titulo menu-titulo-com-nome"><b className="caixa-alta">{nome}</b></p>
     <p className="rotulo-caps kmenu-titulo">Ordenar esta lista</p>
     {quadro.ordens.map(o => <button key={o} type="button" role="menuitemradio" aria-checked={o === atual}
       onClick={agir(() => quadro.ordenar(c ? c.id : null, o))}>

@@ -234,4 +234,14 @@ describe('Nome da coluna inteiro (#352)', () => {
     expect(within(topo).getByRole('button', { name: `Opções da coluna ${NOME}` })).toBeTruthy();
     expect(within(titulo).queryByRole('button')).toBeNull();
   });
+
+  it('dada uma coluna de nome longo, quando a pessoa abre o "⋯" dela (pelo toque ou pelo teclado), então o menu mostra o nome inteiro', async () => {
+    // Dado
+    montar(false, [], [coluna('c-longa', NOME, 1)]);
+    // Quando
+    fireEvent.click(await screen.findByRole('button', { name: `Opções da coluna ${NOME}` }));
+    // Então
+    const menu = screen.getByRole('menu', { name: `Opções da coluna ${NOME}` });
+    expect(within(menu).getByText(NOME)).toBeTruthy();
+  });
 });

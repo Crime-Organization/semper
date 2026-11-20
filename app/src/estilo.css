@@ -744,9 +744,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible, .kmenu a[role="menuitem"]:hover, .kmenu a[role="menuitem"]:focus-visible { background: var(--soft); outline: 0 }
 /* O item do menu que é um link (o "Ver perfil" da bolinha da equipe, #388) tem a mesma cara dos botões. */
 .kmenu a[role="menuitem"] { text-decoration: none }
-/* O alto do menu da bolinha da equipe (#388): o nome e, embaixo, o papel no item, separados das ações por uma linha. */
-.equipe-menu-titulo { display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
-.equipe-menu-titulo b { font-size: var(--texto-tabela); color: var(--ink); overflow-wrap: anywhere }
+/* O alto do menu da bolinha da equipe (#388): o nome e, embaixo, o papel no item, separados das ações por uma linha. O menu da
+   coluna do quadro usa o mesmo alto, com o nome inteiro da coluna (#352). */
+.equipe-menu-titulo, .menu-titulo-com-nome { display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
+.equipe-menu-titulo b, .menu-titulo-com-nome b { font-size: var(--texto-tabela); color: var(--ink); overflow-wrap: anywhere }
 .equipe-menu-titulo span { font-size: var(--texto-miudo); color: var(--muted) }
 .kmenu button.perigo { color: var(--erro) }
 /* Ordem de cada coluna: escolhida no topo do menu da coluna e mostrada abaixo do título quando não é a manual. */

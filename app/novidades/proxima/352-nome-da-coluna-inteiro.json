@@ -1,5 +1,5 @@
 {
   "titulo": "Nome da coluna inteiro, em mais de uma linha",
-  "texto": "O nome das colunas do quadro aparece inteiro, quebrando em até três linhas, como no Trello. Se for maior que isso, termina em reticências e o nome todo aparece ao passar o mouse.",
+  "texto": "O nome das colunas do quadro aparece inteiro, quebrando em até três linhas. Se for maior que isso, termina em reticências, e o nome todo aparece ao passar o mouse e no alto do menu ⋯ da coluna.",
   "ondeAchar": "Abra o quadro (Kanban) de qualquer módulo e olhe o topo das colunas."
 }
