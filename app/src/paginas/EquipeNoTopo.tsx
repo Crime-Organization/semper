@@ -1,5 +1,6 @@
-// A equipe no topo dos cartões de tarefa, demanda, processo, compromisso e anotação (#132), com a bolinha "+" e as ações de cada
-// bolinha para quem pode alterar o cartão (#356): a do responsável troca, a de um participante o tira na hora. O cartão diz se a pessoa muda a equipe (as mesmas regras que mostram o lápis) e
+// A equipe no topo dos cartões de tarefa, demanda, processo, compromisso e anotação (#132), com a bolinha "+" e o menu de cada
+// bolinha para quem pode alterar o cartão (#356, #388): no do responsável, trocá-lo; no de um participante, torná-lo responsável (o
+// de antes continua no cartão) ou tirá-lo; nos dois, ver o perfil. O cartão diz se a pessoa muda a equipe (as mesmas regras que mostram o lápis) e
 // como ela sai dele (as do lápis do módulo); esta peça grava (equipeNoCartao.ts) e avisa o cartão para ler de novo. O contrato tem a
 // sua (EquipeDoContratoNoTopo), porque lá cada participante tem o seu % da divisão; as duas fazem uma mudança de cada vez (useUmaMudancaDeCadaVez).
 // Os grupos da equipe do item (#378) vêm em pílulas depois dos participantes; quem altera o cartão os põe pelo "+" e os tira pela
@@ -12,10 +13,11 @@ import {
 } from '../regras/gruposDaEquipe';
 import { GRUPOS_POR_ITEM } from '../dados/limites';
 import type { GruposDoCartao } from '../ui/EquipeDoCartao';
+import { ACOES_NA_BOLINHA, impedeResponder, perfilNaBolinha } from '../regras/menuDaBolinha';
 import { EQUIPE_DO_MODULO, planoDaMudanca, tirarPelaBolinha, type EquipeGravada, type ModuloDaEquipe, type PedidoNaEquipe, type SaidaDaPessoa } from '../regras/equipeNoCartao';
 import { candidatosDaEquipe } from '../regras/equipe';
 import { falha } from '../ui/avisos';
-import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
+import { EquipeDoCartao, naEquipe, type PessoaDaEquipe } from '../ui/EquipeDoCartao';
 import { confirmar } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
 import { mudarAEquipe, mudarOsGrupos } from './equipeNoCartao';
@@ -62,6 +64,12 @@ export function useUmaMudancaDeCadaVez() {
     }
   }
   return { ocupado, umaDeCadaVez };
+}
+
+/** O "Ver perfil" do menu das bolinhas (#388): o próprio perfil, ou o de outra pessoa, que só o administrador abre. Vale em todos os cartões. */
+export function usePerfilNaBolinha() {
+  const ctx = useCtx();
+  return (p: PessoaDaEquipe) => perfilNaBolinha(p.id, { eu: ctx.perfil.id, ehAdmin: ctx.ehAdmin }, ctx.equipe);
 }
 
 /** O que os grupos do topo precisam saber de quem muda: o "+" com grupos, o que pôr e tirar faz e como a pessoa sai do cartão. */
@@ -111,6 +119,7 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
   const responsavel = equipe.responsavel_id ? naEquipe(ctx.equipe, equipe.responsavel_id, 'Responsável') : null;
   const participantes = equipe.lista.map(x => naEquipe(ctx.equipe, x, m.papel));
   const { ocupado, umaDeCadaVez } = useUmaMudancaDeCadaVez();
+  const perfil = usePerfilNaBolinha();
   // Quem também está no cartão por um grupo dele continua nele ao se tirar da lista (sem o "você pode deixar de ver").
   const peloGrupo = estaPeloGrupo(grupos, meusGrupos(ctx.grupos, eu));
   const doTopo = useGruposNoTopo(modulo, id, { responsavel_id: equipe.responsavel_id || null, lista: equipe.lista }, grupos, mudar && {
@@ -133,11 +142,17 @@ export function EquipeNoTopo({ modulo, id, equipe, grupos, mudar }: Props) {
     por: m.por,
     candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, noCartao),
     responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavel_id]),
+    acoes: () => ACOES_NA_BOLINHA.participante,
+    acoesDoResponsavel: ACOES_NA_BOLINHA.responsavel,
     tirar: p => tirarPelaBolinha(modulo, p, eu),
+    perfil,
     cheia: equipe.lista.length >= m.maximo ? m.cheia : undefined,
     ocupado,
+    // Quem foi desativado continua na lista, mas não assume o item (a busca de trocar o responsável também não o acha).
+    impedeTornar: p => impedeResponder(p.id, ctx.equipe),
     aoPor: x => pedir({ tipo: 'por', id: x.id, nome: x.nome }),
     aoTirar: p => pedir({ tipo: 'tirar', id: p.id, nome: p.nome }),
-    aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome })
+    aoTrocarResponsavel: x => pedir({ tipo: 'responsavel', id: x.id, nome: x.nome }),
+    aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome })
   }} />;
 }

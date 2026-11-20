@@ -141,3 +141,20 @@ export async function acoesNoMenuDoCartao(page: Page, cartao: Locator) {
   await page.keyboard.press('Escape');
   return itens;
 }
+
+/**
+ * Abre o menu de uma bolinha da equipe no topo do cartão (#388: o clique não tira nem troca na hora). `bolinha` é o nome dela,
+ * "Nome, Papel" ("Bruno Exemplo Souza, Colaborador"). Devolve o menu, com o nome e o papel no alto e as ações (menuitem).
+ */
+export async function abrirMenuDaBolinha(page: Page, lugar: Page | Locator, bolinha: string) {
+  await lugar.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: bolinha, exact: true }).click();
+  const menu = page.getByRole('menu', { name: bolinha, exact: true });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+/** Escolhe uma ação no menu de uma bolinha da equipe ("Tirar da tarefa", "Tornar responsável", "Trocar o responsável"…). */
+export async function acaoDaBolinha(page: Page, lugar: Page | Locator, bolinha: string, acao: string) {
+  const menu = await abrirMenuDaBolinha(page, lugar, bolinha);
+  await menu.getByRole('menuitem', { name: acao, exact: true }).click();
+}

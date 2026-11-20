@@ -1,5 +1,5 @@
 // O topo dos cartões (#382, pedido do dono de 19/11): em demanda, tarefa, processo, compromisso, contrato e pessoa, o topo fica
-// como o da anotação. Numa linha só: à esquerda o tipo e o código; à direita a equipe em bolinhas (menos na pessoa), o ícone de
+// como o da anotação. Numa linha só: à esquerda o tipo e o código; à direita a equipe em bolinhas (na pessoa, os responsáveis: #387), o ícone de
 // etiqueta, o lápis e o menu ⋯ (Arquivar, Excluir), junto dos botões da janela. Logo abaixo, os selos das etiquetas; depois o
 // título. A seção "Etiquetas" do meio do cartão saiu. Nada do topo fica por baixo dos botões da janela, em nenhum formato.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mateus (master).
@@ -17,7 +17,7 @@ const CARTOES = [
   { cartao: 'processo', endereco: '/processos/judicial/', linha: 'JOSÉ DA SILVA TESTE', tipo: 'Judicial', equipe: true },
   { cartao: 'compromisso', endereco: '/agenda/', linha: 'Reunião de equipe', tipo: 'Reunião', equipe: true },
   { cartao: 'contrato', endereco: '/contratos/', linha: 'MARIA APARECIDA EXEMPLO', tipo: 'Quota litis', equipe: true },
-  { cartao: 'pessoa', endereco: '/pessoas/', linha: 'MARIA APARECIDA EXEMPLO', tipo: 'Pessoa física', equipe: false }
+  { cartao: 'pessoa', endereco: '/pessoas/', linha: 'MARIA APARECIDA EXEMPLO', tipo: 'Pessoa física', equipe: true }
 ];
 
 /** Abre o cartão pela tabela do módulo, pela linha que tem `linha`. */

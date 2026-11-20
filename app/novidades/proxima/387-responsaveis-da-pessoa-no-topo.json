@@ -1,0 +1,5 @@
+{
+  "titulo": "Responsáveis da pessoa no alto do cartão",
+  "texto": "No cartão da pessoa, os responsáveis agora aparecem em bolinhas no alto, como a equipe dos outros cartões, e a seção \"Responsáveis\" do meio do cartão saiu. A pessoa pode ter vários responsáveis, todos iguais: clique no \"+\" para incluir mais um; a bolinha de cada um abre um menu para tirá-lo (o aviso traz o Desfazer).",
+  "ondeAchar": "Pessoas: abra o cartão de uma pessoa. No alto, à direita, ficam as bolinhas dos responsáveis e o \"+\" (Pôr responsável)."
+}

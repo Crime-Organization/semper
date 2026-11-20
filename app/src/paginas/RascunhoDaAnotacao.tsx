@@ -13,6 +13,7 @@ import {
 import { candidatosDaEquipe } from '../regras/equipe';
 import { AVISO_DA_MUDANCA, desfazerMudanca, EQUIPE_DO_MODULO, MUDANCAS, type EquipeGravada, type TipoDeMudanca } from '../regras/equipeNoCartao';
 import { etiquetasQueExistem } from '../regras/etiquetas';
+import { ACOES_NA_BOLINHA, acoesSem } from '../regras/menuDaBolinha';
 import { avisar, feito } from '../ui/avisos';
 import { Aviso, Nota } from '../ui/base';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
@@ -135,12 +136,17 @@ export function TopoDoRascunho({ rascunho, pastas }: { rascunho: RascunhoDaAnota
       por: EQUIPE.por,
       candidatos: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId, ...equipe.participantes]),
       responsaveis: termo => candidatosDaEquipe(ctx.equipe, termo, [equipe.responsavelId]),
+      // Os mesmos menus da anotação aberta (#388), sem "Ver perfil": o link fecharia a anotação, que ainda não foi gravada.
+      acoes: () => acoesSem(ACOES_NA_BOLINHA.participante, 'verPerfil'),
+      acoesDoResponsavel: acoesSem(ACOES_NA_BOLINHA.responsavel, 'verPerfil'),
+      perfil: () => null,
       // Na anotação nova, ninguém "sai": quem escreve é sempre dela.
-      tirar: p => `Tirar ${p.nome}`,
+      tirar: () => `Tirar ${EQUIPE.doItem}`,
       cheia: equipe.participantes.length >= EQUIPE.maximo ? EQUIPE.cheia : undefined,
       aoPor: m => pedir('por', m.id, m.nome),
       aoTirar: p => pedir('tirar', p.id, p.nome),
-      aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome)
+      aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome),
+      aoTornarResponsavel: p => pedir('tornarResponsavel', p.id, p.nome)
     }} />} />;
 }
 

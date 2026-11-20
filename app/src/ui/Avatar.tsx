@@ -18,7 +18,7 @@ const tamanho = (tam: number) => ({ '--av': tam + 'px' }) as CSSProperties;
 
 /**
  * A bolinha de uma pessoa. Com `semDica`, sem o nome na dica do navegador nem para o leitor de tela: para quando quem está em
- * volta já dá o nome e a ação (as bolinhas da equipe do cartão, cuja dica diz "Tirar Ana Souza"), e duas dicas brigariam.
+ * volta já dá o nome e a ação (as bolinhas da equipe do cartão, cuja dica diz "Ana Souza · Colaborador"), e duas dicas brigariam.
  */
 export function Avatar({ p, tam = 28, semDica = false }: { p?: Partial<Membro> | null; tam?: number; semDica?: boolean }) {
   const nome = p?.nome || 'Usuário removido';

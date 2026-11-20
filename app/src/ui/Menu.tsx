@@ -1,5 +1,5 @@
 // Menu que abre por cima da página, preso a um botão (menu "⋯" da barra do módulo, menu da coluna do quadro).
-// Fecha ao clicar fora ou com Esc (o foco volta ao botão); o primeiro item já vem com o foco.
+// Fecha ao clicar fora ou com Esc (o foco volta ao botão); o primeiro item (botão ou link) já vem com o foco.
 // Com "painel" (ex.: os filtros), clicar dentro não fecha: dá para mexer em vários campos seguidos.
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -34,7 +34,8 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, childre
       });
     };
     posicionar();
-    m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button')?.focus();
+    // No menu, o primeiro item pode ser um link (o "Ver perfil" da bolinha da equipe, #388, quando as outras ações não valem).
+    m.querySelector<HTMLElement>(painel ? 'select, input, button' : 'button, a[href]')?.focus();
     // O painel que cresce (ex.: uma etiqueta nova na lista) sobe para continuar dentro da tela.
     const observador = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(posicionar);
     observador?.observe(m);

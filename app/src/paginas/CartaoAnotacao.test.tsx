@@ -830,21 +830,45 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     expect(anotacaoCriar).not.toHaveBeenCalled();
   });
 
-  it('dada uma pessoa compartilhada, quando a bolinha dela é clicada, então ela sai na hora, com o aviso e o Desfazer, que a põe de volta', async () => {
+  // A regra mudou (#388, pedido do dono): a bolinha abre um menu, e o "Tirar" fica nele. Na anotação nova, sem "Ver perfil" (o
+  // link fecharia a anotação, que ainda não foi gravada).
+  it('dada uma pessoa compartilhada, quando escolhe "Tirar da anotação" no menu da bolinha dela, então ela sai, com o aviso e o Desfazer, que a põe de volta', async () => {
     // Dado
     abrirNova();
     const equipe = () => within(screen.getByRole('group', { name: 'Equipe' }));
     await userEvent.click(screen.getByRole('button', { name: 'Compartilhar com mais alguém' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Compartilhar com mais alguém' })).getByRole('button', { name: 'Bruno' }));
     // Quando
-    await userEvent.click(equipe().getByRole('button', { name: 'Tirar Bruno' }));
+    await userEvent.click(equipe().getByRole('button', { name: 'Bruno, Compartilhada' }));
     // Então
-    expect(equipe().queryByRole('button', { name: 'Tirar Bruno' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('menu', { name: 'Bruno, Compartilhada' })).getAllByRole('menuitem').map(i => i.textContent?.trim()))
+      .toEqual(['Tornar responsável', 'Tirar da anotação']);
+    // Quando
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Tirar da anotação' }));
+    // Então
+    expect(equipe().queryByRole('button', { name: 'Bruno, Compartilhada' })).not.toBeInTheDocument();
     const aviso = (await screen.findByText('Bruno saiu da anotação.')).closest('div')!;
     // Quando
     await userEvent.click(within(aviso).getByRole('button', { name: 'Desfazer' }));
     // Então
-    expect(await equipe().findByRole('button', { name: 'Tirar Bruno' })).toBeInTheDocument();
+    expect(await equipe().findByRole('button', { name: 'Bruno, Compartilhada' })).toBeInTheDocument();
+    expect(anotacaoCriar).not.toHaveBeenCalled();
+  });
+
+  it('dada uma pessoa compartilhada na anotação nova, quando escolhe "Tornar responsável", então ela passa a responder e quem escreve continua compartilhando', async () => {
+    // Dado
+    abrirNova();
+    const equipe = () => within(screen.getByRole('group', { name: 'Equipe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Compartilhar com mais alguém' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Compartilhar com mais alguém' })).getByRole('button', { name: 'Bruno' }));
+    const antes = equipe().getAllByRole('button').map(b => b.getAttribute('aria-label'));
+    // Quando
+    await userEvent.click(equipe().getByRole('button', { name: 'Bruno, Compartilhada' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Tornar responsável' }));
+    // Então
+    expect(await equipe().findByRole('button', { name: 'Bruno, Responsável' })).toBeInTheDocument();
+    const quemEscrevia = antes[0]!.replace(', Responsável', '');
+    expect(equipe().getByRole('button', { name: `${quemEscrevia}, Compartilhada` })).toBeInTheDocument();
     expect(anotacaoCriar).not.toHaveBeenCalled();
   });
 

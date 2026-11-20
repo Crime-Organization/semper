@@ -1,5 +1,6 @@
-// Cartão da pessoa (painel lateral): o topo (TopoDoCartao, #382, como o da anotação: o tipo e o código; a etiqueta, o lápis e o
-// ⋯ à direita; os selos das etiquetas), o nome, a etapa, responsáveis, qualificação, observações e pendências (da importação),
+// Cartão da pessoa (painel lateral): o topo (TopoDoCartao, #382, como o da anotação: o tipo e o código; os responsáveis em
+// bolinhas (#387), a etiqueta, o lápis e o ⋯ à direita; os selos das etiquetas), o nome, a etapa, qualificação, observações e
+// pendências (da importação),
 // o que está ligado a ela nos outros módulos (contratos e, depois, demandas, tarefas...), vínculos, dados, informações
 // sigilosas e histórico de alterações.
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
@@ -39,6 +40,7 @@ import { cadastroComVolta } from '../regras/origemDoCadastro';
 import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
+import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
 
 interface Props {
   id: string;
@@ -172,6 +174,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
     } catch (e) { falha(e); }
   }
 
+  // Os responsáveis mudaram pelo topo (ou a gravação falhou): a lista e o cartão leem de novo.
+  function depoisDosResponsaveis() { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
@@ -180,10 +185,11 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   // Na pessoa arquivada, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
     <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. A pessoa não tem
-          equipe em bolinhas: quem a atende fica na seção "Responsáveis". */}
+      {/* O topo da anotação (#382): o tipo e o código; os responsáveis em bolinhas (#387, vários e todos iguais, sem um
+          principal), a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Na pessoa arquivada, as bolinhas são só para ver. */}
       <TopoDoCartao modulo="pessoas" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
+        equipe={<EquipeDaPessoaNoTopo pessoa={p} depois={p.arquivado_em ? null : depoisDosResponsaveis} />}
         esquerda={<>
           <span className="codigo">{p.codigo}</span>
           {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
@@ -209,11 +215,6 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {p.arquivado_em && <FaixaDoArquivado modulo="pessoas" podeExcluir={podeExcluir} aoDesarquivar={arquivar} />}
-
-    <section className="bloco separada">
-      <h3><Icone nome="conta" tam={14} />Responsáveis</h3>
-      <Responsaveis p={p} aoMudar={resp => { setP({ ...p, resp: resp.map(perfil_id => ({ perfil_id })) }); aoMudar(); }} />
-    </section>
 
     {/* A qualificação recolhe como as outras seções (a escolha de cada usuário fica guardada). */}
     {textoQual && <Recolhivel titulo="Qualificação" icone="texto" preferencia="pessoas.cartao.qualificacao">
@@ -326,43 +327,6 @@ function ContratosDaPessoa({ lista, pessoaId }: { lista: ContratoDaPessoa[]; pes
 }
 /** O contrato novo com a pessoa como cliente: o cadastro volta a este cartão depois de gravar (#376). */
 const novoContrato = (pessoaId: string, rotulo: string) => ({ para: cadastroComVolta('/contratos/novo/', 'cliente', pessoaId), rotulo });
-
-// ---------- responsáveis ----------
-function Responsaveis({ p, aoMudar }: { p: Pessoa; aoMudar: (resp: string[]) => void }) {
-  const ctx = useCtx();
-  const resp = p.resp.map(r => r.perfil_id);
-  const nomeDe = (id: string) => ctx.equipe.find(m => m.id === id)?.nome || 'Usuário removido';
-  const fora = ctx.equipe.filter(m => m.ativo && !resp.includes(m.id));
-
-  async function tirar(id: string) {
-    try {
-      await SD.responsavelRemover(p.id, id);
-      aoMudar(resp.filter(x => x !== id));
-      feito(`${nomeDe(id)} saiu dos responsáveis.`, 'retirada do responsável', async () => { await SD.responsavelIncluir(p.id, id); });
-    } catch (e) { falha(e); }
-  }
-  async function incluir(id: string) {
-    if (!id) return;
-    try {
-      await SD.responsavelIncluir(p.id, id);
-      aoMudar([...resp, id]);
-      feito(`${nomeDe(id)} agora é responsável.`, 'inclusão do responsável', async () => { await SD.responsavelRemover(p.id, id); });
-    } catch (e) { falha(e); }
-  }
-
-  return <div className="responsaveis">
-    {resp.map(id => <span key={id} className="resp-chip">
-      <Avatar p={ctx.equipe.find(m => m.id === id) || { id, nome: 'Usuário removido' }} tam={26} />
-      {nomeDe(id)}
-      <button type="button" aria-label={`Tirar ${nomeDe(id)} dos responsáveis`} onClick={() => tirar(id)}><Icone nome="fechar" tam={13} /></button>
-    </span>)}
-    {fora.length > 0 && <select className="filtro" aria-label="Incluir responsável" style={{ height: 34 }} value="" onChange={e => incluir(e.target.value)}>
-      <option value="">+ Incluir responsável</option>
-      {fora.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-    </select>}
-    {!resp.length && <Nota style={{ flexBasis: '100%' }}>Nenhum responsável ainda.</Nota>}
-  </div>;
-}
 
 // ---------- informações sigilosas ----------
 // Cada leitura fica registrada no banco (LGPD); por isso só se relê quando algo dos sigilos muda.

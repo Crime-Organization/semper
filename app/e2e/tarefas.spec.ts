@@ -80,8 +80,8 @@ test.describe('Cadastro de tarefas', () => {
     await expect(cartao.getByRole('heading', { name: 'Mandar a notificação' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável. Trocar o responsável' })).toBeVisible();
-    await expect(equipe.getByRole('button', { name: 'Tirar Ana Teste Lima' })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Participante', exact: true })).toBeVisible();
     await abrirSecao(cartao, 'Pessoas');
     await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
@@ -277,7 +277,7 @@ test.describe('Editar no cartão', () => {
     await expect(edicao).toHaveCount(0);
     await expect(cartao.getByText('Modo de edição')).toHaveCount(0);
     await expect(page).toHaveURL(/\/tarefas\/\?id=/);
-    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Responsável. Trocar o responsável' })).toHaveText('BS');
+    await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Responsável', exact: true })).toHaveText('BS');
     await expect(page.getByRole('status').getByRole('button', { name: 'Desfazer' })).toBeVisible();
   });
 
@@ -578,19 +578,19 @@ test.describe('Cronômetro da tarefa', () => {
 
 test.describe('Equipe da tarefa', () => {
   // A regra mudou (pedido do dono, 18/11): a bolinha não abre mais a ficha com o nome, o papel e o link para o cartão da pessoa.
-  // O nome aparece na dica, ao passar o mouse e no foco; o clique já é a ação (trocar o responsável, tirar o participante).
+  // O nome aparece na dica, ao passar o mouse e no foco; o clique abre o menu da bolinha (#388), conferido em equipe-no-cartao.spec.ts.
   test('quando a pessoa passa o mouse ou chega pelo Tab numa bolinha da equipe, então vê o nome e o papel na dica', async ({ page }) => {
     // Dado: "Renovar a procuração" é da Ana, com o Mateus de participante
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    const ana = equipe.getByRole('button', { name: 'Ana Teste Lima, Responsável. Trocar o responsável' });
-    const mateus = equipe.getByRole('button', { name: 'Sair da tarefa (Mateus Freitas Gonçalves)' });
+    const ana = equipe.getByRole('button', { name: 'Ana Teste Lima, Responsável', exact: true });
+    const mateus = equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Participante', exact: true });
     await expect(ana).toHaveText('AL');
     await expect(mateus).toHaveText('MG');
     // Quando
     await ana.hover();
     // Então: a dica é desenhada pelo estilo, com o texto de data-dica
-    await expect(ana).toHaveAttribute('data-dica', 'Ana Teste Lima · Responsável. Clique para trocar.');
+    await expect(ana).toHaveAttribute('data-dica', 'Ana Teste Lima · Responsável');
     await expect.poll(() => ana.evaluate(b => getComputedStyle(b, '::after').opacity)).toBe('1');
     // Quando: pelo teclado (o foco vindo do Tab)
     await mateus.focus();

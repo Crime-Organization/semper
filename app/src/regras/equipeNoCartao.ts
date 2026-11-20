@@ -1,4 +1,5 @@
-// A equipe mudada no topo do cartão (#356): nas bolinhas, pôr e tirar participantes e trocar o responsável, sem abrir o lápis.
+// A equipe mudada no topo do cartão (#356): nas bolinhas, pôr e tirar participantes, trocar o responsável e (#388) tornar um
+// participante responsável, sem abrir o lápis.
 // Valem as regras do lápis de cada módulo: o responsável é qualquer um da equipe ativa e sai da lista de participantes ao entrar,
 // a lista tem o máximo do banco e quem se tira do cartão sai pela regra da #276 (pessoasAoGravar, em sairDoCartao.ts). A tela lê
 // a equipe gravada logo antes de gravar, para não apagar o que outra pessoa acabou de pôr; estas regras dizem o que gravar.
@@ -23,7 +24,7 @@ export interface EquipeDoModulo {
   por: string;
   /** O mesmo botão com grupos da equipe no escritório (#378): "Pôr participante ou grupo". */
   porOuGrupo: string;
-  /** O que a própria bolinha faz (tirarPelaBolinha) e o aviso de sair: "Sair da tarefa". */
+  /** O "Tirar" do menu da própria bolinha (tirarPelaBolinha) e o aviso de sair: "Sair da tarefa". */
   sair: string;
   /** "na tarefa": "Ana já estava na tarefa." */
   noItem: string;
@@ -65,8 +66,11 @@ export const EQUIPE_DO_MODULO: Record<ModuloDaEquipe, EquipeDoModulo> = {
 /** O que uma mudança dá: o que gravar, ou o aviso de por que nada é gravado (já estava assim: 'info'; a lista está cheia: 'erro'). */
 export type MudancaNaEquipe = { gravar: EquipeAGravar } | { aviso: string; tipo: 'info' | 'erro' };
 
-/** As três mudanças das bolinhas. */
-export type TipoDeMudanca = 'por' | 'tirar' | 'responsavel';
+/**
+ * As mudanças das bolinhas: pôr, tirar, trocar o responsável (pela busca) e tornar responsável quem já está na lista (#388, pelo
+ * menu da bolinha dele).
+ */
+export type TipoDeMudanca = 'por' | 'tirar' | 'responsavel' | 'tornarResponsavel';
 /** Uma mudança pedida na tela: o tipo, quem (o id do usuário) e o nome dele, para os avisos. */
 export interface PedidoNaEquipe { tipo: TipoDeMudanca; id: string; nome: string }
 
@@ -87,7 +91,20 @@ export const MUDANCAS: Record<TipoDeMudanca, (modulo: ModuloDaEquipe, atual: Equ
   // Troca o responsável, como o lápis: quem passa a responder sai da lista de participantes (se estava nela).
   responsavel: (modulo, atual, id, nome) => id === atual.responsavel_id
     ? { aviso: `${nome} já é responsável ${EQUIPE_DO_MODULO[modulo].peloItem}.`, tipo: 'info' }
-    : { gravar: { responsavel_id: id, lista: atual.lista.filter(x => x !== id) } }
+    : { gravar: { responsavel_id: id, lista: atual.lista.filter(x => x !== id) } },
+  // Decisão do dono (#388): quem estava na lista passa a responder, e o responsável de antes continua no item, no lugar dele na
+  // lista (sem responsável gravado, o usuário excluído, só sai da lista quem foi promovido). Se outra pessoa já o tinha tirado da
+  // lista, o de antes entra no fim, e aí vale o máximo do módulo.
+  tornarResponsavel: (modulo, atual, id, nome) => {
+    const m = EQUIPE_DO_MODULO[modulo];
+    if (id === atual.responsavel_id) return { aviso: `${nome} já é responsável ${m.peloItem}.`, tipo: 'info' };
+    const antigo = atual.responsavel_id;
+    const semAntigo = atual.lista.filter(x => x !== antigo);
+    const lista = !antigo ? semAntigo.filter(x => x !== id)
+      : semAntigo.includes(id) ? semAntigo.map(x => x === id ? antigo : x) : [...semAntigo, antigo];
+    if (lista.length > m.maximo) return { aviso: m.cheia, tipo: 'erro' };
+    return { gravar: { responsavel_id: id, lista } };
+  }
 };
 
 /** Como quem muda a equipe sai do cartão, pelas regras do lápis de cada módulo (#276). */
@@ -117,7 +134,11 @@ export function planoDaMudanca(modulo: ModuloDaEquipe, pedido: PedidoNaEquipe, a
 export const AVISO_DA_MUDANCA: Record<TipoDeMudanca, (modulo: ModuloDaEquipe, nome: string) => string> = {
   por: (modulo, nome) => `${nome} agora está ${EQUIPE_DO_MODULO[modulo].noItem}.`,
   tirar: (modulo, nome) => `${nome} saiu ${EQUIPE_DO_MODULO[modulo].doItem}.`,
-  responsavel: (modulo, nome) => `Responsável ${EQUIPE_DO_MODULO[modulo].peloItem}: ${nome}.`
+  responsavel: (modulo, nome) => `Responsável ${EQUIPE_DO_MODULO[modulo].peloItem}: ${nome}.`,
+  tornarResponsavel: (modulo, nome) => {
+    const m = EQUIPE_DO_MODULO[modulo];
+    return `Responsável ${m.peloItem}: ${nome}. Quem respondia antes continua ${m.noItem}.`;
+  }
 };
 
 /**
@@ -130,11 +151,11 @@ export const saidaPelaBolinhaFalhou = (modulo: ModuloDaEquipe) => {
 };
 
 /**
- * O que a bolinha de quem está na lista diz, na dica e para o leitor de tela, a quem pode mudar a equipe: o clique tira a pessoa
- * na hora ("Tirar Ana Souza"); na própria bolinha, sai do cartão ("Sair da tarefa (Ana Souza)").
+ * O "Tirar" do menu da bolinha de quem está na lista (#388; o nome e o papel já estão no alto do menu): "Tirar da tarefa"; na
+ * própria bolinha, sair do cartão ("Sair da tarefa").
  */
-export const tirarPelaBolinha = (modulo: ModuloDaEquipe, p: { id: string; nome: string }, eu: string) =>
-  p.id === eu ? `${EQUIPE_DO_MODULO[modulo].sair} (${p.nome})` : `Tirar ${p.nome}`;
+export const tirarPelaBolinha = (modulo: ModuloDaEquipe, p: { id: string }, eu: string) =>
+  p.id === eu ? EQUIPE_DO_MODULO[modulo].sair : `Tirar ${EQUIPE_DO_MODULO[modulo].doItem}`;
 
 /**
  * O que o Desfazer grava, com a equipe lida de novo (`atual`): volta só o que esta mudança fez, e o que outra pessoa mudou depois
@@ -142,6 +163,8 @@ export const tirarPelaBolinha = (modulo: ModuloDaEquipe, p: { id: string; nome: 
  * - Pôr: tira quem entrou, se ainda está na lista.
  * - Tirar: põe de volta no fim, se ainda não voltou e não é o responsável (cheia, a recusa de pôr vale: `aviso`).
  * - Trocar o responsável: o de antes volta, se o novo ainda é o responsável; o novo volta à lista se estava nela antes.
+ * - Tornar responsável: o de antes volta a responder, se o novo ainda é o responsável, e sai da lista; o novo volta a ela, no
+ *   lugar em que o de antes estava (se outra pessoa já tirou o de antes, no fim).
  */
 export function desfazerMudanca(modulo: ModuloDaEquipe, pedido: PedidoNaEquipe, antes: EquipeGravada, atual: EquipeGravada): EquipeAGravar | { aviso: string } | null {
   const DESFAZER: Record<TipoDeMudanca, () => EquipeAGravar | { aviso: string } | null> = {
@@ -155,6 +178,13 @@ export function desfazerMudanca(modulo: ModuloDaEquipe, pedido: PedidoNaEquipe, 
       if (atual.responsavel_id !== pedido.id) return null;
       const lista = atual.lista.filter(x => x !== antes.responsavel_id);
       return { responsavel_id: antes.responsavel_id, lista: antes.lista.includes(pedido.id) && !lista.includes(pedido.id) ? [...lista, pedido.id] : lista };
+    },
+    tornarResponsavel: () => {
+      if (atual.responsavel_id !== pedido.id) return null;
+      const lugar = atual.lista.indexOf(antes.responsavel_id);
+      const volta = !antes.lista.includes(pedido.id) || atual.lista.includes(pedido.id) ? atual.lista.filter(x => x !== antes.responsavel_id)
+        : lugar < 0 ? [...atual.lista, pedido.id] : atual.lista.with(lugar, pedido.id);
+      return { responsavel_id: antes.responsavel_id, lista: volta };
     }
   };
   return DESFAZER[pedido.tipo]();
