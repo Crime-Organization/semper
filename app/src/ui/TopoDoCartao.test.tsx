@@ -8,6 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Etiqueta } from '../dados';
 import { lojaDeEtiquetas } from './Etiquetas';
+import { BotoesNoPainel } from './PainelCartao';
 import { FaixaDoArquivado, TopoDoCartao } from './TopoDoCartao';
 
 const MINHA: Etiqueta = { id: 'e-minha', cor: 'azul', texto: 'Minha', criado_por: 'u-bruno' };
@@ -41,7 +42,7 @@ interface Opcoes { arquivado?: boolean; editando?: boolean; muda?: boolean; alte
 function abrir({ arquivado = false, editando = false, muda = true, altera = true, podeExcluir = false }: Opcoes = {}) {
   const acoes = { aoArquivar: vi.fn(), aoExcluir: vi.fn(), aoEditar: vi.fn() };
   render(<header>
-    <TopoDoCartao modulo="tarefas" id="t-1" esquerda={<span>TAREFA C0FFEE12</span>} equipe={EQUIPE} arquivado={arquivado} editando={editando}
+    <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA C0FFEE12</span>} equipe={EQUIPE} arquivado={arquivado} editando={editando}
       mudaEtiquetas={muda} aoArquivar={altera ? acoes.aoArquivar : undefined} aoExcluir={altera && podeExcluir ? acoes.aoExcluir : undefined}
       lapis={altera ? { rotulo: 'Editar', aoEditar: acoes.aoEditar } : undefined} />
     <h2>Emitir a GRU</h2>
@@ -54,12 +55,13 @@ const botoes = () => screen.getAllByRole('button').map(b => b.getAttribute('aria
 const antes = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe('O topo do cartão ativo, para quem altera', () => {
-  it('quando o cartão abre, então à esquerda o tipo e o código, e à direita a equipe, a etiqueta, o lápis e o ⋯, nesta ordem, antes do título', async () => {
+  it('quando o cartão abre no centro largo, então a equipe, a etiqueta, o lápis e o ⋯ vêm primeiro (ficam no canto de cima), depois o tipo e o código, tudo antes do título', async () => {
     // Quando
     abrir();
-    // Então
+    // Então: a direita vem antes no código, para flutuar no canto de cima com os botões (a tela a põe à direita)
     const titulo = screen.getByRole('heading', { level: 2, name: 'Emitir a GRU' });
-    expect(antes(screen.getByText('TAREFA C0FFEE12'), screen.getByRole('group', { name: 'Equipe' }))).toBe(true);
+    expect(antes(screen.getByRole('button', { name: 'Mais ações da tarefa' }), screen.getByText('TAREFA C0FFEE12'))).toBe(true);
+    expect(antes(screen.getByText('TAREFA C0FFEE12'), titulo)).toBe(true);
     expect(antes(screen.getByRole('group', { name: 'Equipe' }), screen.getByRole('button', { name: 'Escolher etiquetas' }))).toBe(true);
     expect(botoes()).toEqual(['Escolher etiquetas', 'Editar', 'Mais ações da tarefa']);
     expect(antes(screen.getByRole('button', { name: 'Mais ações da tarefa' }), titulo)).toBe(true);
@@ -165,7 +167,7 @@ describe('A faixa do item arquivado', () => {
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Desarquivar' }));
     // Então
-    expect(screen.getByText(/pode ser excluída definitivamente, pelo menu ⋯\./)).toBeInTheDocument();
+    expect(screen.getByText(/pode ser excluída definitivamente pelo menu ⋯\./)).toBeInTheDocument();
     expect(aoDesarquivar).toHaveBeenCalledOnce();
   });
 
@@ -175,5 +177,58 @@ describe('A faixa do item arquivado', () => {
     // Então
     expect(screen.getByText('Tarefa arquivada. Só quem cadastrou esta tarefa ou um administrador pode excluí-la.')).toBeInTheDocument();
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('O topo ao lado (os botões do cartão na linha dos botões da janela)', () => {
+  it('quando o cartão abre ao lado, então o tipo e o código vêm antes da equipe, e os botões do cartão vão para a linha da janela', () => {
+    // Dado: a linha dos botões da janela (o formato e o X), como o painel ao lado a oferece
+    const linhaDaJanela = document.createElement('div');
+    document.body.append(linhaDaJanela);
+    // Quando
+    render(<BotoesNoPainel.Provider value={linhaDaJanela}>
+      <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA C0FFEE12</span>} equipe={EQUIPE} arquivado={false} mudaEtiquetas
+        aoArquivar={vi.fn()} lapis={{ rotulo: 'Editar', aoEditar: vi.fn() }} />
+    </BotoesNoPainel.Provider>);
+    // Então: a equipe vem logo depois do tipo e do código, para ficar na linha deles quando cabe
+    expect(antes(screen.getByText('TAREFA C0FFEE12'), screen.getByRole('group', { name: 'Equipe' }))).toBe(true);
+    expect(within(linhaDaJanela).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Escolher etiquetas', 'Editar', 'Mais ações da tarefa']);
+    linhaDaJanela.remove();
+  });
+});
+
+describe('Desarquivar pela faixa', () => {
+  it('quando a pessoa desarquiva pelo botão da faixa, então a faixa some e o foco vai para o ⋯ (e não para o começo da página)', async () => {
+    // Dado: o cartão arquivado, com a faixa e o Desarquivar dela
+    const Cartao = ({ arquivado, aoDesarquivar }: { arquivado: boolean; aoDesarquivar: () => void }) => <article>
+      <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA C0FFEE12</span>} arquivado={arquivado} mudaEtiquetas={!arquivado}
+        aoArquivar={aoDesarquivar} lapis={{ rotulo: 'Editar', aoEditar: vi.fn() }} />
+      {arquivado && <FaixaDoArquivado modulo="tarefas" podeExcluir={false} aoDesarquivar={aoDesarquivar} />}
+    </article>;
+    const aoDesarquivar = vi.fn();
+    const { rerender } = render(<Cartao arquivado aoDesarquivar={aoDesarquivar} />);
+    // Quando: o clique desarquiva, e o cartão volta ativo (a faixa sai com o botão que tinha o foco)
+    await userEvent.click(screen.getByRole('button', { name: 'Desarquivar' }));
+    rerender(<Cartao arquivado={false} aoDesarquivar={aoDesarquivar} />);
+    // Então
+    expect(aoDesarquivar).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('button', { name: 'Desarquivar' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mais ações da tarefa' })).toHaveFocus();
+  });
+
+  it('quando o cartão volta do arquivo com o foco em outro lugar (o caso de controle), então o foco fica onde estava', () => {
+    // Dado
+    const { rerender } = render(<>
+      <input aria-label="Outro campo" />
+      <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA</span>} arquivado mudaEtiquetas={false} aoArquivar={vi.fn()} />
+    </>);
+    screen.getByRole('textbox', { name: 'Outro campo' }).focus();
+    // Quando
+    rerender(<>
+      <input aria-label="Outro campo" />
+      <TopoDoCartao modulo="tarefas" id="t-1" inicio={<span>TAREFA</span>} arquivado={false} mudaEtiquetas aoArquivar={vi.fn()} />
+    </>);
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Outro campo' })).toHaveFocus();
   });
 });

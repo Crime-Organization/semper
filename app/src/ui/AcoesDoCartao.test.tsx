@@ -29,7 +29,7 @@ describe('O lápis e o ⋯ no topo do cartão ativo', () => {
     // Quando
     render(<LapisDoCartao rotulo="Editar sem os valores" aoEditar={() => {}} />);
     // Então
-    expect(screen.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('title', 'Editar sem os valores');
+    expect(screen.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('data-dica', 'Editar sem os valores');
   });
 });
 
@@ -116,7 +116,7 @@ describe('Ações de quem só lê', () => {
     // Então
     expect(aoClicar).toHaveBeenCalledOnce();
     expect(screen.getAllByRole('button')).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Baixar .md' })).toHaveAttribute('title', 'Baixar .md');
+    expect(screen.getByRole('button', { name: 'Baixar .md' })).toHaveAttribute('data-dica', 'Baixar .md');
   });
 
   it('enquanto a ação a mais roda, então o botão fica desligado (sem baixar duas vezes)', async () => {

@@ -1,5 +1,5 @@
 {
   "titulo": "Topo dos cartões mais simples, como o das anotações",
-  "texto": "Em demandas, tarefas, processos, compromissos, contratos e pessoas, a equipe, o ícone de etiqueta, o lápis e o menu ⋯ ficam numa linha só, no alto. As etiquetas aparecem logo acima do título, e a seção Etiquetas do meio do cartão saiu. Arquivar e Excluir agora ficam no menu ⋯; no cartão arquivado, o botão Desarquivar aparece também na faixa logo abaixo do topo.",
+  "texto": "Em demandas, tarefas, processos, compromissos, contratos e pessoas, a equipe, a etiqueta, o lápis e o menu ⋯ ficam no alto, na linha do tipo do item quando cabe (no celular, a equipe fica logo abaixo dos botões). As etiquetas aparecem acima do título. Arquivar e Excluir ficam no menu ⋯; no arquivado, o Desarquivar aparece também na faixa abaixo do topo.",
   "ondeAchar": "Abra qualquer cartão: no alto, à direita, ficam a equipe, o ícone de etiqueta (Escolher etiquetas), o lápis (Editar) e o menu ⋯ (Arquivar e Excluir)."
 }

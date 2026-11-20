@@ -84,7 +84,7 @@ test.describe('Ações do cartão arquivado', () => {
       // Quando
       await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
       // Então: o ⋯ troca Arquivar por Desarquivar e ganha o Excluir; o lápis sai; a faixa diz onde excluir e traz o Desarquivar
-      await expect(cartao.getByText(/pode ser excluíd[ao] definitivamente, pelo menu ⋯\./)).toBeVisible();
+      await expect(cartao.getByText(/pode ser excluíd[ao] definitivamente pelo menu ⋯\./)).toBeVisible();
       await expect(botao('Desarquivar')).toBeVisible();
       await expect(botao('Editar')).toHaveCount(0);
       expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Desarquivar', 'Excluir']);

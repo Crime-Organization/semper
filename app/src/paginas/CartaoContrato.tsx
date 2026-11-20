@@ -155,8 +155,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
           edita sem os valores tem o mesmo lápis, com esse nome (antes, um botão de texto à parte). As etiquetas: quem vê os valores
           ou edita sem eles. */}
       <TopoDoCartao modulo="contratos" id={k.id} arquivado={!!k.arquivado_em} editando={editando}
+        inicio={!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}
         esquerda={<>
-          {!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}<span className="codigo">{k.codigo}</span>
+          <span className="codigo">{k.codigo}</span>
           {k.codigo_antigo && <span className="codigo">antigo: {k.codigo_antigo}</span>}
           {k.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         </>}

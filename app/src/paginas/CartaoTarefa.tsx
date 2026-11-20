@@ -163,8 +163,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
       <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">Tarefa</Selo>}
         esquerda={<>
-          <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
+          <span className="codigo">{t.codigo}</span>
           <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
           {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         </>}

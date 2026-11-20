@@ -134,8 +134,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora dele, o cartão
           diria "não encontrado": fecha. */}
       <TopoDoCartao modulo="compromissos" id={c.id} arquivado={!!c.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo>}
         esquerda={<>
-          <Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo><span className="codigo">{c.codigo}</span>
+          <span className="codigo">{c.codigo}</span>
           {c.geral && <Selo>Agenda geral</Selo>}
           {c.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         </>}

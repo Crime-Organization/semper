@@ -5,9 +5,9 @@ import { EXCLUIR_PELO_MENU, faixaDoArquivado, TOPO_DO_CARTAO, type ModuloDoTopo 
 const MODULOS = Object.keys(TOPO_DO_CARTAO) as ModuloDoTopo[];
 
 describe('O que o topo dos cartões diz (#382)', () => {
-  it('dados os seis cartões com o topo comum, então cada um tem os textos', () => {
+  it('dados os sete cartões com o topo comum (a anotação também), então cada um tem os textos', () => {
     // Então
-    expect(MODULOS.sort()).toEqual(['compromissos', 'contratos', 'demandas', 'pessoas', 'processos', 'tarefas']);
+    expect(MODULOS.sort()).toEqual(['anotacoes', 'compromissos', 'contratos', 'demandas', 'pessoas', 'processos', 'tarefas']);
   });
 
   describe.each(MODULOS)('Dado o cartão de %s', modulo => {
@@ -30,6 +30,8 @@ describe('O que o topo dos cartões diz (#382)', () => {
       // Então
       expect(texto).toContain(EXCLUIR_PELO_MENU);
       expect(texto).not.toContain('lixeira');
+      // Sem vírgula antes de onde está o Excluir: "excluída definitivamente pelo menu ⋯".
+      expect(texto).toMatch(/definitivamente pelo menu ⋯\./);
     });
 
     it('quando quem não pode excluir abre o arquivado, então a faixa diz quem pode, sem mandar ao menu', () => {

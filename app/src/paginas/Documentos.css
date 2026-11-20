@@ -131,15 +131,7 @@ span.pasta-abrir { cursor: default }
 /* Ao lado (e na janela estreita), as seções da coluna ficam aqui, com o vão da anotação, e não o do cartão: o "Expandir tudo"
    delas (#366) desconta este vão, para ficar com o vão de sempre entre botões redondos até a primeira seção. */
 .anotacao-aberta > .cartao-coluna-lugar > .cartao-coluna-secoes > .secoes-todas:first-child { margin-bottom: calc(var(--botao-redondo-vao) - var(--anotacao-vao)) }
-/* O topo numa linha só: o caminho da pasta à esquerda; a equipe, a etiqueta e o ⋯ à direita. Sem espaço, as ações descem. */
-.anotacao-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; min-height: var(--botao-redondo) }
-/* Ao lado (e na janela estreita), a etiqueta e o ⋯ vão para a linha dos botões da janela, por cima do topo: ele reserva o lugar deles
-   (o formato, o X, o ⋯ e, para quem escreve, a etiqueta), com as medidas dos botões redondos. */
-.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .anotacao-topo { padding-right: calc(3 * var(--botao-redondo) + 3 * var(--botao-redondo-vao)) }
-.cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(2)) .anotacao-topo { padding-right: calc(4 * var(--botao-redondo) + 4 * var(--botao-redondo-vao)) }
-.anotacao-topo > .caminho-da-pasta { flex: 1 1 auto; min-width: 0; margin: 0 }
-.anotacao-topo-acoes { display: flex; align-items: center; gap: var(--botao-redondo-vao); margin-left: auto }
-.anotacao-topo-acoes > .equipe-cartao { margin-right: 6px }
+/* O topo da anotação é o comum dos cartões (.cartao-topo, em estilo.css, #382), com o caminho da pasta à esquerda. */
 /* O título grande, como o de uma nota. Sem título (a anotação nova), o "Sem título" aparece apagado, como a dica do campo. */
 .anotacao-aberta .anotacao-titulo { margin: 0; font-size: var(--texto-titulo-da-nota); font-weight: 900; letter-spacing: -.02em; line-height: 1.15; color: var(--ink); text-wrap: balance; overflow-wrap: anywhere }
 .anotacao-aberta .anotacao-titulo.sem-titulo .titulo-editavel-botao { color: var(--faint) }

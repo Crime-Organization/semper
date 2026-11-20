@@ -6,12 +6,12 @@
 // - em edição, o rodapé com Cancelar e Salvar, sempre à vista no pé do cartão;
 // - para quem só lê um cartão com ações a mais, elas em botões redondos (AcoesDeQuemLe).
 // O formulário em etapas fica para criar; para editar, o cartão mostra todos os campos de uma vez.
-import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { falha } from './avisos';
 import { Botao } from './Botoes';
 import { BotoesNoPainel } from './PainelCartao';
-import { estiloBotao } from './base';
+import { estiloBotao, propsDaDica } from './base';
 import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { confirmar } from './janela';
 import { MenuFlutuante } from './Menu';
@@ -63,7 +63,7 @@ async function confirmarExclusao(excluir: ExclusaoNoCartao) {
 
 /** Os botões das ações a mais (Botao: fica desligado enquanto a ação roda). */
 const BotoesExtras = ({ acoes }: { acoes: AcaoDoTopo[] }) => <>
-  {acoes.map(a => <Botao key={a.rotulo} className="cartao-botao" aria-label={a.rotulo} title={a.rotulo} onClick={a.aoClicar}><Icone nome={a.icone} tam={ICONE_DO_TOPO} /></Botao>)}
+  {acoes.map(a => <Botao key={a.rotulo} className="cartao-botao" aria-label={a.rotulo} {...propsDaDica(a.rotulo)} onClick={a.aoClicar}><Icone nome={a.icone} tam={ICONE_DO_TOPO} /></Botao>)}
 </>;
 
 /** Só as ações a mais, para quem vê o cartão mas não o altera: sem o lápis nem o ⋯ de quem altera. */
@@ -71,9 +71,12 @@ export function AcoesDeQuemLe({ acoes }: { acoes: AcaoDoTopo[] }) {
   return <NoTopoDoCartao><BotoesExtras acoes={acoes} /></NoTopoDoCartao>;
 }
 
-/** O lápis do cartão: o botão redondo verde que abre a edição. O nome ("Editar", "Editar sem os valores") é também a dica. */
+/**
+ * O lápis do cartão: o botão redondo verde que abre a edição. O nome ("Editar", "Editar sem os valores") é também a dica, a do
+ * sistema ([data-dica]), como a do ícone de etiqueta e a do ⋯ ao lado dele.
+ */
 export function LapisDoCartao({ rotulo, aoEditar }: { rotulo: string; aoEditar: () => void }) {
-  return <button type="button" className="cartao-botao cartao-editar" aria-label={rotulo} title={rotulo} onClick={aoEditar}>
+  return <button type="button" className="cartao-botao cartao-editar" aria-label={rotulo} {...propsDaDica(rotulo)} onClick={aoEditar}>
     <Icone nome="editar" tam={ICONE_DO_TOPO} />
   </button>;
 }
@@ -91,6 +94,8 @@ export interface PropsDoMenu {
   excluir?: ExclusaoNoCartao;
   /** As ações a mais (duplicar, baixar), antes de Arquivar. */
   extras?: AcaoDoTopo[];
+  /** O ⋯ em si, para quem precisa pôr o foco nele (o item que volta do arquivo pela faixa: useFocoAoDesarquivar). */
+  refDoBotao?: Ref<HTMLButtonElement>;
 }
 
 /** Uma linha do menu ⋯: a ação a mais, ou Arquivar e Excluir (este em vermelho, com a pergunta `antes`). */
@@ -101,7 +106,7 @@ type ItemDoMenu = AcaoDoTopo & { perigo?: boolean; antes?: () => Promise<boolean
  * quem pode, Excluir, que pergunta antes. Enquanto uma ação roda, o ⋯ fica desligado (sem baixar ou duplicar duas vezes). Sem nada
  * dentro (quem só lê um cartão sem ações a mais), o ⋯ não aparece: um menu vazio só faria clicar à toa.
  */
-export function MenuDoCartao({ arquivado, rotulo = MAIS_ACOES, aoArquivar, excluir, extras = [] }: PropsDoMenu) {
+export function MenuDoCartao({ arquivado, rotulo = MAIS_ACOES, aoArquivar, excluir, extras = [], refDoBotao }: PropsDoMenu) {
   const [botao, setBotao] = useState<HTMLElement | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const itens: ItemDoMenu[] = [...extras];
@@ -129,7 +134,7 @@ export function MenuDoCartao({ arquivado, rotulo = MAIS_ACOES, aoArquivar, exclu
   }
   if (!itens.length) return null;
   return <>
-    <button type="button" className="cartao-botao" aria-label={rotulo} title={rotulo} aria-haspopup="menu" aria-expanded={!!botao} disabled={ocupado}
+    <button ref={refDoBotao} type="button" className="cartao-botao" aria-label={rotulo} {...propsDaDica(rotulo)} aria-haspopup="menu" aria-expanded={!!botao} disabled={ocupado}
       onClick={e => { const alvo = e.currentTarget; setBotao(b => b ? null : alvo); }}>
       <Icone nome="pontos" tam={ICONE_DO_TOPO} />
     </button>

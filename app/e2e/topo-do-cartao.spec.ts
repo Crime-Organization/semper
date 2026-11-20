@@ -236,3 +236,59 @@ test.describe('O topo não fica por baixo dos botões da janela', () => {
     }
   });
 });
+
+test.describe('A equipe no topo, como na anotação', () => {
+  /** Passa a janela para o centro (se ainda não está) e espera a passagem terminar: medir no meio dela daria posições de passagem. */
+  async function abrirNoCentro(cartao: Locator) {
+    const centro = cartao.getByRole('button', { name: 'Abrir no centro da tela' });
+    if (await centro.isVisible()) await centro.click();
+    await expect(cartao.getByRole('button', { name: 'Abrir ao lado' })).toBeVisible();
+    await cartao.evaluate(d => Promise.all(d.getAnimations({ subtree: true }).map(a => a.finished)));
+  }
+  /** O que fica à esquerda do topo de cada cartão: o tipo e o selo ou o código que vem depois dele. */
+  const ESQUERDA = [
+    { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', partes: (c: Locator) => [c.getByText('Tarefa', { exact: true }).first(), c.getByText(/^Prazo.*\d/).first()] },
+    { cartao: 'contrato', endereco: '/contratos/', linha: 'MARIA APARECIDA EXEMPLO',
+      partes: (c: Locator) => [c.getByText('Quota litis', { exact: true }).first(), c.getByText(/^[A-Z]{2}\d{2}-\d{4}-\d{4}$/).first()] }
+  ];
+  const FORMATOS = [
+    { formato: 'ao lado', tela: { width: 1440, height: 900 }, centro: false },
+    { formato: 'na janela estreita', tela: { width: 900, height: 900 }, centro: true },
+    { formato: 'no celular', tela: { width: 390, height: 844 }, centro: false }
+  ];
+  for (const { formato, tela, centro } of FORMATOS) {
+    test(`dados a tarefa e o contrato ${formato}, quando abrem, então a equipe divide uma linha com o tipo ou com o que vem depois dele (nunca fica sozinha numa linha), à direita`, async ({ page }) => {
+      await page.setViewportSize(tela);
+      for (const { endereco, linha, partes } of ESQUERDA) {
+        // Quando
+        const cartao = await abrirCartao(page, endereco, linha);
+        if (centro) await abrirNoCentro(cartao);
+        await voltarAoComeco(cartao);
+        // Então
+        const equipe = (await cartao.getByRole('group', { name: 'Equipe' }).boundingBox())!;
+        const caixas = await Promise.all(partes(cartao).map(async p => (await p.boundingBox())!));
+        const naMesmaLinha = caixas.filter(c => c.y < equipe.y + equipe.height && equipe.y < c.y + c.height);
+        expect(naMesmaLinha.length).toBeGreaterThan(0);
+        for (const c of naMesmaLinha) expect(c.x + c.width).toBeLessThanOrEqual(equipe.x);
+        await cartao.getByRole('button', { name: 'Fechar' }).click();
+      }
+    });
+  }
+
+  for (const { formato, tela, centro } of FORMATOS.filter(f => f.formato !== 'no celular')) {
+    test(`dada a tarefa ${formato}, quando abre, então o tipo, a equipe e os botões ficam numa linha só, na altura do X`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize(tela);
+      // Quando
+      const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
+      if (centro) await abrirNoCentro(cartao);
+      await voltarAoComeco(cartao);
+      // Então: os centros de todos na mesma altura (com folga de alguns pixels)
+      const meio = async (alvo: Locator) => { const c = (await alvo.boundingBox())!; return c.y + c.height / 2; };
+      const doX = await meio(cartao.getByRole('button', { name: 'Fechar' }));
+      for (const alvo of [cartao.getByText('Tarefa', { exact: true }).first(), cartao.getByRole('group', { name: 'Equipe' }), menuDoCartao(cartao), cartao.getByRole('button', { name: 'Escolher etiquetas' })]) {
+        expect(Math.abs(await meio(alvo) - doX)).toBeLessThanOrEqual(3);
+      }
+    });
+  }
+});

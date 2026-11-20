@@ -8,7 +8,7 @@
 // o motivo na dica (`impedeTirar`, `impedeTrocar`). Quem só lê vê as bolinhas com o nome na dica, sem ação.
 // Os grupos da equipe postos no item (#378) vêm depois dos participantes, em pílulas (GruposNoCartao), e o "+" acha também os
 // grupos (a parte "Grupos da equipe" da busca). Sem grupos no escritório, nada disso aparece.
-import { useRef, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type ReactNode } from 'react';
 import type { GrupoDaEquipe, Membro } from '../dados';
 import { GRUPOS_DEMAIS, nomeDoGrupo, numeroDoGrupo } from '../regras/gruposDaEquipe';
 import { GruposNoCartao } from './GruposDoItem';
@@ -19,6 +19,8 @@ import { Icone } from './Icone';
 
 /** Tamanho das bolinhas da equipe no cartão (maiores que as do quadro, para clicar com folga). Vale também para a do "+". */
 const TAMANHO_BOLINHA = 34;
+/** A mesma medida para o estilo (o vão entre as bolinhas no topo, no celular, em estilo.css): o número fica só aqui. */
+const MEDIDA_DA_BOLINHA = { '--bolinha-da-equipe': TAMANHO_BOLINHA + 'px' } as CSSProperties;
 /** Tamanho do ícone de pessoa dentro da bolinha vazia do responsável. */
 const ICONE_DA_VAZIA = 16;
 /** A dica do "+" enquanto uma mudança na equipe ainda grava. */
@@ -128,7 +130,7 @@ export function EquipeDoCartao({ responsavel, participantes, mudar, grupos }: Pr
   const motivoDoResponsavel = mudar?.ocupado ? GRAVANDO_A_EQUIPE : impedeTrocar;
   // Desligada, a bolinha de um participante diz quem ele é e por quê; ligada, a ação ("Tirar Ana Souza").
   const motivoDoParticipante = (p: PessoaDaEquipe) => mudar?.ocupado ? GRAVANDO_A_EQUIPE : mudar?.impedeTirar?.(p);
-  return <div className="equipe-cartao" role="group" aria-label="Equipe">
+  return <div className="equipe-cartao" role="group" aria-label="Equipe" style={MEDIDA_DA_BOLINHA}>
     {mudar
       ? <BuscaNaEquipe adicionar={TROCAR_O_RESPONSAVEL} buscar={mudar.responsaveis} desligado={!!motivoDoResponsavel} aoEscolher={m => void mudar.aoTrocarResponsavel(m)}
         bolinha={{

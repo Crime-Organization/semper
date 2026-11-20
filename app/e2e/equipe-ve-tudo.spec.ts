@@ -99,7 +99,8 @@ test.describe('Toda a equipe vê os cartões', () => {
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
     // Quando
     await cartao.getByRole('button', { name: 'Entrar como colaborador' }).click();
-    // Então
+    // Então: o aviso diz onde a pessoa passa a aparecer (a equipe fica no topo do cartão, #382)
+    await expect(page.getByText('Você entrou neste processo como colaborador (a equipe fica no topo do cartão).')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
     await expect(cartao.getByText('Para alterar, entre nele.')).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Assumir como responsável' })).toHaveCount(0);
@@ -132,7 +133,7 @@ test.describe('Toda a equipe vê os cartões', () => {
     const cartao = page.getByRole('dialog');
     await expect(cartao.getByRole('button', { name: /Honorários/ })).toHaveCount(0);
     // O lápis do topo (#382), com o nome que diz o que ele edita.
-    await expect(cartao.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('title', 'Editar sem os valores');
+    await expect(cartao.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('data-dica', 'Editar sem os valores');
     await cartao.getByRole('button', { name: 'Editar sem os valores' }).click();
     // Então
     await expect(cartao.getByLabel('Valor do contrato')).toHaveCount(0);

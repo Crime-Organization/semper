@@ -170,8 +170,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
       <TopoDoCartao modulo="processos" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo>}
         esquerda={<>
-          <Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo><span className="codigo">{p.codigo}</span>
+          <span className="codigo">{p.codigo}</span>
           {p.orgao && <Selo tipo="arq">{p.orgao}</Selo>}
           {p.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
         </>}

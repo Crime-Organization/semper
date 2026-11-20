@@ -151,8 +151,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
       <TopoDoCartao modulo="demandas" id={d.id} arquivado={!!d.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">Demanda</Selo>}
         esquerda={<>
-          <Selo tipo="escuro">Demanda</Selo><span className="codigo">{d.codigo}</span>
+          <span className="codigo">{d.codigo}</span>
           <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={quadro.pronto ? colunaComMarco(quadro.colunas, d.etapa_id, 'concluido') && 'demandas' : null} />
           {d.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
         </>}

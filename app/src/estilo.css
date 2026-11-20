@@ -838,31 +838,54 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
   .cartao-painel.centro:not(:has(.cartao-botoes .cartao-topo-acoes)) .cartao-cabeca :is(.linha, h2) { padding-right: 0 }
 }
 
-/* O topo dos cartões de item (<TopoDoCartao>, #382), no desenho do da anotação: numa linha só, o tipo, o código e os selos à
-   esquerda; a equipe e os botões do cartão à direita. Sem espaço, a direita desce inteira, encostada à direita. A altura mínima
-   leva o que vem depois (os selos das etiquetas, o título) para baixo dos botões da janela, mesmo com a linha curta. */
-.cartao-topo { display: flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao) calc(2 * var(--botao-redondo-vao));
-  min-height: max(var(--botao-redondo), var(--abaixo-dos-botoes-da-janela) - var(--cartao-topo)) }
-.cartao-topo-esquerda { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao) }
-.cartao-topo-direita { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--botao-redondo-vao); margin-left: auto }
+/* O topo dos cartões (<MoldeDoTopo>, #382), o mesmo em demanda, tarefa, processo, compromisso, contrato, pessoa e anotação: à
+   esquerda o tipo, o código e os selos (na anotação, o caminho da pasta); à direita a equipe e, no centro largo, os botões do
+   cartão. O começo da esquerda (o tipo) flutua no canto de cima, à esquerda; a direita, no canto de cima, à direita; o resto da
+   esquerda (o código e os selos) corre entre os dois e embaixo, como um texto: o que não cabe na primeira linha desce, e as linhas de
+   baixo usam a largura que estiver livre. No centro largo, a direita (com os botões) vem antes no código e nunca sai do canto; ao
+   lado, vem logo depois do tipo e fica na linha dele e dos botões sempre que cabe, como na anotação (MoldeDoTopo). A primeira linha
+   tem a altura dos botões redondos (e chega abaixo dos botões da janela): o que vem depois (os selos das etiquetas, o título) nunca
+   fica por baixo deles. */
+:root { --topo-primeira-linha: max(var(--botao-redondo), var(--abaixo-dos-botoes-da-janela) - var(--cartao-topo));
+  /* No centro, com muita gente, a equipe deixa ao lado dela, na primeira linha, ao menos este espaço: o do tipo */
+  --topo-esquerda-minima: 11rem }
+.cartao-topo { display: flow-root; min-height: var(--topo-primeira-linha) }
+/* O começo da esquerda, no canto de cima, centrado na primeira linha. */
+.cartao-topo-inicio { float: left; max-width: 100%; min-height: var(--topo-primeira-linha); margin-right: var(--botao-redondo-vao); display: flex; align-items: center }
+.cartao-topo-inicio:empty { display: none }
+.cartao-topo .cartao-topo-inicio > * { margin: 0 }
+/* A direita: com muita gente, as bolinhas descem e os botões do cartão ficam em cima, no canto (wrap-reverse). */
+.cartao-topo-direita { float: right; max-width: calc(100% - var(--topo-esquerda-minima)); min-height: var(--topo-primeira-linha); margin-left: calc(2 * var(--botao-redondo-vao));
+  display: flex; flex-wrap: wrap-reverse; align-items: center; justify-content: flex-end; gap: var(--botao-redondo-vao) }
 .cartao-topo-direita:empty { display: none }
-/* Entre a equipe e os botões do cartão, quando estão juntos (no centro largo), um vão a mais; ao lado, a equipe fica sozinha na linha. */
+/* Entre a equipe e os botões do cartão, quando estão juntos (no centro largo), um vão a mais. */
 .cartao-topo-direita > .equipe-cartao:has(+ .cartao-topo-acoes) { margin-right: var(--botao-redondo-vao) }
+/* A esquerda, em linha (ela não desenha caixa: o que tem dentro corre no topo, ao lado do que flutua): a primeira linha tem a altura
+   dos botões (o ::before, sem largura), com tudo centrado nela; as de baixo, a dos selos, com o vão de sempre entre eles. */
+.cartao-topo-esquerda { display: contents }
+.cartao-topo-esquerda::before { content: ''; display: inline-block; height: var(--topo-primeira-linha); vertical-align: middle }
+.cartao-topo .cartao-topo-esquerda > * { display: inline-flex; vertical-align: middle;
+  margin: calc(var(--botao-redondo-vao) / 2) var(--botao-redondo-vao) calc(var(--botao-redondo-vao) / 2) 0 }
 /* Os selos das etiquetas, entre o topo e o título (sem etiquetas, a linha não existe). */
 .cartao-topo + .etiquetas { margin-top: var(--botao-redondo-vao) }
 /* Ao lado e na janela estreita (e no celular), os botões do cartão vão para a linha dos botões da janela (NoTopoDoCartao), por
-   cima do topo: a esquerda reserva o lugar de todos eles, contados (os da janela, o formato e o X, e os do cartão, de 0 a 3), com as
-   medidas dos botões redondos; em edição, o lugar do texto "Modo de edição". A equipe desce para a linha de baixo, inteira e
-   encostada à direita, logo abaixo dos botões: assim ela nunca fica por baixo deles, e não fica parada longe da borda. */
+   cima do topo: um espaço vazio que flutua no canto (o ::before do topo) guarda o lugar de todos eles, contados (os da janela, o
+   formato e o X, e os do cartão, de 0 a 3), com as medidas dos botões redondos; em edição, o lugar do texto "Modo de edição". Ele
+   tem a altura da primeira linha: a equipe, logo depois do tipo, fica na mesma linha dele, à esquerda dos botões, quando cabe;
+   senão, desce, encostada à direita, com os selos que não couberam correndo ao lado dela. Ao lado, ela pode usar a largura toda. */
 :root { --botoes-da-janela: 2; --largura-do-modo-de-edicao: 8.5rem }
 .cartao-painel { --reserva-do-cartao: 0px }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(1)) { --reserva-do-cartao: calc(var(--botao-redondo) + var(--botao-redondo-vao)) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(2)) { --reserva-do-cartao: calc(2 * (var(--botao-redondo) + var(--botao-redondo-vao))) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(3)) { --reserva-do-cartao: calc(3 * (var(--botao-redondo) + var(--botao-redondo-vao))) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > .cartao-modo-edicao) { --reserva-do-cartao: calc(var(--largura-do-modo-de-edicao) + var(--botao-redondo-vao)) }
-.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo-esquerda {
-  padding-right: calc(var(--botoes-da-janela) * (var(--botao-redondo) + var(--botao-redondo-vao)) + var(--reserva-do-cartao)) }
-.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo-direita { flex-basis: 100% }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo::before { content: ''; float: right; height: var(--topo-primeira-linha);
+  width: calc(var(--botoes-da-janela) * (var(--botao-redondo) + var(--botao-redondo-vao)) + var(--reserva-do-cartao)) }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo-direita { max-width: 100% }
+/* Ao lado, a primeira linha do topo é a linha dos botões da janela com o vão de sempre embaixo, e sobe até ela: o tipo, o código e
+   a equipe ficam centrados com o X, e o que desce (a equipe que não coube, os selos, o título) começa logo abaixo dos botões. */
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) { --topo-primeira-linha: calc(var(--botao-redondo) + var(--botao-redondo-vao)) }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo { margin-top: calc(var(--cartao-botoes-margem) - var(--cartao-topo) - var(--botao-redondo-vao) / 2) }
 /* No celular, o formato some: sobra o X. */
 @media (max-width: 640px) { :root { --botoes-da-janela: 1 } }
 .cartao-botao.cartao-editar { background: var(--accent); border-color: var(--accent); color: #fff }
@@ -895,9 +918,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* O alvo do dedo no topo do cartão (#382: a equipe subiu para junto do X, do ⋯ e da etiqueta). Onde o toque é o jeito de apontar,
    cada bolinha da equipe e cada botão redondo do cartão aceita o toque num círculo de --alvo-de-toque, um pouco além do desenho (o
    ::before; o ::after é a dica). No celular, os participantes do topo não se sobrepõem: o vão entre eles é o que falta da bolinha
-   (--bolinha-da-equipe, a mesma medida de TAMANHO_BOLINHA em EquipeDoCartao.tsx) até o alvo, e um toque não cai na vizinha (o
-   toque num participante o tira). */
-:root { --bolinha-da-equipe: 34px }
+   (--bolinha-da-equipe, que EquipeDoCartao.tsx põe na equipe a partir de TAMANHO_BOLINHA, a medida num lugar só) até o alvo, e um
+   toque não cai na vizinha (o toque num participante o tira). */
 @media (pointer: coarse) {
   .equipe-bolinha, .cartao-botao { position: relative }
   .equipe-bolinha::before, .cartao-botao:not(.recolher-todas)::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--alvo-de-toque); height: var(--alvo-de-toque);
@@ -985,7 +1007,9 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
    ele desce). O Excluir fica no menu ⋯ do topo. */
 .cartao-arquivada { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--botao-redondo-vao) calc(2 * var(--botao-redondo-vao));
   padding: 12px 14px; border: 1px dashed var(--line2); border-radius: 12px; font-size: 13px; line-height: 1.5; color: var(--muted) }
-.cartao-arquivada > span { flex: 1 1 16rem }
+/* O texto da faixa ocupa a linha, e o Desarquivar desce quando sobra para o texto menos que --faixa-texto-minimo. */
+:root { --faixa-texto-minimo: 16rem }
+.cartao-arquivada > span { flex: 1 1 var(--faixa-texto-minimo) }
 .bloco { display: flex; flex-direction: column; gap: 10px }
 .bloco > h3 { margin: 0; font-size: 12px; font-weight: 900; letter-spacing: .16em; text-transform: uppercase; color: var(--text2); display: flex; align-items: center; gap: 8px }
 /* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */

@@ -1,19 +1,27 @@
 // O topo dos cartões de item (#382, pedido do dono de 19/11: "simples igual o das anotações"), igual em demanda, tarefa,
-// processo, compromisso, contrato e pessoa: numa linha só, à esquerda o tipo, o código e os selos do item; à direita a equipe em
-// bolinhas (com os grupos e o "+"), e, junto dos botões da janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o lápis
-// (verde) e o menu ⋯ (Arquivar ou Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último, encostado
-// no formato e no X, como na anotação. Logo abaixo, os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o
-// cartão põe. Em edição (o lápis aberto), no lugar dos botões fica "Modo de edição", a equipe some (o formulário tem os campos
-// dela) e os selos ficam sem o x.
+// processo, compromisso, contrato, pessoa e na própria anotação (a aberta e a nova): no alto, à esquerda o tipo, o código e os
+// selos do item (na anotação, o caminho da pasta); à direita a equipe em bolinhas (com os grupos e o "+"), e, junto dos botões da
+// janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o lápis (verde) e o menu ⋯ (as ações a mais, Arquivar ou
+// Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último, encostado no formato e no X. Logo abaixo,
+// os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe. Em edição (o lápis aberto), no lugar
+// dos botões fica "Modo de edição", a equipe some (o formulário tem os campos dela) e os selos ficam sem o x.
+// Como fica no lugar (veja .cartao-topo em estilo.css): o começo da esquerda (o tipo; na anotação, o caminho) fica sempre no canto
+// de cima, à esquerda; a direita, no canto de cima, à direita; o resto da esquerda (o código e os selos) corre entre os dois e
+// embaixo, como um texto. No centro largo, com os botões do cartão nela, a direita vem antes no código e nunca sai do canto; ao
+// lado, com os botões na linha dos da janela, ela vem logo depois do tipo, e a equipe fica na linha dele e dos botões sempre que
+// cabe, como na anotação.
+// O desenho é um só (MoldeDoTopo); TopoDoCartao lê as etiquetas gravadas do item e põe o lápis e o ⋯ dos seis cartões.
 // A faixa do item arquivado (FaixaDoArquivado), no corpo do cartão, diz onde está o Excluir e traz o Desarquivar à vista: é o que
-// se faz ao abrir um arquivado (também está no ⋯).
+// se faz ao abrir um arquivado (também está no ⋯). Desarquivado por ela, o foco vai para o ⋯ (a faixa some com o botão).
 // O que cada módulo diz (o nome do ⋯, "a tarefa", a faixa) vem de regras/topoDoCartao.ts.
-import type { ReactNode } from 'react';
+import { useContext, useEffect, useRef, type ReactNode } from 'react';
+import type { Etiqueta } from '../dados';
 import { faixaDoArquivado, TOPO_DO_CARTAO, type ModuloDoTopo } from '../regras/topoDoCartao';
 import { LapisDoCartao, MenuDoCartao, ModoDeEdicao, NoTopoDoCartao } from './AcoesDoCartao';
 import { Botao } from './Botoes';
 import { BotaoDasEtiquetas, SelosDasEtiquetas, useEtiquetasDoCartao } from './Etiquetas';
 import { Icone, ICONE_DO_TOPO } from './Icone';
+import { BotoesNoPainel } from './PainelCartao';
 
 /** O nome do ícone de etiqueta do topo (e a dica dele): diz o que ele faz, e não se confunde com os selos ("Etiquetas"). */
 export const ESCOLHER_ETIQUETAS = 'Escolher etiquetas';
@@ -22,11 +30,60 @@ export const SELOS_DAS_ETIQUETAS = 'Etiquetas';
 /** O tamanho do ícone do Desarquivar da faixa (o dos botões pequenos). */
 const ICONE_DA_FAIXA = 15;
 
+interface PropsDoMolde {
+  /** O começo da esquerda, sempre no canto de cima: o tipo do item; na anotação, o caminho da pasta. */
+  inicio: ReactNode;
+  /** O resto da esquerda: o código e os selos do item (prazo, órgão, "Arquivada"…). */
+  esquerda?: ReactNode;
+  /** À direita, antes dos botões: a equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo). Sem isto (a pessoa), nada. */
+  equipe?: ReactNode;
+  /** As etiquetas do item: as gravadas (useEtiquetasDoCartao) ou, na anotação nova, as escolhidas na tela. */
+  etiquetas: { ids: string[]; marcar: (e: Etiqueta, marcada: boolean) => void };
+  /** Quem muda as etiquetas: o ícone e o x dos selos. */
+  mudaEtiquetas: boolean;
+  /** Uma etiqueta mudou de cor ou de texto: a lista da página relê. */
+  aoMudarEtiquetas?: () => void;
+  /** Em edição: "Modo de edição" no lugar dos botões, sem a equipe, e os selos sem o x. */
+  editando?: boolean;
+  /** Depois do ícone de etiqueta, junto dos botões da janela: o lápis e o ⋯. */
+  botoes?: ReactNode;
+}
+
+/** O desenho do topo, igual em todos os cartões com etiquetas (veja o comentário do arquivo). */
+export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas, aoMudarEtiquetas, editando = false, botoes }: PropsDoMolde) {
+  const muda = mudaEtiquetas && !editando;
+  // Os botões do cartão vão para a linha dos botões da janela (ao lado, na janela estreita): o tipo vem antes, e a equipe flutua
+  // logo depois dele (na linha dele, se couber). No centro largo, os botões ficam aqui: a direita vem antes, no canto de cima.
+  const botoesNaJanela = !!useContext(BotoesNoPainel);
+  const direita = <div key="direita" className="cartao-topo-direita">
+    {!editando && equipe}
+    <NoTopoDoCartao>
+      {editando ? <ModoDeEdicao /> : <>
+        {muda && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={aoMudarEtiquetas} rotulo={ESCOLHER_ETIQUETAS} className="cartao-botao" comDica>
+          <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
+        </BotaoDasEtiquetas>}
+        {botoes}
+      </>}
+    </NoTopoDoCartao>
+  </div>;
+  const noComeco = <div key="inicio" className="cartao-topo-inicio">{inicio}</div>;
+  return <>
+    <div className="cartao-topo">
+      {/* Com as chaves, trocar a ordem (a janela foi para o centro ou para o lado) só move as caixas: a equipe não recomeça. */}
+      {botoesNaJanela ? [noComeco, direita] : [direita, noComeco]}
+      <div className="cartao-topo-esquerda">{esquerda}</div>
+    </div>
+    <SelosDasEtiquetas ids={etiquetas.ids} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={muda ? e => etiquetas.marcar(e, false) : undefined} />
+  </>;
+}
+
 interface Props {
   modulo: ModuloDoTopo;
   id: string;
-  /** À esquerda: o tipo, o código e os selos do item (prazo, órgão, "Arquivada"…). */
-  esquerda: ReactNode;
+  /** O começo da esquerda, sempre no canto de cima: o tipo do item. */
+  inicio: ReactNode;
+  /** O resto da esquerda: o código e os selos do item (prazo, órgão, "Arquivada"…). */
+  esquerda?: ReactNode;
   /** A equipe em bolinhas (EquipeNoTopo, EquipeDoContratoNoTopo). Sem isto (a pessoa), nada. */
   equipe?: ReactNode;
   arquivado: boolean;
@@ -44,29 +101,31 @@ interface Props {
   lapis?: { rotulo: string; aoEditar: () => void };
 }
 
-export function TopoDoCartao({ modulo, id, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, lapis }: Props) {
+export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, lapis }: Props) {
   const etiquetas = useEtiquetasDoCartao(modulo, id);
   const textos = TOPO_DO_CARTAO[modulo];
-  const muda = mudaEtiquetas && !editando;
-  return <>
-    <div className="cartao-topo">
-      <div className="cartao-topo-esquerda">{esquerda}</div>
-      <div className="cartao-topo-direita">
-        {!editando && equipe}
-        <NoTopoDoCartao>
-          {editando ? <ModoDeEdicao /> : <>
-            {muda && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={aoMudarEtiquetas} rotulo={ESCOLHER_ETIQUETAS} className="cartao-botao" comDica>
-              <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
-            </BotaoDasEtiquetas>}
-            {lapis && !arquivado && <LapisDoCartao rotulo={lapis.rotulo} aoEditar={lapis.aoEditar} />}
-            <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar}
-              excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir } : undefined} />
-          </>}
-        </NoTopoDoCartao>
-      </div>
-    </div>
-    <SelosDasEtiquetas ids={etiquetas.ids} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={muda ? e => etiquetas.marcar(e, false) : undefined} />
-  </>;
+  const menu = useFocoAoDesarquivar(arquivado);
+  return <MoldeDoTopo inicio={inicio} esquerda={esquerda} equipe={equipe} etiquetas={etiquetas} mudaEtiquetas={mudaEtiquetas} aoMudarEtiquetas={aoMudarEtiquetas}
+    editando={editando} botoes={<>
+      {lapis && !arquivado && <LapisDoCartao rotulo={lapis.rotulo} aoEditar={lapis.aoEditar} />}
+      <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar} refDoBotao={menu}
+        excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir } : undefined} />
+    </>} />;
+}
+
+/**
+ * O item voltou do arquivo e o foco ficou sem lugar (o Desarquivar da faixa sumiu com ela): o foco vai para o ⋯, onde está o
+ * Arquivar de novo, e quem usa o teclado não volta ao começo da página. Devolve o ref para o ⋯.
+ */
+export function useFocoAoDesarquivar(arquivado: boolean) {
+  const menu = useRef<HTMLButtonElement>(null);
+  const estava = useRef(arquivado);
+  useEffect(() => {
+    const semFoco = !document.activeElement || document.activeElement === document.body;
+    if (estava.current && !arquivado && semFoco) menu.current?.focus();
+    estava.current = arquivado;
+  }, [arquivado]);
+  return menu;
 }
 
 interface PropsDaFaixa {

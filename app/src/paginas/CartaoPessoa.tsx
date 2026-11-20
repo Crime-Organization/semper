@@ -181,8 +181,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {/* O topo da anotação (#382): o tipo e o código; a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. A pessoa não tem
           equipe em bolinhas: quem a atende fica na seção "Responsáveis". */}
       <TopoDoCartao modulo="pessoas" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
+        inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
         esquerda={<>
-          <Selo tipo="escuro">{TIPOS[p.tipo]}</Selo><span className="codigo">{p.codigo}</span>
+          <span className="codigo">{p.codigo}</span>
           {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
         </>}
