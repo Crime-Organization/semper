@@ -12,6 +12,8 @@ interface Regra {
   mensagem: string | null;
 }
 
+/** A recusa de sempre do banco por falta de permissão (a linha que a regra RLS barra, ou a função que confere quem pode). */
+export const SEM_PERMISSAO = 'Você não tem permissão para fazer isso.';
 export const LINK_VENCIDO = 'Este link já foi usado ou venceu. Entre com sua senha ou peça um novo link.';
 
 // Registro repetido (código 23505): a mensagem depende da restrição que barrou.
@@ -55,8 +57,8 @@ const ERROS: Regra[] = [
   { codigo: '23514', padrao: /anotacao_pastas_nome_preenchido/, mensagem: PASTA_SEM_NOME },
   { codigo: '23514', padrao: /anotacao_pastas_nome_tamanho/, mensagem: PASTA_NOME_LONGO },
   { codigo: '23514', mensagem: 'Algum campo está em formato inválido. Confira os dados e tente de novo.' },
-  { codigo: '42501', mensagem: 'Você não tem permissão para fazer isso.' },
-  { padrao: /permission denied|row-level security/i, mensagem: 'Você não tem permissão para fazer isso.' },
+  { codigo: '42501', mensagem: SEM_PERMISSAO },
+  { padrao: /permission denied|row-level security/i, mensagem: SEM_PERMISSAO },
   { codigo: 'P0001', mensagem: null },
   { padrao: /Invalid login credentials/i, mensagem: 'E-mail ou senha incorretos.' },
   // Antes da regra do código do aplicativo: esta mensagem traz o próprio e-mail, que pode conter "code".

@@ -8,6 +8,7 @@
 // mais rígida que a de ver do banco: quem foi mencionado num comentário continuaria vendo, mas a tela não sabe das menções, e
 // sem estar no contrato ninguém mais o altera. Por isso o motivo fala em deixar de poder alterá-lo, e não em deixar de vê-lo.
 // A tela lê o contrato logo antes de gravar, para não apagar o que outra pessoa acabou de pôr; estas regras dizem o que gravar.
+import { SEM_PERMISSAO } from '../dados/erros';
 import { PARTICIPANTES_MAXIMOS } from '../dados/limites';
 import type { Contrato, DadosContrato, ParticipanteGravado } from '../dados/tipos';
 import { alteraOContrato, PARTICIPANTES_DEMAIS } from './contrato';
@@ -79,13 +80,41 @@ export const MUDANCAS_NO_CONTRATO: Record<TipoDeMudanca, (atual: EquipeDoContrat
   }
 };
 
-/** Por que a mudança é recusada quando deixaria quem grava fora do contrato (pôr alguém nunca deixa). */
+/**
+ * Por que a mudança é recusada quando deixaria quem grava fora do contrato (pôr alguém nunca deixa). Quem está no contrato (quem o
+ * criou, o responsável, os participantes) e os administradores o alteram: qualquer um deles tira a pessoa ou troca o responsável (#274).
+ */
 export const FICARIA_FORA: Record<TipoDeMudanca, string> = {
   por: 'Sem estar no contrato, você deixaria de poder alterá-lo.',
-  tirar: 'Você não pode sair deste contrato: sem estar nele, deixaria de poder alterá-lo. Peça a quem o cadastrou ou a um administrador.',
-  responsavel: 'Você não pode passar este contrato a outro advogado: sem estar nele, deixaria de poder alterá-lo. Ponha-se antes como participante, ou peça a quem o cadastrou ou a um administrador.',
-  tornarResponsavel: 'Você não pode passar este contrato a outro advogado: sem cadastro em Pessoas, você não continuaria nele como participante e deixaria de poder alterá-lo. Peça a quem o cadastrou ou a um administrador.'
+  tirar: 'Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você.',
+  responsavel: 'Você não pode passar este contrato a outro advogado: sem estar nele, deixaria de poder alterá-lo. Ponha-se antes como participante, ou peça a outra pessoa do contrato ou a um administrador.',
+  tornarResponsavel: 'Você não pode passar este contrato a outro advogado: sem cadastro em Pessoas, você não continuaria nele como participante e deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador.'
 };
+
+/** A equipe do contrato só com as pessoas (os participantes sem o %), como alteraOContrato a lê. */
+const quemEsta = (k: Pick<EquipeDoContratoGravada, 'criado_por' | 'responsavel_id' | 'participantes'>) =>
+  ({ criado_por: k.criado_por, responsavel_id: k.responsavel_id, participantes: k.participantes.map(p => p.pessoa_id) });
+
+/**
+ * O lápis do contrato (#274): por que a gravação foi recusada, quando ela deixaria quem grava fora do contrato (o mesmo motivo da
+ * bolinha). O banco recusa com a falta de permissão de sempre, e a pessoa não saberia o que fazer. Quem participava e se tirou
+ * recebe o motivo de sair; quem só era o responsável e passou o contrato adiante, o de passar. undefined: a gravação não deixaria a
+ * pessoa fora (ou ela nem estava no contrato), e vale o erro do banco.
+ */
+export function ficariaForaNoLapis(antes: EquipeDoContratoGravada, gravar: EquipeDoContratoAGravar, eu: QuemMuda): string | undefined {
+  const depois = { ...antes, responsavel_id: gravar.responsavel_id ?? antes.responsavel_id, participantes: gravar.participantes ?? antes.participantes };
+  if (!alteraOContrato(quemEsta(antes), eu) || alteraOContrato(quemEsta(depois), eu)) return undefined;
+  return FICARIA_FORA[eu.pessoa_id && participa(antes, eu.pessoa_id) ? 'tirar' : 'responsavel'];
+}
+
+/**
+ * O erro que a tela mostra quando o banco recusa a gravação do lápis: a falta de permissão de quem ficaria fora do contrato vira o
+ * motivo claro (ficariaForaNoLapis); qualquer outro erro passa como veio.
+ */
+export function recusaNoLapis(erro: unknown, antes: EquipeDoContratoGravada, gravar: EquipeDoContratoAGravar, eu: QuemMuda): unknown {
+  const motivo = erro instanceof Error && erro.message === SEM_PERMISSAO ? ficariaForaNoLapis(antes, gravar, eu) : undefined;
+  return motivo ? Object.assign(new Error(motivo), { original: erro }) : erro;
+}
 
 /**
  * O plano da mudança sobre a equipe gravada agora: o que gravar, ou o aviso de por que nada se grava. Como no lápis, quem deixaria

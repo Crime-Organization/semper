@@ -1,6 +1,7 @@
 # 03. Como entrar, sair ou tirar alguém de um cartão
 
-Conferido no código da versão 1.18.0, em 09/11/2026. Não testado com contas reais.
+Conferido no código da versão 1.18.0, em 09/11/2026. A parte de sair foi revista em 20/11/2026, depois da versão 1.32.0
+(tarefas #276 e #274). Não testado com contas reais.
 
 ## Pergunta
 
@@ -24,7 +25,7 @@ Conferido no código da versão 1.18.0, em 09/11/2026. Não testado com contas r
 
 *Quer entrar em um cartão?* Peça a quem já está nele ou a um administrador para incluir você.
 
-*Quer sair?* Só sai sozinho quem criou o cartão ou é administrador. Nos outros casos, peça a outra pessoa do cartão ou a um administrador para tirar você.
+*Quer sair?* Em tarefa, demanda, processo e compromisso, desmarque o seu nome e salve: você sai, e a saída fica no histórico. No contrato, só sai sozinho quem o criou ou é administrador; nos outros casos, peça a outra pessoa do contrato ou a um administrador para tirar você.
 
 *Quem é tirado deixa de ver o cartão.* Quem criou o cartão e os administradores continuam vendo.
 ```
@@ -77,17 +78,18 @@ No contrato, existe um outro caminho: quem é parte do contrato pode mencionar u
 | Administrador | Sai normalmente |
 | Quem criou o cartão | Sai normalmente, mas continua vendo o cartão |
 | Tarefa ou compromisso, com outra ligação que continua (demanda ou processo ligado) | Sai normalmente |
-| Outros casos, em tarefa, demanda, processo ou compromisso | O sistema salva o resto e mantém você como colaborador ou participante, com um aviso |
-| Outros casos, em contrato | O sistema recusa: "Você não tem permissão para fazer isso." |
+| Outros casos, em tarefa, demanda, processo, compromisso ou anotação | O sistema salva o resto e depois tira você: "Você saiu dele, e a saída ficou no histórico." Você deixa de ver o cartão |
+| Outros casos, em contrato | O sistema não salva e explica: "Você não pode sair deste contrato sozinho: sem estar nele, deixaria de poder alterá-lo. Peça a outra pessoa do contrato ou a um administrador para tirar você." |
+| Está no cartão só por um grupo | O sistema avisa que, para sair, é preciso pedir a um administrador |
 
-Nesses dois últimos casos, peça a outra pessoa do cartão ou a um administrador para tirar você.
+No contrato, quem pode tirar você é qualquer outra pessoa dele (quem o criou, o advogado responsável ou outro participante) ou um administrador. Na bolinha do topo do contrato, o "Sair do contrato" nem aparece: no lugar, a mesma explicação.
 
 ### Passar o cartão para outra pessoa
 
 Troque o nome no campo do responsável e salve.
 
 - **Em tarefa, demanda, processo e compromisso,** quem passou o cartão continua nele como colaborador ou participante, se não for administrador nem tiver criado o cartão.
-- **Em contrato,** quem não criou o contrato e não é administrador só consegue trocar o responsável se continuar no contrato, por exemplo incluindo-se como participante. Um administrador consegue trocar direto.
+- **Em contrato,** quem não criou o contrato e não é administrador só consegue trocar o responsável se continuar no contrato, por exemplo incluindo-se como participante. Senão, o sistema explica isso e manda pedir a outra pessoa do contrato ou a um administrador. Um administrador consegue trocar direto.
 
 ## Roteiro do vídeo
 
@@ -103,11 +105,11 @@ Troque o nome no campo do responsável e salve.
 | 5. Salvar | 35–40s | Clique em "Salvar"; o aviso de atualização aparece. | "Depois, é só salvar." | Salvar |
 | 6. Responsável | 40–50s | Campo "Responsável" abre e outro nome é escolhido; um selo "Sempre um responsável" aparece. No contrato, um selo "Só advogado". | "Todo cartão tem um responsável. Para mudar, escolha outro nome. No contrato, só advogado." | Sempre um responsável |
 | 7. Entrar | 50–59s | Uma bolinha do lado de fora bate no cartão; uma de dentro a puxa para o cartão. | "Quer entrar? Peça a quem já está no cartão ou a um administrador." | Peça a quem está no cartão |
-| 8. Sair | 59–72s | Uma bolinha tenta sair sozinha e volta; outra bolinha a tira. Bolinhas com coroa (administrador) e com lápis (quem criou) saem livremente. | "Sair sozinho, só quem criou o cartão ou é administrador. Nos outros casos, peça para outra pessoa tirar você." | Peça para tirarem você |
+| 8. Sair | 59–72s | Numa demanda, uma bolinha se desmarca e sai. Num contrato, uma bolinha tenta sair sozinha e volta; outra bolinha do contrato a tira. Bolinhas com coroa (administrador) e com lápis (quem criou) saem livremente. | "Para sair, desmarque o seu nome e salve. No contrato, só sai sozinho quem o criou ou é administrador: nos outros casos, peça a outra pessoa do contrato ou a um administrador." | No contrato, peça para tirarem você |
 | 9. Fim | 72–80s | A bolinha que saiu fica cinza, e o cartão some para ela. As bolinhas de coroa e de lápis seguem vendo. | "Quem sai deixa de ver o cartão. Quem criou e os administradores continuam vendo." | Quem sai deixa de ver |
 
 ## Para revisar
 
 - Quando a chave `equipe_ve_tudo` for ligada (#271): toda a equipe passa a ver os cartões, então quem foi tirado continua vendo, sem poder alterar, e sem os valores no contrato. Reescrever "Quem é tirado deixa de ver o cartão", a parte de "Entrar em um cartão" e as cenas 7 e 9. Incluir-se continua dependendo de alguém do cartão ou de um administrador.
-- Ao sair de um processo ou compromisso, o aviso da tela diz que só um administrador pode tirar a pessoa, mas, pelas regras do banco, outra pessoa do cartão também pode.
-- No contrato, quem tenta sair recebe só a mensagem genérica de falta de permissão, sem explicar o que fazer.
+- Quem está num cartão só por um grupo da equipe: o aviso manda pedir a um administrador, mas outra pessoa do cartão também pode tirar o grupo do cartão (o que tira todos do grupo). Falta o dono decidir se a mensagem deve citar isso.
+- Resolvido em 20/11/2026 (#274): ao sair de um processo ou compromisso, a pessoa sai de verdade desde a #276, e o aviso de que só um administrador a tiraria não existe mais. No contrato, quem tenta sair sem poder recebe a explicação de pedir a outra pessoa do contrato ou a um administrador, e não mais a mensagem genérica de falta de permissão.
