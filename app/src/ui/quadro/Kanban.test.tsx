@@ -199,3 +199,27 @@ describe('Colunas fora da tela (#87)', () => {
     expect(ladosAcesos(quadro)).toEqual({ esquerda: true, direita: false });
   });
 });
+
+describe('Nome da coluna inteiro (#352)', () => {
+  const NOME = 'Diligência/Análise/Falta de documentação';
+
+  it('dada uma coluna de nome longo, quando o quadro aparece, então o título traz o nome inteiro, com a dica dele, e pode quebrar a linha depois de cada barra', async () => {
+    // Quando
+    montar(false, [], [coluna('c-longa', NOME, 1)]);
+    // Então
+    const titulo = await screen.findByRole('heading', { name: NOME });
+    expect(titulo.textContent).toBe(NOME);
+    expect(titulo).toHaveAttribute('title', NOME);
+    expect(titulo.querySelectorAll('wbr')).toHaveLength(2);
+  });
+
+  it('dada uma coluna de nome longo, quando o quadro aparece, então a quantidade e o "⋯" continuam no topo dela, fora do nome', async () => {
+    // Quando
+    montar(false, [], [coluna('c-longa', NOME, 1)]);
+    // Então
+    const titulo = await screen.findByRole('heading', { name: NOME });
+    const topo = titulo.parentElement!;
+    expect(within(topo).getByRole('button', { name: `Opções da coluna ${NOME}` })).toBeTruthy();
+    expect(within(titulo).queryByRole('button')).toBeNull();
+  });
+});

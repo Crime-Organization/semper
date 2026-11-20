@@ -11,6 +11,13 @@ export const normal = (t: unknown) => semAcento(String(t || '').trim());
 export const emCaixaAlta = (t: string) => t.toLocaleUpperCase('pt-BR');
 
 /**
+ * O nome partido depois de cada barra ("Diligência/Análise/Falta" vira "Diligência/", "Análise/", "Falta"), para a tela poder
+ * quebrar a linha ali (#352): o navegador não quebra depois da barra, e um nome assim, mais largo que a coluna, quebraria no meio
+ * de uma palavra. Juntas, as partes são o nome de novo.
+ */
+export const partesParaQuebrar = (t: string) => t.split(/(?<=\/)/);
+
+/**
  * As sugestões que combinam com o texto digitado, sem acento nem maiúscula fazer diferença: primeiro as que começam por
  * ele, depois as que o contêm. A que já é igual ao texto não aparece (já está escrita).
  */

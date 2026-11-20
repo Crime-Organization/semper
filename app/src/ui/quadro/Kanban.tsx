@@ -15,7 +15,7 @@ import { falha } from '../avisos';
 import { ORDENS } from '../ordem';
 import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
 import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
-import { emCaixaAlta, normal } from '../../regras/texto';
+import { emCaixaAlta, normal, partesParaQuebrar } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { ordemNoFim } from './posicao';
 import { Campo, Carregando, estiloBotao, propsDoCampo } from '../base';
@@ -299,14 +299,19 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
           e.dataTransfer.setData('text/plain', 'coluna:' + c!.id);
         } : undefined}
         onDragEnd={reordena ? () => { colArrasto.current = null; setColArrastada(null); setAntesDeCol(null); setAntesNoTopo(null); } : undefined}>
-        <h3 title={marco ? `${nome}: ${marco.explicacao}` : nome}>{nome}</h3>
-        {marco && <span className="coluna-marco-selo" title={marco.explicacao} aria-label={`Coluna-marco: ${marco.rotulo}`}><Icone nome="check" tam={13} /></span>}
-        {arquivo && <span className="coluna-marco-selo" title="Arraste um cartão para cá para arquivar; arraste daqui para outra coluna para desarquivar." aria-hidden="true"><Icone nome="arquivo" tam={13} /></span>}
-        <span className="coluna-n">{l ? numero(l.total) : '…'}</span>
-        {!arquivo && <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
-          onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
-          <Icone nome="pontos" tam={16} />
-        </button>}
+        {/* O nome inteiro, em até três linhas (#352); se nem elas bastam, termina em reticências e a dica mostra o
+            nome todo. Depois de cada barra, a linha pode quebrar ("DILIGÊNCIA/ANÁLISE/FALTA"), em vez de no meio de uma palavra. */}
+        <h3 title={marco ? `${nome}: ${marco.explicacao}` : nome}>{partesParaQuebrar(nome).map((parte, i) => <Fragment key={i}>{i > 0 && <wbr />}{parte}</Fragment>)}</h3>
+        {/* O selo, a quantidade e o "⋯" ficam juntos na primeira linha do nome, alinhados entre as colunas lado a lado. */}
+        <div className="coluna-topo-acoes">
+          {marco && <span className="coluna-marco-selo" title={marco.explicacao} aria-label={`Coluna-marco: ${marco.rotulo}`}><Icone nome="check" tam={13} /></span>}
+          {arquivo && <span className="coluna-marco-selo" title="Arraste um cartão para cá para arquivar; arraste daqui para outra coluna para desarquivar." aria-hidden="true"><Icone nome="arquivo" tam={13} /></span>}
+          <span className="coluna-n">{l ? numero(l.total) : '…'}</span>
+          {!arquivo && <button type="button" className="coluna-menu" aria-label={`Opções da coluna ${nome}`}
+            onClick={e => { e.stopPropagation(); const botao = e.currentTarget; setMenu(m => m?.k === k ? null : { c, k, botao }); }}>
+            <Icone nome="pontos" tam={16} />
+          </button>}
+        </div>
       </header>
       {!manual && !arquivo && <p className="coluna-ordem" title="Ordem desta lista (muda no menu da coluna)">{ORDENS[ordem]}</p>}
       <div className="coluna-lista" role="list" aria-label={nome}
