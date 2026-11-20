@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { AO_DECIDIR, aniversarioParaMostrar, MOTIVOS_PARA_CONFERIR, PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, resumoDaPrimeira, situacaoDaFila } from './sincronizacaoGoogle';
+import { AO_DECIDIR, aniversarioParaMostrar, MOTIVOS_PARA_CONFERIR, PRIMEIRA_NAO_TERMINOU, PROBLEMAS_DA_SINCRONIZACAO, RESULTADO_DO_AGORA, resumoDaPrimeira, situacaoDaFila } from './sincronizacaoGoogle';
 
 describe('Textos da sincronização com o Google Contatos', () => {
   it.each([
@@ -22,6 +22,22 @@ describe('Textos da sincronização com o Google Contatos', () => {
     const aviso = RESULTADO_DO_AGORA.ok({ resultado: 'ok', ...contas });
     // Então
     expect(aviso).toEqual({ ok, texto });
+  });
+
+  it('dada a primeira sincronização que não terminou (o Google falhou), quando o "Sincronizar agora" termina, então o aviso é de falha e não diz que está tudo em dia', () => {
+    // Quando
+    const aviso = RESULTADO_DO_AGORA.ok({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira_por_fazer: true });
+    // Então
+    expect(aviso).toEqual({ ok: false, texto: PRIMEIRA_NAO_TERMINOU });
+    expect(aviso.texto).not.toContain('em dia');
+  });
+
+  it('dada a primeira sincronização que não consegue terminar, quando o problema é mostrado, então manda avisar o suporte (não diz que o Google está fora)', () => {
+    // Quando
+    const problema = PROBLEMAS_DA_SINCRONIZACAO['primeira-recusada'];
+    // Então
+    expect(problema.oQueFazer).toContain('avise o suporte');
+    expect(problema.titulo).not.toBe(PROBLEMAS_DA_SINCRONIZACAO['google-fora'].titulo);
   });
 
   it('dada a sincronização desligada ou um erro, quando o "Sincronizar agora" termina, então o aviso é de falha', () => {

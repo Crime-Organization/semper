@@ -12,6 +12,10 @@ export const PROBLEMAS_DA_SINCRONIZACAO: Record<ProblemaDaSincronizacao, { titul
     titulo: 'O Google não está respondendo.',
     oQueFazer: 'O SEMPER continua tentando sozinho, com esperas cada vez maiores, e nada se perde. Se durar mais de um dia, clique em "Sincronizar agora"; se não resolver, avise o suporte do SEMPER.'
   },
+  'primeira-recusada': {
+    titulo: 'A primeira sincronização não consegue terminar.',
+    oQueFazer: 'O SEMPER continua tentando, mas este erro não costuma passar sozinho: avise o suporte do SEMPER. Até lá, nada é criado no Google e nada se perde.'
+  },
   recusado: {
     titulo: 'O Google recusou os dados de algumas pessoas.',
     oQueFazer: 'Confira o nome, os telefones, os e-mails e a data de nascimento (ou de abertura) das pessoas cadastradas ou editadas por último e salve de novo: a correção vai ao Google na hora. Se continuar, avise o suporte do SEMPER.'
@@ -34,15 +38,18 @@ export function resumoDaPrimeira(p: NonNullable<ResultadoDaSincronizacao['primei
   return `Primeira sincronização feita: ${ligados}${p.para_conferir ? `, ${contatos(p.para_conferir)} para conferir` : ''}.`;
 }
 
+/** O que o "Sincronizar agora" diz quando a primeira sincronização não terminou (falhou, ou outra execução a está fazendo). */
+export const PRIMEIRA_NAO_TERMINOU = 'A primeira sincronização ainda não terminou: nada foi criado no Google. O SEMPER tenta de novo sozinho em alguns minutos; nada se perdeu.';
+
 /** O resultado do "Sincronizar agora", como aviso (com o resumo da primeira sincronização, se ela terminou agora). */
 export const RESULTADO_DO_AGORA: Record<ResultadoDaSincronizacao['resultado'], (r: ResultadoDaSincronizacao) => { ok: boolean; texto: string }> = {
-  ok: r => ({
+  ok: r => r.primeira_por_fazer ? { ok: false, texto: PRIMEIRA_NAO_TERMINOU } : {
     ok: !r.falhas,
     texto: [r.primeira ? resumoDaPrimeira(r.primeira) : '',
       !r.sincronizados && !r.falhas && !r.primeira ? 'Nada esperando: os contatos já estavam em dia.' : '',
       r.sincronizados ? `${pessoas(r.sincronizados)} ${r.sincronizados === 1 ? 'foi' : 'foram'} ao Google.` : '',
       r.falhas ? `${pessoas(r.falhas)} não ${r.falhas === 1 ? 'foi' : 'foram'}: o SEMPER tenta de novo sozinho.` : ''].filter(Boolean).join(' ')
-  }),
+  },
   desligada: () => ({ ok: false, texto: 'A sincronização dos contatos está desligada.' }),
   erro: () => ({ ok: false, texto: 'Não foi possível sincronizar agora. Tente de novo em alguns minutos: nada se perdeu.' })
 };
@@ -65,8 +72,11 @@ export const MOTIVOS_PARA_CONFERIR: Record<MotivoParaConferir, { selo: string; t
   varios: { selo: 'Várias pessoas', texto: 'Pode ser mais de uma pessoa do escritório.' },
   'so-nome': { selo: 'Só o nome', texto: 'Só o nome bate: pode ser a mesma pessoa ou alguém com o mesmo nome.' },
   conflito: { selo: 'Dados diferentes', texto: 'O telefone ou o e-mail é de uma pessoa do escritório, mas o nome ou o aniversário não combina (pode ser um parente, a empresa dela ou um número antigo).' },
-  repetido: { selo: 'Repetido', texto: 'A pessoa já está ligada a outro contato do Google: este parece repetido lá.' }
+  repetido: { selo: 'Repetido', texto: 'A pessoa já está ligada a outro contato do Google: este parece repetido lá. Se for, apague-o no Google ou clique em Ignorar.' }
 };
+
+/** No lugar do "Ligar", para a pessoa possível que já tem um contato nesta conta (não pode ganhar mais um). */
+export const JA_LIGADA = 'Já ligada a outro contato do Google';
 
 /** O que a tela confirma depois de cada decisão. */
 export const AO_DECIDIR: Record<DecisaoDoContato['acao'], string> = {

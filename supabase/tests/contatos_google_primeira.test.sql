@@ -53,6 +53,9 @@ select public.sincronizacao_google_ligar(true);
 select is((select primeira_em from public.primeira_sincronizacao_google()), null,
   'dado Ana, quando liga a sincronização, então a primeira sincronização fica por fazer');
 reset role;
+select ok(public.contatos_google_primeira_por_fazer('e0000000-0000-0000-0000-000000000001'),
+  'e a função do servidor sabe que ela falta (o "Sincronizar agora" avisa em vez de dizer que está tudo em dia)');
+select ok(not public.contatos_google_primeira_por_fazer('e0000000-0000-0000-0000-000000000002'), 'e o escritório sem conta ligada não tem primeira por fazer');
 
 update public.pessoas set nome = 'RITA TESTE SOUZA' where id = '10000000-0000-0000-0000-000000000003';
 select ok(pg_temp.na_fila('10000000-0000-0000-0000-000000000003'), 'quando uma pessoa é editada antes da primeira, então ela entra na fila');
@@ -93,6 +96,7 @@ select ok(not pg_temp.na_fila('10000000-0000-0000-0000-000000000002'), 'e José,
 select ok(pg_temp.na_fila('10000000-0000-0000-0000-000000000003'), 'e Rita, sem contato, continua na fila para ganhar um contato novo');
 select ok(not pg_temp.na_fila('10000000-0000-0000-0000-000000000004'), 'e a pessoa arquivada não vai para a fila');
 select isnt((pg_temp.ligacao()).contatos_primeira_em, null, 'e a primeira sincronização fica marcada como feita');
+select ok(not public.contatos_google_primeira_por_fazer('e0000000-0000-0000-0000-000000000001'), 'e não falta mais');
 select is((select count(*)::int from public.auditoria where tabela = 'ligacoes' and resumo ? 'primeira_sincronizacao'), 1, 'e fica no registro de ações');
 
 select is((select ligados || '|' || para_conferir || '|' || novos from public.contatos_google_primeira_concluir('e0000000-0000-0000-0000-000000000001',
@@ -180,6 +184,24 @@ select is((select para_conferir from public.contatos_google_primeira_concluir('e
   '[{"recurso": "people/c6", "nome": "Bia", "motivo": "so-nome", "candidatos": ["10000000-0000-0000-0000-000000000006"]}]'::jsonb)), 0,
   'dado um contato já ignorado, quando a primeira sincronização é refeita, então ele não volta para conferir');
 
+-- Um contato repetido no Google: a pessoa possível já tem contato nesta conta.
+insert into public.contatos_google_conferir (escritorio_id, conta_email, recurso, nome, motivo, candidatos) values
+  ('e0000000-0000-0000-0000-000000000001', 'contato@exemplo.test', 'people/c1b', 'Maria Teste', 'repetido', '{10000000-0000-0000-0000-000000000001}'),
+  ('e0000000-0000-0000-0000-000000000001', 'contato@exemplo.test', 'people/c3b', 'Rita', 'so-nome', '{10000000-0000-0000-0000-000000000003}');
+select pg_temp.entrar(1); set local role authenticated;
+select is((select string_agg((x -> 'candidatos' -> 0 ->> 'nome') || '=' || (x -> 'candidatos' -> 0 ->> 'ligada'), ',' order by x ->> 'nome')
+           from jsonb_array_elements(public.contatos_google_para_conferir()) x),
+  'MARIA TESTE=true,RITA TESTE SOUZA=false',
+  'dado um contato repetido de Maria, quando Ana pede a lista, então Maria vem como já ligada (a tela não oferece "Ligar"), e Rita, sem contato, não');
+select public.contatos_google_conferir_decidir((select k.id from public.contatos_google_conferir k where k.recurso = 'people/c1b'), 'ignorar', null);
+reset role;
+update privado.ligacoes set contatos_primeira_em = null where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
+select is((select para_conferir from public.contatos_google_primeira_concluir('e0000000-0000-0000-0000-000000000001', 'contato@exemplo.test',
+  '[{"pessoa_id": "10000000-0000-0000-0000-000000000003", "recurso": "people/c3b", "etag": "e3b"}]'::jsonb, '[]'::jsonb)), 0,
+  'dada a dúvida aberta de Rita, quando a primeira refeita liga o contato dela, então a dúvida sai da lista');
+select is((select count(*)::int from public.contatos_google_conferir where recurso = 'people/c3b'), 0, 'e não fica guardada aberta');
+select is((select recurso from public.contatos_google where pessoa_id = '10000000-0000-0000-0000-000000000003'), 'people/c3b', 'e Rita fica ligada ao contato');
+
 -- ---------------------------------------------------------------------
 -- Falhas, religar, trocar de conta e desligar
 -- ---------------------------------------------------------------------
@@ -190,6 +212,22 @@ select ok((select contatos_primeira_proxima_em > now() and contatos_primeira_res
 select pg_temp.entrar(1); set local role authenticated;
 select is((select problema from public.primeira_sincronizacao_google()), 'google-fora', 'e, a partir da 3ª tentativa, Ana vê o problema');
 reset role;
+select public.contatos_google_primeira_falhou('e0000000-0000-0000-0000-000000000001', 'interno', 'erro: O banco recusou', 60);
+select pg_temp.entrar(1); set local role authenticated;
+select is((select problema from public.primeira_sincronizacao_google()), 'primeira-recusada',
+  'quando a primeira falha 3 vezes por um erro do próprio SEMPER, então Ana vê que ela não consegue terminar (não que o Google está fora)');
+reset role;
+update privado.ligacoes set contatos_primeira_tentativas = 1 where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar(1); set local role authenticated;
+select is((select problema from public.primeira_sincronizacao_google()), null, 'mas na 1ª falha interna ainda não vê problema nenhum');
+reset role;
+select public.contatos_google_primeira_falhou('e0000000-0000-0000-0000-000000000001', 'recusado', 'mais de 100000 contatos na conta', 60);
+select pg_temp.entrar(1); set local role authenticated;
+select is((select problema from public.primeira_sincronizacao_google()), 'primeira-recusada',
+  'quando o Google recusa a leitura (não passa sozinho), então Ana vê o problema já na 1ª vez');
+reset role;
+update privado.ligacoes set contatos_primeira_tentativas = 3 where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
+select public.contatos_google_primeira_falhou('e0000000-0000-0000-0000-000000000001', 'temporario', 'Google respondeu 503', 60);
 select is((select count(*)::int from public.contatos_google_primeiras(null)), 0, 'e ela não é pega antes da espera');
 select is(public.contatos_google_agora('a0000000-0000-0000-0000-000000000001', 'aal1'), 'e0000000-0000-0000-0000-000000000001'::uuid,
   'quando Ana pede "Sincronizar agora"');
@@ -204,15 +242,31 @@ select public.sincronizacao_google_ligar(true);
 reset role;
 select is((pg_temp.ligacao()).contatos_primeira_em, null, 'quando Ana desliga e liga de novo a sincronização, então a primeira é refeita');
 
+insert into public.contatos_google_conferir (escritorio_id, conta_email, recurso, motivo, candidatos)
+values ('e0000000-0000-0000-0000-000000000001', 'contato@exemplo.test', 'people/c8', 'so-nome', '{10000000-0000-0000-0000-000000000006}');
+create temp table decididas as select recurso from public.contatos_google_conferir where conta_email = 'contato@exemplo.test' and decisao is not null;
 update privado.ligacoes set conta_email = 'outra@exemplo.test', contatos_primeira_em = now() where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
 select is((pg_temp.ligacao()).contatos_primeira_em, null, 'quando a conta Google muda, então a primeira é refeita na conta nova');
-select is((select count(*)::int from public.contatos_google_conferir where conta_email = 'contato@exemplo.test'), 0, 'e as dúvidas da conta antiga somem');
+select is((select count(*)::int from public.contatos_google_conferir where conta_email = 'contato@exemplo.test' and decisao is null), 0,
+  'e as dúvidas abertas da conta antiga somem');
+select is((select count(*)::int from public.contatos_google_conferir where conta_email = 'contato@exemplo.test'), (select count(*)::int from decididas),
+  'e as decididas ficam (voltando a essa conta, o que já foi decidido não volta para a lista)');
 
-insert into public.contatos_google_conferir (escritorio_id, conta_email, recurso, motivo, candidatos)
-values ('e0000000-0000-0000-0000-000000000001', 'outra@exemplo.test', 'people/c9', 'so-nome', '{10000000-0000-0000-0000-000000000003}');
+insert into public.contatos_google_conferir (escritorio_id, conta_email, recurso, motivo, candidatos, decisao)
+values ('e0000000-0000-0000-0000-000000000001', 'outra@exemplo.test', 'people/c9', 'so-nome', '{10000000-0000-0000-0000-000000000003}', null),
+       ('e0000000-0000-0000-0000-000000000001', 'outra@exemplo.test', 'people/c10', 'so-nome', '{10000000-0000-0000-0000-000000000006}', 'ignorada');
 delete from privado.ligacoes where escritorio_id = 'e0000000-0000-0000-0000-000000000001';
-select is((select count(*)::int from public.contatos_google_conferir where escritorio_id = 'e0000000-0000-0000-0000-000000000001'), 0,
-  'quando a conta é desligada, então as dúvidas dela somem');
+select is((select count(*)::int from public.contatos_google_conferir where conta_email = 'outra@exemplo.test' and decisao is null), 0,
+  'quando a conta é desligada, então as dúvidas abertas dela somem');
+select is((select count(*)::int from public.contatos_google_conferir where conta_email = 'outra@exemplo.test' and decisao = 'ignorada'), 1,
+  'e as decididas ficam, para não voltarem se a mesma conta for ligada de novo');
+
+-- Ligar a mesma conta de novo: a primeira refeita não traz de volta o contato já ignorado.
+insert into privado.ligacoes (escritorio_id, provedor, conta_email, segredo_id, contatos_ativos)
+values ('e0000000-0000-0000-0000-000000000001', 'google', 'outra@exemplo.test', vault.create_secret('token-2', 'teste-primeira-2'), true);
+select is((select para_conferir from public.contatos_google_primeira_concluir('e0000000-0000-0000-0000-000000000001', 'outra@exemplo.test', '[]'::jsonb,
+  '[{"recurso": "people/c10", "nome": "Bia", "motivo": "so-nome", "candidatos": ["10000000-0000-0000-0000-000000000006"]}]'::jsonb)), 0,
+  'quando a mesma conta é ligada de novo e a primeira é refeita, então o contato já ignorado não volta para conferir');
 
 select * from finish();
 rollback;

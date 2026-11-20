@@ -67,6 +67,12 @@ export type TipoDaFalha = 'autorizacao' | 'temporario' | 'recusado';
 /** Mais dois casos que a função resolve sozinha: o contato sumiu no Google (cria outro) ou o etag ficou velho (relê). */
 type TipoDoErro = TipoDaFalha | 'sumiu' | 'etag';
 
+/**
+ * O tamanho máximo do detalhe da falha guardado no banco (check length(...) <= 200 em contatos_google_fila.erro_detalhe e
+ * privado.ligacoes.contatos_primeira_detalhe, nas migrações *_contatos_google*.sql): mudou aqui, muda a migração também.
+ */
+export const TAMANHO_DO_DETALHE_DO_ERRO = 200;
+
 export class FalhaDoGoogle extends Error {
   constructor(readonly tipo: TipoDoErro, readonly detalhe: string) { super(detalhe); }
 }
@@ -127,7 +133,7 @@ async function respostaDoGoogle<T>(r: Response): Promise<T> {
 /** Faz o pedido; sem resposta (rede, Google fora), a falha é temporária. */
 async function pedir<T>(buscar: typeof fetch, url: string, init: RequestInit): Promise<T> {
   let r: Response;
-  try { r = await buscar(url, init); } catch (e) { throw new FalhaDoGoogle('temporario', `sem resposta: ${(e as Error).message}`.slice(0, 200)); }
+  try { r = await buscar(url, init); } catch (e) { throw new FalhaDoGoogle('temporario', `sem resposta: ${(e as Error).message}`.slice(0, TAMANHO_DO_DETALHE_DO_ERRO)); }
   return respostaDoGoogle<T>(r);
 }
 
@@ -215,7 +221,7 @@ export async function sincronizarContatos(passos: PassosDaSincronizacao, escrito
       resultado.sincronizados++;
     } catch (e) {
       const falha = e instanceof FalhaDoGoogle ? FALHA_DA_FILA[e.tipo] : 'temporario';
-      const detalhe = e instanceof FalhaDoGoogle ? e.detalhe : `erro: ${(e as Error).message}`.slice(0, 200);
+      const detalhe = e instanceof FalhaDoGoogle ? e.detalhe : `erro: ${(e as Error).message}`.slice(0, TAMANHO_DO_DETALHE_DO_ERRO);
       await passos.falhou(p, falha, detalhe, esperaDaTentativa(p.tentativas));
       resultado.falhas++;
     }
@@ -239,8 +245,16 @@ export interface PassosDaPrimeira extends Pick<PassosDaSincronizacao, 'tokenDeRe
   pessoasDoEscritorio(escritorio: string, conta: string): Promise<PessoaDoEscritorio[]>;
   /** Grava as ligações e a lista para conferir, marca a primeira como feita e põe na fila quem fica sem contato. */
   concluirPrimeira(e: EscritorioDaPrimeira, c: Correspondencia): Promise<ResultadoDaPrimeira>;
-  primeiraFalhou(e: EscritorioDaPrimeira, falha: TipoDaFalha, detalhe: string, esperaEmSegundos: number): Promise<void>;
+  primeiraFalhou(e: EscritorioDaPrimeira, falha: TipoDaFalhaDaPrimeira, detalhe: string, esperaEmSegundos: number): Promise<void>;
+  /** A primeira sincronização do escritório ainda não terminou (falhou, espera a próxima tentativa ou outra execução a está fazendo). */
+  primeiraPorFazer(escritorio: string): Promise<boolean>;
 }
+
+/**
+ * Como a falha da primeira sincronização fica na ligação: as da fila e mais 'interno', o erro do próprio SEMPER (o banco
+ * recusou ou não respondeu), que não é do Google e não se resolve esperando o Google voltar.
+ */
+export type TipoDaFalhaDaPrimeira = TipoDaFalha | 'interno';
 
 /** Os campos lidos de cada contato da conta: só o que a correspondência usa. */
 const CAMPOS_DA_LEITURA = 'names,phoneNumbers,emailAddresses,birthdays,clientData,metadata';
@@ -276,14 +290,22 @@ export async function primeiraSincronizacao(passos: PassosDaPrimeira, e: Escrito
     const pessoas = await passos.pessoasDoEscritorio(e.escritorio_id, e.conta_email);
     return await passos.concluirPrimeira(e, corresponder(contatos, pessoas));
   } catch (err) {
-    const falha = err instanceof FalhaDoGoogle ? FALHA_DA_FILA[err.tipo] : 'temporario';
-    const detalhe = err instanceof FalhaDoGoogle ? err.detalhe : `erro: ${(err as Error).message}`.slice(0, 200);
+    const falha: TipoDaFalhaDaPrimeira = err instanceof FalhaDoGoogle ? FALHA_DA_FILA[err.tipo] : 'interno';
+    const detalhe = err instanceof FalhaDoGoogle ? err.detalhe : `erro: ${(err as Error).message}`.slice(0, TAMANHO_DO_DETALHE_DO_ERRO);
     await passos.primeiraFalhou(e, falha, detalhe, esperaDaTentativa(e.tentativas));
     return null;
   }
 }
 
-export interface ResultadoCompleto extends ResultadoDaSincronizacao { primeira?: ResultadoDaPrimeira }
+export interface ResultadoCompleto extends ResultadoDaSincronizacao {
+  /** Só quando a primeira sincronização terminou nesta execução. */
+  primeira?: ResultadoDaPrimeira;
+  /**
+   * Só no "Sincronizar agora" (de um escritório): a primeira sincronização dele não terminou nesta execução (falhou, espera a
+   * próxima tentativa ou outra execução a está fazendo). A fila dele não andou, e a tela não pode dizer que está tudo em dia.
+   */
+  primeira_por_fazer?: true;
+}
 
 /**
  * Uma execução da função do servidor: primeiro as primeiras sincronizações por fazer (enquanto a do escritório não termina,
@@ -296,5 +318,8 @@ export async function sincronizarTudo(passos: PassosDaSincronizacao & PassosDaPr
     if (r) primeira = { ligados: (primeira?.ligados ?? 0) + r.ligados, para_conferir: (primeira?.para_conferir ?? 0) + r.para_conferir, novos: (primeira?.novos ?? 0) + r.novos };
   }
   const fila = await sincronizarContatos(passos, escritorio);
-  return primeira ? { ...fila, primeira } : fila;
+  if (primeira) return { ...fila, primeira };
+  // Pedido de um escritório (o "Sincronizar agora") sem a primeira terminada agora: confere se ela ainda falta.
+  if (escritorio && await passos.primeiraPorFazer(escritorio)) return { ...fila, primeira_por_fazer: true };
+  return fila;
 }

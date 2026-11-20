@@ -11,7 +11,7 @@
 --   Enquanto a primeira sincronização não termina, a fila do escritório espera (nada é criado no Google). E quem está numa
 --   dúvida ainda aberta também espera: só vai ao Google depois da decisão.
 --   A primeira sincronização é refeita sempre que a sincronização é ligada de novo ou a conta muda (os contatos já ligados
---   ficam; as dúvidas já decididas não voltam).
+--   ficam; as dúvidas já decididas não voltam, nem depois de desligar a conta e ligá-la de novo).
 --   Só acrescenta (colunas novas com valor padrão, uma tabela, funções novas, gatilhos novos, e funções da etapa 1 trocadas
 --   por outras com a mesma assinatura). A versão anterior do site continua funcionando: ela não usa nada disto.
 -- =====================================================================
@@ -26,7 +26,8 @@ alter table privado.ligacoes
   add column contatos_primeira_tentativas   integer not null default 0,
   add column contatos_primeira_proxima_em   timestamptz not null default now(),
   add column contatos_primeira_reservada_ate timestamptz,
-  add column contatos_primeira_erro         text check (contatos_primeira_erro in ('autorizacao', 'temporario', 'recusado')),
+  -- 'interno': o erro foi do próprio SEMPER (o banco recusou ou não respondeu), não do Google.
+  add column contatos_primeira_erro         text check (contatos_primeira_erro in ('autorizacao', 'temporario', 'recusado', 'interno')),
   add column contatos_primeira_detalhe      text check (length(contatos_primeira_detalhe) <= 200);
 
 -- ---------------------------------------------------------------------
@@ -75,8 +76,10 @@ $$;
 revoke execute on function privado.contato_google_em_duvida(uuid, uuid, text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
--- Gatilhos: conta trocada refaz a primeira; conta desligada leva as dúvidas dela
+-- Gatilhos: conta trocada refaz a primeira; conta desligada leva as dúvidas ABERTAS dela
 -- ---------------------------------------------------------------------
+-- As dúvidas já decididas ficam (como as ligações em contatos_google): ao ligar a mesma conta de novo, o que o
+-- administrador já decidiu não volta para a lista.
 create function privado.ligacao_conta_trocada() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -87,7 +90,8 @@ begin
     new.contatos_primeira_reservada_ate := null;
     new.contatos_primeira_erro := null;
     new.contatos_primeira_detalhe := null;
-    delete from public.contatos_google_conferir k where k.escritorio_id = old.escritorio_id and k.conta_email = old.conta_email;
+    delete from public.contatos_google_conferir k
+    where k.escritorio_id = old.escritorio_id and k.conta_email = old.conta_email and k.decisao is null;
   end if;
   return new;
 end $$;
@@ -97,7 +101,8 @@ create trigger conta_trocada before update of conta_email on privado.ligacoes
 create function privado.ligacao_apagada() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  delete from public.contatos_google_conferir k where k.escritorio_id = old.escritorio_id and k.conta_email = old.conta_email;
+  delete from public.contatos_google_conferir k
+  where k.escritorio_id = old.escritorio_id and k.conta_email = old.conta_email and k.decisao is null;
   return null;
 end $$;
 create trigger apagada after delete on privado.ligacoes
@@ -271,9 +276,12 @@ begin
   from jsonb_to_recordset(coalesce(p_conferir, '[]'::jsonb))
        as x(recurso text, etag text, nome text, telefones text[], emails text[], aniversario text, motivo text, candidatos uuid[])
   on conflict (escritorio_id, conta_email, recurso) do nothing;
-  -- Uma dúvida sem nenhuma pessoa possível do escritório não serve para nada.
+  -- Uma dúvida sem nenhuma pessoa possível do escritório não serve para nada; e a dúvida aberta (de uma primeira anterior)
+  -- cujo contato acabou de ser ligado a alguém já está resolvida.
   delete from public.contatos_google_conferir k
-  where k.escritorio_id = p_escritorio and k.conta_email = v.conta_email and k.decisao is null and cardinality(k.candidatos) = 0;
+  where k.escritorio_id = p_escritorio and k.conta_email = v.conta_email and k.decisao is null
+    and (cardinality(k.candidatos) = 0
+         or exists (select 1 from public.contatos_google c where c.recurso = k.recurso and c.conta_email = k.conta_email and c.escritorio_id = k.escritorio_id));
 
   insert into public.contatos_google_fila (pessoa_id, escritorio_id)
     select p.id, p.escritorio_id from public.pessoas p
@@ -312,31 +320,50 @@ begin
   where l.escritorio_id = p_escritorio and l.perfil_id is null and l.provedor = 'google';
 end $$;
 
+-- A primeira sincronização do escritório ainda falta (com a sincronização ligada): o "Sincronizar agora" avisa, em vez de
+-- dizer que está tudo em dia, quando ela falhou ou está sendo feita por outra execução.
+create function public.contatos_google_primeira_por_fazer(p_escritorio uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select exists (select 1 from privado.ligacoes l
+                 where l.escritorio_id = p_escritorio and l.perfil_id is null and l.provedor = 'google'
+                   and l.contatos_ativos and l.contatos_primeira_em is null)
+$$;
+
 revoke execute on function public.contatos_google_primeiras(uuid), public.contatos_google_pessoas(uuid, text),
-  public.contatos_google_primeira_concluir(uuid, text, jsonb, jsonb), public.contatos_google_primeira_falhou(uuid, text, text, integer)
+  public.contatos_google_primeira_concluir(uuid, text, jsonb, jsonb), public.contatos_google_primeira_falhou(uuid, text, text, integer),
+  public.contatos_google_primeira_por_fazer(uuid)
   from public, anon, authenticated;
 grant execute on function public.contatos_google_primeiras(uuid), public.contatos_google_pessoas(uuid, text),
-  public.contatos_google_primeira_concluir(uuid, text, jsonb, jsonb), public.contatos_google_primeira_falhou(uuid, text, text, integer)
+  public.contatos_google_primeira_concluir(uuid, text, jsonb, jsonb), public.contatos_google_primeira_falhou(uuid, text, text, integer),
+  public.contatos_google_primeira_por_fazer(uuid)
   to service_role;
 
 -- ---------------------------------------------------------------------
 -- Pelo navegador (administradores)
 -- ---------------------------------------------------------------------
 
--- Como está a primeira sincronização: se já terminou (e quando), quantas dúvidas estão abertas e o problema dela, se
--- falhou 3 vezes ou mais ('google-fora'). Vazio sem conta ligada ou para quem não é administrador.
+-- Como está a primeira sincronização: se já terminou (e quando), quantas dúvidas estão abertas e o problema dela:
+--   'google-fora'       : o Google não respondeu 3 vezes ou mais (passa sozinho);
+--   'primeira-recusada' : o Google recusou a leitura (já na 1ª vez: não passa sozinho, por exemplo uma conta com contatos
+--                         demais) ou o próprio SEMPER falhou 3 vezes ou mais; o administrador precisa avisar o suporte.
+-- Vazio sem conta ligada ou para quem não é administrador.
 create function public.primeira_sincronizacao_google()
 returns table (ativa boolean, primeira_em timestamptz, para_conferir integer, problema text, problema_em timestamptz)
 language sql stable security definer set search_path = '' as $$
-  select l.contatos_ativos, l.contatos_primeira_em,
-         (select count(*)::int from public.contatos_google_conferir k
-          where k.escritorio_id = l.escritorio_id and k.conta_email = l.conta_email and k.decisao is null),
-         case when l.contatos_primeira_em is null and l.contatos_primeira_tentativas >= 3
-                   and l.contatos_primeira_erro in ('temporario', 'recusado') then 'google-fora' end,
-         case when l.contatos_primeira_em is null and l.contatos_primeira_tentativas >= 3
-                   and l.contatos_primeira_erro in ('temporario', 'recusado') then l.contatos_primeira_proxima_em end
-  from privado.ligacoes l
-  where l.escritorio_id = privado.meu_escritorio() and l.perfil_id is null and l.provedor = 'google' and privado.sou_admin()
+  select x.contatos_ativos, x.contatos_primeira_em, x.para_conferir, x.problema,
+         case when x.problema is not null then x.contatos_primeira_proxima_em end
+  from (
+    select l.contatos_ativos, l.contatos_primeira_em, l.contatos_primeira_proxima_em,
+           (select count(*)::int from public.contatos_google_conferir k
+            where k.escritorio_id = l.escritorio_id and k.conta_email = l.conta_email and k.decisao is null) as para_conferir,
+           case when l.contatos_primeira_em is not null then null
+                when l.contatos_primeira_erro = 'recusado' then 'primeira-recusada'
+                when l.contatos_primeira_tentativas < 3 then null
+                when l.contatos_primeira_erro = 'temporario' then 'google-fora'
+                when l.contatos_primeira_erro = 'interno' then 'primeira-recusada' end as problema
+    from privado.ligacoes l
+    where l.escritorio_id = privado.meu_escritorio() and l.perfil_id is null and l.provedor = 'google' and privado.sou_admin()
+  ) x
 $$;
 
 -- As dúvidas abertas da conta ligada agora, as mais antigas primeiro, com as pessoas possíveis de cada uma (só as do
@@ -348,7 +375,11 @@ language sql stable security definer set search_path = '' as $$
     'criado_em', k.criado_em,
     'candidatos', (select coalesce(jsonb_agg(jsonb_build_object('id', p.id, 'codigo', p.codigo, 'tipo', p.tipo, 'nome', p.nome,
                                                                 'telefones', p.telefones, 'emails', p.emails, 'nascimento', p.nascimento,
-                                                                'abertura', p.abertura, 'arquivada', p.arquivado_em is not null) order by u.n), '[]'::jsonb)
+                                                                'abertura', p.abertura, 'arquivada', p.arquivado_em is not null,
+                                                                -- Já tem um contato nesta conta: não pode ser ligada a outro.
+                                                                'ligada', exists (select 1 from public.contatos_google c
+                                                                                  where c.pessoa_id = p.id and c.conta_email = k.conta_email))
+                                                order by u.n), '[]'::jsonb)
                    from unnest(k.candidatos) with ordinality as u(id, n)
                    join public.pessoas p on p.id = u.id and p.escritorio_id = k.escritorio_id)
   ) order by k.criado_em, k.nome, k.id), '[]'::jsonb)

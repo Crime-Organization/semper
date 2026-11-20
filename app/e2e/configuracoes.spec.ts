@@ -115,7 +115,7 @@ test.describe('Conta Google do escritório', () => {
   });
 
   /** Liga a conta e a sincronização e põe contatos na conta Google simulada (o que ela já tinha antes do SEMPER). */
-  async function contaComContatos(page: Page, noGoogle: unknown[]) {
+  async function contaComContatos(page: Page, noGoogle: unknown[], googleFora = false) {
     await page.goto('/configuracoes/');
     const google = page.getByRole('region', { name: 'Conta Google' });
     await google.getByRole('button', { name: 'Conectar conta Google' }).click();
@@ -124,9 +124,10 @@ test.describe('Conta Google do escritório', () => {
     await expect(contatos).toContainText('A primeira sincronização ainda não terminou');
     await page.evaluate(lista => {
       const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { contatosGoogle: Record<string, unknown> };
-      bd.contatosGoogle.noGoogle = lista;
+      bd.contatosGoogle.noGoogle = lista.contatos;
+      bd.contatosGoogle.googleFora = lista.fora;
       sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
-    }, noGoogle);
+    }, { contatos: noGoogle, fora: googleFora });
     await page.reload();
     return contatos;
   }
@@ -179,6 +180,35 @@ test.describe('Conta Google do escritório', () => {
     // Então
     await expect(page.getByText('Contato ligado à pessoa.', { exact: false })).toBeVisible();
     await expect(contatos.getByRole('region', { name: /Para conferir/ })).toHaveCount(0);
+  });
+
+  test('dado um contato repetido no Google, quando aparece em "Para conferir", então a pessoa já ligada não tem "Ligar" e o administrador pode ignorá-lo', async ({ page }) => {
+    // Dado: dois contatos com o nome e o telefone da mesma pessoa da semente
+    const contatos = await contaComContatos(page, [
+      { resourceName: 'people/c1', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '+55 38 99000-1000' }] },
+      { resourceName: 'people/c4', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '(38) 99000-1000' }] }
+    ]);
+    // Quando
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    // Então
+    const repetido = contatos.getByRole('group', { name: 'Contato do Google: José da Silva Teste' });
+    await expect(repetido).toContainText('Repetido');
+    await expect(repetido.getByRole('list', { name: 'Pessoas possíveis' })).toContainText('Já ligada a outro contato do Google');
+    await expect(repetido.getByRole('button', { name: /^Ligar a / })).toHaveCount(0);
+    await repetido.getByRole('button', { name: 'Ignorar' }).click();
+    await expect(page.getByText('Contato ignorado', { exact: false })).toBeVisible();
+    await expect(contatos.getByRole('region', { name: /Para conferir/ })).toHaveCount(0);
+  });
+
+  test('dado o Google fora, quando o administrador pede "Sincronizar agora", então o aviso diz que a primeira sincronização não terminou (e não que está tudo em dia)', async ({ page }) => {
+    // Dado
+    const contatos = await contaComContatos(page, [], true);
+    // Quando
+    await contatos.getByRole('button', { name: 'Sincronizar agora' }).click();
+    // Então
+    await expect(page.getByText('A primeira sincronização ainda não terminou: nada foi criado no Google.', { exact: false })).toBeVisible();
+    await expect(page.getByText('os contatos já estavam em dia', { exact: false })).toHaveCount(0);
+    await expect(contatos).toContainText('A primeira sincronização ainda não terminou');
   });
 
   test('dada a autorização do Google vencida, quando o administrador abre Configurações, então vê o aviso com o que fazer', async ({ page }) => {

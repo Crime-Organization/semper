@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { SD, type ContatoParaConferir, type DecisaoDoContato, type PessoaPossivel } from '../dados';
 import { fmtData, fmtTelefone } from '../regras/pessoa';
-import { AO_DECIDIR, aniversarioParaMostrar, MOTIVOS_PARA_CONFERIR } from '../regras/sincronizacaoGoogle';
+import { AO_DECIDIR, aniversarioParaMostrar, JA_LIGADA, MOTIVOS_PARA_CONFERIR } from '../regras/sincronizacaoGoogle';
 import { avisar, falha } from '../ui/avisos';
 import { Cartao, Carregando, Contador, estiloBotao, Nota, Selo } from '../ui/base';
 import { Botao } from '../ui/Botoes';
@@ -62,7 +62,9 @@ function ItemParaConferir({ k, decidir }: { k: ContatoParaConferir; decidir: (d:
           <b>{p.nome}</b>{p.arquivada && <> <Selo tipo="arq">Arquivada</Selo></>}
           {resumoDaPessoa(p) && <span className="nota"> {resumoDaPessoa(p)}</span>}
         </span>
-        <Botao forma="botao" pequeno aria-label={`Ligar a ${p.nome}`} onClick={() => decidir({ acao: 'ligar', pessoa_id: p.id })}>Ligar</Botao>
+        {/* Quem já tem um contato nesta conta não pode ganhar mais um: o banco recusaria. */}
+        {p.ligada ? <Selo tipo="arq">{JA_LIGADA}</Selo>
+          : <Botao forma="botao" pequeno aria-label={`Ligar a ${p.nome}`} onClick={() => decidir({ acao: 'ligar', pessoa_id: p.id })}>Ligar</Botao>}
       </li>)}
     </ul>
     {procurando && <BuscaPessoa rotulo="Ligar a outra pessoa do escritório" escolhida={null} focar

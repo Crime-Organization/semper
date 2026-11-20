@@ -8500,4 +8500,72 @@ describe('Primeira sincronização com o Google Contatos (banco fictício)', () 
     expect(r.primeira?.ligados).toBe(0);
     expect((await SD.contatosParaConferir()).map(k => k.nome)).toEqual(['Recepção']);
   });
+
+  it('dada uma dúvida já decidida, quando a conta Google é desligada e ligada de novo, então ela não volta (só as abertas somem)', async () => {
+    // Dado
+    await SD.sincronizarGoogleAgora();
+    const [, maria] = await SD.contatosParaConferir();
+    await SD.contatoParaConferirDecidir(maria.id, { acao: 'ignorar' });
+    // Quando
+    await SD.ligacaoGoogleDesligar();
+    await ligarTudo();
+    const r = await SD.sincronizarGoogleAgora();
+    // Então
+    expect(r.primeira?.para_conferir).toBe(1);
+    expect((await SD.contatosParaConferir()).map(k => k.nome)).toEqual(['Recepção']);
+  });
+
+  it('dado um contato repetido no Google, quando a lista é lida, então a pessoa já ligada vem marcada como ligada (e ligar a ela é recusado)', async () => {
+    // Dado: um segundo contato com o nome e o telefone da pessoa que o primeiro já liga
+    contatosNaConta([
+      { resourceName: 'people/c1', etag: 'e1', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '+55 38 99000-1000' }] },
+      { resourceName: 'people/c4', etag: 'e4', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '(38) 99000-1000' }] },
+      { resourceName: 'people/c3', etag: 'e3', names: [{ displayName: 'Maria Aparecida Exemplo' }] }
+    ]);
+    SD = await reabrir();
+    await SD.sincronizarGoogleAgora();
+    // Quando
+    const [repetido, maria] = await SD.contatosParaConferir();
+    // Então
+    expect(repetido).toMatchObject({ motivo: 'repetido', candidatos: [{ ligada: true }] });
+    expect(maria.candidatos.map(p => p.ligada)).toEqual([false]);
+    await expect(SD.contatoParaConferirDecidir(repetido.id, { acao: 'ligar', pessoa_id: repetido.candidatos[0].id }))
+      .rejects.toThrow('Esta pessoa já está ligada a outro contato do Google');
+    await SD.contatoParaConferirDecidir(repetido.id, { acao: 'ignorar' });
+    expect((await SD.contatosParaConferir()).map(k => k.nome)).toEqual(['Maria Aparecida Exemplo']);
+  });
+
+  it('dada uma dúvida aberta, quando a primeira sincronização refeita liga o contato dela, então a dúvida sai da lista', async () => {
+    // Dado: Maria fica em dúvida (só o nome); depois ganha no SEMPER o telefone que o contato dela tem no Google
+    await SD.sincronizarGoogleAgora();
+    const maria = await pessoaPeloNome('MARIA APARECIDA EXEMPLO');
+    await SD.pessoaAtualizar(maria.id, { tipo: 'pf', nome: 'MARIA APARECIDA EXEMPLO', telefones: ['38999990077'] });
+    contatosNaConta([
+      { resourceName: 'people/c1', etag: 'e1', names: [{ displayName: 'José da Silva Teste' }], phoneNumbers: [{ value: '+55 38 99000-1000' }] },
+      { resourceName: 'people/c2', etag: 'e2', names: [{ displayName: 'Recepção' }], phoneNumbers: [{ value: '(38) 3222-0000' }] },
+      { resourceName: 'people/c3', etag: 'e3', names: [{ displayName: 'Maria Aparecida Exemplo' }], phoneNumbers: [{ value: '(38) 99999-0077' }] }
+    ]);
+    SD = await reabrir();
+    // Quando
+    await SD.sincronizacaoGoogleLigar(false);
+    await SD.sincronizacaoGoogleLigar(true);
+    const r = await SD.sincronizarGoogleAgora();
+    // Então
+    expect(r.primeira).toMatchObject({ ligados: 1, para_conferir: 1 });
+    expect((await SD.contatosParaConferir()).map(k => k.nome)).toEqual(['Recepção']);
+    expect(await SD.sincronizacaoGoogle()).toMatchObject({ para_conferir: 1 });
+  });
+
+  it('dado o Google fora, quando o administrador pede "Sincronizar agora", então o resultado diz que a primeira não terminou e nada vai ao Google', async () => {
+    // Dado
+    const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { contatosGoogle: Record<string, unknown> };
+    bd.contatosGoogle.googleFora = true;
+    sessionStorage.setItem('semper-dados-falsos', JSON.stringify(bd));
+    SD = await reabrir();
+    // Quando
+    const r = await SD.sincronizarGoogleAgora();
+    // Então
+    expect(r).toEqual({ resultado: 'ok', sincronizados: 0, falhas: 0, primeira_por_fazer: true });
+    expect((await SD.sincronizacaoGoogle())?.primeira_em).toBeNull();
+  });
 });

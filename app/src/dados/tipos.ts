@@ -1023,8 +1023,12 @@ export interface LigacaoGoogle { conta_email: string; escopos: string[]; ligado_
 /** Como terminou a tentativa de ligar a conta Google (a página de Configurações mostra um aviso para cada um). */
 export type ResultadoDaLigacao = 'ligado' | 'recusado' | 'sem-permissao' | 'expirado' | 'erro';
 
-/** O que impede a sincronização dos contatos (public.sincronizacao_google): autorização vencida, Google fora, dados recusados. */
-export type ProblemaDaSincronizacao = 'autorizacao' | 'google-fora' | 'recusado';
+/**
+ * O que impede a sincronização dos contatos (public.sincronizacao_google e public.primeira_sincronizacao_google): autorização
+ * vencida, Google fora, dados recusados, ou a primeira sincronização que não consegue terminar (o Google recusou a leitura
+ * da conta ou o próprio SEMPER falhou: não passa sozinho).
+ */
+export type ProblemaDaSincronizacao = 'autorizacao' | 'google-fora' | 'recusado' | 'primeira-recusada';
 /** Como está a sincronização das pessoas com o Google Contatos do escritório (supabase/migrations/20261120205439_contatos_google.sql). */
 export interface SincronizacaoGoogle {
   /** O administrador ligou a sincronização (começa desligada). */
@@ -1049,6 +1053,8 @@ export interface ResultadoDaSincronizacao {
   resultado: 'ok' | 'desligada' | 'erro'; sincronizados: number; falhas: number;
   /** Só quando a primeira sincronização terminou agora: contatos ligados, contatos para conferir e pessoas que vão ganhar um contato novo. */
   primeira?: { ligados: number; para_conferir: number; novos: number };
+  /** A primeira sincronização não terminou agora (falhou ou outra execução a está fazendo): nada foi criado no Google. */
+  primeira_por_fazer?: boolean;
 }
 
 /**
@@ -1060,6 +1066,8 @@ export type MotivoParaConferir = 'varios' | 'so-nome' | 'conflito' | 'repetido';
 export interface PessoaPossivel {
   id: string; codigo: string; tipo: TipoPessoa; nome: string; telefones: string[]; emails: string[];
   nascimento: string | null; abertura: string | null; arquivada: boolean;
+  /** Já tem um contato nesta conta Google: não pode ser ligada a mais um (o contato para conferir é repetido dela). */
+  ligada: boolean;
 }
 /** Um contato da conta Google que pode ser de alguém do escritório (com os dados como estão no Google). */
 export interface ContatoParaConferir {

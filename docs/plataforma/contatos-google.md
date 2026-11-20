@@ -38,14 +38,25 @@ produção e como testar com a conta de verdade.
    - **É outra pessoa**: as pessoas possíveis sem contato ganham um contato novo; o contato do Google fica como está;
    - **Ignorar**: nada acontece agora; a pessoa vai ao Google quando for editada no SEMPER.
 
+   Pessoa possível que já tem um contato nesta conta (sempre no "Repetido") aparece com **Já ligada a outro contato do
+   Google**, sem o botão Ligar: ela não pode ganhar dois contatos. Se o contato for mesmo repetido, apague-o no Google
+   ou clique em Ignorar.
+
    A decisão fica guardada (com quem decidiu e quando, e no registro de ações) e o contato não volta para a lista.
 6. **Dia a dia.** Cadastrar, editar o que vai ao Google (nome, telefones, e-mails, nascimento ou abertura) ou desarquivar
    uma pessoa a põe na fila. A rotina do banco chama a função a cada 2 minutos, só quando há algo a fazer, e cada
    chamada leva até 25 pessoas (umas 750 por hora). O **Sincronizar agora** faz o mesmo na hora, só para o escritório.
 7. **A primeira é refeita** quando a sincronização é desligada e ligada de novo, ou quando outra conta Google é ligada.
-   Os contatos já ligados continuam ligados, e as dúvidas já decididas não voltam.
+   Os contatos já ligados continuam ligados, e as dúvidas já decididas não voltam (nem depois de desligar a conta e
+   ligá-la de novo: desligar ou trocar a conta só descarta as dúvidas **abertas**). Uma dúvida aberta cujo contato a
+   primeira refeita consegue ligar (por exemplo, a pessoa ganhou no SEMPER o telefone do contato) sai da lista.
 8. **Falhas.** Se o Google falha, a tentativa se repete sozinha, com esperas de 1 minuto a 1 dia. A partir da 3ª falha,
    Configurações mostra o problema e o que fazer. Autorização vencida ou retirada para tudo até a conta ser ligada de novo.
+   Se a primeira sincronização falha no **Sincronizar agora**, o aviso diz que ela ainda não terminou (nunca que está
+   tudo em dia). Quando o Google **recusa** a leitura da conta (por exemplo, mais de 100 mil contatos), ou o próprio
+   SEMPER falha 3 vezes, Configurações mostra "A primeira sincronização não consegue terminar" e manda avisar o suporte:
+   esse caso não passa sozinho. O detalhe do erro fica em `privado.ligacoes.contatos_primeira_erro` e
+   `contatos_primeira_detalhe` ('interno' é erro do SEMPER, não do Google).
 
 O que **não** acontece: o SEMPER nunca apaga contatos no Google (nem ao arquivar ou excluir uma pessoa) e não muda um
 contato só por ligá-lo a uma pessoa; ele passa a ser atualizado quando a pessoa for editada no SEMPER.

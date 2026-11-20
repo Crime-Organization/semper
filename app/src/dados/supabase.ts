@@ -2176,7 +2176,8 @@ export const SD: Dados = {
     const r = await comSessao(`${URL_BASE}/functions/v1/google-sincronizar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
     const corpo = await r.json().catch(() => ({})) as Partial<ResultadoDaSincronizacao>;
     const resultado = corpo.resultado === 'ok' || corpo.resultado === 'desligada' ? corpo.resultado : 'erro';
-    return { resultado, sincronizados: corpo.sincronizados ?? 0, falhas: corpo.falhas ?? 0, ...(corpo.primeira ? { primeira: corpo.primeira } : {}) };
+    return { resultado, sincronizados: corpo.sincronizados ?? 0, falhas: corpo.falhas ?? 0, ...(corpo.primeira ? { primeira: corpo.primeira } : {}),
+      ...(corpo.primeira_por_fazer ? { primeira_por_fazer: true } : {}) };
   },
   async contatosParaConferir() { return (await rpc('contatos_google_para_conferir') as ContatoParaConferir[] | null) ?? []; },
   async contatoParaConferirDecidir(id, decisao) {

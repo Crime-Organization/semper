@@ -30,6 +30,7 @@ const passos = (): PassosDaSincronizacao & PassosDaPrimeira => ({
   primeiraFalhou: (e, falha, detalhe, espera) => rpc<void>('contatos_google_primeira_falhou', {
     p_escritorio: e.escritorio_id, p_erro: falha, p_detalhe: detalhe, p_espera: espera
   }),
+  primeiraPorFazer: escritorio => rpc<boolean>('contatos_google_primeira_por_fazer', { p_escritorio: escritorio }),
   buscar: fetch,
   clienteId: segredo('GOOGLE_CLIENT_ID'),
   clienteSegredo: segredo('GOOGLE_CLIENT_SECRET')

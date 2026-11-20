@@ -2,8 +2,8 @@
 // A sincronização das pessoas com o Google Contatos (#164), em supabase/functions/_compartilhado/, com o Google simulado.
 import { describe, expect, it, vi } from 'vitest';
 import {
-  CAMPOS_DO_CONTATO, contatoDaPessoa, CONTATOS_POR_PAGINA, ESPERAS_DAS_TENTATIVAS, esperaDaTentativa, MARCA_DO_SEMPER, primeiraSincronizacao, sincronizarContatos,
-  sincronizarTudo, telefoneNoGoogle, tipoDoErro, type EscritorioDaPrimeira, type PassosDaPrimeira, type PassosDaSincronizacao, type PessoaNaFila
+  CAMPOS_DO_CONTATO, contatoDaPessoa, CONTATOS_POR_PAGINA, ESPERAS_DAS_TENTATIVAS, esperaDaTentativa, MARCA_DO_SEMPER, PAGINAS_NO_MAXIMO, primeiraSincronizacao, sincronizarContatos,
+  sincronizarTudo, TAMANHO_DO_DETALHE_DO_ERRO, telefoneNoGoogle, tipoDoErro, type EscritorioDaPrimeira, type PassosDaPrimeira, type PassosDaSincronizacao, type PessoaNaFila
 } from '../../../supabase/functions/_compartilhado/contatosGoogle';
 import { telefoneGoogle } from './contatosGoogle';
 
@@ -261,6 +261,7 @@ describe('primeiraSincronizacao', () => {
       pessoasDoEscritorio: vi.fn<PassosDaPrimeira['pessoasDoEscritorio']>(async () => PESSOAS),
       concluirPrimeira: vi.fn<PassosDaPrimeira['concluirPrimeira']>(async (_, c) => ({ ligados: c.ligar.length, para_conferir: c.conferir.length, novos: 0 })),
       primeiraFalhou: vi.fn<PassosDaPrimeira['primeiraFalhou']>(async () => {}),
+      primeiraPorFazer: vi.fn<PassosDaPrimeira['primeiraPorFazer']>(async () => false),
       ...extras
     };
   }
@@ -312,13 +313,35 @@ describe('primeiraSincronizacao', () => {
     expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'temporario', '503 UNAVAILABLE', esperaDaTentativa(1));
   });
 
-  it('dado o banco recusando a gravação, quando faz a primeira, então a falha é temporária', async () => {
+  it('dado o banco recusando a gravação, quando faz a primeira, então a falha é interna (do SEMPER, não do Google)', async () => {
     // Dado
     const p = passosDaPrimeira(google(contaComDuasPaginas).buscar, { concluirPrimeira: vi.fn(async () => { throw new Error('O banco recusou'); }) });
     // Quando
     await primeiraSincronizacao(p, escritorio());
     // Então
-    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'temporario', 'erro: O banco recusou', esperaDaTentativa(1));
+    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'interno', 'erro: O banco recusou', esperaDaTentativa(1));
+  });
+
+  it('dada uma conta com mais contatos do que a leitura aceita, quando faz a primeira, então a falha é uma recusa (não passa sozinha)', async () => {
+    // Dado: o Google sempre manda mais uma página
+    const g = google((x, padrao) => x.url.includes('/people/me/connections') ? resposta(200, { connections: [], nextPageToken: 'mais' }) : padrao(x));
+    const p = passosDaPrimeira(g.buscar);
+    // Quando
+    await primeiraSincronizacao(p, escritorio());
+    // Então
+    expect(g.pedidos.filter(x => x.url.includes('/people/me/connections'))).toHaveLength(PAGINAS_NO_MAXIMO);
+    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'recusado', expect.stringContaining('contatos na conta'), esperaDaTentativa(1));
+  });
+
+  it('dado um erro muito longo, quando a primeira falha, então o detalhe é cortado no tamanho que o banco aceita', async () => {
+    // Dado
+    const primeiraFalhou = vi.fn<PassosDaPrimeira['primeiraFalhou']>(async () => {});
+    const p = passosDaPrimeira(google(contaComDuasPaginas).buscar, { primeiraFalhou,
+      concluirPrimeira: vi.fn(async () => { throw new Error('x'.repeat(TAMANHO_DO_DETALHE_DO_ERRO * 2)); }) });
+    // Quando
+    await primeiraSincronizacao(p, escritorio());
+    // Então
+    expect(primeiraFalhou.mock.calls[0][2]).toHaveLength(TAMANHO_DO_DETALHE_DO_ERRO);
   });
 });
 
@@ -332,7 +355,8 @@ describe('sincronizarTudo', () => {
       primeiras: vi.fn(async () => [{ escritorio_id: ESCRITORIO, conta_email: 'contato@exemplo.com', tentativas: 1 }]),
       pessoasDoEscritorio: vi.fn(async () => []),
       concluirPrimeira: vi.fn(async () => { ordem.push('primeira'); return { ligados: 0, para_conferir: 0, novos: 3 }; }),
-      primeiraFalhou: vi.fn(async () => {})
+      primeiraFalhou: vi.fn(async () => {}),
+      primeiraPorFazer: vi.fn(async () => false)
     };
     // Quando
     const r = await sincronizarTudo(p, ESCRITORIO);
@@ -344,11 +368,38 @@ describe('sincronizarTudo', () => {
 
   it('sem primeira por fazer, quando a função roda, então só a fila anda e o resultado não fala da primeira', async () => {
     // Dado
-    const p = { ...passos([], google().buscar), primeiras: vi.fn(async () => []), pessoasDoEscritorio: vi.fn(), concluirPrimeira: vi.fn(), primeiraFalhou: vi.fn() };
+    const p = { ...passos([], google().buscar), primeiras: vi.fn(async () => []), pessoasDoEscritorio: vi.fn(), concluirPrimeira: vi.fn(), primeiraFalhou: vi.fn(),
+      primeiraPorFazer: vi.fn(async () => false) };
     // Quando
     const r = await sincronizarTudo(p, null);
+    const doEscritorio = await sincronizarTudo(p, ESCRITORIO);
     // Então
     expect(r).toEqual({ sincronizados: 0, falhas: 0 });
+    expect(doEscritorio).toEqual({ sincronizados: 0, falhas: 0 });
     expect(p.pessoasDoEscritorio).not.toHaveBeenCalled();
+    expect(p.primeiraPorFazer).toHaveBeenCalledTimes(1);
+  });
+
+  it('dada a primeira que falha (Google fora) no "Sincronizar agora", quando a função roda, então o resultado diz que ela não terminou', async () => {
+    // Dado
+    const g = google((x, padrao) => x.url.includes('/people/me/connections') ? erroDoGoogle(503, 'UNAVAILABLE') : padrao(x));
+    const p = { ...passos([], g.buscar), primeiras: vi.fn(async () => [{ escritorio_id: ESCRITORIO, conta_email: 'contato@exemplo.com', tentativas: 1 }]),
+      pessoasDoEscritorio: vi.fn(), concluirPrimeira: vi.fn(), primeiraFalhou: vi.fn(async () => {}), primeiraPorFazer: vi.fn(async () => true) };
+    // Quando
+    const r = await sincronizarTudo(p, ESCRITORIO);
+    // Então
+    expect(p.primeiraFalhou).toHaveBeenCalled();
+    expect(p.primeiraPorFazer).toHaveBeenCalledWith(ESCRITORIO);
+    expect(r).toEqual({ sincronizados: 0, falhas: 0, primeira_por_fazer: true });
+  });
+
+  it('dada a primeira reservada por outra execução, quando o administrador pede "Sincronizar agora", então o resultado diz que ela não terminou', async () => {
+    // Dado
+    const p = { ...passos([], google().buscar), primeiras: vi.fn(async () => []), pessoasDoEscritorio: vi.fn(), concluirPrimeira: vi.fn(), primeiraFalhou: vi.fn(),
+      primeiraPorFazer: vi.fn(async () => true) };
+    // Quando
+    const r = await sincronizarTudo(p, ESCRITORIO);
+    // Então
+    expect(r).toEqual({ sincronizados: 0, falhas: 0, primeira_por_fazer: true });
   });
 });

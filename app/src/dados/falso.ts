@@ -242,6 +242,8 @@ interface Banco {
     conferir?: DuvidaGuardada[];
     /** A conta Google simulada: os contatos que já estão lá antes da primeira sincronização (os testes põem aqui). */
     noGoogle?: ContatoDaConta[];
+    /** A conta Google simulada não responde: a primeira sincronização falha (os testes põem aqui). */
+    googleFora?: boolean;
   };
   tarefas?: TarefaGuardada[];
   /** Registros de tempo nas tarefas (tarefa_tempos no banco). */
@@ -848,6 +850,8 @@ function primeiraSincronizacaoFalsa(c: NonNullable<Banco['contatosGoogle']>) {
   for (const k of r.conferir) {
     if (!conferir.some(x => x.recurso === k.recurso)) conferir.push({ ...k, id: novoId(), criado_em: agora(), decisao: null });
   }
+  // A dúvida aberta (de uma primeira anterior) cujo contato acabou de ser ligado a alguém já está resolvida.
+  c.conferir = conferir.filter(k => k.decisao || !jaLigados.has(k.recurso));
   for (const p of bd.pessoas) if (!p.arquivado_em && !ligados[p.id] && !emDuvidaNoGoogle(p.id) && !c.fila.includes(p.id)) c.fila.push(p.id);
   c.primeira_em = agora();
   auditar('ligacoes', 'alteracao', { id: 'google', nome: bd.ligacaoGoogle?.conta_email });
@@ -857,7 +861,7 @@ function primeiraSincronizacaoFalsa(c: NonNullable<Banco['contatosGoogle']>) {
 function duvidaParaATela(k: DuvidaGuardada): ContatoParaConferir {
   const candidatos = k.candidatos.map(id => bd.pessoas.find(p => p.id === id)).filter((p): p is Pessoa => !!p).map(p => ({
     id: p.id, codigo: p.codigo, tipo: p.tipo, nome: p.nome, telefones: p.telefones ?? [], emails: p.emails ?? [], nascimento: p.nascimento, abertura: p.abertura,
-    arquivada: !!p.arquivado_em
+    arquivada: !!p.arquivado_em, ligada: !!bd.contatosGoogle?.ligados?.[p.id]
   }));
   return { id: k.id, nome: k.nome, telefones: k.telefones, emails: k.emails, aniversario: k.aniversario, motivo: k.motivo, criado_em: k.criado_em, candidatos };
 }
@@ -4733,11 +4737,12 @@ export const SD: Dados = {
   async ligacaoGoogleDesligar() {
     if (bd.ligacaoGoogle) auditar('ligacoes', 'exclusao', { id: 'google', nome: bd.ligacaoGoogle.conta_email });
     bd.ligacaoGoogle = null;
-    // Como ligacao_google_desligar_servidor: a ligação (com a chave, o problema, a primeira sincronização e as dúvidas) sai,
-    // e a fila do escritório é esvaziada. As ligações pessoa ↔ contato ficam (são da conta: religar a mesma reaproveita).
+    // Como ligacao_google_desligar_servidor: a ligação (com a chave, o problema, a primeira sincronização e as dúvidas abertas)
+    // sai, e a fila do escritório é esvaziada. As ligações pessoa ↔ contato e as dúvidas decididas ficam (são da conta:
+    // religar a mesma reaproveita, e o que já foi decidido não volta).
     const antes = bd.contatosGoogle;
     bd.contatosGoogle = antes && { ativos: false, fila: [], com_falha: 0, problema: null, problema_em: null, sincronizado_em: null,
-      ligados: antes.ligados, noGoogle: antes.noGoogle };
+      ligados: antes.ligados, conferir: antes.conferir?.filter(k => k.decisao), noGoogle: antes.noGoogle, googleFora: antes.googleFora };
     gravar(); return espera(undefined);
   },
   // ---------- sincronização dos contatos (sem Google: "Sincronizar agora" sempre dá certo) ----------
@@ -4762,7 +4767,9 @@ export const SD: Dados = {
   async sincronizarGoogleAgora() {
     const c = bd.contatosGoogle;
     if (!souAdmin() || !bd.ligacaoGoogle || !c?.ativos) return espera({ resultado: 'desligada' as const, sincronizados: 0, falhas: 0 });
-    // Como a função do servidor: a primeira sincronização antes da fila; quem está em dúvida espera a decisão.
+    // Como a função do servidor: a primeira sincronização antes da fila; quem está em dúvida espera a decisão. Sem resposta
+    // do Google, ela fica por fazer e a fila não anda.
+    if (!c.primeira_em && c.googleFora) return espera({ resultado: 'ok' as const, sincronizados: 0, falhas: 0, primeira_por_fazer: true });
     const primeira = c.primeira_em ? undefined : primeiraSincronizacaoFalsa(c);
     const ligados = c.ligados ??= {};
     const vao = c.fila.filter(id => !emDuvidaNoGoogle(id));
