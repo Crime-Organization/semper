@@ -29,7 +29,7 @@ Em português simples, curto (uma ou duas frases) e sempre com **onde achar** (a
 
 Quem escreve a mudança ainda não sabe o número da versão, por isso a novidade nasce em `proxima`. Na publicação: o site compilado mostra as de `proxima` com o número e a data da versão (variáveis `VERSAO` e `DATA_DA_VERSAO`, em `vite.config.ts`), e a última etapa da rotina, **Carimbar as novidades**, faz um commit no `main` que passa esses arquivos para `app/novidades/vX.Y.Z/`, com a data em `versao.json`. Só passam os que estavam no commit publicado; o que entrou depois continua em `proxima`. Por isso, **depois de publicar, rode `git pull`** antes de continuar. Voltar atrás não mexe nas novidades. Se essa etapa falhar (o site já está no ar), mova os arquivos à mão do mesmo jeito antes da próxima publicação.
 
-> **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
+> A primeira versão do SEMPER, em JavaScript simples, ficava na raiz do `main` e saiu de lá quando a Hostinger passou a publicar o ramo `publicacao` (#43). Ela continua guardada na marca `js-simples`.
 
 | Pasta / arquivo | Conteúdo |
 |---|---|
@@ -45,7 +45,7 @@ Quem escreve a mudança ainda não sabe o número da versão, por isso a novidad
 | `supabase/` | Estrutura do banco: `migrations/` (uma migração por mudança, na ordem da data no nome; as vinte primeiras eram os scripts `banco/001` a `020`) e `config.toml` (banco local do Supabase CLI, nas portas 553xx). |
 | `banco/emails/` | Modelos de e-mail do Supabase em português. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
-| `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
+| `docs/referencia/` | Formulário de cadastro antigo do site, usado como referência. |
 | `Trello/` | Exportações do Trello com dados de clientes. Não versionado. |
 
 ## Banco de dados
