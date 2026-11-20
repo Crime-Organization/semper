@@ -1,0 +1,5 @@
+{
+  "titulo": "Datas e tempo alinhados nos cartões",
+  "texto": "As datas do cartão ficam numa faixa só, com os nomes numa linha e os valores alinhados embaixo, sem quebrar \"Sem prazo\". O tempo ganhou uma faixa própria, logo abaixo: o relógio, pausado ou contando, Iniciar e \"Ajustar meu tempo\" lado a lado, com o resumo de quem registrou tempo junto. No celular, cada data fica numa linha.",
+  "ondeAchar": "No cartão de uma tarefa, de uma demanda ou de um compromisso, logo abaixo da descrição. Na demanda, a soma do tempo das tarefas fica nessa faixa do tempo."
+}
