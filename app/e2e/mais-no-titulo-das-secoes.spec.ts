@@ -31,6 +31,7 @@ test.describe('Prazos e andamentos do processo', () => {
     // Então
     await expect(tituloDaSecao(cartao, 'Prazos')).toHaveAttribute('aria-expanded', 'true');
     await expect(cartao.getByRole('form', { name: 'Novo prazo' })).toBeVisible();
+    await expect(cartao.getByRole('form', { name: 'Novo prazo' }).getByLabel('Que prazo é este')).toBeFocused();
     // Quando: fecha e reabre o cartão
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     await expect(cartao).toHaveCount(0);
@@ -105,6 +106,43 @@ test.describe('Checklists e honorários', () => {
     await maisDoTitulo(cartao, 'Honorários', 'Nova parcela').click();
     // Então
     await expect(cartao.getByRole('form', { name: 'Nova parcela' })).toBeVisible();
+    // E o foco vai ao primeiro campo, mesmo com as parcelas lidas só depois do clique
+    await expect(cartao.getByRole('form', { name: 'Nova parcela' }).getByLabel('Vencimento')).toBeFocused();
     await expect(tituloDaSecao(cartao, 'Histórico das parcelas')).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+test.describe('Vínculos da pessoa e "Ligada a" da anotação', () => {
+  test('dado o cartão de uma pessoa, quando clica no "+" do título de Vínculos, então abre o formulário da nova pessoa vinculada, com o foco no vínculo', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' }).first().click();
+    const cartao = page.getByRole('dialog');
+    // Quando
+    await maisDoTitulo(cartao, 'Vínculos', 'Nova pessoa vinculada').click();
+    // Então
+    const formulario = cartao.getByRole('form', { name: 'Nova pessoa vinculada' });
+    await expect(formulario).toBeVisible();
+    await expect(formulario.getByLabel('Vínculo')).toBeFocused();
+  });
+
+  test('dada uma anotação gravada, quando clica no "+" do título de "Ligada a", então abre o menu do "Novo…" de dentro, e o Esc o fecha', async ({ page }) => {
+    // Dado
+    await page.goto('/documentos/nova/');
+    const campo = page.getByRole('article', { name: 'Anotação nova' }).getByRole('textbox', { name: 'Título' });
+    await campo.fill('Reunião com o cliente');
+    await campo.press('Enter');
+    const anotacao = page.getByRole('dialog', { name: 'Anotação', exact: true });
+    await expect(anotacao.getByRole('article', { name: /^Anotação (?!nova$)\w+$/ })).toBeVisible();
+    const mais = maisDoTitulo(anotacao, 'Ligada a', 'Novo item ligado a esta anotação');
+    // Quando
+    await mais.click();
+    // Então
+    const menu = page.getByRole('menu', { name: 'Novo item ligado a esta anotação' });
+    await expect(menu.getByRole('menuitem', { name: 'Pessoa' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(mais).toBeFocused();
   });
 });

@@ -58,6 +58,12 @@ export function usePedidoDeNovo(atender: (botao: HTMLElement) => void) {
   }, [pedido, secao]);
 }
 
+/** O primeiro campo que se preenche no formulário (sem os escondidos e os desligados). */
+function primeiroCampo(formulario: Element | undefined) {
+  return [...formulario?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea') ?? []]
+    .find(c => c.type !== 'hidden' && !c.disabled);
+}
+
 /** Quem atende o "+" quando o estado do item novo fica em quem monta a seção (ex.: o menu dos checklists). */
 export function AoPedirNovo({ atender }: { atender: (botao: HTMLElement) => void }) {
   usePedidoDeNovo(atender);
@@ -152,8 +158,26 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
   };
   const [aAtender, setAAtender] = useState<PedidoDeNovo | null>(null);
   const pedidoNaSecao = useMemo<PedidoNaSecao>(() => ({ pedido: aAtender, atendido: () => setAAtender(null) }), [aAtender]);
+  const corpo = useRef<HTMLDivElement>(null);
+  /** Os formulários que a seção já mostrava no clique do "+" (que abre um formulário, e não um menu): o do item novo é o que vem depois. */
+  const formulariosAntes = useRef<Set<Element> | null>(null);
   // Abre a seção como o abertaAoIniciar: só agora, sem gravar a escolha (#390).
-  const pedirNovo = (e: MouseEvent<HTMLButtonElement>) => { setAberto(true); setAAtender({ botao: e.currentTarget }); };
+  const pedirNovo = (e: MouseEvent<HTMLButtonElement>) => {
+    setAberto(true);
+    setAAtender({ botao: e.currentTarget });
+    if (novo && !('para' in novo) && !novo.menu) formulariosAntes.current = new Set(corpo.current?.querySelectorAll('form') ?? []);
+  };
+  // Fechada antes de quem atende aparecer (ex.: a leitura falhou), o pedido acaba: não abre o formulário quando ela reabrir.
+  useEffect(() => { if (!aberto) setAAtender(null); }, [aberto]);
+  // Atendido o pedido, o foco vai ao primeiro campo do formulário novo, que fica à vista: com uma lista longa, ele aparece
+  // embaixo, longe do "+", e quem usa o teclado ou o leitor de tela não ficaria sabendo (o menu já leva o foco a si).
+  useEffect(() => {
+    const antes = formulariosAntes.current;
+    if (aAtender || !antes) return;
+    formulariosAntes.current = null;
+    const formulario = [...corpo.current?.querySelectorAll('form') ?? []].find(f => !antes.has(f));
+    primeiroCampo(formulario)?.focus();
+  }, [aAtender]);
   return <>
     {noGrupo && estado?.primeira === id && <ExpandirTudo estado={estado} />}
     <section className="bloco recolhivel">
@@ -176,7 +200,7 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
       {/* As seções de dentro desta (ex.: o histórico das parcelas, dentro de Honorários) ficam fora do grupo: o "Expandir
           tudo" abre e fecha só as do cartão, e não diria "Expandir tudo" por causa de uma seção escondida. */}
       {/* O pedido do "+" também é só desta seção: o de Honorários não chega ao histórico das parcelas, que fica dentro dela. */}
-      {aberto && <div className="bloco-corpo" id={id}><InscricaoNoGrupo.Provider value={null}><EstadoDoGrupo.Provider value={null}>
+      {aberto && <div className="bloco-corpo" id={id} ref={corpo}><InscricaoNoGrupo.Provider value={null}><EstadoDoGrupo.Provider value={null}>
         <PedidoNaSecao.Provider value={pedidoNaSecao}>{children}</PedidoNaSecao.Provider>
       </EstadoDoGrupo.Provider></InscricaoNoGrupo.Provider></div>}
     </section>

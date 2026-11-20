@@ -120,7 +120,11 @@ describe('Um grupo dentro de outro (#360)', () => {
 function ComFormulario({ aoPedir = () => {} }: { aoPedir?: (botao: HTMLElement) => void }) {
   const [novo, setNovo] = useState(false);
   usePedidoDeNovo(botao => { setNovo(true); aoPedir(botao); });
-  return novo ? <form aria-label="Novo prazo" /> : <p>Os prazos</p>;
+  return novo ? <form aria-label="Novo prazo"><input type="hidden" /><label>Que prazo é este<input /></label></form> : <p>Os prazos</p>;
+}
+/** Quem atende o "+" só aparece depois da leitura (como as parcelas e os vínculos). */
+function DepoisDeLer({ lido }: { lido: boolean }) {
+  return lido ? <ComFormulario /> : <p>Carregando…</p>;
 }
 const maisDoTitulo = (titulo: RegExp) => within(screen.getByRole('heading', { name: titulo })).getByRole('button', { name: 'Novo prazo' });
 
@@ -173,6 +177,39 @@ describe('O "+" do título que pede o item novo à própria seção (#390)', () 
     // Então
     expect(screen.getAllByRole('form', { name: 'Novo prazo' })).toHaveLength(1);
     expect(deDentro).not.toHaveBeenCalled();
+  });
+
+  it('dada a seção fechada, quando a pessoa clica no "+", então o foco vai ao primeiro campo do formulário novo', async () => {
+    // Dado
+    iniciarPreferencias({ 'teste.prazos': false });
+    render(<Recolhivel titulo="Prazos" icone="calendario" preferencia="teste.prazos" novo={{ rotulo: 'Novo prazo' }}><ComFormulario /></Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Novo prazo' }));
+    // Então
+    expect(screen.getByRole('textbox', { name: 'Que prazo é este' })).toHaveFocus();
+  });
+
+  it('dado o "+" que abre um menu, quando a pessoa clica nele, então a seção não tira o foco do "+" (o menu cuida dele)', async () => {
+    // Dado
+    render(<Recolhivel titulo="Checklists" icone="check" abertaAoIniciar novo={{ rotulo: 'Adicionar checklist', menu: true }}><ComFormulario /></Recolhivel>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar checklist' }));
+    // Então
+    expect(screen.getByRole('button', { name: 'Adicionar checklist' })).toHaveFocus();
+  });
+
+  it('dado o "+" clicado antes de quem o atende aparecer, quando a pessoa fecha e reabre a seção, então o formulário novo não abre sozinho', async () => {
+    // Dado
+    const { rerender } = render(<Recolhivel titulo="Prazos" icone="calendario" novo={{ rotulo: 'Novo prazo' }}><DepoisDeLer lido={false} /></Recolhivel>);
+    await userEvent.click(maisDoTitulo(/^Prazos/));
+    expect(screen.getByText('Carregando…')).toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Prazos' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Prazos' }));
+    rerender(<Recolhivel titulo="Prazos" icone="calendario" novo={{ rotulo: 'Novo prazo' }}><DepoisDeLer lido /></Recolhivel>);
+    // Então
+    expect(screen.getByText('Os prazos')).toBeInTheDocument();
+    expect(screen.queryByRole('form', { name: 'Novo prazo' })).not.toBeInTheDocument();
   });
 
   it('dado o cartão arquivado ou só para ler, quando a seção aparece, então não há "+" no título', () => {
