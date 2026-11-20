@@ -1,4 +1,4 @@
-// No cartão da demanda, as tarefas dela como um checklist (pedido do Mateus, 30/10): marcar a caixa leva a tarefa para
+// No cartão da demanda, as tarefas dela como um checklist (pedido do dono do produto, 30/10): marcar a caixa leva a tarefa para
 // a coluna "Concluída" do quadro de tarefas (e encerra o cronômetro dela); desmarcar a devolve para "Para fazer". Com a
 // última marcada, o sistema oferece concluir a demanda. Só a caixa conclui; o nome da tarefa é o link que abre o cartão
 // dela (#298), para ninguém concluir sem querer ao clicar no nome. A tarefa nova da demanda nasce

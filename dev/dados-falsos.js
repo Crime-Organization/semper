@@ -100,7 +100,7 @@
       const m = EQUIPE[0];
       return espera({ usuario: { id: eu, email: m.email },
         perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: bd.perfil.nome || m.nome, usuario: bd.perfil.usuario || m.usuario, papel: 'master', ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
-        escritorio: { id: 'e1', nome: 'Braga Ferreira (teste)', slug: 'teste', modulos: { pessoas: true } },
+        escritorio: { id: 'e1', nome: 'Escritório Exemplo (teste)', slug: 'teste', modulos: { pessoas: true } },
         equipe: EQUIPE.map(({ email, ...r }) => r), ehAdmin: true, ehMaster: true });
     },
     async salvarPerfil(campos) { Object.assign(bd.perfil, campos); gravar(); },
