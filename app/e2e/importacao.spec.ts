@@ -1,5 +1,5 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Importar pessoas de um CSV (Pessoas > ⋯ > Importar pessoas). No banco fictício, quem está logado é o Mateus
+// Importar pessoas de um CSV (Pessoas > ⋯ > Importar pessoas). No banco fictício, quem está logado é o Mauro
 // (master). O arquivo é montado aqui, só com nomes fictícios; a MARIA APARECIDA EXEMPLO é da semente (sem e-mail).
 import { expect, test, type Page } from '@playwright/test';
 

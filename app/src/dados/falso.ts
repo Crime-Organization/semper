@@ -80,7 +80,7 @@ let eu = 'u-master';
 // O CPF de cada um dá a sigla dos contratos de que é responsável (2 letras do nome e 2 últimos dígitos do CPF).
 type MembroFalso = Required<Omit<Membro, 'cor' | 'pessoa_id' | 'foto' | 'reservada' | 'excluido'>> & { cor: string | null; pessoa_id: string; email: string; cpf: string; reservada?: boolean; excluido?: boolean };
 const EQUIPE: MembroFalso[] = [
-  { id: 'u-master', funcao: 'advogado', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mateus', email: 'mateus@exemplo.com', cpf: '11122233396' },
+  { id: 'u-master', funcao: 'advogado', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', papel: 'master', ativo: true, cor: null, pessoa_id: 'p-mauro', email: 'mauro@exemplo.com', cpf: '11122233396' },
   { id: 'u-ana', funcao: 'advogado', nome: 'Ana Teste Lima', usuario: 'ana.lima', papel: 'admin', ativo: true, cor: null, pessoa_id: 'p-ana', email: 'ana@exemplo.com', cpf: '22233344405' },
   { id: 'u-bruno', funcao: 'estagiario', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', papel: 'usuario', ativo: true, cor: null, pessoa_id: 'p-bruno', email: 'bruno@exemplo.com', cpf: '33344455508' },
   { id: 'u-carla', funcao: 'administrativo', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', papel: 'usuario', ativo: false, cor: null, pessoa_id: 'p-carla', email: 'carla@exemplo.com', cpf: '44455566619' }
@@ -598,7 +598,7 @@ if (!bd.tarefas) {
 // Sessões abertas antes da data de início (#357): cada tarefa começa no dia em que foi criada (como a migração data_de_inicio).
 bd.tarefas.forEach(t => { t.data_inicio ??= inicioDoCriadoEm(t.criado_em); });
 bd.tarefas.forEach(t => { t.concluida_em ??= bd.colunas.find(c => c.id === t.etapa_id)?.marco === 'concluido' ? t.atualizado_em : null; });
-// Tempo de exemplo: "Emitir a GRU" (Mateus e Bruno) e "Organizar a pasta", concluída, com um ajuste do Bruno.
+// Tempo de exemplo: "Emitir a GRU" (Mauro e Bruno) e "Organizar a pasta", concluída, com um ajuste do Bruno.
 if (!bd.tempos) {
   const por = (titulo: string) => bd.tarefas!.find(t => t.titulo === titulo)?.id;
   const gru = por('Emitir a GRU'), pasta = por('Organizar a pasta');
@@ -608,7 +608,7 @@ if (!bd.tempos) {
     { id: 4, tarefa_id: pasta, perfil_id: 'u-bruno', inicio: agora(), segundos: -10 * 60, ajuste: true, motivo: 'Esqueci de pausar no almoço.' }] : [];
 }
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
-bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mateus.goncalves.',
+bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mauro.duarte.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
 // Sessões abertas antes da importação: os cadastros ganham as colunas novas vazias (como a migração da importação).
 bd.pessoas.forEach(p => { p.importacao_id ??= null; p.referencia ??= null; p.observacoes ??= null; p.pendencias ??= []; });

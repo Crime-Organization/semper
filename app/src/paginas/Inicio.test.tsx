@@ -19,7 +19,7 @@ vi.mock('../dados', () => ({ SD }));
 const MODULOS = { pessoas: true, compromissos: true, tarefas: true, demandas: true, processos: true, anotacoes: true, financeiro: true };
 const sessao = vi.hoisted(() => ({ modulos: {} as Record<string, boolean> }));
 vi.mock('../ui/sessao', () => ({
-  useCtx: () => ({ perfil: { id: 'u1', nome: 'Mateus Teste' }, equipe: [], ehAdmin: false, escritorio: { modulos: sessao.modulos } }),
+  useCtx: () => ({ perfil: { id: 'u1', nome: 'Mauro Teste' }, equipe: [], ehAdmin: false, escritorio: { modulos: sessao.modulos } }),
   useSessao: () => ({ ctx: { perfil: { id: 'u1' }, equipe: [], escritorio: { modulos: sessao.modulos } } })
 }));
 
@@ -85,7 +85,7 @@ describe('Painel da página inicial', () => {
     // Quando
     montar();
     // Então
-    expect(screen.getByRole('heading', { name: 'Olá, Mateus.', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Olá, Mauro.', level: 1 })).toBeInTheDocument();
     const prazos = bloco('Prazos');
     expect(await within(prazos).findByRole('link', { name: /Prazo t1/ })).toHaveAttribute('href', '/tarefas/?id=t1');
     expect(within(within(prazos).getByRole('region', { name: 'Em atraso' })).getByText('Prazo t1')).toBeInTheDocument();

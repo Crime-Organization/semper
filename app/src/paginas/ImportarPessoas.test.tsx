@@ -20,14 +20,14 @@ const SD = vi.hoisted(() => ({
   importacaoConcluir: vi.fn<DadosImportacao['importacaoConcluir']>()
 }));
 vi.mock('../dados', () => ({ SD: SD satisfies DadosImportacao }));
-// Quem está logado é o Mateus; se é administrador, e se a equipe tem mais alguém, cada caso diz.
+// Quem está logado é o Mauro; se é administrador, e se a equipe tem mais alguém, cada caso diz.
 const sessao = vi.hoisted(() => ({ ehAdmin: true, outros: [] as Membro[] }));
 const EQUIPE: Membro[] = [
-  { id: 'u-mateus', nome: 'Mateus Exemplo Gonçalves', usuario: 'mateus', ativo: true },
+  { id: 'u-mauro', nome: 'Mauro Exemplo Gonçalves', usuario: 'mauro', ativo: true },
   { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', ativo: true }
 ];
 vi.mock('../ui/sessao', () => {
-  const ctx = () => ({ perfil: { id: 'u-mateus' }, equipe: [...EQUIPE, ...sessao.outros], ehAdmin: sessao.ehAdmin });
+  const ctx = () => ({ perfil: { id: 'u-mauro' }, equipe: [...EQUIPE, ...sessao.outros], ehAdmin: sessao.ehAdmin });
   return { useCtx: ctx, useSessao: () => ({ ctx: ctx() }) };
 });
 // O arquivo do modelo não é baixado de verdade: o teste só confere o que iria para o navegador.
@@ -40,12 +40,12 @@ const pessoa = (dados: Partial<Pessoa>): Pessoa => ({
   rg_expedicao: null, nome_mae: null, nome_pai: null, nascimento: null, nascimento_municipio: null, nascimento_uf: null, natureza: null,
   tipo_entidade: null, nome_fantasia: null, porte: null, abertura: null, representantes: null, documento: null, cep: null, logradouro: null,
   numero: null, complemento: null, bairro: null, municipio: null, uf: null, telefones: [], emails: [], lgpd_base: 'contrato',
-  lgpd_consentimento: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: 'u-mateus',
+  lgpd_consentimento: null, etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: 'u-mauro',
   criado_em: '2025-01-10T12:00:00Z', atualizado_por: null, atualizado_em: '2025-01-10T12:00:00Z', importacao_id: null, referencia: null,
   observacoes: null, pendencias: [], resp: [], ...dados
 });
 const importacao = (dados: Partial<Importacao> = {}): Importacao => ({
-  id: 'imp-1', descricao: '', arquivo: 'pessoas.csv', criadas: 0, completadas: 0, incompletas: 0, feito_por: 'u-mateus',
+  id: 'imp-1', descricao: '', arquivo: 'pessoas.csv', criadas: 0, completadas: 0, incompletas: 0, feito_por: 'u-mauro',
   iniciada_em: '2026-10-31T12:00:00Z', concluida_em: '2026-10-31T12:01:00Z', ...dados
 });
 
@@ -192,7 +192,7 @@ describe('Importar pessoas', () => {
     const lista = await screen.findByLabelText('Usuário para Ana Lima');
     expect(within(lista).getByRole('option', { name: 'Ana Teste Lima (@ana.lima)' })).toBeInTheDocument();
     expect(within(lista).getByRole('option', { name: 'Ana Teste Lima (@ana.teste)' })).toBeInTheDocument();
-    expect(within(lista).getByRole('option', { name: 'Mateus Exemplo Gonçalves' })).toBeInTheDocument();
+    expect(within(lista).getByRole('option', { name: 'Mauro Exemplo Gonçalves' })).toBeInTheDocument();
   });
 
   it('quando uma linha tem CPF inválido e nenhuma referência, então o aviso conta que ela entraria de novo, repetida', async () => {

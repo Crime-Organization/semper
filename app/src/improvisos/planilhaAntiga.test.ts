@@ -102,13 +102,30 @@ describe('Envio ao script antigo', () => {
     expect(envio).not.toHaveBeenCalled();
   });
 
-  it('dado "npm run dev", que fala com o banco de verdade, quando cadastra, então nada é enviado', () => {
+  it.each([
+    ['producao', '"npm run dev-producao", no banco de produção'],
+    ['docker', '"npm run dev", no banco local do Docker'],
+    ['development', '"npx vite" sozinho']
+  ])('dado o modo "%s" (%s) no computador, quando cadastra ou desfaz, então nada é enviado nem avisado', modo => {
     // Dado
-    vi.stubEnv('MODE', 'development');
+    vi.stubEnv('MODE', modo);
+    vi.stubEnv('DEV', true);
+    // Quando
+    enviarParaPlanilhaAntiga(CONTATO, [], ctx('braga-ferreira'));
+    lembrarDeApagarNaPlanilha(ctx('braga-ferreira'));
+    // Então
+    expect(envio).not.toHaveBeenCalled();
+    expect(avisar).not.toHaveBeenCalled();
+  });
+
+  it('dado o site publicado (modo "production", fora do computador), quando o escritório da planilha cadastra, então envia', () => {
+    // Dado
+    vi.stubEnv('MODE', 'production');
+    vi.stubEnv('DEV', false);
     // Quando
     enviarParaPlanilhaAntiga(CONTATO, [], ctx('braga-ferreira'));
     // Então
-    expect(envio).not.toHaveBeenCalled();
+    expect(envio).toHaveBeenCalledTimes(1);
   });
 
   it('dado o escritório da planilha, quando desfaz o cadastro, então lembra de apagar lá fora; nos outros, não diz nada', () => {

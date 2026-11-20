@@ -14,9 +14,9 @@ vi.mock('./equipeNoCartao', () => ({ mudarAEquipe }));
 const EQUIPE = [
   { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true },
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', ativo: true }
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', ativo: true }
 ];
-vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus', papel: 'usuario' }, equipe: EQUIPE, ehAdmin: false, escritorio: { modulos: {} } }) }));
+vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro', papel: 'usuario' }, equipe: EQUIPE, ehAdmin: false, escritorio: { modulos: {} } }) }));
 
 /** Põe alguém pelo "+": abre a busca e escolhe pelo nome. */
 async function porPelaBolinha(nome: string) {
@@ -48,7 +48,7 @@ describe('Equipe no topo do cartão: uma mudança de cada vez', () => {
 });
 
 describe('Equipe no topo do cartão: o menu das bolinhas (#388)', () => {
-  const montar = () => render(<MemoryRouter><EquipeNoTopo modulo="demandas" id="d1" equipe={{ responsavel_id: 'u-ana', lista: ['u-bruno', 'u-mateus'] }}
+  const montar = () => render(<MemoryRouter><EquipeNoTopo modulo="demandas" id="d1" equipe={{ responsavel_id: 'u-ana', lista: ['u-bruno', 'u-mauro'] }}
     mudar={{ saida: { podeSair: true }, depois: vi.fn(), aoSair: vi.fn() }} /></MemoryRouter>);
 
   it('dado um colaborador, quando a pessoa escolhe "Tornar responsável" no menu dele, então a demanda pede essa mudança, sem tirar ninguém', async () => {
@@ -59,14 +59,14 @@ describe('Equipe no topo do cartão: o menu das bolinhas (#388)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Bruno Exemplo Souza, Colaborador' }));
     await userEvent.click(screen.getByRole('menuitem', { name: 'Tornar responsável' }));
     // Então
-    expect(mudarAEquipe).toHaveBeenCalledWith('demandas', 'd1', { tipo: 'tornarResponsavel', id: 'u-bruno', nome: 'Bruno Exemplo Souza' }, { eu: 'u-mateus', podeSair: true, peloLigado: false });
+    expect(mudarAEquipe).toHaveBeenCalledWith('demandas', 'd1', { tipo: 'tornarResponsavel', id: 'u-bruno', nome: 'Bruno Exemplo Souza' }, { eu: 'u-mauro', podeSair: true, peloLigado: false });
   });
 
   it('dada a própria bolinha, quando o menu abre, então ele diz "Sair da demanda" no lugar de "Tirar"; e o perfil de outra pessoa, só com um administrador', async () => {
     // Dado
     montar();
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Mateus Freitas Gonçalves, Colaborador' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mauro Teixeira Duarte, Colaborador' }));
     // Então
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map(i => i.textContent?.trim())).toEqual(['Tornar responsável', 'Sair da demanda', 'Ver perfil']);
     expect(screen.getByRole('menuitem', { name: 'Ver perfil' })).toHaveAttribute('href', '/minha-conta/');

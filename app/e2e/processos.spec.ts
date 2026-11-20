@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Módulo Processos. Na semente do banco fictício: o processo judicial 0001234-97.2026.8.13.0024, de JOSÉ DA SILVA TESTE
 // (TJMG, em "Distribuído"), e o administrativo 912345678, "Registro da marca Exemplo", de MARIA APARECIDA EXEMPLO (INPI,
-// em "Protocolado"). Quem está logado é o Mateus (administrador).
+// em "Protocolado"). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 

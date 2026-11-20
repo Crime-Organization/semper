@@ -2,7 +2,7 @@
 // como o da anotação. Numa linha só: à esquerda o tipo e o código; à direita a equipe em bolinhas (na pessoa, os responsáveis: #387), o ícone de
 // etiqueta, o lápis e o menu ⋯ (Arquivar, Excluir), junto dos botões da janela. Logo abaixo, os selos das etiquetas; depois o
 // título. A seção "Etiquetas" do meio do cartão saiu. Nada do topo fica por baixo dos botões da janela, em nenhum formato.
-// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mateus (master).
+// Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirUsuario, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
 
@@ -120,7 +120,7 @@ test.describe('O topo dos cartões, como o da anotação', () => {
   }
 
   test('dado quem só lê a tarefa, quando abre, então vê a equipe e as etiquetas, mas sem o ícone, sem o x, sem o lápis e sem o ⋯', async ({ page }) => {
-    // Dado: o Mateus põe uma etiqueta em "Renovar a procuração", que é da Ana (o Mateus participa); o Bruno não está nela
+    // Dado: o Mauro põe uma etiqueta em "Renovar a procuração", que é da Ana (o Mauro participa); o Bruno não está nela
     let cartao = await abrirCartao(page, '/tarefas/', 'Renovar a procuração');
     await criarEtiqueta(page, cartao, 'Urgente');
     await entrarComo(page, 'u-bruno');

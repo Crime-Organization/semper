@@ -15,7 +15,7 @@ describe('Pôr alguém da equipe pelo "+" do cartão', () => {
 
   it('dada uma lista em que outra pessoa já pôs alguém, quando põe mais um, então ele vai para o fim e o outro fica', () => {
     // Dado / Quando / Então
-    expect(MUDANCAS.por('demandas', equipe('u-bruno', ['u-ana']), 'u-master', 'Mateus')).toEqual({ gravar: { lista: ['u-ana', 'u-master'] } });
+    expect(MUDANCAS.por('demandas', equipe('u-bruno', ['u-ana']), 'u-master', 'Mauro')).toEqual({ gravar: { lista: ['u-ana', 'u-master'] } });
   });
 
   it('dada a pessoa que já estava (alguém a pôs com a busca aberta), quando põe de novo, então avisa e não grava', () => {
@@ -132,7 +132,7 @@ describe('Os avisos', () => {
 });
 
 describe('Desfazer a mudança na equipe', () => {
-  it('dada a Ana posta e o Mateus posto depois por outra pessoa, quando desfaz, então só a Ana sai', () => {
+  it('dada a Ana posta e o Mauro posto depois por outra pessoa, quando desfaz, então só a Ana sai', () => {
     // Dado / Quando / Então
     expect(desfazerMudanca('tarefas', { tipo: 'por', id: 'u-ana', nome: 'Ana' }, equipe('u-bruno', []), equipe('u-bruno', ['u-ana', 'u-master'])))
       .toEqual({ lista: ['u-master'] });

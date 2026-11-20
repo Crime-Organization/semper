@@ -2,7 +2,7 @@
 // Na semente do banco fictício há dois processos ativos: o judicial de JOSÉ DA SILVA TESTE (sem nome, número 0001234-97.2026.8.13.0024)
 // e o administrativo "Registro da marca Exemplo". A demanda "Busca de anterioridade" e a tarefa "Renovar a procuração" não têm
 // processo; "Reunião de equipe" é um compromisso sem processo, e a audiência de JOSÉ DA SILVA TESTE é do processo judicial.
-// O contrato MA96-0001-2026 é de JOSÉ DA SILVA TESTE. Quem está logado é o Mateus (administrador).
+// O contrato MA96-0001-2026 é de JOSÉ DA SILVA TESTE. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 

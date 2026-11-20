@@ -560,7 +560,7 @@ test.describe('Dado um celular, a faixa das datas e a do tempo (#361, #383)', ()
 
 test.describe('Dada uma demanda, a faixa do tempo (#383)', () => {
   test('com tempo nas tarefas, quando a pessoa abre o cartão, então a soma da equipe fica na faixa do tempo, logo abaixo das datas, e nada embaixo pula quando ela chega', async ({ page }) => {
-    // Dado: as tarefas de "Registro de marca" têm 2 h 40 min (as do Mateus, do Bruno e o ajuste)
+    // Dado: as tarefas de "Registro de marca" têm 2 h 40 min (as do Mauro, do Bruno e o ajuste)
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     // Onde a "Situação" (o que vem logo abaixo das faixas) aparece a cada mudança da tela, enquanto o cartão abre

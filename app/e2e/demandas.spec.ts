@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Módulo Demandas. Na semente do banco fictício: o contrato de JOSÉ DA SILVA TESTE (assinado) já gerou as demandas
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
-// devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mateus (administrador).
+// devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao, alturaParada, barraDeFormatacao, barraEquilibradaNoCelular, entrarComo } from './ajudantes';
 
@@ -35,7 +35,7 @@ test.describe('Cadastro de demandas', () => {
     await expect(cartao.getByRole('heading', { name: 'Contestação do processo' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mauro Teixeira Duarte, Responsável', exact: true })).toBeVisible();
     await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Colaborador', exact: true })).toBeVisible();
     await abrirSecao(cartao, 'Clientes');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente');
@@ -105,7 +105,7 @@ test.describe('Demandas ligadas', () => {
   });
 
   test('quando o comentário da demanda menciona quem não participa dela, então a pessoa aparece desligada na lista do @', async ({ page }) => {
-    // Dado: "Busca de anterioridade" é do Mateus, sem colaboradores; a Ana é administradora e vê todas
+    // Dado: "Busca de anterioridade" é do Mauro, sem colaboradores; a Ana é administradora e vê todas
     const cartao = await abrirDemanda(page, 'Busca de anterioridade', 'Comentários');
     // Quando
     await cartao.getByRole('textbox', { name: 'Escrever um comentário' }).fill('Veja isto, @');

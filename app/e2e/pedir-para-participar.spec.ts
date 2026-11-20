@@ -1,6 +1,6 @@
 // Pedir para participar de um item de que ainda não faço parte (#363). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Fora da fase de adaptação, com a visualização fechada (cada um vê só os itens de que faz parte). Na semente do banco fictício, a
-// tarefa "Renovar a procuração" (F00D1234) é da Ana (administradora), que a criou, com o Mateus (master); o Bruno (estagiário) não
+// tarefa "Renovar a procuração" (F00D1234) é da Ana (administradora), que a criou, com o Mauro (master); o Bruno (estagiário) não
 // está nela.
 import { expect, test, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
@@ -55,7 +55,7 @@ test.describe('Pedir para participar', () => {
     // Então
     await expect(linhaDaTarefa(page)).toContainText('Pedido enviado · aguardando resposta');
     await expect(page.getByText('Pedido enviado. Quem pode aprovar recebe nas Mensagens.')).toBeVisible();
-    // Então: o pedido chega também ao Mateus (master)
+    // Então: o pedido chega também ao Mauro (master)
     await entrarComo(page, 'u-master');
     await abrirMensagens(page);
     await expect(pedidoNaCaixa(page)).toBeVisible();
@@ -66,7 +66,7 @@ test.describe('Pedir para participar', () => {
     await abrirMensagens(page);
     await expect(pedidoNaCaixa(page)).toContainText('Bruno Exemplo Souza pediu para participar da tarefa F00D1234');
     await pedidoNaCaixa(page).getByRole('button', { name: 'Aprovar o pedido de Bruno Exemplo Souza' }).click();
-    // Então: o pedido sai da caixa (dela e do Mateus)
+    // Então: o pedido sai da caixa (dela e do Mauro)
     await expect(page.getByText('Pedido aprovado: Bruno Exemplo Souza entra como participante.')).toBeVisible();
     await expect(pedidoNaCaixa(page)).toHaveCount(0);
     await entrarComo(page, 'u-master');
@@ -108,7 +108,7 @@ test.describe('Pedir para participar', () => {
 
     await entrarComo(page, 'u-bruno');
     await abrirMensagens(page);
-    const resposta = page.getByRole('listitem', { name: /Resposta não lida: Mateus Freitas Gonçalves recusou seu pedido/ });
+    const resposta = page.getByRole('listitem', { name: /Resposta não lida: Mauro Teixeira Duarte recusou seu pedido/ });
     await expect(resposta).toContainText('Você continua sem acesso a este item.');
     await expect(resposta.getByRole('link')).toHaveCount(0);
     await buscarOCodigo(page);

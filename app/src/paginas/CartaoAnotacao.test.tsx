@@ -54,8 +54,8 @@ vi.mock('../dados', () => ({
       | 'anotacaoDesligar' | 'itensParaLigar' | 'salvarPreferencia' | 'etiquetasListar' | 'etiquetasDoCartao' | 'etiquetaAplicar' | 'pastasListar'>
 }));
 /** A equipe do escritório: quem escreve e alguém com quem compartilhar (com o @usuario, para os comentários). */
-const EQUIPE = [{ id: 'u-mateus', nome: 'Mateus', usuario: 'mateus', ativo: true }, { id: 'u-bruno', nome: 'Bruno', usuario: 'bruno', ativo: true }];
-vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus', papel: 'usuario' }, equipe: EQUIPE, ehAdmin: false, escritorio: { modulos: {} } }) }));
+const EQUIPE = [{ id: 'u-mauro', nome: 'Mauro', usuario: 'mauro', ativo: true }, { id: 'u-bruno', nome: 'Bruno', usuario: 'bruno', ativo: true }];
+vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro', papel: 'usuario' }, equipe: EQUIPE, ehAdmin: false, escritorio: { modulos: {} } }) }));
 
 /**
  * O "banco": o texto guardado, a marca de cada versão (o atualizado_em, que muda a cada gravação) e as gravações que ainda não
@@ -65,8 +65,8 @@ const banco = { texto: '', titulo: '', marca: 'm0', versoes: 0, esperando: [] as
 /** Uma gravação mudou a anotação no "banco": a marca é outra. */
 const novaMarca = () => { banco.marca = 'm' + ++banco.versoes; return banco.marca; };
 const anotacao = (texto: string): Anotacao => ({
-  id: 'a1', codigo: 'A-1', titulo: banco.titulo || 'Lista do protocolo', texto, responsavel_id: 'u-mateus', participantes: [], ligada_a: [], pasta_id: null,
-  arquivado_em: null, arquivado_por: null, criado_por: 'u-mateus', criado_em: '2026-11-10T12:00:00Z', atualizado_por: null, atualizado_em: banco.marca
+  id: 'a1', codigo: 'A-1', titulo: banco.titulo || 'Lista do protocolo', texto, responsavel_id: 'u-mauro', participantes: [], ligada_a: [], pasta_id: null,
+  arquivado_em: null, arquivado_por: null, criado_por: 'u-mauro', criado_em: '2026-11-10T12:00:00Z', atualizado_por: null, atualizado_em: banco.marca
 });
 /** A gravação do texto, que espera a resposta; com a marca velha (outra pessoa mudou a anotação), não grava e responde null. */
 const gravacaoLenta: DadosAnotacoes['anotacaoGravarTexto'] = (_id, texto, esperado) => new Promise((ok, erro) => {
@@ -102,8 +102,8 @@ const clicarNaCaixinha = (nome: string) => fireEvent.mouseDown(caixinha(nome));
 /** A pausa depois da qual o texto mudado é gravado sozinho (com o relógio do teste). */
 const esperarAPausa = () => act(async () => { vi.advanceTimersByTime(ESPERA_PARA_SALVAR); });
 /** Duas etiquetas do escritório, para os selos do topo. */
-const URGENTE: Etiqueta = { id: 'e-urgente', cor: 'vermelho', texto: 'Urgente', criado_por: 'u-mateus' };
-const CLIENTE: Etiqueta = { id: 'e-cliente', cor: 'azul', texto: 'Cliente', criado_por: 'u-mateus' };
+const URGENTE: Etiqueta = { id: 'e-urgente', cor: 'vermelho', texto: 'Urgente', criado_por: 'u-mauro' };
+const CLIENTE: Etiqueta = { id: 'e-cliente', cor: 'azul', texto: 'Cliente', criado_por: 'u-mauro' };
 
 function zerarBanco(texto = '- [ ] A\n- [ ] B\n- [ ] C') {
   iniciarPreferencias({});
@@ -422,10 +422,10 @@ describe('Os comentários da anotação (#364)', () => {
     comentariosListar.mockReset();
     comentariosListar.mockResolvedValue([
       { id: 'c1', autor_id: 'u-bruno', texto: 'Primeiro comentário', mencoes: [], criado_em: '2026-11-18T10:00:00Z', editado_em: null },
-      { id: 'c2', autor_id: 'u-mateus', texto: 'Segundo comentário', mencoes: [], criado_em: '2026-11-18T09:00:00Z', editado_em: null }
+      { id: 'c2', autor_id: 'u-mauro', texto: 'Segundo comentário', mencoes: [], criado_em: '2026-11-18T09:00:00Z', editado_em: null }
     ]);
     comentarioCriar.mockReset();
-    comentarioCriar.mockImplementation(async (_modulo, _id, texto) => ({ id: 'c3', autor_id: 'u-mateus', texto, mencoes: [], criado_em: '2026-11-18T11:00:00Z', editado_em: null }));
+    comentarioCriar.mockImplementation(async (_modulo, _id, texto) => ({ id: 'c3', autor_id: 'u-mauro', texto, mencoes: [], criado_em: '2026-11-18T11:00:00Z', editado_em: null }));
   });
   /** Os títulos das seções que recolhem, na ordem em que aparecem. */
   const secoes = () => screen.getAllByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
@@ -527,9 +527,9 @@ describe('Os comentários da anotação (#364)', () => {
     await screen.findByText('Primeiro comentário');
     // Quando
     await userEvent.type(screen.getByRole('textbox', { name: 'Escrever um comentário' }), 'Veja, @');
-    // Então: o Bruno, que está na anotação, pode; o Mateus (quem comenta, que só a lê) aparece desligado
+    // Então: o Bruno, que está na anotação, pode; o Mauro (quem comenta, que só a lê) aparece desligado
     expect(screen.getByRole('option', { name: /Bruno/ })).toHaveAttribute('aria-disabled', 'false');
-    expect(screen.getByRole('option', { name: /Mateus/ })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: /Mauro/ })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('button', { name: 'Comentar' })).toBeInTheDocument();
   });
 });
@@ -616,7 +616,7 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
 
   it('dada a anotação arquivada, quando abre "Ligada a", então não há "+ Novo…"', async () => {
     // Dado
-    anotacaoObter.mockImplementation(async () => ({ ...anotacao(''), arquivado_em: '2026-11-15T12:00:00Z', arquivado_por: 'u-mateus' }));
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(''), arquivado_em: '2026-11-15T12:00:00Z', arquivado_por: 'u-mauro' }));
     // Quando
     await abrirLigadaA();
     // Então
@@ -640,7 +640,7 @@ describe('Criar um item já ligado pela seção "Ligada a" (#376)', () => {
 // sozinha quando a pessoa escreve algo no título ou no texto. A regra mudou: antes, "Salvar anotação" e Ctrl+Enter a criavam.
 describe('A anotação nova, na mesma janela da anotação aberta (#369)', () => {
   /** A pasta da semente destes casos, para a anotação nova nascer nela. */
-  const POPS: Pasta = { id: 'pa1', nome: 'POPs', pasta_mae_id: null, criada_por: 'u-mateus', criada_em: '2026-11-10T12:00:00Z' };
+  const POPS: Pasta = { id: 'pa1', nome: 'POPs', pasta_mae_id: null, criada_por: 'u-mauro', criada_em: '2026-11-10T12:00:00Z' };
   /** A demanda de onde se vem, quando a anotação nova é escrita pelo "+" do cartão dela. */
   const DEMANDA = { id: 'd1', codigo: 'D-7', titulo: 'Registro de marca', arquivado_em: null } as Demanda;
   const aoCriar = vi.fn<(id: string) => void>();
@@ -726,7 +726,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     // Então
     await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
     expect(anotacaoCriar).toHaveBeenCalledExactlyOnceWith(
-      { titulo: 'Visita', texto: '', responsavel_id: 'u-mateus', participantes: [], pasta_id: POPS.id }, [{ modulo: 'demandas', id: DEMANDA.id }], [URGENTE.id]);
+      { titulo: 'Visita', texto: '', responsavel_id: 'u-mauro', participantes: [], pasta_id: POPS.id }, [{ modulo: 'demandas', id: DEMANDA.id }], [URGENTE.id]);
     expect(await screen.findByRole('article', { name: 'Anotação A-1' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Visita');
     expect(editorDe(texto).hasFocus).toBe(true);
@@ -744,7 +744,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     // Então
     await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
     expect(anotacaoCriar).toHaveBeenCalledExactlyOnceWith(
-      { titulo: 'Sem título', texto: 'Levar', responsavel_id: 'u-mateus', participantes: [], pasta_id: null }, [], []);
+      { titulo: 'Sem título', texto: 'Levar', responsavel_id: 'u-mauro', participantes: [], pasta_id: null }, [], []);
     expect(anotacaoGravarTexto).not.toHaveBeenCalled();
     expect(await screen.findByText('Salvo')).toBeInTheDocument();
     // Quando
@@ -790,7 +790,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     await responder();
     // Então: a anotação foi sem o Bruno, e ele foi gravado em seguida
     expect(anotacaoCriar.mock.calls[0][0]).toMatchObject({ titulo: 'Visita', participantes: [] });
-    expect(anotacaoAtualizar).toHaveBeenCalledExactlyOnceWith('a1', { responsavel_id: 'u-mateus', participantes: ['u-bruno'] });
+    expect(anotacaoAtualizar).toHaveBeenCalledExactlyOnceWith('a1', { responsavel_id: 'u-mauro', participantes: ['u-bruno'] });
     await vi.waitFor(() => expect(aoCriar).toHaveBeenCalledWith('a1'));
   });
 
@@ -1012,10 +1012,10 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
 
 // O pedido do dono (#370): a anotação vai para outra pasta também pelo ⋯ do cartão, em "Mover para pasta".
 describe('Mover a anotação para outra pasta pelo ⋯ do cartão (#370)', () => {
-  const PASTA = (id: string, nome: string, pasta_mae_id: string | null = null) => ({ id, nome, pasta_mae_id, criada_por: 'u-mateus', criada_em: '2026-11-18T12:00:00Z' });
+  const PASTA = (id: string, nome: string, pasta_mae_id: string | null = null) => ({ id, nome, pasta_mae_id, criada_por: 'u-mauro', criada_em: '2026-11-18T12:00:00Z' });
   beforeEach(() => {
     zerarBanco();
-    lojaDePastas.mudar({ dono: 'u-mateus', lista: [PASTA('esc', 'Escritório'), PASTA('pops', 'POPs', 'esc')] });
+    lojaDePastas.mudar({ dono: 'u-mauro', lista: [PASTA('esc', 'Escritório'), PASTA('pops', 'POPs', 'esc')] });
   });
 
   it('dado quem altera a anotação ativa, quando escolhe "Mover para pasta" no ⋯ e a pasta na janela, então a anotação vai para ela, com o aviso e o Desfazer', async () => {
@@ -1037,7 +1037,7 @@ describe('Mover a anotação para outra pasta pelo ⋯ do cartão (#370)', () =>
 
   it('dada a anotação arquivada, quando quem altera abre o ⋯, então não há "Mover para pasta"', async () => {
     // Dado
-    anotacaoObter.mockImplementation(async () => ({ ...anotacao(banco.texto), arquivado_em: '2026-11-18T12:00:00Z', arquivado_por: 'u-mateus' }));
+    anotacaoObter.mockImplementation(async () => ({ ...anotacao(banco.texto), arquivado_em: '2026-11-18T12:00:00Z', arquivado_por: 'u-mauro' }));
     abrirCartao();
     // Quando
     await userEvent.click(await screen.findByRole('button', { name: 'Mais ações da anotação' }));

@@ -612,7 +612,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         // Dado
         const antes = (await SD.mensagensListar()).length;
         // Quando
-        await SD.comentarioCriar('pessoas', await novaPessoa(), 'Lembrete, @mateus.goncalves');
+        await SD.comentarioCriar('pessoas', await novaPessoa(), 'Lembrete, @mauro.duarte');
         // Então
         expect(await SD.mensagensListar()).toHaveLength(antes);
       });
@@ -1080,7 +1080,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Comentários', () => {
-      // Quem está logado é o Mateus (@mateus.goncalves, advogado); a Ana é advogada e o Bruno, estagiário.
+      // Quem está logado é o Mauro (@mauro.duarte, advogado); a Ana é advogada e o Bruno, estagiário.
       const contratoNovo = async () => {
         const { id: cliente } = await criar(marca());
         return (await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Registro de marca'], categoria: 'pro_labore' })).id;
@@ -1200,7 +1200,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
             entrarComo('u-bruno');
             // Quando: ele menciona quem está nela, quem não está, e tenta numa anotação que não existe
             const tentativas = await Promise.allSettled([
-              SD.comentarioCriar('anotacoes', id, 'Oi, @ana.lima'), SD.comentarioCriar('anotacoes', id, 'Oi, @mateus.goncalves'),
+              SD.comentarioCriar('anotacoes', id, 'Oi, @ana.lima'), SD.comentarioCriar('anotacoes', id, 'Oi, @mauro.duarte'),
               SD.comentarioCriar('anotacoes', id, 'Oi, @bruno.souza'), SD.comentarioCriar('anotacoes', crypto.randomUUID(), 'Oi, @ana.lima')
             ]);
             // Então: a mesma resposta em todos os casos
@@ -1297,7 +1297,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Demandas', () => {
-      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const novaDemanda = (extra: Parameters<Dados['demandaCriar']>[0] = {}) =>
         SD.demandaCriar({ titulo: 'Pedido de registro de marca', responsavel_id: 'u-ana', ...extra });
 
@@ -1377,7 +1377,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
 
       it('quando o comentário da demanda menciona quem não está nela, então é recusado; quem está nela pode', async () => {
-        // Dado (a demanda é da Ana, com o Bruno de fora; o Mateus, administrador, vê todas)
+        // Dado (a demanda é da Ana, com o Bruno de fora; o Mauro, administrador, vê todas)
         const { id } = await novaDemanda();
         // Quando
         const [deFora, daDemanda] = await Promise.allSettled([
@@ -1431,7 +1431,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Compromissos', () => {
-      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const DIA_A = '2031-03-10', DIA_B = '2031-03-11', DIA_C = '2031-03-12';
       const reuniao = (extra: Partial<Parameters<Dados['compromissoCriar']>[0]> = {}) =>
         SD.compromissoCriar({ tipo: 'reuniao', titulo: marca(), data: DIA_A, hora: '14:30', responsavel_id: 'u-ana', ...extra });
@@ -1741,7 +1741,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Processos', () => {
-      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const NUMERO = '0005678-13.2026.8.13.0433';
       const novoProcesso = async (extra: Partial<Parameters<Dados['processoCriar']>[0]> = {}) => {
         const { id: cliente } = await criar(marca());
@@ -2510,7 +2510,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
 
       describe('Meus valores', () => {
-        // Quem está logado é o Mateus (p-mateus). Nos casos de quem recebe, a responsável é a Ana.
+        // Quem está logado é o Mauro (p-mauro). Nos casos de quem recebe, a responsável é a Ana.
         const MARCO = { de: '2026-03-01', ate: '2026-03-31' };
         const NA_DIVISAO = { responsavel_id: 'u-ana', valor: 1000, parcelas: 1 };
         const meus = async (recebimento: string) => (await SD.financeiroMeusValores(MARCO.de, MARCO.ate)).filter(l => l.recebimento_id === recebimento);
@@ -2553,17 +2553,17 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado um participante, quando o responsável marca como pago, então a linha passa a recebido, sem lançamento no caixa; e dá para desfazer', async () => {
           // Dado
-          const { id, conta } = await recebido({ ...NA_DIVISAO, participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] });
+          const { id, conta } = await recebido({ ...NA_DIVISAO, participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] });
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'participante', valor: 9250, situacao: 'a_receber', pago_em: null, de_quem: 'Ana Teste Lima' })]);
           const noCaixa = (await lancamentos(conta.id)).length;
           // Quando
-          await SD.financeiroTerceiroMarcarPago(id, 'p-mateus', '2026-03-20');
+          await SD.financeiroTerceiroMarcarPago(id, 'p-mauro', '2026-03-20');
           // Então
           expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'recebido', pago_em: '2026-03-20', recebido_em: '2026-03-10' })]);
-          expect((await aPassar(id))[0]).toMatchObject({ pessoa_id: 'p-mateus', pago_em: '2026-03-20' });
+          expect((await aPassar(id))[0]).toMatchObject({ pessoa_id: 'p-mauro', pago_em: '2026-03-20' });
           expect(await lancamentos(conta.id)).toHaveLength(noCaixa);
           // Quando
-          await SD.financeiroTerceiroDesfazerPago(id, 'p-mateus');
+          await SD.financeiroTerceiroDesfazerPago(id, 'p-mauro');
           // Então
           expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'a_receber', pago_em: null })]);
           expect(await lancamentos(conta.id)).toHaveLength(noCaixa);
@@ -2571,15 +2571,15 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado um indicador que não é sócio, quando o cliente paga, então a linha é de indicador, e vem do responsável', async () => {
           // Dado / Quando
-          const { id } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus', indicador_percentual: 5 });
+          const { id } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mauro', indicador_percentual: 5 });
           // Então
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'indicador', valor: 4625, situacao: 'a_receber', de_quem: 'Ana Teste Lima' })]);
         });
 
         it('dado o sócio que indicou, quando o administrador paga o repasse, então a linha vem do escritório e passa a recebido', async () => {
           // Dado
-          await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
-          const { id, conta } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus' });
+          await SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: null });
+          const { id, conta } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mauro' });
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'indicador', valor: 10000, situacao: 'a_receber', de_quem: 'escritório' })]);
           // Quando
           await SD.financeiroPagarRepasse((await repassesDe(id)).find(r => r.tipo === 'socio_indicador')!.id, conta.id, '2026-03-20');
@@ -2605,8 +2605,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         });
 
         it.each([
-          ['participante', { ...NA_DIVISAO, participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] }],
-          ['indicador que não é sócio', { ...NA_DIVISAO, indicador_id: 'p-mateus', indicador_percentual: 5 }]
+          ['participante', { ...NA_DIVISAO, participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] }],
+          ['indicador que não é sócio', { ...NA_DIVISAO, indicador_id: 'p-mauro', indicador_percentual: 5 }]
         ])('dado um %s com valor a receber, quando vê os meses seguintes, então o valor continua; recebido, fica só no mês dele', async (_caso, contrato) => {
           // Dado
           const { id } = await recebido(contrato);
@@ -2616,7 +2616,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           expect((await SD.financeiroMeusValores('2099-12-01', '2099-12-31')).filter(l => l.recebimento_id === id)).toHaveLength(1);
           expect((await SD.financeiroMeusValores('2026-02-01', '2026-02-28')).filter(l => l.recebimento_id === id)).toEqual([]);
           // Quando
-          await SD.financeiroTerceiroMarcarPago(id, 'p-mateus', '2026-04-02');
+          await SD.financeiroTerceiroMarcarPago(id, 'p-mauro', '2026-04-02');
           // Então
           expect(await emAbril()).toEqual([]);
           expect(await meus(id)).toEqual([expect.objectContaining({ situacao: 'recebido', pago_em: '2026-04-02' })]);
@@ -2624,8 +2624,8 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado o sócio que indicou, com repasse a receber, quando vê o mês seguinte, então continua; pago, fica só no mês dele', async () => {
           // Dado
-          await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
-          const { id, conta } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus' });
+          await SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: null });
+          const { id, conta } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mauro' });
           const emAbril = async () => (await SD.financeiroMeusValores('2026-04-01', '2026-04-30')).filter(l => l.recebimento_id === id);
           // Quando / Então
           expect((await emAbril()).map(l => l.papel)).toEqual(['indicador']);
@@ -2666,7 +2666,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado o sócio responsável com tudo na conta e um indicador, quando abre, então não tem linha: só repassa, e isso fica em A passar', async () => {
           // Dado
-          await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
+          await SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: null });
           // Quando
           const { id } = await recebido({ indicador_id: 'p-bruno', indicador_percentual: 10 });
           // Então
@@ -2675,22 +2675,22 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         });
 
         it.each([
-          ['participante com tudo na conta', { participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] }, 74000, 'a_receber'],
-          ['indicador com tudo na conta', { indicador_id: 'p-mateus', indicador_percentual: 10 }, 74000, 'a_receber'],
-          ['participante abaixo da parte integral', { percentual_escritorio: 30, participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] }, 67000, 'recebido']
+          ['participante com tudo na conta', { participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] }, 74000, 'a_receber'],
+          ['indicador com tudo na conta', { indicador_id: 'p-mauro', indicador_percentual: 10 }, 74000, 'a_receber'],
+          ['participante abaixo da parte integral', { percentual_escritorio: 30, participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] }, 67000, 'recebido']
         ])('dado o responsável que também é %s, quando abre, então há uma linha só, com o que é dele, e nada a passar a si mesmo', async (_caso, contrato, valor, situacao) => {
           // Dado / Quando
           const { id } = await recebido(contrato);
           // Então
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'responsavel', valor, situacao })]);
           expect(await aPassar(id)).toEqual([]);
-          await expect(SD.financeiroTerceiroMarcarPago(id, 'p-mateus', '2026-03-20')).rejects.toThrow('não recebe nada');
+          await expect(SD.financeiroTerceiroMarcarPago(id, 'p-mauro', '2026-03-20')).rejects.toThrow('não recebe nada');
           await expect(SD.financeiroEstornar(id)).resolves.toBeUndefined();
         });
 
         it('dado o responsável que também é participante, junto com outra pessoa, quando abre, então só o valor da outra sai da parte dele', async () => {
           // Dado / Quando
-          const { id } = await recebido({ participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }, { pessoa_id: 'p-bruno', percentual: 10 }] });
+          const { id } = await recebido({ participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }, { pessoa_id: 'p-bruno', percentual: 10 }] });
           // Então: R$ 740,00 ao responsável, menos os R$ 92,50 de Bruno
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'responsavel', valor: 64750 })]);
           expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', valor: 9250 })]);
@@ -2698,9 +2698,9 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado o sócio responsável que também é participante, quando abre, então a linha é o valor dele, que o escritório repassa', async () => {
           // Dado
-          await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
+          await SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: null });
           // Quando
-          const { id } = await recebido({ participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] });
+          const { id } = await recebido({ participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] });
           // Então
           expect(await meus(id)).toEqual([expect.objectContaining({ papel: 'responsavel', valor: 9250, situacao: 'a_receber' })]);
           expect(await aPassar(id)).toEqual([]);
@@ -2708,19 +2708,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
 
         it('dado um indicador que recebeu, quando o administrador o tira do contrato, então a linha continua de indicador', async () => {
           // Dado
-          const { id, k } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mateus', indicador_percentual: 5 });
+          const { id, k } = await recebido({ ...NA_DIVISAO, indicador_id: 'p-mauro', indicador_percentual: 5 });
           // Quando
           await SD.contratoAtualizar(k.id, { indicador_id: null, indicador_percentual: null });
           // Então
           expect((await meus(id)).map(l => l.papel)).toEqual(['indicador']);
-          expect((await SD.financeiroRecebimento(id))!.terceiros).toEqual([expect.objectContaining({ id: 'p-mateus', papel: 'indicador' })]);
+          expect((await SD.financeiroRecebimento(id))!.terceiros).toEqual([expect.objectContaining({ id: 'p-mauro', papel: 'indicador' })]);
         });
 
         it('dado um participante que recebeu, quando o administrador o põe como indicador, então o recebimento antigo continua de participante, e o novo é de indicador', async () => {
           // Dado
-          const { id, k, conta } = await recebido({ ...NA_DIVISAO, parcelas: 2, participantes: [{ pessoa_id: 'p-mateus', percentual: 10 }] });
+          const { id, k, conta } = await recebido({ ...NA_DIVISAO, parcelas: 2, participantes: [{ pessoa_id: 'p-mauro', percentual: 10 }] });
           // Quando
-          await SD.contratoAtualizar(k.id, { participantes: [], indicador_id: 'p-mateus', indicador_percentual: 10 });
+          await SD.contratoAtualizar(k.id, { participantes: [], indicador_id: 'p-mauro', indicador_percentual: 10 });
           const novo = await receber(k.parcelas[1].id, conta.id);
           // Então
           expect((await meus(id)).map(l => l.papel)).toEqual(['participante']);
@@ -2750,13 +2750,13 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         });
 
         it('dado um recebimento e um novo responsável no contrato, quando o administrador abre, então quem paga é o responsável da época', async () => {
-          // Dado: a Ana recebe a primeira parcela, o contrato passa para o Mateus, e ele recebe a segunda
+          // Dado: a Ana recebe a primeira parcela, o contrato passa para o Mauro, e ele recebe a segunda
           const { id, k, conta } = await recebido({ ...NA_DIVISAO, parcelas: 2, ...comBruno });
           await SD.contratoAtualizar(k.id, { responsavel_id: 'u-master' });
           const novo = await receber(k.parcelas[1].id, conta.id);
           // Quando / Então
           expect(await aPassar(id)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', quem_paga: 'Ana Teste Lima' })]);
-          expect(await aPassar(novo)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', quem_paga: 'Mateus Freitas Gonçalves' })]);
+          expect(await aPassar(novo)).toEqual([expect.objectContaining({ pessoa_id: 'p-bruno', quem_paga: 'Mauro Teixeira Duarte' })]);
         });
 
         it('dado um valor marcado como pago e desfeito, quando lê o registro de ações, então os dois dizem o contrato, a parcela, o recebimento, a data e o valor', async () => {
@@ -2872,7 +2872,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
 
       describe('Lucro dos sócios', () => {
-        const socio = () => SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: null });
+        const socio = () => SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: null });
         const doLucro = async () => (await SD.financeiroLucro());
 
         it('quando o sócio responsável recebe com tudo na conta, então o recebimento entra no lucro dele; estornado, sai', async () => {
@@ -2882,7 +2882,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Quando
           const id = await receber(k.parcelas[0].id, conta.id);
           // Então
-          expect((await doLucro()).recebimentos).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mateus', liquido: 92500, terceiros: [] })]);
+          expect((await doLucro()).recebimentos).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mauro', liquido: 92500, terceiros: [] })]);
           // Quando / Então
           await SD.financeiroEstornar(id);
           expect((await doLucro()).recebimentos).toEqual([]);
@@ -2910,19 +2910,19 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await SD.financeiroSocioExcluir(s.id);
           // Então
           expect((await doLucro()).recebimentos).toHaveLength(1);
-          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).resolves.toBeTruthy();
+          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mauro', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).resolves.toBeTruthy();
         });
 
         it('quando um sócio indica, então a indicação entra à parte, com a data do recebimento; paga, mostra quando', async () => {
           // Dado
           await socio();
-          const k = await assinado({ responsavel_id: 'u-ana', indicador_id: 'p-mateus' }), conta = await contaPJ();
+          const k = await assinado({ responsavel_id: 'u-ana', indicador_id: 'p-mauro' }), conta = await contaPJ();
           // Quando
           const id = await receber(k.parcelas[0].id, conta.id);
           // Então
           const lucro = await doLucro();
           expect(lucro.recebimentos).toEqual([]);
-          expect(lucro.indicacoes).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mateus', valor: 10000, pago_em: null })]);
+          expect(lucro.indicacoes).toEqual([expect.objectContaining({ data: '2026-03-10', pessoa_id: 'p-mauro', valor: 10000, pago_em: null })]);
           // Quando / Então
           const [repasse] = (await repassesDe(id)).filter(r => r.tipo === 'socio_indicador');
           await SD.financeiroPagarRepasse(repasse.id, conta.id, '2026-04-01');
@@ -2934,10 +2934,10 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           await socio();
           const conta = await contaPJ();
           // Quando
-          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mauro', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
           // Então
           const lucro = await doLucro();
-          expect(lucro.retiradas).toEqual([expect.objectContaining({ id, pessoa_id: 'p-mateus', conta_id: conta.id, data: '2026-03-20', valor: 50000 })]);
+          expect(lucro.retiradas).toEqual([expect.objectContaining({ id, pessoa_id: 'p-mauro', conta_id: conta.id, data: '2026-03-20', valor: 50000 })]);
           expect(lucro.retiradas[0].descricao).toContain('Divisão de lucro a');
           const [saida] = await lancamentos(conta.id);
           expect(saida).toMatchObject({ tipo: 'saida', categoria: 'divisao_lucro', valor: 50000, origem: 'lucro' });
@@ -2956,14 +2956,14 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Dado
           const conta = await contaPJ();
           // Quando / Então
-          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).rejects.toThrow('Só sócios recebem lucro');
+          await expect(SD.financeiroPagarLucro({ pessoa: 'p-mauro', conta: conta.id, data: '2026-03-20', valor: 100, descricao: '' })).rejects.toThrow('Só sócios recebem lucro');
         });
 
         it('dado que a conta foi arquivada depois de desfazer, quando restaura, então é recusado, e a retirada continua fora', async () => {
           // Dado
           await socio();
           const conta = await contaPJ();
-          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mauro', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
           await SD.financeiroDesfazerLucro(id);
           await SD.financeiroContaAtualizar(conta.id, { arquivada_em: new Date().toISOString() });
           // Quando / Então
@@ -2975,7 +2975,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
           // Dado
           await socio();
           const conta = await contaPJ();
-          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mateus', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
+          const id = await SD.financeiroPagarLucro({ pessoa: 'p-mauro', conta: conta.id, data: '2026-03-20', valor: 50000, descricao: '' });
           // Quando
           await SD.financeiroRestaurarLucro(id);
           // Então
@@ -3266,7 +3266,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       it('quando o responsável era sócio na data, então a parte dele fica no escritório; mudar a lista depois não muda o passado', async () => {
         // Dado
         const k = await assinado(), conta = await contaPJ();
-        const s = await SD.financeiroSocioCriar({ pessoa_id: 'p-mateus', desde: '2026-01-01', ate: '2026-03-31' });
+        const s = await SD.financeiroSocioCriar({ pessoa_id: 'p-mauro', desde: '2026-01-01', ate: '2026-03-31' });
         // Quando
         const dentro = await receber(k.parcelas[0].id, conta.id);
         const fora = await receber(k.parcelas[1].id, conta.id, { data: '2026-04-10' });
@@ -3908,7 +3908,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Tarefas', () => {
-      // Quem está logado é o Mateus (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
+      // Quem está logado é o Mauro (administrador). Na equipe: Ana (advogada), Bruno (estagiário).
       const novaTarefa = (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
         SD.tarefaCriar({ titulo: 'Emitir a GRU', responsavel_id: 'u-ana', ...extra });
 
@@ -4093,7 +4093,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
     });
 
     describe('Tempo nas tarefas', () => {
-      // Quem está logado é o Mateus (administrador): vê os registros de todos.
+      // Quem está logado é o Mauro (administrador): vê os registros de todos.
       const novaTarefa = async (extra: Parameters<Dados['tarefaCriar']>[0] = {}) =>
         (await SD.tarefaCriar({ titulo: 'Com tempo', responsavel_id: 'u-master', ...extra })).id;
 
@@ -5805,7 +5805,7 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const [h] = await SD.anotacaoHistorico(id);
         expect(h.alteracoes).toEqual({
           titulo: { de: 'Antes', para: 'Depois' }, texto: { de: null, para: null },
-          responsavel_id: { de: 'Mateus Freitas Gonçalves', para: 'Ana Teste Lima' }
+          responsavel_id: { de: 'Mauro Teixeira Duarte', para: 'Ana Teste Lima' }
         });
         expect(h.feito_por).toBe('u-master');
       });
@@ -6438,9 +6438,9 @@ describe('Visibilidade das anotações (banco fictício)', () => {
     await SD.comentarioCriar('anotacoes', id, 'Do master');
     // Quando
     entrarComo('u-bruno');
-    const meu = await SD.comentarioCriar('anotacoes', id, 'Do Bruno, @mateus.goncalves');
+    const meu = await SD.comentarioCriar('anotacoes', id, 'Do Bruno, @mauro.duarte');
     // Então
-    expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Do Bruno, @mateus.goncalves', 'Do master']);
+    expect((await SD.comentariosListar('anotacoes', id)).map(c => c.texto)).toEqual(['Do Bruno, @mauro.duarte', 'Do master']);
     await expect(SD.anotacaoAtualizar(id, { texto: 'mexi' })).rejects.toThrow(SEM_PERMISSAO);
     // E quem foi mencionado recebe a mensagem, que leva à anotação no comentário
     entrarComo('u-master');
@@ -7269,7 +7269,7 @@ describe('A passar: quem recebeu o dinheiro (banco fictício)', () => {
   const reabrir = async () => { vi.resetModules(); return (await import('./falso')).SD; };
   const linhas = async () => (await SD.financeiroAPassar(MARCO.de, MARCO.ate)).map(v => v.quem_paga);
 
-  /** Um recebimento do Mateus, com a Ana como participante. */
+  /** Um recebimento do Mauro, com a Ana como participante. */
   async function recebimento() {
     const { id: cliente } = await SD.pessoaCriar({ tipo: 'pf', nome: 'CLIENTE A PASSAR' });
     const k = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Marca'], categoria: 'pro_labore', valor: 1000, parcelas: 1, primeiro_pagamento: '2026-03-05',
@@ -7281,7 +7281,7 @@ describe('A passar: quem recebeu o dinheiro (banco fictício)', () => {
     return SD.financeiroReceber({ parcela: parcela.id, conta: conta.id, data: '2026-03-10', valor: 100000, taxa: 3000 });
   }
 
-  /** O Bruno é estagiário e não pode ser responsável pela tela: aqui ele passa a ser quem recebeu, e o contrato continua com o Mateus. */
+  /** O Bruno é estagiário e não pode ser responsável pela tela: aqui ele passa a ser quem recebeu, e o contrato continua com o Mauro. */
   async function gravarQuemRecebeu(id: string, responsavel: string) {
     const bd = JSON.parse(sessionStorage.getItem('semper-dados-falsos')!) as { recebimentos: { id: string; responsavel_id: string }[] };
     bd.recebimentos.find(r => r.id === id)!.responsavel_id = responsavel;
@@ -7477,7 +7477,7 @@ describe('Pedir para participar (banco fictício, #363)', () => {
     expect(await SD.tarefaObter(procuracao().id)).toBeNull();
   });
 
-  /** Os contratos da semente: "Registro de marca" (do Mateus) tem a demanda D3A1F09C, em que Bruno é colaborador; "Ação de cobrança" (da Ana), nenhuma de Bruno. */
+  /** Os contratos da semente: "Registro de marca" (do Mauro) tem a demanda D3A1F09C, em que Bruno é colaborador; "Ação de cobrança" (da Ana), nenhuma de Bruno. */
   const contratoDaSemente = (servico: string) => daSemente<{ id: string; codigo: string; servico: string }>('contratos', k => k.servico.startsWith(servico));
 
   it('dado um contrato de que Bruno não é parte, mas está numa demanda ligada a ele, quando a administradora aprova o pedido, então ele entra com 0% da divisão', async () => {

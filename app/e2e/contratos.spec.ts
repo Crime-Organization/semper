@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Na semente do banco fictício há 6 contratos (MA96-0001 a 0006). Mateus, que está logado, tem a sigla MA96.
-// Na equipe, Mateus e Ana são advogados, Bruno é estagiário e Carla (desativada) é do administrativo.
+// Na semente do banco fictício há 6 contratos (MA96-0001 a 0006). Mauro, que está logado, tem a sigla MA96.
+// Na equipe, Mauro e Ana são advogados, Bruno é estagiário e Carla (desativada) é do administrativo.
 // O cadastro é por etapas, como o de pessoa: Cliente e responsável, O que foi contratado, Honorários, Divisão, Documento e observações.
 import { expect, test, type Page } from '@playwright/test';
 import { abrir, abrirSecao, adicionarParticipante } from './ajudantes';
@@ -156,7 +156,7 @@ test.describe('Função na equipe', () => {
     // Quando
     await page.goto('/contratos/novo/');
     // Então (Bruno, estagiário, e Carla, do administrativo, não aparecem)
-    await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option')).toHaveText(['Escolha…', 'Mateus Freitas Gonçalves', 'Ana Teste Lima']);
+    await expect(page.getByRole('combobox', { name: 'Advogado responsável' }).getByRole('option')).toHaveText(['Escolha…', 'Mauro Teixeira Duarte', 'Ana Teste Lima']);
   });
 
   // Desde a #348, a busca de participante é só na equipe: quem é de fora nem aparece (antes vinha desligado, com o motivo).
@@ -196,7 +196,7 @@ test.describe('Função na equipe', () => {
   });
 });
 
-/** O contrato de JOSÉ DA SILVA TESTE (Registro de marca, de Mateus), na semente. */
+/** O contrato de JOSÉ DA SILVA TESTE (Registro de marca, de Mauro), na semente. */
 const CONTRATO_DO_JOSE = 'Registro de marca';
 /** Põe a Carla (desativada na equipe) como participante de 5% do contrato de JOSÉ, direto no banco fictício: é o contrato antigo de quem saiu. */
 async function carlaNoContrato(page: Page) {
@@ -229,10 +229,10 @@ test.describe('Participantes só da equipe (#348)', () => {
     await escolherPessoa(page, 'Indicador', 'ana teste', 'ANA TESTE LIMA');
     // Quando
     await page.getByRole('group', { name: 'Participantes' }).getByRole('button', { name: 'Adicionar participante' }).click();
-    // Então: só o Mateus; nem a Carla (desativada) nem clientes como a Luciana
+    // Então: só o Mauro; nem a Carla (desativada) nem clientes como a Luciana
     const achados = page.getByRole('list', { name: 'Equipe' });
     await expect(achados.getByRole('button')).toHaveCount(1);
-    await expect(achados.getByRole('button', { name: 'Mateus Freitas Gonçalves', exact: true })).toBeVisible();
+    await expect(achados.getByRole('button', { name: 'Mauro Teixeira Duarte', exact: true })).toBeVisible();
   });
 
   test('dado a edição pelo cartão, quando a pessoa abre a busca de participante, então vêm só os integrantes ativos, sem quem já está', async ({ page }) => {
@@ -245,7 +245,7 @@ test.describe('Participantes só da equipe (#348)', () => {
     const achados = cartao.getByRole('list', { name: 'Equipe' });
     await expect(achados.getByRole('button')).toHaveCount(2);
     await expect(achados.getByRole('button', { name: 'Ana Teste Lima', exact: true })).toBeVisible();
-    await expect(achados.getByRole('button', { name: 'Mateus Freitas Gonçalves', exact: true })).toBeVisible();
+    await expect(achados.getByRole('button', { name: 'Mauro Teixeira Duarte', exact: true })).toBeVisible();
   });
 
   test('dado um contrato antigo com quem saiu da equipe, quando é aberto e salvo sem mexer, então ela continua nele, marcada', async ({ page }) => {
@@ -397,7 +397,7 @@ test.describe('Contrato salvo', () => {
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima, Advogado responsável', exact: true })).toBeVisible();
     await cartao.getByRole('button', { name: /Histórico de alterações/ }).click();
     await expect(cartao.getByText('Situação: Assinado / em andamento → Encerrado')).toBeVisible();
-    await expect(cartao.getByText('Responsável: Mateus Freitas Gonçalves → Ana Teste Lima')).toBeVisible();
+    await expect(cartao.getByText('Responsável: Mauro Teixeira Duarte → Ana Teste Lima')).toBeVisible();
   });
 
   test('quando a pessoa abre um tópico do cartão, que começa recolhido, então ele continua aberto no próximo contrato', async ({ page }) => {

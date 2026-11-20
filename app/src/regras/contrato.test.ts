@@ -26,9 +26,9 @@ describe('Ponto de milhar fora do lugar', () => {
 
 describe('Número do contrato', () => {
   it.each([
-    ['Hellyne Nogueira', '529.982.247-62', 'HE62'],
+    ['Heloisa Prado', '529.982.247-62', 'HE62'],
     ['Ângela Souza', '11144477735', 'AN35'],
-    ['Mateus', '39053344705', 'MA05']
+    ['Mauro', '39053344705', 'MA05']
   ])('quando o advogado é "%s" com CPF %s, então a sigla é %s', (nome, cpf, sigla) => {
     // Quando
     const resultado = siglaAdvogado(nome, cpf);
@@ -37,8 +37,8 @@ describe('Número do contrato', () => {
   });
 
   it.each([
-    ['sem CPF', 'Hellyne', null],
-    ['com CPF incompleto', 'Hellyne', '1234'],
+    ['sem CPF', 'Heloisa', null],
+    ['com CPF incompleto', 'Heloisa', '1234'],
     ['com nome de uma letra', 'H', '52998224725']
   ])('quando o advogado está %s, então não há sigla', (_caso, nome, cpf) => {
     // Quando

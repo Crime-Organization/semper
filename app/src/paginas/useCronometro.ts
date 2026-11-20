@@ -1,4 +1,4 @@
-// O cronômetro do cartão da tarefa (as regras estão em regras/cronometro.ts). Regras do Mateus (30/10):
+// O cronômetro do cartão da tarefa (as regras estão em regras/cronometro.ts). Regras do dono do produto (30/10):
 // - só começa quando a pessoa inicia (o botão ou a tecla T, que também pausa e retoma);
 // - fechar o cartão pausa sozinho; a tarefa concluída não conta mais;
 // - depois de um tempo sem mexer, pergunta "Você ainda está aqui?";

@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Nomes das colunas e dos grupos sempre em maiúsculas (#386): no quadro, nas tabelas, nos menus e nos filtros. Muda só o que
 // aparece: o nome guardado continua como foi digitado. No banco fictício, o quadro de Tarefas tem "Para fazer", "Fazendo",
-// "Aguardando retorno" e "Concluída", sem grupos; "Renovar a procuração" está em "Para fazer". Quem está logado é o Mateus
+// "Aguardando retorno" e "Concluída", sem grupos; "Renovar a procuração" está em "Para fazer". Quem está logado é o Mauro
 // (administrador). No quadro e nas peças de texto a caixa alta vem do CSS: por isso se confere o texto mostrado (innerText).
 import { expect, test, type Page } from '@playwright/test';
 

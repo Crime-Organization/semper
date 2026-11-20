@@ -4,7 +4,7 @@ import type { Membro } from '../dados/tipos';
 import { inserirMencao, mencaoNegada, mencaoSendoDigitada, mencoesNoTexto, membrosParaMencionar, MOTIVO_SEM_MENCAO, trechosDoComentario } from './comentarios';
 
 const EQUIPE: Membro[] = [
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', funcao: 'advogado', ativo: true },
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', funcao: 'advogado', ativo: true },
   { id: 'u-ana', nome: 'Ana Teste Lima', usuario: 'ana.lima', funcao: 'advogado', ativo: true },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', usuario: 'bruno.souza', funcao: 'estagiario', ativo: true },
   { id: 'u-carla', nome: 'Carla Fictícia Rocha', usuario: 'carla.rocha', funcao: 'administrativo', ativo: false }
@@ -14,9 +14,9 @@ const ids = (ms: Membro[]) => ms.map(m => m.id);
 describe('Menções no comentário', () => {
   it('quando o texto marca colegas, então as menções vêm sem repetir, com maiúscula e com o ponto da frase', () => {
     // Quando
-    const marcados = mencoesNoTexto('Ligar amanhã, @ana.lima. Cópia para @Mateus.Goncalves e @ana.lima', EQUIPE);
+    const marcados = mencoesNoTexto('Ligar amanhã, @ana.lima. Cópia para @Mauro.Duarte e @ana.lima', EQUIPE);
     // Então
-    expect(ids(marcados).sort()).toEqual(['u-ana', 'u-mateus']);
+    expect(ids(marcados).sort()).toEqual(['u-ana', 'u-mauro']);
   });
 
   it.each([
@@ -73,11 +73,11 @@ describe('Lista do @ enquanto se digita', () => {
 
   it('quando o termo é parte do nome, sem acento, então aparecem só os colegas ativos que combinam', () => {
     // Quando
-    const achados = membrosParaMencionar(EQUIPE, 'goncalves', 8);
+    const achados = membrosParaMencionar(EQUIPE, 'duarte', 8);
     const semTermo = membrosParaMencionar(EQUIPE, '', 8);
     // Então
-    expect(ids(achados)).toEqual(['u-mateus']);
-    expect(ids(semTermo)).toEqual(['u-mateus', 'u-ana', 'u-bruno']);
+    expect(ids(achados)).toEqual(['u-mauro']);
+    expect(ids(semTermo)).toEqual(['u-mauro', 'u-ana', 'u-bruno']);
   });
 
   it.each([

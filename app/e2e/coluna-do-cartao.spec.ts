@@ -4,7 +4,7 @@
 // o "Expandir tudo" / "Recolher tudo" no alto dela abrange as seções da coluna (três; no processo, quatro). Cada anotação ligada aparece como um comentário (o título e o
 // começo do texto, num fundo diferente) e abre com um clique. Com o cartão ao lado e na janela estreita, não há a coluna: as seções dela ficam no pé do cartão, na mesma ordem, antes do rodapé, e o
 // "Expandir tudo" do alto do cartão (o único) abre também elas. Na semente do banco fictício, JOSÉ DA SILVA TESTE tem um
-// comentário da Ana e é o cliente do processo judicial; não há anotações. Quem está logado é o Mateus (administrador).
+// comentário da Ana e é o cliente do processo judicial; não há anotações. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 
