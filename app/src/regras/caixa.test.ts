@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { Lancamento } from '../dados/tipos';
 import {
   centavosNoCampo, contaNova, dadosDaConta, dadosDaTransferencia, dadosDoLancamento, descricaoDoRepasse, diasDoMes, errosDaConta, errosDaTransferencia, errosDoLancamento, fmtCentavos, formDoLancamento, lancamentoNovo, mesDe, mesDoCaixa, mesValido,
-  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste, type FormDoLancamento } from './caixa';
+  nomeDaCategoria, paraCentavos, transferenciaNova, valorNoAjuste, valorNoHistorico, categoriasDoFormulario, ehAjuste, rotuloDaCategoria, textoDosAjustes, valorDoAjuste,
+  CONTA_COM_LANCAMENTOS, CONTA_COM_REPASSES, CONTA_NAO_ARQUIVADA, motivoParaNaoExcluirConta, type FormDoLancamento } from './caixa';
 import { normal } from './texto';
 
 const HOJE = '2026-11-10';
@@ -350,5 +351,25 @@ describe('A correção de recebimento', () => {
   it('dado uma correção já lançada, quando abre para mudar, então a categoria dela continua na lista', () => {
     // Então
     expect(categoriasDoFormulario('correcao_recebimento')).toContain('correcao_recebimento');
+  });
+});
+
+describe('Excluir uma conta (#347)', () => {
+  const ARQUIVADA_VAZIA = { arquivada: true, temLancamentos: false, temRepasses: false };
+  it('quando a conta está arquivada e nunca teve lançamento nem repasse, então pode ser excluída', () => {
+    // Dado / Quando / Então
+    expect(motivoParaNaoExcluirConta(ARQUIVADA_VAZIA)).toBeNull();
+  });
+  it('quando a conta está ativa, então pede para arquivar antes, mesmo sem lançamentos', () => {
+    // Dado / Quando / Então
+    expect(motivoParaNaoExcluirConta({ ...ARQUIVADA_VAZIA, arquivada: false, temLancamentos: true })).toBe(CONTA_NAO_ARQUIVADA);
+  });
+  it('quando a arquivada tem lançamentos, então explica que não pode enquanto os tiver', () => {
+    // Dado / Quando / Então
+    expect(motivoParaNaoExcluirConta({ ...ARQUIVADA_VAZIA, temLancamentos: true, temRepasses: true })).toBe(CONTA_COM_LANCAMENTOS);
+  });
+  it('quando a arquivada só tem repasses ligados, então explica os repasses', () => {
+    // Dado / Quando / Então
+    expect(motivoParaNaoExcluirConta({ ...ARQUIVADA_VAZIA, temRepasses: true })).toBe(CONTA_COM_REPASSES);
   });
 });

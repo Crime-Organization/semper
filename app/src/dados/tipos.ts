@@ -1801,6 +1801,10 @@ export interface DadosFinanceiro {
   financeiroContas(): Promise<ContaFinanceira[]>;
   financeiroContaCriar(dados: DadosConta): Promise<ContaFinanceira>;
   financeiroContaAtualizar(id: string, dados: Partial<DadosConta & Pick<ContaFinanceira, 'arquivada_em'>>): Promise<void>;
+  /** Só a arquivada que nunca teve lançamento (nem excluído) e a que nenhum repasse do caixa usa; senão recusa, explicando por quê (#347). */
+  financeiroContaExcluir(id: string): Promise<void>;
+  /** As contas arquivadas que têm lançamentos, mesmo excluídos: não podem ser excluídas, e a tela explica em vez de oferecer a lixeira. */
+  financeiroArquivadasComLancamentos(): Promise<string[]>;
   /** De um mês, sem os excluídos. */
   financeiroLancamentos(contaId: string, de: string, ate: string): Promise<Lancamento[]>;
   /** Os ajustes de saldo de todas as contas, sem os excluídos, dos mais novos aos mais antigos: é o que se confere na auditoria. */

@@ -13,6 +13,7 @@ import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
+import { CONTA_COM_LANCAMENTOS, CONTA_NAO_ARQUIVADA } from '../regras/caixa';
 import { DIA, MINUTO } from '../ui/tempos';
 import { ITENS_POR_LISTA } from '../regras/painelProcessos';
 import { hojeISO } from '../ui/util';
@@ -3476,6 +3477,29 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         const arquivada = lancar(id);
         // Então
         await expect(arquivada).rejects.toThrow('Esta conta está arquivada.');
+      });
+
+      it('quando exclui uma conta, então só a arquivada que nunca teve lançamento sai; as outras são recusadas com o motivo (#347)', async () => {
+        // Dado: uma ativa, uma arquivada sem nada e uma arquivada com um lançamento já excluído
+        const ativa = await novaConta(), vazia = await novaConta(), comLancamento = await novaConta();
+        const l = await lancar(comLancamento.id);
+        await SD.financeiroLancamentoExcluir(l.id);
+        for (const c of [vazia, comLancamento]) await SD.financeiroContaAtualizar(c.id, { arquivada_em: new Date().toISOString() });
+        // Quando
+        const arquivadasComLancamentos = await SD.financeiroArquivadasComLancamentos();
+        // Então: só a arquivada com lançamento (a ativa não entra)
+        expect(arquivadasComLancamentos).toContain(comLancamento.id);
+        expect(arquivadasComLancamentos).not.toContain(vazia.id);
+        expect(arquivadasComLancamentos).not.toContain(ativa.id);
+        // Quando / Então: a ativa e a com lançamento são recusadas, com o motivo
+        await expect(SD.financeiroContaExcluir(ativa.id)).rejects.toThrow(CONTA_NAO_ARQUIVADA);
+        await expect(SD.financeiroContaExcluir(comLancamento.id)).rejects.toThrow(CONTA_COM_LANCAMENTOS);
+        // Quando
+        await SD.financeiroContaExcluir(vazia.id);
+        // Então: a vazia sumiu; as outras continuam
+        const ids = (await SD.financeiroContas()).map(c => c.id);
+        expect(ids).not.toContain(vazia.id);
+        expect(ids).toEqual(expect.arrayContaining([ativa.id, comLancamento.id]));
       });
 
       it('quando o início da conta passaria de um lançamento, então é recusado; o lançamento excluído não conta, mas não volta antes do início', async () => {
