@@ -406,8 +406,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque. A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
-:root { --altura-do-campo: 44px }
+/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
+:root { --altura-do-campo: var(--alvo-de-toque) }
 .campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
 .campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
 .campo:focus, .campos input:focus, .campos select:focus, .campos textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
