@@ -412,7 +412,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-.campo, .campos input, .campos select, .campos textarea { width: 100%; height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
+/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
+:root { --altura-do-campo: var(--alvo-de-toque) }
+.campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
 .campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
 .campo:focus, .campos input:focus, .campos select:focus, .campos textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .campos label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text) }
@@ -1070,6 +1072,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* A situação com o botão Concluir ou Reabrir ao lado; em tela estreita, o botão desce para a linha de baixo. */
 .situacao-com-acao { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
 .situacao-com-acao select { flex: 1 1 12rem; min-width: 0 }
+/* A situação e o "Expandir tudo" das seções numa linha (#389): o menu (com o Concluir, na tarefa) ocupa o que sobra, e o botão fica
+   à direita, com o meio no eixo das setas das seções e do X (#381: a margem da direita de .secoes-todas, que o leva além da ponta
+   da linha). Pelo alto, com o botão no meio da altura do menu: quando o Concluir desce para a linha de baixo, o botão fica na do menu. */
+.situacao-linha { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao) }
+.situacao-linha > :not(.secoes-todas) { flex: 1 1 auto; min-width: 0 }
+.situacao-linha > .secoes-todas { flex-shrink: 0; margin-top: calc((var(--altura-do-campo) - var(--botao-redondo)) / 2); margin-bottom: 0 }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,

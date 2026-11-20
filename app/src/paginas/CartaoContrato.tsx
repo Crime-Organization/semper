@@ -19,7 +19,6 @@ import { ParcelasDoContrato } from './financeiro/Parcelas';
 import { chegouAoAssinado } from '../regras/parcelas';
 import './Financeiro.css';
 import { EquipeDoContratoNoTopo } from './EquipeDoContratoNoTopo';
-import { Icone } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -33,6 +32,7 @@ import NovoContrato from './NovoContrato';
 import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContrato';
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -175,10 +175,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
         {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
       </FaixaDasDatas>
-      {!editando &&<section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+      {!editando && <SituacaoDoCartao>
         <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>

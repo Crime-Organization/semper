@@ -41,6 +41,7 @@ import { novoProcessoDaPessoa, ProcessosDaPessoa } from './ProcessosDaPessoa';
 import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
 import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 
 interface Props {
   id: string;
@@ -202,13 +203,12 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
       {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
       {/* A faixa das datas (#383, #385), a mesma dos outros cartões: com só a do cadastro, ela some (o rodapé já a mostra). */}
       <FaixaDasDatas criacao={{ rotulo: 'Cadastrada em', em: p.criado_em }} />
-      {!editando &&<section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Etapa do atendimento</h3>
+      {!editando && <SituacaoDoCartao titulo="Etapa do atendimento">
         <select aria-label="Etapa do atendimento" disabled={!!p.arquivado_em} value={p.etapa_id || ''} onChange={e => mudarEtapa(e.target.value)}>
           <option value="">{emCaixaAlta('Sem etapa')}</option>
           {quadro.colunas.map(c => <option key={c.id} value={c.id}>{emCaixaAlta(c.nome)}{c.oculta ? ' (oculta para você)' : ''}</option>)}
         </select>
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>

@@ -43,6 +43,7 @@ import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { TempoNaTarefa } from './TempoNaTarefa';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -198,8 +199,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         </DadoDoGrupo>
       </FaixaDasDatas>
       {podeAlterar && <TempoNaTarefa t={t} />}
-      {!editando && <section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+      {!editando && <SituacaoDoCartao>
         <div className="situacao-com-acao" ref={acaoDaSituacao}>
           <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
           {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
@@ -207,7 +207,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
             ? inicio && <Botao key="reabrir" forma="botao" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={16} />Reabrir</Botao>
             : fim && <Botao key="concluir" forma="botao" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={16} />Concluir</Botao>)}
         </div>
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>

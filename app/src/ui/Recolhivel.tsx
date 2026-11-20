@@ -4,7 +4,9 @@
 // na próxima vez. Toda seção tem ícone.
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
 // primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
-// só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma.
+// só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma. Quando o cartão
+// marca um lugar para ele (<LugarDoExpandirTudo>, na linha da Situação: veja ui/quadro/SituacaoDoCartao.tsx), o botão fica ali, e
+// não acima da primeira seção (#389).
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { BotaoLink, Contador, propsDaDica } from './base';
 import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
@@ -18,9 +20,14 @@ const TAMANHO_DA_SETA = 16;
 interface Inscricao {
   inscrever: (id: string, definir: (aberta: boolean) => void) => () => void;
   mudou: (id: string, aberta: boolean) => void;
+  /** Marca um lugar para o botão (o LugarDoExpandirTudo); devolve como desmarcar. */
+  marcarLugar: () => () => void;
 }
-/** O que o botão precisa: qual seção é a primeira, se estão todas abertas e como abrir ou fechar todas. */
-interface EstadoDoGrupo { primeira: string | null; todasAbertas: boolean; definirTodas: (aberta: boolean) => void }
+/**
+ * O que o botão precisa: qual seção é a primeira, se estão todas abertas e como abrir ou fechar todas. Com `temLugar`, o botão fica
+ * no lugar marcado, e não acima da primeira seção.
+ */
+interface EstadoDoGrupo { primeira: string | null; todasAbertas: boolean; temLugar: boolean; definirTodas: (aberta: boolean) => void }
 const InscricaoNoGrupo = createContext<Inscricao | null>(null);
 const EstadoDoGrupo = createContext<EstadoDoGrupo | null>(null);
 
@@ -32,6 +39,8 @@ const EstadoDoGrupo = createContext<EstadoDoGrupo | null>(null);
 export function GrupoDeSecoes({ proprio = true, children }: { proprio?: boolean; children: ReactNode }) {
   const inscricaoDeFora = useContext(InscricaoNoGrupo), estadoDeFora = useContext(EstadoDoGrupo);
   const secoes = useRef(new Map<string, { aberta: boolean; definir: (aberta: boolean) => void }>());
+  /** Quantos lugares para o botão estão marcados (um, no cartão com Situação; nenhum, nos outros). */
+  const lugares = useRef(0);
   // Cada inscrição ou mudança redesenha o grupo (o estado das seções fica na referência).
   const [, setVersao] = useState(0);
   const [inscricao] = useState<Inscricao>(() => ({
@@ -43,12 +52,18 @@ export function GrupoDeSecoes({ proprio = true, children }: { proprio?: boolean;
     mudou: (id, aberta) => {
       const s = secoes.current.get(id);
       if (s && s.aberta !== aberta) { s.aberta = aberta; setVersao(v => v + 1); }
+    },
+    marcarLugar: () => {
+      lugares.current++;
+      setVersao(v => v + 1);
+      return () => { lugares.current--; setVersao(v => v + 1); };
     }
   }));
   const todas = [...secoes.current.values()];
   const estado: EstadoDoGrupo = {
     primeira: secoes.current.keys().next().value ?? null,
     todasAbertas: todas.length > 0 && todas.every(s => s.aberta),
+    temLugar: lugares.current > 0,
     definirTodas: aberta => secoes.current.forEach(s => s.definir(aberta))
   };
   return <InscricaoNoGrupo.Provider value={proprio ? inscricao : inscricaoDeFora}>
@@ -69,6 +84,16 @@ function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
       <Icone nome={estado.todasAbertas ? 'recolher' : 'expandir'} tam={ICONE_DO_TOPO} />
     </button>
   </div>;
+}
+
+/**
+ * O lugar do botão "Expandir tudo" fora das seções (#389): na linha da Situação do cartão, à direita. Enquanto ele está na tela, o
+ * botão do grupo fica aqui, e não acima da primeira seção; sem seções no grupo (ou fora de um grupo), não desenha nada. Um por grupo.
+ */
+export function LugarDoExpandirTudo() {
+  const inscricao = useContext(InscricaoNoGrupo), estado = useContext(EstadoDoGrupo);
+  useEffect(() => inscricao?.marcarLugar(), [inscricao]);
+  return estado?.primeira ? <ExpandirTudo estado={estado} /> : null;
 }
 
 interface Props {
@@ -110,7 +135,7 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
     if (preferencia) salvarPreferencia(preferencia, !aberto);
   };
   return <>
-    {noGrupo && estado?.primeira === id && <ExpandirTudo estado={estado} />}
+    {noGrupo && estado?.primeira === id && !estado.temLugar && <ExpandirTudo estado={estado} />}
     <section className="bloco recolhivel">
       {/* Com o "+", ele fica entre o número e a seta (um link não pode ir dentro do botão): o resto da linha, até a
           seta, também abre e fecha a seção. */}

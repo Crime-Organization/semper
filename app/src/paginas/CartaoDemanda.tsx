@@ -20,7 +20,6 @@ import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/Edi
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { Icone } from '../ui/Icone';
 import { CriarNoCartao, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -41,6 +40,7 @@ import { TarefasDaDemanda } from './TarefasDaDemanda';
 import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
+import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -185,10 +185,9 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       </FaixaDasDatas>
       {/* Logo abaixo das datas, na faixa própria do tempo (#383): a soma do tempo de toda a equipe nas tarefas desta demanda. */}
       {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}
-      {!editando && <section className="bloco campos cartao-situacao">
-        <h3><Icone nome="kanban" tam={14} />Situação</h3>
+      {!editando && <SituacaoDoCartao>
         <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-      </section>}
+      </SituacaoDoCartao>}
     </header>
 
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
