@@ -15,7 +15,7 @@ import { falha } from '../avisos';
 import { ORDENS } from '../ordem';
 import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
 import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
-import { normal } from '../../regras/texto';
+import { emCaixaAlta, normal } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
 import { ordemNoFim } from './posicao';
 import { Campo, Carregando, estiloBotao, propsDoCampo } from '../base';
@@ -443,7 +443,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
           {quadro.grupos.length > 0 && <Campo rotulo="Grupo da coluna" para={idGrupoDaNova}>
             <select {...propsDoCampo(idGrupoDaNova)} className="campo" value={grupoDaNova} onChange={e => setGrupoDaNova(e.target.value)}>
               <option value="">Sem grupo</option>
-              {quadro.grupos.map(g => <option key={g.id} value={g.id}>{g.nome}</option>)}
+              {quadro.grupos.map(g => <option key={g.id} value={g.id}>{emCaixaAlta(g.nome)}</option>)}
             </select>
           </Campo>}
           <button type="submit" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={criando}>Criar coluna</button>
@@ -457,7 +457,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
         {ocultas.length > 0 && <div className="ocultas">
           <p className="rotulo-caps">Ocultas para você</p>
           {ocultas.map(c => <button key={c.id} type="button" className="chip-oculta" title="Mostrar de novo" onClick={() => quadro.ocultar(c, false)}>
-            <Icone nome="olho" tam={14} /> {c.nome}
+            <Icone nome="olho" tam={14} /> <span className="caixa-alta">{c.nome}</span>
           </button>)}
         </div>}
       </section>
@@ -493,7 +493,7 @@ function MenuColuna({ c, botao, quadro, aoFechar }: { c: Coluna | null; botao: H
       {[null, ...quadro.grupos].map(g => {
         const marcado = (c.grupo_id ?? null) === (g?.id ?? null);
         return <button key={g?.id ?? SEM_GRUPO} type="button" role="menuitemradio" aria-checked={marcado} onClick={agir(() => quadro.agrupar(c, g?.id ?? null))}>
-          <span className="kmenu-marca">{marcado && <Icone nome="check" tam={15} />}</span>{g?.nome ?? 'Sem grupo'}
+          <span className="kmenu-marca">{marcado && <Icone nome="check" tam={15} />}</span>{g ? <span className="caixa-alta">{g.nome}</span> : 'Sem grupo'}
         </button>;
       })}
     </>}

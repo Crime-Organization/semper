@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { nomeDoProcesso, PAPEIS_NO_PROCESSO, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
 import { cadastroComVolta } from '../regras/origemDoCadastro';
+import { situacaoDoItem } from '../regras/quadro';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados, type NovoLigado } from '../ui/ItensLigados';
 import { LigarAPessoa } from './PessoasNosItens';
@@ -37,7 +38,7 @@ export function ProcessosDaPessoa({ pessoaId, perfilId, versao = 0, somenteLer =
   }, []);
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
-  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO_PROCESSO;
+  const situacao = (etapa: string | null) => situacaoDoItem(colunas, etapa, SEM_SITUACAO_PROCESSO);
   return <>
     <ItensLigados vazio="Nenhum processo ligado a esta pessoa." itens={lista.map(p => ({
       id: p.id, para: TIPOS_PROCESSO[p.tipo].caminho + '?id=' + p.id, codigo: p.codigo, titulo: nomeDoProcesso(p), selo: p.arquivado_em ? 'Arquivado' : undefined,

@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacoesDoQuadro } from './quadro';
+import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacaoDoItem, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -254,7 +254,7 @@ describe('Situação do cartão com o grupo na frente (#302)', () => {
     // Quando
     const situacoes = situacoesDoQuadro(colunas, [aguardando]);
     // Então
-    expect(situacoes.map(x => x.rotulo)).toEqual(['Para fazer', 'Fazendo', 'AGUARDANDO: ANÁLISE', 'AGUARDANDO: PROTOCOLO', 'Concluída']);
+    expect(situacoes.map(x => x.rotulo)).toEqual(['PARA FAZER', 'FAZENDO', 'AGUARDANDO: ANÁLISE', 'AGUARDANDO: PROTOCOLO', 'CONCLUÍDA']);
     expect(situacoes.map(x => x.coluna.id)).toEqual(['fazer', 'fazendo', 'analise', 'protocolo', 'fim']);
   });
 
@@ -262,7 +262,7 @@ describe('Situação do cartão com o grupo na frente (#302)', () => {
     // Quando
     const situacoes = situacoesDoQuadro([coluna('solta', 'Solta', 1, 'grupo-apagado')], []);
     // Então
-    expect(situacoes.map(x => x.rotulo)).toEqual(['Solta']);
+    expect(situacoes.map(x => x.rotulo)).toEqual(['SOLTA']);
   });
 
   it('dado um grupo sem colunas, quando o menu é montado, então ele não vira opção', () => {
@@ -270,6 +270,50 @@ describe('Situação do cartão com o grupo na frente (#302)', () => {
     const situacoes = situacoesDoQuadro([coluna('a', 'A', 1)], [grupo('vazio', 'Vazio', 2)]);
     // Então
     expect(situacoes.map(x => x.rotulo)).toEqual(['A']);
+  });
+});
+
+describe('Nomes das situações em maiúsculas (#386)', () => {
+  const coluna = (id: string, nome: string, ordem: number, grupo_id: string | null = null) => ({ id, nome, ordem, grupo_id });
+
+  it('dada uma coluna "Para fazer" no grupo "Aguardando", quando o menu Situação é montado, então a opção sai "AGUARDANDO: PARA FAZER"', () => {
+    // Dado
+    const aguardando = { id: 'g', nome: 'Aguardando', ordem: 1, comeca_fechado: false };
+    // Quando
+    const situacoes = situacoesDoQuadro([coluna('fazer', 'Para fazer', 1, 'g')], [aguardando]);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['AGUARDANDO: PARA FAZER']);
+  });
+
+  it('dada uma coluna com acento, quando a situação aparece, então os acentos ficam ("análise" sai "ANÁLISE")', () => {
+    // Quando
+    const situacoes = situacoesDoQuadro([coluna('a', 'análise', 1)], []);
+    // Então
+    expect(situacoes.map(x => x.rotulo)).toEqual(['ANÁLISE']);
+  });
+
+  it('dada uma coluna em caixa mista, quando a situação aparece, então o nome guardado da coluna continua como foi digitado', () => {
+    // Dado
+    const colunas = [coluna('a', 'Em análise', 1)];
+    // Quando
+    const [situacao] = situacoesDoQuadro(colunas, []);
+    // Então
+    expect(situacao.rotulo).toBe('EM ANÁLISE');
+    expect(situacao.coluna.nome).toBe('Em análise');
+  });
+
+  describe('Dado um item ligado', () => {
+    const COLUNAS = [{ id: 'c1', nome: 'Em análise' }];
+    it.each([
+      ['numa coluna do quadro', 'c1', 'EM ANÁLISE'],
+      ['fora do quadro', null, 'SEM SITUAÇÃO'],
+      ['numa coluna que não existe mais', 'apagada', 'SEM SITUAÇÃO']
+    ])('quando ele está %s, então a situação na seção do cartão sai "%s"', (_caso, etapa, esperado) => {
+      // Quando
+      const situacao = situacaoDoItem(COLUNAS, etapa, 'Sem situação');
+      // Então
+      expect(situacao).toBe(esperado);
+    });
   });
 });
 

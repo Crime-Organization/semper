@@ -9,6 +9,7 @@ import { clientesPorExtenso } from '../regras/contrato';
 import { SEM_FASE } from '../regras/painelProcessos';
 import { soLeOCartao } from '../regras/equipeVeTudo';
 import { alteraOProcesso, nomeDoProcesso, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO } from '../regras/processo';
+import { emCaixaAlta } from '../regras/texto';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
@@ -165,7 +166,7 @@ export default function Processos({ tipo }: { tipo: TipoProcesso }) {
         ...(orgaosDoFiltro.length ? [{ id: 'orgao', rotulo: 'Órgão', valor: f.orgao || '', aoMudar: (o: string) => mudarFiltro({ orgao: o }),
           opcoes: [['', 'Todos os órgãos'], ...orgaosDoFiltro.map(o => [o, o] as [string, string])] as [string, string][] }] : []),
         { id: 'etapa', rotulo: 'Situação', valor: f.etapa || '', aoMudar: (e: string) => setParams(p => { if (e) p.set('etapa', e); else p.delete('etapa'); return p; }),
-          opcoes: [['', 'Todas as situações'], ...quadro.colunas.map(c => [c.id, c.nome] as [string, string]), [SEM_FASE, SEM_SITUACAO_PROCESSO]] as [string, string][] },
+          opcoes: [['', 'Todas as situações'], ...quadro.colunas.map(c => [c.id, emCaixaAlta(c.nome)] as [string, string]), [SEM_FASE, emCaixaAlta(SEM_SITUACAO_PROCESSO)]] as [string, string][] },
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, e => mudarFiltro({ etiqueta: e }))
       ]}
       ordem={visao === 'tabela' ? ordenacao : undefined}

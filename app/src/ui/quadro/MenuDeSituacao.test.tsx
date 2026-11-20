@@ -17,12 +17,12 @@ function montar(aoMudar = vi.fn(), valor: string | null = 'analise') {
 }
 
 describe('Menu "Situação" do cartão (#302)', () => {
-  it('dado um quadro com um grupo, quando a pessoa abre o menu, então as colunas do grupo vêm com o nome dele na frente, na ordem do quadro', () => {
+  it('dado um quadro com um grupo, quando a pessoa abre o menu, então as colunas do grupo vêm com o nome dele na frente, na ordem do quadro e em maiúsculas (#386)', () => {
     // Quando
     const menu = montar();
     // Então
     expect(within(menu).getAllByRole('option').map(o => o.textContent)).toEqual([
-      'Sem situação', 'Para fazer', 'AGUARDANDO: ANÁLISE', 'AGUARDANDO: Velha (oculta para você)', 'Concluída'
+      'SEM SITUAÇÃO', 'PARA FAZER', 'AGUARDANDO: ANÁLISE', 'AGUARDANDO: VELHA (oculta para você)', 'CONCLUÍDA'
     ]);
   });
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SD, type Coluna, type CompromissoLigado } from '../dados';
 import { detalheDoLigado, nomeDoCompromisso, SEM_SITUACAO_COMPROMISSO, TIPOS_COMPROMISSO } from '../regras/compromisso';
+import { situacaoDoItem } from '../regras/quadro';
 import { Aviso, Carregando } from '../ui/base';
 import { ItensLigados } from '../ui/ItensLigados';
 
@@ -24,7 +25,7 @@ export function CompromissosLigados({ carregar, vazio, novo }: Props) {
   }, [leitura]);
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
-  const situacao = (etapa: string | null) => colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO_COMPROMISSO;
+  const situacao = (etapa: string | null) => situacaoDoItem(colunas, etapa, SEM_SITUACAO_COMPROMISSO);
   return <>
     <ItensLigados vazio={vazio} novo={novo} itens={lista.map(c => ({
       id: c.id, para: '/agenda/?id=' + c.id, codigo: `${TIPOS_COMPROMISSO[c.tipo].nome} · ${c.codigo}`, titulo: nomeDoCompromisso(c), selo: c.arquivado_em ? 'Arquivado' : undefined,

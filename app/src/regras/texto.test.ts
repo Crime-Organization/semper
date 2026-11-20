@@ -1,6 +1,28 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { normal, semAcento, sugestoesQueCombinam } from './texto';
+import { emCaixaAlta, normal, semAcento, sugestoesQueCombinam } from './texto';
+
+describe('Nomes em maiúsculas (#386)', () => {
+  it.each([
+    ['análise', 'ANÁLISE'],
+    ['Para fazer', 'PARA FAZER'],
+    ['ação em curso', 'AÇÃO EM CURSO'],
+    ['Aguardando: protocolo nº 2', 'AGUARDANDO: PROTOCOLO Nº 2'],
+    ['JÁ EM MAIÚSCULAS', 'JÁ EM MAIÚSCULAS']
+  ])('dado o nome "%s", quando aparece em maiúsculas, então sai "%s", com os acentos', (nome, esperado) => {
+    // Quando
+    const mostrado = emCaixaAlta(nome);
+    // Então
+    expect(mostrado).toBe(esperado);
+  });
+
+  it('dado um nome com espaços, quando aparece em maiúsculas, então os espaços ficam como estão', () => {
+    // Quando
+    const mostrado = emCaixaAlta(' em  análise ');
+    // Então
+    expect(mostrado).toBe(' EM  ANÁLISE ');
+  });
+});
 
 describe('Busca sem acento', () => {
   it.each([

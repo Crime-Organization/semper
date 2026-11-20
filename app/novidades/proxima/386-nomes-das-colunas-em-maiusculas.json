@@ -1,0 +1,5 @@
+{
+  "titulo": "Nomes das colunas e dos grupos sempre em maiúsculas",
+  "texto": "As colunas e os grupos de colunas aparecem em maiúsculas em todo lugar: no quadro (também no grupo recolhido), na coluna Situação das tabelas, no menu Situação dos cartões, no filtro de situações e nos itens ligados. O nome guardado não muda: ao renomear, ele aparece como foi digitado.",
+  "ondeAchar": "Abra o quadro de qualquer módulo, ou um cartão e o menu Situação (na pessoa, Etapa do atendimento)."
+}

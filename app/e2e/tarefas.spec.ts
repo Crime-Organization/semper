@@ -86,7 +86,7 @@ test.describe('Cadastro de tarefas', () => {
     await abrirSecao(cartao, 'Demanda');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toBeVisible();
     await expect(cartao.getByRole('link', { name: /Notificar o devedor/ })).toContainText('Demanda');
-    await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('Para fazer');
+    await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('PARA FAZER');
   });
 
   test('quando falta o título, então a etapa avisa e não segue', async ({ page }) => {
@@ -179,14 +179,14 @@ test.describe('Quadro de tarefas', () => {
     // Quando
     await page.getByRole('button', { name: 'Tabela' }).click();
     // Então
-    await expect(page.getByRole('row').filter({ hasText: 'Renovar a procuração' })).toContainText('Para fazer');
-    await expect(page.getByRole('row').filter({ hasText: 'Emitir a GRU' })).toContainText('Fazendo');
+    await expect(page.getByRole('row').filter({ hasText: 'Renovar a procuração' })).toContainText('PARA FAZER');
+    await expect(page.getByRole('row').filter({ hasText: 'Emitir a GRU' })).toContainText('FAZENDO');
   });
 
   test('quando a última tarefa da demanda é arrastada para "Concluída", então o sistema oferece concluir a demanda, e só move com o aceite', async ({ page }) => {
     // Dado: "Organizar a pasta" já está concluída; falta "Pedir documentos ao cliente", que vai pelo cartão
     const cartao = await abrirTarefa(page, 'Pedir documentos ao cliente');
-    await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'Concluída' });
+    await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'CONCLUÍDA' });
     await expect(page.getByRole('dialog', { name: 'Concluir a demanda?' })).toHaveCount(0);
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     await page.getByRole('button', { name: 'Kanban' }).click();
@@ -572,7 +572,7 @@ test.describe('Tarefas ligadas', () => {
     const tarefas = page.getByRole('dialog').getByRole('region', { name: 'Tarefas da demanda' });
     await abrirSecao(page.getByRole('dialog'), 'Tarefas');
     await expect(tarefas).toContainText('1 de 3 concluídas');
-    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toContainText('Fazendo');
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toContainText('FAZENDO');
     await expect(tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' })).toBeChecked();
     // O nome é o link que abre a tarefa (#298)
     await expect(tarefas.getByRole('link', { name: 'Emitir a GRU', exact: true })).toHaveAttribute('href', /\/tarefas\/\?id=/);
@@ -613,7 +613,7 @@ test.describe('Tarefas ligadas', () => {
     await page.getByRole('dialog', { name: 'Concluir a demanda?' }).getByRole('button', { name: 'Concluir a demanda' }).click();
     // Então
     await expect(tarefas).toContainText('3 de 3 concluídas');
-    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Concluído');
+    await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('CONCLUÍDO');
     await page.goto('/tarefas/');
     await page.getByRole('button', { name: 'Kanban' }).click();
     await expect(page.getByRole('list', { name: 'Concluída', exact: true }).getByRole('listitem').filter({ hasText: 'Emitir a GRU' })).toBeVisible();
@@ -629,7 +629,7 @@ test.describe('Tarefas ligadas', () => {
     // Quando
     await tarefas.getByRole('checkbox', { name: 'Concluir Organizar a pasta' }).uncheck();
     // Então
-    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Organizar a pasta' })).toContainText('Para fazer');
+    await expect(tarefas.getByRole('listitem').filter({ hasText: 'Organizar a pasta' })).toContainText('PARA FAZER');
     await expect(page.getByText('Organizar a pasta voltou para "Para fazer".')).toBeVisible();
   });
 
@@ -749,7 +749,7 @@ test.describe('Concluir a tarefa', () => {
     await expect(page.getByRole('list', { name: 'Feitas', exact: true })).toBeVisible();
     // Quando
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'Feitas' });
+    await cartao.getByLabel('Situação da tarefa').selectOption({ label: 'FEITAS' });
     // Então
     await expect(cartao.getByText(/^Concluída · Prazo: /)).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeVisible();
@@ -776,7 +776,7 @@ test.describe('Concluir a tarefa', () => {
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
     // Então
     await expect(cartao.getByText(/^Prazo vencido: /)).toBeVisible();
-    await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('Para fazer');
+    await expect(cartao.getByLabel('Situação da tarefa').getByRole('option', { selected: true })).toHaveText('PARA FAZER');
   });
 
   test('dada a última tarefa aberta de uma demanda, quando a pessoa clica em "Concluir", então o sistema oferece concluir a demanda', async ({ page }) => {
@@ -831,7 +831,7 @@ test.describe('Prazo de cartão concluído nas listas', () => {
     await abrirSecao(cartao, 'Tarefas');
     // Então
     const linha = cartao.getByRole('link', { name: /Renovar a procuração/ });
-    await expect(linha).toContainText('Concluída · Prazo: ');
+    await expect(linha).toContainText('CONCLUÍDA · Prazo: ');
     await expect(linha).not.toContainText('vencido');
   });
 });

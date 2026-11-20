@@ -85,6 +85,8 @@
   --texto-titulo-da-novidade: 16px;
   /* O título da anotação aberta em Documentos, grande como o de uma nota do Obsidian (entre o do painel e o da página) */
   --texto-titulo-da-nota: clamp(26px, 1.6vw + 14px, 34px);
+  /* O espaço entre as letras dos nomes de coluna e de grupo do quadro, que aparecem em maiúsculas (#386) */
+  --espaco-dos-nomes-do-quadro: .1em;
   /* A espera da dica das bolinhas da equipe ao passar o mouse (como a do navegador); no foco do teclado, ela aparece na hora */
   --espera-da-dica: .4s;
   /* A largura máxima da dica das bolinhas: um nome comprido quebra em duas linhas, sem atravessar o cartão */
@@ -645,7 +647,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .coluna-marco-selo { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border-radius: 999px; background: var(--accent); color: var(--on-accent) }
 .kmenu-nota { margin: 0; padding: 6px 12px 8px; max-width: 260px; font-size: 12px; line-height: 1.45; color: var(--muted) }
 .coluna-topo { display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 14px; flex-shrink: 0 }
-.coluna-topo h3 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.coluna-topo h3 { margin: 0; flex: 1; min-width: 0; font-size: 12px; font-weight: 900; letter-spacing: var(--espaco-dos-nomes-do-quadro); text-transform: uppercase; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .coluna-n { font-size: 12px; font-weight: 700; color: var(--muted); padding: 1px 8px; border-radius: 999px; background: var(--superficie); border: 1px solid var(--line) }
 .coluna-menu { width: 28px; height: 28px; border-radius: 6px; border: 0; background: transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center }
 .coluna-menu:hover { background: var(--line) }
@@ -684,6 +686,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .grupo-colunas { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; max-height: 100%; padding: 8px; border: 1px solid var(--line2); border-radius: 14px }
 .grupo-topo { display: flex; align-items: center; gap: 8px; flex-shrink: 0 }
 .grupo-abrir { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font-size: 13px; font-weight: 900; cursor: pointer; text-align: left }
+/* O nome do grupo, aberto ou fechado, em maiúsculas como o das colunas (#386); o texto guardado não muda. */
+.grupo-abrir span, .grupo-faixa-nome { letter-spacing: var(--espaco-dos-nomes-do-quadro); text-transform: uppercase }
 .grupo-abrir span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .grupo-abrir:hover, .grupo-faixa:hover { background: var(--line) }
 .grupo-lista { flex: 1; min-height: 0; display: flex; gap: 12px; align-items: stretch }

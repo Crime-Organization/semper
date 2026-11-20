@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { SD, type Coluna, type ProcessoLigado } from '../dados';
 import { plural } from './importarPessoas/textos';
 import { cabeOutroProcesso, SEM_SITUACAO_PROCESSO, TIPOS, TIPOS_PROCESSO } from '../regras/processo';
+import { situacaoDoItem } from '../regras/quadro';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { nomeDoEscolhido, type ProcessoEscolhido } from '../ui/EscolhaDeProcessos';
@@ -56,7 +57,7 @@ export function ProcessosDoCartao({ carregar, versao, somenteLer, ligar, desliga
   if (lista === null) return <Carregando />;
   if (typeof lista === 'string') return <Aviso tipo="erro">{lista}</Aviso>;
 
-  const situacao = (etapa: string | null | undefined) => etapa === undefined ? null : colunas.find(c => c.id === etapa)?.nome || SEM_SITUACAO_PROCESSO;
+  const situacao = (etapa: string | null | undefined) => etapa === undefined ? null : situacaoDoItem(colunas, etapa, SEM_SITUACAO_PROCESSO);
   const nome = nomeDoEscolhido;
 
   async function aoLigar(id: string) {

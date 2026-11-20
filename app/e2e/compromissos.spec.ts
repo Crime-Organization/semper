@@ -320,12 +320,12 @@ test.describe('Quadro e cartão', () => {
     await agenda(page).getByRole('link', { name: /Reunião de equipe/ }).click();
     const cartao = page.getByRole('dialog');
     // Quando
-    await cartao.getByLabel('Situação do compromisso').selectOption({ label: 'Realizado' });
+    await cartao.getByLabel('Situação do compromisso').selectOption({ label: 'REALIZADO' });
     await abrirSecao(cartao, 'Histórico de alterações');
     // Então
     await expect(cartao).toContainText('Realizado');
     await page.getByRole('button', { name: 'Fechar' }).click();
-    await expect(agenda(page).getByRole('link', { name: /Reunião de equipe/ })).toContainText('Realizado');
+    await expect(agenda(page).getByRole('link', { name: /Reunião de equipe/ })).toContainText('REALIZADO');
   });
 
   test('quando a pessoa edita pelo lápis e registra o resultado, então o cartão mostra', async ({ page }) => {

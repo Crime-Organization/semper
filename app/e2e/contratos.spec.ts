@@ -390,7 +390,7 @@ test.describe('Contrato salvo', () => {
     // Quando
     await page.getByRole('combobox', { name: 'Advogado responsável' }).selectOption({ label: 'Ana Teste Lima' });
     await page.getByRole('dialog').getByRole('button', { name: 'Salvar', exact: true }).click();
-    await page.getByRole('dialog').getByLabel('Situação do contrato').selectOption({ label: 'Encerrado' });
+    await page.getByRole('dialog').getByLabel('Situação do contrato').selectOption({ label: 'ENCERRADO' });
     // Então
     const cartao = page.getByRole('dialog');
     await expect(cartao).toContainText(`MA96-0001-${ANO}`);
@@ -452,7 +452,7 @@ test.describe('Contratos no cartão da pessoa', () => {
     await expect(cartao.getByRole('button', { name: /Contratos/ })).toContainText('1');
     await abrirSecao(cartao, 'Contratos');
     const contrato = cartao.getByRole('link', { name: new RegExp(`MA96-0001-${ANO}`) });
-    await expect(contrato).toContainText('Cliente · Assinado / em andamento');
+    await expect(contrato).toContainText('Cliente · ASSINADO / EM ANDAMENTO');
     await contrato.click();
     // Então
     await expect(page).toHaveURL(/\/contratos\/\?id=/);

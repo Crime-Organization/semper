@@ -157,7 +157,7 @@ test.describe('Parcelas do contrato', () => {
     await expect(cartao.getByText('Elas nascem quando o contrato chega à coluna de assinado.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);
     // Quando
-    await cartao.getByLabel('Situação do contrato').selectOption({ label: 'Assinado / em andamento' });
+    await cartao.getByLabel('Situação do contrato').selectOption({ label: 'ASSINADO / EM ANDAMENTO' });
     // Então
     await expect(cartao.getByRole('button', { name: 'Receber a parcela 5' })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Gerar parcelas' })).toHaveCount(0);

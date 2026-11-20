@@ -5,6 +5,12 @@ export const semAcento = (t: string) => t.normalize('NFD').replace(/[\u0300-\u03
 export const normal = (t: unknown) => semAcento(String(t || '').trim());
 
 /**
+ * O texto em maiúsculas, com os acentos do português ("análise" vira "ANÁLISE"). Serve para mostrar os nomes das colunas e dos
+ * grupos do quadro (#386): o nome guardado continua como a pessoa digitou; só o que aparece na tela muda.
+ */
+export const emCaixaAlta = (t: string) => t.toLocaleUpperCase('pt-BR');
+
+/**
  * As sugestões que combinam com o texto digitado, sem acento nem maiúscula fazer diferença: primeiro as que começam por
  * ele, depois as que o contêm. A que já é igual ao texto não aparece (já está escrita).
  */
