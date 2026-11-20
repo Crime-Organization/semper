@@ -198,6 +198,18 @@ describe('Colunas fora da tela (#87)', () => {
     // Então
     expect(ladosAcesos(quadro)).toEqual({ esquerda: true, direita: false });
   });
+
+  it('dado um quadro com a barra de rolagem de lado à mostra, quando ele aparece, então o degradê para acima dela, sem esconder as setas', async () => {
+    // Dado: a área tem 380px de altura, 17 deles na barra de rolagem
+    montar(false, []);
+    const quadro = await screen.findByRole('region', { name: 'Quadro' });
+    Object.defineProperty(quadro, 'offsetHeight', { configurable: true, value: 380 });
+    Object.defineProperty(quadro, 'clientHeight', { configurable: true, value: 363 });
+    // Quando
+    rolar(quadro, 0, 2000, 1200);
+    // Então
+    expect(quadro.parentElement!.style.getPropertyValue('--barra-do-quadro')).toBe('17px');
+  });
 });
 
 describe('Nome da coluna inteiro (#352)', () => {

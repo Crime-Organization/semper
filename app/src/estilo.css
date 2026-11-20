@@ -651,14 +651,18 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .paginacao { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted) }
 
 /* ---------- quadro kanban ---------- */
-.quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth }
-/* Colunas fora da tela (#87): o degradê da borda, da cor do fundo da página (muda com o tema), mostra que o quadro continua
-   daquele lado. Acende à direita enquanto há o que rolar e à esquerda depois de rolar (ui/quadro/useMaisNosLados.ts); com
-   tudo cabendo, nenhum. Fica por cima das colunas sem pegar o clique. */
+.quadro { display: flex; gap: 12px; align-items: stretch; overflow-x: auto; overflow-y: hidden; padding-bottom: 8px; min-height: 360px; scroll-behavior: smooth;
+  /* O que recebe o foco pelo teclado (ou é levado à vista) para fora da faixa do degradê, e não embaixo dele (#87) */
+  scroll-padding-inline: var(--largura-do-degrade-do-quadro) }
+/* Colunas fora da tela (#87): o degradê da borda, da cor do fundo da página (muda com o tema), esmaece as colunas daquele lado,
+   e um fio {colors.line2} na própria borda mostra que o quadro continua, mesmo quando por baixo só há o fundo (o vão entre as
+   colunas, "Arquivados", "Nova coluna"). Acende à direita enquanto há o que rolar e à esquerda depois de rolar
+   (ui/quadro/useMaisNosLados.ts); com tudo cabendo, nenhum. Fica por cima das colunas sem pegar o clique e para acima da barra
+   de rolagem de lado (--barra-do-quadro, a altura dela, medida pelo mesmo gancho), para não esconder as setas dela. */
 .area-quadro { position: relative }
-.area-quadro::before, .area-quadro::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: 0; width: var(--largura-do-degrade-do-quadro); pointer-events: none; opacity: 0; transition: opacity var(--tempo-do-degrade-do-quadro) ease-out }
-.area-quadro::before { left: 0; background: linear-gradient(to right, var(--bg), transparent) }
-.area-quadro::after { right: 0; background: linear-gradient(to left, var(--bg), transparent) }
+.area-quadro::before, .area-quadro::after { content: ""; position: absolute; z-index: 1; top: 0; bottom: var(--barra-do-quadro, 0); width: var(--largura-do-degrade-do-quadro); pointer-events: none; opacity: 0; transition: opacity var(--tempo-do-degrade-do-quadro) ease-out }
+.area-quadro::before { left: 0; border-left: 1px solid var(--line2); background: linear-gradient(to right, var(--bg), transparent) }
+.area-quadro::after { right: 0; border-right: 1px solid var(--line2); background: linear-gradient(to left, var(--bg), transparent) }
 .area-quadro[data-mais-a-esquerda]::before, .area-quadro[data-mais-a-direita]::after { opacity: 1 }
 @media (prefers-reduced-motion: reduce) { .area-quadro::before, .area-quadro::after { transition: none } }
 .coluna { flex: 0 0 284px; display: flex; flex-direction: column; max-height: 100%; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; min-width: 0 }

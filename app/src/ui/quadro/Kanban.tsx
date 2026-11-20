@@ -5,7 +5,7 @@
 // ficar em grupos que abrem e fecham; fechado, o grupo vira uma faixa com o nome e a quantidade de cartões. No topo do
 // quadro, colunas sem grupo e grupos ficam numa fila só: o grupo pode ir para entre colunas sem grupo, e a coluna sem grupo
 // para qualquer lado de um grupo. A coluna de um grupo anda só dentro dele.
-import { Fragment, useCallback, useEffect, useId, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react';
 import type { Coluna, GrupoDeColunas, Ordem, OrdemComPrazo, Pagina } from '../../dados';
 import { cliquesQueAbrem } from '../abrirItem';
 import { CampoComSugestoes } from '../CampoComSugestoes';
@@ -416,7 +416,8 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
   if (!quadro.pronto) return <div className="area-quadro"><Carregando /></div>;
 
   const existentes = new Set(quadro.colunas.map(c => normal(c.nome)));
-  return <div className="area-quadro" data-mais-a-esquerda={lados.esquerda || undefined} data-mais-a-direita={lados.direita || undefined}>
+  return <div className="area-quadro" data-mais-a-esquerda={lados.esquerda || undefined} data-mais-a-direita={lados.direita || undefined}
+    style={{ '--barra-do-quadro': lados.barra + 'px' } as CSSProperties}>
     <div className="quadro" role="region" aria-label="Quadro" ref={refDoQuadro}
       onDragOver={e => {
         if (grupoArrasto.current || (colArrasto.current && noTopo(colArrasto.current))) {
