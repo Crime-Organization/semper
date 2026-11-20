@@ -9,8 +9,7 @@ import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDin
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, Vazio } from '../ui/base';
-import { dataDaCriacao } from '../regras/dataDeInicio';
+import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -171,11 +170,11 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => setEditando(true) } : undefined} />
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
-          valores do contrato também não vê a assinatura, como antes. */}
-      <GrupoDeDatas rotulo="Datas">
-        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(k.criado_em)}</b></DadoDoGrupo>
+          valores do contrato também não vê a assinatura, como antes, e aí a faixa some (#385): sobraria só a criação, que o
+          rodapé já mostra. */}
+      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
         {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
-      </GrupoDeDatas>
+      </FaixaDasDatas>
       {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />

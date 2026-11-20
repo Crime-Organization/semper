@@ -1,0 +1,5 @@
+{
+  "titulo": "Cabeçalho dos cartões mais limpo",
+  "texto": "A faixa de datas abaixo do título só aparece quando tem mais de uma data: nas pessoas, nos processos e nas anotações, a criação fica só no rodapé do cartão. Na demanda e na tarefa, o botão \"Mudar a descrição\" saiu: clique no texto para mudá-lo (pelo teclado, chegue ao texto com Tab e tecle Enter). E ficou mais espaço entre o título e a descrição.",
+  "ondeAchar": "Abra qualquer cartão: a criação aparece no rodapé, \"Criada em … por …\". Na demanda e na tarefa, clique na descrição, logo abaixo do título."
+}

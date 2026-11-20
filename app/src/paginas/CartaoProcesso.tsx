@@ -20,8 +20,7 @@ import {
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
-import { dataDaCriacao } from '../regras/dataDeInicio';
+import { Aviso, Carregando, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
@@ -188,10 +187,9 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />
       <p className="demanda-descricao">{p.numero}</p>
-      {/* A faixa das datas (#383), a mesma dos outros cartões: a criação do cartão (a distribuição fica nos dados do processo). */}
-      <GrupoDeDatas rotulo="Datas">
-        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(p.criado_em)}</b></DadoDoGrupo>
-      </GrupoDeDatas>
+      {/* A faixa das datas (#383, #385), a mesma dos outros cartões: só com a criação, ela some (o rodapé já a mostra; a
+          distribuição fica nos dados do processo). */}
+      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: p.criado_em }} />
       {!editando &&<section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />

@@ -364,8 +364,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     // Então
     await expect(caixa).toHaveCount(0);
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
-    // Quando: Salvar grava
-    await cartao.getByRole('button', { name: 'Mudar a descrição' }).click();
+    // Quando: Salvar grava (desde a #385, sem o botão "Mudar a descrição": o clique no texto abre a edição)
+    await cartao.getByText('A procuração vence este mês.').click();
     await caixa.fill('A procuração vence **este mês**.');
     await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
     // Então
@@ -382,7 +382,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
   test('dada a descrição mudada e não salva, quando a pessoa fecha o cartão, então o SEMPER pergunta antes', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await cartao.getByRole('button', { name: 'Mudar a descrição' }).click();
+    await cartao.getByText('A procuração vence este mês.').click();
     await cartao.getByRole('textbox', { name: 'Descrição' }).fill('Uma ideia que não pode se perder.');
     // Quando
     await cartao.getByRole('button', { name: 'Fechar' }).click();
@@ -438,6 +438,47 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Renovar a procuração', exact: true })).toHaveCount(0);
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
+    // E o texto não recebe o foco do teclado, como o de quem pode mudar (#385)
+    await expect(cartao.getByRole('group', { name: 'Descrição', exact: true })).toHaveCount(0);
+  });
+});
+
+test.describe('A descrição no topo do cartão (#385)', () => {
+  test('dada uma tarefa com descrição, quando o cartão abre, então não há botão "Mudar a descrição" e há um espaço maior entre o título e a descrição', async ({ page }) => {
+    // Quando
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    // Então
+    await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
+    // E o vão entre o título e o texto da descrição é, no mínimo, a medida da variável de estilo
+    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-do-titulo-a-descricao')));
+    expect(vao).toBeGreaterThan(0);
+    const titulo = (await cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 }).boundingBox())!;
+    const descricao = (await cartao.getByText('A procuração vence este mês.').boundingBox())!;
+    expect(descricao.y - (titulo.y + titulo.height)).toBeGreaterThanOrEqual(vao);
+  });
+
+  test('dado quem usa só o teclado, quando chega à descrição com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
+    // Dado: o foco no título, logo acima da descrição
+    const cartao = await abrirTarefa(page, 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).focus();
+    // Quando
+    await page.keyboard.press('Tab');
+    // Então
+    const texto = cartao.getByRole('group', { name: 'Descrição', exact: true });
+    await expect(texto).toBeFocused();
+    await expect(texto).toHaveAccessibleDescription('Tecle Enter para mudar.');
+    // Quando
+    await page.keyboard.press('Enter');
+    // Então
+    const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
+    await expect(caixa).toBeFocused();
+    await expect(caixa).toHaveValue('A procuração vence este mês.');
+    // Quando
+    await cartao.getByRole('button', { name: 'Cancelar' }).click();
+    // Então
+    await expect(caixa).toHaveCount(0);
+    await expect(texto).toBeFocused();
   });
 });
 

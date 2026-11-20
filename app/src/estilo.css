@@ -179,6 +179,9 @@
      pouco para ficar junto dele */
   --vao-da-secao-da-equipe: 14px;
   --subida-da-nota-da-secao: -6px;
+  /* O vão entre o título do cartão e a descrição logo abaixo (#385): o mesmo para a descrição lida, a caixa aberta e o convite
+     da descrição vazia */
+  --vao-do-titulo-a-descricao: 14px;
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -289,7 +292,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-formatado-tabela [data-alinhamento="centro"] { text-align: center }
 .texto-formatado-tabela [data-alinhamento="direita"] { text-align: right }
 .texto-formatado > :is(ol, ul, blockquote, pre, hr, .texto-formatado-tabela):first-child { margin-top: 0 }
-.descricao-formatada { margin-top: 8px }
+.descricao-formatada { margin-top: var(--vao-do-titulo-a-descricao) }
 /* A caixa de escrever com a barra de formatação. Ela é a medida da barra (container caixa-formatada): na caixa estreita (o
    celular), a barra muda de arranjo, veja abaixo. O fundo e a borda de cada botão ficam em variáveis (--fundo-do-botao e
    --borda-do-botao), que mudam com o mouse e no editor de texto, para a bolinha da caixa estreita seguir as mesmas cores. */
@@ -383,12 +386,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .titulo-editavel-campo { background: var(--superficie); resize: none; overflow: hidden; field-sizing: content }
 .titulo-editavel-campo:focus { outline: 2px solid var(--accent); outline-offset: 2px }
 .titulo-editavel-campo::placeholder { color: var(--faint); opacity: 1 }
-.texto-editavel { display: flex; flex-direction: column; align-items: flex-start; gap: 4px }
+.texto-editavel { display: flex; flex-direction: column; align-items: flex-start }
 .texto-editavel-area { align-self: stretch; margin: 0 -10px; padding: 2px 10px; border-radius: 8px; cursor: text; transition: background-color .15s ease-out }
-.texto-editavel-area:hover { background: var(--soft) }
-/* "Mudar o texto": o caminho do teclado, discreto até receber o mouse ou o foco. */
-.mini.texto-editavel-botao { margin-left: -12px; border-color: transparent; background: none; color: var(--muted) }
-.mini.texto-editavel-botao:hover, .mini.texto-editavel-botao:focus-visible { border-color: var(--line2); color: var(--ink) }
+/* O texto recebe o foco do teclado (#385): Enter abre a edição. No foco, o mesmo fundo do mouse e o contorno verde, colado nele. */
+.texto-editavel-area:hover, .texto-editavel-area:focus-visible { background: var(--soft) }
+.texto-editavel-area:focus-visible { outline-offset: 0 }
 .texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
 .texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
 .texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
@@ -399,8 +401,10 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-editavel-acoes { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 .texto-editavel-atalho { margin-right: auto; font-size: var(--texto-miudo); color: var(--muted) }
 /* A descrição no topo dos cartões (#346): a caixa e o convite guardam do título a mesma distância da descrição lida, e o convite
-   da descrição vazia é discreto, para não pesar mais que o título. */
-.cartao-cabeca :is(.texto-editavel-edicao, .texto-editavel-vazio) { margin-top: 8px }
+   da descrição vazia é discreto, para não pesar mais que o título. O vão fica fora do texto que se muda (#385): o fundo do mouse e
+   o contorno do foco começam no texto, e não colados no título. */
+.cartao-cabeca :is(.texto-editavel, .texto-editavel-edicao, .texto-editavel-vazio) { margin-top: var(--vao-do-titulo-a-descricao) }
+.cartao-cabeca .texto-editavel-area .descricao-formatada { margin-top: 0 }
 .cartao-cabeca .texto-editavel-vazio { padding: 8px 12px; border-radius: 8px; font-size: var(--texto-tabela) }
 .icone-btn { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer }
 .icone-btn:hover { background: var(--soft) }

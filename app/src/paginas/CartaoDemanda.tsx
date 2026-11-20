@@ -13,7 +13,7 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, GrupoDeDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -166,14 +166,13 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <TituloEditavel key={'titulo-' + noLugar.chave} valor={d.titulo} maximo={TAMANHO_DEMANDA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'titulo', titulo)}
         aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: d.titulo }) : undefined} />
-      <TextoEditavel key={'descricao-' + noLugar.chave} texto={d.descricao || ''} className="descricao-formatada" rotulo="Descrição" mudar="Mudar a descrição"
+      <TextoEditavel key={'descricao-' + noLugar.chave} texto={d.descricao || ''} className="descricao-formatada" rotulo="Descrição"
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_DEMANDA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'descricao', texto)}
         aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: d.descricao }) : undefined} />
       {/* As datas lado a lado (#361): a criação (fixa), o início (#357) e o prazo de entrega com a hora e o lembrete, que quem altera
           muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). */}
-      <GrupoDeDatas rotulo="Datas">
-        <DadoDoGrupo rotulo="Criada em"><b className="num">{dataDaCriacao(d.criado_em)}</b></DadoDoGrupo>
+      <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: d.criado_em }}>
         <DadoDoGrupo rotulo="Início">
           <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio}
             aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
@@ -183,7 +182,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
             aoMudarRascunho={noLugar.rascunhoDe('prazo')}
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(d)) : undefined} />
         </DadoDoGrupo>
-      </GrupoDeDatas>
+      </FaixaDasDatas>
       {/* Logo abaixo das datas, na faixa própria do tempo (#383): a soma do tempo de toda a equipe nas tarefas desta demanda. */}
       {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}
       {!editando && <section className="bloco campos cartao-situacao">

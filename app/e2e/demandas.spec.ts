@@ -342,7 +342,8 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     // Então
     await expect(cartao.getByRole('heading', { name: 'Notificar o devedor pelo correio', level: 2 })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Demanda atualizada.' })).toBeVisible();
-    // Quando: a descrição
+    // Quando: a descrição, sem o botão "Mudar a descrição" (#385): o clique no texto abre a edição
+    await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
     await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').click();
     const caixa = cartao.getByRole('textbox', { name: 'Descrição' });
     await expect(caixa).toHaveValue('Mandar a notificação extrajudicial antes da ação.');

@@ -639,15 +639,19 @@ async function conferirAFaixa(cartao: Locator, dados: string[]) {
   }
 }
 
-test.describe('Dados a pessoa, o contrato, o processo e a anotação, a faixa das datas (#383)', () => {
+// Desde a #385, a faixa das datas só aparece com mais de uma data: com só a criação (a pessoa, o processo, a anotação, o contrato
+// de quem não vê os valores), ela some, e a criação fica só no rodapé. Os testes da pessoa, do processo e da anotação, que
+// conferiam a faixa com só a criação (#383), seguem a regra nova.
+test.describe('Dados a pessoa, o contrato, o processo e a anotação, a faixa das datas (#383, #385)', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('quando a pessoa abre o cartão da pessoa, então a data do cadastro fica na faixa, como nos outros cartões', async ({ page }) => {
+  test('quando a pessoa abre o cartão da pessoa, então não há faixa das datas, e o cadastro fica só no rodapé', async ({ page }) => {
     // Quando
     const cartao = await abrirOPrimeiro(page, '/pessoas/');
     // Então
-    await expect(cartao.getByRole('group', { name: 'Cadastrada em', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
-    await conferirAFaixa(cartao, ['Cadastrada em']);
+    await expect(cartao.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Cadastrada em', exact: true })).toHaveCount(0);
+    await expect(cartao.getByText(/^Cadastrada em \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
   });
 
   test('quando a pessoa abre o cartão do contrato, então a criação e a assinatura ficam lado a lado na faixa, e a assinatura sai de Honorários', async ({ page }) => {
@@ -663,27 +667,46 @@ test.describe('Dados a pessoa, o contrato, o processo e a anotação, a faixa da
     await expect(cartao.getByRole('term').filter({ hasText: 'Assinado em' })).toHaveCount(0);
   });
 
-  test('quando a pessoa abre o cartão do processo, então a criação fica na faixa, como nos outros cartões', async ({ page }) => {
+  test('dado quem não vê os valores do contrato, quando abre o cartão dele, então não há faixa das datas (sobraria só a criação), e a criação fica no rodapé', async ({ page }) => {
+    // Dado: com a chave da equipe ligada, o Bruno vê o contrato "Registro de marca" sem os valores (e sem a assinatura)
+    await page.goto('/inicio/');
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await page.goto('/contratos/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    const linha = page.getByRole('row').filter({ hasText: 'Registro de marca' }).first();
+    await expect(linha).toContainText('Oculto');
+    await linha.click();
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByText('toda a equipe vê este contrato, sem os valores', { exact: false })).toBeVisible();
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Assinado em', exact: true })).toHaveCount(0);
+    await expect(cartao.getByText(/^Criado em \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
+  });
+
+  test('quando a pessoa abre o cartão do processo, então não há faixa das datas, e a criação fica só no rodapé', async ({ page }) => {
     // Quando
     const cartao = await abrirOPrimeiro(page, '/processos/judicial/');
     // Então
-    await expect(cartao.getByRole('group', { name: 'Criado em', exact: true })).toContainText(/\d{2}\/\d{2}\/\d{4}/);
-    await conferirAFaixa(cartao, ['Criado em']);
+    await expect(cartao.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Criado em', exact: true })).toHaveCount(0);
+    await expect(cartao.getByText(/^Criado em \d{2}\/\d{2}\/\d{4}/)).toBeVisible();
   });
 
-  test('quando a pessoa escreve uma anotação, então a criação fica na faixa, entre o título e o texto', async ({ page }) => {
+  test('quando a pessoa escreve uma anotação, então não há faixa das datas entre o título e o texto, e a criação fica só no rodapé', async ({ page }) => {
     // Quando: a anotação nova vai ao banco quando a pessoa escreve o título
     await page.goto('/documentos/nova/');
     const titulo = page.getByRole('article', { name: 'Anotação nova' }).getByRole('textbox', { name: 'Título' });
     await titulo.fill('Estratégia do depósito');
     await titulo.press('Enter');
     const anotacao = page.getByRole('dialog', { name: 'Anotação', exact: true });
-    // Então
-    await expect(anotacao.getByRole('group', { name: 'Criada em', exact: true })).toContainText(hoje());
-    await conferirAFaixa(anotacao, ['Criada em']);
-    const faixa = (await anotacao.getByRole('group', { name: 'Datas', exact: true }).boundingBox())!;
-    const nome = (await anotacao.getByRole('heading', { name: 'Estratégia do depósito', level: 2 }).boundingBox())!;
-    expect(faixa.y).toBeGreaterThanOrEqual(nome.y + nome.height);
+    // Então: o rodapé mostra a criação (a anotação já foi gravada), e a faixa não aparece
+    await expect(anotacao.getByText(`Criada em ${hoje()}`)).toBeVisible();
+    await expect(anotacao.getByRole('heading', { name: 'Estratégia do depósito', level: 2 })).toBeVisible();
+    await expect(anotacao.getByRole('group', { name: 'Datas', exact: true })).toHaveCount(0);
+    await expect(anotacao.getByRole('group', { name: 'Criada em', exact: true })).toHaveCount(0);
   });
 });
 

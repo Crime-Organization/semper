@@ -1,18 +1,19 @@
 // Texto formatado que se muda no próprio lugar (#339), como numa nota do Obsidian: quem pode alterar clica no texto e ele vira
 // a caixa de escrever (com a barra de formatação) ali mesmo, com Salvar e Cancelar logo abaixo. Ctrl+Enter salva. O clique num
 // link ou numa caixinha de tarefa faz o que sempre fez (abre o link, marca a caixinha) e não abre a edição, nem o clique que
-// termina escolhendo um trecho para copiar. Pelo teclado, o botão "Mudar o texto" abre a edição. Quem só lê vê o texto
-// formatado, e nada vira campo. Peça comum: desde a #346, também nas descrições dos cartões de tarefa e de demanda.
+// termina escolhendo um trecho para copiar. Pelo teclado (#385), o próprio texto recebe o foco com o Tab e Enter abre a edição;
+// ao cancelar ou salvar, o foco volta a ele. Não há mais o botão "Mudar o texto" embaixo. O texto não vira um botão: ele tem links
+// e caixinhas dentro, que continuam com o Tab e o Enter (ou o Espaço) deles. Quem só lê vê o texto formatado, e nada vira campo
+// nem recebe o foco. Peça comum: desde a #346, também nas descrições dos cartões de tarefa e de demanda.
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { avisar, falha } from '../avisos';
-import { Icone } from '../Icone';
 import { estiloBotao } from './botao';
 import { CaixaFormatada, TextoFormatado } from './TextoFormatado';
 
 /** O que, dentro do texto, tem clique próprio: o clique nele não abre a edição. */
 const COM_CLIQUE_PROPRIO = 'a, button, input, label, summary';
-/** O tamanho do lápis do botão "Mudar o texto". */
-const TAMANHO_DO_LAPIS = 13;
+/** O que o leitor de tela diz depois do nome do texto, para quem usa o teclado saber como mudá-lo. */
+const COMO_MUDAR_PELO_TECLADO = 'Tecle Enter para mudar.';
 
 interface Props {
   /** O texto gravado. */
@@ -36,8 +37,6 @@ interface Props {
   vazio?: ReactNode;
   /** O convite no lugar do texto vazio, para quem pode escrever. */
   convite?: string;
-  /** O nome do botão que abre a edição pelo teclado (ex.: "Mudar a descrição", no cartão da tarefa). */
-  mudar?: string;
   /** A classe do texto formatado (ex.: a medida de leitura da anotação). */
   className?: string;
   /** A classe da caixa de escrever (ex.: a altura da caixa da anotação). */
@@ -47,13 +46,15 @@ interface Props {
 }
 
 export function TextoEditavel({
-  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', mudar: rotuloDoBotao = 'Mudar o texto', className,
+  texto, aoSalvar, aoMarcar, conferir, rotulo = 'Texto', maximo, placeholder, vazio, convite = 'Clique para escrever.', className,
   classeDaCaixa, aoMudarRascunho
 }: Props) {
   const id = useId();
   const [rascunho, setRascunho] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
-  const botao = useRef<HTMLButtonElement>(null);
+  // Onde a edição abriu (o texto ou o convite do texto vazio): o foco volta para lá ao fechar.
+  const area = useRef<HTMLDivElement>(null);
+  const botaoDoConvite = useRef<HTMLButtonElement>(null);
   const avisarRascunho = useRef(aoMudarRascunho);
   avisarRascunho.current = aoMudarRascunho;
   // Ao sair da tela no meio da edição, o cartão deixa de esperar este rascunho.
@@ -84,12 +85,18 @@ export function TextoEditavel({
   function fechar() {
     mudar(null);
     // O foco volta para onde a edição abriu: o teclado não se perde.
-    setTimeout(() => botao.current?.focus({ preventScroll: true }), 0);
+    setTimeout(() => (area.current ?? botaoDoConvite.current)?.focus({ preventScroll: true }), 0);
   }
   /** Abre a edição pelo clique no texto, a não ser que o clique seja num link, numa caixinha ou ao escolher um trecho. */
   function clicar(e: MouseEvent<HTMLDivElement>) {
     if ((e.target as Element).closest(COM_CLIQUE_PROPRIO)) return;
     if (window.getSelection()?.toString()) return;
+    mudar(texto);
+  }
+  /** Pelo teclado, Enter no próprio texto abre a edição; Enter num link ou numa caixinha de dentro faz o que sempre fez. */
+  function teclarNoTexto(e: KeyboardEvent<HTMLDivElement>) {
+    if (e.key !== 'Enter' || e.target !== e.currentTarget) return;
+    e.preventDefault();
     mudar(texto);
   }
   async function salvar() {
@@ -128,14 +135,14 @@ export function TextoEditavel({
   </div>;
 
   // Sem texto, o convite já é o botão que abre a edição.
-  if (!texto.trim()) return <button ref={botao} type="button" className="texto-editavel-vazio" onClick={() => mudar(texto)}>{convite}</button>;
+  if (!texto.trim()) return <button ref={botaoDoConvite} type="button" className="texto-editavel-vazio" onClick={() => mudar(texto)}>{convite}</button>;
+  // O texto é um grupo com nome (o rótulo, ex.: "Descrição") que recebe o foco, e o leitor de tela diz como mudá-lo. Não é um
+  // botão: os links e as caixinhas de dentro sumiriam para o leitor de tela e deixariam de ser alcançados pelo Tab.
   return <div className="texto-editavel">
-    {/* O clique no texto é só um atalho do mouse: pelo teclado, a edição abre pelo botão logo abaixo. */}
-    <div className="texto-editavel-area" onClick={clicar}>
+    <div ref={area} className="texto-editavel-area" role="group" aria-label={rotulo} aria-describedby={id + '-como-mudar'} tabIndex={0}
+      onClick={clicar} onKeyDown={teclarNoTexto}>
       <TextoFormatado className={className} texto={texto} aoMarcar={aoMarcar} />
     </div>
-    <button ref={botao} type="button" className={estiloBotao({ forma: 'mini' }, 'texto-editavel-botao')} onClick={() => mudar(texto)}>
-      <Icone nome="editar" tam={TAMANHO_DO_LAPIS} /> {rotuloDoBotao}
-    </button>
+    <span className="sr" id={id + '-como-mudar'}>{COMO_MUDAR_PELO_TECLADO}</span>
   </div>;
 }

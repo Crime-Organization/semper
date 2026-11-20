@@ -9,7 +9,10 @@
 // clique abre um formulário pequeno no lugar do valor, com Salvar e Cancelar; Enter num campo salva e Esc desfaz, sem fechar o
 // cartão. O rascunho mudado e não salvo é avisado ao cartão (aoMudarRascunho), que pergunta antes de fechar. Quem só lê vê o
 // valor como texto.
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+// FaixaDasDatas é a faixa das datas de um cartão (#385): a criação e as outras datas. Quando a criação seria a única, a faixa
+// some, porque o rodapé de todo cartão já diz "Criada em … por …".
+import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { dataDaCriacao } from '../../regras/dataDeInicio';
 import { temErro, type ErrosDosCampos } from '../../regras/datasNoCartao';
 import { falha } from '../avisos';
 import { estiloBotao } from './botao';
@@ -21,6 +24,30 @@ export function GrupoDeDatas({ rotulo, children }: { rotulo: string; children: R
   return <div className="grupo-datas" role="group" aria-label={rotulo}>
     <div className="grupo-datas-dados">{children}</div>
   </div>;
+}
+
+/** O nome da faixa das datas, para o leitor de tela. */
+const ROTULO_DA_FAIXA = 'Datas';
+
+interface PropsDaFaixa {
+  /** A criação do item: o nome do dado ("Criada em", "Cadastrada em") e o instante gravado (o criado_em). */
+  criacao: { rotulo: string; em: string };
+  /** A criação depois das outras datas (no compromisso, a data e o horário dele vêm primeiro); sem isto, ela vem antes. */
+  criacaoNoFim?: boolean;
+  /** As outras datas do cartão (DadoDoGrupo). Sem nenhuma, a faixa some. */
+  children?: ReactNode;
+}
+
+/**
+ * A faixa das datas de um cartão (#385): a criação e as outras datas, lado a lado. Ela só aparece com mais de uma data: com a
+ * criação sozinha (a pessoa, o processo, a anotação, o contrato de quem não vê os valores), a faixa some, porque o rodapé do
+ * cartão já mostra a criação. Children.toArray descarta o que não vai à tela ({!oculto && …}): só conta o que aparece.
+ */
+export function FaixaDasDatas({ criacao, criacaoNoFim, children }: PropsDaFaixa) {
+  const outras = Children.toArray(children);
+  if (!outras.length) return null;
+  const daCriacao = <DadoDoGrupo key="criacao" rotulo={criacao.rotulo}><b className="num">{dataDaCriacao(criacao.em)}</b></DadoDoGrupo>;
+  return <GrupoDeDatas rotulo={ROTULO_DA_FAIXA}>{criacaoNoFim ? [...outras, daCriacao] : [daCriacao, ...outras]}</GrupoDeDatas>;
 }
 
 interface PropsDoDado {

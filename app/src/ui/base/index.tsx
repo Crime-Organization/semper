@@ -16,7 +16,7 @@ export { APARELHO_DE_TOQUE, CampoData, type HoraDoCampo, type PropsCampoData } f
 export { CampoDataHora, type PropsCampoDataHora } from './CampoDataHora';
 export { BotaoDoLembrete } from './BotaoDoLembrete';
 export { DataEditavel } from './DataEditavel';
-export { DadoDoGrupo, DadoEditavel, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
+export { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, type CamposDoDado, type MarcaDoErro } from './GrupoDeDatas';
 export { PrazoEditavel } from './PrazoEditavel';
 
 /**

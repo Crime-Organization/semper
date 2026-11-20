@@ -125,18 +125,58 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('dado o teclado, quando a pessoa usa o botão "Mudar o texto", então a edição abre e, ao cancelar, o foco volta ao botão', async () => {
+  // Desde a #385, o caminho do teclado é o próprio texto, e não mais o botão "Mudar o texto" (que saiu): o teste segue a regra nova.
+  it('dado quem usa só o teclado, quando chega ao texto com Tab e tecla Enter, então a edição abre e, ao cancelar, o foco volta ao texto', async () => {
     // Dado
     render(<Cartao />);
     // Quando
-    screen.getByRole('button', { name: 'Mudar o texto' }).focus();
+    await userEvent.tab();
+    // Então: o texto tem nome e diz como mudá-lo
+    const texto = screen.getByRole('group', { name: 'Texto' });
+    expect(texto).toHaveFocus();
+    expect(texto).toHaveAccessibleDescription('Tecle Enter para mudar.');
+    // Quando
     await userEvent.keyboard('{Enter}');
     // Então
     expect(caixa()).toHaveFocus();
+    expect(caixa()).toHaveValue(TEXTO);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
     // Então
-    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Mudar o texto' })).toHaveFocus());
+    await vi.waitFor(() => expect(screen.getByRole('group', { name: 'Texto' })).toHaveFocus());
+  });
+
+  it('dado quem usa só o teclado, quando salva o texto mudado, então o foco volta ao texto', async () => {
+    // Dado
+    render(<Cartao inicial="Antes" />);
+    await userEvent.tab();
+    await userEvent.keyboard('{Enter}');
+    await userEvent.type(caixa(), ' e depois');
+    // Quando
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
+    // Então
+    await vi.waitFor(() => expect(screen.getByRole('group', { name: 'Texto' })).toHaveFocus());
+    expect(screen.getByText('Antes e depois')).toBeInTheDocument();
+  });
+
+  it('dado um link no texto, quando a pessoa chega a ele com Tab e tecla Enter, então o texto não entra em edição', async () => {
+    // Dado
+    render(<Cartao />);
+    const link = screen.getByRole('link', { name: 'o tribunal' });
+    link.addEventListener('click', e => e.preventDefault());   // a página de teste não abre a aba nova
+    // Quando
+    link.focus();
+    await userEvent.keyboard('{Enter}');
+    // Então
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('dado quem pode alterar, quando o cartão abre, então não há botão para mudar o texto: o próprio texto abre a edição', () => {
+    // Quando
+    render(<Cartao />);
+    // Então: nenhum botão (a caixinha de tarefa é uma caixa de marcar, não um botão)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Texto' })).toBeInTheDocument();
   });
 
   it('dado o texto vazio e quem pode escrever, quando clica no convite, então a caixa abre vazia', async () => {
@@ -193,6 +233,17 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('dado quem só lê, quando usa o Tab, então o texto não recebe o foco nem diz como mudá-lo', async () => {
+    // Dado
+    render(<TextoEditavel texto="Só para ler." vazio="Sem texto ainda." />);
+    // Quando
+    await userEvent.tab();
+    // Então
+    expect(document.body).toHaveFocus();
+    expect(screen.queryByRole('group', { name: 'Texto' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Tecle Enter para mudar.')).not.toBeInTheDocument();
+  });
+
   it('dado quem só lê e o texto vazio, então aparece o aviso de vazio, sem convite para escrever', () => {
     // Dado / Quando
     render(<TextoEditavel texto="" vazio="Sem texto ainda." />);
@@ -220,14 +271,20 @@ describe('Texto que se muda no próprio lugar (#339)', () => {
   });
 });
 
-describe('A descrição de um cartão, no mesmo jeito do texto (#346)', () => {
-  it('dado um nome próprio para o botão e para a caixa, quando a pessoa usa o teclado, então o botão e a caixa têm esses nomes', async () => {
+describe('A descrição de um cartão, no mesmo jeito do texto (#346, #385)', () => {
+  // Desde a #385, a descrição não tem mais o botão "Mudar a descrição": o nome próprio vai ao texto e à caixa (regra nova).
+  it('dado um nome próprio (Descrição), quando a pessoa usa o teclado, então o texto e a caixa têm esse nome, e não há botão "Mudar"', async () => {
     // Dado
-    render(<TextoEditavel texto="Pagar até sexta." rotulo="Descrição" mudar="Mudar a descrição" aoSalvar={vi.fn()} />);
+    render(<TextoEditavel texto="Pagar até sexta." rotulo="Descrição" aoSalvar={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /Mudar/ })).not.toBeInTheDocument();
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Mudar a descrição' }));
+    await userEvent.tab();
+    await userEvent.keyboard('{Enter}');
     // Então
     expect(screen.getByRole('textbox', { name: 'Descrição' })).toHaveValue('Pagar até sexta.');
-    expect(screen.queryByRole('button', { name: 'Mudar o texto' })).not.toBeInTheDocument();
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+    // Então
+    await vi.waitFor(() => expect(screen.getByRole('group', { name: 'Descrição' })).toHaveFocus());
   });
 });

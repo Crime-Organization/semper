@@ -17,9 +17,8 @@ import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/Edi
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
-import { dataDaCriacao } from '../regras/dataDeInicio';
 import { QuandoDoCompromisso } from './QuandoDoCompromisso';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
@@ -152,13 +151,12 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />
       {/* A data e o horário (#361), que quem muda o compromisso muda no próprio lugar, como o lápis grava; e a criação, fixa. */}
-      <GrupoDeDatas rotulo="Datas">
+      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: c.criado_em }} criacaoNoFim>
         <DadoDoGrupo rotulo="Data e horário">
           <QuandoDoCompromisso key={'quando-' + noLugar.chave} c={c} aoMudarRascunho={noLugar.rascunhoDe('quando')}
             aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
         </DadoDoGrupo>
-        <DadoDoGrupo rotulo="Criado em"><b className="num">{dataDaCriacao(c.criado_em)}</b></DadoDoGrupo>
-      </GrupoDeDatas>
+      </FaixaDasDatas>
       {!editando && <section className="bloco campos cartao-situacao">
         <h3><Icone nome="kanban" tam={14} />Situação</h3>
         <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
