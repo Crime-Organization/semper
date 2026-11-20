@@ -69,18 +69,28 @@ test.describe('Dica do nome e do código (#84)', () => {
     // Então
     const linha = page.getByRole('row').filter({ hasText: 'JOANA MINUSCULA E2E' });
     await expect(linha).toBeVisible();
-    await expect(linha.getByText(/^[0-9A-F]{8}$/)).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    const codigo = linha.getByText(/^[0-9A-F]{8}$/);
+    await expect(codigo).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    await expect(codigo).toHaveAccessibleDescription('Código da pessoa no SEMPER');
+    // E a dica escondida do código (que na tabela abre para cima) não faz a tabela de uma linha só rolar na vertical
+    const sobraDaTabela = await page.getByRole('table').evaluate(t => { const caixa = t.parentElement as HTMLElement; return caixa.scrollHeight - caixa.clientHeight; });
+    expect(sobraDaTabela).toBe(0);
   });
 
-  test('dado o cartão de uma pessoa, quando ele abre, então o código dela explica o que é ao passar o mouse', async ({ page }) => {
+  test('dado o cartão de uma pessoa, quando o código recebe o foco do teclado, então a dica explica o que ele é', async ({ page }) => {
     // Dado
     await page.goto('/pessoas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
     await page.getByRole('row').nth(1).getByRole('link').first().click();
+    const codigo = page.getByRole('dialog').getByText(/^[0-9A-F]{8}$/).first();
+    await expect(codigo).toHaveAccessibleDescription('Código da pessoa no SEMPER');
     // Quando
-    const cartao = page.getByRole('dialog');
-    // Então
-    await expect(cartao.getByText(/^[0-9A-F]{8}$/).first()).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    await codigo.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    // Então (a dica é o ::after do código, que aparece no foco do teclado)
+    await expect(codigo).toBeFocused();
+    await expect.poll(() => codigo.evaluate(c => getComputedStyle(c, '::after').opacity)).toBe('1');
   });
 });
 

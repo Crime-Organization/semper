@@ -284,6 +284,16 @@ describe('Peças de texto e de estado', () => {
     render(<Codigo dica="Código da pessoa no SEMPER">CA222B4B</Codigo>);
     // Então
     expect(screen.getByText('CA222B4B')).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    expect(screen.getByText('CA222B4B')).toHaveAttribute('aria-description', 'Código da pessoa no SEMPER');
+  });
+
+  it('dado um código com dica, quando a pessoa usa o Tab, então o código recebe o foco, onde a dica aparece (#84)', async () => {
+    // Dado
+    render(<Codigo dica="Código da pessoa no SEMPER">CA222B4B</Codigo>);
+    // Quando
+    await userEvent.tab();
+    // Então
+    expect(screen.getByText('CA222B4B')).toHaveFocus();
   });
 
   it('dado um código sem dica, quando aparece, então não leva dica', () => {
@@ -291,6 +301,8 @@ describe('Peças de texto e de estado', () => {
     render(<Codigo>CA222B4B</Codigo>);
     // Então
     expect(screen.getByText('CA222B4B')).not.toHaveAttribute('data-dica');
+    expect(screen.getByText('CA222B4B')).not.toHaveAttribute('tabindex');
+    expect(screen.getByText('CA222B4B')).not.toHaveAttribute('aria-description');
   });
 
   it('quando o título de seção é usado, então é um h2 com a classe "secao"', () => {
