@@ -19,12 +19,31 @@ Roteiro para entregar o SEMPER a outra empresa (tarefa #295). Quem faz é o dono
    select privado.criar_escritorio('Nome do Escritório', 'Nome de Quem Administra', 'email@do.administrador');
    ```
 
-3. O resultado é um link como `https://semper.app.br/entrar/?primeiro-acesso#convite=…`. Copie o link inteiro.
-4. Envie o link **só** para quem vai administrar (ele dá acesso de administrador). Ele vale por **7 dias**.
-5. A pessoa abre o link, digita o mesmo e-mail e cria a senha. Ela entra como **master** do escritório novo.
+3. O resultado é um link como `https://semper.app.br/entrar/?primeiro-acesso#convite=…`. Copie o link inteiro, com
+   tudo o que vem depois do `#` (no SQL Editor, clique na célula do resultado e copie dali).
+4. Envie o link **só** para quem vai administrar (ele dá acesso de administrador). Ele vale por **7 dias**. O link já
+   abre a tela **Primeiro acesso**: abrir o site direto não funciona, porque o convite está no próprio link.
+5. A pessoa abre o link, digita **o mesmo e-mail** do comando, cria a senha (pelo menos 8 caracteres, duas vezes) e
+   clica em **Criar meu acesso**.
+6. Aparece "Acesso criado. Enviamos um e-mail de confirmação…". Ela abre esse e-mail (olhe também o spam) e clica no
+   link: entra direto no SEMPER, como **master** do escritório novo, com o nome do escritório no alto do menu.
+   Nas próximas vezes, entra em https://semper.app.br/entrar/ com o e-mail e a senha.
 
-Se aparecer um erro começando com `SEMPER:`, nada foi criado. A mensagem diz o motivo, por exemplo um e-mail que já
-tem conta ou um nome de escritório repetido.
+Se aparecer um erro começando com `SEMPER:`, nada foi criado. A mensagem diz o motivo:
+
+| Mensagem | O que fazer |
+|---|---|
+| `este e-mail já tem conta no SEMPER` | Cada e-mail entra em um escritório só: peça outro e-mail para o administrador. |
+| `este e-mail já tem um convite pendente` | Já há um convite para ele. Se for o deste escritório, gere um link novo (abaixo). |
+| `já existe um escritório com o nome "…"` | Use outro nome (acentos e maiúsculas não contam como diferença). |
+| `falta o nome…`, `precisa ter pelo menos duas letras`, `e-mail inválido` | Corrija o texto entre aspas e rode de novo. |
+
+### O que a pessoa pode ver na tela do primeiro acesso
+
+| Aviso | Por quê | O que fazer |
+|---|---|---|
+| "Convite não encontrado ou vencido…" | O link venceu (7 dias), não é o mais recente, ou o e-mail digitado não é o do convite. | Confira o e-mail. Se continuar, gere um link novo (abaixo). |
+| "Este e-mail já tem conta. Use "Entrar" ou recupere a senha." | O link já foi usado: a conta existe. | Entrar em https://semper.app.br/entrar/ ou usar "Esqueci minha senha". |
 
 ### O link venceu ou se perdeu
 
@@ -34,7 +53,8 @@ No mesmo SQL Editor:
 select privado.escritorio_novo_link('email@do.administrador');
 ```
 
-Sai um link novo, e o anterior deixa de valer.
+Sai um link novo, e o anterior deixa de valer. Até a versão do site com a correção do ensaio (#295) ser publicada,
+peça para abrir o link novo **numa aba nova**: colado na mesma aba do link recusado, ele ainda seguia com o código antigo.
 
 ### O e-mail saiu errado
 
@@ -47,7 +67,8 @@ select privado.escritorio_novo_link('email@errado', 'email@certo');
 O convite passa para o e-mail certo e sai um link novo; o anterior deixa de valer.
 
 Esses dois comandos só servem para o primeiro administrador, enquanto o escritório ainda não tem ninguém na equipe.
-Depois disso, os convites e links ficam com o administrador do escritório, na tela Equipe e acessos.
+Depois disso, eles respondem `não há convite pendente do primeiro administrador…`: os convites e links ficam com o
+administrador do escritório, na tela Equipe e acessos.
 
 ## O que o escritório novo já traz
 
@@ -56,7 +77,8 @@ Depois disso, os convites e links ficam com o administrador do escritório, na t
   ligado, as parcelas), as de início
   e de concluído de Demandas e Tarefas e as do cliente ao contrato. Depois, o administrador renomeia, cria e arruma as
   outras colunas pela tela.
-- Os módulos ligados: Pessoas, Contratos, Demandas, Tarefas, Processos e Agenda.
+- Os módulos ligados: Pessoas, Contratos, Demandas, Tarefas, Documentos (anotações), Processos e Agenda.
+- O cadastro de quem administra já aparece em Pessoas, como "Somente contato" e sem etapa no quadro.
 - O **Financeiro desligado**. As regras de divisão do dinheiro ainda são as de um escritório só. Ligar o Financeiro para
   outro escritório só depois que essas regras puderem ser escolhidas por escritório.
 - Nenhum dado de outro escritório: cada escritório só vê o que é dele.
@@ -64,8 +86,19 @@ Depois disso, os convites e links ficam com o administrador do escritório, na t
 ## Depois, pelo administrador do escritório novo
 
 1. **Configurações:** nome, logomarca, CNPJ, endereço e os demais dados do escritório.
+   Em **Pessoas**, completar o próprio cadastro (CPF, telefone), que nasce só com o nome e o e-mail.
 2. **Equipe e acessos:** convidar a equipe (cada pessoa recebe o próprio link).
 3. Cadastrar os órgãos e os feriados locais, se usar prazos em dias úteis.
+
+## Ensaio feito (20/11/2026)
+
+O roteiro inteiro foi ensaiado num banco local, pela tela de verdade, com dados inventados e com a confirmação por
+e-mail ligada, como na produção: criar o escritório, abrir o link, criar a senha, confirmar o e-mail e conferir os
+quadros (Pessoas, Contratos com a coluna do assinado, Processos judiciais e administrativos, Agenda, Demandas e Tarefas
+com as colunas de início e de concluído), o Financeiro fora do menu (o endereço /financeiro/ volta ao Início), nenhuma
+pessoa ou tarefa do outro escritório na busca, e uma tarefa nova com o botão **Concluir**, que a leva à coluna
+"Concluída". Também: e-mail que já tem conta, link substituído, link vencido, link já usado e e-mail corrigido. O único
+defeito achado foi o do link novo na mesma aba (corrigido no site; veja acima).
 
 ## Pontos de atenção
 
