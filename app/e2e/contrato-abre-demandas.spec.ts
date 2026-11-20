@@ -4,7 +4,7 @@
 // "Renovar a procuração" é avulsa, da Ana, com o Mateus de participante.
 // O banco fictício ainda lista todas as demandas e tarefas; aqui o teste confere o cartão e a lista de quem chega a eles pelo contrato.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
 
 type BancoFalso = {
   contratos: { id: string; servico: string; participantes: unknown[] }[];
@@ -63,7 +63,9 @@ test.describe('Quem está no contrato vê as demandas dele', () => {
     // Então
     await expect(cartao.getByText('Você vê este cartão porque está no contrato ligado a ele.', { exact: false })).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Editar' })).toHaveCount(0);
-    await expect(cartao.getByRole('button', { name: 'Arquivar' })).toHaveCount(0);
+    // Sem o ⋯ (o Arquivar e o Excluir moram nele desde a #382) e sem o ícone de etiqueta.
+    await expect(menuDoCartao(cartao)).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeDisabled();
     await abrirSecao(cartao, 'Checklists');
     await expect(cartao.getByRole('button', { name: 'Adicionar checklist' })).toHaveCount(0);
@@ -88,6 +90,9 @@ test.describe('Quem está no contrato vê as demandas dele', () => {
     const cartao = await abrirDemanda(page, 'Registro de marca');
     // Então
     await expect(cartao.getByRole('button', { name: 'Editar' })).toBeVisible();
+    // O caso de controle do primeiro: quem altera tem o ⋯, com o Arquivar, e o ícone de etiqueta.
+    expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
+    await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     await expect(cartao.getByText('Você vê este cartão porque está no contrato ligado a ele.', { exact: false })).toHaveCount(0);
     await expect(cartao.getByRole('combobox', { name: 'Situação da demanda' })).toBeEnabled();
   });

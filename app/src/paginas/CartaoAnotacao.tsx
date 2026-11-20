@@ -51,6 +51,7 @@ import { decidirGravacao, juntarTextoNoHistorico } from '../regras/salvamento';
 import { JUNTAR_TEXTO_NO_HISTORICO } from '../ui/tempos';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
+import { ESCOLHER_ETIQUETAS, SELOS_DAS_ETIQUETAS } from '../ui/TopoDoCartao';
 import { useQuantos } from '../ui/useQuantos';
 import { baixarArquivo, dataCurta, relativo } from '../ui/util';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -554,18 +555,18 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
             saida: { podeSair: gravaForaDaAnotacao(ctx, a.criado_por === ctx.perfil.id) }, depois, aoSair: sairDaAnotacao
           } : null} />
           {/* A etiqueta e o ⋯ ficam junto dos botões da janela (o formato e o X), como os botões do topo dos outros cartões. A etiqueta
-              abre a mesma escolha da seção "Etiquetas" dos outros cartões; quem só lê vê só os selos. */}
+              abre a mesma escolha do topo dos outros cartões (#382); quem só lê vê só os selos. */}
           <NoTopoDoCartao>
-            {mudaNoLugar && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={depois} rotulo="Etiquetas" className="cartao-botao" comDica>
+            {mudaNoLugar && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={depois} rotulo={ESCOLHER_ETIQUETAS} className="cartao-botao" comDica>
               <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
             </BotaoDasEtiquetas>}
-            <MenuDoCartao arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
+            <MenuDoCartao rotulo="Mais ações da anotação" arquivado={!!a.arquivado_em} aoArquivar={podeAlterar ? arquivar : undefined}
               excluir={podeExcluir ? { oQue: 'a anotação', aoConfirmar: excluir } : undefined} extras={acoesDoMenu} />
           </NoTopoDoCartao>
         </div>
       </header>
       {/* As etiquetas escolhidas, numa linha entre o topo e o título (sem etiquetas, ela não aparece). */}
-      <SelosDasEtiquetas ids={etiquetas.ids} rotulo="Etiquetas" aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
+      <SelosDasEtiquetas ids={etiquetas.ids} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={mudaNoLugar ? e => etiquetas.marcar(e, false) : undefined} />
     </>}
 
     {/* A anotação nova abre com o cursor no título; sem título (ou com o provisório), ele aparece como "Sem título", apagado. */}

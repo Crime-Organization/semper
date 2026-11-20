@@ -24,6 +24,7 @@ import { ItensLigados } from '../ui/ItensLigados';
 import { LigarItem } from '../ui/LigarItem';
 import { CaminhoDaPasta } from '../ui/Pastas';
 import { useCtx } from '../ui/sessao';
+import { ESCOLHER_ETIQUETAS, SELOS_DAS_ETIQUETAS } from '../ui/TopoDoCartao';
 import { desfazerNoItem } from './equipeNoCartao';
 import { NovoNaAnotacao } from './NovoNaAnotacao';
 
@@ -145,13 +146,13 @@ export function TopoDoRascunho({ rascunho, pastas }: { rascunho: RascunhoDaAnota
           aoTrocarResponsavel: m => pedir('responsavel', m.id, m.nome)
         }} />
         <NoTopoDoCartao>
-          <BotaoDasEtiquetas ids={rascunho.etiquetas} aoMarcar={rascunho.marcarEtiqueta} rotulo="Etiquetas" className="cartao-botao" comDica>
+          <BotaoDasEtiquetas ids={rascunho.etiquetas} aoMarcar={rascunho.marcarEtiqueta} rotulo={ESCOLHER_ETIQUETAS} className="cartao-botao" comDica>
             <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
           </BotaoDasEtiquetas>
         </NoTopoDoCartao>
       </div>
     </header>
-    <SelosDasEtiquetas ids={rascunho.etiquetas} rotulo="Etiquetas" aoTirar={e => rascunho.marcarEtiqueta(e, false)} />
+    <SelosDasEtiquetas ids={rascunho.etiquetas} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={e => rascunho.marcarEtiqueta(e, false)} />
   </>;
 }
 

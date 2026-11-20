@@ -1,10 +1,10 @@
-// Peças comuns da edição no próprio cartão (pessoa, contrato, demanda, tarefa):
-// - no topo, os botões redondos Arquivar e Editar (o lápis), ao lado dos botões do painel; com o item arquivado, Desarquivar
-//   (a caixa aberta) e, para quem pode excluir, a lixeira no lugar do lápis. Antes deles, as ações a mais do cartão (ex.: baixar
-//   a anotação), que quem só lê o cartão também tem (AcoesDeQuemLe);
+// Peças comuns do topo e da edição no próprio cartão (pessoa, contrato, demanda, tarefa, processo, compromisso, anotação):
+// - no topo (desde a #382, o mesmo desenho da anotação em todos: TopoDoCartao), o lápis (LapisDoCartao, verde, nos cartões que se
+//   editam por ele) e o menu ⋯ (MenuDoCartao), com as ações a mais, Arquivar ou Desarquivar e, no arquivado e para quem pode,
+//   Excluir. Eles e o ícone de etiqueta vão para o mesmo lugar dos botões da janela (o formato e o X), com NoTopoDoCartao. Em
+//   edição, no lugar deles, só o texto "Modo de edição" (ModoDeEdicao);
 // - em edição, o rodapé com Cancelar e Salvar, sempre à vista no pé do cartão;
-// - no cartão que se muda todo no próprio lugar, sem lápis (a anotação), o menu ⋯ (MenuDoCartao) com as mesmas ações; ele e os
-//   outros botões do topo desse cartão (a etiqueta da anotação) vão para o mesmo lugar dos de cima, com NoTopoDoCartao.
+// - para quem só lê um cartão com ações a mais, elas em botões redondos (AcoesDeQuemLe).
 // O formulário em etapas fica para criar; para editar, o cartão mostra todos os campos de uma vez.
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -21,6 +21,8 @@ import { MenuFlutuante } from './Menu';
 export { ICONE_DO_TOPO };
 /** Tamanho dos ícones dentro do menu ⋯ (como nos outros menus). */
 const ICONE_DO_MENU = 15;
+/** O nome do ⋯ quando quem usa não dá outro. */
+const MAIS_ACOES = 'Mais ações';
 
 /** O que o cartão passa ao formulário para editar nele: qual registro e o que fazer ao terminar (salvou ou cancelou). */
 export interface EdicaoNoCartao {
@@ -30,35 +32,23 @@ export interface EdicaoNoCartao {
   aoTerminar: (salvou: boolean) => void;
 }
 
-/** A lixeira do cartão arquivado: como a janela chama o item ("a pessoa", "o contrato"…) e o que fazer depois de confirmar. */
+/** O Excluir do cartão arquivado (no ⋯): como a janela chama o item ("a pessoa", "o contrato"…) e o que fazer depois de confirmar. */
 export interface ExclusaoNoCartao {
   oQue: string;
   aoConfirmar: () => unknown;
 }
 
-/** Uma ação a mais no topo do cartão: botão redondo só com o ícone, com o nome como dica e como nome para o leitor de tela. */
+/** Uma ação a mais do cartão: no ⋯, uma linha; para quem só lê (AcoesDeQuemLe), um botão redondo só com o ícone. */
 export interface AcaoDoTopo {
   rotulo: string;
   icone: NomeIcone;
   aoClicar: () => unknown;
 }
 
-interface PropsAcoes {
-  arquivado: boolean;
-  /** Em edição, no lugar dos botões fica só o aviso "Modo de edição", em texto (Cancelar e Salvar estão no pé do cartão). */
-  editando: boolean;
-  aoArquivar: () => unknown;
-  aoEditar: () => void;
-  /** Só com o item arquivado e para quem pode excluí-lo; sem isto, a lixeira não aparece. */
-  excluir?: ExclusaoNoCartao;
-  /** Ações a mais, antes de Arquivar (somem em edição, com os outros botões). */
-  extras?: AcaoDoTopo[];
-}
-
 /**
  * Os botões do topo do cartão. No painel ao lado (e na janela estreita, ou sem a coluna dos comentários), vão para a linha dos
- * botões do painel, lado a lado com o formato e o "X"; na janela larga com a coluna, ficam na linha dos selos do cartão,
- * encostados à direita do conteúdo.
+ * botões do painel, lado a lado com o formato e o "X"; na janela larga com a coluna, ficam no topo do cartão, encostados à
+ * direita do conteúdo.
  */
 export function NoTopoDoCartao({ children }: { children: ReactNode }) {
   const noPainel = useContext(BotoesNoPainel);
@@ -66,7 +56,7 @@ export function NoTopoDoCartao({ children }: { children: ReactNode }) {
   return noPainel ? createPortal(botoes, noPainel) : botoes;
 }
 
-/** Pergunta antes de excluir (a exclusão é definitiva) e só então exclui. Diz se a pessoa confirmou. */
+/** Pergunta antes de excluir (a exclusão é definitiva). Diz se a pessoa confirmou. */
 async function confirmarExclusao(excluir: ExclusaoNoCartao) {
   return !!await confirmar(`Excluir ${excluir.oQue}?`, 'A exclusão é definitiva e não pode ser desfeita.', 'Excluir definitivamente', true);
 }
@@ -76,35 +66,25 @@ const BotoesExtras = ({ acoes }: { acoes: AcaoDoTopo[] }) => <>
   {acoes.map(a => <Botao key={a.rotulo} className="cartao-botao" aria-label={a.rotulo} title={a.rotulo} onClick={a.aoClicar}><Icone nome={a.icone} tam={ICONE_DO_TOPO} /></Botao>)}
 </>;
 
-/** Só as ações a mais, para quem vê o cartão mas não o altera: sem Arquivar, Editar nem a lixeira. */
+/** Só as ações a mais, para quem vê o cartão mas não o altera: sem o lápis nem o ⋯ de quem altera. */
 export function AcoesDeQuemLe({ acoes }: { acoes: AcaoDoTopo[] }) {
   return <NoTopoDoCartao><BotoesExtras acoes={acoes} /></NoTopoDoCartao>;
 }
 
-/** Arquivar, Editar e a lixeira (com as ações a mais antes deles), para quem altera o cartão; veja NoTopoDoCartao. */
-export function AcoesDoCartao({ arquivado, editando, aoArquivar, aoEditar, excluir, extras = [] }: PropsAcoes) {
-  const [excluindo, setExcluindo] = useState(false);
-  const arquivar = arquivado ? 'Desarquivar' : 'Arquivar';
-  async function pedirExclusao() {
-    if (!excluir || !await confirmarExclusao(excluir)) return;
-    // Desliga só depois da janela: com o botão desligado enquanto ela está aberta, o foco não teria para onde voltar ao cancelar.
-    setExcluindo(true);
-    try { await excluir.aoConfirmar(); } catch (e) { falha(e); } finally { setExcluindo(false); }
-  }
-  return <NoTopoDoCartao>
-    {editando
-      ? <span className="cartao-modo-edicao" role="status">Modo de edição</span>
-      : <>
-        <BotoesExtras acoes={extras} />
-        <Botao className="cartao-botao" aria-label={arquivar} title={arquivar} onClick={aoArquivar}><Icone nome={arquivado ? 'arquivoAberto' : 'arquivo'} tam={ICONE_DO_TOPO} /></Botao>
-        {!arquivado && <button type="button" className="cartao-botao cartao-editar" aria-label="Editar" title="Editar" onClick={aoEditar}><Icone nome="editar" tam={ICONE_DO_TOPO} /></button>}
-        {arquivado && excluir && <button type="button" className="cartao-botao cartao-excluir" aria-label="Excluir" title="Excluir" disabled={excluindo} onClick={() => void pedirExclusao()}><Icone nome="lixeira" tam={ICONE_DO_TOPO} /></button>}
-      </>}
-  </NoTopoDoCartao>;
+/** O lápis do cartão: o botão redondo verde que abre a edição. O nome ("Editar", "Editar sem os valores") é também a dica. */
+export function LapisDoCartao({ rotulo, aoEditar }: { rotulo: string; aoEditar: () => void }) {
+  return <button type="button" className="cartao-botao cartao-editar" aria-label={rotulo} title={rotulo} onClick={aoEditar}>
+    <Icone nome="editar" tam={ICONE_DO_TOPO} />
+  </button>;
 }
 
-interface PropsDoMenu {
+/** Em edição, no lugar dos botões do topo, só o aviso "Modo de edição", em texto (Cancelar e Salvar estão no pé do cartão). */
+export const ModoDeEdicao = () => <span className="cartao-modo-edicao" role="status">Modo de edição</span>;
+
+export interface PropsDoMenu {
   arquivado: boolean;
+  /** O nome do ⋯ para o leitor de tela e na dica (ex.: "Mais ações da tarefa"). */
+  rotulo?: string;
   /** Arquivar e desarquivar, para quem altera o cartão; sem isto (quem só lê), o menu tem só as ações a mais. */
   aoArquivar?: () => unknown;
   /** Só com o item arquivado e para quem pode excluí-lo. */
@@ -117,11 +97,11 @@ interface PropsDoMenu {
 type ItemDoMenu = AcaoDoTopo & { perigo?: boolean; antes?: () => Promise<boolean> };
 
 /**
- * O menu ⋯ do cartão que não tem lápis, porque tudo nele se muda no próprio lugar (a anotação): as ações a
- * mais, Arquivar (ou Desarquivar) e, no arquivado e para quem pode, Excluir, com a mesma confirmação da lixeira. Enquanto uma
- * ação roda, o ⋯ fica desligado (sem baixar ou duplicar duas vezes).
+ * O menu ⋯ do cartão (desde a #382, em todos, como na anotação): as ações a mais, Arquivar (ou Desarquivar) e, no arquivado e para
+ * quem pode, Excluir, que pergunta antes. Enquanto uma ação roda, o ⋯ fica desligado (sem baixar ou duplicar duas vezes). Sem nada
+ * dentro (quem só lê um cartão sem ações a mais), o ⋯ não aparece: um menu vazio só faria clicar à toa.
  */
-export function MenuDoCartao({ arquivado, aoArquivar, excluir, extras = [] }: PropsDoMenu) {
+export function MenuDoCartao({ arquivado, rotulo = MAIS_ACOES, aoArquivar, excluir, extras = [] }: PropsDoMenu) {
   const [botao, setBotao] = useState<HTMLElement | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const itens: ItemDoMenu[] = [...extras];
@@ -147,12 +127,13 @@ export function MenuDoCartao({ arquivado, aoArquivar, excluir, extras = [] }: Pr
     setOcupado(true);
     try { await i.aoClicar(); } catch (e) { falha(e); } finally { setOcupado(false); }
   }
+  if (!itens.length) return null;
   return <>
-    <button type="button" className="cartao-botao" aria-label="Mais ações" title="Mais ações" aria-haspopup="menu" aria-expanded={!!botao} disabled={ocupado}
+    <button type="button" className="cartao-botao" aria-label={rotulo} title={rotulo} aria-haspopup="menu" aria-expanded={!!botao} disabled={ocupado}
       onClick={e => { const alvo = e.currentTarget; setBotao(b => b ? null : alvo); }}>
       <Icone nome="pontos" tam={ICONE_DO_TOPO} />
     </button>
-    {botao && <MenuFlutuante botao={botao} aoFechar={() => setBotao(null)}>
+    {botao && <MenuFlutuante botao={botao} rotulo={rotulo} aoFechar={() => setBotao(null)}>
       {itens.map(i => <button key={i.rotulo} type="button" role="menuitem" className={i.perigo ? 'perigo' : undefined} onClick={() => void fazer(i)}>
         <Icone nome={i.icone} tam={ICONE_DO_MENU} /> {i.rotulo}
       </button>)}

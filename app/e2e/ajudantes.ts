@@ -114,3 +114,30 @@ export async function barraEquilibradaNoCelular(barra: Locator) {
   for (const linha of linhas) for (let i = 1; i < linha.length; i++) expect(linha[i].x, linha[i].nome).toBeGreaterThanOrEqual(linha[i - 1].x + linha[i - 1].width);
   for (const nome of botoes.map(x => x.nome)) await expect(barra.getByRole('button', { name: nome, exact: true })).toBeInViewport({ ratio: 1 });
 }
+
+/**
+ * O menu ⋯ do topo do cartão aberto (#382: "Mais ações da tarefa", "Mais ações do contrato"…). Procura só dentro do cartão: a
+ * página do módulo tem o ⋯ dela ("Mais ações"), atrás da janela.
+ */
+export const menuDoCartao = (cartao: Locator) => cartao.getByRole('button', { name: /^Mais ações d[aeo] / });
+
+/**
+ * Escolhe uma ação no menu ⋯ do topo do cartão (desde a #382, Arquivar, Desarquivar e Excluir moram lá). O menu abre por cima da
+ * página, fora do cartão: a ação é achada no menu que tem o nome do ⋯ deste cartão, e não em qualquer menu da página.
+ */
+export async function acaoNoMenuDoCartao(page: Page, cartao: Locator, acao: 'Arquivar' | 'Desarquivar' | 'Excluir') {
+  const mais = menuDoCartao(cartao);
+  const nome = await mais.getAttribute('aria-label');
+  await mais.click();
+  await page.getByRole('menu', { name: nome ?? undefined }).getByRole('menuitem', { name: acao, exact: true }).click();
+}
+
+/** As ações que o menu ⋯ do topo do cartão oferece (abre o menu e o fecha de novo com o Esc, que fecha só o menu). */
+export async function acoesNoMenuDoCartao(page: Page, cartao: Locator) {
+  const mais = menuDoCartao(cartao);
+  const nome = await mais.getAttribute('aria-label');
+  await mais.click();
+  const itens = (await page.getByRole('menu', { name: nome ?? undefined }).getByRole('menuitem').allTextContents()).map(t => t.trim());
+  await page.keyboard.press('Escape');
+  return itens;
+}

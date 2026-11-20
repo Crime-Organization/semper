@@ -2,7 +2,7 @@
 // Na semente do banco fictício, Bruno (estagiário, não é administrador) é responsável só pelo contrato de JOÃO PEDRO FICTÍCIO
 // e colaborador da demanda "Registro de marca", ligada ao contrato de JOSÉ DA SILVA TESTE, de Mateus.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acoesNoMenuDoCartao, entrarComo, menuDoCartao } from './ajudantes';
 
 /** Id de um contrato da semente, pelo objeto, lido do que o banco fictício guarda na aba. */
 const idDoContrato = (page: Page, objeto: string) => page.evaluate(texto => {
@@ -83,7 +83,23 @@ test.describe('Visibilidade dos contratos', () => {
     await expect(cartao.getByText('Você vê este contrato porque foi mencionado num comentário.')).toBeVisible();
     await expect(cartao.getByLabel('Situação do contrato')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Editar', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Arquivar', exact: true })).toHaveCount(0);
+    // Sem o ⋯ do cartão (o Arquivar mora nele desde a #382). As etiquetas seguem a regra de antes da #382 no contrato (quem vê os
+    // valores as muda), que esta tarefa não mexe.
+    await expect(menuDoCartao(cartao)).toHaveCount(0);
+  });
+
+  test('dado quem está no contrato, quando abre o mesmo contrato, então vê o lápis, o ícone de etiqueta e o ⋯ com o Arquivar (o caso de controle do de cima)', async ({ page }) => {
+    // Dado: o administrador (quem está logado) altera todos os contratos
+    await page.goto('/inicio/');
+    const id = await idDoContrato(page, 'Ação de cobrança');
+    // Quando
+    await page.goto('/contratos/?id=' + id);
+    // Então
+    const cartao = page.getByRole('dialog');
+    await expect(cartao.getByRole('heading', { name: 'MARIA APARECIDA EXEMPLO' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Editar', exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
+    expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
   });
 
   test('dado um administrador, quando abre Contratos, então vê os contratos de todos', async ({ page }) => {

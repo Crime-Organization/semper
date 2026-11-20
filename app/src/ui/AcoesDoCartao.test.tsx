@@ -3,134 +3,111 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AcoesDeQuemLe, AcoesDoCartao, MenuDoCartao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
+import { AcoesDeQuemLe, LapisDoCartao, MenuDoCartao, ModoDeEdicao, RodapeDaEdicao, type AcaoDoTopo } from './AcoesDoCartao';
 import { falha } from './avisos';
 import { confirmar, Janelas } from './janela';
 
 vi.mock('./avisos', async original => ({ ...await original<typeof import('./avisos')>(), falha: vi.fn() }));
 
-describe('Ações no topo do cartão', () => {
-  it('quando o cartão está ativo, então há Arquivar e Editar, e cada um chama a sua ação', async () => {
+// Desde a #382, os botões redondos Arquivar, Editar e a lixeira saíram do topo dos cartões: o lápis continua (LapisDoCartao), e
+// Arquivar, Desarquivar e Excluir ficam no menu ⋯ (MenuDoCartao), como na anotação. Os casos abaixo garantem o mesmo de antes.
+describe('O lápis e o ⋯ no topo do cartão ativo', () => {
+  it('quando a pessoa clica no lápis e escolhe Arquivar no ⋯, então cada um chama a sua ação', async () => {
     // Dado
     const aoArquivar = vi.fn(), aoEditar = vi.fn();
-    render(<AcoesDoCartao arquivado={false} editando={false} aoArquivar={aoArquivar} aoEditar={aoEditar} />);
+    render(<><LapisDoCartao rotulo="Editar" aoEditar={aoEditar} /><MenuDoCartao rotulo="Mais ações da tarefa" arquivado={false} aoArquivar={aoArquivar} /></>);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Editar' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Arquivar' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações da tarefa' }));
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Arquivar' }));
     // Então
     expect(aoEditar).toHaveBeenCalledOnce();
     expect(aoArquivar).toHaveBeenCalledOnce();
   });
 
-  it('quando o cartão está ativo, então não há lixeira, mesmo com a exclusão informada', () => {
+  it('quando o cartão edita sem os valores, então o lápis tem esse nome, também na dica', () => {
     // Quando
-    render(<AcoesDoCartao arquivado={false} editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={{ oQue: 'a tarefa', aoConfirmar: () => {} }} />);
+    render(<LapisDoCartao rotulo="Editar sem os valores" aoEditar={() => {}} />);
     // Então
-    expect(screen.queryByRole('button', { name: 'Excluir' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Editar sem os valores' })).toHaveAttribute('title', 'Editar sem os valores');
   });
 });
 
-describe('Ações no topo do cartão arquivado', () => {
-  const excluir = (aoConfirmar = vi.fn()) => ({ oQue: 'a tarefa', aoConfirmar });
+describe('O ⋯ do cartão arquivado', () => {
+  const excluir = (aoConfirmar: () => unknown = vi.fn()) => ({ oQue: 'a tarefa', aoConfirmar });
+  const abrir = () => userEvent.click(screen.getByRole('button', { name: 'Mais ações da tarefa' }));
+  const itens = () => screen.getAllByRole('menuitem').map(b => b.textContent?.trim());
 
-  it('quando o cartão está arquivado, então o botão é Desarquivar e chama a ação de arquivar', async () => {
+  it('quando a pessoa escolhe Desarquivar, então chama a ação de arquivar', async () => {
     // Dado
     const aoArquivar = vi.fn();
-    render(<AcoesDoCartao arquivado editando={false} aoArquivar={aoArquivar} aoEditar={() => {}} />);
+    render(<MenuDoCartao rotulo="Mais ações da tarefa" arquivado aoArquivar={aoArquivar} />);
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Desarquivar' }));
+    await abrir();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Desarquivar' }));
     // Então
     expect(aoArquivar).toHaveBeenCalledOnce();
   });
 
-  it('quando a pessoa pode excluir, então o lápis dá lugar à lixeira', () => {
+  it('quando a pessoa não pode excluir, então o ⋯ tem só Desarquivar', async () => {
     // Quando
-    render(<AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={excluir()} />);
+    render(<MenuDoCartao rotulo="Mais ações da tarefa" arquivado aoArquivar={() => {}} />);
+    await abrir();
     // Então
-    expect(screen.getByRole('button', { name: 'Excluir' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
+    expect(itens()).toEqual(['Desarquivar']);
   });
 
-  it('quando a pessoa não pode excluir, então não há lixeira nem lápis, só Desarquivar', () => {
-    // Quando
-    render(<AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} />);
-    // Então
-    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Desarquivar']);
-  });
-
-  it('quando a pessoa clica na lixeira, então a janela pede confirmação e nada é excluído antes dela', async () => {
-    // Dado
-    const aoConfirmar = vi.fn();
-    render(<><AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={excluir(aoConfirmar)} /><Janelas /></>);
-    // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
-    // Então
-    expect(await screen.findByRole('dialog', { name: 'Excluir a tarefa?' })).toHaveTextContent('não pode ser desfeita');
-    expect(aoConfirmar).not.toHaveBeenCalled();
-    // A janela é do sistema todo: fecha para não sobrar para o próximo caso.
-    await userEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
-  });
-
-  it('quando a pessoa confirma na janela, então o item é excluído', async () => {
-    // Dado
-    const aoConfirmar = vi.fn();
-    render(<><AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={excluir(aoConfirmar)} /><Janelas /></>);
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
-    // Quando
-    await userEvent.click(await screen.findByRole('button', { name: 'Excluir definitivamente' }));
-    // Então
-    expect(aoConfirmar).toHaveBeenCalledOnce();
-  });
-
-  it('quando a exclusão falha, então a pessoa recebe o aviso do erro e a lixeira volta a funcionar', async () => {
+  it('quando a exclusão falha, então a pessoa recebe o aviso do erro e o ⋯ volta a funcionar', async () => {
     // Dado
     const erro = new Error('O banco recusou.');
-    render(<><AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={excluir(vi.fn().mockRejectedValue(erro))} /><Janelas /></>);
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    render(<><MenuDoCartao rotulo="Mais ações da tarefa" arquivado aoArquivar={() => {}} excluir={excluir(vi.fn().mockRejectedValue(erro))} /><Janelas /></>);
+    await abrir();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }));
     // Quando
     await userEvent.click(await screen.findByRole('button', { name: 'Excluir definitivamente' }));
     // Então
     await waitFor(() => expect(falha).toHaveBeenCalledWith(erro));
-    expect(screen.getByRole('button', { name: 'Excluir' })).toBeEnabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Mais ações da tarefa' })).toBeEnabled());
   });
 
-  it('quando a pessoa cancela na janela, então nada é excluído', async () => {
+  it('quando a pessoa cancela na janela, então nada é excluído, e o foco volta ao ⋯', async () => {
     // Dado
     const aoConfirmar = vi.fn();
-    render(<><AcoesDoCartao arquivado editando={false} aoArquivar={() => {}} aoEditar={() => {}} excluir={excluir(aoConfirmar)} /><Janelas /></>);
-    await userEvent.click(screen.getByRole('button', { name: 'Excluir' }));
+    render(<><MenuDoCartao rotulo="Mais ações da tarefa" arquivado aoArquivar={() => {}} excluir={excluir(aoConfirmar)} /><Janelas /></>);
+    await abrir();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }));
+    expect(await screen.findByRole('dialog', { name: 'Excluir a tarefa?' })).toHaveTextContent('não pode ser desfeita');
     // Quando
     await userEvent.click(await screen.findByRole('button', { name: 'Cancelar' }));
     // Então
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(aoConfirmar).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: 'Excluir' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Mais ações da tarefa' })).toHaveFocus();
   });
 });
 
-describe('Ações a mais no topo do cartão', () => {
+describe('O ⋯ sem nada dentro', () => {
+  it('dado quem só lê um cartão sem ações a mais, quando o topo aparece, então não há ⋯ (um menu vazio só faria clicar à toa)', () => {
+    // Quando
+    const { container } = render(<MenuDoCartao rotulo="Mais ações da tarefa" arquivado={false} />);
+    // Então
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('dado o mesmo cartão para quem altera, quando o topo aparece, então o ⋯ está lá, com Arquivar (o caso de controle do de cima)', async () => {
+    // Dado
+    render(<MenuDoCartao rotulo="Mais ações da tarefa" arquivado={false} aoArquivar={() => {}} />);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações da tarefa' }));
+    // Então
+    expect(screen.getByRole('menuitem', { name: 'Arquivar' })).toBeInTheDocument();
+  });
+});
+
+describe('Ações de quem só lê', () => {
   const baixar = (aoClicar: AcaoDoTopo['aoClicar'] = vi.fn()): AcaoDoTopo => ({ rotulo: 'Baixar .md', icone: 'baixar', aoClicar });
 
-  it('quando o cartão tem uma ação a mais, então ela vem antes de Arquivar e Editar e chama a sua ação', async () => {
-    // Dado
-    const aoClicar = vi.fn();
-    render(<AcoesDoCartao arquivado={false} editando={false} aoArquivar={() => {}} aoEditar={() => {}} extras={[baixar(aoClicar)]} />);
-    // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Baixar .md' }));
-    // Então
-    expect(aoClicar).toHaveBeenCalledOnce();
-    expect(screen.getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Baixar .md', 'Arquivar', 'Editar']);
-    expect(screen.getByRole('button', { name: 'Baixar .md' })).toHaveAttribute('title', 'Baixar .md');
-  });
-
-  it('quando o cartão está em edição, então a ação a mais some com os outros botões', () => {
-    // Quando
-    render(<AcoesDoCartao arquivado={false} editando aoArquivar={() => {}} aoEditar={() => {}} extras={[baixar()]} />);
-    // Então
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
-
-  it('quando quem só lê abre o cartão, então ele tem só as ações a mais, sem Arquivar nem Editar', async () => {
+  it('quando quem só lê abre o cartão, então ele tem só as ações a mais, cada uma com o nome na dica', async () => {
     // Dado
     const aoClicar = vi.fn();
     render(<AcoesDeQuemLe acoes={[baixar(aoClicar)]} />);
@@ -139,6 +116,7 @@ describe('Ações a mais no topo do cartão', () => {
     // Então
     expect(aoClicar).toHaveBeenCalledOnce();
     expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Baixar .md' })).toHaveAttribute('title', 'Baixar .md');
   });
 
   it('enquanto a ação a mais roda, então o botão fica desligado (sem baixar duas vezes)', async () => {
@@ -157,7 +135,7 @@ describe('Ações a mais no topo do cartão', () => {
 describe('Cartão em edição', () => {
   it('quando o cartão está em edição, então no lugar dos botões aparece só o aviso "Modo de edição"', () => {
     // Quando
-    render(<AcoesDoCartao arquivado={false} editando aoArquivar={() => {}} aoEditar={() => {}} />);
+    render(<ModoDeEdicao />);
     // Então
     expect(screen.getByRole('status')).toHaveTextContent('Modo de edição');
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
@@ -186,7 +164,7 @@ describe('Rodapé da edição', () => {
   });
 });
 
-describe('O menu ⋯ do cartão sem lápis (a anotação em Documentos)', () => {
+describe('O menu ⋯ do cartão (a anotação e, desde a #382, todos)', () => {
   const baixar = (aoClicar: () => unknown = vi.fn()): AcaoDoTopo => ({ rotulo: 'Baixar .md', icone: 'baixar', aoClicar });
   const itens = () => screen.getAllByRole('menuitem').map(b => b.textContent?.trim());
 

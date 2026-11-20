@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// O banco fictício sempre entra como administrador; aqui a seção é aberta também como quem não é.
+// O banco fictício sempre entra como administrador; aqui a escolha das etiquetas é aberta também como quem não é.
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Etiqueta } from '../dados';
-import { BotaoDasEtiquetas, EtiquetasDaSecao, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SecaoEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
+import { BotaoDasEtiquetas, EtiquetasDoItem, filtroDeEtiqueta, lojaDeEtiquetas, SeloEtiqueta, SelosDasEtiquetas } from './Etiquetas';
 
 const sessao = vi.hoisted(() => ({ ehAdmin: false }));
 vi.mock('./sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-bruno' }, ehAdmin: sessao.ehAdmin }) }));
 
 const MINHA: Etiqueta = { id: 'e-minha', cor: 'azul', texto: 'Minha', criado_por: 'u-bruno' };
 const DA_ANA: Etiqueta = { id: 'e-ana', cor: 'vermelho', texto: 'Da Ana', criado_por: 'u-ana' };
+/** O ícone de etiqueta do topo de um cartão sem etiquetas (o topo inteiro, com quem pode mudar, está em TopoDoCartao.test.tsx). */
+const BotaoDaEscolha = () => <BotaoDasEtiquetas ids={[]} aoMarcar={() => undefined} rotulo="Escolher etiquetas" className="cartao-botao" comDica>ícone</BotaoDasEtiquetas>;
 
 describe('Peças das etiquetas', () => {
   beforeEach(() => {
@@ -48,7 +50,7 @@ describe('Peças das etiquetas', () => {
 
   it('quando quem abre não é administrador, então aplica qualquer etiqueta, mas só muda as que criou', async () => {
     // Dado
-    render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    render(<BotaoDaEscolha />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     // Então
@@ -63,7 +65,7 @@ describe('Peças das etiquetas', () => {
   it('quando quem abre é administrador, então muda qualquer etiqueta', async () => {
     // Dado
     sessao.ehAdmin = true;
-    render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    render(<BotaoDaEscolha />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     // Então
@@ -75,27 +77,20 @@ describe('Peças das etiquetas', () => {
     const incompleta: Etiqueta = { id: 'e-inc', cor: 'laranja', texto: 'Incompleta', criado_por: null, sistema: 'incompleta' };
     vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([incompleta]);
     lojaDeEtiquetas.mudar([incompleta]);
-    const { unmount } = render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    const { unmount } = render(<BotaoDaEscolha />);
     await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     // Então
     expect(screen.queryByRole('button', { name: 'Mudar a etiqueta Incompleta' })).toBeNull();
     unmount();
     // Quando
     sessao.ehAdmin = true;
-    render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" aoMudar={() => undefined} />);
+    render(<BotaoDaEscolha />);
     await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     await userEvent.click(screen.getByRole('button', { name: 'Mudar a etiqueta Incompleta' }));
     // Então
     const form = within(screen.getByRole('form', { name: 'Mudar a etiqueta Incompleta' }));
     expect(form.getByRole('button', { name: 'Salvar etiqueta' })).toBeTruthy();
     expect(form.queryByRole('button', { name: /Excluir/ })).toBeNull();
-  });
-
-  it('quando o cartão está arquivado, então as etiquetas só aparecem, sem escolher', () => {
-    // Quando
-    render(<SecaoEtiquetas modulo="pessoas" id="p-qualquer" somenteLer aoMudar={() => undefined} />);
-    // Então
-    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
   });
 
   it('quando o item está arquivado, então a etiqueta aparece sem o x; ativo, com o x', () => {
@@ -110,53 +105,16 @@ describe('Peças das etiquetas', () => {
   });
 });
 
-// A seção "Etiquetas" dos cartões: o título com o "+" na frente e os selos embaixo. A anotação (pedido do dono, 18/11) não tem a
-// seção: usa as mesmas peças por partes, o botão que abre a escolha e os selos (veja o grupo seguinte).
-describe('A seção "Etiquetas" dos cartões', () => {
-  beforeEach(() => {
-    sessao.ehAdmin = false;
-    lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
-    vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
-  });
-
-  it('dado um cartão cuja lista fica com quem chama, quando a pessoa clica no "+" ao lado do título da seção e marca uma, então quem chama recebe a etiqueta marcada', async () => {
-    // Dado
-    const aoMarcar = vi.fn();
-    render(<EtiquetasDaSecao ids={[]} aoMarcar={aoMarcar} />);
-    expect(screen.getByRole('region', { name: 'Etiquetas' })).toHaveTextContent('Nenhuma etiqueta.');
-    // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('checkbox', { name: 'Minha' }));
-    // Então
-    expect(aoMarcar).toHaveBeenCalledWith(MINHA, true);
-  });
-
-  it('dadas as etiquetas, quando aparecem embaixo do título da seção, então cada uma é um selo, e só quem pode mudar vê o x para tirar', async () => {
-    // Dado
-    const aoMarcar = vi.fn();
-    const { rerender } = render(<EtiquetasDaSecao ids={[MINHA.id]} aoMarcar={aoMarcar} somenteLer />);
-    // Então
-    expect(screen.getByText('Minha')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Minha' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).toBeNull();
-    // Quando
-    rerender(<EtiquetasDaSecao ids={[MINHA.id]} aoMarcar={aoMarcar} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Tirar a etiqueta Minha' }));
-    // Então
-    expect(aoMarcar).toHaveBeenCalledWith(MINHA, false);
-  });
-});
-
-// Pedido do dono (18/11): na anotação, a escolha das etiquetas abre pelo ícone de etiqueta, no topo, e os selos ficam numa linha
+// Pedido do dono (18/11; nos outros cartões, #382): a escolha das etiquetas abre pelo ícone de etiqueta, no topo, e os selos ficam numa linha
 // entre o topo e o título; sem etiquetas, a linha não aparece.
-describe('As peças das etiquetas da anotação: o botão que abre a escolha e os selos', () => {
+describe('As peças das etiquetas do topo: o botão que abre a escolha e os selos', () => {
   beforeEach(() => {
     sessao.ehAdmin = false;
     lojaDeEtiquetas.mudar([DA_ANA, MINHA]);
     vi.spyOn(SD, 'etiquetasListar').mockResolvedValue([DA_ANA, MINHA]);
   });
 
-  it('quando a pessoa clica no botão, então abre a mesma escolha da seção, com as etiquetas marcadas e o formulário de nova; marcar avisa quem chama, e clicar de novo fecha', async () => {
+  it('quando a pessoa clica no botão, então abre a escolha, com as etiquetas marcadas e o formulário de nova; marcar avisa quem chama, e clicar de novo fecha', async () => {
     // Dado
     const aoMarcar = vi.fn();
     render(<BotaoDasEtiquetas ids={[MINHA.id]} aoMarcar={aoMarcar} rotulo="Etiquetas" className="cartao-botao" comDica>ícone</BotaoDasEtiquetas>);

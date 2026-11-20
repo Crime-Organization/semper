@@ -1,5 +1,6 @@
-// Cartão do compromisso (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de processo: no topo, o tipo,
-// o nome e a data; as ações, com a equipe em bolinhas, e a situação; depois, cada tópico numa seção que recolhe. Quem só vê o
+// Cartão do compromisso (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de processo: no topo
+// (TopoDoCartao, #382, como o da anotação), o tipo e o código, com a equipe em bolinhas, a etiqueta, o lápis e o ⋯ à direita; os
+// selos das etiquetas; o nome, a data e a situação; depois, cada tópico numa seção que recolhe. Quem só vê o
 // compromisso pela Agenda geral lê tudo e comenta, mas não muda nada.
 // Desde a #346, quem muda o compromisso muda o título no próprio lugar, como na anotação (o lápis não o repete). A audiência e a
 // perícia podem ficar sem título: aí o título mostra o tipo e as pessoas, o campo abre em branco, e apagar o título volta a
@@ -15,7 +16,6 @@ import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, DadoDoGrupo, GrupoDeDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
@@ -24,7 +24,7 @@ import { QuandoDoCompromisso } from './QuandoDoCompromisso';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Icone } from '../ui/Icone';
 import { CriarNoCartao, ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { ordemNoFim } from '../ui/quadro/posicao';
@@ -130,12 +130,22 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   return <CriarNoCartao pode={!somenteLer}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
     <header className="cartao-cabeca">
-      <div className="linha">
-        <Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo><span className="codigo">{c.codigo}</span>
-        {c.geral && <Selo>Agenda geral</Selo>}
-        {c.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
-        {podeMudar && <AcoesDoCartao editando={editando} arquivado={!!c.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'o compromisso', aoConfirmar: excluir } : undefined} />}
-      </div>
+      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+          lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora dele, o cartão
+          diria "não encontrado": fecha. */}
+      <TopoDoCartao modulo="compromissos" id={c.id} arquivado={!!c.arquivado_em} editando={editando}
+        esquerda={<>
+          <Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo><span className="codigo">{c.codigo}</span>
+          {c.geral && <Selo>Agenda geral</Selo>}
+          {c.arquivado_em && <Selo tipo="arq">Arquivado</Selo>}
+        </>}
+        equipe={<EquipeNoTopo modulo="compromissos" id={c.id} equipe={{ responsavel_id: c.responsavel_id, lista: c.participantes }} grupos={c.grupos} mudar={somenteLer ? null : {
+          saida: { podeSair: gravaForaDoCartao(ctx, c.criado_por === eu, continuaPeloProcesso(c, c.processo_id)), peloLigado: continuaPeloProcesso(c, c.processo_id) },
+          depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }, aoSair: () => { aoMudar(); aoFechar(); }
+        }} />}
+        mudaEtiquetas={!somenteLer} aoMudarEtiquetas={aoMudar}
+        aoArquivar={podeMudar ? arquivar : undefined} aoExcluir={podeMudar && podeExcluir ? excluir : undefined}
+        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
       {/* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */}
       <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
@@ -156,23 +166,9 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>
 
-    <div className="cartao-acoes">
-      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora
-          dele, o cartão diria "não encontrado": fecha. */}
-      <EquipeNoTopo modulo="compromissos" id={c.id} equipe={{ responsavel_id: c.responsavel_id, lista: c.participantes }} grupos={c.grupos} mudar={somenteLer ? null : {
-        saida: { podeSair: gravaForaDoCartao(ctx, c.criado_por === eu, continuaPeloProcesso(c, c.processo_id)), peloLigado: continuaPeloProcesso(c, c.processo_id) },
-        depois: () => { aoMudar(); void carregar(); setVersaoHist(v => v + 1); }, aoSair: () => { aoMudar(); aoFechar(); }
-      }} />
-    </div>
     {!podeMudar && <Nota>Você vê este compromisso porque ele está na Agenda geral. Só quem participa dele pode mudá-lo.</Nota>}
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {c.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Compromisso arquivado. Se não for mais necessário, pode ser excluído definitivamente.'
-        : 'Compromisso arquivado. Só quem cadastrou este compromisso ou um administrador pode excluí-lo.'}</span>
-    </div>}
-
-
-    <SecaoEtiquetas modulo="compromissos" id={c.id} somenteLer={somenteLer} aoMudar={aoMudar} />
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {c.arquivado_em && <FaixaDoArquivado modulo="compromissos" podeExcluir={podeExcluir} aoDesarquivar={podeMudar ? arquivar : undefined} />}
 
     <Recolhivel titulo="Dados do compromisso" icone="calendario" preferencia="compromissos.cartao.dados" contador={quantosPreenchidos(linhasDoCompromisso(c).map(([, v]) => v))}>
       <dl className="dados">{linhasDoCompromisso(c).map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>

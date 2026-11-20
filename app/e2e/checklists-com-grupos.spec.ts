@@ -4,7 +4,7 @@
 // por idade › 2.1.1 CNIS, 2.1.2 Carteira de trabalho; 2.2 Auxílio-doença › 2.2.1 Laudo médico) e o modelo de antes, sem grupos,
 // "Documentos de pessoa física". O contrato de JOSÉ DA SILVA TESTE é do Mateus, que está logado.
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 
 /** Abre o cartão pela tabela do módulo e a seção Checklists. */
 async function abrirCartao(page: Page, rota: string, texto: string) {
@@ -165,7 +165,7 @@ test.describe('Checklist com grupos no contrato (#309)', () => {
     const cartao = await abrirCartao(page, '/contratos/', 'JOSÉ DA SILVA TESTE');
     const lista = await usarModelo(page, cartao, 'Benefício previdenciário');
     // Quando
-    await cartao.getByRole('button', { name: 'Arquivar', exact: true }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(cartao.getByRole('button', { name: 'Desarquivar', exact: true })).toBeVisible();
     // Então
     await expect(grupo(lista, '2.1 Aposentadoria por idade')).toHaveAccessibleDescription('0 de 2 feitos');

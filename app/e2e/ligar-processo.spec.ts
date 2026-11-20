@@ -4,7 +4,7 @@
 // processo; "Reunião de equipe" é um compromisso sem processo, e a audiência de JOSÉ DA SILVA TESTE é do processo judicial.
 // O contrato MA96-0001-2026 é de JOSÉ DA SILVA TESTE. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 
 const MARCA = 'Registro da marca Exemplo';
 const JUDICIAL = /0001234-97\.2026\.8\.13\.0024/;
@@ -86,7 +86,7 @@ test.describe('Demanda e processo', () => {
     await ligar(cartao, 'marca', new RegExp(MARCA));
     await expect(ligados(cartao).getByRole('listitem')).toHaveCount(1);
     // Quando
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     // Então
     await expect(cartao.getByText('Arquivada', { exact: true }).first()).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Ligar processo' })).toHaveCount(0);

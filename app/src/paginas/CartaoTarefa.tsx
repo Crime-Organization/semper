@@ -1,6 +1,7 @@
-// Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo, o título e o prazo em
-// destaque; as ações, com a equipe da tarefa em bolinhas ao lado (responsável e participantes), e a situação; depois, cada tópico numa seção que
-// recolhe (demanda, pessoas, contrato, comentários, histórico). Logo depois da descrição, o tempo e as datas lado a lado (#361): o cronômetro
+// Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo (TopoDoCartao, #382, como o da
+// anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
+// ⋯ à direita; os selos das etiquetas; o título e a situação; depois, cada tópico numa seção que recolhe (demanda, pessoas,
+// contrato, comentários, histórico). Logo depois da descrição, o tempo e as datas lado a lado (#361): o cronômetro
 // (TempoNaTarefa), a criação, o início e o prazo com a hora e o lembrete, que quem altera muda ali mesmo; o lápis não os repete.
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
@@ -15,7 +16,7 @@ import { gravaForaDoCartao } from '../regras/sairDoCartao';
 import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { SecaoEtiquetas } from '../ui/Etiquetas';
+import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, GrupoDeDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
@@ -29,7 +30,6 @@ import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
-import { AcoesDoCartao } from '../ui/AcoesDoCartao';
 import { Botao } from '../ui/Botoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
@@ -160,12 +160,21 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     <header className="cartao-cabeca">
-      <div className="linha">
-        <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
-        <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
-        {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
-        {podeAlterar && <AcoesDoCartao editando={editando} arquivado={!!t.arquivado_em} aoArquivar={arquivar} aoEditar={() => setEditando(true)} excluir={podeExcluir ? { oQue: 'a tarefa', aoConfirmar: excluir } : undefined} />}
-      </div>
+      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+          lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
+      <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}
+        esquerda={<>
+          <Selo tipo="escuro">Tarefa</Selo><span className="codigo">{t.codigo}</span>
+          <SeloDoPrazo prazo={t.prazo} hora={t.prazo_hora} concluido={quadro.pronto ? concluida && 'tarefas' : null} />
+          {t.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
+        </>}
+        equipe={<EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos} mudar={mudaNoLugar ? {
+          saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, t.demanda_id)), peloLigado: continuaPelaDemanda(t, t.demanda_id) },
+          depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
+        } : null} />}
+        mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
+        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
       <TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'titulo', titulo)}
         aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />
@@ -203,22 +212,9 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 
-    <div className="cartao-acoes">
-      {/* Quem tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
-      <EquipeNoTopo modulo="tarefas" id={t.id} equipe={{ responsavel_id: t.responsavel_id, lista: t.participantes }} grupos={t.grupos} mudar={mudaNoLugar ? {
-        saida: { podeSair: gravaForaDoCartao(ctx, t.criado_por === eu, continuaPelaDemanda(t, t.demanda_id)), peloLigado: continuaPelaDemanda(t, t.demanda_id) },
-        depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
-      } : null} />
-    </div>
     {soLeitura && <Nota>{soLeitura}</Nota>}
-    {/* A faixa só explica: a exclusão fica na lixeira, no topo do cartão. */}
-    {t.arquivado_em && <div className="cartao-arquivada">
-      <span>{podeExcluir ? 'Tarefa arquivada. Se não for mais necessária, pode ser excluída definitivamente.'
-        : 'Tarefa arquivada. Só quem cadastrou esta tarefa ou um administrador pode excluí-la.'}</span>
-    </div>}
-
-
-    <SecaoEtiquetas modulo="tarefas" id={t.id} somenteLer={!!t.arquivado_em || !podeAlterar} aoMudar={aoMudar} />
+    {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
+    {t.arquivado_em && <FaixaDoArquivado modulo="tarefas" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     <ListasDoCartao modulo="tarefas" id={t.id} somenteLer={!podeAlterar} />
 

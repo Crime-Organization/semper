@@ -5,7 +5,7 @@
 // A semente do banco fictício: LUCIANA ROCHA AMOSTRA não tem contratos nem processos; JOSÉ DA SILVA TESTE é cliente do contrato
 // "Registro de marca" (com as demandas "Registro de marca" e "Busca de anterioridade"). Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrirSecao, entrarComo } from './ajudantes';
+import { abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 
 const NUMERO_NOVO = '0005678-13.2026.8.13.0433';
 /** O número do processo em qualquer formato (com ou sem os pontos e o traço). */
@@ -152,7 +152,7 @@ test.describe('Quem só lê não cria (#376)', () => {
     // Ativa, os "+" dos títulos estão lá
     for (const rotulo of ['Novo contrato com esta pessoa como cliente', 'Nova demanda com esta pessoa como cliente', 'Novo processo com esta pessoa como cliente',
       'Novo compromisso com esta pessoa', 'Nova tarefa ligada a esta pessoa']) await expect(cartao.getByRole('link', { name: rotulo })).toBeVisible();
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(cartao.getByRole('button', { name: 'Desarquivar' })).toBeVisible();
     // Quando
     for (const secao of ['Contratos', 'Demandas', 'Processos', 'Compromissos', 'Tarefas']) await abrirSecao(cartao, secao);
@@ -171,7 +171,7 @@ test.describe('Quem só lê não cria (#376)', () => {
     // Ativo, os "+" dos títulos estão lá
     await expect(cartao.getByRole('link', { name: 'Nova demanda deste contrato' })).toBeVisible();
     await expect(cartao.getByRole('link', { name: 'Nova tarefa deste contrato' })).toBeVisible();
-    await cartao.getByRole('button', { name: 'Arquivar' }).click();
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(cartao.getByRole('button', { name: 'Desarquivar' })).toBeVisible();
     // Quando
     await abrirSecao(cartao, 'Demandas');

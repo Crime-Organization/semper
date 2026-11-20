@@ -1,7 +1,7 @@
-// Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e a seção do cartão, onde a
-// pessoa aplica, cria, muda e exclui etiquetas. Todo módulo com quadro usa estas peças; a lista fica em etiquetasDoEscritorio.ts.
-// A anotação, que não tem a seção, usa as mesmas peças por partes: o botão que abre a escolha (BotaoDasEtiquetas, o ícone no topo)
-// e os selos (SelosDasEtiquetas, acima do título).
+// Etiquetas do escritório na tela: o selo colorido (com o x para tirar), o filtro dos módulos e, no topo dos cartões, o botão que
+// abre a escolha (BotaoDasEtiquetas, o ícone de etiqueta), onde a pessoa aplica, cria, muda e exclui etiquetas, e os selos
+// (SelosDasEtiquetas, entre o topo e o título). Todo módulo com quadro usa estas peças (os cartões, por ui/TopoDoCartao.tsx, #382;
+// a anotação, direto); a lista fica em etiquetasDoEscritorio.ts.
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { SD, type Etiqueta, type ModuloComEtiquetas } from '../dados';
 import { TAMANHO_ETIQUETA } from '../dados/limites';
@@ -17,10 +17,6 @@ import { useCtx } from './sessao';
 
 export { lojaDeEtiquetas, useEtiquetas, useEtiquetasDaPagina } from './etiquetasDoEscritorio';
 
-/** O tamanho do ícone no título da seção "Etiquetas" do cartão (o mesmo dos outros títulos de seção). */
-const ICONE_DO_TITULO = 14;
-/** O tamanho do "+" redondo na frente do título da seção, que abre a escolha das etiquetas. */
-const ICONE_DO_MAIS = 15;
 const emCartoes = (n: number) => n === 1 ? '1 cartão' : `${n} cartões`;
 
 /** Os cartões da lista que têm (ou não têm) a etiqueta. */
@@ -86,7 +82,7 @@ interface PropsDosSelos {
   ids: string[];
   /** Tira a etiqueta (o x de cada selo). Sem isto, os selos só aparecem. */
   aoTirar?: (e: Etiqueta) => void;
-  /** O nome da linha para o leitor de tela (na anotação, "Etiquetas"). Sem isto, é só a linha dos selos. */
+  /** O nome da linha para o leitor de tela (no topo dos cartões, "Etiquetas"). Sem isto, é só a linha dos selos. */
   rotulo?: string;
 }
 
@@ -99,18 +95,9 @@ export function SelosDasEtiquetas({ ids, aoTirar, rotulo }: PropsDosSelos) {
   </div>;
 }
 
-interface PropsSecao {
-  modulo: ModuloComEtiquetas;
-  id: string;
-  /** Cartão arquivado: só mostra. */
-  somenteLer?: boolean;
-  /** A lista da página mostra as etiquetas: ela relê quando mudam. */
-  aoMudar: () => void;
-}
-
 /**
  * As etiquetas de um cartão, lidas do banco, e o marcar e desmarcar de cada uma: a caixa muda na hora e, se o banco recusar,
- * volta como estava; tirar oferece desfazer. Usada pela seção "Etiquetas" dos cartões e pelo topo da anotação.
+ * volta como estava; tirar oferece desfazer. Usada pelo topo dos cartões e da anotação.
  */
 export function useEtiquetasDoCartao(modulo: ModuloComEtiquetas, id: string) {
   const [ids, setIds] = useState<string[]>([]);
@@ -142,12 +129,6 @@ export function useEtiquetasDoCartao(modulo: ModuloComEtiquetas, id: string) {
   return { ids, marcar };
 }
 
-/** Seção "Etiquetas" do cartão, com as etiquetas lidas do banco. */
-export function SecaoEtiquetas({ modulo, id, somenteLer, aoMudar }: PropsSecao) {
-  const { ids, marcar } = useEtiquetasDoCartao(modulo, id);
-  return <EtiquetasDaSecao ids={ids} aoMarcar={marcar} somenteLer={somenteLer} aoMudar={aoMudar} />;
-}
-
 interface PropsDaEscolha {
   /** As etiquetas do cartão (os ids). */
   ids: string[];
@@ -163,13 +144,13 @@ interface PropsDoBotao extends PropsDaEscolha {
   className: string;
   /** O nome aparece na dica do sistema ([data-dica], como nas bolinhas da equipe), e não na do navegador. */
   comDica?: boolean;
-  /** O que aparece no botão: o "+" da seção, o ícone de etiqueta da anotação. */
+  /** O que aparece no botão: o ícone de etiqueta. */
   children: ReactNode;
 }
 
 /**
- * O botão que abre, ali mesmo, a escolha das etiquetas (onde também se cria uma etiqueta nova, para todo o escritório): o "+" da
- * seção "Etiquetas" dos cartões e o ícone de etiqueta no topo da anotação. Clicar de novo fecha.
+ * O botão que abre, ali mesmo, a escolha das etiquetas (onde também se cria uma etiqueta nova, para todo o escritório): o ícone de
+ * etiqueta no topo dos cartões e da anotação. Clicar de novo fecha.
  */
 export function BotaoDasEtiquetas({ ids, aoMarcar, aoMudar = () => {}, rotulo, className, comDica = false, children }: PropsDoBotao) {
   const etiquetas = useEtiquetas();
@@ -183,30 +164,6 @@ export function BotaoDasEtiquetas({ ids, aoMarcar, aoMudar = () => {}, rotulo, c
       <PainelEtiquetas etiquetas={etiquetas} ids={ids} aoMarcar={aoMarcar} aoMudar={aoMudar} aoCriar={e => aoMarcar(e, true)} />
     </MenuFlutuante>}
   </>;
-}
-
-interface PropsDaSecao extends PropsDaEscolha {
-  /** Cartão arquivado, ou quem só lê: só mostra. */
-  somenteLer?: boolean;
-}
-
-/**
- * A seção "Etiquetas", igual nos cartões (a anotação não a tem: veja BotaoDasEtiquetas e SelosDasEtiquetas): o título com o "+"
- * redondo na frente, que abre ali mesmo a escolha, e os selos coloridos embaixo, cada um com o x para tirar. Quem só lê vê os
- * selos, sem o "+" nem o x.
- */
-export function EtiquetasDaSecao({ ids, aoMarcar, somenteLer = false, aoMudar }: PropsDaSecao) {
-  const titulo = useId();
-  const temAlguma = useEtiquetas().some(e => ids.includes(e.id));
-  return <section className="bloco separada secao-etiquetas" aria-labelledby={titulo}>
-    <h3 className={somenteLer ? undefined : 'com-novo'}>
-      <span id={titulo} className="secao-titulo"><Icone nome="etiqueta" tam={ICONE_DO_TITULO} />Etiquetas</span>
-      {!somenteLer && <BotaoDasEtiquetas ids={ids} aoMarcar={aoMarcar} aoMudar={aoMudar} rotulo="Escolher etiquetas" className={estiloBotao({ forma: 'mini' }, 'secao-novo')}>
-        <Icone nome="mais" tam={ICONE_DO_MAIS} />
-      </BotaoDasEtiquetas>}
-    </h3>
-    {temAlguma ? <SelosDasEtiquetas ids={ids} aoTirar={somenteLer ? undefined : e => aoMarcar(e, false)} /> : <Nota>Nenhuma etiqueta.</Nota>}
-  </section>;
 }
 
 const SEM_RESULTADO = 'Nenhuma etiqueta combina com essa pesquisa.';
@@ -242,7 +199,7 @@ export function EtiquetasEmLote({ modulo, ids }: { modulo: ModuloComEtiquetas; i
           <span className="etq-opcao"><SeloEtiqueta e={e} /></span>
           <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Aplicar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, true)}>Aplicar</button>
           <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Tirar a etiqueta ${nomeDaEtiqueta(e)}`} onClick={() => agir(e, false)}>Tirar</button>
-        </li>)}</ul> : <Nota>{etiquetas.length ? SEM_RESULTADO : 'Nenhuma etiqueta ainda. Crie a primeira na seção "Etiquetas" de um cartão.'}</Nota>}
+        </li>)}</ul> : <Nota>{etiquetas.length ? SEM_RESULTADO : 'Nenhuma etiqueta ainda. Crie a primeira pelo ícone de etiqueta no topo de um cartão.'}</Nota>}
       </div>
     </MenuFlutuante>}
   </>;

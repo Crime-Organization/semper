@@ -187,7 +187,7 @@ describe('A anotação aberta, como uma nota do Obsidian (pedido de 18/11)', () 
     // Então
     expect(textoDoEditor(await acharEditor())).toBe('- [ ] A\n- [ ] B\n- [ ] C');
     expect(screen.queryByRole('button', { name: 'Editar' })).not.toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Etiquetas' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Escolher etiquetas' })).toHaveLength(1);
     expect(screen.queryByRole('region', { name: 'Etiquetas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Etiquetas' })).not.toBeInTheDocument();
     expect(screen.queryByText('Nenhuma etiqueta.')).not.toBeInTheDocument();
@@ -204,7 +204,7 @@ describe('A anotação aberta, como uma nota do Obsidian (pedido de 18/11)', () 
     const selos = await screen.findByRole('group', { name: 'Etiquetas' });
     expect(within(selos).getByText('Urgente')).toBeInTheDocument();
     expect(within(selos).getByText('Cliente')).toBeInTheDocument();
-    const botao = screen.getByRole('button', { name: 'Etiquetas' });
+    const botao = screen.getByRole('button', { name: 'Escolher etiquetas' });
     const titulo = screen.getByRole('button', { name: /Lista do protocolo/ });
     const texto = await screen.findByRole('textbox', { name: 'Texto' });
     expect(botao.compareDocumentPosition(selos) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -220,7 +220,7 @@ describe('A anotação aberta, como uma nota do Obsidian (pedido de 18/11)', () 
     abrirCartao();
     await acharEditor();
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Etiquetas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     const escolha = within(screen.getByRole('dialog', { name: 'Escolher etiquetas' }));
     await userEvent.click(escolha.getByRole('checkbox', { name: 'Urgente' }));
     // Então
@@ -239,9 +239,9 @@ describe('A anotação aberta, como uma nota do Obsidian (pedido de 18/11)', () 
     abrirCartao(undefined, null, linha);
     // Então
     const naLinha = within(screen.getByRole('toolbar', { name: 'Botões da janela' }));
-    expect(await naLinha.findByRole('button', { name: 'Etiquetas' })).toBeInTheDocument();
-    expect(naLinha.getByRole('button', { name: 'Mais ações' })).toBeInTheDocument();
-    expect(within(screen.getByRole('article')).queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument();
+    expect(await naLinha.findByRole('button', { name: 'Escolher etiquetas' })).toBeInTheDocument();
+    expect(naLinha.getByRole('button', { name: 'Mais ações da anotação' })).toBeInTheDocument();
+    expect(within(screen.getByRole('article')).queryByRole('button', { name: 'Mais ações da anotação' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Fechar/ })).not.toBeInTheDocument();
     linha.remove();
   });
@@ -409,9 +409,9 @@ describe('A anotação que a pessoa só lê', () => {
     expect(screen.queryByRole('toolbar', { name: 'Formatação do texto' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Modo de leitura' })).not.toBeInTheDocument();
     expect(within(await screen.findByRole('group', { name: 'Etiquetas' })).getByText('Urgente')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Etiquetas' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Escolher etiquetas' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Tirar a etiqueta Urgente' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações da anotação' }));
     expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).toEqual(['Duplicar', 'Baixar .md']);
   });
 });
@@ -693,7 +693,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     expect(screen.getByRole('button', { name: /^Histórico de alterações/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Salvar anotação' })).not.toBeInTheDocument();
     expect(screen.queryByText('Ctrl+Enter salva')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Mais ações' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Mais ações da anotação' })).not.toBeInTheDocument();
     expect(anotacaoObter).not.toHaveBeenCalled();
   });
 
@@ -713,7 +713,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     // Dado: veio do cartão da demanda, e escolhe uma etiqueta e a pasta POPs antes de escrever
     abrirNova('demanda');
     expect(within(await screen.findByRole('list', { name: 'Itens ligados' })).getByText('Registro de marca')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Etiquetas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Escolher etiquetas' })).getByRole('checkbox', { name: 'Urgente' }));
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'Escolher a pasta' }));
@@ -812,7 +812,7 @@ describe('A anotação nova, na mesma janela da anotação aberta (#369)', () =>
     abrirNova();
     const titulo = campoDoTitulo();
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Etiquetas' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Escolher etiquetas' }));
     const escolha = within(screen.getByRole('dialog', { name: 'Escolher etiquetas' }));
     await userEvent.click(escolha.getByRole('checkbox', { name: 'Urgente' }));
     await userEvent.click(escolha.getByRole('checkbox', { name: 'Cliente' }));
@@ -996,7 +996,7 @@ describe('Mover a anotação para outra pasta pelo ⋯ do cartão (#370)', () =>
   it('dado quem altera a anotação ativa, quando escolhe "Mover para pasta" no ⋯ e a pasta na janela, então a anotação vai para ela, com o aviso e o Desfazer', async () => {
     // Dado
     abrirCartao();
-    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações da anotação' }));
     expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).toEqual(['Mover para pasta', 'Duplicar', 'Baixar .md', 'Arquivar']);
     // Quando
     await userEvent.click(screen.getByRole('menuitem', { name: 'Mover para pasta' }));
@@ -1015,7 +1015,7 @@ describe('Mover a anotação para outra pasta pelo ⋯ do cartão (#370)', () =>
     anotacaoObter.mockImplementation(async () => ({ ...anotacao(banco.texto), arquivado_em: '2026-11-18T12:00:00Z', arquivado_por: 'u-mateus' }));
     abrirCartao();
     // Quando
-    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Mais ações da anotação' }));
     // Então
     expect(screen.getAllByRole('menuitem').map(b => b.textContent?.trim())).not.toContain('Mover para pasta');
   });
