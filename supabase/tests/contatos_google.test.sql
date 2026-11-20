@@ -6,7 +6,8 @@ create extension if not exists pgtap with schema extensions;
 select no_plan();
 
 -- Dado um escritório com Ana (master) e Beto (usuário), e outro com Fabio (master); os dois com a conta Google ligada,
--- mas só o primeiro com a sincronização dos contatos ligada.
+-- mas só o primeiro com a sincronização dos contatos ligada (e com a primeira sincronização já feita, que a fila espera:
+-- supabase/tests/contatos_google_primeira.test.sql).
 insert into public.escritorios (id, nome, slug) values
   ('e0000000-0000-0000-0000-000000000001', 'Escritório de teste', 'teste-contatos-google'),
   ('e0000000-0000-0000-0000-000000000002', 'Outro escritório', 'teste-contatos-google-2');
@@ -19,9 +20,9 @@ select ('a0000000-0000-0000-0000-00000000000' || n)::uuid, 'authenticated', 'aut
 from (values (1, 'ana@exemplo.test'), (2, 'beto@exemplo.test'), (3, 'fabio@exemplo.test')) as x(n, e);
 insert into auth.sessions (id, user_id, created_at, updated_at)
 select ('50000000-0000-0000-0000-00000000000' || n)::uuid, ('a0000000-0000-0000-0000-00000000000' || n)::uuid, now(), now() from generate_series(1, 3) n;
-insert into privado.ligacoes (escritorio_id, provedor, conta_email, segredo_id, contatos_ativos)
-values ('e0000000-0000-0000-0000-000000000001', 'google', 'contato@exemplo.test', vault.create_secret('token-do-escritorio-1', 'teste-contatos-1'), true),
-       ('e0000000-0000-0000-0000-000000000002', 'google', 'outro@exemplo.test', vault.create_secret('token-do-escritorio-2', 'teste-contatos-2'), false);
+insert into privado.ligacoes (escritorio_id, provedor, conta_email, segredo_id, contatos_ativos, contatos_primeira_em)
+values ('e0000000-0000-0000-0000-000000000001', 'google', 'contato@exemplo.test', vault.create_secret('token-do-escritorio-1', 'teste-contatos-1'), true, now()),
+       ('e0000000-0000-0000-0000-000000000002', 'google', 'outro@exemplo.test', vault.create_secret('token-do-escritorio-2', 'teste-contatos-2'), false, null);
 
 grant usage on schema extensions to authenticated;
 create function pg_temp.entrar(p_quem int) returns void language sql as $$

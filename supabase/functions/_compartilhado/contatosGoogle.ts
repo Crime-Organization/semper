@@ -1,6 +1,7 @@
 // Partes da sincronização das pessoas com o Google Contatos (#164), usadas pela função do servidor google-sincronizar.
 // Sem Deno: a rede e o banco entram pelos "passos", e dá para testar no app com um fetch simulado
 // (app/src/regras/sincronizacaoDeContatos.test.ts).
+import { corresponder, MARCA_DO_SEMPER, telefoneNacional, type ContatoDaConta, type Correspondencia, type PessoaDoEscritorio } from './correspondenciaDeContatos.ts';
 
 /** Uma pessoa na fila, como o banco entrega (public.contatos_google_pendentes). `recurso` e `etag`: o contato já ligado a ela nessa conta. */
 export interface PessoaNaFila {
@@ -20,23 +21,14 @@ export interface ContatoGoogle {
 
 /** Os campos que o SEMPER escreve no contato: ao atualizar, só eles mudam (o resto do contato, no Google, fica como está). */
 export const CAMPOS_DO_CONTATO = 'names,phoneNumbers,emailAddresses,birthdays,clientData';
-/** A marca do SEMPER no contato (o id da pessoa), para a etapa 2 achar os contatos que já são de alguém. */
-export const MARCA_DO_SEMPER = 'semper_pessoa';
-
-const so = (v: string) => v.replace(/\D/g, '');
-/** O número sem o 55 do Brasil e sem o 0 antes do DDD, com o 9 nos celulares antigos de 8 dígitos (como celularCompleto em app/src/regras/pessoa.ts). */
-function nacional(v: string) {
-  const digitos = so(v);
-  let d = (digitos.length === 12 || digitos.length === 13) && digitos.startsWith('55') ? digitos.slice(2) : digitos;
-  if (d === digitos && (d.length === 11 || d.length === 12) && d.startsWith('0')) d = d.slice(1);
-  return d.length === 10 && /[6-9]/.test(d[2]) ? d.slice(0, 2) + '9' + d.slice(2) : d;
-}
+/** A marca do SEMPER no contato (o id da pessoa): a primeira sincronização (correspondenciaDeContatos.ts) a reconhece. */
+export { MARCA_DO_SEMPER };
 
 /** O telefone como o Google reconhece (+55 38 99999-9999), igual ao CSV de exportação (telefoneGoogle em app/src/regras/contatosGoogle.ts). */
 export function telefoneNoGoogle(v: string) {
   const original = String(v || '').trim();
   if (original.startsWith('+') && !/^\+\s*55/.test(original)) return original;
-  const d = nacional(original);
+  const d = telefoneNacional(original);
   if (d.length === 11 && d[2] === '9') return `+55 ${d.slice(0, 2)} ${d.slice(2, 7)}-${d.slice(7)}`;
   if (d.length === 10 && /[2-5]/.test(d[2])) return `+55 ${d.slice(0, 2)} ${d.slice(2, 6)}-${d.slice(6)}`;
   return original;
@@ -140,7 +132,7 @@ async function pedir<T>(buscar: typeof fetch, url: string, init: RequestInit): P
 }
 
 /** Um token de acesso novo, com o token de renovação. Recusa do Google (4xx) é autorização vencida ou retirada. */
-async function tokenDeAcesso(passos: PassosDaSincronizacao, escritorio: string) {
+async function tokenDeAcesso(passos: Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'>, escritorio: string) {
   const renovacao = await passos.tokenDeRenovacao(escritorio);
   if (!renovacao) throw new FalhaDoGoogle('autorizacao', 'sem token de renovação');
   try {
@@ -229,4 +221,80 @@ export async function sincronizarContatos(passos: PassosDaSincronizacao, escrito
     }
   }
   return resultado;
+}
+
+// ---------------------------------------------------------------------
+// A primeira sincronização (etapa 2): os contatos que já estão na conta
+// ---------------------------------------------------------------------
+
+/** Um escritório com a primeira sincronização por fazer, já reservado para esta execução (public.contatos_google_primeiras). */
+export interface EscritorioDaPrimeira { escritorio_id: string; conta_email: string; tentativas: number }
+/** Como terminou a primeira sincronização: contatos ligados a pessoas, contatos para conferir e pessoas que vão ganhar um contato novo. */
+export interface ResultadoDaPrimeira { ligados: number; para_conferir: number; novos: number }
+
+export interface PassosDaPrimeira extends Pick<PassosDaSincronizacao, 'tokenDeRenovacao' | 'buscar' | 'clienteId' | 'clienteSegredo'> {
+  /** Os escritórios com a primeira sincronização por fazer agora (de um escritório, ou de todos com null), já reservados. */
+  primeiras(escritorio: string | null): Promise<EscritorioDaPrimeira[]>;
+  /** As pessoas do escritório (também as arquivadas), com o contato já ligado a cada uma nesta conta. */
+  pessoasDoEscritorio(escritorio: string, conta: string): Promise<PessoaDoEscritorio[]>;
+  /** Grava as ligações e a lista para conferir, marca a primeira como feita e põe na fila quem fica sem contato. */
+  concluirPrimeira(e: EscritorioDaPrimeira, c: Correspondencia): Promise<ResultadoDaPrimeira>;
+  primeiraFalhou(e: EscritorioDaPrimeira, falha: TipoDaFalha, detalhe: string, esperaEmSegundos: number): Promise<void>;
+}
+
+/** Os campos lidos de cada contato da conta: só o que a correspondência usa. */
+const CAMPOS_DA_LEITURA = 'names,phoneNumbers,emailAddresses,birthdays,clientData,metadata';
+/** Quantos contatos vêm em cada página da lista (o máximo que o Google aceita). */
+export const CONTATOS_POR_PAGINA = 1000;
+/** Quantas páginas a leitura aceita (100 mil contatos): passou disso, algo está errado, e a leitura para em vez de girar sem fim. */
+export const PAGINAS_NO_MAXIMO = 100;
+
+/** Todos os contatos da conta, página por página (people.connections.list). */
+export async function lerContatosDaConta(buscar: typeof fetch, acesso: string): Promise<ContatoDaConta[]> {
+  const contatos: ContatoDaConta[] = [];
+  let pagina: string | undefined;
+  for (let i = 0; i < PAGINAS_NO_MAXIMO; i++) {
+    const url = `${PESSOAS}/people/me/connections?personFields=${CAMPOS_DA_LEITURA}&pageSize=${CONTATOS_POR_PAGINA}`
+      + (pagina ? `&pageToken=${encodeURIComponent(pagina)}` : '');
+    const r = await pedir<{ connections?: ContatoDaConta[]; nextPageToken?: string }>(buscar, url, { method: 'GET', headers: { Authorization: `Bearer ${acesso}` } });
+    contatos.push(...(r.connections ?? []));
+    if (!r.nextPageToken) return contatos;
+    pagina = r.nextPageToken;
+  }
+  throw new FalhaDoGoogle('recusado', `mais de ${PAGINAS_NO_MAXIMO * CONTATOS_POR_PAGINA} contatos na conta`);
+}
+
+/**
+ * A primeira sincronização de um escritório: lê os contatos que já estão na conta Google, compara com as pessoas do
+ * escritório (correspondenciaDeContatos.ts) e grava o resultado. Nada é escrito no Google aqui. Se falhar, nada é
+ * gravado: a primeira fica por fazer e é tentada de novo com a espera da tentativa. Devolve null se falhou.
+ */
+export async function primeiraSincronizacao(passos: PassosDaPrimeira, e: EscritorioDaPrimeira): Promise<ResultadoDaPrimeira | null> {
+  try {
+    const acesso = await tokenDeAcesso(passos, e.escritorio_id);
+    const contatos = await lerContatosDaConta(passos.buscar, acesso);
+    const pessoas = await passos.pessoasDoEscritorio(e.escritorio_id, e.conta_email);
+    return await passos.concluirPrimeira(e, corresponder(contatos, pessoas));
+  } catch (err) {
+    const falha = err instanceof FalhaDoGoogle ? FALHA_DA_FILA[err.tipo] : 'temporario';
+    const detalhe = err instanceof FalhaDoGoogle ? err.detalhe : `erro: ${(err as Error).message}`.slice(0, 200);
+    await passos.primeiraFalhou(e, falha, detalhe, esperaDaTentativa(e.tentativas));
+    return null;
+  }
+}
+
+export interface ResultadoCompleto extends ResultadoDaSincronizacao { primeira?: ResultadoDaPrimeira }
+
+/**
+ * Uma execução da função do servidor: primeiro as primeiras sincronizações por fazer (enquanto a do escritório não termina,
+ * a fila dele espera: é o que impede criar cópias dos contatos que já estão no Google); depois, a fila.
+ */
+export async function sincronizarTudo(passos: PassosDaSincronizacao & PassosDaPrimeira, escritorio: string | null): Promise<ResultadoCompleto> {
+  let primeira: ResultadoDaPrimeira | undefined;
+  for (const e of await passos.primeiras(escritorio)) {
+    const r = await primeiraSincronizacao(passos, e);
+    if (r) primeira = { ligados: (primeira?.ligados ?? 0) + r.ligados, para_conferir: (primeira?.para_conferir ?? 0) + r.para_conferir, novos: (primeira?.novos ?? 0) + r.novos };
+  }
+  const fila = await sincronizarContatos(passos, escritorio);
+  return primeira ? { ...fila, primeira } : fila;
 }

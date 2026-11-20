@@ -2,8 +2,8 @@
 // A sincronização das pessoas com o Google Contatos (#164), em supabase/functions/_compartilhado/, com o Google simulado.
 import { describe, expect, it, vi } from 'vitest';
 import {
-  CAMPOS_DO_CONTATO, contatoDaPessoa, ESPERAS_DAS_TENTATIVAS, esperaDaTentativa, MARCA_DO_SEMPER, sincronizarContatos, telefoneNoGoogle, tipoDoErro,
-  type PassosDaSincronizacao, type PessoaNaFila
+  CAMPOS_DO_CONTATO, contatoDaPessoa, CONTATOS_POR_PAGINA, ESPERAS_DAS_TENTATIVAS, esperaDaTentativa, MARCA_DO_SEMPER, primeiraSincronizacao, sincronizarContatos,
+  sincronizarTudo, telefoneNoGoogle, tipoDoErro, type EscritorioDaPrimeira, type PassosDaPrimeira, type PassosDaSincronizacao, type PessoaNaFila
 } from '../../../supabase/functions/_compartilhado/contatosGoogle';
 import { telefoneGoogle } from './contatosGoogle';
 
@@ -233,5 +233,122 @@ describe('sincronizarContatos', () => {
     await sincronizarContatos(s, ESCRITORIO, 5);
     // Então
     expect(s.pendentes).toHaveBeenCalledWith(ESCRITORIO, 5);
+  });
+});
+
+// ---------------------------------------------------------------------
+// A primeira sincronização (etapa 2)
+// ---------------------------------------------------------------------
+describe('primeiraSincronizacao', () => {
+  const escritorio = (campos: Partial<EscritorioDaPrimeira> = {}): EscritorioDaPrimeira => ({ escritorio_id: ESCRITORIO, conta_email: 'contato@exemplo.com', tentativas: 1, ...campos });
+  const PESSOAS = [
+    { id: 'p1', tipo: 'pf' as const, nome: 'MARIA TESTE', telefones: ['38999991234'], emails: [], nascimento: null, abertura: null, recurso: null },
+    { id: 'p2', tipo: 'pf' as const, nome: 'JOSE TESTE', telefones: [], emails: [], nascimento: null, abertura: null, recurso: null }
+  ];
+  /** A conta Google com os contatos em duas páginas. */
+  const PAGINAS: Record<string, unknown> = {
+    '': { connections: [{ resourceName: 'people/c1', etag: 'e1', names: [{ displayName: 'Maria Teste' }], phoneNumbers: [{ value: '+55 38 99999-1234' }] }], nextPageToken: 'pagina 2' },
+    'pagina 2': { connections: [{ resourceName: 'people/c2', etag: 'e2', names: [{ displayName: 'José Teste' }] }] }
+  };
+  const contaComDuasPaginas = (p: Pedido, padrao: typeof PADRAO) => {
+    if (!p.url.includes('/people/me/connections')) return padrao(p);
+    return resposta(200, PAGINAS[new URL(p.url).searchParams.get('pageToken') ?? '']);
+  };
+  function passosDaPrimeira(buscar: typeof fetch, extras: Partial<PassosDaPrimeira> = {}) {
+    return {
+      ...passos([], buscar),
+      primeiras: vi.fn<PassosDaPrimeira['primeiras']>(async () => [escritorio()]),
+      pessoasDoEscritorio: vi.fn<PassosDaPrimeira['pessoasDoEscritorio']>(async () => PESSOAS),
+      concluirPrimeira: vi.fn<PassosDaPrimeira['concluirPrimeira']>(async (_, c) => ({ ligados: c.ligar.length, para_conferir: c.conferir.length, novos: 0 })),
+      primeiraFalhou: vi.fn<PassosDaPrimeira['primeiraFalhou']>(async () => {}),
+      ...extras
+    };
+  }
+
+  it('dada a conta com contatos em duas páginas, quando faz a primeira, então lê todas as páginas e grava as ligações e as dúvidas, sem escrever no Google', async () => {
+    // Dado
+    const g = google(contaComDuasPaginas);
+    const p = passosDaPrimeira(g.buscar);
+    // Quando
+    const r = await primeiraSincronizacao(p, escritorio());
+    // Então
+    const leituras = g.pedidos.filter(x => x.url.includes('/people/me/connections'));
+    expect(leituras).toHaveLength(2);
+    expect(leituras.every(x => x.metodo === 'GET' && x.autorizacao === `Bearer acesso-renovacao-${ESCRITORIO}`)).toBe(true);
+    expect(new URL(leituras[0].url).searchParams.get('pageSize')).toBe(String(CONTATOS_POR_PAGINA));
+    expect(new URL(leituras[1].url).searchParams.get('pageToken')).toBe('pagina 2');
+    expect(new URL(leituras[0].url).searchParams.get('personFields')).toContain('clientData');
+    expect(g.pedidos.filter(x => x.metodo !== 'GET' && x.url.startsWith('https://people.googleapis.com/'))).toEqual([]);
+    expect(p.pessoasDoEscritorio).toHaveBeenCalledWith(ESCRITORIO, 'contato@exemplo.com');
+    expect(p.concluirPrimeira).toHaveBeenCalledWith(escritorio(), {
+      ligar: [{ pessoa_id: 'p1', recurso: 'people/c1', etag: 'e1' }],
+      conferir: [expect.objectContaining({ recurso: 'people/c2', motivo: 'so-nome', candidatos: ['p2'] })],
+      semCorrespondencia: 0
+    });
+    expect(r).toEqual({ ligados: 1, para_conferir: 1, novos: 0 });
+    expect(p.primeiraFalhou).not.toHaveBeenCalled();
+  });
+
+  it('dada a autorização vencida, quando faz a primeira, então nada é gravado e a falha é de autorização', async () => {
+    // Dado
+    const g = google((x, padrao) => x.url.startsWith('https://oauth2.googleapis.com/token') ? resposta(400, { error: 'invalid_grant' }) : padrao(x));
+    const p = passosDaPrimeira(g.buscar);
+    // Quando
+    const r = await primeiraSincronizacao(p, escritorio({ tentativas: 2 }));
+    // Então
+    expect(r).toBeNull();
+    expect(p.concluirPrimeira).not.toHaveBeenCalled();
+    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio({ tentativas: 2 }), 'autorizacao', expect.stringContaining('renovação'), esperaDaTentativa(2));
+  });
+
+  it('dado o Google fora no meio da leitura, quando faz a primeira, então nada é gravado e ela espera a próxima tentativa', async () => {
+    // Dado
+    const g = google((x, padrao) => new URL(x.url).searchParams.get('pageToken') ? erroDoGoogle(503, 'UNAVAILABLE') : contaComDuasPaginas(x, padrao));
+    const p = passosDaPrimeira(g.buscar);
+    // Quando
+    await primeiraSincronizacao(p, escritorio());
+    // Então
+    expect(p.concluirPrimeira).not.toHaveBeenCalled();
+    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'temporario', '503 UNAVAILABLE', esperaDaTentativa(1));
+  });
+
+  it('dado o banco recusando a gravação, quando faz a primeira, então a falha é temporária', async () => {
+    // Dado
+    const p = passosDaPrimeira(google(contaComDuasPaginas).buscar, { concluirPrimeira: vi.fn(async () => { throw new Error('O banco recusou'); }) });
+    // Quando
+    await primeiraSincronizacao(p, escritorio());
+    // Então
+    expect(p.primeiraFalhou).toHaveBeenCalledWith(escritorio(), 'temporario', 'erro: O banco recusou', esperaDaTentativa(1));
+  });
+});
+
+describe('sincronizarTudo', () => {
+  it('dada uma primeira por fazer, quando a função roda, então faz a primeira antes da fila e devolve as duas contagens', async () => {
+    // Dado
+    const ordem: string[] = [];
+    const g = google((x, padrao) => x.url.includes('/people/me/connections') ? resposta(200, { connections: [] }) : padrao(x));
+    const p = {
+      ...passos([pessoa()], g.buscar, { pendentes: vi.fn(async () => { ordem.push('fila'); return [pessoa()]; }) }),
+      primeiras: vi.fn(async () => [{ escritorio_id: ESCRITORIO, conta_email: 'contato@exemplo.com', tentativas: 1 }]),
+      pessoasDoEscritorio: vi.fn(async () => []),
+      concluirPrimeira: vi.fn(async () => { ordem.push('primeira'); return { ligados: 0, para_conferir: 0, novos: 3 }; }),
+      primeiraFalhou: vi.fn(async () => {})
+    };
+    // Quando
+    const r = await sincronizarTudo(p, ESCRITORIO);
+    // Então
+    expect(ordem).toEqual(['primeira', 'fila']);
+    expect(p.primeiras).toHaveBeenCalledWith(ESCRITORIO);
+    expect(r).toEqual({ sincronizados: 1, falhas: 0, primeira: { ligados: 0, para_conferir: 0, novos: 3 } });
+  });
+
+  it('sem primeira por fazer, quando a função roda, então só a fila anda e o resultado não fala da primeira', async () => {
+    // Dado
+    const p = { ...passos([], google().buscar), primeiras: vi.fn(async () => []), pessoasDoEscritorio: vi.fn(), concluirPrimeira: vi.fn(), primeiraFalhou: vi.fn() };
+    // Quando
+    const r = await sincronizarTudo(p, null);
+    // Então
+    expect(r).toEqual({ sincronizados: 0, falhas: 0 });
+    expect(p.pessoasDoEscritorio).not.toHaveBeenCalled();
   });
 });
