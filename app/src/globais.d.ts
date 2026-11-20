@@ -4,3 +4,5 @@
 declare const __VERSAO__: string;
 /** A data desta compilação (aaaa-mm-dd, no horário de Brasília), vinda da mesma rotina. Vazia fora da publicação. */
 declare const __DATA_DA_VERSAO__: string;
+/** O banco desta compilação (#74): endereço e chave pública do Supabase, das variáveis VITE_SUPABASE_URL e VITE_SUPABASE_CHAVE do app/.env do modo. No banco fictício e nos testes, um endereço que não existe. */
+declare const __BANCO__: import('./regras/qualBanco').Banco;

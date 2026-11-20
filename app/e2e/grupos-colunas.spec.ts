@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Grupos de colunas nos quadros. Na semente do banco fictício nenhum quadro tem grupos, e JOSÉ DA SILVA TESTE está na
-// coluna "Lead". Quem está logado é o Mateus (administrador).
+// coluna "Lead". Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 async function abrirQuadro(page: Page) {

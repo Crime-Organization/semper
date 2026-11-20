@@ -3,6 +3,8 @@
 .env.*
 # A chave do banco local é pública e igual em todo computador.
 !app/.env.docker
+# O banco de produção do site publicado: endereço e chave publishable, públicos por natureza (#74).
+!app/.env.production
 *.key
 
 # Dados de clientes e exportações (nunca versionar)

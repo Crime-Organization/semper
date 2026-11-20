@@ -109,7 +109,7 @@ O SEMPER segue o tema do aparelho (**Automático**). O usuário pode fixar **Cla
 Regras:
 - Toda cor nova entra como variável nos dois blocos (claro e escuro) do `estilo.css`. Cores fixas só para texto branco sobre fundos coloridos (verde, vermelho, avatares).
 - Texto pequeno usa no mínimo `{colors.muted}`. `{colors.faint}` fica para bordas, estados desabilitados e textos grandes.
-- Contraste conferido em todas as telas nos dois temas com `dev/contraste.js` (mínimo 4,5:1; 3:1 para textos grandes).
+- Contraste conferido em todas as telas nos dois temas com `app/dev/contraste.js` (mínimo 4,5:1; 3:1 para textos grandes).
 
 ## Typography
 

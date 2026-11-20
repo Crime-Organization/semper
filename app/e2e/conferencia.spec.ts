@@ -34,7 +34,7 @@ test.describe('Conferência dos lançamentos', () => {
     await salvou(page, 'Conferência salva.');
     await linha.getByLabel(/^Observação/).fill('Falta o comprovante');
     await linha.getByLabel(/^Observação/).blur();
-    await expect(linha).toContainText('Mateus Freitas Gonçalves');
+    await expect(linha).toContainText('Mauro Teixeira Duarte');
     // Então
     await page.reload();
     const depois = linhas(page).getByRole('row', { name: /CLIENTE QUE CONFERE/ });
@@ -90,7 +90,7 @@ test.describe('Conferência dos lançamentos', () => {
     const resumo = page.getByRole('table', { name: 'Resumo por responsável e ano' });
     // Então
     await expect(resumo.getByRole('row', { name: /Ana Teste Lima.*2026/ })).toBeVisible();
-    await expect(resumo.getByRole('row', { name: /Mateus Freitas Gonçalves.*2025/ })).toBeVisible();
+    await expect(resumo.getByRole('row', { name: /Mauro Teixeira Duarte.*2025/ })).toBeVisible();
     // Quando
     await page.getByRole('button', { name: 'Ver as linhas de Ana Teste Lima em 2026' }).click();
     // Então

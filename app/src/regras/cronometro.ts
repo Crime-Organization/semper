@@ -1,6 +1,6 @@
 // O cronômetro das tarefas, sem tela nem banco: o estado de um período que está sendo contado e o que cada acontecimento
 // faz com ele (começar, pausar, a pessoa mexer, o relógio andar, responder "Você ainda está aqui?").
-// Regras combinadas com o Mateus (24/10): cada um conta o próprio tempo; depois de um tempo sem mexer, aparece o aviso,
+// Regras combinadas com o dono do produto (24/10): cada um conta o próprio tempo; depois de um tempo sem mexer, aparece o aviso,
 // e o tempo a partir dele fica separado: "Ainda estou" soma; "Não estava" descarta o tempo desde o aviso e a contagem
 // recomeça. Os instantes são em milissegundos (Date.now()); o que vai para o banco é em segundos.
 import { AJUSTE_MAXIMO, TAMANHO_MOTIVO } from '../dados/limites';

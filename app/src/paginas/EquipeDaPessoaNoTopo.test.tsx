@@ -18,9 +18,9 @@ vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('..
 const EQUIPE = [
   { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true },
   { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true },
-  { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', ativo: true }
+  { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', ativo: true }
 ];
-vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus' }, equipe: EQUIPE, grupos: [], ehAdmin: true, escritorio: { modulos: {} } }) }));
+vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro' }, equipe: EQUIPE, grupos: [], ehAdmin: true, escritorio: { modulos: {} } }) }));
 
 /** Uma pessoa com a Ana e o Bruno de responsáveis. */
 const PESSOA = { id: 'p1', resp: [{ perfil_id: 'u-ana' }, { perfil_id: 'u-bruno' }] } as unknown as Pessoa;
@@ -62,15 +62,15 @@ describe('Responsáveis da pessoa no topo do cartão', () => {
     await userEvent.click(within(responsaveis()).getByRole('button', { name: 'Pôr responsável' }));
     const busca = screen.getByRole('dialog', { name: 'Pôr responsável' });
     expect(within(busca).getByRole('list', { name: 'Equipe' })).not.toHaveTextContent('Ana');
-    await userEvent.click(within(busca).getByRole('button', { name: 'Mateus Freitas Gonçalves' }));
+    await userEvent.click(within(busca).getByRole('button', { name: 'Mauro Teixeira Duarte' }));
     // Então
-    expect(SD.responsavelIncluir).toHaveBeenCalledWith('p1', 'u-mateus');
+    expect(SD.responsavelIncluir).toHaveBeenCalledWith('p1', 'u-mauro');
     await vi.waitFor(() => expect(depois).toHaveBeenCalledTimes(1));
-    expect(feito).toHaveBeenCalledWith('Mateus Freitas Gonçalves agora é responsável.', 'inclusão do responsável', expect.any(Function));
+    expect(feito).toHaveBeenCalledWith('Mauro Teixeira Duarte agora é responsável.', 'inclusão do responsável', expect.any(Function));
     // Quando (o Desfazer)
     await feito.mock.calls[0][2]();
     // Então
-    expect(SD.responsavelRemover).toHaveBeenCalledWith('p1', 'u-mateus');
+    expect(SD.responsavelRemover).toHaveBeenCalledWith('p1', 'u-mauro');
   });
 
   it('quando a pessoa escolhe "Tirar dos responsáveis" no menu da bolinha de um, então ele sai, com o aviso e o Desfazer que o põe de volta', async () => {

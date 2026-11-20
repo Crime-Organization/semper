@@ -1,15 +1,15 @@
 // Aviso na caixa de Mensagens para quem entra num item (#377). Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Quem cria o aviso é o banco (no fictício, as funções que gravam o item), em qualquer forma de incluir: aqui, pelas bolinhas da
 // equipe no topo do cartão. Na semente do banco fictício: a demanda "Busca de anterioridade" não tem o Bruno; a tarefa "Pedir
-// documentos ao cliente" é do Bruno; a "Emitir a GRU" é do Mateus, com o Bruno participante (sem aviso); a "Reunião de equipe"
-// (hoje, na Agenda geral) é do Mateus, sem participantes. Quem está logado é o Mateus (master).
+// documentos ao cliente" é do Bruno; a "Emitir a GRU" é do Mauro, com o Bruno participante (sem aviso); a "Reunião de equipe"
+// (hoje, na Agenda geral) é do Mauro, sem participantes. Quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { acaoDaBolinha, entrarComo } from './ajudantes';
 
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Seções' });
 /** O cartão aberto (a janela com o título); a busca do "+" e a da troca do responsável também são janelas, sem título. */
 const cartaoAberto = (page: Page) => page.getByRole('dialog').filter({ has: page.getByRole('heading', { level: 2 }) });
-const MATEUS = 'Mateus Freitas Gonçalves';
+const MAURO = 'Mauro Teixeira Duarte';
 
 /** Abre o cartão pela tabela do módulo, pela linha que tem `linha`, e devolve o cartão e o endereço dele (com o id). */
 async function abrirPelaTabela(page: Page, endereco: string, linha: string) {
@@ -39,19 +39,19 @@ async function abrirMensagens(page: Page) {
 const aviso = (page: Page, nome: string | RegExp) => page.getByRole('listitem', { name: nome });
 
 test.describe('Aviso ao ser incluído num item', () => {
-  test('dado o Bruno fora da demanda, quando o Mateus o põe pela bolinha com "+", então o Bruno recebe o aviso, e clicar abre a demanda e marca como lida', async ({ page }) => {
+  test('dado o Bruno fora da demanda, quando o Mauro o põe pela bolinha com "+", então o Bruno recebe o aviso, e clicar abre a demanda e marca como lida', async ({ page }) => {
     // Dado
     const { cartao, id } = await abrirPelaTabela(page, '/demandas/', 'Busca de anterioridade');
     // Quando
     await porPelaBolinha(page, cartao, 'Pôr colaborador', 'bru', 'Bruno Exemplo Souza');
-    // Então: o Mateus, que incluiu, não recebe nada
+    // Então: o Mauro, que incluiu, não recebe nada
     await abrirMensagens(page);
     await expect(aviso(page, /incluiu você/)).toHaveCount(0);
     // Então: o Bruno recebe, com o número no menu
     await entrarComo(page, 'u-bruno');
     await expect(menu(page).getByRole('link', { name: /Mensagens, \d+ não lidas?/ })).toBeVisible();
     await abrirMensagens(page);
-    const linha = aviso(page, `Aviso não lido: ${MATEUS} incluiu você na demanda Busca de anterioridade`);
+    const linha = aviso(page, `Aviso não lido: ${MAURO} incluiu você na demanda Busca de anterioridade`);
     await expect(linha).toContainText('Agora você é colaborador da demanda.');
     // Quando
     await linha.getByRole('link').click();
@@ -59,10 +59,10 @@ test.describe('Aviso ao ser incluído num item', () => {
     await expect(page).toHaveURL(new RegExp(`/demandas/\\?id=${id}`));
     await expect(cartaoAberto(page).getByRole('heading', { name: 'Busca de anterioridade', level: 2 })).toBeVisible();
     await abrirMensagens(page);
-    await expect(aviso(page, `Aviso lido: ${MATEUS} incluiu você na demanda Busca de anterioridade`)).toBeVisible();
+    await expect(aviso(page, `Aviso lido: ${MAURO} incluiu você na demanda Busca de anterioridade`)).toBeVisible();
   });
 
-  test('dada a tarefa do Bruno, quando o Mateus passa a responsabilidade para a Ana, então ela recebe o aviso de responsável', async ({ page }) => {
+  test('dada a tarefa do Bruno, quando o Mauro passa a responsabilidade para a Ana, então ela recebe o aviso de responsável', async ({ page }) => {
     // Dado
     const { cartao, id } = await abrirPelaTabela(page, '/tarefas/', 'Pedir documentos ao cliente');
     // Quando
@@ -74,19 +74,19 @@ test.describe('Aviso ao ser incluído num item', () => {
     // Então
     await entrarComo(page, 'u-ana');
     await abrirMensagens(page);
-    const linha = aviso(page, `Aviso não lido: ${MATEUS} pôs você como responsável pela tarefa Pedir documentos ao cliente`);
+    const linha = aviso(page, `Aviso não lido: ${MAURO} pôs você como responsável pela tarefa Pedir documentos ao cliente`);
     await expect(linha).toContainText('Agora você é o responsável.');
     await expect(linha.getByRole('link')).toHaveAttribute('href', `/tarefas/?id=${id}`);
   });
 
-  test('dado o compromisso da Agenda geral, quando o Mateus põe a Ana, então o aviso dela abre o compromisso na Agenda', async ({ page }) => {
+  test('dado o compromisso da Agenda geral, quando o Mauro põe a Ana, então o aviso dela abre o compromisso na Agenda', async ({ page }) => {
     // Dado
     const { cartao, id } = await abrirPelaTabela(page, '/agenda/', 'Reunião de equipe');
     // Quando
     await porPelaBolinha(page, cartao, 'Pôr participante', 'ana', 'Ana Teste Lima');
     await entrarComo(page, 'u-ana');
     await abrirMensagens(page);
-    await aviso(page, `Aviso não lido: ${MATEUS} incluiu você no compromisso Reunião de equipe`).getByRole('link').click();
+    await aviso(page, `Aviso não lido: ${MAURO} incluiu você no compromisso Reunião de equipe`).getByRole('link').click();
     // Então
     await expect(page).toHaveURL(new RegExp(`/agenda/\\?id=${id}`));
     await expect(cartaoAberto(page).getByRole('heading', { name: 'Reunião de equipe', level: 2 })).toBeVisible();
@@ -101,7 +101,7 @@ test.describe('Aviso ao ser incluído num item', () => {
       await porPelaBolinha(page, cartao, 'Pôr colaborador', 'bru', 'Bruno Exemplo Souza');
       await entrarComo(page, 'u-bruno');
       await abrirMensagens(page);
-      await page.getByRole('button', { name: `Marcar como lida a mensagem de ${MATEUS} sobre a demanda Busca de anterioridade` }).click();
+      await page.getByRole('button', { name: `Marcar como lida a mensagem de ${MAURO} sobre a demanda Busca de anterioridade` }).click();
       await expect(aviso(page, /^Aviso lido: .* incluiu você na demanda Busca de anterioridade/)).toBeVisible();
       // Quando
       await entrarComo(page, 'u-master');
@@ -114,12 +114,12 @@ test.describe('Aviso ao ser incluído num item', () => {
       const linha = aviso(page, 'Aviso lido: Você não faz mais parte desta demanda');
       await expect(linha).toContainText('Você não faz mais parte desta demanda.');
       await expect(linha).not.toContainText('Busca de anterioridade');
-      await expect(linha).not.toContainText(MATEUS);
+      await expect(linha).not.toContainText(MAURO);
       await expect(linha.getByRole('link')).toHaveCount(0);
     });
   }
 
-  test('dado o Bruno posto na demanda, quando o Mateus desfaz logo em seguida, então o Bruno não fica com aviso nenhum', async ({ page }) => {
+  test('dado o Bruno posto na demanda, quando o Mauro desfaz logo em seguida, então o Bruno não fica com aviso nenhum', async ({ page }) => {
     // Dado
     const { cartao } = await abrirPelaTabela(page, '/demandas/', 'Busca de anterioridade');
     await porPelaBolinha(page, cartao, 'Pôr colaborador', 'bru', 'Bruno Exemplo Souza');
@@ -132,7 +132,7 @@ test.describe('Aviso ao ser incluído num item', () => {
     await expect(aviso(page, /Busca de anterioridade|não faz mais parte/)).toHaveCount(0);
   });
 
-  test('dado o Bruno na tarefa, quando o Mateus o tira e desfaz logo em seguida, então o Bruno não recebe "incluiu você"', async ({ page }) => {
+  test('dado o Bruno na tarefa, quando o Mauro o tira e desfaz logo em seguida, então o Bruno não recebe "incluiu você"', async ({ page }) => {
     // Dado
     const { cartao } = await abrirPelaTabela(page, '/tarefas/', 'Emitir a GRU');
     // Quando

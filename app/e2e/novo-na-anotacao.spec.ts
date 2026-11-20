@@ -5,7 +5,7 @@
 // tem uma pessoa só, ela já vem como cliente (demanda, contrato) ou pessoa (tarefa, compromisso). Na anotação nova, o botão espera
 // ela ir ao banco; quem só lê a anotação não o vê.
 // Na semente do banco fictício não há anotações. JOSÉ DA SILVA TESTE é uma pessoa do cadastro; a demanda "Registro de marca" tem o
-// Bruno (estagiário, não administrador) de colaborador. Quem está logado é o Mateus (administrador).
+// Bruno (estagiário, não administrador) de colaborador. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
 
@@ -198,7 +198,7 @@ test.describe('Quem vê o "+ Novo…" da anotação, e o que ele oferece (#376)'
   });
 
   test('dada uma anotação que o Bruno só lê, quando ele abre "Ligada a", então não há "+ Novo…" nem "Ligar a outro item"', async ({ page }) => {
-    // Dado: o Mateus escreve a anotação ligada à demanda em que o Bruno está
+    // Dado: o Mauro escreve a anotação ligada à demanda em que o Bruno está
     await page.goto('/inicio/');
     const demanda = await page.evaluate(([chave]) =>
       (JSON.parse(sessionStorage.getItem(chave)!) as { demandas: { id: string; titulo: string }[] }).demandas.find(d => d.titulo === 'Registro de marca')!.id, [CHAVE]);

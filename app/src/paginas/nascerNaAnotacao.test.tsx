@@ -16,7 +16,7 @@ const { anotacaoLigar, avisar } = vi.hoisted(() => ({
 }));
 vi.mock('../dados', () => ({ SD: { anotacaoLigar } satisfies Pick<DadosAnotacoes, 'anotacaoLigar'> }));
 vi.mock('../ui/avisos', () => ({ avisar, falha: vi.fn() }));
-vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus', papel: 'usuario' }, escritorio: { modulos: {} } }) }));
+vi.mock('../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro', papel: 'usuario' }, escritorio: { modulos: {} } }) }));
 
 const ANOTACAO = { id: 'an1', codigo: 'AN-0001', titulo: 'Reunião com o cliente', arquivado_em: null };
 const DO_CRIADO = '/tarefas/?id=t9';

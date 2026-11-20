@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Do cliente ao contrato (#269): a pessoa que chega a "Contrato fechado" ganha um contrato em "Aguardando assinatura",
 // com ela como cliente e o objeto "A definir"; o contrato assinado assim avisa que nenhuma demanda nasceu.
-// Quem está logado é o Mateus (advogado e administrador): ele fica como responsável do contrato.
+// Quem está logado é o Mauro (advogado e administrador): ele fica como responsável do contrato.
 import { expect, test } from '@playwright/test';
 import { abrirSecao, acaoNoMenuDoCartao } from './ajudantes';
 

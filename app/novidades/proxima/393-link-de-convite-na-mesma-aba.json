@@ -1,0 +1,5 @@
+{
+  "titulo": "Link de convite novo funciona na mesma aba",
+  "texto": "Quem abria um link de convite novo na mesma aba em que o link antigo deu erro (vencido ou trocado) continuava recebendo \"Convite não encontrado ou vencido\". Agora a tela usa o link novo e o primeiro acesso funciona.",
+  "ondeAchar": "Tela Entrar, painel Primeiro acesso, aberto pelo link do convite."
+}

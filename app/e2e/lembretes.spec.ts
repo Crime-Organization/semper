@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Hora e lembrete nos prazos de tarefas e demandas (#286). O relógio fica parado em quarta-feira, 04/11/2026, 12h em Brasília.
 // No banco de verdade, a rotina dos lembretes roda a cada minuto; no fictício, o teste a chama num instante escolhido
-// (SEMPER_FALSO.gerarLembretes). Quem está logado é o Mateus (administrador).
+// (SEMPER_FALSO.gerarLembretes). Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 
 const AGORA = new Date('2026-11-04T12:00:00-03:00');

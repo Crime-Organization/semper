@@ -4,7 +4,7 @@
 // as demandas "Registro de marca" e "Busca de anterioridade") e do processo judicial 0001234-97.2026.8.13.0024; MARIA APARECIDA
 // EXEMPLO é cliente do contrato "Ação de cobrança" e da demanda avulsa "Notificar o devedor"; "Renovar a procuração" é uma tarefa
 // avulsa da Ana (sem demanda, contrato, processo nem pessoas), e "Reunião de equipe" é um compromisso da Agenda geral, sem
-// pessoas. Quem está logado é o Mateus (administrador); o Bruno é estagiário e não está em "Renovar a procuração".
+// pessoas. Quem está logado é o Mauro (administrador); o Bruno é estagiário e não está em "Renovar a procuração".
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, entrarComo } from './ajudantes';
 

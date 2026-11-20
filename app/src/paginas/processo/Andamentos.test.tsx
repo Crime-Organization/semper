@@ -16,14 +16,14 @@ const SD = vi.hoisted(() => ({
   processoAndamentoExcluir: vi.fn<DadosAcompanhamento['processoAndamentoExcluir']>(async () => {}), processoAndamentoRestaurar: vi.fn<DadosAcompanhamento['processoAndamentoRestaurar']>(async () => {})
 }));
 vi.mock('../../dados', () => ({ SD: SD satisfies Pick<DadosAcompanhamento, keyof typeof SD> }));
-const EQUIPE: Membro[] = [{ id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', usuario: 'mateus.goncalves', ativo: true }];
-vi.mock('../../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mateus' }, equipe: EQUIPE, ehAdmin: true, escritorio: { modulos: { tarefas: true } } }) }));
+const EQUIPE: Membro[] = [{ id: 'u-mauro', nome: 'Mauro Teixeira Duarte', usuario: 'mauro.duarte', ativo: true }];
+vi.mock('../../ui/sessao', () => ({ useCtx: () => ({ perfil: { id: 'u-mauro' }, equipe: EQUIPE, ehAdmin: true, escritorio: { modulos: { tarefas: true } } }) }));
 
 const andamento = (extra: Partial<AndamentoDeProcesso> = {}): AndamentoDeProcesso => ({
   id: 'a1', processo_id: 'p1', tipo: 'andamento', categoria: 'despacho', data: '2026-11-10', hora: null, local: null, texto: 'Cite-se.', tratada_em: null,
-  tarefa_id: null, tarefa: null, criado_por: 'u-mateus', criado_em: '2026-11-10T10:00:00Z', atualizado_em: '2026-11-10T10:00:00Z', ...extra
+  tarefa_id: null, tarefa: null, criado_por: 'u-mauro', criado_em: '2026-11-10T10:00:00Z', atualizado_em: '2026-11-10T10:00:00Z', ...extra
 });
-const PROCESSO = { id: 'p1', numero: '0001234-97.2026.8.13.0024', titulo: null, orgao: 'TJMG', clientes: [], responsavel_id: 'u-mateus', colaboradores: [] } as unknown as Processo;
+const PROCESSO = { id: 'p1', numero: '0001234-97.2026.8.13.0024', titulo: null, orgao: 'TJMG', clientes: [], responsavel_id: 'u-mauro', colaboradores: [] } as unknown as Processo;
 const aoMudar = vi.fn(async () => {});
 const montar = (lista: AndamentoDeProcesso[], somenteLer = false) => render(<MemoryRouter><Avisos />
   <Andamentos processo={PROCESSO} andamentos={lista} prazos={[]} orgao={null} somenteLer={somenteLer} aoMudar={aoMudar} /></MemoryRouter>);

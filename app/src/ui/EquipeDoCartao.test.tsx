@@ -14,18 +14,18 @@ import { EquipeDoCartao, type GruposDoCartao, type MudarAEquipe, type MudarAList
 
 const ana = { id: 'u-ana', nome: 'Ana Teste Lima', papel: 'Responsável' };
 const bruno = { id: 'u-bruno', nome: 'Bruno Exemplo Souza', papel: 'Participante · 10%' };
-const mateus = { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', papel: 'Participante' };
+const mauro = { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', papel: 'Participante' };
 const grupo = () => screen.getByRole('group', { name: 'Equipe' });
 
 describe('Equipe do cartão, para quem só lê', () => {
   it('quando o cartão tem responsável e participantes, então cada um é uma bolinha com as iniciais, o responsável primeiro, com o nome na dica', () => {
     // Quando
-    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[bruno, mateus]} /></MemoryRouter>);
+    render(<MemoryRouter><EquipeDoCartao responsavel={ana} participantes={[bruno, mauro]} /></MemoryRouter>);
     // Então
     const bolinhas = within(grupo()).getAllByRole('img');
     expect(bolinhas.map(b => b.getAttribute('aria-label'))).toEqual(['Ana Teste Lima, Responsável', 'Bruno Exemplo Souza, Participante · 10%',
-      'Mateus Freitas Gonçalves, Participante']);
-    expect(bolinhas.map(b => b.textContent)).toEqual(['AL', 'BS', 'MG']);
+      'Mauro Teixeira Duarte, Participante']);
+    expect(bolinhas.map(b => b.textContent)).toEqual(['AL', 'BS', 'MD']);
     expect(bolinhas[0]).toHaveAttribute('data-dica', 'Ana Teste Lima · Responsável');
     // Só a dica da bolinha: a do navegador (o title do Avatar) não aparece por cima dela.
     expect(grupo().querySelectorAll('[title]')).toHaveLength(0);
@@ -53,7 +53,7 @@ describe('Equipe do cartão que a pessoa pode alterar: o menu de cada bolinha (#
   const EQUIPE: Membro[] = [
     { id: 'u-ana', nome: 'Ana Teste Lima', ativo: true },
     { id: 'u-bruno', nome: 'Bruno Exemplo Souza', ativo: true },
-    { id: 'u-mateus', nome: 'Mateus Freitas Gonçalves', ativo: true }
+    { id: 'u-mauro', nome: 'Mauro Teixeira Duarte', ativo: true }
   ];
   const mudar = (extra: Partial<MudarAEquipe> = {}): MudarAEquipe => ({
     por: 'Pôr participante', candidatos: () => [EQUIPE[2]], responsaveis: () => [EQUIPE[1], EQUIPE[2]], tirar: () => 'Tirar da tarefa',
@@ -189,7 +189,7 @@ describe('Equipe do cartão que a pessoa pode alterar: o menu de cada bolinha (#
     // Dado
     const motivo = 'Você não pode sair deste contrato.';
     const m = mudar({ impedeTirar: p => p.id === bruno.id ? motivo : undefined });
-    montar(m, [bruno, mateus]);
+    montar(m, [bruno, mauro]);
     // Quando
     await userEvent.click(bolinhaDoBruno());
     // Então
@@ -248,8 +248,8 @@ describe('Equipe do cartão que a pessoa pode alterar: o menu de cada bolinha (#
     montar(m);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Pôr participante' }));
-    const achado = within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Mateus Freitas Gonçalves' });
-    expect(achado).toHaveTextContent(/^Mateus Freitas Gonçalves$/);
+    const achado = within(screen.getByRole('list', { name: 'Equipe' })).getByRole('button', { name: 'Mauro Teixeira Duarte' });
+    expect(achado).toHaveTextContent(/^Mauro Teixeira Duarte$/);
     await userEvent.click(achado);
     // Então
     expect(m.aoPor).toHaveBeenCalledWith(EQUIPE[2]);
@@ -261,7 +261,7 @@ describe('Equipe do cartão que a pessoa pode alterar: o menu de cada bolinha (#
     montar(m, [], null);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Sem responsável. Escolher o responsável' }));
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Trocar o responsável' })).getByRole('button', { name: 'Mateus Freitas Gonçalves' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Trocar o responsável' })).getByRole('button', { name: 'Mauro Teixeira Duarte' }));
     // Então
     expect(m.aoTrocarResponsavel).toHaveBeenCalledWith(EQUIPE[2]);
   });

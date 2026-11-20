@@ -1,6 +1,6 @@
 // Painel da página inicial (#319): prazos, agenda do dia, tarefas, demandas, processos, anotações, parcelas da semana e Pessoas.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// Na semente do banco fictício, Mateus (o master) é responsável por "Emitir a GRU" (prazo daqui a 2 dias) e participa de
+// Na semente do banco fictício, Mauro (o master) é responsável por "Emitir a GRU" (prazo daqui a 2 dias) e participa de
 // "Renovar a procuração" (venceu ontem); a "Reunião de equipe" de hoje, às 9h, está na Agenda geral.
 import { expect, test, type Page } from '@playwright/test';
 
@@ -36,7 +36,7 @@ test.describe('Painel da página inicial', () => {
   test('quando a pessoa entra, então vê os prazos, a agenda do dia e as tarefas em andamento, e o link abre o cartão', async ({ page }) => {
     // Dado
     await page.goto('/inicio/');
-    await expect(page.getByRole('heading', { name: 'Olá, Mateus.', level: 1 })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Olá, Mauro.', level: 1 })).toBeVisible();
     const prazos = bloco(page, 'Prazos');
     // Então: o vencido em destaque, num grupo à parte
     await expect(prazos.getByRole('region', { name: 'Em atraso' }).getByRole('link', { name: /Renovar a procuração/ })).toBeVisible();

@@ -29,7 +29,7 @@ Em português simples, curto (uma ou duas frases) e sempre com **onde achar** (a
 
 Quem escreve a mudança ainda não sabe o número da versão, por isso a novidade nasce em `proxima`. Na publicação: o site compilado mostra as de `proxima` com o número e a data da versão (variáveis `VERSAO` e `DATA_DA_VERSAO`, em `vite.config.ts`), e a última etapa da rotina, **Carimbar as novidades**, faz um commit no `main` que passa esses arquivos para `app/novidades/vX.Y.Z/`, com a data em `versao.json`. Só passam os que estavam no commit publicado; o que entrou depois continua em `proxima`. Por isso, **depois de publicar, rode `git pull`** antes de continuar. Voltar atrás não mexe nas novidades. Se essa etapa falhar (o site já está no ar), mova os arquivos à mão do mesmo jeito antes da próxima publicação.
 
-> **Transição:** enquanto a Hostinger não usar o ramo `publicacao`, ela continua publicando a raiz do `main`, onde ainda está a versão antiga em JavaScript simples (guardada também na marca `js-simples`). Depois da troca, essa versão antiga sai da raiz.
+> A primeira versão do SEMPER, em JavaScript simples, ficava na raiz do `main` e saiu de lá quando a Hostinger passou a publicar o ramo `publicacao` (#43). Ela continua guardada na marca `js-simples`.
 
 | Pasta / arquivo | Conteúdo |
 |---|---|
@@ -39,13 +39,14 @@ Quem escreve a mudança ainda não sabe o número da versão, por isso a novidad
 | `app/src/regras/` | Regras puras, sem banco nem internet: formatos, validação, qualificação, conversão das respostas de CNPJ e CEP, vínculos, texto comparável (`texto.ts`), o CSV do Google Contatos (`contatosGoogle.ts`) e a agenda (`compromisso.ts` e `agenda.ts`, com o dia, a semana e o mês no horário de Brasília), com os testes. |
 | `app/e2e/` e `app/TESTES.md` | Testes de ponta a ponta (Playwright, no banco fictício) e o padrão dos testes (BDD: Dado / Quando / Então). |
 | `app/novidades/` | O que mudou em cada versão, para o botão Novidades: `proxima/` (a versão que ainda não saiu) e uma pasta por versão publicada (veja "Novidades de cada versão", acima). |
-| `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores, contato e conexão com o banco. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
+| `app/src/marca.ts` e `app/src/imagens/` | Marca do produto (SEMPER): nome, foto, cores e contato. O nome, a logomarca e os dados de cada escritório ficam no banco e são editados em Configurações. |
 | `app/src/estilo.css` | Estilo comum (veja `DESIGN.md`). |
 | `app/public/.htaccess` | Regras da hospedagem para o site publicado. |
+| `app/.env.production` e `app/.env.docker` | Qual banco o site usa (#74): o endereço e a chave pública do Supabase, nas variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_CHAVE`, e não no código. Veja "Qual banco cada comando usa", abaixo. |
 | `supabase/` | Estrutura do banco: `migrations/` (uma migração por mudança, na ordem da data no nome; as vinte primeiras eram os scripts `banco/001` a `020`) e `config.toml` (banco local do Supabase CLI, nas portas 553xx). |
 | `banco/emails/` | Modelos de e-mail do Supabase em português. |
 | `DESIGN.md` | Sistema visual (cores, tipografia, componentes, página de módulo, kanban). |
-| `referencia/` | Formulário de cadastro antigo do site, usado como referência. |
+| `docs/referencia/` | Formulário de cadastro antigo do site, usado como referência. |
 | `Trello/` | Exportações do Trello com dados de clientes. Não versionado. |
 
 ## Banco de dados
@@ -61,7 +62,7 @@ Toda mudança é uma migração em `supabase/migrations/`, nunca um clique no pa
 1. Criar: `supabase migration new <nome>` e escrever o SQL. A migração **só acrescenta** (tabela, coluna, função, regra); apagar ou renomear fica para uma migração posterior, para a versão anterior do site continuar funcionando.
 2. Testar do zero num banco local (precisa do Docker): `supabase db start` e `supabase db reset --local --no-seed`. Para desligar: `supabase stop`.
 3. Enviar ao `main`.
-4. Aplicar em produção pelo roteiro `/aplicar-banco` do Claude Code, que confere a cópia do dia, os testes, a ordem e se nada é apagado, explica o risco e só aplica depois do "sim". A senha fica com Mateus: quem liga o projeto digita a senha no próprio terminal (`supabase link --project-ref uzafzwqjpxxiovfunxfm`), nunca na conversa. O comando por trás é `supabase db push --remote`. Na versão 3 do Supabase CLI, sem o `--remote` o comando age no banco local, não na produção. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
+4. Aplicar em produção pelo roteiro `/aplicar-banco` do Claude Code, que confere a cópia do dia, os testes, a ordem e se nada é apagado, explica o risco e só aplica depois do "sim". A senha fica com o dono da plataforma: quem liga o projeto digita a senha no próprio terminal (`supabase link --project-ref uzafzwqjpxxiovfunxfm`), nunca na conversa. O comando por trás é `supabase db push --remote`. Na versão 3 do Supabase CLI, sem o `--remote` o comando age no banco local, não na produção. O `db push` mostra o que vai aplicar e pede confirmação. Aplique antes de rodar "Publicar o SEMPER": a publicação não aplica nem confere migrações.
 
 Configuração no painel do Supabase (Authentication):
 - **URL Configuration**: Site URL `https://semper.app.br/`; Redirect URLs `https://semper.app.br/**` e `http://localhost:8090/**`. Os endereços antigos (semper.bragaferreira.adv.br e bragaferreira.adv.br/semper) foram desligados e não levam mais ao SEMPER.
@@ -139,6 +140,23 @@ Com o banco de produção, em http://localhost:8090/. **Grava em dados reais**, 
 ```bash
 npm run dev-producao --prefix app
 ```
+
+### Qual banco cada comando usa
+
+O endereço e a chave do banco não ficam no código (#74): vêm das variáveis `VITE_SUPABASE_URL` e `VITE_SUPABASE_CHAVE`, lidas pelo `app/vite.config.ts` do arquivo `app/.env.<modo>` (uma variável de mesmo nome no ambiente tem prioridade). A chave é a *publishable*, pública por natureza: nunca ponha nesses arquivos a senha do banco, a chave `service_role` ou outro segredo.
+
+| Comando | Modo | Banco |
+|---|---|---|
+| `npm run teste` e os testes (`npm run verificar`, `npm run testar-telas`) | `falso` e `test` | Fictício, na aba do navegador. Não lê arquivo `.env`. |
+| `npm run dev` | `docker` | Local do Docker, de `app/.env.docker`. |
+| `npm run dev-producao` | `producao` | Produção, de `app/.env.production` (o mesmo do site publicado). |
+| `npx vite build` (o que a rotina "Publicar o SEMPER" roda) e `npm run ver` | `production` | Produção, de `app/.env.production`. |
+
+Se faltar a variável num modo que precisa de banco (por exemplo, `npx vite` sozinho, no modo `development`, que não tem arquivo), o servidor não liga e a compilação para, com um erro em português dizendo quais variáveis faltam (ou estão erradas) e em qual arquivo. Assim, nunca sai um site sem banco nem um que caia noutro banco sem avisar.
+
+A compilação também põe esse endereço na política de conteúdo do site publicado: em `app/public/.htaccess`, o `connect-src` tem a marca `__ENDERECO_DO_BANCO__`, que o `vite.config.ts` troca pelo endereço do banco ao compilar (se a marca sumir, a compilação para). Por isso, para trocar o banco do site publicado basta mudar o `app/.env.production`: o `.htaccess` acompanha sozinho.
+
+No computador de quem desenvolve, ligado a um banco de verdade (`npm run dev` ou `npm run dev-producao`), o SEMPER não envia nada à planilha antiga (PROVISORIO-219): só o site publicado envia.
 
 Conferir os tipos, o lint e rodar os testes unitários e de componente:
 

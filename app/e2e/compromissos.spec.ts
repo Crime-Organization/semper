@@ -1,7 +1,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Módulo Compromissos (a agenda). O relógio fica parado em quarta-feira, 04/11/2026, 12h em Brasília. Na semente do banco
 // fictício: "Reunião de equipe" hoje às 09:00 (Agenda geral), a audiência do processo de JOSÉ DA SILVA TESTE amanhã às 14:00,
-// e as tarefas "Renovar a procuração" (prazo ontem) e "Emitir a GRU" (prazo em dois dias). Quem está logado é o Mateus (administrador).
+// e as tarefas "Renovar a procuração" (prazo ontem) e "Emitir a GRU" (prazo em dois dias). Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acaoNoMenuDoCartao, entrarComo } from './ajudantes';
 

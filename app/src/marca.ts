@@ -5,13 +5,6 @@
 // editados pelo administrador dele em Configurações.
 // =====================================================================
 import fotoEntrada from './imagens/farol.webp';
-import { qualBanco } from './regras/qualBanco';
-
-/** O banco de produção. A chave é pública por natureza (a segurança fica nas regras do banco); a chave secreta nunca entra no site. */
-const BANCO_DE_PRODUCAO = {
-  supabaseUrl: 'https://uzafzwqjpxxiovfunxfm.supabase.co',
-  supabaseChave: 'sb_publishable_8AUPxM9ZAZ5QgRgsLicunA_n8XRAsgt'
-};
 
 export const MARCA = {
   nome: 'SEMPER',
@@ -23,6 +16,8 @@ export const MARCA = {
   emailContato: 'contato@semper.app.br',
   cores: { destaque: '#377D22', escuro: '#1A1916' },
 
-  // Conexão com o banco: a produção, salvo no "npm run dev", que usa o banco local do Docker.
-  ...qualBanco(import.meta.env.MODE, BANCO_DE_PRODUCAO, { url: import.meta.env.VITE_SUPABASE_URL, chave: import.meta.env.VITE_SUPABASE_CHAVE })
+  // Conexão com o banco: o endereço e a chave pública vêm das variáveis do ambiente (app/.env.production no site publicado,
+  // app/.env.docker no "npm run dev"), escolhidas e conferidas pelo vite.config.ts com regras/qualBanco.ts. No banco fictício e nos testes,
+  // um endereço que não existe.
+  ...__BANCO__
 };

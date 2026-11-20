@@ -1,6 +1,6 @@
 // Grupos da equipe (#378): o administrador junta pessoas da equipe em grupos (em Equipe e acessos) e põe um grupo num item pela
 // bolinha com "+"; todos do grupo participam dele. Quadro e tabela de Demandas e Tarefas filtram por grupo. Padrão dos testes
-// (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício: quem está logado é o Mateus (master); o Bruno
+// (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício: quem está logado é o Mauro (master); o Bruno
 // (estagiário, usuário comum) é colaborador da demanda "Registro de marca", que tem três tarefas, e não está na "Busca de
 // anterioridade"; "Renovar a procuração" é avulsa.
 // O escritório de exemplo começa sem grupos.

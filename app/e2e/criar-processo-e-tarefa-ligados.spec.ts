@@ -3,7 +3,7 @@
 // processo → tarefa. O "+ Novo …" abre o cadastro com a origem preenchida e, ao salvar, a tela volta ao cartão de origem, com o item
 // novo na seção e o contador atualizado. A semente do banco fictício: MARIA APARECIDA EXEMPLO é cliente do contrato "Ação de cobrança"
 // (sem processo); "Renovar a procuração" é uma tarefa avulsa (sem processo nem pessoas); JOSÉ DA SILVA TESTE é cliente do processo
-// judicial 0001234-97.2026.8.13.0024. Quem está logado é o Mateus (administrador).
+// judicial 0001234-97.2026.8.13.0024. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
 

@@ -7,7 +7,7 @@
 // cursor no título, e vai ao banco sozinha quando a pessoa escreve o título ou o texto (sem "Salvar anotação"). No explorador,
 // a anotação se arrasta para uma pasta (#370).
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
-// de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
+// de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrir, abrirSecao, acaoDaBolinha, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo } from './ajudantes';
 
@@ -116,7 +116,7 @@ async function abrirAnotacao(page: Page, titulo: string) {
   return anotacao;
 }
 /**
- * Abre, como o Bruno, uma anotação que o Mateus escreveu ligada à demanda "Registro de marca", em que o Bruno está: ele só a lê, e
+ * Abre, como o Bruno, uma anotação que o Mauro escreveu ligada à demanda "Registro de marca", em que o Bruno está: ele só a lê, e
  * quem só lê vê o texto formatado, sem a caixa de escrever (desde 18/11 não há mais o modo de ler, o livro, para quem escreve).
  */
 async function abrirComoQuemSoLe(page: Page, titulo: string, texto: string) {
@@ -373,7 +373,7 @@ test.describe('O texto da anotação', () => {
 
 test.describe('A página Documentos', () => {
   test('quando a pessoa busca uma palavra, então acha as anotações pelo título e pelo texto, e filtra pelo item ligado, pelo autor e pela data', async ({ page }) => {
-    // Dado: uma anotação do Mateus no texto, uma ligada a uma demanda, uma da Ana e uma antiga
+    // Dado: uma anotação do Mauro no texto, uma ligada a uma demanda, uma da Ana e uma antiga
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
     await criarAnotacao(page, 'Parecer sobre a ação', { texto: 'O ponto central é a **prescrição**.' });
@@ -436,10 +436,10 @@ test.describe('A página Documentos', () => {
   });
 
   test('dado um usuário comum, quando abre Documentos, então vê só as anotações que criou, as compartilhadas com ele e as dos itens a que tem acesso, e estas só para ler', async ({ page }) => {
-    // Dado: o Mateus escreve uma só para ele, uma compartilhada com o Bruno e uma ligada a uma demanda em que o Bruno está
+    // Dado: o Mauro escreve uma só para ele, uma compartilhada com o Bruno e uma ligada a uma demanda em que o Bruno está
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
-    await criarAnotacao(page, 'Só do Mateus');
+    await criarAnotacao(page, 'Só do Mauro');
     await criarAnotacao(page, 'Para o Bruno', { compartilharCom: 'Bruno Exemplo Souza' });
     await criarAnotacao(page, 'Da demanda do Bruno', { endereco: '/documentos/nova/?demanda=' + demanda });
     // Quando
@@ -450,7 +450,7 @@ test.describe('A página Documentos', () => {
     await expect(titulosNaTabela(page)).toHaveCount(2);
     await expect(page.getByRole('row').filter({ hasText: 'Para o Bruno' })).toBeVisible();
     await expect(page.getByRole('row').filter({ hasText: 'Da demanda do Bruno' })).toBeVisible();
-    await expect(page.getByRole('row').filter({ hasText: 'Só do Mateus' })).toHaveCount(0);
+    await expect(page.getByRole('row').filter({ hasText: 'Só do Mauro' })).toHaveCount(0);
     // Quem vê só pela demanda lê, mas não muda nem liga nada
     let anotacao = await abrirAnotacao(page, 'Da demanda do Bruno');
     await expect(anotacao.getByText('Você vê esta anotação porque vê um item ligado a ela.', { exact: false })).toBeVisible();
@@ -468,7 +468,7 @@ test.describe('A página Documentos', () => {
     await page.keyboard.press('Escape');
     // E pelo endereço, a anotação alheia não abre
     const so = await page.evaluate(chave => (JSON.parse(sessionStorage.getItem(chave)!) as { anotacoes: { id: string; titulo: string }[] })
-      .anotacoes.find(a => a.titulo === 'Só do Mateus')!.id, CHAVE);
+      .anotacoes.find(a => a.titulo === 'Só do Mauro')!.id, CHAVE);
     await page.goto('/documentos/?id=' + so);
     await expect(page.getByText('Esta anotação não foi encontrada.', { exact: false })).toBeVisible();
   });
@@ -609,7 +609,7 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
   });
 
   test('dada uma anotação, quando a pessoa comenta e chama alguém com @, então o comentário aparece no topo da coluna, com o número, e só quem está na anotação pode ser chamado (#364)', async ({ page }) => {
-    // Dado: uma anotação do Mateus, sem mais ninguém (a Ana é administradora e vê todas; o Bruno não está nela)
+    // Dado: uma anotação do Mauro, sem mais ninguém (a Ana é administradora e vê todas; o Bruno não está nela)
     await criarAnotacao(page, 'Anotação para comentar');
     const caixa = coluna(page).getByRole('textbox', { name: 'Escrever um comentário' });
     // Quando: começa a chamar alguém
@@ -947,7 +947,7 @@ test.describe('O texto da anotação com o Markdown completo (#344)', () => {
   });
 
   test('dada uma anotação com caixinhas, quando quem só a lê a abre, então as caixinhas aparecem, mas não se marcam', async ({ page }) => {
-    // Dado: o Mateus escreve uma anotação ligada a uma demanda em que o Bruno está
+    // Dado: o Mauro escreve uma anotação ligada a uma demanda em que o Bruno está
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
     await criarAnotacao(page, 'Conferência do registro', { texto: '- [ ] Ver o INPI', endereco: '/documentos/nova/?demanda=' + demanda });
@@ -1013,7 +1013,7 @@ test.describe('Baixar a anotação em .md (#345)', () => {
   });
 
   test('dada uma anotação que a pessoa só lê, quando a abre, então também pode baixá-la, sem as ações de mudar', async ({ page }) => {
-    // Dado: o Mateus escreve uma anotação ligada a uma demanda em que o Bruno está
+    // Dado: o Mauro escreve uma anotação ligada a uma demanda em que o Bruno está
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
     await criarAnotacao(page, 'Estratégia da marca', { texto: 'Pedir o registro.', endereco: '/documentos/nova/?demanda=' + demanda });
@@ -1080,7 +1080,7 @@ test.describe('Duplicar a anotação (#343)', () => {
   });
 
   test('dada uma anotação que a pessoa só lê, ligada a um item que ela não vê, quando duplica, então a cópia é dela e leva só o item que ela vê', async ({ page }) => {
-    // Dado: o Mateus liga a anotação à demanda em que o Bruno está e a outra, em que ele não está
+    // Dado: o Mauro liga a anotação à demanda em que o Bruno está e a outra, em que ele não está
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
     let anotacao = await criarAnotacao(page, 'Roteiro do registro', { texto: 'Conferir a classe.', endereco: '/documentos/nova/?demanda=' + demanda });
@@ -1205,7 +1205,7 @@ test.describe('Criar e editar a anotação no próprio lugar, como no Obsidian (
   });
 
   test('dada uma anotação que a pessoa só lê, quando ela clica no título ou no texto, então nada vira campo de edição, e não há o ícone de etiqueta', async ({ page }) => {
-    // Dado: o Mateus escreve uma anotação ligada a uma demanda em que o Bruno está
+    // Dado: o Mauro escreve uma anotação ligada a uma demanda em que o Bruno está
     await page.goto('/inicio/');
     const demanda = await idDaDemanda(page, 'Registro de marca');
     await criarAnotacao(page, 'Lida pelo Bruno', { texto: 'Só para ler.', endereco: '/documentos/nova/?demanda=' + demanda });
@@ -1810,7 +1810,7 @@ test.describe('Arrastar a anotação para uma pasta, no explorador (#370)', () =
   });
 
   test('dada uma anotação que um usuário comum só lê, quando ele a vê no explorador, então não há o ⋯ e arrastá-la não muda a pasta', async ({ page }) => {
-    // Dado: o Mateus cria a pasta e uma anotação ligada à demanda em que o Bruno está; o Bruno só a lê
+    // Dado: o Mauro cria a pasta e uma anotação ligada à demanda em que o Bruno está; o Bruno só a lê
     await page.goto('/documentos/');
     await criarPasta(page, 'Modelos');
     await abrirComoQuemSoLe(page, 'Lida pelo Bruno', 'Texto');

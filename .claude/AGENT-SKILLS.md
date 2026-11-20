@@ -14,7 +14,7 @@ Diferenças em relação ao original:
 - Os nomes das skills perderam o prefixo `agent-skills:` (do formato de plugin), para funcionarem como skills do projeto.
 - Os *hooks* automáticos do pacote (início de sessão, cache, `simplify-ignore`) não foram instalados.
 
-**Prioridade:** quando uma skill divergir das instruções do Mateus (CLAUDE.md global e memória do projeto), valem as
+**Prioridade:** quando uma skill divergir das instruções do dono do projeto (CLAUDE.md global e memória do projeto), valem as
 instruções dele: trabalho direto no `main`, um commit com push a cada alteração pedida, mensagens em português,
 nada de dados de clientes no repositório, código só com autorização.
 

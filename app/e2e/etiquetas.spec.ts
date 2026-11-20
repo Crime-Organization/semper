@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Etiquetas coloridas. Na semente do banco fictício não há etiquetas, e JOSÉ DA SILVA TESTE está na coluna "Lead" de
-// Pessoas. Quem está logado é o Mateus (administrador).
+// Pessoas. Quem está logado é o Mauro (administrador).
 import { expect, test, type Page } from '@playwright/test';
 
 /** Abre o quadro de Pessoas e o cartão de JOSÉ DA SILVA TESTE. */
