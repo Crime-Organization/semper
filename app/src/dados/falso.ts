@@ -27,7 +27,7 @@ import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '..
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
 import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
-import { mencaoNegada, mencoesNoTexto, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
+import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
 import { hojeNaAgenda } from '../regras/agenda';
@@ -52,7 +52,7 @@ import type { CategoriaDeLancamento, LinhaDaConferencia, MeuValor, MovimentoDoLu
 import { TAMANHO_FINANCEIRO, VALOR_MAXIMO_DO_LANCAMENTO } from './limites';
 import { ANOS_DO_CALENDARIO, ANDAMENTOS_DO_PROCESSO, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, TAMANHO_COMPROMISSO, PRAZOS_DO_PROCESSO, TAMANHO_ANDAMENTO, TAMANHO_DIA, TAMANHO_ETIQUETA, TAMANHO_GRUPO, TAMANHO_ORGAO, TAMANHO_PRAZO } from './limites';
 import { CORES } from '../regras/etiquetas';
-import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, Pasta } from './tipos';
+import type { Anotacao, AnotacaoLigada, AnotacaoLigadaComTexto, AnotacaoLista, DadosAnotacao, FiltroAnotacoes, ItemDaAnotacao, ModuloDaAnotacao, ModuloMencionavel, Pasta } from './tipos';
 import { erroAoMoverPasta, erroDoNomeDaPasta, nomeDaPasta, PASTA_APAGADA, PASTA_COM_CONTEUDO, PASTA_SUMIU, textoDoCaminho } from '../regras/pastas';
 import type { ContratoDoCartao, EquipeDoContrato } from './tipos';
 import type { FiltroParaLigar, LigacaoDeUmSo } from './tipos';
@@ -1584,6 +1584,10 @@ const ABRE_COM_A_CHAVE: Record<ModuloDaAnotacao, Record<keyof ChavesDaEquipe, bo
   compromissos: { equipeVeTudo: false, equipeEditaTudo: true }
 };
 /** Quem está logado vê o item, pelas regras do módulo ou pela chave da equipe que abre esse módulo? */
+/** As linhas de cada módulo mencionável com !código nos comentários (#297). */
+const ITENS_MENCIONAVEIS: Record<ModuloMencionavel, () => { id: string; codigo: string }[]> = {
+  tarefas: () => bd.tarefas!, demandas: () => bd.demandas!, contratos: () => bd.contratos!, processos: () => bd.processos!, pessoas: () => bd.pessoas
+};
 const vejoOItem = (modulo: ModuloDaAnotacao, id: string) => {
   const x = ITEM_NO_FALSO[modulo](id), chaves = chavesDaEquipe(), abre = ABRE_COM_A_CHAVE[modulo];
   return !!x && (x.vejo || (chaves.equipeVeTudo && abre.equipeVeTudo) || (chaves.equipeEditaTudo && abre.equipeEditaTudo));
@@ -4555,6 +4559,12 @@ export const SD: Dados = {
     // Quem está logado no banco fictício é o master: apaga os de qualquer autor.
     if (!c) return erro('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
     bd.comentarios = bd.comentarios!.filter(x => x !== c); auditar('comentarios', 'exclusao', { id }); gravar();
+  },
+  // Como em supabase.ts: os itens com o código, só os que quem lê vê (as mesmas regras das ligações da anotação), arquivados também.
+  itensMencionados(codigos) {
+    const procurados = new Set(codigos.map(c => c.toUpperCase()));
+    return espera(MODULOS_MENCIONAVEIS.flatMap(modulo => ITENS_MENCIONAVEIS[modulo]()
+      .filter(x => procurados.has(x.codigo) && vejoOItem(modulo, x.id)).map(x => ITEM_NO_FALSO[modulo](x.id)!.item)));
   },
 
   // ---------- caixa de mensagens (como as regras de supabase/migrations/20261108165559_mensagens.sql) ----------

@@ -1,0 +1,5 @@
+{
+  "titulo": "Citar tarefas, demandas e outros itens nos comentários",
+  "texto": "Nos comentários, digite ! e o código (ou uma palavra do título) para citar uma tarefa, demanda, contrato, processo ou pessoa: escolhido, o item vira um atalho que abre o cartão dele. As menções, com @ ou com !, já aparecem em destaque enquanto você digita e também no trecho mostrado em Mensagens.",
+  "ondeAchar": "Em qualquer cartão, na seção Comentários: digite ! seguido do código, como !D3A1F09C. Um ! no fim da frase, como em \"Urgente!\", não chama nada."
+}

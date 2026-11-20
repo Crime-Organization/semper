@@ -1236,7 +1236,14 @@ export interface DadosComentarios {
   comentarioEditar(id: string, texto: string): Promise<Comentario>;
   /** Quem escreveu ou um administrador. */
   comentarioExcluir(id: string): Promise<void>;
+  /**
+   * Os itens chamados com !código nos comentários (#297), dos módulos mencionáveis: só os que quem lê vê (as regras de leitura de
+   * cada módulo), arquivados também. O código que não volta é de um item que a pessoa não vê ou que não existe mais.
+   */
+  itensMencionados(codigos: string[]): Promise<ItemDaAnotacao[]>;
 }
+/** Os módulos cujos itens se chamam pelo código, com !, nos comentários (#297). */
+export type ModuloMencionavel = Extract<ModuloDaAnotacao, 'tarefas' | 'demandas' | 'contratos' | 'processos' | 'pessoas'>;
 
 /** O comentário de onde veio a menção, com o cartão em que ele está. */
 export interface ComentarioDaMensagem {

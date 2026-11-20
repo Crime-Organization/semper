@@ -21,6 +21,7 @@ import type { FiltroParaLigar, LigacaoDeUmSo, TarefaParaEscolher } from './tipos
 import type { InclusaoDaMensagem, ItemDaInclusao, ItemParaPedir, ModuloDoPedido, PedidoDaMensagem, TipoProcesso } from './tipos';
 import { ANOTACOES_LIGADAS, HISTORICO_DA_ANOTACAO, ITENS_PARA_LIGAR } from './limites';
 import { itemDaAnotacao } from '../regras/anotacao';
+import { MODULOS_MENCIONAVEIS } from '../regras/comentarios';
 import { PASTA_APAGADA } from '../regras/pastas';
 import { arvoreDoModelo, itensDaArvore, planoDoChecklist } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, COMPROMISSOS_LIGADOS, HISTORICO_DO_COMPROMISSO, ITENS_DA_AGENDA, PROCESSOS_PARA_LIGAR, ANDAMENTOS_DO_PROCESSO, PRAZOS_DO_PROCESSO, CHAVES_POR_CONSULTA, IDS_POR_EXCLUSAO, LINHAS_POR_CONSULTA, HISTORICO_DO_PROCESSO, PROCESSOS_LIGADOS, CONTRATOS_LIGADOS, PROCESSOS_PARA_SUGERIR, FOTO_GRANDE, FOTO_PEQUENA, COMENTARIOS_DO_CARTAO, CONTRATOS_DA_PESSOA, DEMANDAS_LIGADAS, OBJETOS_SUGERIDOS, POR_COLUNA, POR_PAGINA, REGISTRO_DE_ACOES, TAREFAS_LIGADAS, TROCAS_DE_EMAIL_MOSTRADAS } from './limites';
@@ -2104,6 +2105,17 @@ export const SD: Dados = {
   async comentarioExcluir(id) {
     const { data } = await rodar(sb.from('comentarios').delete().eq('id', id).select('id'));
     if (!data.length) throw new Error('Só quem escreveu o comentário ou um administrador pode apagá-lo.');
+  },
+  async itensMencionados(codigos) {
+    // Cada módulo pela tabela dele (a mesma das ligações da anotação): as regras de leitura do banco deixam vir só o que quem lê vê.
+    const procurados = [...new Set(codigos.map(c => c.toUpperCase()))];
+    if (!procurados.length) return [];
+    const lidos = await Promise.all(MODULOS_MENCIONAVEIS.map(async modulo => {
+      const { tabela, campos } = LIGACAO_DA_ANOTACAO[modulo];
+      const { data } = await rodar(sb.from(tabela).select(campos).in('codigo', procurados));
+      return (data as Livre[]).map(x => itemDaAnotacao(modulo, x));
+    }));
+    return lidos.flat();
   },
 
   // ---------- caixa de mensagens (a regra do banco só mostra as de quem está logado) ----------

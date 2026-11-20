@@ -2,17 +2,20 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Comentario, DadosComentarios, Membro } from '../dados';
+import type { Comentario, DadosComentarios, ItemDaAnotacao, Membro } from '../dados';
 import { SecaoComentarios } from './Comentarios';
 import { ColunaDoCartao } from './PainelCartao';
 import { iniciarPreferencias } from './preferencias';
 import { GrupoDeSecoes, Recolhivel } from './Recolhivel';
+import { ESPERA_AO_DIGITAR } from './tempos';
 
 // A seção usa só as operações de comentários; o mock declara exatamente essas.
 const SD = vi.hoisted(() => ({
   comentariosListar: vi.fn<DadosComentarios['comentariosListar']>(), comentarioCriar: vi.fn<DadosComentarios['comentarioCriar']>(),
-  comentarioEditar: vi.fn<DadosComentarios['comentarioEditar']>(), comentarioExcluir: vi.fn<DadosComentarios['comentarioExcluir']>()
+  comentarioEditar: vi.fn<DadosComentarios['comentarioEditar']>(), comentarioExcluir: vi.fn<DadosComentarios['comentarioExcluir']>(),
+  itensMencionados: vi.fn<DadosComentarios['itensMencionados']>()
 }));
 vi.mock('../dados', () => ({ SD: SD satisfies DadosComentarios }));
 // Quem está logado é o Mauro; se é administrador, cada caso diz.
@@ -214,5 +217,82 @@ describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11
     rerender(<ColunaDoCartao.Provider value={coluna}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
     // Então
     expect(await naColuna().findByRole('textbox', { name: 'Escrever um comentário' })).toHaveValue('Falar com o cliente');
+  });
+});
+
+describe('Menções de itens pelo código, com ! (#297)', () => {
+  const item = (modulo: ItemDaAnotacao['modulo'], id: string, codigo: string, nome: string, arquivado_em: string | null = null): ItemDaAnotacao =>
+    ({ modulo, id, codigo, nome, arquivado_em });
+  const REGISTRO = item('demandas', 'd1', 'D3A1F09C', 'Registro de marca');
+  const buscarItens = vi.fn<(termo: string, modulos: readonly string[]) => Promise<ItemDaAnotacao[]>>();
+  /** Espera a pausa da digitação passar (e um pouco mais), para ver que a busca não foi feita. */
+  const esperarAPausa = () => new Promise(fim => setTimeout(fim, 2 * ESPERA_AO_DIGITAR));
+  const abrir = () => render(<MemoryRouter><SecaoComentarios modulo="tarefas" cartaoId="t1" buscarItens={buscarItens} /></MemoryRouter>);
+
+  beforeEach(() => {
+    iniciarPreferencias({});
+    Object.values(SD).forEach(f => f.mockReset());
+    buscarItens.mockReset();
+    buscarItens.mockResolvedValue([REGISTRO]);
+    SD.comentariosListar.mockResolvedValue([]);
+    SD.itensMencionados.mockResolvedValue([]);
+  });
+
+  it('quando a pessoa digita ! e parte do título e escolhe o item com Enter, então o código entra no texto, já em destaque', async () => {
+    // Dado
+    abrir();
+    // Quando
+    await userEvent.type(caixa(), 'Fazer !regis');
+    const opcao = await screen.findByRole('option', { name: /Registro de marca/ });
+    expect(opcao).toHaveTextContent('Demanda · !D3A1F09C');
+    await userEvent.keyboard('{Enter}');
+    // Então
+    expect(buscarItens).toHaveBeenLastCalledWith('regis', ['pessoas']);
+    expect(caixa()).toHaveValue('Fazer !D3A1F09C ');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(screen.getByText('!D3A1F09C', { selector: 'mark' })).toBeInTheDocument();
+  });
+
+  it('quando a pessoa digita o @ de um colega, então a menção aparece em destaque enquanto ela digita', async () => {
+    // Dado
+    abrir();
+    // Quando
+    await userEvent.type(caixa(), 'Oi @ana.lima, tudo bem');
+    // Então
+    expect(screen.getByText('@ana.lima', { selector: 'mark' })).toBeInTheDocument();
+    expect(screen.queryByText('tudo bem', { selector: 'mark' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['um ! no fim da frase', 'Urgente!'],
+    ['um ! seguido de espaço', 'Atenção ! agora']
+  ])('quando a pessoa digita %s, então nada é buscado e nenhuma lista abre', async (_caso, texto) => {
+    // Dado
+    abrir();
+    // Quando
+    await userEvent.type(caixa(), texto);
+    await esperarAPausa();
+    // Então
+    expect(buscarItens).not.toHaveBeenCalled();
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('dado um comentário com um item visto, um arquivado e um que a pessoa não vê, quando ele aparece, então só os vistos abrem, e o outro mostra só o código', async () => {
+    // Dado
+    SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Ver !D3A1F09C, !7B42C0DE e !FFFF0000.', '2026-11-20T15:00:00Z')]);
+    SD.itensMencionados.mockResolvedValue([REGISTRO, item('demandas', 'd2', '7B42C0DE', 'Busca de anterioridade', '2026-11-01T00:00:00Z')]);
+    // Quando
+    abrir();
+    // Então
+    const visto = await screen.findByRole('link', { name: 'Abrir Demanda D3A1F09C: Registro de marca' });
+    expect(visto).toHaveAttribute('href', '/demandas/?id=d1');
+    expect(visto).toHaveTextContent('!D3A1F09C Registro de marca');
+    const arquivado = screen.getByRole('link', { name: /Demanda 7B42C0DE: Busca de anterioridade, que está arquivado/ });
+    expect(arquivado).toHaveTextContent('arquivado');
+    const semAcesso = screen.getByTitle('Você não tem acesso a este item, ou ele não existe mais');
+    expect(semAcesso).toHaveTextContent('!FFFF0000 · sem acesso ou excluído');
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+    expect(SD.itensMencionados).toHaveBeenCalledTimes(1);
+    expect(SD.itensMencionados).toHaveBeenCalledWith(['7B42C0DE', 'D3A1F09C', 'FFFF0000']);
   });
 });

@@ -568,6 +568,32 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Menções de itens pelo código, com ! (#297)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+
+      it('dado uma demanda ativa e uma arquivada, quando os códigos são consultados, então vem só o que quem lê vê, com o título e o arquivamento', async () => {
+        // Dado: as duas só do master (o Bruno não está nelas)
+        const titulo = 'MENCAO ' + Math.random().toString(36).slice(2, 8).toUpperCase();
+        const ativa = await SD.demandaCriar({ titulo, responsavel_id: 'u-master' });
+        const arquivada = await SD.demandaCriar({ titulo: titulo + ' ARQUIVADA', responsavel_id: 'u-master' });
+        await SD.demandasArquivar([arquivada.id]);
+        const codigos = [ativa.codigo.toLowerCase(), arquivada.codigo, 'FFFF0000'];
+        // Quando
+        const doMaster = await SD.itensMencionados(codigos);
+        entrarComo('u-bruno');
+        const doBruno = await SD.itensMencionados(codigos);
+        // Então
+        expect(doMaster.map(i => [i.modulo, i.id, i.nome, !!i.arquivado_em])).toEqual(expect.arrayContaining([
+          ['demandas', arquivada.id, titulo + ' ARQUIVADA', true], ['demandas', ativa.id, titulo, false]
+        ]));
+        expect(doMaster).toHaveLength(2);
+        expect(doBruno.map(i => i.id)).not.toContain(ativa.id);
+        expect(doBruno.map(i => i.id)).not.toContain(arquivada.id);
+        expect(await SD.itensMencionados([])).toEqual([]);
+      });
+    });
+
     describe('Caixa de mensagens (#112)', () => {
       const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
       const marcaMsg = () => 'MSG ' + Math.random().toString(36).slice(2);
