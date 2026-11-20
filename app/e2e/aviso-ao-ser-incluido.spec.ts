@@ -4,7 +4,7 @@
 // documentos ao cliente" é do Bruno; a "Emitir a GRU" é do Mateus, com o Bruno participante (sem aviso); a "Reunião de equipe"
 // (hoje, na Agenda geral) é do Mateus, sem participantes. Quem está logado é o Mateus (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { entrarComo } from './ajudantes';
+import { acaoDaBolinha, entrarComo } from './ajudantes';
 
 const menu = (page: Page) => page.getByRole('navigation', { name: 'Seções' });
 /** O cartão aberto (a janela com o título); a busca do "+" e a da troca do responsável também são janelas, sem título. */
@@ -27,7 +27,8 @@ async function porPelaBolinha(page: Page, cartao: Locator, por: string, busca: s
   const painel = page.getByRole('dialog', { name: por });
   await painel.getByRole('textbox', { name: `Buscar na equipe: ${por.toLowerCase()}` }).fill(busca);
   await painel.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: nome, exact: true }).click();
-  await expect(cartao.getByRole('button', { name: `Tirar ${nome}` })).toBeVisible();
+  // A bolinha de quem entrou ("Nome, Papel"), que abre o menu dele (#388).
+  await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: new RegExp(`^${nome}, `) })).toBeVisible();
 }
 async function abrirMensagens(page: Page) {
   await page.goto('/inicio/');
@@ -65,7 +66,7 @@ test.describe('Aviso ao ser incluído num item', () => {
     // Dado
     const { cartao, id } = await abrirPelaTabela(page, '/tarefas/', 'Pedir documentos ao cliente');
     // Quando
-    await cartao.getByRole('button', { name: 'Bruno Exemplo Souza, Responsável. Trocar o responsável' }).click();
+    await acaoDaBolinha(page, cartao, 'Bruno Exemplo Souza, Responsável', 'Trocar o responsável');
     const painel = page.getByRole('dialog', { name: 'Trocar o responsável' });
     await painel.getByRole('textbox', { name: 'Buscar na equipe: trocar o responsável' }).fill('ana');
     await painel.getByRole('list', { name: 'Equipe' }).getByRole('button', { name: 'Ana Teste Lima' }).click();
@@ -105,8 +106,8 @@ test.describe('Aviso ao ser incluído num item', () => {
       // Quando
       await entrarComo(page, 'u-master');
       ({ cartao } = await abrirPelaTabela(page, '/demandas/', 'Busca de anterioridade'));
-      await cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
-      await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toHaveCount(0);
+      await acaoDaBolinha(page, cartao, 'Bruno Exemplo Souza, Colaborador', 'Tirar da demanda');
+      await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Colaborador', exact: true })).toHaveCount(0);
       // Então
       await entrarComo(page, 'u-bruno');
       await abrirMensagens(page);
@@ -124,7 +125,7 @@ test.describe('Aviso ao ser incluído num item', () => {
     await porPelaBolinha(page, cartao, 'Pôr colaborador', 'bru', 'Bruno Exemplo Souza');
     // Quando
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
-    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toHaveCount(0);
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Colaborador', exact: true })).toHaveCount(0);
     // Então
     await entrarComo(page, 'u-bruno');
     await abrirMensagens(page);
@@ -135,10 +136,10 @@ test.describe('Aviso ao ser incluído num item', () => {
     // Dado
     const { cartao } = await abrirPelaTabela(page, '/tarefas/', 'Emitir a GRU');
     // Quando
-    await cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' }).click();
-    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toHaveCount(0);
+    await acaoDaBolinha(page, cartao, 'Bruno Exemplo Souza, Participante', 'Tirar da tarefa');
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante', exact: true })).toHaveCount(0);
     await page.getByRole('status').getByRole('button', { name: 'Desfazer' }).click();
-    await expect(cartao.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toBeVisible();
+    await expect(cartao.getByRole('group', { name: 'Equipe', exact: true }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante', exact: true })).toBeVisible();
     // Então
     await entrarComo(page, 'u-bruno');
     await abrirMensagens(page);

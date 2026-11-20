@@ -9,7 +9,7 @@
 // Na semente do banco fictício não há anotações. A demanda "Registro de marca" tem o Bruno (estagiário, não administrador)
 // de colaborador; JOSÉ DA SILVA TESTE é uma pessoa do cadastro. Quem está logado é o Mateus (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { abrir, abrirSecao, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo } from './ajudantes';
+import { abrir, abrirSecao, acaoDaBolinha, barraDeFormatacao, barraEquilibradaNoCelular, botoesDaBarra, entrarComo } from './ajudantes';
 
 const CHAVE = 'semper-dados-falsos';
 
@@ -902,14 +902,14 @@ test.describe('A anotação nos casos de canto', () => {
     expect(contraste).toBeGreaterThanOrEqual(4.5);
   });
 
-  // A regra mudou (pedido de 18/11): a anotação não tem mais o lápis; quem está nela sai clicando na própria bolinha.
-  test('dado um usuário comum com quem a anotação foi compartilhada, quando ele clica na própria bolinha e confirma, então sai de verdade e a saída fica no histórico', async ({ page }) => {
+  // A regra mudou (pedido de 18/11): a anotação não tem mais o lápis; quem está nela sai pela própria bolinha, no menu dela (#388).
+  test('dado um usuário comum com quem a anotação foi compartilhada, quando ele escolhe "Sair da anotação" no menu da própria bolinha e confirma, então sai de verdade e a saída fica no histórico', async ({ page }) => {
     // Dado
     await criarAnotacao(page, 'Para o Bruno sair', { compartilharCom: 'Bruno Exemplo Souza' });
     await entrarComo(page, 'u-bruno');
     const anotacao = await abrirAnotacao(page, 'Para o Bruno sair');
     // Quando
-    await anotacao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Sair da anotação (Bruno Exemplo Souza)' }).click();
+    await acaoDaBolinha(page, anotacao, 'Bruno Exemplo Souza, Compartilhada', 'Sair da anotação');
     const confirmacao = page.getByRole('dialog', { name: 'Sair da anotação?' });
     await confirmacao.getByRole('button', { name: 'Sair da anotação' }).click();
     // Então
@@ -1102,7 +1102,7 @@ test.describe('Duplicar a anotação (#343)', () => {
     anotacao = anotacaoAberta(page);
     await expect(anotacao.getByRole('heading', { name: 'Roteiro do registro (cópia)', level: 2 })).toBeVisible();
     await expect(caixaDoTexto(anotacao)).toHaveText('Conferir a classe.');
-    await expect(anotacao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, Responsável\. Trocar o responsável$/ })).toHaveAccessibleName(/^Bruno/);
+    await expect(anotacao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: /, Responsável$/ })).toHaveAccessibleName(/^Bruno/);
     await abrirSecao(coluna(page), 'Ligada a');
     const ligados = coluna(page).getByRole('list', { name: 'Itens ligados' });
     await expect(ligados.getByRole('link')).toHaveCount(1);

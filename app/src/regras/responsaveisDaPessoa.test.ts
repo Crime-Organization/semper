@@ -3,18 +3,19 @@ import { describe, expect, it } from 'vitest';
 import { AVISO_NOS_RESPONSAVEIS, tirarDosResponsaveis } from './responsaveisDaPessoa';
 
 describe('Responsáveis da pessoa no topo do cartão (#387)', () => {
-  it('dada a bolinha de outra pessoa da equipe, quando a dica é montada, então ela diz que tira a pessoa dos responsáveis', () => {
+  // A regra mudou (#388): a bolinha abre um menu com o nome no alto, e o "Tirar" do menu não repete o nome.
+  it('dada a bolinha de outra pessoa da equipe, quando o menu abre, então o "Tirar" diz que tira a pessoa dos responsáveis', () => {
     // Quando
-    const texto = tirarDosResponsaveis({ id: 'u-ana', nome: 'Ana Teste Lima' }, 'u-bruno');
+    const texto = tirarDosResponsaveis({ id: 'u-ana' }, 'u-bruno');
     // Então
-    expect(texto).toBe('Tirar Ana Teste Lima dos responsáveis');
+    expect(texto).toBe('Tirar dos responsáveis');
   });
 
-  it('dada a bolinha de quem está logado, quando a dica é montada, então ela diz que ele deixa de ser responsável', () => {
+  it('dada a bolinha de quem está logado, quando o menu abre, então o "Tirar" diz que ele deixa de ser responsável', () => {
     // Quando
-    const texto = tirarDosResponsaveis({ id: 'u-ana', nome: 'Ana Teste Lima' }, 'u-ana');
+    const texto = tirarDosResponsaveis({ id: 'u-ana' }, 'u-ana');
     // Então
-    expect(texto).toBe('Deixar de ser responsável (Ana Teste Lima)');
+    expect(texto).toBe('Deixar de ser responsável');
   });
 
   it('quando alguém é posto ou tirado, então o aviso diz o que aconteceu e o Desfazer tem o nome da mudança', () => {

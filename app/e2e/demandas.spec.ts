@@ -35,8 +35,8 @@ test.describe('Cadastro de demandas', () => {
     await expect(cartao.getByRole('heading', { name: 'Contestação do processo' })).toBeVisible();
     await expect(cartao).toContainText('Prazo: 10/11/2030');
     const equipe = cartao.getByRole('group', { name: 'Equipe' });
-    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável. Trocar o responsável' })).toBeVisible();
-    await expect(equipe.getByRole('button', { name: 'Tirar Ana Teste Lima' })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Mateus Freitas Gonçalves, Responsável', exact: true })).toBeVisible();
+    await expect(equipe.getByRole('button', { name: 'Ana Teste Lima, Colaborador', exact: true })).toBeVisible();
     await abrirSecao(cartao, 'Clientes');
     await expect(cartao.getByRole('link', { name: /LUCIANA ROCHA AMOSTRA/ })).toContainText('Cliente');
     await expect(cartao.getByLabel('Situação da demanda').getByRole('option', { selected: true })).toHaveText('Para fazer');

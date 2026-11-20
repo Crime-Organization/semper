@@ -705,8 +705,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* O menu mais alto que a tela rola por dentro, sem achatar os itens. */
 .kmenu { max-height: calc(100dvh - 24px); overflow-y: auto }
 .kmenu > * { flex-shrink: 0 }
-.kmenu button { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
-.kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible { background: var(--soft); outline: 0 }
+.kmenu button, .kmenu a[role="menuitem"] { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; font-size: 14px; color: var(--ink); cursor: pointer; text-align: left }
+.kmenu:not(.painel) button:hover, .kmenu:not(.painel) button:focus-visible, .kmenu a[role="menuitem"]:hover, .kmenu a[role="menuitem"]:focus-visible { background: var(--soft); outline: 0 }
+/* O item do menu que é um link (o "Ver perfil" da bolinha da equipe, #388) tem a mesma cara dos botões. */
+.kmenu a[role="menuitem"] { text-decoration: none }
+/* O alto do menu da bolinha da equipe (#388): o nome e, embaixo, o papel no item, separados das ações por uma linha. */
+.equipe-menu-titulo { display: flex; flex-direction: column; gap: 2px; max-width: 260px; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
+.equipe-menu-titulo b { font-size: var(--texto-tabela); color: var(--ink); overflow-wrap: anywhere }
+.equipe-menu-titulo span { font-size: var(--texto-miudo); color: var(--muted) }
 .kmenu button.perigo { color: var(--erro) }
 /* Ordem de cada coluna: escolhida no topo do menu da coluna e mostrada abaixo do título quando não é a manual. */
 .kmenu-titulo { margin: 0; padding: 8px 12px 4px }
@@ -937,8 +943,8 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .edicao-cartao .etapa:first-child { padding-top: 0; border-top: 0 }
 .edicao-rodape { position: sticky; bottom: 0; z-index: 2; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 0; border-top: 1px solid var(--line); background: var(--superficie) }
 /* A equipe do cartão (<EquipeDoCartao>): bolinhas na ponta direita da linha das ações. O responsável fica um pouco à
-   parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. Cada bolinha já é a ação
-   (pedido de 18/11): a do responsável troca, a de um participante o tira; o nome vem na dica ([data-dica], logo abaixo). */
+   parte; os participantes, encostados uns nos outros. Sem espaço, a equipe desce para a linha de baixo. O clique numa bolinha
+   abre o menu dela (#388: o nome, o papel e as ações, em .kmenu); o nome vem também na dica ([data-dica], logo abaixo). */
 .equipe-cartao { margin-left: auto; display: flex; align-items: center; gap: 10px }
 /* O traço entre o responsável e os participantes: metade da altura da bolinha, para separar sem pesar. */
 .equipe-traco { width: 1px; height: 18px; border-radius: 1px; background: var(--line2) }
@@ -950,14 +956,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .equipe-bolinha.so-ver { cursor: default }
 .equipe-bolinha.so-ver:hover { outline: 0 }
 .equipe-bolinha.so-ver:focus-visible { outline: 2px solid var(--accent) }
-/* No participante, o clique tira a pessoa: ao passar o mouse, o contorno é o vermelho de "tirar", não o verde de escolher. */
-.equipe-participantes button.equipe-bolinha:not([aria-disabled="true"]):hover { outline-color: var(--erro) }
 .equipe-bolinha[aria-disabled="true"] { cursor: progress }
 /* O alvo do dedo no topo do cartão (#382: a equipe subiu para junto do X, do ⋯ e da etiqueta). Onde o toque é o jeito de apontar,
    cada bolinha da equipe e cada botão redondo do cartão aceita o toque num círculo de --alvo-de-toque, um pouco além do desenho (o
    ::before; o ::after é a dica). No celular, os participantes do topo não se sobrepõem: o vão entre eles é o que falta da bolinha
    (--bolinha-da-equipe, que EquipeDoCartao.tsx põe na equipe a partir de TAMANHO_BOLINHA, a medida num lugar só) até o alvo, e um
-   toque não cai na vizinha (o toque num participante o tira). */
+   toque não cai na vizinha (o toque abre o menu de quem foi tocado). */
 @media (pointer: coarse) {
   .equipe-bolinha, .cartao-botao { position: relative }
   .equipe-bolinha::before, .cartao-botao:not(.recolher-todas)::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--alvo-de-toque); height: var(--alvo-de-toque);

@@ -207,16 +207,66 @@ describe('Desfazer a mudança na equipe do contrato', () => {
   });
 });
 
-describe('As palavras das bolinhas do contrato', () => {
-  it('quando a bolinha é de outra pessoa, então tira; quando é a própria, então sai do contrato; as duas com o % dela', () => {
+// A regra mudou (#388, pedido do dono): a bolinha abre um menu com o nome e o papel (com o %) no alto, e o "Tirar" do menu não os
+// repete.
+describe('Tornar responsável um participante do contrato (#388)', () => {
+  /** A pessoa do cadastro de cada usuário: o Bruno tem a p-bruno; o Davi, sem cadastro em Pessoas. */
+  const pessoaDe = (perfilId: string) => ({ 'u-bruno': 'p-bruno', 'u-ana': 'p-ana', 'u-carla': 'p-carla' } as Record<string, string>)[perfilId] ?? null;
+  const tornarAna = { tipo: 'tornarResponsavel' as const, id: 'u-ana', nome: 'Ana' };
+
+  it('dada a Ana participante com 10%, quando passa a responder, então ela continua com os 10% e o Bruno, de antes, entra com 0%', () => {
     // Dado / Quando / Então
-    expect(tirarDoContrato({ id: 'u-ana', nome: 'Ana Souza' }, 'u-master', 10)).toBe('Tirar Ana Souza · 10%');
-    expect(tirarDoContrato({ id: 'u-ana', nome: 'Ana Souza' }, 'u-ana', 2.5)).toBe('Sair do contrato (Ana Souza · 2,5%)');
+    expect(MUDANCAS_NO_CONTRATO.tornarResponsavel(contrato([['p-ana', 10]]), 'u-ana', 'Ana', pessoaDe))
+      .toEqual({ gravar: { responsavel_id: 'u-ana', participantes: [{ pessoa_id: 'p-ana', percentual: 10 }, { pessoa_id: 'p-bruno', percentual: 0 }] } });
   });
 
-  it('dado um participante antigo sem % gravado, quando a bolinha dele é montada, então aparece só o nome', () => {
+  it('dado o Bruno já participante, quando a Ana passa a responder, então os participantes e os % ficam como estão', () => {
     // Dado / Quando / Então
-    expect(tirarDoContrato({ id: 'u-ana', nome: 'Ana Souza' }, 'u-master', null)).toBe('Tirar Ana Souza');
+    expect(MUDANCAS_NO_CONTRATO.tornarResponsavel(contrato([['p-ana', 10], ['p-bruno', 5]]), 'u-ana', 'Ana', pessoaDe)).toEqual({ gravar: { responsavel_id: 'u-ana' } });
+  });
+
+  it('dada a lista de participantes cheia, quando a Ana passa a responder, então recusa (o Bruno não teria lugar)', () => {
+    // Dado
+    const cheio = contrato([['p-ana', 1], ...Array.from({ length: PARTICIPANTES_MAXIMOS - 1 }, (_, i): [string, number] => ['p' + i, 1])]);
+    // Quando / Então
+    expect(MUDANCAS_NO_CONTRATO.tornarResponsavel(cheio, 'u-ana', 'Ana', pessoaDe)).toEqual({ aviso: PARTICIPANTES_DEMAIS, tipo: 'erro' });
+  });
+
+  it('dado o Bruno, responsável comum sem cadastro em Pessoas, quando torna a Ana responsável, então recusa: ele ficaria fora do contrato', () => {
+    // Dado
+    const semCadastro = { ...responsavelComum, pessoa_id: null };
+    const atual = contrato([['p-ana', 10]], { criado_por: 'u-master' });
+    // Quando / Então
+    expect(planoNoContrato(tornarAna, atual, semCadastro, () => null)).toEqual({ aviso: FICARIA_FORA.tornarResponsavel, tipo: 'erro' });
+    expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', semCadastro, () => null)).toBe(FICARIA_FORA.tornarResponsavel);
+    // Com o cadastro, ele continua como participante, e pode.
+    expect(IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, 'u-ana', responsavelComum, pessoaDe)).toBeUndefined();
+  });
+
+  it('dada a Ana que passou a responder, quando desfaz, então o Bruno volta a responder e sai dos participantes, onde entrou por isso', () => {
+    // Dado
+    const antes = contrato([['p-ana', 10]]);
+    const depois = contrato([['p-ana', 10], ['p-bruno', 0]], { responsavel_id: 'u-ana' });
+    // Quando / Então
+    expect(desfazerNoContrato(tornarAna, antes, depois, pessoaDe)).toEqual({ responsavel_id: 'u-bruno', participantes: [{ pessoa_id: 'p-ana', percentual: 10 }] });
+    // Dado o Bruno, que já participava antes: ele fica.
+    expect(desfazerNoContrato(tornarAna, contrato([['p-ana', 10], ['p-bruno', 5]]), contrato([['p-ana', 10], ['p-bruno', 5]], { responsavel_id: 'u-ana' }), pessoaDe))
+      .toEqual({ responsavel_id: 'u-bruno' });
+    // Dado o responsável trocado de novo depois: não há o que voltar.
+    expect(desfazerNoContrato(tornarAna, antes, contrato([], { responsavel_id: 'u-master' }), pessoaDe)).toBeNull();
+  });
+
+  it('quando a Ana passa a responder, então o aviso diz que quem respondia continua no contrato', () => {
+    // Então
+    expect(AVISO_NO_CONTRATO.tornarResponsavel('Ana')).toBe('Advogado responsável pelo contrato: Ana. Quem respondia antes continua no contrato como participante.');
+  });
+});
+
+describe('As palavras das bolinhas do contrato', () => {
+  it('quando a bolinha é de outra pessoa, então o menu tira do contrato; quando é a própria, então sai do contrato', () => {
+    // Dado / Quando / Então
+    expect(tirarDoContrato({ id: 'u-ana' }, 'u-master')).toBe('Tirar do contrato');
+    expect(tirarDoContrato({ id: 'u-ana' }, 'u-ana')).toBe('Sair do contrato');
   });
 
   it('quando alguém entra pelo "+", então o aviso diz que ele está com 0% e onde mudar o %', () => {

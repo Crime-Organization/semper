@@ -5,7 +5,7 @@
 // ao mesmo tempo leriam a mesma lista, com o segundo apagando o que o primeiro pôs (o Desfazer do aviso fica clicável enquanto
 // a bolinha grava, fora da trava da tela).
 import { SD } from '../dados';
-import { AVISO_NO_CONTRATO, desfazerNoContrato, equipeDoContrato, planoNoContrato, type PedidoNoContrato, type QuemMuda } from '../regras/equipeDoContrato';
+import { AVISO_NO_CONTRATO, desfazerNoContrato, equipeDoContrato, planoNoContrato, type PedidoNoContrato, type PessoaDoUsuario, type QuemMuda } from '../regras/equipeDoContrato';
 import { avisar, feito, type Mudanca } from '../ui/avisos';
 import { ITEM_SUMIU } from './ligarNoCartao';
 
@@ -29,17 +29,20 @@ export function naFilaDoContrato<T>(contratoId: string, gravar: () => Promise<T>
 /** Como terminou: gravou (com Desfazer) ou nada mudou (já estava assim, ou não pode; o aviso já saiu). */
 export type FimNoContrato = 'gravou' | 'nada';
 
-/** Faz a mudança pedida na equipe do contrato e avisa: a gravada, com Desfazer (como o lápis); a que não grava, com o motivo. */
-export const mudarAEquipeDoContrato = (contratoId: string, pedido: PedidoNoContrato, eu: QuemMuda) => naFilaDoContrato(contratoId, async (): Promise<FimNoContrato> => {
+/**
+ * Faz a mudança pedida na equipe do contrato e avisa: a gravada, com Desfazer (como o lápis); a que não grava, com o motivo.
+ * `pessoaDe` diz a pessoa do cadastro de cada usuário (o responsável de antes continua como participante ao tornar outro responsável, #388).
+ */
+export const mudarAEquipeDoContrato = (contratoId: string, pedido: PedidoNoContrato, eu: QuemMuda, pessoaDe?: PessoaDoUsuario) => naFilaDoContrato(contratoId, async (): Promise<FimNoContrato> => {
   const antes = await lerEquipe(contratoId);
-  const plano = planoNoContrato(pedido, antes, eu);
+  const plano = planoNoContrato(pedido, antes, eu, pessoaDe);
   if ('aviso' in plano) {
     avisar(plano.aviso, plano.tipo);
     return 'nada';
   }
   await SD.contratoAtualizar(contratoId, plano.gravar);
   feito(AVISO_NO_CONTRATO[pedido.tipo](pedido.nome), 'mudança na equipe do contrato', () => naFilaDoContrato(contratoId, async (): Promise<Mudanca> => {
-    const volta = desfazerNoContrato(pedido, antes, await lerEquipe(contratoId));
+    const volta = desfazerNoContrato(pedido, antes, await lerEquipe(contratoId), pessoaDe);
     if (volta && 'aviso' in volta) throw new Error(volta.aviso);
     if (volta) await SD.contratoAtualizar(contratoId, volta);
     return { tipo: 'contratoAtualizado', id: contratoId };

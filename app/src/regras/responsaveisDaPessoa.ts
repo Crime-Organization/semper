@@ -17,9 +17,9 @@ export const AVISO_NOS_RESPONSAVEIS: Record<MudancaNosResponsaveis, { texto: (no
 };
 
 /**
- * O que a bolinha de um responsável diz (o clique o tira): "Tirar Ana Souza dos responsáveis"; na própria bolinha de quem está
- * logado, "Deixar de ser responsável (Ana Souza)".
+ * O "Tirar" do menu da bolinha de um responsável (#388; o nome já está no alto do menu): "Tirar dos responsáveis"; na própria
+ * bolinha de quem está logado, "Deixar de ser responsável".
  */
-export function tirarDosResponsaveis(p: { id: string; nome: string }, eu: string): string {
-  return p.id === eu ? `Deixar de ser responsável (${p.nome})` : `Tirar ${p.nome} dos responsáveis`;
+export function tirarDosResponsaveis(p: { id: string }, eu: string): string {
+  return p.id === eu ? 'Deixar de ser responsável' : 'Tirar dos responsáveis';
 }

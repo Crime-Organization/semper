@@ -1,8 +1,9 @@
 // A equipe no topo do cartão do contrato (#132), com as ações de cada bolinha para quem pode alterar o contrato (#356), como nos
 // outros cartões (EquipeNoTopo): a bolinha com "+" põe alguém da equipe como participante, com 0% na divisão (decisão do dono, 18/11);
-// a de um participante o tira na hora; a do responsável troca o advogado responsável. O % de cada um continua sendo mudado no lápis.
-// O contrato não tem a saída que pergunta antes, dos outros cartões: a bolinha com que a pessoa sairia dele sem poder (não é
-// administradora nem o cadastrou) vem desligada, com o motivo na dica (IMPEDIMENTO_NO_CONTRATO).
+// o menu da de um participante (#388) o torna responsável (só se ele é advogado: o responsável do contrato é um advogado; o de antes
+// continua como participante) ou o tira; o da do responsável troca o advogado responsável. O % de cada um continua sendo mudado no lápis.
+// O contrato não tem a saída que pergunta antes, dos outros cartões: a ação com que a pessoa sairia dele sem poder (não é
+// administradora nem o cadastrou) aparece no menu com o motivo no lugar dela (IMPEDIMENTO_NO_CONTRATO).
 // O contrato guarda o participante pela pessoa do cadastro, e só os da equipe viram bolinha (os de fora ficam nas Partes).
 // Esta peça grava (equipeDoContrato.ts) e avisa o cartão para ler de novo.
 // Os grupos da equipe (#378) aparecem em pílulas, como nos outros cartões; só quem é parte por conta própria (quem altera o
@@ -11,11 +12,12 @@ import type { Contrato } from '../dados';
 import { PARTICIPANTES_MAXIMOS } from '../dados/limites';
 import { fmtPercentual, PARTICIPANTES_DEMAIS } from '../regras/contrato';
 import { candidatosAoContrato, responsaveisAoContrato } from '../regras/equipe';
-import { equipeDoContrato, IMPEDIMENTO_NO_CONTRATO, tirarDoContrato, type PedidoNoContrato } from '../regras/equipeDoContrato';
+import { equipeDoContrato, IMPEDIMENTO_NO_CONTRATO, tirarDoContrato, type PedidoNoContrato, type PessoaDoUsuario } from '../regras/equipeDoContrato';
+import { ACOES_NA_BOLINHA, acoesSem } from '../regras/menuDaBolinha';
 import { EquipeDoCartao, naEquipe } from '../ui/EquipeDoCartao';
 import { useCtx } from '../ui/sessao';
 import { mudarAEquipeDoContrato } from './equipeDoContrato';
-import { useGruposNoTopo, useUmaMudancaDeCadaVez } from './EquipeNoTopo';
+import { useGruposNoTopo, usePerfilNaBolinha, useUmaMudancaDeCadaVez } from './EquipeNoTopo';
 
 /** O papel do responsável na bolinha do contrato. */
 const PAPEL_DO_RESPONSAVEL = 'Advogado responsável';
@@ -31,11 +33,12 @@ interface Props {
 export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
   const ctx = useCtx();
   const { ocupado, umaDeCadaVez } = useUmaMudancaDeCadaVez();
+  const perfil = usePerfilNaBolinha();
   const responsavel = naEquipe(ctx.equipe, k.responsavel_id, PAPEL_DO_RESPONSAVEL);
   // Cada participante da equipe vira bolinha pelo usuário dele; a pessoa do cadastro é o que o contrato guarda.
   const daEquipe = k.participantes.flatMap(p => {
     const m = ctx.equipe.find(x => x.pessoa_id === p.pessoa.id);
-    return m ? [{ pessoaId: p.pessoa.id, percentual: p.percentual, bolinha: naEquipe(ctx.equipe, m.id, papelDoParticipante(p.percentual)) }] : [];
+    return m ? [{ pessoaId: p.pessoa.id, bolinha: naEquipe(ctx.equipe, m.id, papelDoParticipante(p.percentual)) }] : [];
   });
   const daBolinha = (perfilId: string) => daEquipe.find(x => x.bolinha.id === perfilId);
   const participantes = daEquipe.map(x => x.bolinha);
@@ -45,8 +48,10 @@ export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
   });
   if (!depois) return <EquipeDoCartao responsavel={responsavel} participantes={participantes} grupos={grupos} />;
 
+  // A pessoa do cadastro de cada usuário: o responsável de antes continua como participante ao tornar outro responsável (#388).
+  const pessoaDe: PessoaDoUsuario = perfilId => ctx.equipe.find(m => m.id === perfilId)?.pessoa_id;
   const pedir = (pedido: PedidoNoContrato) => umaDeCadaVez(async () => {
-    await mudarAEquipeDoContrato(k.id, pedido, ctx.perfil);
+    await mudarAEquipeDoContrato(k.id, pedido, ctx.perfil, pessoaDe);
     depois();
   }, depois);
 
@@ -54,11 +59,16 @@ export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
   const noContrato = [...k.participantes.map(p => p.pessoa.id), ...(k.indicador_id ? [k.indicador_id] : [])];
   // A bolinha que deixaria quem muda fora do contrato já vem desligada, com o motivo (a mesma conta que a gravação refaz).
   const atual = equipeDoContrato(k);
+  // Só um advogado pode responder pelo contrato: "Tornar responsável" aparece só para quem a busca do responsável também acharia.
+  const podemResponder = responsaveisAoContrato(ctx.equipe, '', k.responsavel_id).map(m => m.id);
   return <EquipeDoCartao responsavel={responsavel} participantes={participantes} grupos={grupos} mudar={{
     por: 'Pôr participante',
     candidatos: termo => candidatosAoContrato(ctx.equipe, termo, noContrato),
     responsaveis: termo => responsaveisAoContrato(ctx.equipe, termo, k.responsavel_id),
-    tirar: p => tirarDoContrato(p, ctx.perfil.id, daBolinha(p.id)?.percentual ?? null),
+    acoes: p => podemResponder.includes(p.id) ? ACOES_NA_BOLINHA.participante : acoesSem(ACOES_NA_BOLINHA.participante, 'tornarResponsavel'),
+    acoesDoResponsavel: ACOES_NA_BOLINHA.responsavel,
+    tirar: p => tirarDoContrato(p, ctx.perfil.id),
+    perfil,
     cheia: k.participantes.length >= PARTICIPANTES_MAXIMOS ? PARTICIPANTES_DEMAIS : undefined,
     ocupado,
     impedeTirar: p => {
@@ -66,11 +76,13 @@ export function EquipeDoContratoNoTopo({ contrato: k, depois }: Props) {
       return pessoa && IMPEDIMENTO_NO_CONTRATO.tirar(atual, pessoa.pessoaId, ctx.perfil);
     },
     impedeTrocar: IMPEDIMENTO_NO_CONTRATO.responsavel(atual, ctx.perfil),
+    impedeTornar: p => IMPEDIMENTO_NO_CONTRATO.tornarResponsavel(atual, p.id, ctx.perfil, pessoaDe),
     aoPor: m => m.pessoa_id && pedir({ tipo: 'por', id: m.pessoa_id, nome: m.nome }),
     aoTirar: p => {
       const pessoa = daBolinha(p.id);
       return pessoa && pedir({ tipo: 'tirar', id: pessoa.pessoaId, nome: p.nome });
     },
-    aoTrocarResponsavel: m => pedir({ tipo: 'responsavel', id: m.id, nome: m.nome })
+    aoTrocarResponsavel: m => pedir({ tipo: 'responsavel', id: m.id, nome: m.nome }),
+    aoTornarResponsavel: p => pedir({ tipo: 'tornarResponsavel', id: p.id, nome: p.nome })
   }} />;
 }

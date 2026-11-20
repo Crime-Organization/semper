@@ -1,8 +1,9 @@
 // O botão "+ Adicionar…" que abre uma busca só na equipe (#282). É a metade de baixo de EscolhaDaEquipe e também a busca de
 // participantes do contrato (#348), onde cada escolhido ganha uma linha com o seu %: quem usa diz quem a busca acha
 // (`buscar`) e o que fazer com quem foi escolhido (`aoEscolher`). No topo dos cartões (#356), o botão é a bolinha redonda
-// com "+", ao lado das bolinhas da equipe, e a busca abre por cima, presa a ela (`bolinha`). A bolinha do responsável usa a
-// mesma busca, com a bolinha dele (ou a vazia) no lugar do "+": clicar nela abre direto a troca.
+// com "+", ao lado das bolinhas da equipe, e a busca abre por cima, presa a ela (`bolinha`). A bolinha vazia (o cartão sem
+// responsável) usa a mesma busca, no lugar do "+": clicar nela abre direto a escolha. A do responsável abre um menu (#388), e o
+// "Trocar o responsável" dele abre esta busca presa à bolinha (BuscaPresa).
 // A lista dos achados mostra só os nomes, um embaixo do outro e alinhados à esquerda (a bolinha na frente de cada nome
 // atrapalhava a leitura, e a lista centralizava os nomes dentro do painel: veja .achados em estilo.css).
 // Com `grupos` (#378: o escritório tem grupos da equipe), a lista vem em duas partes com título, primeiro "Pessoas" e depois
@@ -120,10 +121,8 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
         {conteudo}
       </button>
       {/* O painel fecha sozinho no clique fora e no Esc (que devolve o foco à bolinha); sair dele pelo Tab também a devolve. */}
-      {aberta && <MenuFlutuante botao={aberta} painel rotulo={adicionar} aoFechar={() => setAberta(null)}>
-        <div className="pergunta"><CaixaDaBusca buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir} aoFechar={fechar} aoSair={fechar}
-          grupos={comGrupos} motivoSemPessoas={motivoSemPessoas} /></div>
-      </MenuFlutuante>}
+      {aberta && <BuscaPresa botao={aberta} buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir}
+        fechar={devolverFoco => devolverFoco ? fechar() : setAberta(null)} grupos={comGrupos} motivoSemPessoas={motivoSemPessoas} />}
     </>;
   }
 
@@ -134,6 +133,19 @@ export function BuscaNaEquipe({ buscar, aoEscolher, adicionar, descricao, botao:
     : <Nota>{NINGUEM_MAIS}</Nota>;
 
   return <CaixaDaBusca buscar={buscar} adicionar={adicionar} descricao={descricao} aoEscolher={incluir} aoFechar={fechar} aoSair={() => setAberta(null)} fecharAoClicarFora />;
+}
+
+/**
+ * A busca aberta num painel por cima de um botão que já está na tela: o da bolinha "+" (acima) e a bolinha do responsável, cujo menu
+ * tem "Trocar o responsável" (#388, EquipeDoCartao). `aoEscolher` recebe quem foi escolhido (e fecha a busca). `fechar` é chamado
+ * com true quando a pessoa sai dela pelo teclado (Esc ou Tab: quem usa devolve o foco ao botão) e com false no clique fora (o
+ * painel já cuida do foco).
+ */
+export function BuscaPresa({ botao, fechar, ...caixa }: { botao: HTMLElement; fechar: (devolverFoco: boolean) => void } &
+  Pick<PropsDaCaixa, 'buscar' | 'adicionar' | 'descricao' | 'aoEscolher' | 'grupos' | 'motivoSemPessoas'>) {
+  return <MenuFlutuante botao={botao} painel rotulo={caixa.adicionar} aoFechar={() => fechar(false)}>
+    <div className="pergunta"><CaixaDaBusca {...caixa} aoFechar={() => fechar(true)} aoSair={() => fechar(true)} /></div>
+  </MenuFlutuante>;
 }
 
 interface PropsDaCaixa {

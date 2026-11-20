@@ -1,0 +1,5 @@
+{
+  "titulo": "A bolinha da equipe abre um menu, em vez de tirar a pessoa na hora",
+  "texto": "Clicar na bolinha de alguém da equipe não tira mais ninguém sem querer: abre um menu com o nome e o papel da pessoa. Num participante ou colaborador, dá para torná-lo responsável (quem respondia antes continua no item), tirá-lo ou ver o perfil; no responsável, trocá-lo ou ver o perfil. Quando uma ação não é permitida, o menu diz por quê.",
+  "ondeAchar": "Em qualquer cartão (demanda, tarefa, processo, compromisso, contrato, anotação e pessoa), clique numa bolinha da equipe, no alto, à direita."
+}
