@@ -8,6 +8,7 @@ import { fmtData, lerData } from './pessoa';
 import { CONFERENCIAS_DO_LEMBRETE, horaELembreteAoGravar, horaELembreteDoCartao, lerLembrete, prazoComHora, textoDoLembrete } from './lembrete';
 import { fmtHora } from './compromisso';
 import { erroDaDataDeInicio, inicioAoGravar, ROTULO_DO_INICIO } from './dataDeInicio';
+import { estaPeloGrupo } from './gruposDaEquipe';
 
 /** Rótulo das demandas fora das colunas do quadro. */
 export const SEM_SITUACAO_DEMANDA = 'Sem situação';
@@ -173,11 +174,12 @@ export const papeisNaDemanda = (d: PessoasDaDemanda, pessoaId: string, perfilId:
   (Object.keys(CONFERE_PAPEL) as PapelNaDemanda[]).filter(papel => CONFERE_PAPEL[papel](d, pessoaId, perfilId));
 
 /**
- * Quem está na demanda (como privado.vejo_demanda, sem a fase de adaptação): os administradores, quem criou, o responsável e os
- * colaboradores. É quem altera a demanda.
+ * Quem está na demanda (como privado.estou_na_demanda, sem a fase de adaptação): os administradores, quem criou, o responsável, os
+ * colaboradores e quem está num grupo da equipe posto nela (`meusGrupos`: os grupos da pessoa, #378). É quem altera a demanda.
  */
-export const estaNaDemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'>, m: Membro) =>
-  m.papel === 'master' || m.papel === 'admin' || m.id === d.criado_por || m.id === d.responsavel_id || d.colaboradores.includes(m.id);
+export const estaNaDemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>, m: Membro, meusGrupos: readonly string[] = []) =>
+  m.papel === 'master' || m.papel === 'admin' || m.id === d.criado_por || m.id === d.responsavel_id || d.colaboradores.includes(m.id)
+  || estaPeloGrupo(d.grupos, meusGrupos);
 /** O contrato do cartão é um daqueles em que a pessoa está (privado.contratos_em_que_estou, #326)? */
 export const doContratoEmQueEsta = (contratoId: string | null | undefined, contratosEmQueEsta: readonly string[]) =>
   !!contratoId && contratosEmQueEsta.includes(contratoId);
@@ -185,8 +187,9 @@ export const doContratoEmQueEsta = (contratoId: string | null | undefined, contr
  * Quem vê a demanda (como a regra de leitura do banco, #326): quem está nela e, só para ler, quem está no contrato ligado a ela
  * (`contratosEmQueEsta`: os contratos que a pessoa criou, de que é responsável ou participante; a menção não conta).
  */
-export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'> & { contrato_id?: string | null }, m: Membro,
-  contratosEmQueEsta: readonly string[] = []) => estaNaDemanda(d, m) || doContratoEmQueEsta(d.contrato_id, contratosEmQueEsta);
+export const veADemanda = (d: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> & { contrato_id?: string | null }, m: Membro,
+  contratosEmQueEsta: readonly string[] = [], meusGrupos: readonly string[] = []) =>
+  estaNaDemanda(d, m, meusGrupos) || doContratoEmQueEsta(d.contrato_id, contratosEmQueEsta);
 /**
  * Por que o membro não pode ser mencionado na demanda (null se pode): só quem a vê, como o gatilho do banco (#326: também quem está
  * no contrato dela). O contrato vem com quem está nele (`contrato`) quando quem comenta pode abri-lo; sem ele, conta só quem está

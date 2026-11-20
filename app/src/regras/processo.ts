@@ -7,6 +7,7 @@ import { clientesPorExtenso, dinheiroNoCampo, fmtDinheiro, lerDinheiro } from '.
 import { cnjValido, erroDoCNJ, fmtCNJ, orgaoDoCNJ, partesDoCNJ } from './numeroCNJ';
 import { fmtData, lerData } from './pessoa';
 import { normal } from './texto';
+import { estaPeloGrupo } from './gruposDaEquipe';
 
 /** Rótulo dos processos fora das colunas do quadro. */
 export const SEM_SITUACAO_PROCESSO = 'Sem situação';
@@ -285,9 +286,14 @@ const CONFERE_PAPEL: Record<PapelNoProcesso, (p: PessoasDoProcesso, pessoaId: st
   colaborador: (p, _id, perfil) => !!perfil && p.colaboradores.includes(perfil)
 };
 /** Os papéis da pessoa no processo (vazio: ela não está nele). */
-/** Quem altera o processo (como a regra do banco): os administradores, quem criou, o responsável e os colaboradores. */
-export const alteraOProcesso = (p: { criado_por: string | null; responsavel_id: string; colaboradores: string[] }, m: { id: string; papel: string }) =>
-  m.papel === 'master' || m.papel === 'admin' || m.id === p.criado_por || m.id === p.responsavel_id || p.colaboradores.includes(m.id);
+/**
+ * Quem altera o processo (como a regra do banco): os administradores, quem criou, o responsável, os colaboradores e quem está num
+ * grupo da equipe posto nele (`meusGrupos`, #378).
+ */
+export const alteraOProcesso = (p: { criado_por: string | null; responsavel_id: string; colaboradores: string[]; grupos?: string[] }, m: { id: string; papel: string },
+  meusGrupos: readonly string[] = []) =>
+  m.papel === 'master' || m.papel === 'admin' || m.id === p.criado_por || m.id === p.responsavel_id || p.colaboradores.includes(m.id)
+  || estaPeloGrupo(p.grupos, meusGrupos);
 /**
  * Por que o membro não pode ser mencionado no processo (null se pode, #362): só quem o vê por estar nele (quem o criou, o
  * responsável e os colaboradores) e os administradores, como o gatilho privado.mencao_no_processo do banco. Com as chaves da

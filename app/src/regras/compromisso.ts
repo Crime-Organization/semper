@@ -5,6 +5,7 @@ import { pessoasAoGravar, type CartaoAntes } from './sairDoCartao';
 import { CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, TAMANHO_COMPROMISSO } from '../dados/limites';
 import { clientesPorExtenso } from './contrato';
 import { fmtData, lerData } from './pessoa';
+import { estaPeloGrupo } from './gruposDaEquipe';
 
 /** O fuso da agenda: a data e a hora dos compromissos são as do relógio de Brasília. */
 export const FUSO_DA_AGENDA = 'America/Sao_Paulo';
@@ -212,13 +213,16 @@ export const papeisNoCompromisso = (c: PessoasDoCompromisso, pessoaId: string, p
 export const detalheDoLigado = (c: Pick<CompromissoLigado, 'data' | 'hora' | 'hora_fim' | 'papeis'>, situacao: string) =>
   [quandoDoCompromisso(c), c.papeis.map(p => PAPEIS_NO_COMPROMISSO[p]).join(', '), situacao].filter(Boolean).join(' · ');
 
-type QuemEstaNoCompromisso = Pick<Compromisso, 'criado_por' | 'responsavel_id' | 'participantes'>;
-type QuemEstaNoProcesso = Pick<ProcessoDoCompromisso, 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+type QuemEstaNoCompromisso = Pick<Compromisso, 'criado_por' | 'responsavel_id' | 'participantes' | 'grupos'>;
+type QuemEstaNoProcesso = Pick<ProcessoDoCompromisso, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
 const ehAdministrador = (m: Pick<Membro, 'papel'>) => m.papel === 'master' || m.papel === 'admin';
-/** Quem muda o compromisso (como a regra do banco): os administradores, quem criou, o responsável, os participantes e quem vê o processo ligado. */
-export const participaDoCompromisso = (c: QuemEstaNoCompromisso, m: Membro, processo: QuemEstaNoProcesso | null = null) =>
-  ehAdministrador(m) || m.id === c.criado_por || m.id === c.responsavel_id || c.participantes.includes(m.id)
-  || (!!processo && (m.id === processo.criado_por || m.id === processo.responsavel_id || processo.colaboradores.includes(m.id)));
+/**
+ * Quem muda o compromisso (como a regra do banco): os administradores, quem criou, o responsável, os participantes, quem está num
+ * grupo da equipe posto nele (`meusGrupos`, #378) e quem está no processo ligado (também pelos grupos dele).
+ */
+export const participaDoCompromisso = (c: QuemEstaNoCompromisso, m: Membro, processo: QuemEstaNoProcesso | null = null, meusGrupos: readonly string[] = []) =>
+  ehAdministrador(m) || m.id === c.criado_por || m.id === c.responsavel_id || c.participantes.includes(m.id) || estaPeloGrupo(c.grupos, meusGrupos)
+  || (!!processo && (m.id === processo.criado_por || m.id === processo.responsavel_id || processo.colaboradores.includes(m.id) || estaPeloGrupo(processo.grupos, meusGrupos)));
 /** Na tela: quem pode mudar. Quem o vê pelo processo ligado recebe o processo junto; os outros recebem null. */
 export const podeMudarCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'processo'>, eu: string, ehAdmin: boolean) =>
   ehAdmin || eu === c.criado_por || eu === c.responsavel_id || c.participantes.includes(eu)
@@ -230,8 +234,8 @@ export const podeMudarCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso
 export const soLeNaLista = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, eu: string, ehAdmin: boolean) =>
   c.geral && !ehAdmin && eu !== c.criado_por && eu !== c.responsavel_id && !c.participantes.includes(eu);
 /** Quem vê o compromisso: quem participa e, na Agenda geral, todos do escritório. */
-export const veOCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, m: Membro, processo: QuemEstaNoProcesso | null = null) =>
-  c.geral || participaDoCompromisso(c, m, processo);
+export const veOCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, m: Membro, processo: QuemEstaNoProcesso | null = null, meusGrupos: readonly string[] = []) =>
+  c.geral || participaDoCompromisso(c, m, processo, meusGrupos);
 /** Por que o membro não pode ser mencionado no compromisso (null se pode): só quem o vê. */
 export const motivoSemMencaoNoCompromisso = (c: QuemEstaNoCompromisso & Pick<Compromisso, 'geral'>, processo: QuemEstaNoProcesso | null = null) =>
   (m: Membro) => veOCompromisso(c, m, processo) ? null : 'não participa; inclua como participante';

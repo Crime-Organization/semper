@@ -5,7 +5,7 @@
 // ao mudar a semente, rode "npm run testar-telas" para conferir.
 import type {
   AcessoSigilo, LigacaoGoogle, CartaoComListas, FotoDoPerfil, PerfilProfissional, Coluna, Comentario, Contexto, DadosDemanda, DadosTarefa, RegistroDeTempo, FiltroTarefas, Tarefa, TarefaLigada, TarefaLista, GrupoDaLista, ItemDaLista, ListaDoCartao, ModeloDeLista, NoDoModelo, Demanda, DemandaLigada, DemandaLista, FiltroDemandas, Contrato, ContratoLista, Convite, Dados, DadosContrato, DadosEscritorio, ParticipanteGravado, FiltroContratos, FiltroPessoas, Historico, Membro, Modulo,
-  Mensagem, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
+  Mensagem, GrupoDaEquipe, ModuloComentado, Ordem, Papel, VinculoTipo, Pessoa, PessoaLista, PessoaResumida, RegistroAuditoria, Sigilo,
   DadosPessoa, Importacao, ItemImportacao, MarcaPessoas, Pendencia, DadosOrgao, DiaLancado, Etiqueta, GrupoDeColunas, ModuloComEtiquetas, Orgao,
   ComoEntrarNoProcesso, ModuloComSaida, Funcao, TipoMensagem, ModuloDoPrazo, PrazoDaMensagem, PrazoParado, AvisoDePrazo, Lembrete, Compromisso, CompromissoLigado, CompromissoLista, DadosCompromisso, FiltroCompromissos, OrdemCompromisso, PrazoNaAgenda,
   OrdemComPrazo, CampoDeProcesso, DadosProcesso, FiltroProcessos, OpcaoDeProcesso, Processo, ProcessoLigado, ProcessoLista, TipoProcesso, PapelDaDemandaNoProcesso,
@@ -38,6 +38,8 @@ import { tempoPorPessoa } from '../regras/cronometro';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
+import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos } from '../regras/gruposDaEquipe';
+import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
@@ -127,6 +129,10 @@ interface Banco {
   mensagensDePedido?: { id: string; perfil_id: string; pedido_id: string; tipo: 'pedido' | 'resposta'; criado_em: string; lido_em: string | null }[];
   /** Os avisos de quem entrou num item (#377), como a tabela mensagens_de_inclusao. */
   mensagensDeInclusao?: MensagemDeInclusaoGuardada[];
+  /** Os grupos da equipe com quem está em cada um (#378), como as tabelas grupos_da_equipe e grupo_integrantes. */
+  gruposDaEquipe?: GrupoDaEquipe[];
+  /** A mensagem de quem entrou num grupo (#378), como a tabela mensagens_de_grupo: uma por pessoa e grupo. */
+  mensagensDeGrupo?: { id: string; perfil_id: string; grupo_id: string; incluido_por: string | null; criado_em: string; lido_em: string | null }[];
   /** As sequências de mudanças no papel de cada pessoa em cada item (#377), como a tabela privado.mudancas_na_equipe. */
   mudancasNaEquipe?: (SequenciaDeMudancas & { perfil_id: string; item_id: string })[];
   /** A chave "equipe_ve_tudo" do escritório. Só os testes ligam: SEMPER_FALSO.equipeVeTudo(true). */
@@ -618,6 +624,8 @@ bd.pedidos ??= [];
 bd.mensagensDePedido ??= [];
 // Avisos de quem entrou num item (#377): começam vazios.
 bd.mensagensDeInclusao ??= [];
+bd.gruposDaEquipe ??= [];
+bd.mensagensDeGrupo ??= [];
 bd.mudancasNaEquipe ??= [];
 eu = bd.logadoComo ?? eu;
 const trocasDeEmail = () => bd.auditoria.filter(r => r.acao === 'troca_email');
@@ -822,6 +830,10 @@ const membroLogado = () => EQUIPE.find(m => m.id === eu)!;
 const soLeNoFalso = (estaNoCartao: boolean) => !!bd.equipeVeTudo && !bd.equipeEditaTudo && !estaNoCartao;
 /** Como privado.sou_admin. */
 const souAdmin = () => ['master', 'admin'].includes(membroLogado().papel);
+/** Os grupos de alguém da equipe (#378): só de quem está ativo, sem a conta reservada e sem exclusão (como privado.integrantes_dos_grupos). */
+const gruposDoMembro = (m: Pick<Membro, 'id' | 'ativo' | 'reservada' | 'excluido'>) => m.ativo === false || m.reservada || m.excluido ? [] : meusGrupos(bd.gruposDaEquipe, m.id);
+/** Como privado.meus_grupos: os grupos de quem está logado. */
+const meusGruposNoFalso = () => gruposDoMembro(membroLogado());
 type QuemEstaNoContrato = Pick<ContratoGuardado, 'id' | 'criado_por' | 'responsavel_id' | 'participantes'>;
 const pessoasDoContrato = (k: QuemEstaNoContrato) => ({ ...k, participantes: k.participantes.map(p => p.pessoa_id) });
 /** Quem está no contrato, como o cartão da demanda e o da tarefa o recebem (só os campos que o banco manda, #326). */
@@ -889,20 +901,23 @@ const meMencionaramNoContrato = (id: string) =>
   bd.comentarios!.some(c => c.modulo === 'contratos' && c.cartao_id === id && c.autor_id !== eu && c.mencoes.includes(eu) && !c.autor_sem_vinculo);
 /** Como a regra de leitura dos contratos no banco. */
 const vejoContrato = (k: QuemEstaNoContrato) => veOContrato(pessoasDoContrato(k), membroLogado(), meMencionaramNoContrato(k.id));
+/** Quem está num grupo da equipe do contrato o alcança sem os valores (#378), como a view contratos_da_equipe. */
+const peloGrupoDoContrato = (k: Pick<ContratoGuardado, 'grupos'>) => estaPeloGrupo(k.grupos, meusGruposNoFalso());
 /** Como a regra de alterar dos contratos no banco: quem só foi mencionado lê, mas não altera. */
 const alteroContrato = (k: QuemEstaNoContrato) => alteraOContrato(pessoasDoContrato(k), membroLogado());
 const vejoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && vejoContrato(k));
 /** Como contratos_da_equipe: quem é parte e, com a chave ligada, toda a equipe. */
-const alcancoContrato = (k: QuemEstaNoContrato) => !!bd.equipeVeTudo || vejoContrato(k);
+const alcancoContrato = (k: QuemEstaNoContrato & Pick<ContratoGuardado, 'grupos'>) => !!bd.equipeVeTudo || vejoContrato(k) || peloGrupoDoContrato(k);
 const alcancoContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && alcancoContrato(k));
 /** Como privado.contratos_em_que_estou (#326): os contratos que quem está logado criou, de que é responsável ou participante. */
 const contratosDoMembro = (m: Membro) => contratosEmQueEsta(bd.contratos!.map(pessoasDoContrato), m);
-const contratosEmQueEstou = () => contratosDoMembro(membroLogado());
+/** Também os contratos dos grupos de quem está logado (#378): as demandas e as tarefas deles abrem, só para ler. */
+const contratosEmQueEstou = () => [...contratosDoMembro(membroLogado()), ...bd.contratos!.filter(peloGrupoDoContrato).map(k => k.id)];
 const demandaDaTarefaNoFalso = (t: Pick<TarefaGuardada, 'demanda_id'>) => bd.demandas!.find(d => d.id === t.demanda_id) ?? null;
 /** Como a regra de leitura das demandas: quem está nela e, só para ler, quem está no contrato ligado a ela (#326). */
-const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou());
+const vejoDemanda = (d: DemandaGuardada) => veADemanda(d, membroLogado(), contratosEmQueEstou(), meusGruposNoFalso());
 /** Como a regra de leitura das tarefas: quem está nela e, só para ler, quem está no contrato dela ou no da demanda ligada (#326). */
-const vejoTarefa = (t: TarefaGuardada) => veATarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), contratosEmQueEstou());
+const vejoTarefa = (t: TarefaGuardada) => veATarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), contratosEmQueEstou(), meusGruposNoFalso());
 /** Como privado.altero_o_contrato: quem é parte e, na fase de adaptação, toda a equipe. */
 const alteroContratoDoId = (id: string) => bd.contratos!.some(k => k.id === id && (alteroContrato(k) || !!bd.equipeEditaTudo));
 /** Como as colunas de contratos_da_equipe para quem não é parte. */
@@ -945,6 +960,7 @@ const NOME_NO_HISTORICO: Record<string, [string, (id: unknown) => unknown]> = {
   indicador_id: ['indicador_id', nomeDaPessoa],
   conta_destino_id: ['conta_destino_id', id => bd.contasFinanceiras!.find(c => c.id === id)?.nome ?? null],
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
+  grupos: ['grupos', nomesDosGrupos],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
 };
 // A mudança dos objetos entra no histórico uma vez só, pelo texto de "servico" ("a; b" → "a; c").
@@ -999,8 +1015,8 @@ const demandaLista = (d: DemandaGuardada): DemandaLista => ({
 const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descricao, nomesDosClientes(d.clientes), d.contrato_codigo].join(' '));
 function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
-  return bd.demandas!.filter(d => vejoNoModulo('demandas', d.id) && (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
-    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa))
+  return bd.demandas!.filter(d => vejoNoModulo('demandas', d.id) && (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
+    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa)) && noGrupoDoFiltro(d.grupos, f.grupo)
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta)) && inicioNosLimites(d.data_inicio, f)
     && (!t || buscaDemanda(d).includes(t)));
 }
@@ -1030,6 +1046,7 @@ const acharDemanda = (id: string) => {
 function prepararDemanda(dados: DadosDemanda, atual?: DemandaGuardada): DadosDemanda & { contrato_codigo?: string | null } {
   conferirInicio(dados);
   const d: DadosDemanda & { contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
+  if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   if (d.titulo !== undefined) {
     d.titulo = d.titulo.trim();
     if (!d.titulo) throw new Error('Dê um título à demanda.');
@@ -1060,6 +1077,7 @@ const nomesDaEquipe = (ids: unknown) => (ids as string[] | null ?? []).map(id =>
 const NOME_NO_HISTORICO_DEMANDA: Record<string, [string, (v: unknown, d: DemandaGuardada) => unknown]> = {
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
   colaboradores: ['colaboradores', nomesDaEquipe],
+  grupos: ['grupos', nomesDosGrupos],
   clientes: ['clientes', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
   contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
   etapa_id: ['etapa', id => nomeDaColuna((id as string) || null)]
@@ -1080,6 +1098,54 @@ function historicoDemanda(d: DemandaGuardada, dados: Record<string, unknown>) {
  * Como o gatilho demandas_automaticas da migração 017: o contrato que chega à coluna-marco "assinado" ganha uma demanda
  * por objeto, em "Para fazer", com os clientes e o responsável dele. Uma vez só por contrato.
  */
+/**
+ * Como o gatilho privado.preparar_grupos (#378): tira os repetidos, confere só os grupos que entram (o que já estava não trava nada)
+ * e recusa passar de GRUPOS_POR_ITEM.
+ */
+function gruposAoGravar(grupos: string[] | undefined, antes: string[] | undefined) {
+  const lista = [...new Set((grupos ?? []).filter(Boolean))];
+  if (lista.some(id => !(antes ?? []).includes(id) && !bd.gruposDaEquipe!.some(g => g.id === id))) throw new Error('Grupo não encontrado neste escritório.');
+  if (lista.length > GRUPOS_POR_ITEM) throw new Error(`Um item pode ter até ${GRUPOS_POR_ITEM} grupos.`);
+  return lista;
+}
+/** A recusa de quem não é administrador nas funções dos grupos (a mesma do banco). */
+const SO_ADMINISTRADOR_NOS_GRUPOS = 'Só um administrador cuida dos grupos.';
+/** Como privado.grupo_do_administrador: só administrador, e o grupo de outro escritório (ou que não existe) responde igual. */
+function grupoDoAdministrador(id: string) {
+  if (!souAdmin()) throw new Error(SO_ADMINISTRADOR_NOS_GRUPOS);
+  const g = bd.gruposDaEquipe!.find(x => x.id === id);
+  if (!g) throw new Error('Grupo não encontrado neste escritório.');
+  return g;
+}
+/** Como privado.conferir_nome_do_grupo: sem os espaços das pontas, até TAMANHO_GRUPO_DA_EQUIPE letras, único sem diferença de maiúsculas. */
+function nomeDoGrupoDaEquipe(bruto: string, id?: string) {
+  const nome = (bruto ?? '').trim();
+  if (!nome) throw new Error('Escreva o nome do grupo.');
+  if (nome.length > TAMANHO_GRUPO_DA_EQUIPE) throw new Error(`O nome do grupo pode ter até ${TAMANHO_GRUPO_DA_EQUIPE} letras.`);
+  if (bd.gruposDaEquipe!.some(g => g.id !== id && g.nome.toLowerCase() === nome.toLowerCase())) throw new Error('Já existe um grupo com este nome.');
+  return nome;
+}
+/** Os módulos com grupos, na ordem da contagem do banco (public.grupo_contar_itens). */
+const MODULOS_DOS_GRUPOS: ModuloDoPedido[] = ['demandas', 'tarefas', 'processos', 'compromissos', 'contratos', 'anotacoes'];
+type ItemComGrupos = { id: string; grupos?: string[]; atualizado_em: string; atualizado_por: string | null };
+const ITENS_COM_GRUPOS: Record<ModuloDoPedido, () => ItemComGrupos[]> = {
+  demandas: () => bd.demandas!, tarefas: () => bd.tarefas!, processos: () => bd.processos!, compromissos: () => bd.compromissos!,
+  contratos: () => bd.contratos!, anotacoes: () => bd.anotacoes!
+};
+/** A linha do histórico de cada módulo quando o grupo sai do item (a exclusão do grupo). */
+const HISTORICO_DOS_GRUPOS: Record<ModuloDoPedido, (id: string, novos: { grupos: string[] }) => void> = {
+  demandas: (id, novos) => historicoDemanda(bd.demandas!.find(x => x.id === id)!, novos),
+  tarefas: (id, novos) => historicoTarefa(bd.tarefas!.find(x => x.id === id)!, novos),
+  processos: (id, novos) => historicoProcesso(bd.processos!.find(x => x.id === id)!, novos),
+  compromissos: (id, novos) => historicoCompromisso(bd.compromissos!.find(x => x.id === id)!, novos),
+  contratos: (id, novos) => historicoContrato(bd.contratos!.find(x => x.id === id)!, novos),
+  anotacoes: (id, novos) => historicoAnotacao(bd.anotacoes!.find(x => x.id === id)!, novos)
+};
+/** Os grupos, pelo nome, como privado.nomes_dos_grupos ("grupo excluído" para o que não existe mais). */
+function nomesDosGrupos(ids: unknown) {
+  return (ids as string[] | null ?? []).map(id => bd.gruposDaEquipe!.find(g => g.id === id)?.nome ?? 'grupo excluído')
+    .sort((a, b) => a.localeCompare(b, 'pt-BR')).join(', ') || null;
+}
 /** Como privado.parcelas_do_contrato_assinado: nascem uma vez só, quando o contrato chega à coluna de assinado. */
 function parcelasDoContratoAssinado(k: ContratoGuardado) {
   if (bd.colunas.find(c => c.id === k.etapa_id)?.marco !== 'assinado' || bd.contratosComParcelas!.includes(k.id)) return;
@@ -1169,10 +1235,18 @@ const tarefaLista = (t: TarefaGuardada): TarefaLista => {
   };
 };
 const buscaTarefa = (t: TarefaGuardada) => normal([t.codigo, t.titulo, t.descricao, nomesDosClientes(t.pessoas), t.demanda_codigo, t.contrato_codigo].join(' '));
+/** O filtro "Grupo da equipe" (#378): o item tem algum dos grupos pedidos (como q.overlaps no banco). */
+const noGrupoDoFiltro = (grupos: string[] | undefined, filtro: string | undefined) => {
+  const pedidos = gruposDoFiltro(filtro, meusGruposNoFalso());
+  return !pedidos || (grupos ?? []).some(g => pedidos.includes(g));
+};
+/** Nas tarefas, também as das demandas do grupo (como public.tarefas_dos_grupos). */
+const daTarefaNoGrupo = (x: TarefaGuardada, f: FiltroTarefas) =>
+  noGrupoDoFiltro(x.grupos, f.grupo) || (!!f.grupo && noGrupoDoFiltro(demandaDaTarefaNoFalso(x)?.grupos, f.grupo));
 function filtrarTarefas(f: FiltroTarefas = {}) {
   const t = termo(f.termo);
   return bd.tarefas!.filter(x => vejoNoModulo('tarefas', x.id) && (f.situacao === 'arquivadas' ? x.arquivado_em : !x.arquivado_em)
-    && (!f.pessoa || x.responsavel_id === f.pessoa || x.participantes.includes(f.pessoa))
+    && (!f.pessoa || x.responsavel_id === f.pessoa || x.participantes.includes(f.pessoa)) && daTarefaNoGrupo(x, f)
     && (!f.etiqueta || temEtiqueta('tarefas', x.id, f.etiqueta)) && inicioNosLimites(x.data_inicio, f)
     && (!t || buscaTarefa(x).includes(t)));
 }
@@ -1188,6 +1262,7 @@ const acharTarefa = (id: string) => {
 function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } {
   conferirInicio(dados);
   const t: DadosTarefa & { demanda_codigo?: string | null; contrato_codigo?: string | null } = { ...dados, ...horaELembreteDoBanco(dados) };
+  if (t.grupos !== undefined) t.grupos = gruposAoGravar(t.grupos, atual?.grupos);
   // Como o banco: a tarefa nasce com um processo que existe; trocar depois só aceita um processo ativo.
   if (t.processo_id && !bd.processos!.some(p => p.id === t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
   if (t.processo_id && atual && t.processo_id !== atual.processo_id && !processoAtivo(t.processo_id)) throw new Error('Processo não encontrado neste escritório.');
@@ -1225,6 +1300,7 @@ function prepararTarefa(dados: DadosTarefa, atual?: TarefaGuardada): DadosTarefa
 const NOME_NO_HISTORICO_TAREFA: Record<string, [string, (v: unknown) => unknown]> = {
   responsavel_id: ['responsavel_id', id => EQUIPE.find(m => m.id === id)?.nome ?? null],
   participantes: ['participantes', nomesDaEquipe],
+  grupos: ['grupos', nomesDosGrupos],
   pessoas: ['pessoas', lista => (lista as string[] | null ?? []).map(nomeDaPessoa).join(', ') || null],
   demanda_id: ['demanda', id => bd.demandas!.find(d => d.id === id)?.codigo ?? null],
   contrato_id: ['contrato', id => bd.contratos!.find(k => k.id === id)?.codigo ?? null],
@@ -1328,6 +1404,7 @@ const horaComSegundos = (hora: string | null | undefined) => hora ? hora.slice(0
 /** Como o gatilho preparar e as regras check da migração. */
 function prepararCompromisso(dados: DadosCompromisso, atual?: CompromissoGuardado): DadosCompromisso {
   const d: DadosCompromisso = { ...dados };
+  if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   conferirQuadroDoCompromisso(d.etapa_id);
   const limpar = (v: string | null | undefined) => (v ?? '').trim() || null;
   for (const campo of ['titulo', 'local', 'resultado', 'observacoes'] as const) if (d[campo] !== undefined) d[campo] = limpar(d[campo]);
@@ -1369,7 +1446,7 @@ function historicoCompromisso(c: CompromissoGuardado, dados: Record<string, unkn
   const numeroDoProcesso = (id: unknown) => bd.processos!.find(p => p.id === id)?.numero ?? null;
   const CONVERTE: Record<string, [string, (v: unknown) => unknown]> = {
     etapa_id: ['etapa', v => nomeDaColuna(v as string | null)], responsavel_id: ['responsavel_id', nomeNaEquipe], processo_id: ['processo', numeroDoProcesso],
-    participantes: ['participantes', v => (v as string[]).map(nomeNaEquipe).join(', ')], pessoas: ['pessoas', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
+    participantes: ['participantes', v => (v as string[]).map(nomeNaEquipe).join(', ')], grupos: ['grupos', nomesDosGrupos], pessoas: ['pessoas', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
   Object.entries(dados).forEach(([campo, v]) => {
     if (['etapa_ordem', 'arquivado_por', 'processo_codigo', 'processo_numero'].includes(campo) || JSON.stringify(atual[campo] ?? null) === JSON.stringify(v ?? null)) return;
@@ -1404,7 +1481,7 @@ const ITEM_NO_FALSO: Record<ModuloDaAnotacao, (id: string) => { item: ItemDaAnot
   pessoas: id => { const p = bd.pessoas.find(x => x.id === id); return p ? { item: itemDaAnotacao('pessoas', p), vejo: true } : null; },
   processos: id => {
     const p = bd.processos!.find(x => x.id === id);
-    return p ? { item: itemDaAnotacao('processos', { ...p, cliente_nome: nomesDosClientes(p.clientes) }), vejo: alteraOProcesso(p, membroLogado()) } : null;
+    return p ? { item: itemDaAnotacao('processos', { ...p, cliente_nome: nomesDosClientes(p.clientes) }), vejo: alteraOProcesso(p, membroLogado(), meusGruposNoFalso()) } : null;
   },
   contratos: id => { const k = bd.contratos!.find(x => x.id === id); return k ? { item: itemDaAnotacao('contratos', k), vejo: alcancoContrato(k) } : null; },
   demandas: id => { const d = bd.demandas!.find(x => x.id === id); return d ? { item: itemDaAnotacao('demandas', d), vejo: vejoDemanda(d) } : null; },
@@ -1414,7 +1491,7 @@ const ITEM_NO_FALSO: Record<ModuloDaAnotacao, (id: string) => { item: ItemDaAnot
   },
   compromissos: id => {
     const c = bd.compromissos!.find(x => x.id === id);
-    return c ? { item: itemDaAnotacao('compromissos', c), vejo: veOCompromisso(c, membroLogado(), processoDoCompromisso(c)) } : null;
+    return c ? { item: itemDaAnotacao('compromissos', c), vejo: veOCompromisso(c, membroLogado(), processoDoCompromisso(c), meusGruposNoFalso()) } : null;
   }
 };
 /**
@@ -1438,14 +1515,14 @@ const vejoOItem = (modulo: ModuloDaAnotacao, id: string) => {
 const ligacoesDaAnotacao = (id: string) => bd.anotacaoLigacoes!.filter(l => l.anotacao_id === id);
 /** Como a regra de leitura do banco (com privado.anotacoes_pelos_itens). */
 const vejoAnotacao = (a: Anotacao) => veAAnotacao(a, membroLogado(), chavesDaEquipe(),
-  ligacoesDaAnotacao(a.id).some(l => ABRE_A_ANOTACAO[l.modulo] && vejoOItem(l.modulo, l.item_id)));
-const alteroAnotacao = (a: Anotacao) => alteraAAnotacao(a, membroLogado(), chavesDaEquipe());
+  ligacoesDaAnotacao(a.id).some(l => ABRE_A_ANOTACAO[l.modulo] && vejoOItem(l.modulo, l.item_id)), meusGruposNoFalso());
+const alteroAnotacao = (a: Anotacao) => alteraAAnotacao(a, membroLogado(), chavesDaEquipe(), meusGruposNoFalso());
 /** Como a regra de leitura das etiquetas da anotação: segue quem vê a anotação. */
 const vejoAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && vejoAnotacao(a));
 /** Se quem está logado vê o processo (como a regra de leitura dele, que a dos comentários consulta, #362). */
 const vejoProcessoDoId = (id: string) => bd.processos!.some(p => p.id === id) && vejoNoModulo('processos', id);
 /** Como privado.altero_a_anotacao, que as regras de aplicar e tirar etiquetas usam: a anotação ativa, por quem a altera. */
-const alteroAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe()));
+const alteroAnotacaoDoId = (id: string) => bd.anotacoes!.some(a => a.id === id && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe(), meusGruposNoFalso()));
 /** Quem pode tirar a etiqueta do cartão: nas anotações, só quem as altera; nos outros módulos, como antes. */
 const podeTirarEtiqueta = (modulo: ModuloComEtiquetas, id: string) => modulo !== 'anotacoes' || alteroAnotacaoDoId(id);
 
@@ -1512,6 +1589,20 @@ const ITENS_DO_PEDIDO: Record<ModuloDoPedido, () => ItemDoPedidoNoFalso[]> = {
     registrar: (a: Historico['alteracoes']) => { bd.historicoContratos!.unshift({ ...linhaDoHistorico(a), contrato_id: k.id }); } }))
 };
 const MODULOS_DO_PEDIDO = Object.keys(ITENS_DO_PEDIDO) as ModuloDoPedido[];
+/** Os grupos da equipe do item, como privado.grupos_do_item (#378). */
+const GRUPOS_DO_ITEM: Record<ModuloDoPedido, (id: string) => string[] | undefined> = {
+  tarefas: id => bd.tarefas!.find(x => x.id === id)?.grupos,
+  demandas: id => bd.demandas!.find(x => x.id === id)?.grupos,
+  processos: id => bd.processos!.find(x => x.id === id)?.grupos,
+  compromissos: id => bd.compromissos!.find(x => x.id === id)?.grupos,
+  contratos: id => bd.contratos!.find(x => x.id === id)?.grupos,
+  anotacoes: id => bd.anotacoes!.find(x => x.id === id)?.grupos
+};
+/** Os integrantes ativos dos grupos do item (como privado.integrantes_dos_grupos): a equipe "efetiva" dos avisos. */
+const integrantesDoItem = (modulo: ModuloDoPedido, id: string) => {
+  const doItem = GRUPOS_DO_ITEM[modulo](id) ?? [];
+  return [...new Set(bd.gruposDaEquipe!.filter(g => doItem.includes(g.id)).flatMap(g => integrantesAtivos(g, EQUIPE).map(m => m.id)))];
+};
 const itemDoPedido = (modulo: ModuloDoPedido, id: string) => (MODULOS_DO_PEDIDO.includes(modulo) ? ITENS_DO_PEDIDO[modulo]().find(x => x.id === id) : null) ?? null;
 /** Como privado.aprovo_o_pedido: um administrador, o responsável ou quem criou. */
 const aprovoNoItem = (i: ItemDoPedidoNoFalso) => souAdmin() || eu === i.criado_por || eu === i.responsavel_id;
@@ -1542,7 +1633,7 @@ function porQuemPediu(i: ItemDoPedidoNoFalso, modulo: ModuloDoPedido, perfil: st
 /** A equipe do item como está agora (como privado.item_do_pedido): o responsável e os perfis (no contrato, os das pessoas). */
 const equipeDoItemNoFalso = (modulo: ModuloDoPedido, id: string): EquipeDoItem | null => {
   const i = itemDoPedido(modulo, id);
-  return i && { responsavel_id: i.responsavel_id, equipe: [...i.equipe] };
+  return i && { responsavel_id: i.responsavel_id, equipe: [...new Set([...i.equipe, ...integrantesDoItem(modulo, id)])] };
 };
 /** Quem recebe o aviso: ativo, sem a conta reservada e sem quem foi excluído (como a ligação com perfis no banco). */
 const recebeAviso = (perfil: string) => EQUIPE.some(m => m.id === perfil && m.ativo && !m.reservada && !m.excluido);
@@ -1590,13 +1681,14 @@ const ITEM_DA_INCLUSAO_NO_FALSO: Record<ModuloDoPedido, (id: string) => ItemDaIn
  * vê. Ver por outro caminho (a chave da equipe, ser administrador, ter criado) não conta.
  */
 function mensagemDeInclusaoLida(m: MensagemDeInclusaoGuardada): Mensagem {
-  const i = itemDoPedido(m.modulo, m.item_id)!, fazParte = i.responsavel_id === eu || i.equipe.includes(eu);
+  const i = itemDoPedido(m.modulo, m.item_id)!, fazParte = i.responsavel_id === eu || i.equipe.includes(eu) || integrantesDoItem(m.modulo, m.item_id).includes(eu);
   return { id: m.id, tipo: 'inclusao', criado_em: m.criado_em, lido_em: m.lido_em, comentario: null, prazo: null, pedido: null,
     inclusao: { modulo: m.modulo, entrou_como: m.entrou_como, incluido_por: m.incluido_por, item: fazParte && i.vejo() ? ITEM_DA_INCLUSAO_NO_FALSO[m.modulo](m.item_id) : null } };
 }
 /** Como o gatilho preparar e as regras check da migração: confere só quem está entrando na equipe da anotação. */
 function prepararAnotacao(dados: DadosAnotacao, atual?: Anotacao): DadosAnotacao {
   const d: DadosAnotacao = { ...dados };
+  if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   if (d.titulo !== undefined) d.titulo = (d.titulo ?? '').trim();
   if (d.texto !== undefined) d.texto = d.texto ?? '';
   const ativo = (id: string | undefined) => EQUIPE.some(m => m.id === id && m.ativo && !m.excluido);
@@ -1621,6 +1713,7 @@ const HISTORICO_DO_CAMPO_DA_ANOTACAO: Record<string, (de: unknown, para: unknown
   texto: () => ({ de: null, para: null }),
   responsavel_id: (de, para) => ({ de: EQUIPE.find(m => m.id === de)?.nome ?? null, para: EQUIPE.find(m => m.id === para)?.nome ?? null }),
   participantes: (de, para) => ({ de: nomesDosMembros(de as string[]), para: nomesDosMembros(para as string[]) }),
+  grupos: (de, para) => ({ de: nomesDosGrupos(de), para: nomesDosGrupos(para) }),
   // Como privado.caminho_da_pasta: o caminho, e não o id (#342).
   pasta_id: (de, para) => ({ de: textoDoCaminho(bd.pastas!, de as string | null) || null, para: textoDoCaminho(bd.pastas!, para as string | null) || null })
 };
@@ -1642,7 +1735,7 @@ const refazerLigadaA = (id: string) => {
 /** Como o gatilho e as regras de ligar do banco, na mesma ordem: o item existe; repetido não faz nada; até ITENS_DA_ANOTACAO; e quem liga altera a anotação e vê o item. */
 function ligarNaAnotacaoFalsa(a: Anotacao, modulo: ModuloDaAnotacao, itemId: string): boolean {
   if (!ITEM_NO_FALSO[modulo](itemId)) throw new Error('Item não encontrado neste escritório.');
-  const pode = ligaNaAnotacao(a, membroLogado(), chavesDaEquipe());
+  const pode = ligaNaAnotacao(a, membroLogado(), chavesDaEquipe(), meusGruposNoFalso());
   const ligacoes = ligacoesDaAnotacao(a.id);
   if (pode && ligacoes.some(l => l.modulo === modulo && l.item_id === itemId)) return false;
   if (ligacoes.length >= ITENS_DA_ANOTACAO) throw new Error(`Uma anotação pode ser ligada a no máximo ${ITENS_DA_ANOTACAO} itens.`);
@@ -1892,6 +1985,7 @@ function conferirQuadroDoProcesso(tipo: TipoProcesso, etapaId: string | null | u
 /** Como o gatilho preparar e o índice de número único da migração. */
 function prepararProcesso(dados: DadosProcesso, tipo: TipoProcesso, atual?: ProcessoGuardado): DadosProcesso {
   const d: DadosProcesso = { ...dados };
+  if (d.grupos !== undefined) d.grupos = gruposAoGravar(d.grupos, atual?.grupos);
   conferirQuadroDoProcesso(tipo, d.etapa_id);
   const limpar = (v: string | null | undefined) => (v ?? '').trim() || null;
   if (d.numero !== undefined) {
@@ -1962,7 +2056,7 @@ function historicoProcesso(p: ProcessoGuardado, dados: Record<string, unknown>) 
   const nomeNaEquipe = (id: unknown) => EQUIPE.find(m => m.id === id)?.nome ?? null;
   const CONVERTE: Record<string, [string, (v: unknown) => unknown]> = {
     etapa_id: ['etapa', v => nomeDaColuna(v as string | null)], responsavel_id: ['responsavel_id', nomeNaEquipe],
-    colaboradores: ['colaboradores', v => (v as string[]).map(nomeNaEquipe).join(', ')], clientes: ['clientes', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
+    colaboradores: ['colaboradores', v => (v as string[]).map(nomeNaEquipe).join(', ')], grupos: ['grupos', nomesDosGrupos], clientes: ['clientes', v => (v as string[]).map(id => resumoDe(id)?.nome).join(', ')]
   };
   const { campos: valores, ...fixos } = dados as Record<string, unknown> & { campos?: Record<string, string> };
   if (valores) for (const id of new Set([...Object.keys(p.campos), ...Object.keys(valores)])) {
@@ -2212,28 +2306,29 @@ function prepararComentario(modulo: ModuloComentado, bruto: string, cartaoId: st
   const negado = primeiro(mencoes.filter(m => MOTIVO_SEM_MENCAO[modulo](m)));
   if (negado) throw new Error(mencaoNegada(negado.nome));
   const demanda = modulo === 'demandas' ? bd.demandas!.find(d => d.id === cartaoId) : null;
-  const deFora = demanda && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veADemanda(demanda, m, contratosDoMembro(m)))) : null;
+  const deFora = demanda && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veADemanda(demanda, m, contratosDoMembro(m), gruposDoMembro(m)))) : null;
   if (deFora) throw new Error(mencaoNegadaNaDemanda(deFora.nome));
   // Na tarefa: só quem a vê (quem está nela, na demanda ligada a ela ou no contrato de uma das duas, #326).
   const tarefa = modulo === 'tarefas' ? bd.tarefas!.find(t => t.id === cartaoId) : null;
   const daTarefa = tarefa ? bd.demandas!.find(d => d.id === tarefa.demanda_id) ?? null : null;
-  const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa, contratosDoMembro(m)))) : null;
+  const foraDaTarefa = tarefa && !bd.equipeVeTudo ? primeiro(mencoes.filter(m => !veATarefa(tarefa, m, daTarefa, contratosDoMembro(m), gruposDoMembro(m)))) : null;
   if (foraDaTarefa) throw new Error(mencaoNegadaNaTarefa(foraDaTarefa.nome));
   // No compromisso: só quem o vê (quem está nele, quem vê o processo ligado ou todos, na Agenda geral).
   const compromisso = modulo === 'compromissos' ? bd.compromissos!.find(c => c.id === cartaoId) : null;
   const doCompromisso = compromisso ? processoDoCompromisso(compromisso) : null;
-  const foraDoCompromisso = compromisso && !bd.equipeEditaTudo ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso))) : null;
+  const foraDoCompromisso = compromisso && !bd.equipeEditaTudo ? primeiro(mencoes.filter(m => !veOCompromisso(compromisso, m, doCompromisso, gruposDoMembro(m)))) : null;
   if (foraDoCompromisso) throw new Error(mencaoNegadaNoCompromisso(foraDoCompromisso.nome));
   // Na anotação: só quem a vê sem depender de um item ligado (como privado.mencao_na_anotacao; as chaves da equipe abrem a todos).
   const anotacao = modulo === 'anotacoes' ? bd.anotacoes!.find(a => a.id === cartaoId) : null;
-  const foraDaAnotacao = anotacao ? primeiro(mencoes.filter(m => motivoSemMencaoNaAnotacao(anotacao, chavesDaEquipe())(m))) : null;
+  const foraDaAnotacao = anotacao ? primeiro(mencoes.filter(m => !estaPeloGrupo(anotacao.grupos, gruposDoMembro(m)) && motivoSemMencaoNaAnotacao(anotacao, chavesDaEquipe())(m))) : null;
   if (foraDaAnotacao) throw new Error(mencaoNegadaNaAnotacao(foraDaAnotacao.nome));
   // No processo (#362): só quem está nele e os administradores (como privado.mencao_no_processo; as chaves da equipe abrem a todos).
   const processo = modulo === 'processos' && !bd.equipeVeTudo && !bd.equipeEditaTudo ? bd.processos!.find(p => p.id === cartaoId) : null;
-  const foraDoProcesso = processo ? primeiro(mencoes.filter(m => motivoSemMencaoNoProcesso(processo)(m))) : null;
+  const foraDoProcesso = processo ? primeiro(mencoes.filter(m => !estaPeloGrupo(processo.grupos, gruposDoMembro(m)) && motivoSemMencaoNoProcesso(processo)(m))) : null;
   if (foraDoProcesso) throw new Error(mencaoNegadaNoProcesso(foraDoProcesso.nome));
-  // Como o gatilho do banco: com a chave ligada, o comentário de quem não é parte guarda a marca de que a menção dele não vale.
-  return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !!bd.equipeVeTudo && !vejoContratoDoId(cartaoId) };
+  // Como o gatilho do banco: o comentário de quem não é parte (pela chave ou por um grupo do contrato, #378) guarda a marca de que a
+  // menção dele não vale, com a chave ligada ou desligada.
+  return { texto, mencoes: mencoes.map(m => m.id), autor_sem_vinculo: modulo === 'contratos' && !vejoContratoDoId(cartaoId) };
 }
 /**
  * O cartão de cada módulo existe e quem está logado chega a ele, como na listagem do módulo? (No banco, as regras dos comentários
@@ -2271,7 +2366,7 @@ const VEJO_O_CARTAO: Record<ModuloComentado, (id: string) => boolean> = {
     const t = bd.tarefas!.find(x => x.id === id);
     return !!t && (!!bd.equipeVeTudo || vejoTarefa(t));
   },
-  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c)); },
+  compromissos: id => { const c = bd.compromissos!.find(x => x.id === id); return !!c && veOCompromisso(c, membroLogado(), processoDoCompromisso(c), meusGruposNoFalso()); },
   anotacoes: id => vejoAnotacaoDoId(id),
   processos: id => vejoProcessoDoId(id)
 };
@@ -2433,6 +2528,54 @@ export const SD: Dados = {
   sair: async () => { bd.logado = false; bd.semCodigo = false; bd.sessaoEncerrada = false; gravar(); },
   sessaoEncerrada: () => espera(!!bd.sessaoEncerrada),
   aoMudarSessao: () => () => {},
+  // ---------- grupos da equipe (#378), como as funções grupo_* do banco: só administradores ----------
+  async grupoDaEquipeCriar(nome) {
+    if (!souAdmin()) return erro(SO_ADMINISTRADOR_NOS_GRUPOS);
+    const g: GrupoDaEquipe = { id: novoId(), nome: nomeDoGrupoDaEquipe(nome), integrantes: [] };
+    bd.gruposDaEquipe!.push(g); auditar('grupos_da_equipe', 'inclusao', { id: g.id, nome: g.nome }); gravar();
+    return espera(g.id);
+  },
+  async grupoDaEquipeRenomear(id, nome) {
+    const g = grupoDoAdministrador(id);
+    g.nome = nomeDoGrupoDaEquipe(nome, id); auditar('grupos_da_equipe', 'alteracao', { id, nome: g.nome }); gravar();
+  },
+  async grupoDaEquipeIncluir(id, perfilId) {
+    const g = grupoDoAdministrador(id), m = EQUIPE.find(x => x.id === perfilId);
+    if (!m?.ativo || m.reservada || m.excluido) return erro('O integrante precisa ser alguém da equipe do escritório.');
+    if (g.integrantes.includes(perfilId)) return;
+    g.integrantes.push(perfilId);
+    if (perfilId !== eu) {
+      const ja = bd.mensagensDeGrupo!.find(x => x.perfil_id === perfilId && x.grupo_id === id);
+      if (ja) Object.assign(ja, { criado_em: agora(), lido_em: null, incluido_por: eu });
+      else bd.mensagensDeGrupo!.push({ id: novoId(), perfil_id: perfilId, grupo_id: id, incluido_por: eu, criado_em: agora(), lido_em: null });
+    }
+    gravar();
+  },
+  async grupoDaEquipeTirar(id, perfilId) {
+    const g = grupoDoAdministrador(id);
+    g.integrantes = g.integrantes.filter(p => p !== perfilId);
+    // O desfazer: a mensagem ainda não lida de menos de AVISO_DESFEITO some.
+    bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => !(x.perfil_id === perfilId && x.grupo_id === id && !x.lido_em && Date.now() - Date.parse(x.criado_em) < AVISO_DESFEITO));
+    gravar();
+  },
+  async grupoDaEquipeContarItens(id) {
+    grupoDoAdministrador(id);
+    const contagem = MODULOS_DOS_GRUPOS.map(modulo => ({ modulo, quantos: ITENS_COM_GRUPOS[modulo]().filter(x => x.grupos?.includes(id)).length }));
+    return espera(contagem.filter(c => c.quantos > 0));
+  },
+  async grupoDaEquipeExcluir(id) {
+    const g = grupoDoAdministrador(id);
+    for (const modulo of MODULOS_DOS_GRUPOS) {
+      for (const x of ITENS_COM_GRUPOS[modulo]().filter(i => i.grupos?.includes(id))) {
+        const novos = { grupos: x.grupos!.filter(v => v !== id) };
+        HISTORICO_DOS_GRUPOS[modulo](x.id, novos);
+        Object.assign(x, novos, { atualizado_em: agora(), atualizado_por: eu });
+      }
+    }
+    bd.gruposDaEquipe = bd.gruposDaEquipe!.filter(x => x.id !== id);
+    bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.grupo_id !== id);
+    auditar('grupos_da_equipe', 'exclusao', { id, nome: g.nome }); gravar();
+  },
   async contexto() {
     if (!bd.logado) return null;
     // Como no banco: sem a sessão, a regra de leitura não devolve nem o próprio perfil.
@@ -2443,7 +2586,8 @@ export const SD: Dados = {
       perfil: { id: eu, escritorio_id: 'e1', pessoa_id: m.pessoa_id, nome: (ehMaster && bd.perfil.nome) || m.nome, usuario: (ehMaster && bd.perfil.usuario) || m.usuario,
         papel: m.papel, funcao: m.funcao, ativo: true, cor: null, oab: null, preferencias: bd.perfil.preferencias },
       escritorio: { id: 'e1', slug: 'teste', modulos: { pessoas: true, contratos: true, demandas: true, tarefas: true, processos: true, compromissos: true, anotacoes: true, financeiro: true, equipe_ve_tudo: !!bd.equipeVeTudo, equipe_edita_tudo: !!bd.equipeEditaTudo }, ...bd.escritorio! },
-      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, nome: nomeNaEquipe(r.nome, r.excluido), foto: bd.fotos?.[r.id]?.pequena ?? null })), ehAdmin: souAdmin(), ehMaster
+      equipe: EQUIPE.map(({ email: _email, cpf: _cpf, ...r }) => ({ ...r, nome: nomeNaEquipe(r.nome, r.excluido), foto: bd.fotos?.[r.id]?.pequena ?? null })),
+      grupos: bd.gruposDaEquipe!.toSorted((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')), ehAdmin: souAdmin(), ehMaster
     };
     return espera(c);
   },
@@ -2737,8 +2881,18 @@ export const SD: Dados = {
     gravar();
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só contratos arquivados podem ser excluídos.' : '' });
   },
+  async contratoDefinirGrupos(id, grupos) {
+    const k = bd.contratos!.find(x => x.id === id && !x.arquivado_em);
+    if (!k) return erro('Contrato não encontrado neste escritório.');
+    if (!alteroContrato(k)) return erro('Só quem é parte do contrato põe ou tira grupos.');
+    const novos = { grupos: gruposAoGravar(grupos, k.grupos) }, antes = equipeDoItemNoFalso('contratos', id);
+    historicoContrato(k, novos);
+    Object.assign(k, novos, { atualizado_em: agora(), atualizado_por: eu });
+    avisarInclusao('contratos', id, antes);
+    gravar();
+  },
   async contratoAlterarSemValores(id, dados) {
-    if (!bd.equipeEditaTudo) return erro('Você não tem permissão para fazer isso.');
+    if (!bd.equipeEditaTudo && !bd.contratos!.some(x => x.id === id && peloGrupoDoContrato(x))) return erro('Você não tem permissão para fazer isso.');
     const k = bd.contratos!.find(x => x.id === id);
     if (!k || k.arquivado_em) return erro('Contrato não encontrado neste escritório.');
     Object.assign(k, dados, { atualizado_em: agora() });
@@ -2791,7 +2945,7 @@ export const SD: Dados = {
     return espera({ id, codigo: d.codigo });
   },
   async demandasArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(estaNaDemanda(d, membroLogado())); });
+    ids = ids.filter(id => { const d = bd.demandas!.find(x => x.id === id); return !d || !soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso())); });
     ids.forEach(id => {
       const d = bd.demandas!.find(x => x.id === id); if (!d) return;
       historicoDemanda(d, { arquivado_em: arquivar ? agora() : null });
@@ -2819,7 +2973,7 @@ export const SD: Dados = {
   },
   async demandaMover(id, etapaId, ordem) {
     const d = acharDemanda(id);
-    if (soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     historicoDemanda(d, { etapa_id: etapaId });
     Object.assign(d, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
   },
@@ -2855,7 +3009,7 @@ export const SD: Dados = {
     return espera({ id, codigo: t.codigo });
   },
   async tarefasArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t))); });
+    ids = ids.filter(id => { const t = bd.tarefas!.find(x => x.id === id); return !t || !soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso())); });
     ids.forEach(id => {
       const t = bd.tarefas!.find(x => x.id === id); if (!t) return;
       historicoTarefa(t, { arquivado_em: arquivar ? agora() : null });
@@ -2884,7 +3038,7 @@ export const SD: Dados = {
   },
   async tarefaMover(id, etapaId, ordem) {
     const t = acharTarefa(id);
-    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t)))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(estaNaTarefa(t, membroLogado(), demandaDaTarefaNoFalso(t), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     historicoTarefa(t, { etapa_id: etapaId });
     // Como o gatilho da migração do tempo: chegar à coluna das concluídas marca a data de conclusão; sair dela, apaga.
     const concluida = bd.colunas.find(c => c.id === etapaId)?.marco === 'concluido';
@@ -3240,7 +3394,7 @@ export const SD: Dados = {
   },
   async anotacaoDesligar(id, modulo, itemId) {
     const a = bd.anotacoes!.find(x => x.id === id);
-    const ligacao = a && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe()) ? ligacoesDaAnotacao(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
+    const ligacao = a && ligaNaAnotacao(a, membroLogado(), chavesDaEquipe(), meusGruposNoFalso()) ? ligacoesDaAnotacao(id).find(l => l.modulo === modulo && l.item_id === itemId) : undefined;
     if (!ligacao) return erro(SEM_PERMISSAO);
     bd.anotacaoLigacoes = bd.anotacaoLigacoes!.filter(l => l !== ligacao);
     refazerLigadaA(id); gravar();
@@ -3262,11 +3416,11 @@ export const SD: Dados = {
     .map(a => ({ id: a.id, codigo: a.codigo, titulo: a.titulo, atualizado_em: a.atualizado_em, itens: ligacoesDaAnotacao(a.id).length }))),
 
   // ---------- ligar a um cartão um item que já existe (#341, etapa 2; como em supabase.ts) ----------
-  demandasParaLigar: f => espera(paraLigarNoFalso(bd.demandas!, f, { altero: d => alteroNoFalso(estaNaDemanda(d, membroLogado())), busca: buscaDemanda,
+  demandasParaLigar: f => espera(paraLigarNoFalso(bd.demandas!, f, { altero: d => alteroNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso())), busca: buscaDemanda,
     pessoas: d => d.clientes, sem: { contratos: d => d.contrato_id } })
     .map(d => ({ id: d.id, codigo: d.codigo, titulo: d.titulo, cliente_nome: nomesDosClientes(d.clientes), contrato_id: d.contrato_id, contrato_codigo: d.contrato_codigo, prazo: d.prazo, clientes: d.clientes }))),
   tarefasParaLigar: f => espera(paraLigarNoFalso(bd.tarefas!.filter(t => !f.doProcesso || !t.processo_id || t.processo_id === f.doProcesso), f, {
-    altero: t => alteroNoFalso(estaNaTarefa(t, membroLogado())), busca: buscaTarefa, pessoas: t => t.pessoas,
+    altero: t => alteroNoFalso(estaNaTarefa(t, membroLogado(), null, meusGruposNoFalso())), busca: buscaTarefa, pessoas: t => t.pessoas,
     sem: { demandas: t => t.demanda_id, contratos: t => t.contrato_id, processos: t => t.processo_id }
   }).map(t => {
     // O contrato da demanda vem pela regra de leitura das demandas, como a junção do banco.
@@ -3278,7 +3432,7 @@ export const SD: Dados = {
     altero: c => alteroNoFalso(souAdmin() || c.criado_por === eu || c.responsavel_id === eu || c.participantes.includes(eu)), busca: buscaCompromisso,
     pessoas: c => c.pessoas, sem: { processos: c => c.processo_id }
   }).map(c => ({ id: c.id, codigo: c.codigo, tipo: c.tipo, titulo: c.titulo, data: c.data, hora: c.hora, pessoa_nome: nomesDosClientes(c.pessoas), processo_id: c.processo_id, processo_numero: processoDoCompromisso(c)?.numero ?? c.processo_numero, pessoas: c.pessoas }))),
-  processosParaPorCliente: f => espera(paraLigarNoFalso(bd.processos!, f, { altero: p => alteroNoFalso(alteraOProcesso(p, membroLogado())), busca: buscaProcesso, pessoas: p => p.clientes })
+  processosParaPorCliente: f => espera(paraLigarNoFalso(bd.processos!, f, { altero: p => alteroNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso())), busca: buscaProcesso, pessoas: p => p.clientes })
     .map(p => ({ id: p.id, codigo: p.codigo, tipo: p.tipo, numero: p.numero, titulo: p.titulo, cliente_nome: nomesDosClientes(p.clientes), clientes: p.clientes }))),
   contratosParaLigar: f => espera(paraLigarNoFalso(bd.contratos!, f, { altero: k => alcancoContrato(k) && (alteroContrato(k) || !!bd.equipeEditaTudo), busca: buscaContrato })
     .map(k => ({ id: k.id, codigo: k.codigo, servico: k.servico, cliente_nome: nomeDoCliente(k) }))),
@@ -3404,7 +3558,7 @@ export const SD: Dados = {
   // ---------- processo e demanda (como supabase/migrations/20261102144922_processo_demandas.sql) ----------
   async processoDemandaLigar(processoId, demandaId, papel = 'originou') {
     const d = bd.demandas!.find(x => x.id === demandaId);
-    if (!processoAtivo(processoId) || !d || soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    if (!processoAtivo(processoId) || !d || soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) return erro(SEM_PERMISSAO);
     const nova = !bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId);
     if (nova) bd.processoDemandas!.push({ processo_id: processoId, demanda_id: demandaId, papel });
     gravar();
@@ -3414,7 +3568,7 @@ export const SD: Dados = {
   async processoDemandaDesligar(processoId, demandaId) {
     const d = bd.demandas!.find(x => x.id === demandaId);
     const ligada = bd.processoDemandas!.some(l => l.processo_id === processoId && l.demanda_id === demandaId);
-    if (!ligada || !d || soLeNoFalso(estaNaDemanda(d, membroLogado()))) return erro(SEM_PERMISSAO);
+    if (!ligada || !d || soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) return erro(SEM_PERMISSAO);
     bd.processoDemandas = bd.processoDemandas!.filter(l => !(l.processo_id === processoId && l.demanda_id === demandaId));
     gravar();
     return espera(undefined);
@@ -4009,7 +4163,7 @@ export const SD: Dados = {
     return espera({ id, codigo: p.codigo });
   },
   async processosArquivar(ids, arquivar = true) {
-    ids = ids.filter(id => { const p = bd.processos!.find(x => x.id === id); return !p || !soLeNoFalso(alteraOProcesso(p, membroLogado())); });
+    ids = ids.filter(id => { const p = bd.processos!.find(x => x.id === id); return !p || !soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso())); });
     ids.forEach(id => {
       const p = bd.processos!.find(x => x.id === id); if (!p) return;
       historicoProcesso(p, { arquivado_em: arquivar ? agora() : null });
@@ -4039,7 +4193,13 @@ export const SD: Dados = {
     return espera({ excluidas, naoExcluidas: ids.length - excluidas, motivo: excluidas < ids.length ? 'Só processos arquivados podem ser excluídos, por quem os criou ou por um administrador.' : '' });
   },
   async cartaoSair(modulo, id) {
-    if (!SAIR_DO_CARTAO[modulo](id)) return erro('Você não está entre as pessoas deste cartão.');
+    if (!SAIR_DO_CARTAO[modulo](id)) {
+      // Como public.cartao_sair: quem está só por um grupo do cartão recebe o motivo (o primeiro grupo, pelo nome).
+      const doItem = GRUPOS_DO_ITEM[modulo](id) ?? [], meus = meusGruposNoFalso();
+      const pelo = bd.gruposDaEquipe!.filter(g => doItem.includes(g.id) && meus.includes(g.id)).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))[0];
+      return erro(pelo ? `Você está neste cartão pelo grupo ${pelo.nome}. Para sair, peça a um administrador que tire você do grupo ou tire o grupo do cartão.`
+        : 'Você não está entre as pessoas deste cartão.');
+    }
     gravar();
   },
   async processoMeIncluir(id, como) {
@@ -4052,7 +4212,7 @@ export const SD: Dados = {
   },
   async processoMover(id, etapaId, ordem) {
     const p = acharProcesso(id);
-    if (soLeNoFalso(alteraOProcesso(p, membroLogado()))) return erro('Você não tem permissão para fazer isso.');
+    if (soLeNoFalso(alteraOProcesso(p, membroLogado(), meusGruposNoFalso()))) return erro('Você não tem permissão para fazer isso.');
     conferirQuadroDoProcesso(p.tipo, etapaId);
     historicoProcesso(p, { etapa_id: etapaId });
     Object.assign(p, { etapa_id: etapaId, etapa_ordem: ordem, atualizado_em: agora() }); gravar();
@@ -4346,6 +4506,9 @@ export const SD: Dados = {
     bd.acessos = bd.acessos.filter(a => a.perfil_id !== id);
     bd.mensagens = bd.mensagens?.filter(x => x.perfil_id !== id);
     bd.mensagensDeInclusao = bd.mensagensDeInclusao!.filter(x => x.perfil_id !== id);
+    // Como privado.grupos_de_quem_saiu (#378).
+    bd.gruposDaEquipe!.forEach(g => { g.integrantes = g.integrantes.filter(p => p !== id); });
+    bd.mensagensDeGrupo = bd.mensagensDeGrupo!.filter(x => x.perfil_id !== id);
     auditar('perfis', 'exclusao', { id, nome: m.nome });
     gravar();
   },

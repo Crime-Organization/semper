@@ -42,6 +42,20 @@ export interface Membro {
   foto?: string | null;
 }
 
+/**
+ * Grupo da equipe (#378): pessoas da equipe que o administrador junta (um núcleo, por exemplo) para pôr todas de uma vez num item.
+ * O grupo fica ligado ao item: quem entra no grupo depois participa; quem sai deixa de participar, se não estiver no item por conta
+ * própria. Na tela, "grupo da equipe", para não confundir com os grupos de colunas do quadro e os dos checklists.
+ */
+export interface GrupoDaEquipe {
+  id: string;
+  nome: string;
+  /** Os perfis de quem está no grupo (também os desativados, que continuam nele sem acesso). */
+  integrantes: string[];
+}
+/** Em quantos itens de cada módulo o grupo está, contando os arquivados (para o aviso antes de excluir). */
+export interface ItensDoGrupo { modulo: ModuloDoPedido; quantos: number }
+
 /** Dados da instituição: cada escritório tem os seus, editados pelo administrador em Configurações. */
 export interface DadosEscritorio {
   nome: string;
@@ -70,6 +84,8 @@ export interface Contexto {
   perfil: Perfil | null;
   escritorio?: Escritorio | null;
   equipe: Membro[];
+  /** Os grupos da equipe do escritório, em ordem de nome (#378). Ausente: nenhum. */
+  grupos?: GrupoDaEquipe[];
   ehAdmin: boolean;
   ehMaster: boolean;
 }
@@ -243,6 +259,8 @@ export interface Contrato {
   /** Participantes, na ordem do cadastro, cada um com o seu % (sobre o líquido). */
   participantes: Participacao[];
   indicador: PessoaResumida | null;
+  /** Os grupos da equipe do contrato (#378): quem está só por um deles participa sem os valores. Mudam só por contratoDefinirGrupos. */
+  grupos?: string[];
 }
 
 /** Papel de uma pessoa num contrato (o responsável é um usuário da equipe, pela pessoa ligada a ele). */
@@ -275,7 +293,7 @@ export interface ContaParaEscolher { id: string; nome: string }
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
-  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome' | 've_financeiro'> & ComEtiquetas;
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome' | 've_financeiro' | 'grupos'> & ComEtiquetas;
 
 export interface FiltroContratos {
   /** Só os contratos a que a pessoa pode ligar uma demanda ou tarefa: aqueles de que é parte. */
@@ -314,6 +332,8 @@ export interface Demanda {
   data_inicio: string;
   responsavel_id: string;          // perfil
   colaboradores: string[];         // perfis da equipe, sem o responsável
+  /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
+  grupos?: string[];
   /** Os nomes dos clientes juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
   cliente_nome: string;
   contrato_id: string | null;
@@ -348,9 +368,9 @@ export interface DemandaLigada extends Pick<Demanda, 'id' | 'codigo' | 'titulo' 
 }
 /** Campos que o cadastro de demanda grava. */
 export type DadosDemanda = Partial<{ clientes: string[] } & Pick<Demanda, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
-  | 'colaboradores' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'colaboradores' | 'grupos' | 'contrato_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de demandas (tabela e quadro). */
-export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'cliente_nome'
+export type DemandaLista = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome'
   | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroDemandas {
   /** Só as demandas a que a pessoa pode ligar uma tarefa: aquelas em que está. */
@@ -359,6 +379,11 @@ export interface FiltroDemandas {
   etiqueta?: string;
   /** Um usuário da equipe: as demandas em que ele é o responsável ou um colaborador. */
   pessoa?: string;
+  /**
+   * Um grupo da equipe (#378): o id dele, ou 'meus' (os grupos de quem está logado). As colunas do quadro são as mesmas; só os
+   * cartões mudam.
+   */
+  grupo?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
   /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
@@ -387,6 +412,8 @@ export interface Tarefa {
   data_inicio: string;
   responsavel_id: string;          // perfil
   participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
+  grupos?: string[];
   /** Os nomes das pessoas ligadas juntos ("A; B"), como a tabela, o quadro e a busca usam. */
   pessoa_nome: string;
   demanda_id: string | null;
@@ -419,7 +446,7 @@ export interface Tarefa {
  * O que a tarefa traz da demanda ligada: para mostrá-la e saber quem a vê (quem vê a demanda vê a tarefa). O contrato da demanda vem
  * com quem está nele, se quem vê a tarefa também pode abri-lo (quem está nele pode ser mencionado na tarefa, #326).
  */
-export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'contrato_id'>
+export type DemandaDaTarefa = Pick<Demanda, 'id' | 'codigo' | 'titulo' | 'etapa_id' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'contrato_id'>
   & { contrato: EquipeDoContrato | null };
 /** Papel de uma pessoa numa tarefa (responsável e participantes são da equipe, pela pessoa ligada ao usuário). */
 export type PapelNaTarefa = 'pessoa' | 'responsavel' | 'participante';
@@ -429,21 +456,26 @@ export interface TarefaLigada extends Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 
 }
 /** Campos que o cadastro de tarefa grava. */
 export type DadosTarefa = Partial<{ pessoas: string[] } & Pick<Tarefa, 'titulo' | 'descricao' | 'prazo' | 'prazo_hora' | 'lembrete' | 'data_inicio' | 'responsavel_id'
-  | 'participantes' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'participantes' | 'grupos' | 'demanda_id' | 'contrato_id' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de tarefas (tabela e quadro). */
-export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'pessoa_nome'
+export type TarefaLista = Pick<Tarefa, 'id' | 'codigo' | 'titulo' | 'prazo' | 'prazo_hora' | 'data_inicio' | 'responsavel_id' | 'participantes' | 'grupos' | 'pessoa_nome'
   | 'demanda_codigo' | 'contrato_codigo' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas & {
   /**
    * Quem está na demanda ligada, se quem lê pode vê-la (senão null). Assim a lista sabe se a pessoa altera a tarefa: quem vê a
    * demanda só pelo contrato dela lê as tarefas dela, mas não as altera (#326).
    */
-  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores'> | null;
+  equipe_da_demanda: Pick<Demanda, 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'> | null;
 };
 export interface FiltroTarefas {
   termo?: string;
   etiqueta?: string;
   /** Um usuário da equipe: as tarefas em que ele é o responsável ou um participante. */
   pessoa?: string;
+  /**
+   * Um grupo da equipe (#378): o id dele, ou 'meus' (os grupos de quem está logado). Vêm também as tarefas das demandas do grupo. As colunas do quadro são as mesmas; só os
+   * cartões mudam.
+   */
+  grupo?: string;
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
   /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */
@@ -751,6 +783,8 @@ export interface Processo {
   /** O nome do cartão; sem ele, aparecem os clientes. */
   titulo: string | null;
   responsavel_id: string; colaboradores: string[]; cliente_nome: string;
+  /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
+  grupos?: string[];
   orgao: string | null; sistema: string | null; polo: PoloProcesso | null; area: string | null; meio: MeioProcesso | null;
   natureza: string | null; gratuidade: GratuidadeProcesso | null; comarca: string | null; vara: string | null; classe: string | null; assunto: string | null;
   juiz: string | null; distribuicao: string | null; valor_causa: number | null; instancia: string | null; segredo: boolean; advogado_contrario: string | null; observacoes: string | null;
@@ -804,7 +838,7 @@ export type MudancaNoPrazo = Partial<DadosPrazo & Pick<PrazoDeProcesso, 'conclui
 /** Campos que o cadastro de processo grava. */
 export type DadosProcesso = Partial<{ clientes: string[] } & Omit<Processo, 'id' | 'codigo' | 'cliente_nome' | 'criado_por' | 'criado_em' | 'atualizado_por' | 'atualizado_em' | 'clientes'>>;
 /** Linha das listagens de processos (tabela e quadro). */
-export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'cliente_nome' | 'orgao' | 'comarca' | 'vara'
+export type ProcessoLista = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'responsavel_id' | 'colaboradores' | 'grupos' | 'cliente_nome' | 'orgao' | 'comarca' | 'vara'
   | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 export interface FiltroProcessos {
   /** O quadro de cada tipo é separado: o tipo vem sempre. */
@@ -1199,7 +1233,7 @@ export interface DadosMensagens {
 export type TipoCompromisso = 'audiencia' | 'pericia' | 'reuniao' | 'outro';
 export type ModalidadeCompromisso = 'presencial' | 'virtual';
 /** O que o compromisso traz do processo ligado: para mostrá-lo e saber quem o vê (quem vê o processo vê o compromisso). */
-export type ProcessoDoCompromisso = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'criado_por' | 'responsavel_id' | 'colaboradores'>;
+export type ProcessoDoCompromisso = Pick<Processo, 'id' | 'codigo' | 'tipo' | 'numero' | 'titulo' | 'cliente_nome' | 'criado_por' | 'responsavel_id' | 'colaboradores' | 'grupos'>;
 /**
  * Compromisso da agenda. A data e a hora são as do relógio de Brasília, sem conversão de fuso. O código (curto e aleatório)
  * é dado pelo banco. Quem não é administrador vê o que criou, em que foi colocado, o que é de um processo que vê e a Agenda geral.
@@ -1220,6 +1254,8 @@ export interface Compromisso {
   geral: boolean;
   responsavel_id: string;
   participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
+  grupos?: string[];
   /** Os nomes das pessoas juntos ("A; B"), como a tabela, o quadro, a busca e a ordem por nome usam. */
   pessoa_nome: string;
   processo_id: string | null;
@@ -1240,9 +1276,9 @@ export interface Compromisso {
 }
 /** Campos que o cadastro de compromisso grava. */
 export type DadosCompromisso = Partial<{ pessoas: string[] } & Pick<Compromisso, 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'resultado' | 'observacoes' | 'geral'
-  | 'responsavel_id' | 'participantes' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
+  | 'responsavel_id' | 'participantes' | 'grupos' | 'processo_id' | 'etapa_id' | 'etapa_ordem' | 'tipo' | 'arquivado_em' | 'arquivado_por'>>;
 /** Linha das listagens de compromissos (tabela, quadro e agenda). */
-export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes'
+export type CompromissoLista = Pick<Compromisso, 'id' | 'codigo' | 'tipo' | 'titulo' | 'data' | 'hora' | 'hora_fim' | 'modalidade' | 'local' | 'geral' | 'responsavel_id' | 'participantes' | 'grupos'
   | 'pessoa_nome' | 'processo_id' | 'processo_codigo' | 'processo_numero' | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em'> & ComEtiquetas;
 /** A ordem da tabela de compromissos: as de sempre e a data do compromisso. No quadro, cada coluna tem a sua (Ordem). */
 export type OrdemCompromisso = Ordem | 'data' | 'data_desc';
@@ -1307,6 +1343,8 @@ export interface Anotacao {
   texto: string;
   responsavel_id: string;
   participantes: string[];         // perfis da equipe, sem o responsável
+  /** Os grupos da equipe postos no item (#378): quem está num deles participa, como quem é posto um a um. Ausente: nenhum. */
+  grupos?: string[];
   /** Os módulos dos itens ligados (o banco mantém). */
   ligada_a: ModuloDaAnotacao[];
   /** A pasta em que está (#342); null: fora de qualquer pasta. */
@@ -1319,9 +1357,9 @@ export interface Anotacao {
   atualizado_em: string;
 }
 /** Campos que o cadastro de anotação grava. */
-export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes' | 'pasta_id'>>;
+export type DadosAnotacao = Partial<Pick<Anotacao, 'titulo' | 'texto' | 'responsavel_id' | 'participantes' | 'grupos' | 'pasta_id'>>;
 /** Linha da tabela de anotações, com as etiquetas dela. */
-export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'ligada_a' | 'pasta_id' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'> & ComEtiquetas;
+export type AnotacaoLista = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'responsavel_id' | 'participantes' | 'grupos' | 'ligada_a' | 'pasta_id' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'> & ComEtiquetas;
 /** Anotação como aparece no cartão de um item ligado a ela (sem o texto: é a leitura do número, ao abrir o cartão). */
 export type AnotacaoLigada = Pick<Anotacao, 'id' | 'codigo' | 'titulo' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'arquivado_em'>;
 /** A anotação ligada com o texto, de que a seção "Anotações" aberta, na coluna do cartão, mostra o começo (#360). */
@@ -1843,4 +1881,25 @@ export interface DadosPedidos {
   participacaoResponder(pedidoId: string, aprovar: boolean): Promise<void>;
 }
 
-export interface Dados extends DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}
+// ---------- grupos da equipe (#378) ----------
+/**
+ * Só administradores cuidam dos grupos (as regras ficam no banco: supabase/migrations/20261119233811_grupos_da_equipe.sql). Os grupos
+ * vêm no contexto (Contexto.grupos); depois de mudar um, a tela relê o contexto. Grupo de outro escritório responde como o que não existe.
+ */
+export interface DadosGrupos {
+  /** Cria o grupo (o nome sem os espaços das pontas, até TAMANHO_GRUPO_DA_EQUIPE letras, único no escritório) e devolve o id. */
+  grupoDaEquipeCriar(nome: string): Promise<string>;
+  grupoDaEquipeRenomear(id: string, nome: string): Promise<void>;
+  /** Põe uma pessoa da equipe ativa no grupo; já estar nele não é erro. Ela recebe a mensagem do grupo (menos quem pôs a si mesmo). */
+  grupoDaEquipeIncluir(id: string, perfilId: string): Promise<void>;
+  /** Tira a pessoa do grupo; em menos de 1 minuto (AVISO_DESFEITO), a mensagem do grupo ainda não lida some (o desfazer). */
+  grupoDaEquipeTirar(id: string, perfilId: string): Promise<void>;
+  /** Em quantos itens de cada módulo o grupo está, contando os arquivados; só os módulos com algum. */
+  grupoDaEquipeContarItens(id: string): Promise<ItensDoGrupo[]>;
+  /** Tira o grupo de todos os itens (também dos arquivados) e o exclui. Não tem desfazer. */
+  grupoDaEquipeExcluir(id: string): Promise<void>;
+  /** Põe e tira os grupos do contrato: só quem é parte por conta própria (administrador, quem criou, o responsável, a divisão). */
+  contratoDefinirGrupos(id: string, grupos: string[]): Promise<void>;
+}
+
+export interface Dados extends DadosGrupos, DadosMensagens, DadosPedidos, DadosFinanceiro, DadosParcelas, DadosAcompanhamento, DadosSessao, DadosDuasEtapas, DadosPessoas, DadosSigilo, DadosVinculos, DadosContratos, DadosQuadros, DadosEquipe, DadosComentarios, DadosDemandas, DadosListas, DadosModelos, DadosTarefas, DadosTempo, DadosPerfilProfissional, DadosFotos, DadosLigacoes, DadosImportacao, DadosCalendario, DadosEtiquetas, DadosProcessos, DadosCompromissos, DadosAnotacoes, DadosPastas, DadosParaLigar {}

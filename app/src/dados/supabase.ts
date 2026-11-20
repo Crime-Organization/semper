@@ -11,6 +11,7 @@ import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
+import { gruposDoFiltro, meusGrupos } from '../regras/gruposDaEquipe';
 import { traduzir } from './erros';
 import type { ContaParaEscolher, ContratoDaCarteira, ContratoDoProcesso, ContratoDoClienteFechado, Lancamento, LinhaDaConferencia, RecebimentoDoPeriodo, MeuValor, ResumoDaConferencia, MovimentoDoLucro, Parcela, ParcelaDoEscritorio, Repasse, Socio, ValorAPassar } from './tipos';
 import { PARCELAS_DA_PESSOA } from './limites';
@@ -269,16 +270,16 @@ const conferirQueAPastaExiste = (linha: unknown) => { if (!linha) throw new Erro
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
 const CAMPOS_CONTRATO_LISTA = 've_financeiro, id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
-  + 'criado_por, criado_em, atualizado_em, cliente_nome';
+  + 'criado_por, criado_em, atualizado_em, cliente_nome, grupos';
 const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
   + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
-  + 'documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
+  + 'documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, grupos, '
   + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), clientela:contrato_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + `participacoes:contrato_participantes(percentual, ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** Os mesmos campos, lidos da view: ela já traz os clientes e os participantes prontos. O indicador não vem: quem não é parte não o vê. */
 const CAMPOS_CONTRATO_DA_EQUIPE = 've_financeiro, id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
   + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, '
-  + 'arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, clientela, participacoes';
+  + 'arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, clientela, participacoes, grupos';
 /** Clientes e participantes do contrato na ordem do cadastro (o banco os copia das listas gravadas no contrato). */
 type ContratoLido = Omit<Contrato, 'clientes' | 'participantes'> & {
   clientela: { ordem: number; pessoa: PessoaResumida }[]; participacoes: (Participacao & { ordem: number })[];
@@ -308,7 +309,7 @@ function filtrarContratos(q: Livre, f: FiltroContratos = {}) {
 }
 
 // ---------- demandas ----------
-const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, colaboradores, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
+const CAMPOS_DEMANDA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, colaboradores, grupos, cliente_nome, contrato_codigo, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
 /** Quem está no contrato (#326), para saber no cartão quem pode ser mencionado. A lista gravada traz as pessoas com o %. */
 const EQUIPE_DO_CONTRATO = 'id, criado_por, responsavel_id, participantes';
@@ -316,7 +317,7 @@ type EquipeLida<K extends EquipeDoContrato> = Omit<K, 'participantes'> & { parti
 const comAEquipe = <K extends EquipeDoContrato>(k: EquipeLida<K> | null): K | null =>
   k && { ...k, participantes: k.participantes.map(p => p.pessoa_id) } as K;
 // O contrato vem pela regra de leitura dos contratos: quem não pode abri-lo recebe null (e fica só o número).
-const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, colaboradores, cliente_nome, contrato_id, contrato_codigo, objeto, '
+const CAMPOS_DEMANDA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, colaboradores, grupos, cliente_nome, contrato_id, contrato_codigo, objeto, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
   + `clientela:demanda_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO})`;
 type DemandaLida = Omit<Demanda, 'clientes' | 'contrato'> & { clientela: { ordem: number; pessoa: PessoaResumida }[]; contrato: EquipeLida<ContratoDoCartao> | null };
@@ -349,8 +350,18 @@ function porInicio(q: Livre, f: Pick<FiltroTarefas, 'inicioDesde' | 'inicioAte'>
   if (f.inicioAte) q = q.lte('data_inicio', f.inicioAte);
   return q;
 }
+/** Os grupos da equipe de quem está logado (como privado.meus_grupos), pelo contexto. */
+const osMeusGrupos = () => meusGrupos(ctx?.grupos, uid() ?? '');
+/**
+ * O filtro "Grupo da equipe" (#378): os cartões que têm algum dos grupos pedidos ("Dos meus grupos" sem estar em nenhum: nenhum
+ * cartão). As colunas do quadro continuam as mesmas.
+ */
+function porGrupo(q: Livre, f: Pick<FiltroDemandas, 'grupo'>) {
+  const grupos = gruposDoFiltro(f.grupo, osMeusGrupos());
+  return grupos ? q.overlaps('grupos', grupos) : q;
+}
 function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
-  q = porInicio(porEtiqueta(q, f), f);
+  q = porGrupo(porInicio(porEtiqueta(q, f), f), f);
   if (f.paraLigar && ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
@@ -361,12 +372,12 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
 // ---------- compromissos ----------
 /** Quem só lê a Agenda geral não muda: o banco devolve zero linhas, sem erro. Sem isto, a tela diria que mudou. */
 const NAO_MUDOU = 'Você não tem permissão para fazer isso.';
-const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+const CAMPOS_COMPROMISSO_LISTA = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, '
   + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em';
 // O processo vem pelas regras de leitura dele: quem não pode abri-lo recebe null (e fica só o código e o número).
-const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, pessoa_nome, processo_id, processo_codigo, processo_numero, '
+const CAMPOS_COMPROMISSO = 'id, codigo, tipo, titulo, data, hora, hora_fim, modalidade, local, resultado, observacoes, geral, responsavel_id, participantes, grupos, pessoa_nome, processo_id, processo_codigo, processo_numero, '
   + 'etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, '
-  + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores)`;
+  + `ligadas:compromisso_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), processo:processos(id, codigo, tipo, numero, titulo, cliente_nome, criado_por, responsavel_id, colaboradores, grupos)`;
 const CAMPOS_COMPROMISSO_LIGADO = 'id, codigo, tipo, titulo, data, hora, hora_fim, pessoa_nome, processo_numero, etapa_id, arquivado_em, pessoas, responsavel_id, participantes';
 type CompromissoLido = Omit<Compromisso, 'pessoas'> & { ligadas: { ordem: number; pessoa: PessoaResumida }[] };
 const compromissoComPessoas = ({ ligadas, ...c }: CompromissoLido): Compromisso => ({ ...c, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa) });
@@ -393,8 +404,8 @@ function filtrarCompromissos(q: Livre, f: FiltroCompromissos) {
 }
 
 // ---------- anotações (supabase/migrations/20261117143714_anotacoes.sql) ----------
-const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes, ligada_a, pasta_id, criado_por, criado_em, atualizado_em, arquivado_em';
-const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, ligada_a, pasta_id, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
+const CAMPOS_ANOTACAO_LISTA = 'id, codigo, titulo, responsavel_id, participantes, grupos, ligada_a, pasta_id, criado_por, criado_em, atualizado_em, arquivado_em';
+const CAMPOS_ANOTACAO = 'id, codigo, titulo, texto, responsavel_id, participantes, grupos, ligada_a, pasta_id, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em';
 const CAMPOS_PASTA = 'id, nome, pasta_mae_id, criada_por, criada_em';
 const CAMPOS_ANOTACAO_LIGADA = 'id, codigo, titulo, criado_por, criado_em, atualizado_em, arquivado_em';
 /** As mesmas, com o texto: só para a seção "Anotações" aberta, na coluna do cartão (#360). */
@@ -483,8 +494,12 @@ function paraLigar(q: Livre, f: FiltroParaLigar<LigacaoDeUmSo>, colunas: Colunas
  * Quem não é administrador, fora da fase de adaptação, só liga o que altera por estar nele: quem criou, o responsável e a equipe
  * do item (`equipe`: a coluna dela). Como as regras de alterar do banco (vejo_demanda, vejo_tarefa, vejo_processo...).
  */
-const soOsMeus = (q: Livre, equipe: string) => ctx && !ctx.ehAdmin && !equipeEditaTudo(ctx.escritorio)
-  ? q.or(`criado_por.eq.${uid()},responsavel_id.eq.${uid()},${equipe}.cs.{${uid()}}`) : q;
+const soOsMeus = (q: Livre, equipe: string) => {
+  if (!ctx || ctx.ehAdmin || equipeEditaTudo(ctx.escritorio)) return q;
+  // Quem está num grupo da equipe posto no item também o altera (#378).
+  const grupos = osMeusGrupos();
+  return q.or(`criado_por.eq.${uid()},responsavel_id.eq.${uid()},${equipe}.cs.{${uid()}}${grupos.length ? `,grupos.ov.{${grupos.join(',')}}` : ''}`);
+};
 /** Junta as leituras de uma busca para ligar feita em partes, sem repetir, na mesma ordem e no mesmo limite (e sem a data). */
 function juntarOsAchados(...listas: { id: string; criado_em: string }[][]): Livre[] {
   const unicos = [...new Map(listas.flat().map(x => [x.id, x])).values()];
@@ -520,9 +535,9 @@ const socioLido = ({ pessoa, ...s }: LinhaDoSocio): Socio => ({ ...s, nome: pess
 const naoEsta = (linha: unknown) => { if (!linha) throw new Error('Não foi possível: atualize a página e confira.'); };
 
 // ---------- processos ----------
-const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
+const CAMPOS_PROCESSO_LISTA = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, comarca, vara, etapa_id, etapa_ordem, '
   + 'arquivado_em, criado_por, criado_em, atualizado_em';
-const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
+const CAMPOS_PROCESSO = 'id, codigo, tipo, numero, titulo, responsavel_id, colaboradores, grupos, cliente_nome, orgao, sistema, polo, area, meio, natureza, gratuidade, comarca, vara, '
   + 'classe, assunto, juiz, distribuicao, valor_causa, instancia, segredo, advogado_contrario, observacoes, campos, etapa_id, etapa_ordem, arquivado_em, arquivado_por, '
   + `criado_por, criado_em, atualizado_por, atualizado_em, clientela:processo_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 type ProcessoLido = Omit<Processo, 'clientes'> & { clientela: { ordem: number; pessoa: PessoaResumida }[] };
@@ -555,13 +570,13 @@ const semRepetir = (linhas: Record<string, string | null>[], campo: string) => [
 
 // ---------- tarefas ----------
 // Quem está na demanda ligada vem pela regra de leitura das demandas (null para quem não pode vê-la): é quem altera a tarefa (#326).
-const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, pessoa_nome, demanda_codigo, contrato_codigo, '
-  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores)';
+const CAMPOS_TAREFA_LISTA = 'id, codigo, titulo, prazo, prazo_hora, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_codigo, contrato_codigo, '
+  + 'etapa_id, etapa_ordem, arquivado_em, criado_por, criado_em, atualizado_em, equipe_da_demanda:demandas(criado_por, responsavel_id, colaboradores, grupos)';
 // A demanda e o contrato vêm pelas regras de leitura deles: quem não pode abri-los recebe null (e fica só o código).
-const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, pessoa_nome, demanda_id, demanda_codigo, '
+const CAMPOS_TAREFA = 'id, codigo, titulo, descricao, prazo, prazo_hora, lembrete, data_inicio, responsavel_id, participantes, grupos, pessoa_nome, demanda_id, demanda_codigo, '
   + 'contrato_id, contrato_codigo, processo_id, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, concluida_em, '
   + `ligadas:tarefa_pessoas(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
-  + `demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})), `
+  + `demanda:demandas(id, codigo, titulo, etapa_id, criado_por, responsavel_id, colaboradores, grupos, contrato_id, contrato:contratos(${EQUIPE_DO_CONTRATO})), `
   + `contrato:contratos(codigo, servico, ${EQUIPE_DO_CONTRATO}), processo:processos!tarefas_processo_id_fkey(id, codigo, tipo, numero, titulo, cliente_nome)`;
 type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato'> & {
   ligadas: { ordem: number; pessoa: PessoaResumida }[];
@@ -570,6 +585,14 @@ type TarefaLida = Omit<Tarefa, 'pessoas' | 'demanda' | 'contrato'> & {
 };
 const comPessoas = ({ ligadas, demanda, contrato, ...t }: TarefaLida): Tarefa => ({ ...t, pessoas: ligadas.toSorted((a, b) => a.ordem - b.ordem).map(l => l.pessoa),
   demanda: demanda && { ...demanda, contrato: comAEquipe(demanda.contrato) }, contrato: comAEquipe(contrato) });
+/**
+ * De onde vêm as tarefas da lista e do quadro. Com o filtro "Grupo da equipe" (#378), de public.tarefas_dos_grupos, que traz também
+ * as tarefas das demandas do grupo (a tarefa vista pelo grupo da demanda não some com o filtro), pelas regras de leitura.
+ */
+function deTarefas(campos: string, f: FiltroTarefas): Livre {
+  const grupos = gruposDoFiltro(f.grupo, osMeusGrupos());
+  return grupos ? db.rpc('tarefas_dos_grupos', { p_grupos: grupos }, { count: 'exact' }).select(campos) : sb.from('tarefas').select(campos, { count: 'exact' });
+}
 function filtrarTarefas(q: Livre, f: FiltroTarefas = {}) {
   q = porInicio(porEtiqueta(q, f), f);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
@@ -707,10 +730,12 @@ export const SD: Dados = {
     const { data: perfil } = await rodar(sb.from('perfis')
       .select('id, escritorio_id, pessoa_id, nome, usuario, papel, funcao, ativo, cor, oab, preferencias').eq('id', s.user.id).maybeSingle());
     if (!perfil) return { usuario: s.user, perfil: null, equipe: [], ehAdmin: false, ehMaster: false };
-    const [{ data: escritorio }, { data: equipe }] = await Promise.all([
+    const [{ data: escritorio }, { data: equipe }, { data: grupos }] = await Promise.all([
       rodar(sb.from('escritorios').select('id, slug, modulos, nome, logo, cnpj, oab_registro, logradouro, numero, complemento, bairro, municipio, uf, cep, telefone, email, site')
         .eq('id', perfil.escritorio_id).maybeSingle()),
-      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, reservada, excluido_em, cor, pessoa_id, perfil_profissional(foto_em)').order('nome'))
+      rodar(sb.from('perfis').select('id, nome, usuario, papel, funcao, ativo, reservada, excluido_em, cor, pessoa_id, perfil_profissional(foto_em)').order('nome')),
+      // Os grupos da equipe com quem está em cada um, numa leitura só (#378).
+      rodar(sb.from('grupos_da_equipe').select('id, nome, integrantes:grupo_integrantes(perfil_id)').order('nome'))
     ]);
     // A foto pequena de quem tem foto, para as bolinhas (um pedido só para a equipe toda).
     // Quem foi excluído fica na equipe só para os registros antigos, com o nome marcado (public.equipe_excluir).
@@ -722,6 +747,8 @@ export const SD: Dados = {
     const fotoDe = new Map(comFoto.map((m, i) => [m.id, links[i] ?? null]));
     ctx = {
       usuario: s.user, perfil, escritorio, equipe: membros.map(({ perfil_profissional: _p, ...m }) => ({ ...m, foto: fotoDe.get(m.id) ?? null })),
+      grupos: ((grupos || []) as { id: string; nome: string; integrantes: { perfil_id: string }[] }[])
+        .map(g => ({ id: g.id, nome: g.nome, integrantes: g.integrantes.map(i => i.perfil_id) })),
       ehAdmin: ['master', 'admin'].includes(perfil.papel), ehMaster: perfil.papel === 'master'
     };
     return ctx;
@@ -736,6 +763,14 @@ export const SD: Dados = {
     await rodar(sb.rpc('preferencia_gravar', { p_chave: chave, p_valor: valor ?? null }));
     if (ctx?.perfil) ctx.perfil.preferencias = { ...ctx.perfil.preferencias, [chave]: valor };
   },
+
+  // ---------- grupos da equipe (#378): só pelas funções do banco, que conferem se quem chama é administrador ----------
+  grupoDaEquipeCriar: nome => rpc('grupo_criar', { p_nome: nome }),
+  async grupoDaEquipeRenomear(id, nome) { await rpc('grupo_renomear', { p_id: id, p_nome: nome }); },
+  async grupoDaEquipeIncluir(id, perfilId) { await rpc('grupo_incluir_integrante', { p_id: id, p_perfil: perfilId }); },
+  async grupoDaEquipeTirar(id, perfilId) { await rpc('grupo_tirar_integrante', { p_id: id, p_perfil: perfilId }); },
+  grupoDaEquipeContarItens: id => rpc('grupo_contar_itens', { p_id: id }),
+  async grupoDaEquipeExcluir(id) { await rpc('grupo_excluir', { p_id: id }); },
 
   // ---------- pessoas ----------
   async pessoasListar(f = {}) {
@@ -927,6 +962,9 @@ export const SD: Dados = {
   },
   async contratoAlterarSemValores(id, dados) {
     await rpc('contrato_alterar_sem_valores', { p_id: id, p_dados: dados });
+  },
+  async contratoDefinirGrupos(id, grupos) {
+    await rpc('contrato_definir_grupos', { p_id: id, p_grupos: grupos });
   },
   // O número (sigla, sequencial e ano) é dado pelo banco ao gravar.
   async contratoCriar(dados) {
@@ -1716,12 +1754,12 @@ export const SD: Dados = {
   // ---------- tarefas ----------
   async tarefasListar(f = {}) {
     const por = f.porPagina || POR_PAGINA, de = (f.pagina || 0) * por;
-    const q = filtrarTarefas(sb.from('tarefas').select(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), { count: 'exact' }), f);
+    const q = filtrarTarefas(deTarefas(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), f), f);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem && f.ordem !== 'manual' ? f.ordem : 'novos').range(de, de + por - 1));
     return { linhas: data, total: count || 0 };
   },
   async tarefasDaEtapa(etapaId, f = {}, deslocamento = 0, limite = POR_COLUNA) {
-    let q = filtrarTarefas(sb.from('tarefas').select(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), { count: 'exact' }), f);
+    let q = filtrarTarefas(deTarefas(comEtiquetas(CAMPOS_TAREFA_LISTA, 'tarefas', f), f), f);
     q = etapaId ? q.eq('etapa_id', etapaId) : q.is('etapa_id', null);
     const { data, count } = await rodar(ordenarPeloTitulo(q, f.ordem || 'manual').range(deslocamento, deslocamento + limite - 1));
     return { linhas: data, total: count || 0 };
