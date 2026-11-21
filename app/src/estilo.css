@@ -206,23 +206,30 @@
   --linhas-do-nome-da-coluna: 3;
   --altura-do-topo-da-coluna: 28px;
 }
-/* Os vãos da cabeça do cartão (#396, #397), de cima para baixo, na escala do DESIGN.md, todos aqui, com os do celular logo abaixo:
-   da linha de cima à linha da Situação ({spacing.sm}); da Situação às etiquetas, ou ao título, sem etiquetas ({spacing.md}); das
-   etiquetas ao título, que são dele ({spacing.xs}); do título ao que vai logo abaixo dele, na pessoa o nome fantasia
-   ({spacing.xs}); do título aos dados, a faixa das datas com a linha fina ({spacing.md}); e dos dados (as datas, o tempo e os
-   botões rápidos) à descrição ({spacing.lg}). */
+/* Os vãos da cabeça do cartão (#396, #397; maiores desde a #398, que o dono achou o cartão apertado), de cima para baixo, na
+   escala do DESIGN.md, todos aqui, com os do celular logo abaixo: da linha de cima à linha da Situação ({spacing.lg}); da Situação
+   às etiquetas, ou ao título, sem etiquetas ({spacing.xl}); das etiquetas ao título, que são dele ({spacing.sm}); do título ao que
+   vai logo abaixo dele, na pessoa o nome fantasia ({spacing.xs}); do título aos dados, a faixa das datas com a linha fina
+   ({spacing.lg}); a folga em cima e embaixo de cada faixa dos dados, entre ela e as linhas finas que a separam da outra (as datas e
+   o tempo dividem a linha do meio: entre o fim de uma e o começo da outra, duas folgas) ({spacing.lg}); o vão entre as linhas de
+   dentro de uma faixa (na do tempo, entre o relógio e a parte de cada um; na das datas, entre as datas que descem) ({spacing.lg});
+   e dos dados (as datas e o tempo) à descrição ({spacing.xl}). As faixas (ui/base/GrupoDeDatas.css) leem os dois delas daqui. */
 :root {
-  --vao-do-topo-a-situacao: 12px;
-  --vao-ate-o-titulo: 16px;
-  --vao-das-etiquetas-ao-titulo: 8px;
+  --vao-do-topo-a-situacao: 24px;
+  --vao-ate-o-titulo: 32px;
+  --vao-das-etiquetas-ao-titulo: 12px;
   --vao-do-titulo-ao-subtitulo: 8px;
-  --vao-do-titulo-aos-dados: 16px;
-  --vao-dos-dados-a-descricao: 24px;
+  --vao-do-titulo-aos-dados: 24px;
+  --vao-das-faixas-dos-dados: 24px;
+  --vao-das-linhas-da-faixa: 24px;
+  --vao-dos-dados-a-descricao: 32px;
 }
-/* No celular, os quatro vãos maiores descem um degrau, para o topo respirar sem empurrar as seções para longe; os dois de
-   {spacing.xs} (das etiquetas ao título e do título ao subtítulo) ficam como estão, que já são os menores da escala. */
+/* No celular, os vãos descem um degrau (o das etiquetas ao título fica no menor, {spacing.xs}; o do título ao subtítulo já está
+   nele), e as linhas de dentro da faixa, uma por data, descem dois, para o topo respirar sem empurrar as seções para longe:
+   continuam maiores que os da v1.34.0. */
 @media (max-width: 640px) {
-  :root { --vao-do-topo-a-situacao: 8px; --vao-ate-o-titulo: 12px; --vao-do-titulo-aos-dados: 12px; --vao-dos-dados-a-descricao: 16px }
+  :root { --vao-do-topo-a-situacao: 16px; --vao-ate-o-titulo: 24px; --vao-das-etiquetas-ao-titulo: 8px; --vao-do-titulo-aos-dados: 16px;
+    --vao-das-faixas-dos-dados: 16px; --vao-das-linhas-da-faixa: 12px; --vao-dos-dados-a-descricao: 24px }
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */

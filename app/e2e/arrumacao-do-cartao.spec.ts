@@ -337,11 +337,36 @@ test.describe('O cartão arquivado (#397)', () => {
   }
 });
 
-test.describe('Os espaços da cabeça (#396)', () => {
+test.describe('Os espaços da cabeça (#396, #398)', () => {
   /** Lê uma variável de estilo.css, em pixels. */
   const variavel = (page: Page, nome: string) => page.evaluate(n => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(n)), nome);
+  /** Os vãos da v1.34.0, que o dono achou apertados (#398): os de agora precisam ser maiores, no computador e no celular. */
+  const NO_COMPUTADOR_V1_34 = { '--vao-do-topo-a-situacao': 12, '--vao-ate-o-titulo': 16, '--vao-do-titulo-aos-dados': 16, '--vao-das-faixas-dos-dados': 14,
+    '--vao-das-linhas-da-faixa': 14, '--vao-dos-dados-a-descricao': 24 };
+  const NO_CELULAR_V1_34 = { '--vao-do-topo-a-situacao': 8, '--vao-ate-o-titulo': 12, '--vao-do-titulo-aos-dados': 12, '--vao-das-faixas-dos-dados': 14,
+    '--vao-das-linhas-da-faixa': 10, '--vao-dos-dados-a-descricao': 16 };
 
-  for (const tela of [{ nome: 'no computador', viewport: { width: 1440, height: 900 } }, { nome: 'no celular', viewport: { width: 375, height: 812 } }]) {
+  for (const tela of [{ nome: 'no computador', viewport: { width: 1440, height: 900 }, antes: NO_COMPUTADOR_V1_34 },
+    { nome: 'no celular', viewport: { width: 375, height: 812 }, antes: NO_CELULAR_V1_34 }]) {
+    test(`dada a tarefa ${tela.nome}, quando abre, então os vãos da cabeça são maiores que os da v1.34.0 e as faixas das datas e do tempo ficam separadas por eles`, async ({ page }) => {
+      // Dado
+      await page.setViewportSize(tela.viewport);
+      // Quando
+      const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
+      await esperarParar(cartao);
+      // Então: cada vão cresceu
+      for (const [nome, antes] of Object.entries(tela.antes)) expect(await variavel(page, nome), nome).toBeGreaterThan(antes);
+      // E entre o fim das datas e o primeiro dado do tempo ficam as duas folgas das faixas (a linha fina fica no meio)
+      const datas = cartao.getByRole('group', { name: 'Datas', exact: true }), tempo = cartao.getByRole('group', { name: 'Tempo', exact: true });
+      const fimDasDatas = Math.max(...await datas.getByRole('group').evaluateAll(gs => gs.map(g => g.getBoundingClientRect().bottom)));
+      const primeiroTempo = await caixa(tempo.getByRole('group').first());
+      expect(primeiroTempo.y - fimDasDatas).toBeGreaterThanOrEqual(2 * await variavel(page, '--vao-das-faixas-dos-dados') - TOLERANCIA);
+      // E, dentro da faixa do tempo, a parte de cada um fica um vão das linhas abaixo do relógio
+      const relogio = await caixa(tempo.getByRole('group').first()), parte = await caixa(tempo.getByRole('list', { name: 'Parte de cada um' }));
+      expect(parte.y - embaixo(relogio)).toBeGreaterThanOrEqual(await variavel(page, '--vao-das-linhas-da-faixa') - TOLERANCIA);
+    });
+
+
     test(`dada a tarefa ${tela.nome}, quando abre, então entre a linha de cima, a Situação, o título, os dados e a descrição ficam pelo menos os vãos de estilo.css`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela.viewport);

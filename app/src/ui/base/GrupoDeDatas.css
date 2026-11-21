@@ -6,14 +6,15 @@
   /* A largura mínima de cada data na faixa: as colunas têm o mesmo ritmo em todos os cartões, e o valor curto ("Sem prazo") não
      fica espremido. Três cabem lado a lado no painel do cartão ao lado (560px menos o recuo), com o prazo, a hora e o lembrete */
   --dado-do-grupo: 112px;
-  /* O vão entre os dados lado a lado: entre as linhas e entre as colunas */
-  --vao-do-grupo: 14px 32px;
-  /* Na faixa estreita (o celular): entre uma data e a de baixo, e entre o nome, à esquerda, e o valor */
-  --vao-do-grupo-estreito: 10px 16px;
+  /* O vão entre os dados lado a lado: entre as linhas (o da cabeça do cartão, em estilo.css, #398) e entre as colunas */
+  --vao-do-grupo: var(--vao-das-linhas-da-faixa) 32px;
+  /* Na faixa estreita (o celular): entre uma data e a de baixo (o mesmo das linhas) e entre o nome, à esquerda, e o valor */
+  --vao-do-grupo-estreito: var(--vao-das-linhas-da-faixa) 16px;
   /* O vão entre o nome do dado e o valor dele, e entre o prazo e o lembrete */
   --vao-do-dado: 4px;
-  /* A folga em cima e embaixo da faixa, entre as linhas finas que a separam do título, da outra faixa e da situação */
-  --folga-do-grupo: 14px;
+  /* A folga em cima e embaixo da faixa, entre as linhas finas que a separam do título, da outra faixa e da situação: a da cabeça
+     do cartão (--vao-das-faixas-dos-dados, em estilo.css, #398), num lugar só com os outros vãos dela */
+  --folga-do-grupo: var(--vao-das-faixas-dos-dados);
   /* O vão entre os campos do formulário pequeno, e entre eles e Cancelar e Salvar */
   --vao-dos-campos: 8px;
   /* A folga em cima e embaixo do valor que se muda com um clique (o fundo dele no hover), devolvida pela margem */
