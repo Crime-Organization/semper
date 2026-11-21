@@ -237,6 +237,8 @@ export interface Contrato {
   entrada: number | null;
   parcelas: number | null;
   descontos: number | null;
+  /** Quando a negociação começou (aaaa-mm-dd, #311): com a assinatura, o cartão mostra quantos dias ela levou. */
+  negociacao_inicio: string | null;
   assinado_em: string | null;
   primeiro_pagamento: string | null;
   percentual_escritorio: number | null;   // 20, 30 ou 100: quanto do que o cliente paga vai para a conta PJ
@@ -279,7 +281,7 @@ export interface ParticipanteGravado { pessoa_id: string; percentual: number | n
 
 /** Campos que o cadastro de contrato grava (número, sigla, ano e carimbos são do banco). */
 export type DadosContrato = Partial<{ clientes: string[]; participantes: ParticipanteGravado[] } & Pick<Contrato, 'codigo_antigo' | 'cliente_id' | 'responsavel_id' | 'objetos' | 'servico' | 'categoria' | 'valor'
-  | 'entrada' | 'parcelas' | 'descontos' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio'
+  | 'entrada' | 'parcelas' | 'descontos' | 'negociacao_inicio' | 'assinado_em' | 'primeiro_pagamento' | 'percentual_escritorio'
   | 'indicador_id' | 'indicador_percentual' | 'documento_url' | 'conta_destino_id' | 'observacoes' | 'etapa_id' | 'etapa_ordem'
   | 'arquivado_em' | 'arquivado_por'>>;
 
@@ -293,7 +295,7 @@ export interface ContaParaEscolher { id: string; nome: string }
 
 /** Linha das listagens de contratos (tabela e quadro). */
 export type ContratoLista = Pick<Contrato, 'id' | 'codigo' | 'codigo_antigo' | 'servico' | 'categoria' | 'valor' | 'responsavel_id'
-  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome' | 've_financeiro' | 'grupos'> & ComEtiquetas;
+  | 'etapa_id' | 'etapa_ordem' | 'arquivado_em' | 'criado_por' | 'criado_em' | 'atualizado_em' | 'cliente_nome' | 've_financeiro' | 'grupos' | 'negociacao_inicio'> & ComEtiquetas;
 
 export interface FiltroContratos {
   /** Só os contratos a que a pessoa pode ligar uma demanda ou tarefa: aqueles de que é parte. */
@@ -384,6 +386,8 @@ export interface FiltroDemandas {
    * cartões mudam.
    */
   grupo?: string;
+  /** 'sem': só as demandas sem contrato (#311). */
+  contrato?: '' | 'sem';
   situacao?: 'ativas' | 'arquivadas';
   ordem?: OrdemComPrazo;
   /** Só as que começam a partir deste dia e até este dia (aaaa-mm-dd), pela data de início (#357; regras/dataDeInicio.ts). */

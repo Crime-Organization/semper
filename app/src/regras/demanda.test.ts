@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Demanda, Membro } from '../dados/tipos';
 import {
   CAMPOS_DEMANDA, camposDaDemanda, dadosDaDemanda, DEMANDA_VAZIA, errosDaEtapaDemanda, motivoSemMencaoNaDemanda, papeisNaDemanda,
-  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, seloDoPrazo, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
+  primeiraEtapaComErroDemanda, rotuloDoPrazoComHora, seloDoPrazo, semContrato, semSairDaDemanda, situacaoDoPrazo, validarDemanda, valorLegivelDemanda
 } from './demanda';
 
 const completa = { ...DEMANDA_VAZIA, titulo: 'Pedido de registro de marca', responsavelId: 'u-ana' };
@@ -224,5 +224,16 @@ describe('Pessoas da demanda', () => {
     const r = motivoSemMencaoNaDemanda(demanda)(m);
     // Então
     expect(r).toBe(motivo);
+  });
+});
+
+describe('Demanda sem contrato (#311)', () => {
+  it.each([
+    ['sem contrato, com o módulo Contratos', null, true, true],
+    ['com contrato', 'MA96-0001-2026', true, false],
+    ['sem contrato, sem o módulo Contratos', null, false, false]
+  ])('dada uma demanda %s, quando o quadro pergunta, então o selo aparece: %s', (_caso, contrato_codigo, comContratos, esperado) => {
+    // Então
+    expect(semContrato({ contrato_codigo }, comContratos)).toBe(esperado);
   });
 });

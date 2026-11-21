@@ -645,9 +645,10 @@ select lives_ok($$ select id, escritorio_id, numero, sigla, ano, codigo, codigo_
                          conta_destino_id, documento_url, observacoes, participantes, clientela, participacoes from public.contratos_da_equipe $$,
   'A view contratos_da_equipe é lida com a lista de colunas de antes');
 reset role;
-select is((select array_agg(attname::text order by attnum) from pg_attribute where attrelid = 'public.contratos_da_equipe'::regclass and attnum > 0)
-          [array_length((select array_agg(attname) from pg_attribute where attrelid = 'public.contratos_da_equipe'::regclass and attnum > 0), 1)], 'grupos',
-  'A coluna nova da view fica no fim');
+-- Depois de todas as colunas de antes (as que vieram mais tarde, como o início das negociações da #311, ficam depois dela).
+select is((select attname::text from pg_attribute where attrelid = 'public.contratos_da_equipe'::regclass
+           and attnum = (select attnum + 1 from pg_attribute where attrelid = 'public.contratos_da_equipe'::regclass and attname = 'participacoes')), 'grupos',
+  'A coluna nova da view fica no fim, logo depois das colunas de antes');
 
 -- ===== Limite de 10 grupos por item =====
 select pg_temp.entrar(1); set local role authenticated;

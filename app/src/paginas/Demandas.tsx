@@ -9,7 +9,7 @@ import { oferecerProcesso } from './concluirDemanda';
 import { SD, type Coluna, type ContextoAtivo, type DemandaLista, type FiltroDemandas, type OrdemComPrazo, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
-import { seloDoPrazo, SEM_SITUACAO_DEMANDA, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
+import { seloDoPrazo, SEM_CONTRATO, SEM_SITUACAO_DEMANDA, semContrato, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
 import { soLeSemEstarNele } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -123,7 +123,7 @@ export default function Demandas() {
     SD.demandasListar({ ...filtro, situacao: 'ativas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalQuadro(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.contrato, filtro.inicioDesde, filtro.inicioAte, recarga]);
 
   // Quantos arquivados há: aparece na seção "Arquivados" embaixo da tabela, mesmo fechada.
   const [totalArquivadas, setTotalArquivadas] = useState<number | null>(null);
@@ -133,12 +133,13 @@ export default function Demandas() {
     SD.demandasListar({ ...filtro, situacao: 'arquivadas', pagina: 0, porPagina: 1 }).then(r => { if (vivo) setTotalArquivadas(r.total); }).catch(() => {});
     return () => { vivo = false; };
   // oxlint-disable-next-line react/exhaustive-deps -- depende só dos campos do filtro que mudam a contagem, não do objeto f
-  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte, recarga]);
+  }, [visao, f.termo, f.pessoa, f.grupo, f.etiqueta, f.contrato, filtro.inicioDesde, filtro.inicioAte, recarga]);
   const arquivadas = (pagina: number, porPagina: number) => SD.demandasListar({ ...filtro, situacao: 'arquivadas', ordem: 'recentes', pagina, porPagina });
 
-  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || inicio);
+  const filtrado = !!(f.termo || f.pessoa || f.grupo || f.etiqueta || f.contrato || inicio);
   const mudarFiltro = (campos: Partial<FiltroDemandas>) => { setF(atual => ({ ...atual, ...campos, pagina: 0 })); selecao.limpar(); };
   const etiquetas = useEtiquetasDaPagina(f.etiqueta, () => mudarFiltro({ etiqueta: '' }));
+  const comContratos = !!ctx.escritorio?.modulos?.contratos;
 
   function trocarVisao(v: Visao) {
     setVisao(v);
@@ -165,7 +166,7 @@ export default function Demandas() {
     </span>
   </> : null;
 
-  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, filtro.inicioDesde, filtro.inicioAte].join('|');
+  const chaveDaLista = [recarga, f.termo, f.pessoa, f.grupo, f.etiqueta, f.contrato, filtro.inicioDesde, filtro.inicioAte].join('|');
   const total = visao === 'kanban' ? totalQuadro : tabela?.total ?? null;
   const contador = total === null ? null : plural(total, 'ativa', 'ativas');
 
@@ -177,6 +178,9 @@ export default function Demandas() {
           aoMudar: pessoa => { mudarFiltro({ pessoa }); salvarPreferencia('demandas.pessoa', pessoa); },
           opcoes: [['', 'Todas as demandas'], [eu, 'Comigo (responsável ou colaborador)'], ...ctx.equipe.filter(m => m.id !== eu).map(m => [m.id, m.nome] as [string, string])] },
         ...filtroDeGrupo(ctx.grupos, eu, f.grupo, grupo => { mudarFiltro({ grupo: grupo || undefined }); salvarPreferencia('demandas.grupo', grupo); }),
+        // As demandas sem contrato (#311): só com o módulo Contratos ligado, como o selo.
+        ...(comContratos ? [{ id: 'contrato', rotulo: 'Contrato', valor: f.contrato || '', aoMudar: (contrato: string) => mudarFiltro({ contrato: contrato === 'sem' ? 'sem' : '' }),
+          opcoes: [['', 'Com e sem contrato'], ['sem', SEM_CONTRATO]] as [string, string][] }] : []),
         ...filtroDeEtiqueta(etiquetas, f.etiqueta, etiqueta => mudarFiltro({ etiqueta })),
         filtroDoInicio(inicio, periodo => { setInicio(periodo); mudarFiltro({}); })
       ]}
@@ -230,6 +234,7 @@ function CartaoKanban({ d, ordem, concluido, circulo }: { d: DemandaLista; ordem
     <div className="kt">{circulo}<span>{d.titulo}</span></div>
     <div className="km">
       <LigacoesNoQuadro codigo={d.codigo} ligacoes={ligacoes(d)} />
+      {semContrato(d, !!ctx.escritorio?.modulos?.contratos) && <Selo tipo="pend">{SEM_CONTRATO}</Selo>}
       {d.cliente_nome && <span>{clientesPorExtenso(d.cliente_nome)}</span>}
       <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido} />
       {data && <span>{data}</span>}
@@ -281,7 +286,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
         <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLe(ctx, d)} />
           <div className="titulo-com-circulo">{circulo(ctx, colunas, d, d.etapa_id, d.etapa_ordem)}<NomeDaLinha>{d.titulo}</NomeDaLinha></div>
-          <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · ' + ligacoesPorExtenso(ligacoes(d)) : ''}</div></td>
+          <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · ' + ligacoesPorExtenso(ligacoes(d)) : ''}
+            {semContrato(d, !!ctx.escritorio?.modulos?.contratos) && <> <Selo tipo="pend">{SEM_CONTRATO}</Selo></>}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>
         <td><div className="equipe-da-linha"><Avatares ids={[d.responsavel_id, ...d.colaboradores]} equipe={ctx.equipe} />

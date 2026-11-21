@@ -12,6 +12,12 @@ import { estaPeloGrupo } from './gruposDaEquipe';
 
 /** Rótulo das demandas fora das colunas do quadro. */
 export const SEM_SITUACAO_DEMANDA = 'Sem situação';
+/**
+ * A demanda sem contrato fica sinalizada no quadro e na tabela de Demandas (#311), com este selo e a opção do filtro. Só com o módulo
+ * Contratos ligado no escritório: sem ele (um núcleo de inovação, por exemplo), nenhuma demanda teria contrato, e o selo não diz nada.
+ */
+export const SEM_CONTRATO = 'Sem contrato';
+export const semContrato = (d: { contrato_codigo: string | null }, comContratos: boolean) => comContratos && !d.contrato_codigo;
 
 // ---------- formulário ----------
 /** Campos do formulário de demanda, como digitados. */

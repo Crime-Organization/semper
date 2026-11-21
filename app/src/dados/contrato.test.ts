@@ -565,6 +565,32 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect((await SD.demandasDoContrato(contratoId)).map(d => d.objeto ?? '').toSorted((a, b) => a.localeCompare(b))).toEqual(['Oposição ' + id, 'Registro ' + id]);
       });
 
+      it('dado o início das negociações no cadastro (#311), quando o contrato é lido, então a data vem no cartão, na tabela e no histórico', async () => {
+        // Dado
+        const { id: cliente } = await criar('NEGOCIA ' + marca());
+        const k = await SD.contratoCriar({ clientes: [cliente], responsavel_id: 'u-master', objetos: ['Consultoria'], categoria: 'pro_labore', negociacao_inicio: '2026-02-01' });
+        // Quando
+        await SD.contratoAtualizar(k.id, { negociacao_inicio: '2026-02-05' });
+        // Então
+        expect((await SD.contratoVer(k.id))!.negociacao_inicio).toBe('2026-02-05');
+        expect((await SD.contratosListar({ termo: k.codigo })).linhas[0].negociacao_inicio).toBe('2026-02-05');
+        expect((await SD.contratoHistorico(k.id))[0].alteracoes.negociacao_inicio).toEqual({ de: '2026-02-01', para: '2026-02-05' });
+      });
+
+      it('dado demandas com e sem contrato (#311), quando o filtro pede "Sem contrato", então vêm só as sem contrato', async () => {
+        // Dado
+        const id = marca();
+        const k = await SD.contratoCriar({ clientes: [(await criar('COM DEMANDA ' + id)).id], responsavel_id: 'u-master', objetos: ['Recurso ' + id], categoria: 'pro_labore' });
+        await SD.contratoCriarDemanda(k.id, 'Recurso ' + id);
+        await SD.demandaCriar({ titulo: 'Avulsa ' + id, responsavel_id: 'u-master' });
+        // Quando
+        const sem = await SD.demandasListar({ termo: id, contrato: 'sem' });
+        const todas = await SD.demandasListar({ termo: id });
+        // Então
+        expect(sem.linhas.map(d => d.titulo)).toEqual(['Avulsa ' + id]);
+        expect(todas.total).toBe(2);
+      });
+
       it('dado um contrato arquivado, quando se pede a demanda de um objeto, então é recusado', async () => {
         // Dado
         const k = await SD.contratoCriar({ clientes: [(await criar('ARQUIVADO ' + marca())).id], responsavel_id: 'u-master', objetos: ['Recurso'], categoria: 'pro_labore' });

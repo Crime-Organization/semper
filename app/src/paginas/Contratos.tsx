@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router';
 import { SD, type ContratoLista, type FiltroContratos, type Ordem, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { CATEGORIAS, clientesPorExtenso, fmtDinheiro, SEM_SITUACAO } from '../regras/contrato';
+import { fmtData } from '../regras/pessoa';
 import { equipeEditaTudo, VALOR_OCULTO } from '../regras/equipeVeTudo';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
@@ -33,6 +34,9 @@ import { avisarSeAssinadoSemObjeto } from './clienteAoContrato';
 import './Contratos.css';
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
+/** O nome da coluna opcional da tabela com o início das negociações (#311) e onde a escolha de mostrá-la fica guardada. */
+const COLUNA_DA_NEGOCIACAO = 'Início das negociações';
+const PREFERENCIA_DA_NEGOCIACAO = 'contratos.tabela.negociacao';
 
 export default function Contratos() {
   useTitulo('Contratos');
@@ -49,6 +53,12 @@ export default function Contratos() {
     return { termo: '', responsavel, categoria: '', situacao: 'ativos', pagina: 0 };
   });
   const [visao, setVisao] = useState<Visao>(() => lerPreferencia<Visao>('contratos.visao', 'tabela') === 'kanban' ? 'kanban' : 'tabela');
+  // A coluna opcional da tabela (#311): o início das negociações, mostrada e escondida no ⋯ da página; a escolha fica para a próxima vez.
+  const [comNegociacao, setComNegociacao] = useState(() => lerPreferencia<boolean>(PREFERENCIA_DA_NEGOCIACAO, false) === true);
+  function trocarNegociacao() {
+    salvarPreferencia(PREFERENCIA_DA_NEGOCIACAO, !comNegociacao);
+    setComNegociacao(!comNegociacao);
+  }
   // Ordem da tabela (mudar volta para a primeira página). No quadro, cada coluna tem a sua, no menu da coluna.
   const ordem = useOrdem('contratos', 'tabela');
   const ordenacao = { ...ordem, aoMudar: (o: Ordem) => { ordem.aoMudar(o); setF(atual => ({ ...atual, pagina: 0 })); } };
@@ -128,7 +138,8 @@ export default function Contratos() {
 
   return <>
     <PaginaModulo titulo="Contratos" contador={contador} acao={{ rotulo: 'Novo contrato', para: '/contratos/novo/' }}
-      mais={[{ rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') }]}
+      mais={[{ rotulo: 'Modelos de checklist', icone: 'check', aoEscolher: () => navegar('/modelos-de-lista/') },
+        ...(visao === 'tabela' ? [{ rotulo: (comNegociacao ? 'Esconder' : 'Mostrar') + ' a coluna ' + COLUNA_DA_NEGOCIACAO, icone: 'calendario' as const, aoEscolher: trocarNegociacao }] : [])]}
       busca={{ placeholder: 'Buscar cliente, número, objeto…', aoBuscar: termo => mudarFiltro({ termo }) }}
       filtros={[
         { id: 'responsavel', rotulo: 'Responsável', valor: f.responsavel || '',
@@ -163,13 +174,13 @@ export default function Contratos() {
           }}
           aoAdicionar={colunaId => navegar('/contratos/novo/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>
-          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe}
+          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe} comNegociacao={comNegociacao}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<ContratoLista> modulo="contratos" nome={{ um: 'contrato', varios: 'contratos', feminino: false }} total={totalArquivados}
             versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivados(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.contratosArquivar(ids, a)} excluir={ids => SD.contratosExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivados', pagina: numeroDaPagina }} ordem="recentes"
-              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
+              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} comNegociacao={comNegociacao} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
         </>}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
@@ -203,12 +214,14 @@ interface PropsTabela {
   filtrado: boolean;
   selecao: Selecao;
   situacao: (id: string | null) => string;
+  /** Se a coluna opcional do início das negociações aparece (#311). */
+  comNegociacao: boolean;
   endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, comNegociacao, endereco, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -227,7 +240,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
       <thead><tr>
         <th className="td-check"><input type="checkbox" aria-label="Selecionar todos desta página" checked={todas} onChange={e => marcar(alteraveis.map(k => k.id), e.target.checked)} /></th>
         <th scope="col">Cliente</th><th scope="col">Contrato</th><th scope="col">Categoria</th><th scope="col">Valor</th>
-        <th scope="col">Situação</th><th scope="col">Responsável</th><th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
+        <th scope="col">Situação</th>{comNegociacao && <th scope="col">{COLUNA_DA_NEGOCIACAO}</th>}<th scope="col">Responsável</th><th scope="col">{porCadastro ? 'Criado' : 'Atualizado'}</th>
       </tr></thead>
       <tbody>{linhas.map(k => <LinhaQueAbre key={k.id} para={endereco(k.id)} aoAbrir={() => aoAbrir(k.id)} marcada={selecionadas.has(k.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${k.codigo}`} checked={selecionadas.has(k.id)} disabled={!alteraveis.includes(k)} onChange={e => marcar([k.id], e.target.checked)} /></td>
@@ -236,6 +249,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, endereco,
         <td>{k.ve_financeiro === false ? VALOR_OCULTO : CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : fmtDinheiro(k.valor)}</td>
         <td><span className="etapa-txt">{situacao(k.etapa_id)}</span></td>
+        {comNegociacao && <td style={{ whiteSpace: 'nowrap' }}>{k.negociacao_inicio ? fmtData(k.negociacao_inicio) : <span className="nota">—</span>}</td>}
         <td><div className="equipe-da-linha"><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} />
           <GruposDoItem grupos={gruposDoItem(ctx.grupos, k.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(k.criado_em) : relativo(k.atualizado_em)}</td>

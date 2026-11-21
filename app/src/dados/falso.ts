@@ -393,7 +393,7 @@ const dataDaqui = (dias: number) => somarDias(hojeNaAgenda(), dias);
 function contratoNovo(): ContratoGuardado {
   return {
     id: '', codigo: '', numero: 0, sigla: '', ano: 0, codigo_antigo: null, cliente_id: '', clientes: [], responsavel_id: '', objetos: [], servico: '', categoria: 'pro_labore',
-    valor: null, entrada: null, parcelas: null, descontos: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
+    valor: null, entrada: null, parcelas: null, descontos: null, negociacao_inicio: null, assinado_em: null, primeiro_pagamento: null, percentual_escritorio: null,
     participantes: [], indicador_id: null, indicador_percentual: null, documento_url: null, conta_destino_id: null, observacoes: null,
     etapa_id: null, etapa_ordem: null, arquivado_em: null, arquivado_por: null, criado_por: eu, criado_em: agora(), atualizado_por: null, atualizado_em: agora()
   };
@@ -433,6 +433,8 @@ if (!bd.colunasDoClienteAoContrato) {
 bd.historicoContratos ??= [];
 // Sessões abertas antes dos vários objetos: o serviço vira a lista (como a migração 010), que entra na lista do escritório.
 bd.contratos.forEach(k => { k.objetos ??= limparObjetos(k.servico.split(';')); });
+// Sessões abertas antes do início das negociações (#311): a data fica vazia, como a coluna nova do banco.
+bd.contratos.forEach(k => { k.negociacao_inicio ??= null; });
 bd.objetosSugeridos ??= limparObjetos(bd.contratos.flatMap(k => k.objetos));
 // Sessões abertas antes dos vários participantes: o participante antigo entra na lista (como a migração 012).
 // E antes dos vários clientes: o cliente entra na lista (como a migração 013).
@@ -894,7 +896,7 @@ const contratoCompleto = (k: ContratoGuardado): Contrato =>
      indicador: resumoDe(k.indicador_id) });
 const contratoLista = (k: ContratoGuardado): ContratoLista => ({
   id: k.id, codigo: k.codigo, codigo_antigo: k.codigo_antigo, servico: k.servico, categoria: k.categoria, valor: k.valor,
-  responsavel_id: k.responsavel_id, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
+  responsavel_id: k.responsavel_id, negociacao_inicio: k.negociacao_inicio ?? null, etapa_id: k.etapa_id, etapa_ordem: k.etapa_ordem, arquivado_em: k.arquivado_em,
   criado_por: k.criado_por, criado_em: k.criado_em, atualizado_em: k.atualizado_em, cliente_nome: nomeDoCliente(k), grupos: k.grupos ?? [],
   ...(vejoContrato(k) ? { ve_financeiro: true } : { ve_financeiro: false, categoria: null as unknown as ContratoLista['categoria'], valor: null })
 });
@@ -1095,7 +1097,7 @@ const buscaDemanda = (d: DemandaGuardada) => normal([d.codigo, d.titulo, d.descr
 function filtrarDemandas(f: FiltroDemandas = {}) {
   const t = termo(f.termo);
   return bd.demandas!.filter(d => vejoNoModulo('demandas', d.id) && (!f.paraLigar || !soLeNoFalso(estaNaDemanda(d, membroLogado(), meusGruposNoFalso()))) && (f.situacao === 'arquivadas' ? d.arquivado_em : !d.arquivado_em)
-    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa)) && noGrupoDoFiltro(d.grupos, f.grupo)
+    && (!f.pessoa || d.responsavel_id === f.pessoa || d.colaboradores.includes(f.pessoa)) && (f.contrato !== 'sem' || !d.contrato_id) && noGrupoDoFiltro(d.grupos, f.grupo)
     && (!f.etiqueta || temEtiqueta('demandas', d.id, f.etiqueta)) && inicioNosLimites(d.data_inicio, f)
     && (!t || buscaDemanda(d).includes(t)));
 }

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
-  objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR, objetosSemDemanda, objetosNovosSemDemanda, avisoDosObjetosNovos, mesmoObjeto,
+  objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR, objetosSemDemanda, objetosNovosSemDemanda, avisoDosObjetosNovos, mesmoObjeto, diasDeNegociacao, textoDaNegociacao, CAMPOS_CONTRATO,
   camposDoContrato, contratoComAssinatura, CONTRATO_VAZIO, dadosDoContrato, erroDaAssinatura, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
@@ -481,5 +481,47 @@ describe('Objetos sem demanda (#349)', () => {
   ])('dado %j, quando o aviso é montado, então diz "%s" com o botão "%s"', (objetos, texto, rotulo) => {
     // Então
     expect(avisoDosObjetosNovos(objetos)).toEqual({ texto, rotulo });
+  });
+});
+
+describe('Início das negociações (#311)', () => {
+  it.each([
+    ['2026-03-01', '2026-03-10', 9],
+    ['2026-03-10', '2026-03-10', 0],
+    ['2025-12-31', '2026-01-01', 1],
+    ['2026-02-20', '2026-04-01', 40]
+  ])('dado o início em %s e a assinatura em %s, quando se conta, então a negociação levou %i dias', (inicio, assinatura, dias) => {
+    // Então
+    expect(diasDeNegociacao(inicio, assinatura)).toBe(dias);
+  });
+
+  it.each([
+    [null, '2026-03-10'], ['2026-03-10', null], ['2026-03-11', '2026-03-10']
+  ])('dado o início %s e a assinatura %s, quando se conta, então não há dias a mostrar', (inicio, assinatura) => {
+    // Então
+    expect(diasDeNegociacao(inicio, assinatura)).toBeNull();
+  });
+
+  it.each([[0, 'No mesmo dia'], [1, '1 dia'], [12, '12 dias'], [1200, '1.200 dias']])('dado %i dias, quando o cartão mostra, então diz "%s"', (dias, texto) => {
+    // Então
+    expect(textoDaNegociacao(dias)).toBe(texto);
+  });
+
+  it('dado o início das negociações depois da assinatura, quando o cadastro confere, então avisa no campo do início', () => {
+    // Quando
+    const erros = validarContrato({ ...CONTRATO_VAZIO, negociacaoInicio: '11/03/2026', assinadoEm: '10/03/2026' });
+    // Então
+    expect(erros.negociacaoInicio).toBe('O início das negociações não pode ser depois da assinatura.');
+    expect(validarContrato({ ...CONTRATO_VAZIO, negociacaoInicio: '31/02/2026' }).negociacaoInicio).toBe('Data inexistente.');
+    expect(validarContrato({ ...CONTRATO_VAZIO, negociacaoInicio: '01/03/2026', assinadoEm: '10/03/2026' }).negociacaoInicio).toBeUndefined();
+  });
+
+  it('dado o início escrito no cadastro, quando o contrato é gravado e lido de volta, então a data vai e volta igual', () => {
+    // Quando
+    const dados = dadosDoContrato({ ...CONTRATO_VAZIO, negociacaoInicio: '01/03/2026' });
+    // Então
+    expect(dados.negociacao_inicio).toBe('2026-03-01');
+    expect(valorLegivelContrato('negociacao_inicio', '2026-03-01')).toBe('01/03/2026');
+    expect(CAMPOS_CONTRATO.negociacao_inicio).toBe('Início das negociações');
   });
 });

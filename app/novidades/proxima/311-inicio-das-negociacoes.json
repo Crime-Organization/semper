@@ -1,0 +1,5 @@
+{
+  "titulo": "Início das negociações e demandas sem contrato",
+  "texto": "O contrato ganhou a data de início das negociações: com ela e a data da assinatura, o cartão mostra quantos dias a negociação levou, e a tabela pode mostrar essa data numa coluna. Em Demandas, a demanda sem contrato tem o selo \"Sem contrato\" no quadro e na tabela, e o filtro mostra só essas.",
+  "ondeAchar": "Contratos > abra um contrato > lápis, em Honorários; a coluna fica no ⋯ da página. Em Demandas, o filtro fica em Filtros > Contrato."
+}

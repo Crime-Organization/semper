@@ -6,7 +6,8 @@
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { AINDA_SEM_DEMANDA, avisoDosObjetosNovos, CRIAR_ESTA_DEMANDA, objetosNovosSemDemanda, objetosSemDemanda } from '../regras/contrato';
+import { AINDA_SEM_DEMANDA, avisoDosObjetosNovos, CRIAR_ESTA_DEMANDA, diasDeNegociacao, objetosNovosSemDemanda, objetosSemDemanda, textoDaNegociacao } from '../regras/contrato';
+import { fmtData } from '../regras/pessoa';
 import { Botao } from '../ui/Botoes';
 import { Icone } from '../ui/Icone';
 import { useNavigate } from 'react-router';
@@ -104,6 +105,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const meus = meusGrupos(ctx.grupos, ctx.perfil.id), peloGrupo = podeAlterar ? undefined : gruposDoItem(ctx.grupos, k.grupos).find(g => meus.includes(g.id));
   const oculto = k.ve_financeiro === false, semValores = !podeAlterar && (equipeEditaTudo(ctx.escritorio) || !!peloGrupo);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
+  // Quantos dias a negociação levou (#311): do início das negociações à assinatura.
+  const negociacao = diasDeNegociacao(k.negociacao_inicio, k.assinado_em);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
   // o papel e o link para o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e
@@ -232,10 +235,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
          valores do contrato também não vê a assinatura, como antes, e aí não há dados (#385): sobraria só a criação, que o
          rodapé já mostra. Quem altera o contrato muda a assinatura ali mesmo (#395), como o início da tarefa. */
       dados={!oculto && <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
+        {/* O início das negociações (#311), antes da assinatura, e, com as duas datas, quantos dias a negociação levou. */}
+        {k.negociacao_inicio && <DadoDoGrupo rotulo="Início das negociações"><b className="num">{fmtData(k.negociacao_inicio)}</b></DadoDoGrupo>}
         <DadoDoGrupo rotulo="Assinado em">
           <DataEditavel key={'assinatura-' + noLugar.chave} nome="Data da assinatura" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
             aoMudarRascunho={noLugar.rascunhoDe('assinatura')} aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
         </DadoDoGrupo>
+        {negociacao !== null && <DadoDoGrupo rotulo="Negociação"><b className="num">{textoDaNegociacao(negociacao)}</b></DadoDoGrupo>}
       </FaixaDasDatas>} />
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>
