@@ -1,0 +1,5 @@
+{
+  "titulo": "Apagar e mudar os registros de tempo da tarefa",
+  "texto": "A seção do tempo ficou numa linha só: o relógio e a situação à esquerda, Iniciar/Pausar e \"Ajustar meu tempo\" à direita. Embaixo, a lista dos seus registros mostra o dia, a duração e se veio do cronômetro ou de um ajuste, e cada um tem Mudar (a duração ou o dia, com o motivo) e Apagar, com Desfazer. Tudo fica no histórico da tarefa; os administradores veem e mexem nos registros de todos.",
+  "ondeAchar": "No cartão da tarefa, na faixa \"Seu tempo nesta tarefa\": o botão \"Meus registros de tempo\" (para administradores, \"Registros de tempo\"). Para mudar um registro que está contando, pause antes."
+}

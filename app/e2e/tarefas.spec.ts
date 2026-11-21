@@ -565,7 +565,10 @@ test.describe('Cronômetro da tarefa', () => {
     // Então
     await expect(page.getByText('Tempo ajustado: −20 min.')).toBeVisible();
     await expect(cartao.getByRole('timer')).toHaveText('1:00:00');
-    await expect(cartao.getByText(/Mauro Teixeira Duarte: −20 min · Contei a mais/)).toBeVisible();
+    // E o ajuste aparece na lista dos registros (#400; antes, numa lista "Ajustes" só dos administradores), com o motivo
+    await cartao.getByRole('button', { name: /^Registros de tempo/ }).click();
+    await expect(cartao.getByRole('list', { name: 'Registros de tempo' }).getByRole('listitem').filter({ hasText: 'Contei a mais' }))
+      .toContainText(/−20 min.*Mauro Teixeira Duarte.*Ajuste/);
   });
 
   test('quando a tarefa está concluída, então a contagem encerrou e o cartão mostra o esforço da equipe', async ({ page }) => {

@@ -672,6 +672,9 @@ export interface RegistroDeTempo {
   segundos: number;           // no ajuste, pode ser negativo
   ajuste: boolean;
   motivo: string | null;
+  /** A última correção (#400): quando e por quê (null: nunca foi corrigido). */
+  corrigido_em: string | null;
+  motivo_da_correcao: string | null;
 }
 /** O tempo de uma tarefa, como quem pergunta pode ver. */
 export interface TempoDaTarefa {
@@ -693,10 +696,22 @@ export interface TempoNaTarefaDoPeriodo {
 export interface DadosTempo {
   /** Começa um período contado, já com os segundos que tem; devolve o id dele, para ir gravando. */
   tempoIniciar(tarefaId: string, inicio: string, segundos: number): Promise<number>;
-  /** Grava os segundos do período (só cresce). */
-  tempoGravar(id: number, segundos: number): Promise<void>;
+  /**
+   * Grava os segundos do período (só cresce). Devolve false quando o registro não aceita mais o cronômetro: foi apagado ou corrigido
+   * (em outra aba, aparelho ou por um administrador, #400); aí quem conta abre um período novo com o que contou depois.
+   */
+  tempoGravar(id: number, segundos: number): Promise<boolean>;
   /** Ajuste à mão, para mais ou para menos, sempre com motivo (fica registrado como ajuste). */
   tempoAjustar(tarefaId: string, segundos: number, motivo: string): Promise<void>;
+  /**
+   * Corrige um registro (#400): a duração e/ou o dia (inicio), com o motivo, que vai ao histórico da tarefa. O dono corrige o próprio;
+   * o administrador, o de qualquer um do escritório (supabase/migrations/20261121164027_tempo_apagar_e_corrigir.sql).
+   */
+  tempoCorrigir(id: number, correcao: { segundos: number; inicio: string; motivo: string }): Promise<void>;
+  /** Apaga um registro (#400), com a mesma regra de quem corrige; vai ao histórico da tarefa. */
+  tempoApagar(id: number): Promise<void>;
+  /** Devolve um registro apagado (o Desfazer), com o dono, o dia, a duração e o motivo de antes; devolve o id novo. */
+  tempoDevolver(tarefaId: string, registro: RegistroDeTempo): Promise<number>;
   tempoDaTarefa(tarefaId: string): Promise<TempoDaTarefa>;
   /** A soma do tempo das tarefas da demanda (o esforço aproximado dela), para quem vê a demanda. */
   tempoDaDemanda(demandaId: string): Promise<number>;

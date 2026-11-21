@@ -9,7 +9,7 @@ import type { Dados, DadosPessoa, FiltroAnotacoes, ItemImportacao } from './tipo
 import { camposDoPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { dadosDaCopia } from '../regras/anotacao';
-import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
+import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE, TAMANHO_MOTIVO } from './limites';
 import { FILTRO_DOS_MEUS_GRUPOS } from '../regras/gruposDaEquipe';
 import { ITENS_DA_AGENDA, ITENS_DA_ANOTACAO, ITENS_PARA_LIGAR, TAMANHO_ANOTACAO, TAMANHO_COMPROMISSO, TAMANHO_ITEM, TAMANHO_PASTA, TAMANHO_TAREFA, TROCAS_DE_EMAIL_POR_HORA } from './limites';
 import { RECUSA_DA_TROCA } from '../regras/conta';
@@ -608,6 +608,112 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(pelaTarefa.map(i => [i.id, i.codigo])).toContainEqual([tarefa.id, tarefa.codigo]);
         expect(peloComecoDoNumero.map(i => i.id)).toContain(contrato.id);
         expect(peloNumeroInteiro.map(i => [i.id, i.codigo])).toContainEqual([contrato.id, contrato.codigo]);
+      });
+    });
+
+    describe('Apagar e corrigir os registros de tempo (#400)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      /** Uma tarefa do master com o Bruno, e um período contado de cada um. */
+      async function tarefaComTempo() {
+        const tarefa = await SD.tarefaCriar({ titulo: 'TEMPO ' + marca(), responsavel_id: 'u-master', participantes: ['u-bruno'] });
+        const inicio = new Date(Date.now() - DIA).toISOString();
+        const doMaster = await SD.tempoIniciar(tarefa.id, inicio, 3600);
+        entrarComo('u-bruno');
+        const doBruno = await SD.tempoIniciar(tarefa.id, inicio, 1800);
+        entrarComo('u-master');
+        return { tarefa, doMaster, doBruno, inicio };
+      }
+
+      it('dado o próprio registro, quando a pessoa o corrige com o motivo, então a duração, o dia e o total mudam, e a correção vai ao histórico', async () => {
+        // Dado
+        const { tarefa, doBruno } = await tarefaComTempo();
+        entrarComo('u-bruno');
+        const outroDia = new Date(Date.now() - 2 * DIA).toISOString();
+        // Quando
+        await SD.tempoCorrigir(doBruno, { segundos: 600, inicio: outroDia, motivo: ' Contei o almoço ' });
+        const tempo = await SD.tempoDaTarefa(tarefa.id);
+        // Então: o Bruno vê só o dele, já corrigido
+        expect(tempo.registros).toEqual([expect.objectContaining({ id: doBruno, segundos: 600, inicio: outroDia, motivo_da_correcao: 'Contei o almoço' })]);
+        expect(tempo.registros[0].corrigido_em).not.toBeNull();
+        expect(tempo.total).toBe(3600 + 600);
+        const [ultima] = await SD.tarefaHistorico(tarefa.id);
+        expect(String(ultima.alteracoes.tempo.para)).toMatch(/^Corrigido o tempo contado de Bruno Exemplo Souza, de .*\. Motivo: Contei o almoço$/);
+      });
+
+      it('dado o registro de outra pessoa, quando quem não é administrador tenta corrigir ou apagar, então é recusado e nada muda', async () => {
+        // Dado
+        const { tarefa, doMaster } = await tarefaComTempo();
+        entrarComo('u-bruno');
+        // Quando / Então
+        await expect(SD.tempoCorrigir(doMaster, { segundos: 60, inicio: new Date().toISOString(), motivo: 'Não é meu' })).rejects.toThrow(/Só quem registrou o tempo/);
+        await expect(SD.tempoApagar(doMaster)).rejects.toThrow(/Só quem registrou o tempo/);
+        entrarComo('u-master');
+        expect((await SD.tempoDaTarefa(tarefa.id)).total).toBe(3600 + 1800);
+      });
+
+      it('dado um administrador, quando apaga o registro de outra pessoa e desfaz, então ele sai do total e volta igual, com o histórico', async () => {
+        // Dado
+        const { tarefa, doBruno, inicio } = await tarefaComTempo();
+        const registro = (await SD.tempoDaTarefa(tarefa.id)).registros.find(r => r.id === doBruno)!;
+        // Quando
+        await SD.tempoApagar(doBruno);
+        const depoisDeApagar = await SD.tempoDaTarefa(tarefa.id);
+        const devolvido = await SD.tempoDevolver(tarefa.id, registro);
+        const depoisDeDevolver = await SD.tempoDaTarefa(tarefa.id);
+        // Então
+        expect(depoisDeApagar.total).toBe(3600);
+        expect(depoisDeApagar.registros.map(r => r.id)).not.toContain(doBruno);
+        expect(depoisDeDevolver.total).toBe(3600 + 1800);
+        expect(depoisDeDevolver.registros).toContainEqual(expect.objectContaining({ id: devolvido, perfil_id: 'u-bruno', inicio, segundos: 1800, ajuste: false }));
+        const historico = (await SD.tarefaHistorico(tarefa.id)).map(h => String(h.alteracoes.tempo?.para ?? ''));
+        expect(historico.filter(t => /^(Apagado|Devolvido) o tempo contado de Bruno Exemplo Souza/.test(t))).toHaveLength(2);
+        expect(historico.join(' ')).not.toMatch(/30 min|1800/);
+      });
+
+      it('dado um registro mudado, quando é apagado e devolvido, então volta como registro novo, sem a mudança (como o banco)', async () => {
+        // Dado
+        const { tarefa, doBruno } = await tarefaComTempo();
+        await SD.tempoCorrigir(doBruno, { segundos: 900, inicio: new Date().toISOString(), motivo: 'Contei o almoço' });
+        const mudado = (await SD.tempoDaTarefa(tarefa.id)).registros.find(r => r.id === doBruno)!;
+        // Quando
+        await SD.tempoApagar(doBruno);
+        const devolvido = await SD.tempoDevolver(tarefa.id, mudado);
+        // Então
+        expect((await SD.tempoDaTarefa(tarefa.id)).registros.find(r => r.id === devolvido))
+          .toMatchObject({ segundos: 900, corrigido_em: null, motivo_da_correcao: null });
+      });
+
+      it('quando o motivo da mudança passa do tamanho que o banco aceita, então é recusado e nada muda', async () => {
+        // Dado
+        const { tarefa, doBruno } = await tarefaComTempo();
+        // Quando
+        const mudar = SD.tempoCorrigir(doBruno, { segundos: 60, inicio: new Date().toISOString(), motivo: 'x'.repeat(TAMANHO_MOTIVO + 1) });
+        // Então
+        await expect(mudar).rejects.toThrow('Algum campo está em formato inválido. Confira os dados e tente de novo.');
+        expect((await SD.tempoDaTarefa(tarefa.id)).total).toBe(3600 + 1800);
+      });
+
+      it('dado o período que o cronômetro conta, quando outra pessoa o muda ou apaga, então o cronômetro não grava mais nele (abre outro)', async () => {
+        // Dado
+        const { tarefa, doBruno } = await tarefaComTempo();
+        const id = await SD.tempoIniciar(tarefa.id, new Date().toISOString(), 60);
+        // Quando: o próprio cronômetro grava; depois o master (administrador) muda o do Bruno e apaga o outro
+        const gravouAntes = await SD.tempoGravar(id, 120);
+        entrarComo('u-bruno');
+        const doBrunoAntes = await SD.tempoGravar(doBruno, 1900);
+        entrarComo('u-master');
+        await SD.tempoCorrigir(doBruno, { segundos: 600, inicio: new Date().toISOString(), motivo: 'Revisão' });
+        await SD.tempoApagar(id);
+        entrarComo('u-bruno');
+        const noCorrigido = await SD.tempoGravar(doBruno, 1960);
+        entrarComo('u-master');
+        const noApagado = await SD.tempoGravar(id, 180);
+        // Então
+        expect([gravouAntes, doBrunoAntes, noCorrigido, noApagado]).toEqual([true, true, false, false]);
+        const tempo = await SD.tempoDaTarefa(tarefa.id);
+        expect(tempo.registros.find(r => r.id === doBruno)!.segundos).toBe(600);
+        expect(tempo.total).toBe(3600 + 600);
       });
     });
 

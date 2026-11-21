@@ -81,6 +81,8 @@ describe('Cadastro de tarefa', () => {
     // Então
     expect(CAMPOS_TAREFA.prazo_hora).toBe('Hora do prazo');
     expect(CAMPOS_TAREFA.lembrete).toBe('Lembrete');
+    // E o que acontece com um registro de tempo (#400) tem nome próprio
+    expect(CAMPOS_TAREFA.tempo).toBe('Registro de tempo');
     expect(valorLegivelTarefa('prazo_hora', '14:00:00')).toBe('14:00');
     expect(valorLegivelTarefa('lembrete', 60)).toBe('1 hora antes');
   });

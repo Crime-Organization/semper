@@ -11,7 +11,7 @@ import { PERIODO_MAXIMO } from '../dados/limites';
 import { ehTeclaSozinha } from '../regras/atalhos';
 import { cronometro, PARADO, segundosDoPeriodo, type Cronometro, type Evento } from '../regras/cronometro';
 import { atalhosLigados, estaEscrevendo, teclaDoEvento } from '../ui/atalhos';
-import { falha } from '../ui/avisos';
+import { avisar, falha } from '../ui/avisos';
 import { anunciarCronometro } from '../ui/cronometros';
 import { janela } from '../ui/janela';
 import { GRAVAR_TEMPO_A_CADA, INATIVIDADE_DO_CRONOMETRO, TIQUE_DO_CRONOMETRO } from '../ui/tempos';
@@ -21,8 +21,14 @@ const MOVIMENTOS = ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstar
 /** A tecla que inicia, pausa e retoma a contagem (com o cartão aberto e fora de um campo de texto). */
 export const TECLA_DO_CRONOMETRO = 't';
 
-interface Periodo { id: number | null; inicio: string; gravados: number }
-const periodoNovo = (): Periodo => ({ id: null, inicio: new Date().toISOString(), gravados: 0 });
+/**
+ * O período que o cronômetro grava: o registro (id), quando começou e quanto já gravou nele. "desconto": os segundos deste período do
+ * cronômetro que ficaram num registro que foi corrigido ou apagado em outro lugar (#400) e não entram no registro de agora.
+ */
+interface Periodo { id: number | null; inicio: string; gravados: number; desconto: number }
+const periodoNovo = (): Periodo => ({ id: null, inicio: new Date().toISOString(), gravados: 0, desconto: 0 });
+/** O aviso a quem está contando quando o registro do período foi mudado ou apagado em outra aba, aparelho ou por um administrador. */
+export const PERIODO_TROCADO = 'Seu registro de tempo desta tarefa foi mudado ou apagado em outro lugar. O tempo contado depois disso foi para um registro novo.';
 
 export function useCronometro(tarefa: { id: string; titulo: string }, podeContar: boolean, aoGravar: () => void) {
   const [estado, setEstado] = useState<Cronometro>(PARADO);
@@ -35,12 +41,19 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
 
   const despachar = useCallback((e: Evento) => { c.current = cronometro(c.current, e); setEstado(c.current); }, []);
 
-  // Grava o que o período tem até agora (só se cresceu), um pedido de cada vez.
+  // Grava o que o período tem até agora (só se cresceu), um pedido de cada vez. Se o registro não aceita mais (foi corrigido ou
+  // apagado em outra aba, aparelho ou por um administrador), o que foi contado depois da última gravação vai para um registro novo.
   const gravar = useCallback(() => {
     fila.current = fila.current.then(async () => {
-      const p = periodo.current, s = segundosDoPeriodo(c.current, Date.now());
-      if (s <= p.gravados) return;
-      if (p.id === null) p.id = await SD.tempoIniciar(tarefa.id, p.inicio, s); else await SD.tempoGravar(p.id, s);
+      const p = periodo.current, contados = segundosDoPeriodo(c.current, Date.now());
+      if (contados - p.desconto <= p.gravados) return;
+      if (p.id !== null) {
+        if (await SD.tempoGravar(p.id, contados - p.desconto)) { p.gravados = contados - p.desconto; return; }
+        Object.assign(p, { id: null, inicio: new Date().toISOString(), desconto: p.desconto + p.gravados, gravados: 0 });
+        avisar(PERIODO_TROCADO, 'info');
+      }
+      const s = contados - p.desconto;
+      p.id = await SD.tempoIniciar(tarefa.id, p.inicio, s);
       p.gravados = s;
     }).catch(e => { falha(e); });
     return fila.current;
@@ -54,6 +67,14 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
   }, [despachar, gravar]);
   const iniciar = useCallback(() => { if (podeContar) despachar({ tipo: 'iniciar', agora: Date.now() }); }, [podeContar, despachar]);
   const alternar = useCallback(() => { if (c.current.contando) void pausar(); else iniciar(); }, [pausar, iniciar]);
+  // O registro do período pausado foi apagado ou corrigido (#400): o cronômetro o solta, e o próximo Retomar começa outro período
+  // (gravar no registro corrigido desfaria a correção; no apagado, o tempo se perderia). Contando, não solta: a tela pede para pausar.
+  const soltarPeriodo = useCallback(() => {
+    if (c.current.contando) return;
+    periodo.current = periodoNovo();
+    c.current = PARADO;
+    setEstado(PARADO);
+  }, []);
 
   // Ao fechar o cartão (ou a aba), pausa e grava.
   useEffect(() => {
@@ -140,9 +161,9 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
   return {
     contando: estado.contando,
     /** Segundos do período deste cartão aberto (o que já foi gravado dele está no registro periodoId). */
-    segundos: segundosDoPeriodo(estado, agora),
+    segundos: segundosDoPeriodo(estado, agora) - periodo.current.desconto,
     /** O registro do banco em que este período está sendo gravado (para não somá-lo duas vezes). */
     periodoId: periodo.current.id,
-    pausar, iniciar, alternar
+    pausar, iniciar, alternar, soltarPeriodo
   };
 }

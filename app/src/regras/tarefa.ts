@@ -189,7 +189,9 @@ export const primeiraEtapaComErroTarefa = (c: CamposTarefa) =>
 /** Nome de cada campo no histórico de alterações da tarefa. */
 export const CAMPOS_TAREFA: Record<string, string> = {
   titulo: 'Título', descricao: 'Descrição', prazo: 'Prazo', prazo_hora: 'Hora do prazo', lembrete: 'Lembrete', data_inicio: ROTULO_DO_INICIO, responsavel_id: 'Responsável', participantes: 'Participantes',
-  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento'
+  pessoas: 'Pessoas', demanda: 'Demanda', contrato: 'Contrato', processo: 'Processo', etapa: 'Situação', arquivado_em: 'Arquivamento',
+  // Apagar, corrigir e devolver um registro de tempo (#400): o que aconteceu, sem a duração
+  tempo: 'Registro de tempo'
 };
 /** Como cada campo aparece no cartão e no histórico (o prazo como dia/mês/ano, a hora como hh:mm, o lembrete por extenso, vazio como traço), igual às demandas. */
 export const valorLegivelTarefa = valorLegivelDemanda;
