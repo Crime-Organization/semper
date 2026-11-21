@@ -100,13 +100,15 @@ interface Props<M extends ModuloParaLigar> {
   aviso?: string;
   /** Por que agora não se pode ligar (ex.: a lista do cartão já está cheia). */
   indisponivel?: string;
+  /** A busca já aberta, dentro de uma janela (veja LigarExistente). */
+  naJanela?: boolean;
 }
 
 /** O botão "Ligar … existente" de uma seção de cartão, com a busca do módulo. */
-export function LigarDoModulo<M extends ModuloParaLigar>({ modulo, filtro, aoEscolher, motivo, rotulo, aviso, indisponivel }: Props<M>) {
+export function LigarDoModulo<M extends ModuloParaLigar>({ modulo, filtro, aoEscolher, motivo, rotulo, aviso, indisponivel, naJanela }: Props<M>) {
   const m = MODULOS[modulo] as Modulo<M>;
   const lerFiltro = async () => (typeof filtro === 'function' ? await filtro() : filtro ?? {}) as Filtros[M];
   return <LigarExistente<Achados[M]> rotulo={rotulo ?? m.rotulo} rotuloDaBusca={m.rotuloDaBusca} dicaDaBusca={m.dicaDaBusca} nomeDaLista={m.nomeDaLista} semAchados={m.semAchados}
     buscar={async termo => m.buscar(termo, await lerFiltro())} mostrar={x => ({ ...m.mostrar(x), motivo: motivo?.(x) || undefined })}
-    aoEscolher={aoEscolher} aviso={aviso} indisponivel={indisponivel} />;
+    aoEscolher={aoEscolher} aviso={aviso} indisponivel={indisponivel} naJanela={naJanela} />;
 }

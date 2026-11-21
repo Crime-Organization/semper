@@ -40,13 +40,16 @@ interface Props<T> {
   /** Por que agora não se pode ligar (ex.: a lista do cartão já tem o máximo): o botão aparece desabilitado, com o motivo ao lado. */
   indisponivel?: string;
   icone?: NomeIcone;
+  /** Dentro de uma janela (como a de copiar a tarefa para outra demanda): a busca já aberta, sem o botão. Escolher só responde (a
+   *  janela fecha); o Esc e o clique fora são da janela. */
+  naJanela?: boolean;
 }
 
 /** Os botões dos achados que se podem escolher, na ordem da lista. */
 const ESCOLHIVEIS = '.achados button:not(:disabled)';
 
-export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, indisponivel, icone = 'vinculo' }: Props<T>) {
-  const [buscando, setBuscando] = useState(false);
+export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloDaBusca, dicaDaBusca, nomeDaLista, semAchados, aviso, somenteLer = false, indisponivel, icone = 'vinculo', naJanela = false }: Props<T>) {
+  const [buscando, setBuscando] = useState(naJanela);
   const [termo, setTermo] = useState('');
   const buscado = useAtrasado(termo);
   const [achados, setAchados] = useState<{ termo: string; lista: T[] } | null>(null);
@@ -67,11 +70,11 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
   }, [buscando, buscado]);
   useEffect(() => { if (buscando) campo.current?.focus(); }, [buscando]);
   useEffect(() => {
-    if (!buscando) return;
+    if (!buscando || naJanela) return;
     const foraDaBusca = (e: MouseEvent) => { if (!raiz.current?.contains(e.target as Node)) { setBuscando(false); setTermo(''); } };
     document.addEventListener('mousedown', foraDaBusca);
     return () => document.removeEventListener('mousedown', foraDaBusca);
-  }, [buscando]);
+  }, [buscando, naJanela]);
 
   if (somenteLer) return null;
 
@@ -83,7 +86,7 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
     setTimeout(() => botao.current?.focus(), 0);
   }
   function escolher(x: T) {
-    fechar();
+    if (!naJanela) fechar();
     void aoEscolher(x);
   }
 
@@ -99,10 +102,11 @@ export function LigarExistente<T>({ rotulo, buscar, mostrar, aoEscolher, rotuloD
   return <div className="busca-existente" ref={raiz} onBlur={e => {
     // Saindo pelo teclado (Tab), a busca fecha, para a lista não ficar aberta por cima do que vem depois.
     const destino = e.relatedTarget as Node | null;
+    if (naJanela) return;
     if (destino && !raiz.current?.contains(destino)) { setBuscando(false); setTermo(''); }
   }} onKeyDown={e => {
     // Esc fecha só a busca, sem fechar o cartão em volta.
-    if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); fechar(); }
+    if (e.key === 'Escape' && !naJanela) { e.stopPropagation(); e.preventDefault(); fechar(); }
   }}>
     <input ref={campo} type="text" className="campo" aria-label={rotuloDaBusca} placeholder={dicaDaBusca} autoComplete="off"
       value={termo} onChange={e => setTermo(e.target.value)}

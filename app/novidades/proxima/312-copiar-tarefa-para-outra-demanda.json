@@ -1,0 +1,5 @@
+{
+  "titulo": "Copiar uma tarefa para outra demanda",
+  "texto": "No cartão da tarefa, o menu ⋯ tem \"Copiar para outra demanda\": escolha a demanda e a cópia nasce nela, com o título, a descrição, o prazo, as pessoas e os checklists (desmarcados), com o cronômetro zerado. A tarefa original não muda.",
+  "ondeAchar": "Tarefas: abra o cartão de uma tarefa e clique no ⋯ (Mais ações da tarefa), no alto. O aviso no pé da tela tem o botão \"Abrir a cópia\"."
+}

@@ -66,17 +66,18 @@ test.describe('Arquivados na tabela', () => {
 test.describe('Ações do cartão arquivado', () => {
   // Em cada módulo, um item ativo da semente do banco fictício. Quem está logado é administrador, então pode excluir.
   // Desde a #382, Arquivar, Desarquivar e Excluir ficam no menu ⋯ do topo (como na anotação); o lápis continua no topo, e a faixa
-  // do arquivado traz o Desarquivar à vista.
-  const CARTOES = [
+  // do arquivado traz o Desarquivar à vista. `menu`: as ações a mais do ⋯ do item ativo, antes de Arquivar (a tarefa copia para
+  // outra demanda, #312); no arquivado, elas saem.
+  const CARTOES: { modulo: string; item: string; titulo: string; menu?: string[] }[] = [
     { modulo: 'pessoas', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir a pessoa?' },
     { modulo: 'contratos', item: 'MARIA APARECIDA EXEMPLO', titulo: 'Excluir o contrato?' },
     { modulo: 'demandas', item: 'Notificar o devedor', titulo: 'Excluir a demanda?' },
-    { modulo: 'tarefas', item: 'Renovar a procuração', titulo: 'Excluir a tarefa?' },
+    { modulo: 'tarefas', item: 'Renovar a procuração', titulo: 'Excluir a tarefa?', menu: ['Copiar para outra demanda'] },
     { modulo: 'processos/judicial', item: 'JOSÉ DA SILVA TESTE', titulo: 'Excluir o processo?' },
     { modulo: 'agenda', item: 'Reunião de equipe', titulo: 'Excluir o compromisso?' }
   ];
 
-  for (const { modulo, item, titulo } of CARTOES) {
+  for (const { modulo, item, titulo, menu = [] } of CARTOES) {
     test(`quando a pessoa arquiva e desarquiva em ${modulo}, então o ⋯ e o lápis acompanham, e o Excluir pede confirmação`, async ({ page }) => {
       // Dado
       await page.goto(`/${modulo}/`);
@@ -84,7 +85,7 @@ test.describe('Ações do cartão arquivado', () => {
       await page.getByRole('row').filter({ hasText: item }).first().getByText(item).first().click();
       const cartao = page.getByRole('dialog');
       const botao = (name: string) => cartao.getByRole('button', { name, exact: true });
-      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual([...menu, 'Arquivar']);
       await expect(botao('Editar')).toBeVisible();
       // Quando
       await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
@@ -107,7 +108,7 @@ test.describe('Ações do cartão arquivado', () => {
       await expect(page.getByText(/desarquivad[ao]\./)).toBeVisible();
       await expect(botao('Editar')).toBeVisible();
       await expect(botao('Desarquivar')).toHaveCount(0);
-      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual([...menu, 'Arquivar']);
     });
   }
 

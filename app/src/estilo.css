@@ -1363,6 +1363,8 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* Ligar a um cartão um item que já existe (LigarExistente, #341): a mesma busca, com o aviso de quem passa a ver logo abaixo do
    campo, e o achado que não se pode escolher (desabilitado) com o motivo no lugar do detalhe. */
 .busca-existente { position: relative; display: flex; flex-direction: column; gap: 6px }
+/* Dentro da janela (a busca da demanda ao copiar a tarefa, #312), os achados ficam embaixo do campo, no corpo da janela. */
+.janela-corpo .busca-existente .achados { position: static; box-shadow: none }
 .processos-escolhidos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px }
 .processos-escolhidos .escolhida { height: auto; min-height: 44px; padding: 6px 5px 6px 14px }
 .processos-escolhidos .escolhida > span { display: flex; flex-direction: column; gap: 2px; white-space: normal; overflow-wrap: anywhere }

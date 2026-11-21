@@ -212,3 +212,19 @@ describe('Escolher numa lista (#309)', () => {
     await expect(resposta).resolves.toBeNull();
   });
 });
+
+describe('Janela com o corpo que responde sozinho (#312)', () => {
+  it('dado um corpo que recebe como responder, quando a pessoa escolhe nele, então a janela fecha com a escolha, sem botão', async () => {
+    // Dado
+    let resposta!: Promise<string | null>;
+    act(() => {
+      resposta = janela.janela<string>({ titulo: 'Escolher demanda',
+        corpo: responder => <button type="button" onClick={() => responder('d2')}>Registro de marca</button>, acoes: [{ rotulo: 'Cancelar', valor: null }] });
+    });
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Registro de marca' }));
+    // Então
+    await expect(resposta).resolves.toBe('d2');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
