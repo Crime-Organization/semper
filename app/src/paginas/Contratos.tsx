@@ -249,7 +249,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, comNegoci
         <td>{k.ve_financeiro === false ? VALOR_OCULTO : CATEGORIAS[k.categoria]}</td>
         <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : fmtDinheiro(k.valor)}</td>
         <td><span className="etapa-txt">{situacao(k.etapa_id)}</span></td>
-        {comNegociacao && <td style={{ whiteSpace: 'nowrap' }}>{k.negociacao_inicio ? fmtData(k.negociacao_inicio) : <span className="nota">—</span>}</td>}
+        {comNegociacao && <td style={{ whiteSpace: 'nowrap' }}>{k.ve_financeiro === false ? VALOR_OCULTO : k.negociacao_inicio ? fmtData(k.negociacao_inicio) : <span className="nota">—</span>}</td>}
         <td><div className="equipe-da-linha"><Avatares ids={[k.responsavel_id]} equipe={ctx.equipe} />
           <GruposDoItem grupos={gruposDoItem(ctx.grupos, k.grupos)} equipe={ctx.equipe} eu={ctx.perfil.id} /></div></td>
         <td style={{ whiteSpace: 'nowrap', color: 'var(--muted)' }}>{porCadastro ? dataCurta(k.criado_em) : relativo(k.atualizado_em)}</td>

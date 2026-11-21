@@ -2,6 +2,7 @@
 // Na semente do banco fictício, o contrato de MARIA APARECIDA EXEMPLO ("Ação de cobrança") está em negociação, sem assinatura, e a
 // demanda "Notificar o devedor" não tem contrato (as do contrato de JOSÉ DA SILVA TESTE têm).
 import { expect, test, type Page } from '@playwright/test';
+import { entrarComo } from './ajudantes';
 
 async function abrirContrato(page: Page, cliente: string) {
   await page.goto('/contratos/');
@@ -63,6 +64,27 @@ test.describe('Início das negociações do contrato (#311)', () => {
     await page.getByRole('menuitem', { name: 'Esconder a coluna Início das negociações' }).click();
     // Então
     await expect(page.getByRole('columnheader', { name: 'Início das negociações' })).toHaveCount(0);
+  });
+
+  test('dado quem não é parte do contrato, quando mostra a coluna do início das negociações, então a data fica oculta, como no cartão', async ({ page }) => {
+    // Dado: o contrato da MARIA APARECIDA EXEMPLO (da Ana) com o início das negociações, e a chave "equipe vê tudo" ligada
+    const cartao = await datasNoLapis(page, '01/03/2026', '10/03/2026');
+    await expect(cartao.getByRole('group', { name: 'Negociação' })).toBeVisible();
+    await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
+    await entrarComo(page, 'u-bruno');
+    // Quando
+    await page.goto('/contratos/');
+    await page.getByRole('button', { name: 'Tabela', exact: true }).click();
+    await page.getByRole('button', { name: 'Mais ações' }).click();
+    await page.getByRole('menuitem', { name: 'Mostrar a coluna Início das negociações' }).click();
+    // Então: a linha mostra "Oculto" no lugar da data, e o cartão também não a mostra
+    await expect(page.getByRole('columnheader', { name: 'Início das negociações' })).toBeVisible();
+    const linha = page.getByRole('row').filter({ hasText: 'MARIA APARECIDA EXEMPLO' });
+    await expect(linha).toContainText('Oculto');
+    await expect(linha).not.toContainText('01/03/2026');
+    await linha.click();
+    await expect(page.getByRole('dialog').getByText('toda a equipe vê este contrato, sem os valores', { exact: false })).toBeVisible();
+    await expect(page.getByRole('dialog').getByRole('group', { name: 'Início das negociações' })).toHaveCount(0);
   });
 });
 
