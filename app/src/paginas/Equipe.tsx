@@ -20,6 +20,8 @@ import { confirmar, janela } from '../ui/janela';
 import { useSessao } from '../ui/sessao';
 import { copiarTexto, dataHora, hojeISO, numero, PAPEIS, relativo, useTitulo } from '../ui/util';
 import { PainelCartao } from '../ui/PainelCartao';
+import { useParametroLido } from '../ui/useParametroLido';
+import { PARAMETRO_DO_CONVITE } from '../regras/conviteDaPessoa';
 import { periodoAtualDoSocio } from '../regras/parcelas';
 import { GruposDaEquipe } from './GruposDaEquipe';
 import { seloDaSituacao, UsuarioDaEquipe } from './UsuarioDaEquipe';
@@ -96,6 +98,8 @@ function PainelEquipe() {
   const [socios, setSocios] = useState<Socio[] | null>(null);
   // O usuário aberto na janela (o id: a lista relida traz os dados novos).
   const [aberto, setAberto] = useState<string | null>(null);
+  // A pessoa que o administrador mandou convidar pelo cartão dela (#327): o convite abre já com ela escolhida.
+  const pessoaDoCartao = useParametroLido(PARAMETRO_DO_CONVITE);
   // Quem é sócio só aparece para o administrador, e só com o financeiro ligado.
   const veSocios = ctx.ehAdmin && !!ctx.escritorio?.modulos?.financeiro;
 
@@ -198,7 +202,7 @@ function PainelEquipe() {
         .map(([r, v]) => <Cartao key={r}><b>{usuarios ? v : '…'}</b><span>{r}</span></Cartao>)}
     </section>
 
-    <LiberarAcesso usuarios={lista} convites={convites} aoLiberar={carregar} />
+    <LiberarAcesso usuarios={usuarios} convites={convites} aoLiberar={carregar} pessoaDoCartao={pessoaDoCartao} />
     <ReservarConta usuarios={lista} convites={convites} aoReservar={mudouEquipe} />
 
     <section aria-labelledby="tUsu" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -316,23 +320,44 @@ function ReservarConta({ usuarios, convites, aoReservar }: { usuarios: Usuario[]
 }
 
 // ---------- liberar acesso ----------
-function LiberarAcesso({ usuarios, convites, aoLiberar }: { usuarios: Usuario[]; convites: Convite[]; aoLiberar: () => void }) {
+/** A pessoa escolhida no convite: da busca, ou a que veio do cartão dela (#327). */
+type Escolhida = Pick<PessoaLista, 'id' | 'nome' | 'emails'>;
+
+/**
+ * "Dar acesso a uma pessoa". `pessoaDoCartao`: o id da pessoa que o administrador mandou convidar pelo cartão dela (#327). Ela
+ * entra já escolhida, com o e-mail do cadastro, quando a lista de usuários chega (usuarios null: ainda carregando), pela mesma
+ * regra da busca (quem já tem acesso ou convite, ou foi excluído, não entra).
+ */
+function LiberarAcesso({ usuarios, convites, aoLiberar, pessoaDoCartao }: { usuarios: Usuario[] | null; convites: Convite[]; aoLiberar: () => void; pessoaDoCartao: string | null }) {
   const { ctx } = useSessao();
   const papeis: Papel[] = ctx.ehMaster ? ['usuario', 'admin'] : ['usuario'];
-  const [escolhida, setEscolhida] = useState<PessoaLista | null>(null);
+  const [escolhida, setEscolhida] = useState<Escolhida | null>(null);
   const [email, setEmail] = useState('');
   const [papel, setPapel] = useState<Papel>('usuario');
   const [ocupado, setOcupado] = useState(false);
   const [criado, setCriado] = useState<ConviteCriado | null>(null);
   const campoEmail = useRef<HTMLInputElement>(null);
 
-  const ja = [...usuarios.map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)];
-  const escolher = (p: PessoaLista | null) => {
+  const ja = [...(usuarios ?? []).map(u => u.pessoa_id), ...convites.map(c => c.pessoa_id)];
+  const escolher = (p: Escolhida | null) => {
     setEscolhida(p);
     if (!p) return;
     if (!email && p.emails?.[0]) setEmail(p.emails[0]);
     setTimeout(() => campoEmail.current?.focus(), 0);
   };
+
+  // A pessoa do cartão entra uma vez só, quando a equipe e os convites já chegaram.
+  const doCartaoLida = useRef(false);
+  useEffect(() => {
+    if (!pessoaDoCartao || !usuarios || doCartaoLida.current) return;
+    doCartaoLida.current = true;
+    SD.pessoaObter(pessoaDoCartao).then(p => {
+      if (!p) return;
+      const motivo = motivoParaNaoDarAcesso(p.id, ctx.equipe, ja);
+      if (motivo) { avisar(`${p.nome} ${motivo}.`); return; }
+      escolher({ id: p.id, nome: p.nome, emails: p.emails });
+    }).catch(falha);
+  });
 
   async function liberar(e: FormEvent) {
     e.preventDefault();

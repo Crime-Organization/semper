@@ -557,6 +557,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .selo.erro { background: var(--erro-bg); color: var(--erro) }
 .selo.escuro { background: var(--sel); color: var(--sel-txt) }
 .selo.arq { background: var(--soft); color: var(--muted); border: 1px dashed var(--line2) }
+/* O selo que é link (#327, o "Da equipe" do cartão da pessoa): a mesma pílula, sublinhada no mouse como os links. */
+.selo-link { text-decoration: none }
+.selo-link:hover { text-decoration: underline; text-underline-offset: .2em }
 .codigo { font-size: 12px; font-weight: 700; letter-spacing: .06em; color: var(--muted); font-variant-numeric: tabular-nums }
 
 /* ---------- avatares ---------- */
