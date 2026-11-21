@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { chaveDaColuna, COLUNAS_NOVAS_DAS_TAREFAS, ordensEntre, planoDasColunasNovas, quadroJaTem, type ColunasNovas } from './colunasPadrao';
+import { chaveDaColuna, COLUNAS_NOVAS_DAS_TAREFAS, COLUNAS_NOVAS_DOS_PROCESSOS, ordensEntre, planoDasColunasNovas, quadroJaTem, type ColunasNovas } from './colunasPadrao';
 
 const TAREFAS = [
   { id: 't1', nome: 'Para fazer', ordem: 1, marco: 'inicio' as const },
@@ -106,5 +106,29 @@ describe('Colunas padrão novas num grupo novo', () => {
     const plano = planoDasColunasNovas(colunas, grupos, NOVAS);
     // Então
     expect(plano).toEqual({ grupoNovo: null, grupoId: 'g3', colunas: [{ nome: 'Aguardando MP', ordem: 8 }, { nome: 'Em acompanhamento', ordem: 9 }] });
+  });
+});
+
+describe('Colunas de acompanhamento dos processos judiciais (#315)', () => {
+  const GRUPOS = [{ id: 'g1', nome: 'Cumprimento', ordem: 1000035 }, { id: 'g2', nome: 'Encerrado', ordem: 1000036 }];
+  const COLUNAS = [
+    { id: 'a', nome: 'Distribuído', ordem: 1, grupo_id: 'g1', marco: 'inicio' as const },
+    { id: 'b', nome: 'Alvará', ordem: 29, grupo_id: 'g1' },
+    { id: 'c', nome: 'Baixado/arquivado', ordem: 30, grupo_id: 'g2', marco: 'concluido' as const }
+  ];
+
+  it('dado o quadro judicial de antes, quando planeja, então o grupo "Acompanhamento" entra antes de "Encerrado", com as duas colunas', () => {
+    // Quando
+    const plano = planoDasColunasNovas(COLUNAS, GRUPOS, COLUNAS_NOVAS_DOS_PROCESSOS);
+    // Então
+    expect(plano?.grupoNovo).toEqual({ nome: 'Acompanhamento', ordem: 1000035.5 });
+    expect(plano?.colunas.map(c => c.nome)).toEqual(['Aguardando MP', 'Em acompanhamento']);
+  });
+
+  it('dado "Aguardando Ministério Público" criada à mão, quando planeja, então só "Em acompanhamento" entra', () => {
+    // Dado
+    const quadro = [...COLUNAS, { id: 'x', nome: 'aguardando ministerio publico', ordem: 31 }];
+    // Quando / Então
+    expect(planoDasColunasNovas(quadro, GRUPOS, COLUNAS_NOVAS_DOS_PROCESSOS)?.colunas.map(c => c.nome)).toEqual(['Em acompanhamento']);
   });
 });

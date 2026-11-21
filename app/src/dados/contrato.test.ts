@@ -2102,15 +2102,16 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.processoObter(id)).toBeNull();
       });
 
-      it('quando o quadro é listado, então cada tipo tem as suas colunas, com início e fim marcados, e os grupos', async () => {
+      it('quando o quadro é listado, então cada tipo tem as suas colunas, com início e fim marcados, e os grupos (o judicial com "Acompanhamento", #315)', async () => {
         // Quando
         const [judiciais, administrativas, grupos] = await Promise.all([SD.colunasListar('processos_judiciais'), SD.colunasListar('processos_administrativos'), SD.gruposListar('processos_judiciais')]);
         // Então
-        expect(judiciais).toHaveLength(29);
+        expect(judiciais).toHaveLength(31);
         expect(administrativas).toHaveLength(20);
         expect(judiciais.filter(c => c.marco).map(c => [c.nome, c.marco])).toEqual([['Distribuído', 'inicio'], ['Baixado/arquivado', 'concluido']]);
         expect(administrativas.filter(c => c.marco).map(c => [c.nome, c.marco])).toEqual([['Protocolado', 'inicio'], ['Arquivado/baixado', 'concluido']]);
         expect(grupos.map(g => [g.nome, g.comeca_fechado])).toContainEqual(['Encerrado', true]);
+        expect(grupos.map(g => g.nome).slice(-2)).toEqual(['Acompanhamento', 'Encerrado']);
       });
 
       it('quando acrescenta uma opção à lista, então ela volta na lista; repetida, é recusada', async () => {

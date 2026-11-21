@@ -1,0 +1,5 @@
+{
+  "titulo": "\"Aguardando MP\" e \"Em acompanhamento\" nos processos judiciais",
+  "texto": "O quadro de Processos judiciais ganhou o grupo \"Acompanhamento\", com as colunas \"Aguardando MP\" e \"Em acompanhamento\", antes do grupo \"Encerrado\". Se o seu escritório já tinha uma coluna com esse nome, ela não se repete.",
+  "ondeAchar": "Processos, Judicial, no Kanban."
+}

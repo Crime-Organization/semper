@@ -25,6 +25,20 @@ export const COLUNAS_NOVAS_DAS_TAREFAS: ColunasNovas = {
   ]
 };
 
+/**
+ * Processos judiciais (#315, pedidas com os sistemas e polos criminais): num grupo novo, "Acompanhamento", depois das colunas de
+ * andamento e antes do grupo de encerramento (decisão do dono). As colunas-marco não mudam.
+ */
+export const COLUNAS_NOVAS_DOS_PROCESSOS: ColunasNovas = {
+  grupoNovo: 'Acompanhamento',
+  colunas: [
+    { nome: 'Aguardando MP',
+      parecidos: ['Aguardando Ministério Público', 'Aguardando manifestação do MP', 'Aguardando manifestação do Ministério Público',
+        'Aguardando parecer do MP', 'Aguardando parecer do Ministério Público'] },
+    { nome: 'Em acompanhamento', parecidos: ['Acompanhamento', 'Acompanhando'] }
+  ]
+};
+
 /** O nome reduzido ao que importa para comparar: sem acentos, maiúsculas, espaços nem sinais ("Aguardando: análise" = "aguardando analise"). */
 export const chaveDaColuna = (nome: string) => semAcento(nome).replace(/[^a-z0-9]/g, '');
 
@@ -101,5 +115,6 @@ export function planoDasColunasNovas(colunas: ColunaDoQuadro[], grupos: GrupoDoQ
 
 /** As colunas novas de cada tarefa do quadro, com o quadro em que entram (o banco fictício acrescenta cada uma uma vez, como a migração). */
 export const COLUNAS_NOVAS_POR_TAREFA: { tarefa: number; modulo: Modulo; novas: ColunasNovas }[] = [
-  { tarefa: 314, modulo: 'tarefas', novas: COLUNAS_NOVAS_DAS_TAREFAS }
+  { tarefa: 314, modulo: 'tarefas', novas: COLUNAS_NOVAS_DAS_TAREFAS },
+  { tarefa: 315, modulo: 'processos_judiciais', novas: COLUNAS_NOVAS_DOS_PROCESSOS }
 ];

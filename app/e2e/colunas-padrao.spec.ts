@@ -32,4 +32,15 @@ test.describe('Colunas padrão novas', () => {
     await expect.poll(() => topo(page)).toEqual(['Para fazer', 'Fazendo', 'Aguardando: análise do solicitante', 'Aguardando: retorno do cliente',
       'Aguardando retorno', 'Concluída']);
   });
+
+  test('quando a pessoa abre o quadro de Processos judiciais, então o grupo "Acompanhamento" fica antes de "Encerrado", com "Aguardando MP" e "Em acompanhamento" (#315)', async ({ page }) => {
+    // Quando
+    await page.goto('/processos/judicial/');
+    await page.getByRole('button', { name: 'Kanban' }).click();
+    // Então
+    await expect.poll(() => topo(page)).toEqual(['Grupo Início', 'Grupo Conhecimento', 'Grupo Decisão', 'Grupo Recursal', 'Grupo Cumprimento',
+      'Grupo Acompanhamento', 'Grupo Encerrado']);
+    const grupo = page.getByRole('region', { name: 'Grupo Acompanhamento', exact: true });
+    await expect(grupo.getByRole('heading', { level: 3 })).toHaveText(['Aguardando MP', 'Em acompanhamento']);
+  });
 });
