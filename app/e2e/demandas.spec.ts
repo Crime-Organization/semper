@@ -266,7 +266,8 @@ test.describe('Checklists: o nome e o caminho para editar (#358)', () => {
     const lista = cartao.getByRole('region', { name: 'Checklist Pessoa jurídica' });
     const caixa = lista.getByRole('checkbox', { name: 'Atos constitutivos' });
     await expect(caixa).not.toBeChecked();
-    // Quando
+    // Quando: o toque é por coordenadas, então a caixa precisa estar à vista (na tela de 720px ela pode ficar abaixo da dobra)
+    await caixa.scrollIntoViewIfNeeded();
     const onde = (await caixa.boundingBox())!;
     await page.mouse.click(onde.x - AO_LADO_DA_CAIXA, onde.y + onde.height / 2);
     // Então
