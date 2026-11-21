@@ -144,9 +144,12 @@
   --traco-do-circulo: 1.5px;
   --vao-do-circulo: 8px;
   --transicao-do-circulo: .15s;
-  /* No toque, com etiquetas acima do título, o título desce isto: o alvo do círculo (--alvo-de-toque, centrado nele) não cobre o x
-     de tirar a etiqueta de cima */
+  /* No toque, com etiquetas acima do título, o título desce isto: o alvo do círculo (que passa --alcance-do-alvo-do-circulo para
+     cima dele) não cobre o x de tirar a etiqueta de cima */
   --folga-do-alvo-do-circulo: 8px;
+  /* No toque, quanto o alvo do círculo passa do desenho para cima e para a esquerda, no respiro do cartão e da célula: o que falta
+     ao círculo para chegar a --alvo-de-toque, dividido pelos dois lados */
+  --alcance-do-alvo-do-circulo: calc((var(--alvo-de-toque) - var(--circulo-de-concluir)) / 2);
   /* O vão entre o rótulo, o campo e a mensagem de erro de uma pergunta (.pergunta); a página pública (#380) usa o mesmo vão para pôr o botão na linha do campo */
   --vao-da-pergunta: 8px;
   /* A altura do botão pequeno (.mini) e o desenho de cada botão da barra de formatação (B, I, listas, link), a bolinha do .mini */
@@ -753,23 +756,33 @@ button.circulo-de-concluir[data-estado="reabrir"]:hover { background: var(--ok-i
 .circulo-de-concluir:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .circulo-de-concluir[aria-busy="true"] { cursor: progress }
 span.circulo-de-concluir { cursor: default }
+/* Quem só lê o item aberto (ou o arquivado): nada para clicar nem para ver, só o lugar do círculo, para os títulos ficarem
+   alinhados onde os círculos ficam à vista (a tabela e o toque). */
+.circulo-de-concluir[data-estado="nenhum"] { visibility: hidden }
 /* A dica ("Concluir", "Reabrir") encosta à esquerda: o círculo fica no lado esquerdo, e a dica encostada à direita passaria da
    borda da coluna (na tabela, ela abre para cima, como a do código, mais abaixo). Na tela de toque, o navegador deixa o :hover preso depois do toque: ali ela só aparece no foco do teclado. */
 .circulo-de-concluir[data-dica]::after { right: auto; left: 0 }
 @media (hover: none) { .circulo-de-concluir[data-dica]:hover:not(:focus-visible)::after { opacity: 0 } }
 /* No computador (com mouse), o círculo vazio da miniatura aparece ao passar o mouse e com o foco do teclado no cartão (ou nele),
-   e o título anda para a direita, como no Trello; o concluído fica sempre à vista. Na tabela, o círculo fica sempre à vista. */
+   e o título anda para a direita, como no Trello; com um título longo, a miniatura pode ganhar uma linha enquanto o mouse está
+   nela. O concluído fica sempre à vista; o lugar vazio de quem só lê, ali, não ocupa espaço (como o círculo escondido). Na
+   tabela, o círculo fica sempre à vista. */
 @media (hover: hover) and (pointer: fine) {
   .kcartao .circulo-de-concluir[data-estado="concluir"] { width: 0; margin-right: 0; border-width: 0; opacity: 0 }
   .kcartao:is(:hover, :focus-within) .circulo-de-concluir[data-estado="concluir"] { width: var(--circulo-de-concluir); margin-right: var(--vao-do-circulo);
     border-width: var(--traco-do-circulo); opacity: 1 }
+  .kcartao .circulo-de-concluir[data-estado="nenhum"] { display: none }
 }
-/* No toque, sempre à vista, e o toque vale num círculo de --alvo-de-toque, um pouco além do desenho (o ::before; o ::after é a
-   dica). Com etiquetas logo acima, o título desce um pouco, para o alvo não cobrir o x da etiqueta. */
+/* No toque, sempre à vista, e o toque vale um pouco além do desenho (o ::before; o ::after é a dica): para cima e para a esquerda,
+   --alcance-do-alvo-do-circulo, no respiro do cartão e da célula; para a direita, só metade do vão até o título; para baixo, só
+   até o fim da primeira linha do título (1lh). Assim, o toque no começo do título e na linha de baixo (o código) continua abrindo
+   o cartão. Com etiquetas logo acima, o título desce um pouco, para o alvo não cobrir o x da etiqueta. */
 @media (pointer: coarse) {
   button.circulo-de-concluir { position: relative }
-  button.circulo-de-concluir::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--alvo-de-toque); height: var(--alvo-de-toque);
-    transform: translate(-50%, -50%); border-radius: 999px }
+  /* (as medidas do ::before contam de dentro do fio do círculo: o fio entra na conta) */
+  button.circulo-de-concluir::before { content: ''; position: absolute; top: calc(-1 * (var(--alcance-do-alvo-do-circulo) + var(--traco-do-circulo)));
+    left: calc(-1 * (var(--alcance-do-alvo-do-circulo) + var(--traco-do-circulo)));
+    right: calc(-1 * (var(--vao-do-circulo) / 2 + var(--traco-do-circulo))); bottom: calc((var(--circulo-de-concluir) - 1lh) / 2 - var(--traco-do-circulo)) }
   :is(.kcartao > .etiquetas + .kt, .tabela td > .etiquetas + .titulo-com-circulo):has(> button.circulo-de-concluir) { margin-top: var(--folga-do-alvo-do-circulo) }
 }
 /* Detalhes do cartão, um por linha (telefone, cidade, data). */

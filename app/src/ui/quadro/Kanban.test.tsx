@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício sempre entra como administrador; aqui o quadro é aberto também como quem não é.
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { useContext } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import type { Coluna, GrupoDeColunas } from '../../dados';
 import { blocosDoQuadro, filaDoTopo } from '../../regras/quadro';
 import { ORDENS_COM_PRAZO, ORDENS_DO_QUADRO } from '../ordem';
 import { Kanban } from './Kanban';
+import { MoverNoQuadro } from './moverNoQuadro';
 import type { Quadro } from './useColunas';
 
 const INICIO: GrupoDeColunas = { id: 'g-inicio', nome: 'Início', ordem: 1, comeca_fechado: false };
@@ -310,5 +312,68 @@ describe('Botão dentro da miniatura, como o círculo de concluir (#350)', () =>
     await screen.findByText('meu');
     // Então
     expect(posicoes).toContain(7);
+  });
+});
+
+describe('Mover a miniatura de coluna sem arrastar, como o círculo de concluir (#350)', () => {
+  type Item = { id: string; ordem: number };
+  /** Um botão dentro da miniatura que, como o círculo de concluir, pede ao quadro para levar o item para "Distribuído". */
+  function BotaoQueMove({ id, focar }: { id: string; focar: boolean }) {
+    const mover = useContext(MoverNoQuadro);
+    return <button type="button" onClick={() => mover?.(id, 'c-dist', 100, focar)}>Mover {id}</button>;
+  }
+  /** "Lead" com a, b e c; "Distribuído" mostra `carregados` itens de `total`. */
+  function montarParaMover(carregados: number, total: number, focar = false) {
+    const quadro = {
+      colunas: COLUNAS, sugestoes: [], pronto: true, rotuloSemEtapa: 'Sem etapa', grupos: [INICIO], blocos: blocosDoQuadro(COLUNAS, [INICIO]), podeGerirGrupos: false,
+      grupoAberto: () => true, podeReordenar: false, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual', nomeDe: () => ''
+    } as unknown as Quadro;
+    const dist: Item[] = Array.from({ length: carregados }, (_, i) => ({ id: 'd' + i, ordem: i }));
+    const carregar = vi.fn((coluna: string | null) => Promise.resolve<{ linhas: Item[]; total: number }>(
+      coluna === 'c-lead' ? { linhas: [{ id: 'a', ordem: 1 }, { id: 'b', ordem: 2 }, { id: 'c', ordem: 3 }], total: 3 }
+        : coluna === 'c-dist' ? { linhas: dist, total } : { linhas: [], total: 0 }));
+    render(<Kanban quadro={quadro} recarga={0} carregar={carregar} ordemDe={it => it.ordem} endereco={() => '/'} aoAbrir={() => undefined}
+      aoMover={() => Promise.resolve()} cartao={it => <><span>{it.id}</span><BotaoQueMove id={it.id} focar={focar} /></>} />);
+    return { carregar };
+  }
+  const nomesNaColuna = (coluna: string) => within(screen.getByRole('list', { name: coluna })).queryAllByRole('listitem').map(c => c.querySelector('span')?.textContent);
+
+  it('dada a coluna nova mostrando tudo, quando um item é movido, então ele sai da coluna dele e entra no fim da nova, sem o quadro reler', async () => {
+    // Dado
+    const { carregar } = montarParaMover(1, 1);
+    await screen.findByText('d0');
+    await screen.findByRole('button', { name: 'Mover a' });
+    const leituras = carregar.mock.calls.length;
+    // Quando
+    fireEvent.click(screen.getByRole('button', { name: 'Mover a' }));
+    // Então
+    expect(nomesNaColuna('Lead')).toEqual(['b', 'c']);
+    expect(nomesNaColuna('Distribuído')).toEqual(['d0', 'a']);
+    expect(carregar).toHaveBeenCalledTimes(leituras);
+  });
+
+  it('dada a coluna nova com mais itens para carregar, quando um item é movido, então ele não aparece no fim do que está à vista, e "Carregar mais" conta com ele', async () => {
+    // Dado
+    montarParaMover(1, 4);
+    await screen.findByRole('button', { name: 'Carregar mais (3)' });
+    await screen.findByRole('button', { name: 'Mover b' });
+    // Quando
+    fireEvent.click(screen.getByRole('button', { name: 'Mover b' }));
+    // Então
+    expect(nomesNaColuna('Lead')).toEqual(['a', 'c']);
+    expect(nomesNaColuna('Distribuído')).toEqual(['d0']);
+    expect(screen.getByRole('button', { name: 'Carregar mais (4)' })).toBeTruthy();
+  });
+
+  it('dado o item movido pelo teclado que não fica à vista na coluna nova, quando o quadro se redesenha, então o foco vai para a miniatura seguinte da coluna de onde ele saiu', async () => {
+    // Dado
+    montarParaMover(1, 4, true);
+    await screen.findByText('d0');
+    const botao = await screen.findByRole('button', { name: 'Mover b' });
+    botao.focus();
+    // Quando
+    await act(async () => { fireEvent.click(botao); });
+    // Então
+    expect(screen.getByText('c').closest('article')).toHaveFocus();
   });
 });

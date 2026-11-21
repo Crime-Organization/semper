@@ -17,7 +17,9 @@ import { TAMANHO_COLUNA, TAMANHO_GRUPO } from '../../dados/limites';
 import { cartoesEmPalavras, MARCOS, type BlocoDoQuadro } from '../../regras/quadro';
 import { emCaixaAlta, normal, partesParaQuebrar } from '../../regras/texto';
 import { ARQUIVADOS, ROTULO_ARQUIVADOS } from './arquivo';
+import { MoverNoQuadro, type MoverNaTela } from './moverNoQuadro';
 import { ordemNoFim } from './posicao';
+import { FOCO_DEPOIS_DE_MOVER } from '../tempos';
 import { Campo, Carregando, estiloBotao, propsDoCampo } from '../base';
 import { numero } from '../util';
 import type { Quadro } from './useColunas';
@@ -219,6 +221,45 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
     catch (e) { falha(e); void carregar(de); void carregar(para); }
   }
 
+  // ---------- mover sem arrastar (o círculo de concluir, #350) ----------
+  /** Quem usou o teclado num item que mudou de coluna: se ele não aparece na coluna nova e o foco se perdeu, o foco vai para a
+   *  miniatura vizinha na coluna de onde ele saiu (ou, sem vizinha, para o menu da coluna nova), até a hora marcada em `ate`. */
+  const focoSemItem = useRef<{ id: string; vizinho: string | null; coluna: string; ate: number } | null>(null);
+  /** O item já gravado na coluna nova muda de coluna só na tela, como no arrastar, sem reler o quadro: a coluna em que a pessoa
+   *  usou "Carregar mais" não volta ao começo. Na ordem manual, ele vai para o fim da coluna nova (ordemNoFim): entra na tela só
+   *  se ela já mostra tudo; senão, "Carregar mais" o traz no lugar certo. Em outra ordem, entra no começo e a coluna nova é relida
+   *  (o lugar dele vem da ordem dela). */
+  const moverNaTela: MoverNaTela = (id, para, ordem, focar) => {
+    const atuais = listasRef.current, kPara = chave(para);
+    const kDe = Object.keys(atuais).find(k => atuais[k].itens.some(x => x.id === id));
+    if (!kDe || kDe === kPara || !atuais[kPara]) return;
+    const origem = atuais[kDe].itens, i = origem.findIndex(x => x.id === id), item = origem[i];
+    const manual = manualEm(para), destino = atuais[kPara];
+    const entra = !manual || destino.itens.length >= destino.total;
+    ordens.current[id] = ordem;
+    setListas(l => ({
+      ...l,
+      [kDe]: { ...l[kDe], itens: l[kDe].itens.filter(x => x.id !== id), total: l[kDe].total - 1 },
+      [kPara]: { ...l[kPara], itens: !entra ? l[kPara].itens : manual ? [...l[kPara].itens, item] : [item, ...l[kPara].itens], total: l[kPara].total + 1 }
+    }));
+    if (!manual) void carregar(para);
+    const vizinho = origem[i + 1] ?? origem[i - 1];
+    if (focar) focoSemItem.current = { id, vizinho: vizinho?.id ?? null, coluna: kPara, ate: Date.now() + FOCO_DEPOIS_DE_MOVER };
+  };
+
+  useEffect(() => {
+    const f = focoSemItem.current, q = elQuadro.current;
+    if (!f || !q) return;
+    if (Date.now() > f.ate) { focoSemItem.current = null; return; }
+    const miniatura = (id: string) => [...q.querySelectorAll<HTMLElement>('[data-item]')].find(el => el.dataset.item === id);
+    // O item à vista: o foco segue com ele (o controle que o moveu cuida disso). O foco noutro lugar: a pessoa já seguiu.
+    const perdido = !document.activeElement || document.activeElement === document.body;
+    if (miniatura(f.id) || !perdido) return;
+    focoSemItem.current = null;
+    const menuDaColuna = q.querySelector<HTMLElement>(`[data-coluna="${f.coluna}"] .coluna-menu`);
+    ((f.vizinho ? miniatura(f.vizinho) : undefined) ?? menuDaColuna)?.focus();
+  }, [listas]);
+
   // ---------- arrastar colunas ----------
   /** Se a coluna está no topo do quadro (sem grupo): anda entre colunas sem grupo e grupos. */
   const noTopo = (c: Coluna) => quadro.topo.some(x => x.id === c.id);
@@ -419,7 +460,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
   if (!quadro.pronto) return <div className="area-quadro"><Carregando /></div>;
 
   const existentes = new Set(quadro.colunas.map(c => normal(c.nome)));
-  return <div className="area-quadro" data-mais-a-esquerda={lados.esquerda || undefined} data-mais-a-direita={lados.direita || undefined}
+  return <MoverNoQuadro.Provider value={moverNaTela}><div className="area-quadro" data-mais-a-esquerda={lados.esquerda || undefined} data-mais-a-direita={lados.direita || undefined}
     style={{ '--barra-do-quadro': lados.barra + 'px' } as CSSProperties}>
     <div className="quadro" role="region" aria-label="Quadro" ref={refDoQuadro}
       onDragOver={e => {
@@ -481,7 +522,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
     </div>
     {menu && <MenuColuna c={menu.c} nome={menu.nome} botao={menu.botao} quadro={quadro} aoFechar={() => setMenu(null)} />}
     {menuGrupo && <MenuGrupo g={menuGrupo.g} botao={menuGrupo.botao} quadro={quadro} aoFechar={() => setMenuGrupo(null)} aoMudarComeco={() => { focoGrupo.current = menuGrupo.g.id; }} />}
-  </div>;
+  </div></MoverNoQuadro.Provider>;
 }
 
 // ---------- menu da coluna ----------

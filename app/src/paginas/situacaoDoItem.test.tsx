@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Coluna } from '../dados';
 import { falha, feito, sinalizarMudanca } from '../ui/avisos';
+import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
 import { oferecerConcluirDemanda, oferecerProcesso } from './concluirDemanda';
 import { ConcluirItem, concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
 
@@ -73,7 +74,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
     // Então
     expect(mover).toHaveBeenCalledWith('d1', 'c-feita', expect.any(Number));
     expect(feito).toHaveBeenCalledWith('Demanda concluída.', 'mudança de situação', expect.any(Function));
-    expect(depois).toHaveBeenCalledWith(expect.any(Number));
+    expect(depois).toHaveBeenCalledWith(expect.any(Number), 'c-feita');
     expect(oferecerProcesso).toHaveBeenCalledWith(demanda, 'c-feita', navegar);
   });
 
@@ -120,5 +121,22 @@ describe('O círculo ligado à gravação comum (#350)', () => {
     // Então
     expect(screen.getByRole('img', { name: 'Demanda concluída' })).toBeTruthy();
     expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it.each([
+    ['o mouse', (b: HTMLElement) => userEvent.click(b), false],
+    ['o teclado', async (b: HTMLElement) => { b.focus(); await userEvent.keyboard('{Enter}'); }, true]
+  ])('dada uma tarefa no quadro, quando ela é concluída pelo círculo com %s, então a miniatura só muda de coluna na tela, sem a página reler', async (_, agir, focar) => {
+    // Dado
+    vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const moverNaTela = vi.fn();
+    render(<MemoryRouter><MoverNoQuadro.Provider value={moverNaTela}>
+      <ConcluirItem modulo="tarefas" colunas={COLUNAS} item={TAREFA} podeAgir />
+    </MoverNoQuadro.Provider></MemoryRouter>);
+    // Quando
+    await agir(screen.getByRole('button', { name: 'Concluir Emitir a GRU' }));
+    // Então
+    expect(moverNaTela).toHaveBeenCalledWith('t1', 'c-feita', expect.any(Number), focar);
+    expect(sinalizarMudanca).not.toHaveBeenCalled();
   });
 });

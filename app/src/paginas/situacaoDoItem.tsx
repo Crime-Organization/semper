@@ -3,6 +3,7 @@
 // com o Desfazer e, depois, faz o que o módulo oferece: a tarefa ligada a uma demanda pergunta se conclui a demanda; a demanda
 // concluída pergunta se cria o processo. Concluir e Reabrir levam às colunas-marco (regras/conclusaoNoCartao.ts), com os nomes
 // que o escritório deu a elas.
+import { useContext } from 'react';
 import { useNavigate } from 'react-router';
 import { SD } from '../dados';
 import type { Coluna } from '../dados';
@@ -11,6 +12,7 @@ import {
 } from '../regras/conclusaoNoCartao';
 import { falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { ConcluirNaMiniatura } from '../ui/quadro/ConcluirNaMiniatura';
+import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { oferecerConcluirDemanda, oferecerProcesso } from './concluirDemanda';
 
@@ -42,16 +44,16 @@ const OFERTA: Record<ModuloQueConclui, (item: ItemQueMuda, etapa: string | null,
 
 /**
  * Leva o item para a coluna `etapa` (no fim da ordem manual), com o aviso e o Desfazer (que o devolve para onde estava). Depois,
- * `depois` (o cartão se relê; a miniatura avisa a página) e a oferta do módulo. Devolve se gravou; se o banco recusa, avisa o erro
- * e não faz mais nada.
+ * `depois` (o cartão se relê; no quadro, a miniatura muda de coluna na tela; na tabela, a página relê), com a ordem e a coluna
+ * novas, e a oferta do módulo. Devolve se gravou; se o banco recusa, avisa o erro e não faz mais nada.
  */
 export async function mudarSituacaoDoItem(modulo: ModuloQueConclui, item: ItemQueMuda, etapa: string | null, aviso: string,
-  navegar: Navegar, depois?: (ordem: number) => unknown): Promise<boolean> {
+  navegar: Navegar, depois?: (ordem: number, etapa: string | null) => unknown): Promise<boolean> {
   const ordem = ordemNoFim();
   try {
     await MOVER[modulo](item.id, etapa, ordem);
     feito(aviso, 'mudança de situação', async () => { await MOVER[modulo](item.id, item.etapa_id, item.etapa_ordem); });
-    await depois?.(ordem);
+    await depois?.(ordem, etapa);
     await OFERTA[modulo](item, etapa, navegar);
     return true;
   } catch (e) {
@@ -63,7 +65,7 @@ export async function mudarSituacaoDoItem(modulo: ModuloQueConclui, item: ItemQu
 /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. Sem a coluna da
  *  ação no quadro, nada é gravado. */
 export function concluirOuReabrirItem(modulo: ModuloQueConclui, colunas: Coluna[], item: ItemQueMuda, acao: AcaoDeConclusao,
-  navegar: Navegar, depois?: (ordem: number) => unknown): Promise<boolean> {
+  navegar: Navegar, depois?: (ordem: number, etapa: string | null) => unknown): Promise<boolean> {
   const coluna = colunaDaAcao(colunas, acao);
   return coluna ? mudarSituacaoDoItem(modulo, item, coluna.id, avisoDaConclusao(modulo, acao, coluna.nome), navegar, depois) : Promise.resolve(false);
 }
@@ -77,11 +79,16 @@ interface PropsConcluirItem {
   podeAgir: boolean;
 }
 
-/** O círculo de concluir de um item do quadro ou da tabela (#350), já ligado à gravação comum: depois de gravar, a página (o quadro
- *  ou a tabela) e o cartão aberto se releem. */
+/** O círculo de concluir de um item do quadro ou da tabela (#350), já ligado à gravação comum. Depois de gravar: no quadro, a
+ *  miniatura só muda de coluna na tela, como no arrastar (o quadro não é relido: a coluna com "Carregar mais" fica como está, e o
+ *  foco de quem usa o teclado não se perde); na tabela, a página e o cartão aberto se releem. */
 export function ConcluirItem({ modulo, colunas, item, podeAgir }: PropsConcluirItem) {
   const navegar = useNavigate();
+  const moverNaTela = useContext(MoverNoQuadro);
+  const depois = (peloTeclado: boolean) => (ordem: number, etapa: string | null) => moverNaTela
+    ? moverNaTela(item.id, etapa, ordem, peloTeclado)
+    : sinalizarMudanca({ tipo: 'situacaoMudou', id: item.id });
   return <ConcluirNaMiniatura id={item.id} titulo={item.titulo} estado={circuloDoItem(colunas, item.etapa_id, podeAgir)}
     concluida={CONCLUIDA_NO_ITEM[modulo]}
-    aoAgir={acao => concluirOuReabrirItem(modulo, colunas, item, acao, navegar, () => sinalizarMudanca({ tipo: 'situacaoMudou', id: item.id }))} />;
+    aoAgir={(acao, peloTeclado) => concluirOuReabrirItem(modulo, colunas, item, acao, navegar, depois(peloTeclado))} />;
 }

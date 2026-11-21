@@ -5,7 +5,7 @@
 // (Concluída); a demanda "Notificar o devedor" está em "Para fazer", vencida, e "Busca de anterioridade" não tem o Bruno. Quem está
 // logado é o Mauro (administrador). O círculo é achado como botão dentro da lista da coluna: o cartão da demanda tem caixas de
 // marcar com o mesmo nome ("Concluir <título>").
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ALVO_DE_TOQUE, entrarComo } from './ajudantes';
 
 type Modulo = 'tarefas' | 'demandas';
@@ -93,6 +93,79 @@ test.describe('Concluir pelo círculo no quadro de Tarefas', () => {
     await expect(page.getByRole('status').getByText('Tarefa concluída.')).toBeVisible();
     await expect(circulo(miniatura(page, 'Concluída', 'Renovar a procuração'), 'Reabrir', 'Renovar a procuração')).toBeFocused();
     await semCartaoAberto(page);
+  });
+
+  for (const espera of [120, 400]) {
+    test(`dada a primeira tarefa de "Para fazer", quando a pessoa dá um clique duplo no círculo (${espera} ms entre os cliques), então só ela é concluída, e não a que sobe para o lugar dela`, async ({ page }) => {
+      // Dado
+      await abrirModulo(page, 'tarefas', 'Kanban');
+      const pedir = miniatura(page, 'Para fazer', 'Pedir documentos ao cliente');
+      await pedir.hover();
+      await circulo(pedir, 'Concluir', 'Pedir documentos ao cliente').hover();
+      // Quando
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.waitForTimeout(espera);
+      await page.mouse.down({ clickCount: 2 });
+      await page.mouse.up({ clickCount: 2 });
+      // Então
+      await expect(miniatura(page, 'Concluída', 'Pedir documentos ao cliente')).toBeVisible();
+      await expect(miniatura(page, 'Para fazer', 'Renovar a procuração')).toContainText('Prazo vencido');
+      await expect(page.getByRole('status').getByText('Tarefa concluída.')).toHaveCount(1);
+      // Quando: mais um clique, sem mexer o mouse, no círculo que apareceu embaixo dele
+      await page.mouse.down();
+      await page.mouse.up();
+      // Então: não era nele que a pessoa mirava
+      await expect(page.getByRole('status').getByText('Tarefa concluída.')).toHaveCount(1);
+      await expect(miniatura(page, 'Para fazer', 'Renovar a procuração')).toBeVisible();
+    });
+  }
+
+  test.describe('Coluna longa', () => {
+    // Tela larga: "Para fazer" e "Concluída" à vista.
+    test.use({ viewport: { width: 1600, height: 900 } });
+    /** Mais tarefas do que o quadro mostra de uma vez (POR_COLUNA, 30): em "Concluída" e, depois das da semente, em "Para fazer".
+     *  Números diferentes, para o "Carregar mais" de cada coluna ter um nome só dele. */
+    const FEITAS = 31, LONGAS = 32;
+    /** Depois de "Renovar a procuração" sair, "Para fazer" mostra 29 das 33 (as 2 da semente menos ela, mais as LONGAS). */
+    const MAIS_EM_PARA_FAZER = 'Carregar mais (4)';
+
+    test('dadas colunas mais longas que a primeira leva, quando a pessoa conclui pelo teclado e pelo mouse, então o foco não se perde e a coluna com "Carregar mais" não volta ao começo', async ({ page }) => {
+      // Dado
+      await abrirModulo(page, 'tarefas', 'Kanban');
+      await page.evaluate(async ([feitas, longas]) => {
+        type Banco = { colunasListar(m: string): Promise<{ id: string; marco: string | null }[]>; tarefaCriar(d: object): Promise<{ id: string }>;
+          tarefaMover(id: string, etapa: string, ordem: number): Promise<void> };
+        const caminho = '/src/dados/index.ts';
+        const { SD } = await import(caminho) as { SD: Banco };
+        const colunas = await SD.colunasListar('tarefas');
+        const fim = colunas.find(c => c.marco === 'concluido')!.id, inicio = colunas.find(c => c.marco === 'inicio')!.id;
+        for (let i = 0; i < feitas; i++) await SD.tarefaMover((await SD.tarefaCriar({ titulo: `Fictícia feita ${i}`, responsavel_id: 'u-master' })).id, fim, i + 1);
+        for (let i = 0; i < longas; i++) await SD.tarefaMover((await SD.tarefaCriar({ titulo: `Fictícia longa ${i}`, responsavel_id: 'u-master' })).id, inicio, 100 + i);
+      }, [FEITAS, LONGAS]);
+      await page.reload();
+      await mouseLonge(page);
+      const fazer = page.getByRole('list', { name: 'Para fazer', exact: true });
+      // Quando: pelo teclado, a tarefa vai para o fim de "Concluída", que não está toda à vista
+      await miniatura(page, 'Para fazer', 'Renovar a procuração').focus();
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Enter');
+      // Então: o foco vai para a miniatura que veio depois dela, e não se perde
+      await expect(page.getByRole('status').getByText('Tarefa concluída.')).toBeVisible();
+      await expect(miniatura(page, 'Concluída', 'Renovar a procuração')).toHaveCount(0);
+      await expect(miniatura(page, 'Para fazer', 'Fictícia longa 0')).toBeFocused();
+      // Quando: "Carregar mais" em "Para fazer", e o mouse conclui uma das que vieram com ele
+      await page.getByRole('button', { name: MAIS_EM_PARA_FAZER }).click();
+      const ultima = miniatura(page, 'Para fazer', `Fictícia longa ${LONGAS - 1}`), penultima = `Fictícia longa ${LONGAS - 2}`;
+      await expect(ultima).toBeVisible();
+      const visiveis = await fazer.getByRole('listitem').count();
+      await miniatura(page, 'Para fazer', penultima).hover();
+      await circulo(miniatura(page, 'Para fazer', penultima), 'Concluir', penultima).click();
+      // Então: só ela sai; as outras que vieram com "Carregar mais" continuam
+      await expect(miniatura(page, 'Para fazer', penultima)).toHaveCount(0);
+      await expect(fazer.getByRole('listitem')).toHaveCount(visiveis - 1);
+      await expect(ultima).toBeVisible();
+    });
   });
 
   test.describe('Arrastar', () => {
@@ -267,25 +340,71 @@ test.describe('Concluir pelo círculo na tabela', () => {
     await expect(circulo(linha, 'Reabrir', 'Notificar o devedor')).toBeVisible();
     await semCartaoAberto(page);
   });
+
+  for (const espera of [30, 250]) {
+    test(`dada uma linha da tabela, quando a pessoa dá um clique duplo no círculo (${espera} ms entre os cliques), então a tarefa fica concluída, sem reabrir`, async ({ page }) => {
+      // Dado
+      await abrirModulo(page, 'tarefas', 'Tabela');
+      const linha = page.getByRole('row').filter({ hasText: 'Renovar a procuração' });
+      await circulo(linha, 'Concluir', 'Renovar a procuração').hover();
+      // Quando
+      await page.mouse.down();
+      await page.mouse.up();
+      await page.waitForTimeout(espera);
+      await page.mouse.down({ clickCount: 2 });
+      await page.mouse.up({ clickCount: 2 });
+      // Então
+      await expect(circulo(linha, 'Reabrir', 'Renovar a procuração')).toBeVisible();
+      await expect(linha).toContainText('Concluída · Prazo:');
+      await expect(page.getByRole('status').getByText('Tarefa concluída.')).toHaveCount(1);
+      await expect(page.getByRole('status').getByText(/reaberta/)).toHaveCount(0);
+    });
+  }
+
+  for (const tecla of ['Enter', 'Space']) {
+    test(`dada uma linha da tabela, quando a pessoa chega ao círculo pelo teclado e aperta ${tecla}, então a tarefa é concluída uma vez, sem abrir o cartão`, async ({ page }) => {
+      // Dado
+      await abrirModulo(page, 'tarefas', 'Tabela');
+      const linha = page.getByRole('row').filter({ hasText: 'Renovar a procuração' });
+      await circulo(linha, 'Concluir', 'Renovar a procuração').focus();
+      // Quando
+      await page.keyboard.press(tecla);
+      // Então
+      await expect(circulo(linha, 'Reabrir', 'Renovar a procuração')).toBeVisible();
+      await expect(page.getByRole('status').getByText('Tarefa concluída.')).toHaveCount(1);
+      await semCartaoAberto(page);
+    });
+  }
 });
+
+/**
+ * No toque, o que o dedo pega em volta do círculo: um passo para dentro do alvo à esquerda e acima (o alvo vai além do desenho, no
+ * respiro do cartão e da célula, até completar ALVO_DE_TOQUE de cada lado), e o começo do título e do código logo abaixo, que
+ * continuam do cartão (abrem o cartão, em vez de concluir).
+ */
+async function oQueOToquePega(botao: Locator, titulo: Locator, codigo: Locator) {
+  const [b, t, c] = await Promise.all([botao.boundingBox(), titulo.boundingBox(), codigo.boundingBox()]);
+  const alcance = (ALVO_DE_TOQUE - b!.width) / 2 - 1, meioX = b!.x + b!.width / 2, meioY = b!.y + b!.height / 2, dentro = 2;
+  const pontos: Record<string, [number, number]> = {
+    esquerda: [b!.x - alcance, meioY], acima: [meioX, b!.y - alcance], titulo: [t!.x + dentro, meioY], codigo: [c!.x + dentro, c!.y + dentro]
+  };
+  return botao.evaluate((el, ps) => Object.fromEntries(Object.entries(ps).map(([lugar, [x, y]]) => [lugar, document.elementFromPoint(x, y)?.closest('button') === el])), pontos);
+}
+/** O que o dedo pega: o círculo à esquerda e acima; o título e o código, não. */
+const ALVO_ESPERADO = { esquerda: true, acima: true, titulo: false, codigo: false };
 
 test.describe('No celular', () => {
   test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
 
-  test('dado o quadro no celular, quando a pessoa olha a miniatura, então o círculo já está à mão, com o alvo do dedo inteiro, e o toque conclui sem abrir o cartão', async ({ page }) => {
+  test('dado o quadro no celular, quando a pessoa olha a miniatura, então o círculo já está à mão, com o alvo do dedo além do desenho, e o toque conclui sem abrir o cartão', async ({ page }) => {
     // Dado
     await abrirModulo(page, 'tarefas', 'Kanban');
     const cartao = miniatura(page, 'Para fazer', 'Renovar a procuração');
     const botao = circulo(cartao, 'Concluir', 'Renovar a procuração');
     await botao.scrollIntoViewIfNeeded();
-    // Então: à vista sem passar o mouse, e o toque vale num quadrado de ALVO_DE_TOQUE em volta do meio dele
+    // Então: à vista sem passar o mouse, e o alvo vai além do desenho, sem pegar o título nem o código de baixo
     await expect(botao).toBeVisible();
-    const tocados = await botao.evaluate((b, alvo) => {
-      const caixa = b.getBoundingClientRect(), meio = { x: caixa.x + caixa.width / 2, y: caixa.y + caixa.height / 2 }, borda = alvo / 2 - 1;
-      const tocado = (x: number, y: number) => document.elementFromPoint(x, y)?.closest('button') === b;
-      return [tocado(meio.x - borda, meio.y), tocado(meio.x + borda, meio.y), tocado(meio.x, meio.y - borda), tocado(meio.x, meio.y + borda)];
-    }, ALVO_DE_TOQUE);
-    expect(tocados).toEqual([true, true, true, true]);
+    expect(await oQueOToquePega(botao, cartao.getByText('Renovar a procuração', { exact: true }), cartao.getByText('F00D1234'))).toEqual(ALVO_ESPERADO);
     // Quando
     await botao.tap();
     // Então
@@ -301,7 +420,7 @@ test.describe('No celular', () => {
     await page.getByRole('row').filter({ hasText: 'Renovar a procuração' }).getByRole('link', { name: 'Renovar a procuração' }).click();
     await page.getByRole('button', { name: 'Escolher etiquetas' }).click();
     const form = page.getByRole('dialog', { name: 'Escolher etiquetas' }).getByRole('form', { name: 'Nova etiqueta' });
-        await form.getByRole('radio', { name: 'Vermelho' }).check();
+    await form.getByRole('radio', { name: 'Vermelho' }).check();
     await form.getByRole('button', { name: 'Criar etiqueta' }).click();
     await page.keyboard.press('Escape');
     await page.getByRole('dialog').getByRole('button', { name: 'Fechar' }).click();
@@ -320,5 +439,43 @@ test.describe('No celular', () => {
     // Então
     expect(doX).toEqual([true, true, true, true, true]);
     await expect(circulo(cartao, 'Concluir', 'Renovar a procuração')).toBeVisible();
+  });
+
+  test('dada a tabela no celular, quando a pessoa olha uma linha, então o alvo do dedo do círculo vai além do desenho, sem pegar o começo do título nem o código de baixo', async ({ page }) => {
+    // Dado
+    await abrirModulo(page, 'tarefas', 'Tabela');
+    const linha = page.getByRole('row').filter({ hasText: 'Pedir documentos ao cliente' });
+    const botao = circulo(linha, 'Concluir', 'Pedir documentos ao cliente');
+    await botao.scrollIntoViewIfNeeded();
+    // Quando
+    const pega = await oQueOToquePega(botao, linha.getByRole('link', { name: 'Pedir documentos ao cliente' }), linha.getByText('9B3D4E51'));
+    // Então
+    expect(pega).toEqual(ALVO_ESPERADO);
+  });
+
+  test('dado o círculo no quadro, quando a pessoa segura o dedo nele e o leva até outra coluna, então nada muda: a tarefa fica no lugar, sem concluir nem abrir o cartão', async ({ page, context }) => {
+    // Dado
+    await abrirModulo(page, 'tarefas', 'Kanban');
+    const cartao = miniatura(page, 'Para fazer', 'Renovar a procuração');
+    const botao = circulo(cartao, 'Concluir', 'Renovar a procuração');
+    await botao.scrollIntoViewIfNeeded();
+    const de = (await botao.boundingBox())!, para = (await page.getByRole('list', { name: 'Fazendo', exact: true }).boundingBox())!;
+    const inicio = { x: de.x + de.width / 2, y: de.y + de.height / 2 }, fim = { x: para.x + para.width / 2, y: para.y + para.height / 4 };
+    /** A pressão longa: mais que o tempo em que o navegador do celular passa a tratar o toque como "segurar". */
+    const PRESSAO_LONGA = 1000, PASSOS = 10, ENTRE_PASSOS = 30;
+    // Quando: o toque segurado e arrastado (o Playwright não tem isso pronto; vai direto ao Chromium)
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [inicio] });
+    await page.waitForTimeout(PRESSAO_LONGA);
+    for (let i = 1; i <= PASSOS; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: inicio.x + (fim.x - inicio.x) * i / PASSOS, y: inicio.y + (fim.y - inicio.y) * i / PASSOS }] });
+      await page.waitForTimeout(ENTRE_PASSOS);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    // Então
+    await expect(cartao).toBeVisible();
+    await expect(miniatura(page, 'Fazendo', 'Renovar a procuração')).toHaveCount(0);
+    await expect(page.getByRole('status').getByText(/Tarefa concluída|foi para/)).toHaveCount(0);
+    await semCartaoAberto(page);
   });
 });

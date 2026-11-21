@@ -6,7 +6,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { CirculoDoItem } from '../../regras/conclusaoNoCartao';
-import { ConcluirNaMiniatura } from './ConcluirNaMiniatura';
+import { cliqueVale, ConcluirNaMiniatura } from './ConcluirNaMiniatura';
 
 const circulo = (estado: CirculoDoItem, aoAgir = vi.fn(() => Promise.resolve())) =>
   <ConcluirNaMiniatura id="t1" titulo="Emitir a GRU" estado={estado} concluida="Tarefa concluída" aoAgir={aoAgir} />;
@@ -24,11 +24,14 @@ describe('O círculo de concluir na miniatura (#350)', () => {
     expect(botao.querySelector('svg')).not.toBeNull();
   });
 
-  it('dado um quadro sem a coluna das concluídas (nada a mostrar), quando a miniatura aparece, então não há círculo', () => {
+  it('dado o item aberto que a pessoa só lê (nada a mostrar), quando a miniatura aparece, então não há círculo nem visto, só o lugar dele, escondido do leitor de tela', () => {
     // Quando
     const { container } = render(circulo(null));
-    // Então
-    expect(container).toBeEmptyDOMElement();
+    // Então: o lugar guardado deixa os títulos alinhados na tabela e no toque
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(container.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    expect(container.firstElementChild).toBeEmptyDOMElement();
   });
 
   it('dado o item concluído que a pessoa só lê (ou arquivado), quando o círculo aparece, então é só o visto, fora do Tab', () => {
@@ -50,12 +53,48 @@ describe('O círculo de concluir na miniatura (#350)', () => {
     await userEvent.click(botao);
     // Então
     expect(aoAgir).toHaveBeenCalledTimes(1);
-    expect(aoAgir).toHaveBeenCalledWith('concluir');
+    expect(aoAgir).toHaveBeenCalledWith('concluir', false);
     expect(botao).toHaveAttribute('aria-busy', 'true');
     expect(botao).toHaveAttribute('data-estado', 'reabrir');
     expect(botao).not.toBeDisabled();
     await act(async () => { terminar(); });
     expect(botao).not.toHaveAttribute('aria-busy');
+  });
+
+  it.each(['concluir', 'reabrir'] as const)('dado o círculo de %s, quando a pessoa dá um clique duplo e a gravação termina antes do segundo clique, então a ação acontece uma vez só', async estado => {
+    // Dado: a gravação termina na hora (o item já mudou de coluna quando chega o segundo clique)
+    const aoAgir = vi.fn(() => Promise.resolve());
+    render(circulo(estado, aoAgir));
+    // Quando
+    await userEvent.dblClick(screen.getByRole('button', { name: new RegExp(`^${estado}`, 'i') }));
+    // Então
+    expect(aoAgir).toHaveBeenCalledTimes(1);
+  });
+
+  it('dado o círculo, quando a pessoa clica, espera a gravação terminar e clica de novo, então a ação acontece duas vezes (os dois cliques foram de propósito)', async () => {
+    // Dado
+    const aoAgir = vi.fn(() => Promise.resolve());
+    render(circulo('concluir', aoAgir));
+    const botao = screen.getByRole('button', { name: 'Concluir Emitir a GRU' });
+    // Quando: dois cliques separados (o segundo não é o de um clique duplo)
+    await userEvent.click(botao);
+    await userEvent.pointer({ target: document.body });
+    await userEvent.click(botao);
+    // Então
+    expect(aoAgir).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['o teclado (Enter, Espaço)', 0, false, false, true],
+    ['o primeiro clique do mouse, que andou sobre o círculo', 1, true, true, true],
+    ['o primeiro clique do mouse num círculo que apareceu embaixo dele parado', 1, true, false, false],
+    ['o segundo clique de um clique duplo', 2, true, true, false],
+    ['o terceiro clique seguido', 3, true, true, false],
+    ['o toque do dedo (sem mouse para andar)', 1, false, false, true],
+    ['o segundo toque seguido do dedo', 2, false, false, false]
+  ])('dado %s, quando chega ao círculo, então o clique vale = %s', (_, detalhe, peloMouse, mouseAndou, vale) => {
+    // Quando / Então
+    expect(cliqueVale(detalhe as number, peloMouse as boolean, mouseAndou as boolean)).toBe(vale);
   });
 
   it('dado o círculo, quando a pessoa começa a arrastá-lo, então o arrasto é cancelado e não chega à miniatura', () => {
@@ -83,5 +122,18 @@ describe('O círculo de concluir na miniatura (#350)', () => {
     rerender(<div key="nova">{circulo('reabrir')}</div>);
     // Então
     expect(document.activeElement === screen.getByRole('button', { name: 'Reabrir Emitir a GRU' })).toBe(comFoco);
+  });
+
+  it('dado o item concluído pelo teclado, quando a pessoa já foi para outro lugar antes de ele aparecer na coluna nova, então o foco fica onde ela está', async () => {
+    // Dado
+    const { rerender } = render(<><button type="button">Carregar mais</button><div key="velha">{circulo('concluir')}</div></>);
+    screen.getByRole('button', { name: 'Concluir Emitir a GRU' }).focus();
+    await userEvent.keyboard('{Enter}');
+    await act(async () => { await Promise.resolve(); });
+    // Quando
+    screen.getByRole('button', { name: 'Carregar mais' }).focus();
+    rerender(<><button type="button">Carregar mais</button><div key="nova">{circulo('reabrir')}</div></>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Carregar mais' })).toHaveFocus();
   });
 });
