@@ -1,5 +1,5 @@
 // O tempo no cartão da tarefa: o cronômetro de quem está com o cartão aberto ("Seu tempo nesta tarefa": Iniciar,
-// Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
+// Pausar e Retomar, também pela tecla T), o ajuste à mão com motivo, a lista dos registros para mudar e apagar (#400) e, com a tarefa concluída, o esforço da equipe (o total, da criação à conclusão
 // e a parte de cada um em %). Cada um vê só o próprio tempo; os administradores veem a duração de cada um e os ajustes.
 // Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
 // situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" lado a lado, num dado largo, e o resumo de quem registrou
@@ -8,17 +8,22 @@
 // direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
 // lê o tempo e desenha as duas faixas: o cronômetro liga uma vez só (duas vezes, gravaria o tempo em dobro), e o total acompanha o
 // relógio de quem está contando.
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { SD, type Tarefa, type TempoDaTarefa } from '../dados';
+import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
+import { SD, type RegistroDeTempo, type Tarefa, type TempoDaTarefa } from '../dados';
 import { TAMANHO_MOTIVO } from '../dados/limites';
 import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa, totalAoVivo, totalAparece } from '../regras/cronometro';
+import { fmtData } from '../regras/pessoa';
+import { conferirCorrecao, diaDoRegistro, duracaoDoRegistro, duracaoParaEscrever, emAndamento, NOME_DO_TIPO, possoMexer, registrosEmOrdem, tipoDoRegistro,
+  type CamposDaCorrecao } from '../regras/registrosDeTempo';
 import { Avatar } from '../ui/Avatar';
-import { falha, feito } from '../ui/avisos';
-import { Aviso, Campo, Carregando, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota } from '../ui/base';
+import { avisar, falha, feito, sinalizarMudanca } from '../ui/avisos';
+import { Aviso, Campo, CampoData, Carregando, Contador, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota, Selo, Tecla } from '../ui/base';
+import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { useAtalhosLigados } from '../ui/atalhos';
+import { Icone, ICONE_DO_MINI } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { useCtx } from '../ui/sessao';
-import { dataCurta } from '../ui/util';
+import { dataCurta, hojeISO } from '../ui/util';
 import { TECLA_DO_CRONOMETRO, useCronometro } from './useCronometro';
 
 /** O nome da faixa do tempo no cartão (da tarefa e da demanda), logo abaixo da faixa das datas. */
@@ -117,15 +122,19 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
     try {
       const segundos = lerAjuste(campos.tanto);
       await SD.tempoAjustar(t.id, segundos, campos.motivo);
-      // Desfazer é um ajuste ao contrário (o ajuste fica registrado; o banco não apaga registros de tempo).
+      // Desfazer é um ajuste ao contrário (o ajuste fica registrado; para tirá-lo, apague-o na lista dos registros).
       feito(`Tempo ajustado: ${segundos > 0 ? '+' : '−'}${fmtDuracao(Math.abs(segundos))}.`, 'ajuste de tempo',
-        async () => { await SD.tempoAjustar(t.id, -segundos, `Desfeito: ${campos.motivo.trim()}`); });
+        async () => { await SD.tempoAjustar(t.id, -segundos, `Desfeito: ${campos.motivo.trim()}`); await carregar(); });
       await carregar();
     } catch (e) { falha(e); }
   }
 
-  // A faixa do tempo (#383): o relógio e a situação juntos e, ao lado, os botões (descem juntos quando não cabem); embaixo, o resumo.
-  return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}>
+  // A faixa do tempo (#383, arrumada na #400): numa linha, o relógio com a situação à esquerda e os dois botões à direita, da mesma
+  // altura; no celular, os botões descem juntos e dividem a largura. Embaixo, a parte de cada um e a lista dos registros.
+  return <>{faixa}<FaixaDoTempo rotulo={ROTULO_DO_TEMPO} resumo={<div className="tempo-resumo">
+    {(t.concluida_em || ctx.ehAdmin) && <TempoDaEquipe t={t} tempo={tempo} />}
+    <RegistrosDoTempo t={t} tempo={tempo} relogio={relogio} carregar={carregar} />
+  </div>}>
     <div className="cronometro">
       <span className="cronometro-leitura">
         <span className="cronometro-relogio" role="timer" aria-label={`Seu tempo: ${fmtDuracao(meu)}`}>{fmtRelogio(meu)}</span>
@@ -136,12 +145,138 @@ function TempoNaTarefa({ t, tempo, carregar, datas }: { t: Tarefa; tempo: TempoL
           ? <span className="nota">Tarefa concluída: a contagem encerrou.</span>
           : <button type="button" className={estiloBotao({ forma: 'mini' }) + ' cronometro-alternar'} onClick={relogio.alternar}
             {...(atalhos ? { title: `Atalho: tecla ${TECLA_DO_CRONOMETRO.toUpperCase()}`, 'aria-keyshortcuts': TECLA_DO_CRONOMETRO.toUpperCase() } : {})}>
-            {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'}{atalhos && <> <kbd>{TECLA_DO_CRONOMETRO.toUpperCase()}</kbd></>}
+            {relogio.contando ? 'Pausar' : meu ? 'Retomar' : 'Iniciar'}{atalhos && <Tecla>{TECLA_DO_CRONOMETRO.toUpperCase()}</Tecla>}
           </button>}
-        <button type="button" className={estiloBotao({ forma: 'link' })} onClick={ajustar}>Ajustar meu tempo</button>
+        <button type="button" className={estiloBotao({ forma: 'mini' })} onClick={ajustar}>Ajustar meu tempo</button>
       </span>
     </div>
   </FaixaDoTempo></>;
+}
+
+/** O cronômetro deste cartão, como a lista dos registros precisa dele: qual registro ele conta, se está contando, pausar e soltar. */
+type RelogioDoCartao = Pick<ReturnType<typeof useCronometro>, 'periodoId' | 'contando' | 'pausar' | 'soltarPeriodo'>;
+interface PropsDosRegistros { t: Tarefa; tempo: TempoDaTarefa; relogio: RelogioDoCartao; carregar: () => Promise<unknown> }
+
+/** O pedido para pausar antes de mexer no registro que o cronômetro está contando. */
+const PAUSE_ANTES = 'Pause o cronômetro antes de mudar ou apagar o registro que está contando.';
+/** O tamanho da bolinha de quem registrou, na lista do administrador: a mesma da parte de cada um. */
+const TAMANHO_DO_AVATAR_NO_REGISTRO = 22;
+
+/**
+ * A lista dos registros de tempo (#400), fechada de início: cada um com o dia, a duração, se veio do cronômetro ou de um ajuste e o
+ * motivo, e Mudar e Apagar. Quem não é administrador vê e mexe só nos próprios (o banco nem devolve os dos outros); o administrador,
+ * nos de todos, com o nome de quem registrou. Mudar, apagar e o Desfazer acertam o relógio, o total e a parte de cada um, e vão ao
+ * histórico da tarefa.
+ */
+function RegistrosDoTempo({ t, tempo, relogio, carregar }: PropsDosRegistros) {
+  const ctx = useCtx();
+  const [aberta, setAberta] = useState(false);
+  const id = useId();
+  const registros = registrosEmOrdem(tempo.registros);
+  if (!registros.length) return null;
+  const nome = ctx.ehAdmin ? 'Registros de tempo' : 'Meus registros de tempo';
+
+  /** Depois de mexer: o cronômetro solta o registro que contava (se foi ele), a faixa relê o tempo e o cartão, o histórico. */
+  async function depoisDeMexer(r: RegistroDeTempo) {
+    if (r.id === relogio.periodoId) relogio.soltarPeriodo();
+    await carregar();
+    sinalizarMudanca();
+  }
+  async function mudar(r: RegistroDeTempo) {
+    const escrito = { dia: fmtData(diaDoRegistro(r.inicio)) };
+    const campos = await janela<CamposDaCorrecao>({
+      titulo: 'Mudar o registro de tempo',
+      corpo: <FormularioDoRegistro r={r} aoMudarDia={dia => { escrito.dia = dia; }} />,
+      acoes: [{ rotulo: 'Cancelar', valor: null },
+        { rotulo: 'Salvar', tipo: 'pri', valor: f => ({ duracao: String(f.get('duracao') || ''), dia: escrito.dia, motivo: String(f.get('motivo') || '') }) }]
+    });
+    if (!campos) return;
+    const { erros, correcao } = conferirCorrecao(r, campos, hojeISO());
+    if (!correcao) { falha(new Error(erros.duracao || erros.dia || erros.motivo)); return; }
+    try {
+      await SD.tempoCorrigir(r.id, correcao);
+      feito('Registro de tempo mudado.', 'mudança do registro de tempo', async () => {
+        await SD.tempoCorrigir(r.id, { segundos: r.segundos, inicio: r.inicio, motivo: `Desfeito: ${correcao.motivo}` });
+        await carregar();
+      });
+      await depoisDeMexer(r);
+    } catch (e) { falha(e); }
+  }
+  async function apagar(r: RegistroDeTempo) {
+    try {
+      await SD.tempoApagar(r.id);
+      feito('Registro de tempo apagado.', 'registro de tempo apagado', async () => { await SD.tempoDevolver(t.id, r); await carregar(); });
+      await depoisDeMexer(r);
+    } catch (e) { falha(e); }
+  }
+  const pedirPausa = () => { avisar(PAUSE_ANTES, 'erro', { rotulo: 'Pausar', fn: () => { void relogio.pausar(); } }); };
+
+  return <div className="tempo-registros">
+    <button type="button" className={estiloBotao({ forma: 'link' }) + ' tempo-registros-abrir'} aria-expanded={aberta} aria-controls={id}
+      onClick={() => setAberta(a => !a)}>
+      {nome} <Contador>{registros.length}</Contador><Icone nome="abaixo" tam={ICONE_DO_MINI} />
+    </button>
+    {aberta && <ul id={id} className="tempo-registros-lista" aria-label={nome}>
+      {registros.map(r => <LinhaDoRegistro key={r.id} r={r} comNome={ctx.ehAdmin}
+        posso={possoMexer(r, ctx.perfil.id, ctx.ehAdmin)} contando={emAndamento(r, relogio.periodoId, relogio.contando)}
+        aoMudar={() => mudar(r)} aoApagar={() => apagar(r)} aoPedirPausa={pedirPausa} />)}
+    </ul>}
+  </div>;
+}
+
+interface PropsDaLinha {
+  r: RegistroDeTempo; comNome: boolean; posso: boolean; contando: boolean;
+  aoMudar: () => unknown; aoApagar: () => unknown; aoPedirPausa: () => void;
+}
+/** Um registro da lista: o dia e a duração à esquerda, de onde veio e o motivo no meio, Mudar e Apagar à direita. */
+function LinhaDoRegistro({ r, comNome, posso, contando, aoMudar, aoApagar, aoPedirPausa }: PropsDaLinha) {
+  const ctx = useCtx();
+  const dia = dataCurta(r.inicio);
+  const membro = ctx.equipe.find(m => m.id === r.perfil_id) ?? { id: r.perfil_id ?? '', nome: 'Usuário removido' };
+  return <li className="tempo-registro">
+    <span className="tempo-registro-quando">
+      <span className="tempo-registro-dia">{dia}</span>
+      <b className="tempo-registro-duracao">{duracaoDoRegistro(r)}</b>
+    </span>
+    <span className="tempo-registro-sobre">
+      <span className="tempo-registro-tipo">
+        {comNome && <span className="tempo-registro-quem"><Avatar p={membro} tam={TAMANHO_DO_AVATAR_NO_REGISTRO} />{membro.nome}</span>}
+        <span>{NOME_DO_TIPO[tipoDoRegistro(r)]}</span>
+        {contando && <Selo tipo="ok">em andamento</Selo>}
+      </span>
+      {r.motivo && <span className="tempo-registro-motivo">{r.motivo}</span>}
+      {r.motivo_da_correcao && <span className="tempo-registro-motivo">Mudado: {r.motivo_da_correcao}</span>}
+    </span>
+    {posso && <span className="tempo-registro-acoes">
+      {contando
+        ? <>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o registro de ${dia}`} onClick={aoPedirPausa}>Mudar</button>
+          <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Apagar o registro de ${dia}`} onClick={aoPedirPausa}>Apagar</button>
+        </>
+        : <>
+          <Botao forma="mini" aria-label={`Mudar o registro de ${dia}`} onClick={aoMudar}>Mudar</Botao>
+          <BotaoDuplo forma="mini" variante="perigo" aria-label={`Apagar o registro de ${dia}`} confirmar="Confirmar" aoConfirmar={aoApagar}>Apagar</BotaoDuplo>
+        </>}
+    </span>}
+  </li>;
+}
+
+/** A janela de Mudar: a duração (como a pessoa escreve), o dia e o motivo, com o registro como está, para comparar. */
+function FormularioDoRegistro({ r, aoMudarDia }: { r: RegistroDeTempo; aoMudarDia: (dia: string) => void }) {
+  const [dia, setDia] = useState(() => fmtData(diaDoRegistro(r.inicio)));
+  const dicaDaDuracao = r.ajuste ? 'Ex.: 30min, 1h15. Com "-" na frente para tirar (-20min).' : 'Ex.: 45min, 1h20, 1:30 (até 12 horas).';
+  return <div className="ajuste-tempo">
+    <Nota>Como está: {duracaoDoRegistro(r)} em {dataCurta(r.inicio)} ({NOME_DO_TIPO[tipoDoRegistro(r)].toLowerCase()}).</Nota>
+    <Campo rotulo="Duração" para="registro-duracao" dica={dicaDaDuracao}>
+      <input id="registro-duracao" name="duracao" type="text" className="campo" defaultValue={duracaoParaEscrever(r.segundos)} />
+    </Campo>
+    <Campo rotulo="Dia" para="registro-dia">
+      <CampoData id="registro-dia" className="campo" valor={dia} aoMudar={v => { setDia(v); aoMudarDia(v); }} max={hojeISO()} />
+    </Campo>
+    <Campo rotulo="Motivo" para="registro-motivo" dica="Fica no histórico da tarefa.">
+      <input id="registro-motivo" name="motivo" type="text" className="campo" maxLength={TAMANHO_MOTIVO} />
+    </Campo>
+  </div>;
 }
 
 /** A faixa do tempo, logo abaixo da das datas: o dado largo (o cronômetro, o total) e, embaixo dele, o resumo. */
@@ -185,13 +320,12 @@ export function TempoDaDemanda({ demandaId, versao }: { demandaId: string; versa
 
 /**
  * O esforço da equipe: com a tarefa concluída, o tempo da criação à conclusão e a parte de cada um em % (o total está na faixa das
- * datas, #397). Os administradores veem também a duração de cada um e os ajustes (a qualquer momento).
+ * datas, #397). Os administradores veem também a duração de cada um (a qualquer momento); os ajustes estão na lista dos registros (#400).
  */
 function TempoDaEquipe({ t, tempo }: { t: Tarefa; tempo: TempoDaTarefa }) {
   const ctx = useCtx();
   const membro = (id: string | null) => ctx.equipe.find(m => m.id === id) ?? { id: id ?? '', nome: 'Usuário removido' };
   const porPessoa = tempoPorPessoa(tempo.registros);
-  const ajustes = tempo.registros.filter(r => r.ajuste);
   if (!tempo.equipe.length) return ctx.ehAdmin ? <div className="tempo-equipe"><Nota>Ninguém registrou tempo nesta tarefa ainda.</Nota></div> : null;
   return <div className="tempo-equipe">
     {t.concluida_em && <p className="tempo-equipe-total">
@@ -205,11 +339,5 @@ function TempoDaEquipe({ t, tempo }: { t: Tarefa; tempo: TempoDaTarefa }) {
         {ctx.ehAdmin && <span className="nota">{fmtDuracao(porPessoa.get(p.perfil_id) ?? 0)}</span>}
       </li>)}
     </ul>
-    {ctx.ehAdmin && ajustes.length > 0 && <div className="tempo-ajustes">
-      <p className="rotulo-caps">Ajustes</p>
-      <ul>{ajustes.map(a => <li key={a.id}>
-        {dataCurta(a.inicio)} · {membro(a.perfil_id).nome}: <b>{a.segundos > 0 ? '+' : '−'}{fmtDuracao(Math.abs(a.segundos))}</b> · {a.motivo}
-      </li>)}</ul>
-    </div>}
   </div>;
 }

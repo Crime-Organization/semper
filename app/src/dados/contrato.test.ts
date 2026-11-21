@@ -611,6 +611,67 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
       });
     });
 
+    describe('Apagar e corrigir os registros de tempo (#400)', () => {
+      const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
+      afterEach(() => entrarComo('u-master'));
+      /** Uma tarefa do master com o Bruno, e um período contado de cada um. */
+      async function tarefaComTempo() {
+        const tarefa = await SD.tarefaCriar({ titulo: 'TEMPO ' + marca(), responsavel_id: 'u-master', participantes: ['u-bruno'] });
+        const inicio = new Date(Date.now() - DIA).toISOString();
+        const doMaster = await SD.tempoIniciar(tarefa.id, inicio, 3600);
+        entrarComo('u-bruno');
+        const doBruno = await SD.tempoIniciar(tarefa.id, inicio, 1800);
+        entrarComo('u-master');
+        return { tarefa, doMaster, doBruno, inicio };
+      }
+
+      it('dado o próprio registro, quando a pessoa o corrige com o motivo, então a duração, o dia e o total mudam, e a correção vai ao histórico', async () => {
+        // Dado
+        const { tarefa, doBruno } = await tarefaComTempo();
+        entrarComo('u-bruno');
+        const outroDia = new Date(Date.now() - 2 * DIA).toISOString();
+        // Quando
+        await SD.tempoCorrigir(doBruno, { segundos: 600, inicio: outroDia, motivo: ' Contei o almoço ' });
+        const tempo = await SD.tempoDaTarefa(tarefa.id);
+        // Então: o Bruno vê só o dele, já corrigido
+        expect(tempo.registros).toEqual([expect.objectContaining({ id: doBruno, segundos: 600, inicio: outroDia, motivo_da_correcao: 'Contei o almoço' })]);
+        expect(tempo.registros[0].corrigido_em).not.toBeNull();
+        expect(tempo.total).toBe(3600 + 600);
+        const [ultima] = await SD.tarefaHistorico(tarefa.id);
+        expect(String(ultima.alteracoes.tempo.para)).toMatch(/^Corrigido o tempo contado de Bruno Exemplo Souza, de .*\. Motivo: Contei o almoço$/);
+      });
+
+      it('dado o registro de outra pessoa, quando quem não é administrador tenta corrigir ou apagar, então é recusado e nada muda', async () => {
+        // Dado
+        const { tarefa, doMaster } = await tarefaComTempo();
+        entrarComo('u-bruno');
+        // Quando / Então
+        await expect(SD.tempoCorrigir(doMaster, { segundos: 60, inicio: new Date().toISOString(), motivo: 'Não é meu' })).rejects.toThrow(/Só quem registrou o tempo/);
+        await expect(SD.tempoApagar(doMaster)).rejects.toThrow(/Só quem registrou o tempo/);
+        entrarComo('u-master');
+        expect((await SD.tempoDaTarefa(tarefa.id)).total).toBe(3600 + 1800);
+      });
+
+      it('dado um administrador, quando apaga o registro de outra pessoa e desfaz, então ele sai do total e volta igual, com o histórico', async () => {
+        // Dado
+        const { tarefa, doBruno, inicio } = await tarefaComTempo();
+        const registro = (await SD.tempoDaTarefa(tarefa.id)).registros.find(r => r.id === doBruno)!;
+        // Quando
+        await SD.tempoApagar(doBruno);
+        const depoisDeApagar = await SD.tempoDaTarefa(tarefa.id);
+        const devolvido = await SD.tempoDevolver(tarefa.id, registro);
+        const depoisDeDevolver = await SD.tempoDaTarefa(tarefa.id);
+        // Então
+        expect(depoisDeApagar.total).toBe(3600);
+        expect(depoisDeApagar.registros.map(r => r.id)).not.toContain(doBruno);
+        expect(depoisDeDevolver.total).toBe(3600 + 1800);
+        expect(depoisDeDevolver.registros).toContainEqual(expect.objectContaining({ id: devolvido, perfil_id: 'u-bruno', inicio, segundos: 1800, ajuste: false }));
+        const historico = (await SD.tarefaHistorico(tarefa.id)).map(h => String(h.alteracoes.tempo?.para ?? ''));
+        expect(historico.filter(t => /^(Apagado|Devolvido) o tempo contado de Bruno Exemplo Souza/.test(t))).toHaveLength(2);
+        expect(historico.join(' ')).not.toMatch(/30 min|1800/);
+      });
+    });
+
     describe('Caixa de mensagens (#112)', () => {
       const entrarComo = (id: string) => (window as unknown as { SEMPER_FALSO: { entrarComo(id: string): void } }).SEMPER_FALSO.entrarComo(id);
       const marcaMsg = () => 'MSG ' + Math.random().toString(36).slice(2);

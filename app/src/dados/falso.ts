@@ -37,11 +37,12 @@ import { somarDias } from '../regras/prazos';
 import { instanteDoLembrete, lembreteChegou, LEMBRETES } from '../regras/lembrete';
 import { alteraOProcesso, mencaoNegadaNoProcesso, motivoSemMencaoNoProcesso, numeroParaComparar, papeisNoProcesso, TIPOS_PROCESSO } from '../regras/processo';
 import { tempoPorPessoa } from '../regras/cronometro';
+import { diaNoHistorico, NO_HISTORICO, REGISTRO_DE_TEMPO_INTOCAVEL, registroNoHistorico } from '../regras/registrosDeTempo';
 import { errosDoPerfil, limparPerfil, perfilVazio } from '../regras/perfilProfissional';
 import { inicioDoDia } from '../regras/meuTempo';
 import { normal } from '../regras/texto';
 import { estaPeloGrupo, gruposDoFiltro, integrantesAtivos, meusGrupos, recusaDeSairPeloGrupo } from '../regras/gruposDaEquipe';
-import { GRUPOS_POR_ITEM, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
+import { AJUSTE_MAXIMO, GRUPOS_POR_ITEM, PERIODO_MAXIMO, TAMANHO_GRUPO_DA_EQUIPE } from './limites';
 import { arvoreDaLista, arvoreDoModelo, comAArvoreNova, erroAoAcrescentar, erroDaArvore, itensDaArvore, limparArvore, planoDoChecklist, ARVORE_FORA_DE_ORDEM, CHECKLIST_MUDOU } from '../regras/gruposDaLista';
 import { MENSAGENS_DA_CAIXA, FOTO_MAXIMA, CLIENTES_MAXIMOS, COLABORADORES_MAXIMOS, COMENTARIOS_DO_CARTAO, DEMANDAS_LIGADAS, OBJETOS_MAXIMOS, PARTICIPANTES_MAXIMOS, POR_COLUNA, POR_PAGINA, TAMANHO_CONTRATO, TAMANHO_ITEM, TAMANHO_LISTA, TAREFAS_LIGADAS,
   LOTE_MAXIMO_DA_IMPORTACAO, TAMANHO_IMPORTACAO, TAMANHO_OBSERVACOES, HISTORICO_DO_PROCESSO, OPCOES_POR_CAMPO, TAMANHO_CAMPO, DIGITOS_DO_NUMERO, TROCAS_DE_EMAIL_MOSTRADAS, TROCAS_DE_EMAIL_POR_HORA } from './limites';
@@ -619,10 +620,12 @@ if (!bd.tempos) {
   const por = (titulo: string) => bd.tarefas!.find(t => t.titulo === titulo)?.id;
   const gru = por('Emitir a GRU'), pasta = por('Organizar a pasta');
   const contado = (id: number, tarefa_id: string, perfil_id: string, minutos: number) =>
-    ({ id, tarefa_id, perfil_id, inicio: new Date(Date.now() - DIA).toISOString(), segundos: minutos * 60, ajuste: false, motivo: null });
+    ({ id, tarefa_id, perfil_id, inicio: new Date(Date.now() - DIA).toISOString(), segundos: minutos * 60, ajuste: false, motivo: null, corrigido_em: null, motivo_da_correcao: null });
   bd.tempos = gru && pasta ? [contado(1, gru, 'u-master', 80), contado(2, gru, 'u-bruno', 40), contado(3, pasta, 'u-bruno', 50),
-    { id: 4, tarefa_id: pasta, perfil_id: 'u-bruno', inicio: agora(), segundos: -10 * 60, ajuste: true, motivo: 'Esqueci de pausar no almoço.' }] : [];
+    { id: 4, tarefa_id: pasta, perfil_id: 'u-bruno', inicio: agora(), segundos: -10 * 60, ajuste: true, motivo: 'Esqueci de pausar no almoço.', corrigido_em: null, motivo_da_correcao: null }] : [];
 }
+// Sessões abertas antes da correção dos registros (#400): os registros ganham as colunas novas vazias (como a migração).
+bd.tempos.forEach(r => { r.corrigido_em ??= null; r.motivo_da_correcao ??= null; });
 // Um comentário da Ana na semente, para ver o que é de outro autor (o master apaga, mas não edita).
 bd.comentarios ??= [{ id: 'cm1', modulo: 'pessoas', cartao_id: bd.pessoas.find(p => p.nome === 'JOSÉ DA SILVA TESTE')!.id, autor_id: 'u-ana', texto: 'Cliente pediu retorno por WhatsApp, @mauro.duarte.',
   mencoes: ['u-master'], criado_em: new Date(Date.now() - DIA).toISOString(), editado_em: null }];
@@ -1395,6 +1398,14 @@ function historicoTarefa(t: TarefaGuardada, dados: Record<string, unknown>) {
     }
   });
   if (Object.keys(alt).length) bd.historicoTarefas!.unshift({ id: Date.now() + Math.random(), tarefa_id: t.id, alteracoes: alt, feito_por: eu, em: agora() });
+}
+/** O registro de tempo em que quem está logado mexe: o próprio, ou o de qualquer um para administradores (como as regras do banco). */
+const registroQueMexo = (id: number) => bd.tempos!.find(r => r.id === id && (r.perfil_id === eu || souAdmin()));
+/** O nome de quem é da equipe, como o histórico o escreve. */
+const nomeDoMembro = (id: string | null) => EQUIPE.find(m => m.id === id)?.nome ?? null;
+/** Como o gatilho do banco: apagar, corrigir e devolver um registro de tempo entram no histórico da tarefa, sem a duração. */
+function historicoDoTempo(r: { tarefa_id: string }, texto: string) {
+  bd.historicoTarefas!.unshift({ id: Date.now() + Math.random(), tarefa_id: r.tarefa_id, alteracoes: { tempo: { de: null, para: texto } }, feito_por: eu, em: agora() });
 }
 const tarefaLigada = (pessoaId: string, perfilId: string | null) => (t: TarefaGuardada): TarefaLigada => ({
   id: t.id, codigo: t.codigo, titulo: t.titulo, prazo: t.prazo, prazo_hora: t.prazo_hora ?? null, etapa_id: t.etapa_id, arquivado_em: t.arquivado_em, criado_em: t.criado_em,
@@ -3213,7 +3224,7 @@ export const SD: Dados = {
   async tempoIniciar(tarefaId, inicio, segundos) {
     acharTarefa(tarefaId);
     const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
-    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio, segundos, ajuste: false, motivo: null }); gravar();
+    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio, segundos, ajuste: false, motivo: null, corrigido_em: null, motivo_da_correcao: null }); gravar();
     return espera(id);
   },
   async tempoGravar(id, segundos) {
@@ -3226,14 +3237,41 @@ export const SD: Dados = {
     acharTarefa(tarefaId);
     if (!motivo.trim()) return erro('Diga o motivo do ajuste (ele fica registrado).');
     const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
-    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio: agora(), segundos, ajuste: true, motivo: motivo.trim() }); gravar();
+    bd.tempos!.push({ id, tarefa_id: tarefaId, perfil_id: eu, inicio: agora(), segundos, ajuste: true, motivo: motivo.trim(), corrigido_em: null, motivo_da_correcao: null }); gravar();
   },
-  // Quem está logado no banco fictício é administrador: vê os registros de todos (como a regra de leitura do banco).
+  // Como a migração do apagar e corrigir (supabase/migrations/20261121164027_tempo_apagar_e_corrigir.sql): o dono ou um administrador;
+  // a duração nos limites da tabela; tudo vai ao histórico da tarefa, sem a duração.
+  async tempoCorrigir(id, { segundos, inicio, motivo }) {
+    const r = registroQueMexo(id);
+    if (!r) return erro(REGISTRO_DE_TEMPO_INTOCAVEL);
+    if (!motivo.trim()) return erro('Diga o motivo da correção (ele fica no histórico da tarefa).');
+    if (new Date(inicio).getTime() > Date.now() + DIA) return erro('O dia do registro não pode ser depois de hoje.');
+    if (r.ajuste ? !segundos || Math.abs(segundos) > AJUSTE_MAXIMO : segundos < 0 || segundos > PERIODO_MAXIMO) return erro('A duração está fora do que o registro aceita.');
+    const diaAntes = diaNoHistorico(r.inicio), diaDepois = diaNoHistorico(inicio);
+    historicoDoTempo(r, NO_HISTORICO.corrigido(registroNoHistorico(nomeDoMembro(r.perfil_id), r.ajuste, r.inicio), diaAntes === diaDepois ? null : diaDepois, motivo));
+    Object.assign(r, { segundos, inicio, corrigido_em: agora(), motivo_da_correcao: motivo.trim() }); gravar();
+  },
+  async tempoApagar(id) {
+    const r = registroQueMexo(id);
+    if (!r) return erro(REGISTRO_DE_TEMPO_INTOCAVEL);
+    bd.tempos = bd.tempos!.filter(x => x !== r);
+    historicoDoTempo(r, NO_HISTORICO.apagado(registroNoHistorico(nomeDoMembro(r.perfil_id), r.ajuste, r.inicio))); gravar();
+  },
+  async tempoDevolver(tarefaId, registro) {
+    if (!souAdmin() && registro.perfil_id !== eu) return erro('Só quem registrou o tempo, ou um administrador, devolve o registro.');
+    acharTarefa(tarefaId);
+    const id = Math.max(0, ...bd.tempos!.map(r => r.id)) + 1;
+    const r = { ...registro, id, tarefa_id: tarefaId, motivo: registro.ajuste ? registro.motivo : null };
+    bd.tempos!.push(r);
+    historicoDoTempo(r, NO_HISTORICO.devolvido(registroNoHistorico(nomeDoMembro(r.perfil_id), r.ajuste, r.inicio))); gravar();
+    return espera(id);
+  },
+  // Como a regra de leitura do banco: cada um vê os próprios registros; os administradores, os de todos. O resumo usa todos.
   tempoDaTarefa: tarefaId => {
     const registros = bd.tempos!.filter(r => r.tarefa_id === tarefaId).sort((a, b) => a.inicio.localeCompare(b.inicio));
     const porPessoa = [...tempoPorPessoa(registros)].filter(([, s]) => s > 0), total = porPessoa.reduce((s, [, x]) => s + x, 0);
     const equipe = porPessoa.map(([perfil_id, s]) => ({ perfil_id, percentual: Math.round(1000 * s / total) / 10 })).sort((a, b) => b.percentual - a.percentual);
-    return espera({ registros: registros.map(({ tarefa_id: _t, ...r }) => r), equipe, total });
+    return espera({ registros: registros.filter(r => souAdmin() || r.perfil_id === eu).map(({ tarefa_id: _t, ...r }) => r), equipe, total });
   },
   tempoDaDemanda: demandaId => espera(Math.max(0, bd.tempos!
     .filter(r => bd.tarefas!.find(t => t.id === r.tarefa_id)?.demanda_id === demandaId).reduce((s, r) => s + r.segundos, 0))),

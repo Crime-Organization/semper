@@ -54,6 +54,14 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
   }, [despachar, gravar]);
   const iniciar = useCallback(() => { if (podeContar) despachar({ tipo: 'iniciar', agora: Date.now() }); }, [podeContar, despachar]);
   const alternar = useCallback(() => { if (c.current.contando) void pausar(); else iniciar(); }, [pausar, iniciar]);
+  // O registro do período pausado foi apagado ou corrigido (#400): o cronômetro o solta, e o próximo Retomar começa outro período
+  // (gravar no registro corrigido desfaria a correção; no apagado, o tempo se perderia). Contando, não solta: a tela pede para pausar.
+  const soltarPeriodo = useCallback(() => {
+    if (c.current.contando) return;
+    periodo.current = periodoNovo();
+    c.current = PARADO;
+    setEstado(PARADO);
+  }, []);
 
   // Ao fechar o cartão (ou a aba), pausa e grava.
   useEffect(() => {
@@ -143,6 +151,6 @@ export function useCronometro(tarefa: { id: string; titulo: string }, podeContar
     segundos: segundosDoPeriodo(estado, agora),
     /** O registro do banco em que este período está sendo gravado (para não somá-lo duas vezes). */
     periodoId: periodo.current.id,
-    pausar, iniciar, alternar
+    pausar, iniciar, alternar, soltarPeriodo
   };
 }

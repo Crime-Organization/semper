@@ -10,6 +10,7 @@ import { RECUSA_DO_DESLIGAR } from '../regras/sincronizacaoGoogle';
 import { cnpjComLetrasNaBusca, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { caminhoDaFoto } from '../regras/foto';
 import { inicioDoDia } from '../regras/meuTempo';
+import { REGISTRO_DE_TEMPO_INTOCAVEL } from '../regras/registrosDeTempo';
 import { perfilVazio } from '../regras/perfilProfissional';
 import { normal } from '../regras/texto';
 import { gruposDoFiltro, meusGrupos } from '../regras/gruposDaEquipe';
@@ -644,7 +645,7 @@ const conferirAdminNosGrupos = (linhas: unknown[]) => {
 const conferirAdminNoCalendario = (linhas: unknown[]) => {
   if (!linhas.length && ctx && !ctx.ehAdmin) throw new Error('Só os administradores mudam o calendário.');
 };
-const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo';
+const CAMPOS_TEMPO = 'id, perfil_id, inicio, segundos, ajuste, motivo, corrigido_em, motivo_da_correcao';
 const CAMPOS_LISTA_CARTAO = 'id, nome, ordem', CAMPOS_ITEM_LISTA = 'id, texto, prazo, feito_em, feito_por, ordem, grupo_id, criado_em';
 const CAMPOS_GRUPO_LISTA = 'id, nome, pai_id, ordem, criado_em';
 // Com o nome da chave: de demanda_listas até os grupos há dois caminhos (direto, e pelos itens, que apontam para a lista e para
@@ -1847,6 +1848,22 @@ export const SD: Dados = {
   async tempoGravar(id, segundos) { await rodar(sb.from('tarefa_tempos').update({ segundos }).eq('id', id)); },
   async tempoAjustar(tarefaId, segundos, motivo) {
     await rodar(sb.from('tarefa_tempos').insert({ tarefa_id: tarefaId, segundos, ajuste: true, motivo: motivo.trim(), perfil_id: uid() }));
+  },
+  // A correção manda um corrigido_em novo: é o que diz ao banco que é uma correção (ele põe o instante de agora e quem corrigiu).
+  // Sem linha mudada, a regra do banco não deixou: o registro é de outra pessoa (e quem pede não é administrador) ou não existe mais.
+  async tempoCorrigir(id, { segundos, inicio, motivo }) {
+    const { data } = await rodar(sb.from('tarefa_tempos')
+      .update({ segundos, inicio, motivo_da_correcao: motivo.trim(), corrigido_em: new Date().toISOString() }).eq('id', id).select('id'));
+    if (!data.length) throw new Error(REGISTRO_DE_TEMPO_INTOCAVEL);
+  },
+  async tempoApagar(id) {
+    const { data } = await rodar(sb.from('tarefa_tempos').delete().eq('id', id).select('id'));
+    if (!data.length) throw new Error(REGISTRO_DE_TEMPO_INTOCAVEL);
+  },
+  async tempoDevolver(tarefaId, r) {
+    const { data } = await rodar(sb.rpc('tempo_devolver', { p_tarefa: tarefaId, p_perfil: r.perfil_id, p_inicio: r.inicio, p_segundos: r.segundos,
+      p_ajuste: r.ajuste, p_motivo: r.motivo }));
+    return Number(data);
   },
   // Os registros que a regra de leitura deixa ver (os da pessoa; os de todos, para administradores) e o resumo da
   // equipe, que o banco calcula sem abrir as durações de cada um.
