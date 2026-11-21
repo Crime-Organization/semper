@@ -22,6 +22,78 @@ async function comecarEmpresa(page: Page, nome: string, cnpj = CNPJ_LIVRE.replac
   await etapa(page, 'Entidades empresariais');
 }
 
+test.describe('Indicador do cadastro (#83)', () => {
+  test('quando a pessoa avança no formulário, então o indicador mostra "Passo N de 5", e "Etapa" fica só para o quadro', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/nova/');
+    await expect(page.getByText('Passo 1 de 5', { exact: true })).toBeVisible();
+    // Quando
+    await page.getByText('Pessoa física', { exact: true }).click();
+    await etapa(page, 'Dados pessoais');
+    // Então
+    await expect(page.getByText('Passo 2 de 5', { exact: true })).toBeVisible();
+    await expect(page.getByText(/Etapa \d+ de \d+/)).toHaveCount(0);
+  });
+
+  test('dado um CNPJ achado na Receita, quando a busca traz os dados, então o aviso manda conferir nos próximos passos, e não nas etapas', async ({ page }) => {
+    // Dado (a Receita, de mentira: o teste não sai para a internet)
+    await page.route('https://publica.cnpj.ws/cnpj/**', rota => rota.fulfill({ json: { razao_social: 'Padaria da Busca E2E Ltda' } }));
+    await page.goto('/pessoas/nova/');
+    await page.getByText('Pessoa jurídica', { exact: true }).click();
+    await etapa(page, 'Dados da empresa');
+    await page.getByLabel('CNPJ').fill(CNPJ_LIVRE.replace(/\D/g, ''));
+    // Quando
+    await page.getByRole('button', { name: 'Buscar', exact: true }).click();
+    // Então
+    await expect(page.getByText(/Encontrado: PADARIA DA BUSCA E2E LTDA\. Confira os dados nos próximos passos\./)).toBeVisible();
+    await expect(page.getByText(/próximas etapas/)).toHaveCount(0);
+  });
+});
+
+test.describe('Dica do nome e do código (#84)', () => {
+  test('dado um nome digitado em minúsculas, quando o cadastro é salvo, então a dica avisou que as letras ficam maiúsculas sozinhas e o nome é gravado em maiúsculas', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/nova/');
+    await page.getByText('Somente informações de contato', { exact: true }).click();
+    await etapa(page, 'Identificação');
+    await expect(page.getByLabel('Nome')).toHaveAccessibleDescription('Nome completo. As letras ficam maiúsculas sozinhas.');
+    await page.getByLabel('Nome').fill('joana minuscula e2e');
+    await proxima(page);
+    await page.getByRole('textbox', { name: 'Telefone' }).fill('38999990001');
+    // Quando
+    await page.getByRole('button', { name: 'Salvar cadastro' }).click();
+    await expect(page).toHaveURL(/\/pessoas\/\?id=/);
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('searchbox').fill('joana minuscula');
+    // Então
+    const linha = page.getByRole('row').filter({ hasText: 'JOANA MINUSCULA E2E' });
+    await expect(linha).toBeVisible();
+    const codigo = linha.getByText(/^[0-9A-F]{8}$/);
+    await expect(codigo).toHaveAttribute('data-dica', 'Código da pessoa no SEMPER');
+    await expect(codigo).toHaveAccessibleDescription('Código da pessoa no SEMPER');
+    // E a dica escondida do código (que na tabela abre para cima) não faz a tabela de uma linha só rolar na vertical
+    const sobraDaTabela = await page.getByRole('table').evaluate(t => { const caixa = t.parentElement as HTMLElement; return caixa.scrollHeight - caixa.clientHeight; });
+    expect(sobraDaTabela).toBe(0);
+  });
+
+  test('dado o cartão de uma pessoa, quando o código recebe o foco do teclado, então a dica explica o que ele é', async ({ page }) => {
+    // Dado
+    await page.goto('/pessoas/');
+    await page.getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').nth(1).getByRole('link').first().click();
+    const codigo = page.getByRole('dialog').getByText(/^[0-9A-F]{8}$/).first();
+    await expect(codigo).toHaveAccessibleDescription('Código da pessoa no SEMPER');
+    // Quando
+    await codigo.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    // Então (a dica é o ::after do código, que aparece no foco do teclado)
+    await expect(codigo).toBeFocused();
+    await expect.poll(() => codigo.evaluate(c => getComputedStyle(c, '::after').opacity)).toBe('1');
+  });
+});
+
 test.describe('Cadastro de pessoa jurídica', () => {
   test('quando escolhe uma opção mais abaixo na lista, na janela do cadastro, então o cadastro continua visível e segue com essa opção', async ({ page }) => {
     // Dado

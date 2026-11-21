@@ -207,7 +207,7 @@ export interface DefEtapaImportacao {
   Componente: () => React.JSX.Element;
 }
 
-/** As etapas, na ordem: a tela mostra "Etapa N de 5" por esta ordem. */
+/** As etapas, na ordem: a tela mostra "Passo N de 5" por esta ordem. */
 export const ETAPAS_IMPORTACAO: Record<EtapaImportacao, DefEtapaImportacao> = {
   arquivo: {
     titulo: 'Escolher o arquivo', Componente: EtapaArquivo,

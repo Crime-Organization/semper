@@ -14,12 +14,12 @@ import { PAPEIS_NO_CONTRATO, SEM_SITUACAO } from '../regras/contrato';
 import { PENDENCIAS } from '../regras/importacao';
 import { situacaoDoItem } from '../regras/quadro';
 import { emCaixaAlta } from '../regras/texto';
-import { CAMPOS, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
+import { CAMPOS, DICA_DO_CODIGO, qualificacao, TIPO_REPRESENTANTE, TIPOS, valorLegivel, type Representante } from '../regras/pessoa';
 import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, estiloBotao, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Codigo, estiloBotao, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
@@ -193,7 +193,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
         inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
         equipe={<EquipeDaPessoaNoTopo pessoa={p} depois={p.arquivado_em ? null : depoisDosResponsaveis} />}
         esquerda={<>
-          <span className="codigo">{p.codigo}</span>
+          <Codigo dica={DICA_DO_CODIGO}>{p.codigo}</Codigo>
           {p.arquivado_em && <Selo tipo="arq">Arquivada</Selo>}
           {ehUsuario && <Selo tipo="ok">Usuária do sistema</Selo>}
         </>}

@@ -19,7 +19,7 @@ test.describe('Cadastro de demandas', () => {
   test('quando a pessoa cadastra uma demanda pelas etapas, então ela entra em "Para fazer", com a equipe e o cliente no cartão', async ({ page }) => {
     // Dado
     await page.goto('/demandas/nova/');
-    await expect(page.getByText('Etapa 1 de 3')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 3')).toBeVisible();
     // Quando
     await page.getByLabel('Título').fill('Contestação do processo');
     await page.getByLabel('Prazo de entrega').fill('10112030');

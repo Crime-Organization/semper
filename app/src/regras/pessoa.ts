@@ -5,6 +5,9 @@ import { normal } from './texto';
 
 export const TIPOS: Record<TipoPessoa, string> = { pf: 'Pessoa física', pj: 'Pessoa jurídica', contato: 'Somente contato' };
 
+/** A dica do código da pessoa (ex.: CA222B4B), no cartão e na tabela (#84). */
+export const DICA_DO_CODIGO = 'Código da pessoa no SEMPER';
+
 export const NATUREZAS: Record<string, string> = {
   empresarial: 'Entidades empresariais',
   publica: 'Administração pública',

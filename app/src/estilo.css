@@ -1004,6 +1004,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
    continua com a dica). */
 [data-dica][aria-haspopup][aria-expanded="true"]::after { opacity: 0 }
 @media (prefers-reduced-motion: reduce) { [data-dica]::after { transition: none; transform: none } }
+/* A dica do código (peça Codigo, #84): o código fica à esquerda do cartão e da linha, então a dica encosta à esquerda dele. Na
+   tabela, ela abre para cima: escondida, a caixa dela continua no desenho, e embaixo da última linha faria a tabela (que rola de
+   lado, .tabela) rolar também na vertical; o que passa para cima não cria área de rolagem. */
+.codigo[data-dica] { cursor: help }
+.codigo[data-dica]::after { right: auto; left: 0; letter-spacing: 0 }
+.tabela .codigo[data-dica]::after { top: auto; bottom: calc(100% + 8px); transform: translateY(2px) }
+.tabela .codigo[data-dica]:is(:hover, :focus-visible)::after { transform: none }
 /* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
    tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
 .equipe-mais { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 1px dashed var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); cursor: pointer }

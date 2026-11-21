@@ -530,7 +530,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
     {alvo && <Aviso tipo="info">Você está atualizando o processo <b>{alvo.codigo}</b>. As informações anteriores ficam no histórico.</Aviso>}
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
-        <span>Etapa {passo + 1} de {total}</span>
+        <span>Passo {passo + 1} de {total}</span>
         <div className="progresso"><i style={{ width: Math.round(100 * passo / (total - 1)) + '%' }} /></div>
       </div>
 

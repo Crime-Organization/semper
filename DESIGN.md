@@ -340,7 +340,8 @@ As peças acima existem como componentes React. Cada um gera o mesmo HTML e as m
 | Texto que já abre para escrever e salva sozinho (a anotação) | `EditorDeTexto`, com `controle` (gravar antes de sair); sem `aoSalvar`, só o texto formatado | `<EditorDeTexto texto={a.texto} aoSalvar={gravar} controle={editor} />` |
 | Pílulas dos grupos da equipe (#378): no topo do cartão, no quadro e na tabela, e a linha do lápis | `GruposNoCartao`, `GruposDoItem`, `GruposNoLapis` (em `ui/GruposDoItem.tsx`) | `<GruposDoItem grupos={gruposDoItem(ctx.grupos, d.grupos)} equipe={ctx.equipe} eu={eu} />` |
 | Filtro "Grupo da equipe" (#378) | `filtroDeGrupo` (em `ui/filtroDeGrupo.ts`), como `filtroDeEtiqueta` | `...filtroDeGrupo(ctx.grupos, eu, f.grupo, grupo => mudarFiltro({ grupo }))` |
-| Dica no foco e no hover de um botão pequeno (as bolinhas da equipe) | `propsDaDica` (`[data-dica]` em `estilo.css`) | `<button aria-label="Tirar Ana" {...propsDaDica('Tirar Ana')}>` |
+| Dica no foco e no hover de um botão pequeno (as bolinhas da equipe) ou de um dado curto que precisa de explicação (o código do item) | `propsDaDica` (`[data-dica]` em `estilo.css`) | `<button aria-label="Tirar Ana" {...propsDaDica('Tirar Ana')}>` |
+| Código do item (`.codigo`, #84) | `Codigo`, com `dica` opcional: com ela, o código entra no Tab, mostra a dica no hover e no foco (na tabela, para cima) e a dá ao leitor de tela como descrição | `<Codigo dica={DICA_DO_CODIGO}>{p.codigo}</Codigo>` |
 
 Além da aparência, os componentes cuidam da acessibilidade: o `Campo` liga o rótulo, a dica e o erro ao campo (`aria-invalid`, `aria-describedby`) e anuncia o erro; o `Aviso` de erro é anunciado como alerta; o `Carregando`, como status. Os testes de `ui/base/base.test.tsx` garantem que as classes geradas são as desta seção.
 

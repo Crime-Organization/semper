@@ -59,7 +59,7 @@ test.describe('Cadastro de tarefas', () => {
   test('quando a pessoa cadastra uma tarefa pelas duas etapas, ligada a uma demanda, então ela entra em "Para fazer", com tudo no cartão', async ({ page }) => {
     // Dado
     await page.goto('/tarefas/nova/');
-    await expect(page.getByText('Etapa 1 de 2')).toBeVisible();
+    await expect(page.getByText('Passo 1 de 2')).toBeVisible();
     // Quando: na primeira etapa, a tarefa, o prazo e a demanda (que traz os clientes dela para as pessoas)
     await page.getByLabel('Título').fill('Mandar a notificação');
     await page.getByRole('textbox', { name: 'Prazo' }).fill('10112030');

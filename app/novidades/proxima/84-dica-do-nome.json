@@ -1,0 +1,5 @@
+{
+  "titulo": "Dica do nome e do código da pessoa",
+  "texto": "No cadastro de pessoa, a dica do campo Nome agora diz que as letras ficam maiúsculas sozinhas: não é preciso digitar em maiúsculas. O código da pessoa (como CA222B4B) explica o que é ao passar o mouse ou ao chegar nele com a tecla Tab.",
+  "ondeAchar": "Pessoas, botão \"Nova pessoa\", campo Nome; o código fica no topo do cartão da pessoa e na tabela, abaixo do nome."
+}

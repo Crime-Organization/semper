@@ -394,7 +394,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     <AvisoDaAnotacaoDeOrigem origem={daAnotacao} />
     {!pronto ? <Carregando /> : <>
       <div className="passos-topo">
-        <span>Etapa {passo + 1} de {total}</span>
+        <span>Passo {passo + 1} de {total}</span>
         <div className="progresso"><i style={{ width: Math.round(100 * passo / (total - 1)) + '%' }} /></div>
       </div>
 

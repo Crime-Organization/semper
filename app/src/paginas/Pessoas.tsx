@@ -5,11 +5,11 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { SD, type FiltroPessoas, type MarcaPessoas, type Ordem, type Pagina, type PessoaLista } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { csvContatosGoogle } from '../regras/contatosGoogle';
-import { fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
+import { DICA_DO_CODIGO, fmtDocumento, fmtTelefone, TIPOS, type Representante } from '../regras/pessoa';
 import { LinhaQueAbre, NomeDaLinha } from '../ui/abrirItem';
 import { Avatares } from '../ui/Avatar';
 import { avisar, falha, feito, registrarDesfazer, useMudancas } from '../ui/avisos';
-import { Aviso, BotaoLink, Carregando, estiloBotao, Vazio } from '../ui/base';
+import { Aviso, BotaoLink, Carregando, Codigo, estiloBotao, Vazio } from '../ui/base';
 import { Icone } from '../ui/Icone';
 import { janela } from '../ui/janela';
 import { PainelCartao } from '../ui/PainelCartao';
@@ -295,7 +295,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, etapa, endereco, ao
       </tr></thead>
       <tbody>{linhas.map(p => <LinhaQueAbre key={p.id} para={endereco(p.id)} aoAbrir={() => aoAbrir(p.id)} marcada={selecionadas.has(p.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${p.nome}`} checked={selecionadas.has(p.id)} onChange={e => marcar([p.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <span className="codigo">{p.codigo}</span></div></td>
+        <td><EtiquetasDoItem etq={p.etq} modulo="pessoas" id={p.id} somenteLer={!!p.arquivado_em} /><NomeDaLinha>{p.nome}</NomeDaLinha><div className="sub">{TIPOS[p.tipo]}{p.documento ? ' · ' + fmtDocumento(p.documento) : ''} · <Codigo dica={DICA_DO_CODIGO}>{p.codigo}</Codigo></div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{fmtTelefone(p.telefones?.[0] || '')}{p.telefones?.length > 1 && <> <span className="sub">+{p.telefones.length - 1}</span></>}</td>
         <td>{p.municipio ? p.municipio + (p.uf ? '/' + p.uf : '') : ''}</td>
         <td><span className="etapa-txt">{etapa(p.etapa_id)}</span></td>

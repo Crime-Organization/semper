@@ -177,8 +177,8 @@ function Importacao() {
       <h1 className="titulo">Importar pessoas<span className="ponto">.</span></h1>
     </header>
     <div className="passos-topo">
-      <span>Etapa {indice + 1} de {ORDEM_DAS_ETAPAS.length}</span>
-      <Progresso rotulo="Etapas da importação" valor={indice} maximo={ORDEM_DAS_ETAPAS.length - 1} />
+      <span>Passo {indice + 1} de {ORDEM_DAS_ETAPAS.length}</span>
+      <Progresso rotulo="Passos da importação" valor={indice} maximo={ORDEM_DAS_ETAPAS.length - 1} />
     </div>
     <SecaoDoFormulario titulo={def.titulo} texto={def.explicacao} focoNoTitulo={tituloDaEtapa}>
       <ImportacaoCtx.Provider value={tela}><Atual /></ImportacaoCtx.Provider>
