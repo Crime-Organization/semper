@@ -4,7 +4,14 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Avisos } from '../avisos';
+import { erroDaDataDeInicio } from '../../regras/dataDeInicio';
+import { CAMPOS_DO_PRAZO, errosDosCampos } from '../../regras/datasNoCartao';
+import { SALVE_OU_CANCELE } from '../../regras/edicaoUnica';
+import { TAREFA_VAZIA, validarTarefa } from '../../regras/tarefa';
+import { DataEditavel } from './DataEditavel';
 import { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo } from './GrupoDeDatas';
+import { PrazoEditavel } from './PrazoEditavel';
+import { LembreteDoCartao } from '../useEdicaoUnica';
 
 /** Um dado de texto simples, para ver o formulário pequeno sem o calendário. */
 function Apelido({ aoSalvar, aoMudarRascunho }: { aoSalvar?: (v: { apelido: string }) => unknown; aoMudarRascunho?: (r: string | null) => void }) {
@@ -215,5 +222,144 @@ describe('Dado que se muda no próprio lugar (#361)', () => {
     await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Salvar' })).toBeEnabled());
     expect(screen.getByRole('group', { name: 'Mudar o apelido' })).toBeInTheDocument();
     expect(screen.getByLabelText('Apelido')).toHaveValue('Zézinho');
+  });
+});
+
+describe('As datas que se mudam na faixa do cartão (#395)', () => {
+  /** A faixa de uma tarefa: a criação, o início e o prazo, que quem altera muda ali mesmo. */
+  function Faixa({ aoSalvar = vi.fn() }: { aoSalvar?: (o: string) => unknown }) {
+    return <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: '2026-11-18T12:00:00.000Z' }}>
+      <DadoDoGrupo rotulo="Início">
+        <DataEditavel nome="Data de início" valor="2026-11-18" conferir={erroDaDataDeInicio} aoSalvar={iso => aoSalvar('inicio ' + iso)} />
+      </DadoDoGrupo>
+      <DadoDoGrupo rotulo="Prazo">
+        <PrazoEditavel nome="Prazo" valor={{ prazo: '2026-11-20', prazo_hora: null, lembrete: null }}
+          conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)} aoSalvar={c => aoSalvar('prazo ' + c.prazo)} />
+      </DadoDoGrupo>
+    </FaixaDasDatas>;
+  }
+  const faixa = () => screen.getByRole('group', { name: 'Datas' });
+  const dado = (nome: string) => within(faixa()).getByRole('group', { name: nome });
+  const inicio = () => screen.getByRole('button', { name: /^Data de início: / });
+  const prazo = () => screen.getByRole('button', { name: /^Prazo: / });
+
+  it('quando a pessoa abre o início, então as outras datas continuam no lugar e à vista, o início fica marcado, e o formulário abre embaixo dos dados, fora deles', async () => {
+    // Dado
+    render(<Faixa />);
+    // Quando
+    await userEvent.click(inicio());
+    // Então
+    const formulario = within(faixa()).getByRole('group', { name: 'Mudar a data de início' });
+    expect(dado('Criada em')).toHaveTextContent('18/11/2026');
+    expect(within(dado('Prazo')).getByRole('button', { name: /^Prazo: / })).toBeInTheDocument();
+    expect(within(dado('Início')).getByRole('button', { name: /^Data de início: / })).toHaveAttribute('aria-expanded', 'true');
+    for (const nome of ['Criada em', 'Início', 'Prazo']) expect(dado(nome)).not.toContainElement(formulario);
+    expect(within(formulario).getByRole('textbox', { name: 'Data de início' })).toHaveFocus();
+  });
+
+  it('dado o prazo aberto sem mudança, quando a pessoa clica no início, então o prazo fecha e o início abre: uma data de cada vez', async () => {
+    // Dado
+    render(<Faixa />);
+    await userEvent.click(prazo());
+    // Quando
+    await userEvent.click(inicio());
+    // Então
+    expect(screen.queryByRole('group', { name: 'Mudar o prazo' })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Mudar a data de início' })).toBeInTheDocument();
+  });
+
+  it('dado o prazo mudado e não salvo, quando a pessoa clica no início, então o prazo continua aberto, com o que ela escreveu, e lembra de salvar ou cancelar antes', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Faixa aoSalvar={aoSalvar} />);
+    await userEvent.click(prazo());
+    const doPrazo = within(screen.getByRole('group', { name: 'Mudar o prazo' })).getByRole('textbox', { name: 'Prazo' });
+    await userEvent.clear(doPrazo);
+    await userEvent.type(doPrazo, '04042031');
+    // Quando
+    await userEvent.click(inicio());
+    // Então
+    expect(screen.queryByRole('group', { name: 'Mudar a data de início' })).not.toBeInTheDocument();
+    const formulario = screen.getByRole('group', { name: 'Mudar o prazo' });
+    expect(within(formulario).getByRole('status')).toHaveTextContent(SALVE_OU_CANCELE);
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveValue('04/04/2031');
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
+    expect(aoSalvar).not.toHaveBeenCalled();
+    // Quando: cancela o prazo, e aí o início abre
+    await userEvent.click(within(formulario).getByRole('button', { name: 'Cancelar' }));
+    await userEvent.click(inicio());
+    // Então
+    expect(screen.getByRole('group', { name: 'Mudar a data de início' })).toBeInTheDocument();
+  });
+
+  it('dado o início aberto, quando a pessoa abre o calendário, então ele fica dentro do formulário, antes de Cancelar e Salvar, e escolher o dia não grava', async () => {
+    // Dado
+    const aoSalvar = vi.fn();
+    render(<Faixa aoSalvar={aoSalvar} />);
+    await userEvent.click(inicio());
+    const formulario = screen.getByRole('group', { name: 'Mudar a data de início' });
+    // Quando
+    await userEvent.click(within(formulario).getByRole('button', { name: 'Abrir o calendário' }));
+    // Então
+    const calendario = within(formulario).getByRole('dialog', { name: 'Calendário' });
+    expect(calendario.compareDocumentPosition(within(formulario).getByRole('button', { name: 'Cancelar' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Quando
+    await userEvent.click(within(calendario).getByRole('button', { name: /^quarta-feira, 25 de novembro de 2026/ }));
+    // Então
+    expect(aoSalvar).not.toHaveBeenCalled();
+    expect(within(formulario).getByRole('textbox', { name: 'Data de início' })).toHaveValue('25/11/2026');
+  });
+
+  it('dado o início aberto, quando a pessoa usa o Shift+Tab no campo e o Tab no valor, então o foco vai e volta entre o início e o formulário dele', async () => {
+    // Dado
+    render(<Faixa />);
+    await userEvent.click(inicio());
+    const campo = within(screen.getByRole('group', { name: 'Mudar a data de início' })).getByRole('textbox', { name: 'Data de início' });
+    expect(campo).toHaveFocus();
+    // Quando
+    await userEvent.tab({ shift: true });
+    // Então: volta ao início, e não ao prazo (o último dado antes do painel)
+    expect(inicio()).toHaveFocus();
+    // Quando
+    await userEvent.tab();
+    // Então
+    expect(campo).toHaveFocus();
+  });
+
+  it('dado o prazo aberto e mudado, quando a pessoa aperta Esc com o foco no valor, então desfaz só o prazo, e o Esc não chega ao cartão', async () => {
+    // Dado
+    const cartaoFecha = vi.fn();
+    const ouvir = (e: KeyboardEvent) => { if (e.key === 'Escape') cartaoFecha(); };
+    document.addEventListener('keydown', ouvir);
+    render(<Faixa />);
+    await userEvent.click(prazo());
+    const campo = within(screen.getByRole('group', { name: 'Mudar o prazo' })).getByRole('textbox', { name: 'Prazo' });
+    await userEvent.clear(campo);
+    await userEvent.tab({ shift: true });
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('group', { name: 'Mudar o prazo' })).not.toBeInTheDocument();
+    expect(prazo()).toHaveAttribute('aria-expanded', 'false');
+    expect(prazo()).toHaveAccessibleName(/^Prazo: 20\/11\/2026/);
+    expect(cartaoFecha).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', ouvir);
+  });
+
+  it('dado o prazo mudado e não salvo, quando o cartão barra o lápis (LembreteDoCartao), então o prazo continua aberto e lembra de salvar ou cancelar', async () => {
+    // Dado
+    const { rerender } = render(<LembreteDoCartao value={0}><Faixa /></LembreteDoCartao>);
+    await userEvent.click(prazo());
+    const campo = within(screen.getByRole('group', { name: 'Mudar o prazo' })).getByRole('textbox', { name: 'Prazo' });
+    await userEvent.clear(campo);
+    await userEvent.type(campo, '04042031');
+    await userEvent.tab({ shift: true });
+    // Quando
+    rerender(<LembreteDoCartao value={1}><Faixa /></LembreteDoCartao>);
+    // Então
+    const formulario = screen.getByRole('group', { name: 'Mudar o prazo' });
+    expect(within(formulario).getByRole('status')).toHaveTextContent(SALVE_OU_CANCELE);
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveValue('04/04/2031');
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
   });
 });

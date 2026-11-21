@@ -22,7 +22,7 @@ import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { acaoDeConclusao, avisoDaConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
@@ -159,7 +159,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Para quem só lê a demanda, ou com ela arquivada, nenhuma seção mostra o "+ Novo …" (#376).
-  return <CriarNoCartao pode={podeLigar}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao editando={editando}
@@ -177,7 +177,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, d.etapa_id)} soParaVer={!!d.arquivado_em || !podeAlterar}
           aoAgir={concluirOuReabrir} />}>
           <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
@@ -194,8 +194,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
          soma do tempo de toda a equipe nas tarefas desta demanda. */
       dados={<><FaixaDasDatas criacao={{ rotulo: 'Criada em', em: d.criado_em }}>
         <DadoDoGrupo rotulo="Início">
-          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio}
-            aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
+          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio} aoMudarRascunho={noLugar.rascunhoDe('inicio')}
+            aoSalvar={mudaNoLugar && !editando ? data_inicio => data_inicio && salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Prazo de entrega">
           <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo de entrega" atalho="datas" valor={d} conferir={c => errosDosCampos(validarDemanda, DEMANDA_VAZIA, c, CAMPOS_DO_PRAZO)}
@@ -262,5 +262,5 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(d.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

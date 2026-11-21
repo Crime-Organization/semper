@@ -19,7 +19,7 @@ import {
   alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
@@ -166,7 +166,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
-  return <CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao editando={editando}
@@ -185,7 +185,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
         </SituacaoDoCartao>} />}
@@ -206,7 +206,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {p.arquivado_em && <FaixaDoArquivado modulo="processos" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
-    <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} />
+    <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} aoMudarRascunho={noLugar.rascunhoDe('prazoDoProcesso')} />
 
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>
@@ -277,5 +277,5 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(p.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

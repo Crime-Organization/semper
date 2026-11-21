@@ -1,8 +1,8 @@
 // O prazo de tarefas e demandas no grupo das datas do cartão (#361): o prazo com a hora e, embaixo, o sino com o lembrete. Quem
 // pode alterar o cartão clica e muda ali mesmo, com as mesmas peças do cadastro (#299): o prazo e a hora num campo só
-// (<CampoDataHora>, com o calendário pequeno da #357 aberto logo de cara) e o lembrete no botão com o sino, ao lado, em tamanho de
-// cartão. As conferências e o que se grava ficam em regras/datasNoCartao.ts.
-import { camposDoPrazo, lembreteDoPrazo, resumoDoPrazo, textoDoPrazo, type CamposDoPrazo, type ErrosDosCampos, type PrazoGravado } from '../../regras/datasNoCartao';
+// (<CampoDataHora>, com o calendário pequeno da #357, que abre quando a pessoa pede) e o lembrete no botão com o sino, ao lado, em tamanho de
+// cartão. As conferências e o que se grava ficam em regras/datasNoCartao.ts; apagar a data tira o prazo, a hora e o lembrete juntos (#395).
+import { camposDoPrazo, lembreteDoPrazo, prazoParaConferir, resumoDoPrazo, textoDoPrazo, type CamposDoPrazo, type ErrosDosCampos, type PrazoGravado } from '../../regras/datasNoCartao';
 import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
 import { Icone } from '../Icone';
 import { BotaoDoLembrete } from './BotaoDoLembrete';
@@ -34,9 +34,9 @@ export function PrazoEditavel({ nome, valor, conferir, aoSalvar, aoMudarRascunho
     </span>}
   </>;
   return <DadoEditavel nome={nome} titulo={`Mudar o ${nome.toLowerCase()}`} resumo={resumoDoPrazo(valor)} lido={lido} inicial={() => camposDoPrazo(valor)}
-    conferir={conferir} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} atalho={atalho} campos={({ rascunho, mudar, marcar }) => {
+    conferir={c => conferir(prazoParaConferir(c))} aoSalvar={aoSalvar} aoMudarRascunho={aoMudarRascunho} atalho={atalho} campos={({ rascunho, mudar, marcar }) => {
       const doPrazo = marcar('prazo'), daHora = marcar('hora'), doLembrete = marcar('lembrete');
-      return <CampoDataHora discreto aria-label={nome} {...doPrazo} valor={rascunho.prazo} abrirAoAparecer aoMudar={prazo => mudar({ prazo })}
+      return <CampoDataHora discreto aria-label={nome} {...doPrazo} valor={rascunho.prazo} aoMudar={prazo => mudar({ prazo })}
         hora={rascunho.hora} aoMudarHora={hora => mudar({ hora })} rotuloDaHora={`Hora do ${nome.toLowerCase()}`} horaComErro={!!daHora['aria-invalid']}
         descricaoDaHora={daHora['aria-describedby']}
         junto={<BotaoDoLembrete valor={rascunho.lembrete} prazo={rascunho.prazo} comErro={!!doLembrete['aria-invalid']}

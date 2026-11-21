@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
   objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR,
-  camposDoContrato, CONTRATO_VAZIO, dadosDoContrato, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
+  camposDoContrato, contratoComAssinatura, CONTRATO_VAZIO, dadosDoContrato, erroDaAssinatura, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
 
@@ -222,6 +222,29 @@ describe('Gravação e leitura do contrato', () => {
     // Então
     expect(c).toMatchObject({ clientes: ['p1'], objetos: ['Registro de marca', 'Oposição'], valor: '5.000,00', entrada: '1.000,50', parcelas: '5', descontos: '', assinadoEm: '10/03/2026',
       percentualEscritorio: '30', participantes: [{ pessoaId: 'p2', percentual: '26,67' }], indicadorPercentual: '' });
+  });
+});
+
+describe('A assinatura mudada no cartão (#395)', () => {
+  it.each([
+    ['10/03/2026', ''],
+    ['', ''],
+    ['31/02/2026', 'Data inexistente.']
+  ])('quando a data escrita é "%s", então o erro é "%s"', (texto, erro) => {
+    // Então
+    expect(erroDaAssinatura(texto)).toBe(erro);
+  });
+
+  it('dado um contrato gravado, quando a assinatura muda no cartão, então grava o contrato como estava, só com a data nova', () => {
+    // Dado
+    const k = { cliente_id: 'p1', clientes: [{ id: 'p1', codigo: 'P1', nome: 'JOSÉ', tipo: 'pf' }], responsavel_id: 'u1', objetos: ['Registro de marca'], servico: 'Registro de marca', categoria: 'pro_labore', valor: 5000, entrada: null,
+      parcelas: 5, descontos: null, assinado_em: '2026-03-10', primeiro_pagamento: null, percentual_escritorio: 30, participantes: [], indicador_id: null, indicador_percentual: null,
+      documento_url: null, observacoes: null, codigo_antigo: null } as unknown as Contrato;
+    // Quando
+    const d = contratoComAssinatura(k, '2026-02-02');
+    // Então
+    expect(d).toEqual({ ...dadosDoContrato(camposDoContrato(k)), assinado_em: '2026-02-02' });
+    expect(contratoComAssinatura(k, null).assinado_em).toBeNull();
   });
 });
 

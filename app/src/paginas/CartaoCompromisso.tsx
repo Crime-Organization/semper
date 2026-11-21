@@ -14,7 +14,7 @@ import {
   TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
 } from '../regras/compromisso';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -128,7 +128,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com o compromisso arquivado nem para quem só lê (#376), em seção nenhuma.
-  return <CriarNoCartao pode={!somenteLer}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={!somenteLer}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao editando={editando}
@@ -148,7 +148,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         }} />}
         mudaEtiquetas={!somenteLer} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeMudar ? arquivar : undefined} aoExcluir={podeMudar && podeExcluir ? excluir : undefined}
-        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
         </SituacaoDoCartao>} />}
@@ -208,5 +208,5 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(c.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

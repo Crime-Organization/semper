@@ -8,6 +8,7 @@
 // O formulário em etapas fica para criar; para editar, o cartão mostra todos os campos de uma vez.
 import { useContext, useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
+import { AvisoAoSair } from './AvisoAoSair';
 import { falha } from './avisos';
 import { Botao } from './Botoes';
 import { BotoesNoPainel } from './PainelCartao';
@@ -150,12 +151,22 @@ interface PropsRodape {
   ocupado: boolean;
   aoCancelar: () => void;
   aoSalvar: () => void;
+  /**
+   * Os campos do lápis (#395): mudados e não salvos, fechar o cartão (o X, o Esc, o menu, um link) pergunta antes, como no cadastro
+   * novo, em vez de perder o que a pessoa mudou. Cancelar e Salvar saem sem perguntar.
+   */
+  estado?: unknown;
 }
 
 /** Rodapé da edição no cartão: preso ao pé do cartão enquanto se rola, com Cancelar e Salvar. */
-export function RodapeDaEdicao({ ocupado, aoCancelar, aoSalvar }: PropsRodape) {
-  return <div className="edicao-rodape">
-    <button type="button" className={estiloBotao()} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
-    <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado} onClick={aoSalvar}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
-  </div>;
+export function RodapeDaEdicao({ ocupado, aoCancelar, aoSalvar, estado }: PropsRodape) {
+  // O lápis não sai da tela por conta própria: ao salvar ou cancelar, ele só fecha, e o aviso sai junto, sem perguntar.
+  const liberada = useRef(false);
+  return <>
+    {estado !== undefined && <AvisoAoSair estado={estado} liberada={liberada} ocupado={ocupado} />}
+    <div className="edicao-rodape">
+      <button type="button" className={estiloBotao()} disabled={ocupado} onClick={aoCancelar}>Cancelar</button>
+      <button type="button" className={estiloBotao({ variante: 'principal' })} disabled={ocupado} onClick={aoSalvar}>{ocupado ? 'Salvando…' : 'Salvar'}</button>
+    </div>
+  </>;
 }

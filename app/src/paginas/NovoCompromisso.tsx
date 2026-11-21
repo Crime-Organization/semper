@@ -346,7 +346,7 @@ export default function NovoCompromisso({ edicao }: { edicao?: EdicaoDoCompromis
       {ETAPAS_COMPROMISSO.map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
-      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+      <RodapeDaEdicao estado={{ c, pessoas }} ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
   const voltar = ENDERECO + (idAtualizar ? '?id=' + idAtualizar : '');

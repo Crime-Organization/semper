@@ -368,7 +368,7 @@ export default function NovaDemanda({ edicao }: { edicao?: EdicaoNoCartao } = {}
       {etapasDoLapis(ETAPAS_DEMANDA, camposForaDoLapis(DATAS_NO_LUGAR.demandas)).map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
-      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+      <RodapeDaEdicao estado={{ c, clientes, processos }} ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
   const voltar = idAtualizar ? '/demandas/?id=' + idAtualizar : '/demandas/';

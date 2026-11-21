@@ -60,7 +60,11 @@ const orgaoDe = (p: Processo, orgaos: Orgao[]) => orgaos.find(o => o.sigla === p
  * O alerta dos prazos e a seção de prazos, no corpo do cartão. A seção aparece já enquanto lê (com o "carregando" dentro), para ficar
  * em primeiro lugar no grupo do cartão: o "Expandir tudo" fica acima dela, e não da seção seguinte.
  */
-export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false }: { processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean }) {
+export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou }, soLeitura = false, aoMudarRascunho }: {
+  processo: Processo; acompanhamento: Acompanhamento; soLeitura?: boolean;
+  /** Avisa o cartão do prazo escrito e ainda não lançado (#395), para perguntar antes de fechar. */
+  aoMudarRascunho?: (rascunho: string | null) => void;
+}) {
   const prazos = lido && typeof lido !== 'string' ? lido.prazos : null;
   const alerta = prazos && alertaDosPrazos(prazos, hojeISO());
   const somenteLer = !!p.arquivado_em || soLeitura;
@@ -69,7 +73,7 @@ export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou },
     <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={prazos?.filter(z => !z.concluido_em).length}
       novo={somenteLer ? undefined : { rotulo: ROTULO_DO_NOVO_PRAZO }} atalho="datas">
       <ConformeLido lido={lido}>
-        {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={somenteLer} aoMudar={mudou} />}
+        {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={somenteLer} aoMudar={mudou} aoMudarRascunho={aoMudarRascunho} />}
       </ConformeLido>
     </Recolhivel>
   </>;

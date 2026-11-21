@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DEMANDA_VAZIA, ETAPAS_DEMANDA, validarDemanda } from './demanda';
 import {
   camposDoPrazo, camposDoQuando, camposForaDoLapis, DATAS_NO_LUGAR, datasForaDoLapisDoCompromisso, errosDoQuando, errosDosCampos, etapasDoLapis,
-  horaNoLapis, lembreteDoPrazo, prazoAoGravar, prazoComoEsta, quandoAoGravar, quandoComoEsta, resumoDoPrazo, semOsCampos, SEM_PRAZO, temErro, textoDoPrazo
+  horaNoLapis, lembreteDoPrazo, prazoAoGravar, prazoComoEsta, prazoParaConferir, quandoAoGravar, quandoComoEsta, resumoDoPrazo, semOsCampos, SEM_PRAZO, temErro, textoDoPrazo
 } from './datasNoCartao';
 import { ETAPAS_COMPROMISSO } from './compromisso';
 import { ETAPAS_TAREFA, TAREFA_VAZIA, validarTarefa } from './tarefa';
@@ -63,6 +63,27 @@ describe('O prazo no cartão (#361)', () => {
   it('dado um prazo gravado sem as colunas novas, quando o Desfazer o guarda, então a hora e o lembrete vão vazios', () => {
     // Quando / Então
     expect(prazoComoEsta({ prazo: '2030-11-15' })).toEqual({ prazo: '2030-11-15', prazo_hora: null, lembrete: null });
+  });
+});
+
+describe('Apagar o prazo no cartão (#395)', () => {
+  it.each([
+    ['com o lembrete', { prazo: '', hora: '', lembrete: 1440 as const }],
+    ['com a hora', { prazo: '', hora: '14:00', lembrete: null }],
+    ['com a hora e o lembrete', { prazo: '   ', hora: '14:00', lembrete: 60 as const }]
+  ])('dada a data apagada %s, quando o cartão confere, então não há erro, e o que se grava fica sem prazo, sem hora e sem lembrete', (_caso, campos) => {
+    // Quando
+    const erros = errosDosCampos(validarTarefa, TAREFA_VAZIA, prazoParaConferir(campos), CAMPOS);
+    // Então
+    expect(temErro(erros)).toBe(false);
+    expect(prazoAoGravar(campos)).toEqual({ prazo: null, prazo_hora: null, lembrete: null });
+  });
+
+  it('dado um prazo com data, quando o cartão confere, então a hora e o lembrete continuam como a pessoa pôs', () => {
+    // Dado
+    const campos = { prazo: '20/11/2030', hora: '14:00', lembrete: 60 as const };
+    // Quando / Então
+    expect(prazoParaConferir(campos)).toEqual(campos);
   });
 });
 

@@ -132,3 +132,28 @@ export function errosJuntos(...erros: (string | null | undefined)[]): string | u
   if (mensagens.length < 2) return mensagens[0];
   return mensagens.map(m => FIM_DE_FRASE.test(m) ? m : m + '.').join(' ');
 }
+
+/** De que lado do campo o calendário flutuante abre e, quando não cabe inteiro em nenhum, até que altura ele vai (e rola por dentro). */
+export interface LadoDoCalendario { lado: 'abaixo' | 'acima'; alturaMaxima?: number }
+/**
+ * O lado do calendário flutuante (#395), pela altura dele e pelo espaço livre embaixo e em cima do campo, já sem as margens da tela:
+ * embaixo, se cabe; senão em cima, se cabe; senão no lado com mais espaço, só até onde ele vai, para nada ficar fora da tela (a
+ * janela baixa do notebook). Antes disso, quem abre tenta rolar a página para ele caber embaixo.
+ */
+export function ladoDoCalendario(altura: number, espacoAbaixo: number, espacoAcima: number): LadoDoCalendario {
+  if (altura <= espacoAbaixo) return { lado: 'abaixo' };
+  if (altura <= espacoAcima) return { lado: 'acima' };
+  return espacoAbaixo >= espacoAcima ? { lado: 'abaixo', alturaMaxima: Math.max(0, espacoAbaixo) } : { lado: 'acima', alturaMaxima: Math.max(0, espacoAcima) };
+}
+
+/** Quantas letras tem a data inteira, escrita no campo (dd/mm/aaaa). */
+const DATA_INTEIRA = 'dd/mm/aaaa'.length;
+/**
+ * O erro de uma data escrita inteira no campo que guarda aaaa-mm-dd (#395): esse campo só passa a data certa à tela, e a errada
+ * chegaria como vazia ("Informe a data"). Com isto, o campo diz o que está errado ("Data inexistente."). Vazia, pela metade (a
+ * pessoa ainda está escrevendo) ou certa, nada.
+ */
+export function erroDaDataEscrita(texto: string): string {
+  if (texto.trim().length < DATA_INTEIRA) return '';
+  try { lerData(texto); return ''; } catch (e) { return (e as Error).message; }
+}

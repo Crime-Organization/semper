@@ -2,11 +2,14 @@
 // demanda, processo e compromisso: o cartão usa TituloEditavel e TextoEditavel (ui/base) e, daqui,
 // - useEdicaoNoLugar: guarda o que está aberto para editar, e o recomeça quando a pessoa escolhe "Sair sem salvar";
 // - AvisoDaEdicaoNoLugar: com algo por salvar, sair do cartão pergunta antes (AvisoAoSair), como na anotação;
-// - gravarNoLugar: grava só o campo mudado, com a mesma função e o mesmo aviso (com Desfazer) do lápis.
-import { useCallback, useRef, useState, type RefObject } from 'react';
-import { edicaoNoLugarPorSalvar, type CampoNoLugar, type DadoNoLugar, type GravadoNoLugar, type RascunhosNoLugar } from '../regras/edicaoNoLugar';
+// - gravarNoLugar: grava só o campo mudado, com a mesma função e o mesmo aviso (com Desfazer) do lápis;
+// - abrirOLapis (#395): o lápis não abre por cima de uma data mudada e não salva (ele a fecharia sem perguntar); a data continua
+//   aberta e lembra de salvar ou cancelar, pelo LembreteDoCartao, que o cartão põe em volta de tudo (LembreteDoLapis).
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { edicaoNoLugarPorSalvar, pedirOLapis, type CampoNoLugar, type DadoNoLugar, type GravadoNoLugar, type RascunhosNoLugar } from '../regras/edicaoNoLugar';
 import { AvisoAoSair } from './AvisoAoSair';
 import { feito, type Mudanca } from './avisos';
+import { LembreteDoCartao } from './useEdicaoUnica';
 
 export interface EdicaoNoLugar {
   rascunhos: RascunhosNoLugar;
@@ -16,6 +19,10 @@ export interface EdicaoNoLugar {
   chave: number;
   descartar: () => void;
   liberada: RefObject<boolean>;
+  /** Abre o lápis (abrir), a não ser que uma data do cartão esteja por salvar: aí ela continua aberta e lembra de salvar ou cancelar. */
+  abrirOLapis: (abrir: () => void) => void;
+  /** Quantas vezes o lápis foi barrado por uma data por salvar (para o LembreteDoLapis). */
+  lembretes: number;
 }
 
 export function useEdicaoNoLugar(): EdicaoNoLugar {
@@ -26,7 +33,21 @@ export function useEdicaoNoLugar(): EdicaoNoLugar {
   const rascunhoDe = useCallback((campo: CampoNoLugar | DadoNoLugar) => (r: string | null) => setRascunhos(atual => ({ ...atual, [campo]: r })), []);
   // O cartão pode continuar ao fundo (a anotação nova abre por cima dele): o que foi descartado não é salvo depois.
   const descartar = useCallback(() => { setRascunhos({}); setChave(v => v + 1); }, []);
-  return { rascunhos, rascunhoDe, chave, descartar, liberada };
+  const [lembretes, setLembretes] = useState(0);
+  // O lápis também abre de fora do cartão (a ação "Editar o contrato" do aviso no pé da tela): confere os rascunhos de agora, e
+  // não os de quando o aviso apareceu.
+  const agora = useRef(rascunhos);
+  useEffect(() => { agora.current = rascunhos; }, [rascunhos]);
+  const abrirOLapis = useCallback((abrir: () => void) => {
+    if (pedirOLapis(agora.current) === 'manter') setLembretes(n => n + 1);
+    else abrir();
+  }, []);
+  return { rascunhos, rascunhoDe, chave, descartar, liberada, abrirOLapis, lembretes };
+}
+
+/** Em volta do cartão: leva às datas dele o lembrete do lápis barrado (abrirOLapis). */
+export function LembreteDoLapis({ edicao, children }: { edicao: EdicaoNoLugar; children: ReactNode }) {
+  return <LembreteDoCartao value={edicao.lembretes}>{children}</LembreteDoCartao>;
 }
 
 /** Com o título, a descrição ou um dado do grupo das datas (#361) mudados e ainda não salvos, sair do cartão pergunta antes. */

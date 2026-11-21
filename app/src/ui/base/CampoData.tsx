@@ -3,15 +3,21 @@
 // seta para baixo. O calendário segue o padrão de calendário da WAI-ARIA: uma janela (dialog) com a grade do mês (grid), setas de mês
 // anterior e seguinte, hoje marcado, o dia escolhido marcado, e o teclado (setas, Home, End, PageUp, PageDown; Enter escolhe; Esc
 // fecha e devolve o foco ao campo). Quando o campo tem hora, ela fica logo abaixo do calendário.
+// O calendário flutua por cima da página, logo abaixo do campo (se não couber, a página rola para ele caber; senão, ele abre em
+// cima; e, se não couber inteiro em nenhum lado, rola por dentro). Dentro de um formulário pequeno do cartão (a faixa das datas, os
+// prazos do processo, #395), ele abre no próprio formulário, no lugar que o formulário reserva (LugarDoCalendario), e empurra o
+// que vem embaixo em vez de cobrir: nunca fica por cima da hora, do lembrete, do Cancelar ou do Salvar. Nos dois jeitos, o Tab sai
+// do calendário para o campo seguinte (ou, para trás, volta à data), sem fugir do cartão.
 // No aparelho de toque (celular, tablet: "pointer: coarse"), o campo é o do próprio aparelho, que abre o calendário dele.
 // A lógica do mês, do teclado e dos limites fica em regras/campoData.ts.
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ComponentProps, type CSSProperties, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { hojeNaAgenda } from '../../regras/agenda';
 import {
-  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, FORMATOS_DA_DATA, mesAoAbrir, mesForaDosLimites, nomeDoDia, numeroDoDia,
+  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, FORMATOS_DA_DATA, ladoDoCalendario, mesAoAbrir, mesForaDosLimites, nomeDoDia, numeroDoDia,
   primeiroDoMes, semanasDoMes, somarMeses, textoDaDataDigitada, tituloDoMes, type FormatoDaData, type LimitesDaData
 } from '../../regras/campoData';
+import { fmtData } from '../../regras/pessoa';
 import { Icone } from '../Icone';
 import { estiloBotao } from './botao';
 import { DISTANCIA_DO_BOTAO, MARGEM_DA_TELA } from '../Menu';
@@ -22,6 +28,18 @@ import { DISTANCIA_DO_BOTAO, MARGEM_DA_TELA } from '../Menu';
  * teclado; um tablet deitado, largo, fica com o do aparelho.
  */
 export const APARELHO_DE_TOQUE = '(pointer: coarse)';
+
+/**
+ * O lugar, dentro de um formulário pequeno do cartão, onde o calendário abre (#395): o formulário põe um elemento vazio logo
+ * depois dos campos e o passa aqui; todo CampoData dentro dele abre o calendário ali, no fluxo do formulário, em vez de flutuar.
+ */
+export const LugarDoCalendario = createContext<HTMLElement | null>(null);
+
+/** O que entra na ordem do Tab. */
+const FOCAVEIS = 'a[href], button, input, select, textarea, [tabindex]';
+/** O que recebe o foco pelo Tab, na ordem da página. */
+const focaveis = (dentro: ParentNode) => [...dentro.querySelectorAll<HTMLElement>(FOCAVEIS)]
+  .filter(el => el.tabIndex >= 0 && !el.matches(':disabled') && !el.closest('[inert], [hidden]'));
 
 /** A consulta de mídia vale agora? Acompanha as mudanças (ex.: o tablet que ganha um mouse). Sem matchMedia, não vale. */
 function useMidia(consulta: string) {
@@ -55,12 +73,14 @@ export interface PropsCampoData extends PropsDoInput {
   aoEscolher?: (valor: string) => void;
   /** O Esc fechou o calendário (ou, fechado, foi apertado no campo). */
   aoDesistir?: () => void;
+  /** O texto no campo, como a pessoa escreveu (dd/mm/aaaa): para dizer o que está errado numa data que o formato "iso" não passa. */
+  aoMudarTexto?: (texto: string) => void;
 }
 
 /** Campo de data: o calendário pequeno no computador, o do aparelho no celular. Vai dentro de <Campo>, com propsDoCampo(). */
-export function CampoData({ valor, aoMudar, formato = 'texto', min, max, hora, abrirAoAparecer = false, aoEscolher, aoDesistir, onBlur, ...resto }: PropsCampoData) {
+export function CampoData({ valor, aoMudar, formato = 'texto', min, max, hora, abrirAoAparecer = false, aoEscolher, aoDesistir, aoMudarTexto, onBlur, ...resto }: PropsCampoData) {
   const doAparelho = useMidia(APARELHO_DE_TOQUE);
-  const props = { valor, aoMudar, formato, min, max, hora, abrirAoAparecer, aoEscolher, aoDesistir, onBlur, ...resto };
+  const props = { valor, aoMudar, formato, min, max, hora, abrirAoAparecer, aoEscolher, aoDesistir, aoMudarTexto, onBlur, ...resto };
   return doAparelho ? <CampoDoAparelho {...props} /> : <CampoComCalendario {...props} />;
 }
 
@@ -69,7 +89,7 @@ export function CampoData({ valor, aoMudar, formato = 'texto', min, max, hora, a
  * que o calendário pequeno: abre ao aparecer (com o foco nele e o calendário do aparelho aberto), avisa a escolha e aceita o Enter
  * e o Esc de um teclado ligado ao tablet. A hora, no aparelho, fica no campo de hora de quem usa o campo.
  */
-function CampoDoAparelho({ valor, aoMudar, formato = 'texto', min, max, hora: _hora, abrirAoAparecer = false, aoEscolher, aoDesistir, onKeyDown,
+function CampoDoAparelho({ valor, aoMudar, formato = 'texto', min, max, hora: _hora, abrirAoAparecer = false, aoEscolher, aoDesistir, aoMudarTexto, onKeyDown,
   placeholder: _placeholder, inputMode: _inputMode, ...resto }: PropsCampoData) {
   const f = FORMATOS_DA_DATA[formato];
   const campo = useRef<HTMLInputElement>(null);
@@ -102,11 +122,13 @@ function CampoDoAparelho({ valor, aoMudar, formato = 'texto', min, max, hora: _h
     if (!e.defaultPrevented && e.key === 'Escape') aoDesistir?.();
   }
   return <input type="date" {...resto} ref={campo} min={min} max={max} value={f.paraIso(valor) ?? ''} onKeyDown={teclar}
-    onChange={e => aoMudar(e.target.value ? f.doIso(e.target.value) : '')} />;
+    onChange={e => { aoMudar(e.target.value ? f.doIso(e.target.value) : ''); aoMudarTexto?.(e.target.value ? fmtData(e.target.value) : ''); }} />;
 }
 
-function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora, abrirAoAparecer = false, aoEscolher, aoDesistir, onBlur, onKeyDown, className, disabled, ...resto }: PropsCampoData) {
+function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora, abrirAoAparecer = false, aoEscolher, aoDesistir, aoMudarTexto, onBlur, onKeyDown,
+  className, disabled, ...resto }: PropsCampoData) {
   const f = FORMATOS_DA_DATA[formato];
+  const lugar = useContext(LugarDoCalendario);
   const caixa = useRef<HTMLSpanElement>(null), campo = useRef<HTMLInputElement>(null), calendario = useRef<HTMLDivElement>(null);
   const idDoCalendario = useId();
   // O texto no campo: como a pessoa escreveu. Muda sozinho só quando a tela troca a data por outra (ex.: um dia escolhido, o Desfazer).
@@ -129,6 +151,7 @@ function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora,
   function digitar(t: string) {
     const mostrado = textoDaDataDigitada(t);
     setTexto(mostrado);
+    aoMudarTexto?.(mostrado);
     const novo = f.doTexto(mostrado);
     setVisto(novo);
     aoMudar(novo);
@@ -136,6 +159,7 @@ function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora,
   function escolher(iso: string) {
     const novo = f.doIso(iso);
     setTexto(f.paraTexto(novo));
+    aoMudarTexto?.(f.paraTexto(novo));
     setVisto(novo);
     aoMudar(novo);
     aoEscolher?.(novo);
@@ -147,6 +171,17 @@ function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora,
     if (e.defaultPrevented) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); abrir(true); }
     if (e.key === 'Escape' && aberto === null) aoDesistir?.();
+  }
+  /**
+   * O Tab saiu do calendário (#395): para a frente, o foco vai ao que vem depois do campo (a hora, o lembrete, o Salvar); para trás,
+   * volta ao campo. Sem isto, o calendário que flutua no fim da página levaria o foco para fora do cartão.
+   */
+  function sairPeloTab(paraFrente: boolean) {
+    const daData = campo.current;
+    setAberto(null);
+    if (!daData) return;
+    const seguintes = focaveis(document).filter(el => !calendario.current?.contains(el));
+    (paraFrente ? seguintes[seguintes.indexOf(daData) + 1] ?? daData : daData).focus();
   }
   /** O foco saiu do campo e do calendário (que fica fora dele, por cima da página): fecha, e só então avisa quem usa o campo. */
   function sair(e: FocusEvent<HTMLElement>) {
@@ -164,9 +199,9 @@ function CampoComCalendario({ valor, aoMudar, formato = 'texto', min, max, hora,
       onClick={() => { if (aberto !== null) fechar(true); else abrir(true); }}>
       <Icone nome="calendario" tam={18} />
     </button>
-    {aberto !== null && createPortal(<Calendario id={idDoCalendario} ref={calendario} ancora={caixa} escolhido={escolhido} limites={{ min, max }} hora={hora}
-      focarDia={aberto} aoEscolher={escolher}
-      aoFechar={() => { fechar(true); aoDesistir?.(); }} aoTerminar={() => fechar(true)} />, document.body)}
+    {aberto !== null && createPortal(<Calendario id={idDoCalendario} ref={calendario} ancora={caixa} noLugar={!!lugar} escolhido={escolhido} limites={{ min, max }}
+      hora={hora} focarDia={aberto} aoEscolher={escolher} aoSairPeloTab={sairPeloTab}
+      aoFechar={() => { fechar(true); aoDesistir?.(); }} aoTerminar={() => fechar(true)} />, lugar ?? document.body)}
   </span>;
 }
 
@@ -175,6 +210,8 @@ interface PropsCalendario {
   ref: RefObject<HTMLDivElement | null>;
   /** O campo de onde o calendário abre: ele fica logo abaixo (ou acima, se não couber). */
   ancora: RefObject<HTMLElement | null>;
+  /** No lugar que o formulário reservou (LugarDoCalendario): no fluxo dele, sem flutuar. */
+  noLugar: boolean;
   escolhido: string | null;
   limites: LimitesDaData;
   hora?: HoraDoCampo;
@@ -185,21 +222,59 @@ interface PropsCalendario {
   aoFechar: () => void;
   /** "Pronto", com a hora: fecha. */
   aoTerminar: () => void;
+  /** O Tab saiu do calendário: para a frente (true) ou para trás. */
+  aoSairPeloTab: (paraFrente: boolean) => void;
 }
 
-/** A posição do calendário na tela (fixa): abaixo do campo; se não couber, acima; sempre dentro da tela. */
-function usePosicao(ancora: RefObject<HTMLElement | null>, flutuante: RefObject<HTMLElement | null>) {
+/** A caixa que rola (o cartão, a janela, a página) onde o campo está, ou nada. */
+function quemRola(el: HTMLElement): HTMLElement | null {
+  for (let pai = el.parentElement; pai; pai = pai.parentElement) {
+    if (/(auto|scroll)/.test(getComputedStyle(pai).overflowY) && pai.scrollHeight > pai.clientHeight) return pai;
+  }
+  return document.scrollingElement as HTMLElement | null;
+}
+/**
+ * Rola a caixa do campo para o calendário caber embaixo dele, sem tirar o campo da tela. Devolve se rolou: não rola quando a caixa
+ * não tem para onde ir (o campo já está no fim dela) ou quando o campo sairia por cima.
+ */
+function rolarParaCaber(campo: HTMLElement, falta: number) {
+  const caixa = quemRola(campo);
+  if (!caixa) return false;
+  const topoVisivel = caixa === document.scrollingElement ? 0 : Math.max(0, caixa.getBoundingClientRect().top);
+  const sobra = caixa.scrollHeight - caixa.clientHeight - caixa.scrollTop;
+  const ateOTopo = campo.getBoundingClientRect().top - topoVisivel - MARGEM_DA_TELA;
+  if (Math.min(sobra, ateOTopo) < falta) return false;
+  caixa.scrollTop += Math.ceil(falta);
+  return true;
+}
+
+/**
+ * A posição do calendário que flutua (fixa na tela): abaixo do campo; se não couber, a caixa do campo rola para ele caber (uma vez,
+ * ao abrir); se ainda não couber, acima; e, sem espaço inteiro em nenhum lado, no maior, rolando por dentro (regras/campoData.ts).
+ * No lugar do formulário (noLugar), não há posição: ele fica no fluxo.
+ */
+function usePosicao(ancora: RefObject<HTMLElement | null>, flutuante: RefObject<HTMLElement | null>, noLugar: boolean) {
   const [pos, setPos] = useState<CSSProperties>({ top: -9999, left: 0 });
   useLayoutEffect(() => {
+    if (noLugar) return;
+    let jaRolou = false;
     const posicionar = () => {
-      const a = ancora.current?.getBoundingClientRect(), el = flutuante.current;
-      if (!a || !el) return;
-      const altura = el.offsetHeight, largura = el.offsetWidth;
-      const abaixo = a.bottom + DISTANCIA_DO_BOTAO, acima = a.top - DISTANCIA_DO_BOTAO - altura;
-      const cabeAbaixo = abaixo + altura <= window.innerHeight - MARGEM_DA_TELA;
+      const campo = ancora.current, el = flutuante.current, a = campo?.getBoundingClientRect();
+      if (!campo || !a || !el) return;
+      const altura = el.scrollHeight, largura = el.offsetWidth;
+      const abaixo = a.bottom + DISTANCIA_DO_BOTAO;
+      const espacoAbaixo = window.innerHeight - MARGEM_DA_TELA - abaixo, espacoAcima = a.top - DISTANCIA_DO_BOTAO - MARGEM_DA_TELA;
+      // O campo que acabou de aparecer ainda não tem tamanho: a rolagem espera ele estar na página.
+      if (altura > espacoAbaixo && !jaRolou && a.height > 0) {
+        jaRolou = true;
+        if (rolarParaCaber(campo, altura - espacoAbaixo)) { posicionar(); return; }
+      }
+      const { lado, alturaMaxima } = ladoDoCalendario(altura, espacoAbaixo, espacoAcima);
+      const usada = alturaMaxima ?? altura;
       setPos({
-        top: Math.max(MARGEM_DA_TELA, cabeAbaixo || acima < MARGEM_DA_TELA ? abaixo : acima),
-        left: Math.max(MARGEM_DA_TELA, Math.min(a.left, window.innerWidth - largura - MARGEM_DA_TELA))
+        top: Math.max(MARGEM_DA_TELA, lado === 'abaixo' ? abaixo : a.top - DISTANCIA_DO_BOTAO - usada),
+        left: Math.max(MARGEM_DA_TELA, Math.min(a.left, window.innerWidth - largura - MARGEM_DA_TELA)),
+        ...(alturaMaxima === undefined ? {} : { maxHeight: alturaMaxima, overflowY: 'auto' as const })
       });
     };
     posicionar();
@@ -214,11 +289,11 @@ function usePosicao(ancora: RefObject<HTMLElement | null>, flutuante: RefObject<
       window.removeEventListener('scroll', posicionar, true);
       window.removeEventListener('resize', posicionar);
     };
-  }, [ancora, flutuante]);
-  return pos;
+  }, [ancora, flutuante, noLugar]);
+  return noLugar ? undefined : pos;
 }
 
-function Calendario({ id, ref, ancora, escolhido, limites, hora, focarDia, aoEscolher, aoFechar, aoTerminar }: PropsCalendario) {
+function Calendario({ id, ref, ancora, noLugar, escolhido, limites, hora, focarDia, aoEscolher, aoFechar, aoTerminar, aoSairPeloTab }: PropsCalendario) {
   const hoje = hojeNaAgenda();
   const [mes, setMes] = useState(() => mesAoAbrir(escolhido, hoje, limites));
   const [foco, setFoco] = useState(() => diaEmFoco(mes, escolhido, hoje, limites));
@@ -226,7 +301,9 @@ function Calendario({ id, ref, ancora, escolhido, limites, hora, focarDia, aoEsc
   const [naGrade, setNaGrade] = useState(focarDia > 0);
   const grade = useRef<HTMLTableElement>(null), campoDaHora = useRef<HTMLInputElement>(null);
   const idDoTitulo = useId();
-  const pos = usePosicao(ancora, ref);
+  const pos = usePosicao(ancora, ref, noLugar);
+  // No lugar do formulário, o calendário que abriu embaixo da tela (a janela baixa) aparece inteiro: a caixa rola até ele.
+  useEffect(() => { if (noLugar) ref.current?.scrollIntoView?.({ block: 'nearest' }); }, [noLugar, ref]);
   const aoFecharAgora = useRef(aoFechar);
   aoFecharAgora.current = aoFechar;
 
@@ -264,9 +341,18 @@ function Calendario({ id, ref, ancora, escolhido, limites, hora, focarDia, aoEsc
   }
   const anterior = somarMeses(mes, -1), seguinte = somarMeses(mes, 1);
 
-  return <div className="campo-data-calendario" role="dialog" aria-modal="false" aria-label="Calendário" id={id} ref={ref} tabIndex={-1} style={pos}
+  /** O Tab no primeiro (para trás) ou no último (para a frente) do calendário sai dele: para o campo ou para o que vem depois. */
+  function tabNasPontas(e: KeyboardEvent<HTMLDivElement>) {
+    const lista = focaveis(e.currentTarget), ponta = e.shiftKey ? lista[0] : lista[lista.length - 1];
+    if (!ponta || document.activeElement !== ponta) return;
+    e.preventDefault();
+    aoSairPeloTab(!e.shiftKey);
+  }
+
+  return <div className={noLugar ? 'campo-data-calendario no-lugar' : 'campo-data-calendario'} role="dialog" aria-modal="false" aria-label="Calendário" id={id}
+    ref={ref} tabIndex={-1} style={pos}
     // O Enter fica com o calendário: não passa para o formulário de fora (que iria para o próximo campo ou salvaria).
-    onKeyDown={e => { if (e.key === 'Enter') e.stopPropagation(); }}>
+    onKeyDown={e => { if (e.key === 'Enter') e.stopPropagation(); if (e.key === 'Tab') tabNasPontas(e); }}>
     <div className="campo-data-topo">
       <button type="button" className="campo-data-mes" aria-label="Mês anterior" disabled={mesForaDosLimites(anterior, limites)} onClick={() => irAoMes(anterior)}>
         <Icone nome="esquerda" tam={18} />

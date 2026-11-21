@@ -5,27 +5,47 @@
 // largura da própria faixa (container query), nunca uma conta em JavaScript.
 // O tempo (o cronômetro da tarefa, o total da demanda) fica numa faixa própria, logo abaixo da das datas (#383): um dado largo,
 // que ocupa a linha toda com o nome sempre em cima, e o resumo de quem registrou tempo numa LinhaDoGrupo, embaixo dele.
-// DadoEditavel é o dado que quem pode alterar o cartão muda ali mesmo, no jeito do título (#346) e da data de início (#357): um
-// clique abre um formulário pequeno no lugar do valor, com Salvar e Cancelar; Enter num campo salva e Esc desfaz, sem fechar o
-// cartão. O rascunho mudado e não salvo é avisado ao cartão (aoMudarRascunho), que pergunta antes de fechar. Quem só lê vê o
-// valor como texto. Com `atalho` (#351), ele oferece ao cartão o botão rápido ("Datas") que abre o mesmo formulário.
+// DadoEditavel é o dado que quem pode alterar o cartão muda ali mesmo, no jeito do título (#346): um clique abre um formulário
+// pequeno, com Salvar e Cancelar; Enter num campo salva e Esc desfaz, sem fechar o cartão. O rascunho mudado e não salvo é avisado
+// ao cartão (aoMudarRascunho), que pergunta antes de fechar. Quem só lê vê o valor como texto.
+// Desde a #395, o formulário abre no painel da faixa, logo embaixo dos dados, e não no lugar do valor: as datas ficam todas onde
+// estavam, à vista (o valor que se muda fica marcado), e nada é empurrado para baixo do calendário. O calendário abre dentro do
+// formulário (LugarDoCalendario), só quando a pessoa pede, e empurra o Cancelar e o Salvar em vez de cobri-los. Uma data aberta de
+// cada vez: pedir outra com a aberta por salvar mantém a aberta e lembra de salvar ou cancelar (regras/edicaoUnica.ts).
+// Com `atalho` (#351), ele oferece ao cartão o botão rápido ("Datas") que abre o mesmo formulário.
 // FaixaDasDatas é a faixa das datas de um cartão (#385): a criação e as outras datas. Quando a criação seria a única, a faixa
 // some, porque o rodapé de todo cartão já diz "Criada em … por …".
-import { Children, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Children, createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { dataDaCriacao } from '../../regras/dataDeInicio';
 import { temErro, type ErrosDosCampos } from '../../regras/datasNoCartao';
-import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
+import { SALVE_OU_CANCELE } from '../../regras/edicaoUnica';
 import { falha } from '../avisos';
+import { useEdicaoUnica, type EdicaoUnica } from '../useEdicaoUnica';
+import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
 import { useAtalhoDoCartao } from '../registroDeAtalhos';
 import { estiloBotao } from './botao';
+import { LugarDoCalendario } from './CampoData';
 import { Aviso } from '.';
 import './GrupoDeDatas.css';
 
-/** A faixa: os dados lado a lado (as datas; na faixa do tempo, o dado largo) e, se houver, as linhas inteiras embaixo deles. */
+/** O painel da faixa, onde o formulário do dado aberto aparece, e qual dado está aberto (um de cada vez). */
+interface PainelDaFaixa { painel: HTMLElement | null; edicao: EdicaoUnica }
+const PainelDaFaixa = createContext<PainelDaFaixa | null>(null);
+
+/**
+ * A faixa: os dados lado a lado (as datas; na faixa do tempo, o dado largo) e, se houver, as linhas inteiras embaixo deles. Embaixo
+ * de tudo, o painel onde abre o formulário do dado que se muda (vazio, ele não aparece).
+ */
 export function GrupoDeDatas({ rotulo, children }: { rotulo: string; children: ReactNode }) {
-  return <div className="grupo-datas" role="group" aria-label={rotulo}>
-    <div className="grupo-datas-dados">{children}</div>
-  </div>;
+  const [painel, setPainel] = useState<HTMLDivElement | null>(null);
+  const edicao = useEdicaoUnica();
+  return <PainelDaFaixa value={{ painel, edicao }}>
+    <div className="grupo-datas" role="group" aria-label={rotulo}>
+      <div className="grupo-datas-dados">{children}</div>
+      <div className="grupo-datas-painel" ref={setPainel} />
+    </div>
+  </PainelDaFaixa>;
 }
 
 /** O nome da faixa das datas, para o leitor de tela. */
@@ -113,12 +133,21 @@ interface PropsDadoEditavel<V extends object> {
   atalho?: TipoDeAtalho;
 }
 
+/** O primeiro campo do formulário aberto: o foco vai para ele ao abrir, e o Shift+Tab nele volta ao valor. */
+const primeiroCampo = (formulario: HTMLElement | null) => formulario?.querySelector<HTMLElement>('input, select, textarea, button') ?? null;
+
 export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, inicial, conferir, aoSalvar, aoMudarRascunho, campos, atalho }: PropsDadoEditavel<V>) {
   const [rascunho, setRascunho] = useState<V | null>(null);
   const [conferido, setConferido] = useState(false);
   const [ocupado, setOcupado] = useState(false);
-  const botao = useRef<HTMLButtonElement>(null);
-  const idDosErros = useId();
+  // A pessoa pediu outra data com esta por salvar: o formulário lembra de salvar ou cancelar antes.
+  const [lembrar, setLembrar] = useState(false);
+  const [lugarDoCalendario, setLugarDoCalendario] = useState<HTMLDivElement | null>(null);
+  const botao = useRef<HTMLButtonElement>(null), formulario = useRef<HTMLDivElement>(null);
+  const id = useId(), idDosErros = useId(), idDoFormulario = useId();
+  const faixa = useContext(PainelDaFaixa);
+  const daFaixa = useRef(faixa);
+  daFaixa.current = faixa;
 
   // O rascunho só conta para o cartão quando ficou diferente do gravado: abrir e não mudar nada não pergunta ao sair.
   const comoTexto = rascunho === null ? null : JSON.stringify(rascunho);
@@ -127,23 +156,48 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
   avisarRascunho.current = aoMudarRascunho;
   const avisado = useRef<string | null>(null);
   useEffect(() => {
+    daFaixa.current?.edicao.marcarSujo(id, sujo !== null);
     if (avisado.current === sujo) return;
     avisado.current = sujo;
     avisarRascunho.current?.(sujo);
-  }, [sujo]);
-  // Ao sair da tela no meio da edição, o cartão deixa de esperar este rascunho.
-  useEffect(() => () => avisarRascunho.current?.(null), []);
+  }, [sujo, id]);
+  // Ao sair da tela no meio da edição, o cartão deixa de esperar este rascunho, e a faixa fica livre para outra data.
+  useEffect(() => () => { avisarRascunho.current?.(null); daFaixa.current?.edicao.fechar(id); }, [id]);
+  const editando = rascunho !== null;
   // Se a edição deixa de ser permitida no meio (o lápis abriu, o item foi arquivado), o rascunho fecha: não fica nada por salvar
-  // que a pessoa não vê, nem o formulário volta aberto com ele (e o calendário de novo) quando a edição for permitida outra vez.
-  const podeMudar = !!aoSalvar, editando = rascunho !== null;
+  // que a pessoa não vê, nem o formulário volta aberto com ele quando a edição for permitida outra vez. O mesmo quando outra data
+  // da faixa abriu no lugar desta (o que só acontece se esta não tinha nada por salvar).
+  const podeMudar = !!aoSalvar, outraAberta = !!faixa && faixa.edicao.aberta !== id;
   useEffect(() => {
-    if (podeMudar || !editando) return;
+    if ((podeMudar && !outraAberta) || !editando) return;
     setRascunho(null);
     setConferido(false);
-  }, [podeMudar, editando]);
+    setLembrar(false);
+    if (!outraAberta) daFaixa.current?.edicao.fechar(id);
+  }, [podeMudar, outraAberta, editando, id]);
+  // Ao abrir, o foco vai ao primeiro campo, sem abrir o calendário: ele abre quando a pessoa pede (clique, botão ou seta para baixo).
+  useEffect(() => {
+    if (editando) primeiroCampo(formulario.current)?.focus();
+  }, [editando]);
+  // A pessoa pediu outra data com esta por salvar: esta continua aberta e lembra dela, com o foco de volta no formulário.
+  const barrados = faixa?.edicao.barrados ?? 0, vistos = useRef(barrados);
+  useEffect(() => {
+    if (vistos.current === barrados) return;
+    vistos.current = barrados;
+    if (!editando || outraAberta) return;
+    setLembrar(true);
+    primeiroCampo(formulario.current)?.focus();
+  }, [barrados, editando, outraAberta]);
 
-  // O botão rápido abre o formulário (aberto, ele fica como está).
-  useAtalhoDoCartao(atalho, podeMudar ? { nome: titulo, abrir: () => { if (!editando) setRascunho(inicial()); } } : null);
+  /** Abre o formulário: pelo clique no valor ou pelo botão rápido. Aberto, o foco volta a ele; com outra data da faixa por salvar,
+   *  esta não abre (a outra lembra de salvar ou cancelar). */
+  function abrir() {
+    if (editando) { primeiroCampo(formulario.current)?.focus(); return; }
+    if (faixa && !faixa.edicao.pedir(id)) return;
+    setRascunho(inicial());
+  }
+  // O botão rápido (#351) abre o formulário do mesmo jeito.
+  useAtalhoDoCartao(atalho, podeMudar ? { nome: titulo, abrir } : null);
 
   if (!aoSalvar) return <span className="dado-editavel">{lido}</span>;
 
@@ -151,6 +205,8 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
   function fechar() {
     setRascunho(null);
     setConferido(false);
+    setLembrar(false);
+    faixa?.edicao.fechar(id);
     setTimeout(() => botao.current?.focus({ preventScroll: true }), 0);
   }
   async function salvar() {
@@ -169,36 +225,64 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
       setOcupado(false);
     }
   }
+  /** Esc desfaz só o dado, sem fechar o cartão em volta. Durante a gravação, não desfaz (como o Cancelar, desligado). */
+  function desfazerPeloEsc(e: KeyboardEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!ocupado) fechar();
+  }
   function teclar(e: KeyboardEvent<HTMLDivElement>) {
-    // Esc desfaz só o dado, sem fechar o cartão em volta (o calendário aberto fecha antes, sozinho). Durante a gravação, não
-    // desfaz (como o Cancelar, desligado): se ela falhar, o formulário continua aberto com o que a pessoa escreveu.
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!ocupado) fechar(); return; }
+    // O calendário aberto fecha antes, sozinho, com o Esc. Se a gravação falhar, o formulário continua aberto com o que a pessoa escreveu.
+    if (e.key === 'Escape') { desfazerPeloEsc(e); return; }
+    // No painel da faixa, o formulário fica longe do valor que o abriu: o Shift+Tab no primeiro campo volta a esse valor (e não ao
+    // da data anterior), e o teclado segue a ordem "valor, formulário" daquela data. O Tab que o calendário já levou não conta.
+    if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && faixa?.painel && e.target === primeiroCampo(formulario.current)) {
+      e.preventDefault();
+      botao.current?.focus();
+      return;
+    }
     // Enter num campo salva; nos botões, vale o próprio botão.
     if (e.key === 'Enter' && (e.target as HTMLElement).matches('input, select')) { e.preventDefault(); void salvar(); }
   }
+  /**
+   * O valor, com o formulário aberto: o Esc também desfaz o dado (como no formulário), e o Tab vai ao formulário, que no painel da
+   * faixa fica embaixo dos dados, e não logo depois do valor.
+   */
+  function teclarNoValor(e: KeyboardEvent<HTMLButtonElement>) {
+    if (!editando) return;
+    if (e.key === 'Escape') { desfazerPeloEsc(e); return; }
+    if (e.key === 'Tab' && !e.shiftKey && faixa?.painel) { e.preventDefault(); primeiroCampo(formulario.current)?.focus(); }
+  }
 
-  if (rascunho !== null) {
-    const erros = conferido ? conferir(rascunho) : {};
-    const mensagens = Object.values(erros).filter(Boolean) as string[];
-    const marcar = (campo: keyof V & string): MarcaDoErro => {
-      const erro = !!(erros as Partial<Record<string, string>>)[campo];
-      return { 'aria-invalid': erro || undefined, 'aria-describedby': erro ? idDosErros : undefined };
-    };
-    return <div className="data-editavel dado-editavel editando" role="group" aria-label={titulo} onKeyDown={teclar}>
+  const valor = <button ref={botao} type="button" className="data-editavel-botao dado-editavel-botao" aria-label={`${nome}: ${resumo}. Clique para mudar`}
+    title="Clique para mudar" aria-expanded={editando} aria-controls={editando ? idDoFormulario : undefined} onClick={abrir}
+    onKeyDown={teclarNoValor}>
+    {lido}
+  </button>;
+  if (rascunho === null) return valor;
+
+  const erros = conferido ? conferir(rascunho) : {};
+  const mensagens = Object.values(erros).filter(Boolean) as string[];
+  const marcar = (campo: keyof V & string): MarcaDoErro => {
+    const erro = !!(erros as Partial<Record<string, string>>)[campo];
+    return { 'aria-invalid': erro || undefined, 'aria-describedby': erro ? idDosErros : undefined };
+  };
+  const aberto = <div ref={formulario} id={idDoFormulario} className="data-editavel dado-editavel editando" role="group" aria-label={titulo} onKeyDown={teclar}>
+    <LugarDoCalendario value={lugarDoCalendario}>
       <div className="dado-editavel-campos">
         {campos({ rascunho, mudar: parte => setRascunho(atual => atual && { ...atual, ...parte }), erros, marcar })}
       </div>
-      {mensagens.length > 0 && <Aviso tipo="erro" id={idDosErros}>{mensagens.join(' ')}</Aviso>}
-      <div className="dado-editavel-acoes">
-        <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={fechar}>Cancelar</button>
-        <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={() => void salvar()}>
-          {ocupado ? 'Salvando…' : 'Salvar'}
-        </button>
-      </div>
-    </div>;
-  }
-  return <button ref={botao} type="button" className="data-editavel-botao dado-editavel-botao" aria-label={`${nome}: ${resumo}. Clique para mudar`}
-    title="Clique para mudar" onClick={() => setRascunho(inicial())}>
-    {lido}
-  </button>;
+    </LugarDoCalendario>
+    <div className="dado-editavel-calendario" ref={setLugarDoCalendario} />
+    {mensagens.length > 0 && <Aviso tipo="erro" id={idDosErros}>{mensagens.join(' ')}</Aviso>}
+    {lembrar && <Aviso tipo="info">{SALVE_OU_CANCELE}</Aviso>}
+    <div className="dado-editavel-acoes">
+      <button type="button" className={estiloBotao({ pequeno: true })} disabled={ocupado} onClick={fechar}>Cancelar</button>
+      <button type="button" className={estiloBotao({ variante: 'principal', pequeno: true })} disabled={ocupado} onClick={() => void salvar()}>
+        {ocupado ? 'Salvando…' : 'Salvar'}
+      </button>
+    </div>
+  </div>;
+  // Na faixa, o valor fica no lugar dele (marcado como aberto) e o formulário abre no painel, embaixo dos dados; fora dela, no lugar.
+  return faixa?.painel ? <>{valor}{createPortal(aberto, faixa.painel)}</> : aberto;
 }

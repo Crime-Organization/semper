@@ -1,0 +1,5 @@
+{
+  "titulo": "Mudar as datas nos cartões ficou mais simples",
+  "texto": "Ao clicar numa data, as outras ficam no lugar e o campo abre embaixo, com Cancelar e Salvar. O calendário só abre quando você pede. O início agora só grava no Salvar, como o prazo, e a assinatura do contrato muda ali. Apagar o prazo tira a hora e o lembrete. Com uma data por salvar, outra data e o lápis esperam você salvar ou cancelar. O lápis pergunta antes de fechar o cartão com algo mudado.",
+  "ondeAchar": "Nos cartões de tarefa, demanda, compromisso e contrato: clique na data, na faixa abaixo do título. Nos processos, seção Prazos, \"Novo prazo\" ou \"Mudar\"."
+}

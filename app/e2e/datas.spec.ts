@@ -46,13 +46,18 @@ test.describe('Data de criação e data de início no cartão (#357)', () => {
     await expect(cartao.getByText(/^Criada em \d{2}\/\d{2}\/\d{4}$/)).toHaveText(`Criada em ${hoje()}`);
     const inicio = () => cartao.getByRole('button', { name: /^Data de início: / });
     await expect(inicio()).toHaveText(hoje());
-    // Quando: clica no início, escreve um dia de outro mês (o calendário vai para ele) e escolhe outro dia nele
+    // Quando: clica no início (o calendário só abre quando a pessoa pede, #395), abre o calendário com a seta para baixo, escreve um
+    // dia de outro mês (o calendário vai para ele), escolhe outro dia nele e salva
     await inicio().click();
+    await expect(calendario(page)).toHaveCount(0);
+    await cartao.getByRole('textbox', { name: 'Data de início' }).press('ArrowDown');
     await expect(calendario(page)).toBeVisible();
     await expect(calendario(page).getByRole('button', { name: /\(hoje\)$/ })).toBeFocused();
     await cartao.getByRole('textbox', { name: 'Data de início' }).fill('15/12/2030');
     await expect(calendario(page).getByRole('grid', { name: 'dezembro de 2030' })).toBeVisible();
     await calendario(page).getByRole('button', { name: 'sexta-feira, 20 de dezembro de 2030' }).click();
+    await expect(calendario(page)).toHaveCount(0);
+    await cartao.getByRole('group', { name: 'Mudar a data de início' }).getByRole('button', { name: 'Salvar' }).click();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(calendario(page)).toHaveCount(0);
@@ -75,7 +80,10 @@ test.describe('Data de criação e data de início no cartão (#357)', () => {
     await expect(inicio).toHaveText(hoje());
     // Quando: Esc com o calendário aberto
     await inicio.click();
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Escape');
+    // (o primeiro Esc fecha o calendário; o segundo, o formulário: #395)
     await page.keyboard.press('Escape');
     // Então: nada muda, e o cartão continua aberto
     await expect(calendario(page)).toHaveCount(0);
@@ -244,8 +252,9 @@ test.describe('Dado um celular (#357)', () => {
     const doAparelho = cartao.getByLabel('Data de início', { exact: true });
     await expect(doAparelho).toHaveAttribute('type', 'date');
     await expect(doAparelho).toBeFocused();
-    // Quando
+    // Quando: escolhe a data e salva (#395: como o prazo, a data escolhida só vale no Salvar)
     await doAparelho.fill('2030-12-20');
+    await cartao.getByRole('group', { name: 'Mudar a data de início' }).getByRole('button', { name: 'Salvar' }).tap();
     // Então
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
     await expect(inicio).toHaveText('20/12/2030');
@@ -273,8 +282,11 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     await expect(cartao.getByRole('group', { name: 'Tempo', exact: true }).getByRole('group', { name: 'Seu tempo nesta tarefa', exact: true }).getByRole('timer')).toBeVisible();
     // Quando: clica no prazo
     await cartao.getByRole('button', { name: /^Prazo: / }).click();
-    // Então: abre o calendário; a hora fica ao lado do prazo, no mesmo campo (#299), e o sino do lembrete ao lado
+    // Então: a hora fica ao lado do prazo, no mesmo campo (#299), e o sino do lembrete ao lado; o calendário abre quando a pessoa
+    // clica no campo (#395)
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
+    await expect(calendario(page)).toHaveCount(0);
+    await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).click();
     await expect(calendario(page)).toBeVisible();
     await expect(calendario(page).getByLabel('Hora')).toHaveCount(0);
     await expect(formulario.getByLabel('Hora do prazo')).toBeVisible();
@@ -329,9 +341,10 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     const grupo = cartao.getByRole('group', { name: 'Datas' });
     for (const dado of ['Criada em', 'Início', 'Prazo de entrega']) await expect(grupo.getByRole('group', { name: dado, exact: true })).toBeVisible();
     const prazo = () => cartao.getByRole('button', { name: /^Prazo de entrega: / });
-    // Quando: abre e desiste com Esc (o primeiro fecha o calendário; o segundo, o formulário)
+    // Quando: abre, abre o calendário (seta para baixo) e desiste com Esc (o primeiro fecha o calendário; o segundo, o formulário)
     await prazo().click();
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo de entrega' });
+    await page.keyboard.press('ArrowDown');
     await expect(calendario(page)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(calendario(page)).toHaveCount(0);
@@ -342,7 +355,6 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     // Quando: escreve o prazo e a hora e aperta Enter
     await prazo().click();
     await formulario.getByRole('textbox', { name: 'Prazo de entrega', exact: true }).fill('10/03/2031');
-    await page.keyboard.press('Escape');
     await formulario.getByLabel('Hora').fill('16:00');
     await formulario.getByLabel('Hora').press('Enter');
     // Então
@@ -363,9 +375,8 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     // Quando
     await quando().click();
     const formulario = cartao.getByRole('group', { name: 'Mudar a data e o horário' });
-    await expect(calendario(page)).toBeVisible();
+    await expect(calendario(page)).toHaveCount(0);
     await formulario.getByRole('textbox', { name: 'Data' }).fill('25/11/2030');
-    await page.keyboard.press('Escape');
     await formulario.getByLabel('Hora').fill('15:00');
     await formulario.getByLabel('Até').fill('16:00');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
@@ -384,7 +395,6 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     const cartao = await abrirCompromisso(page, 'Reunião de equipe');
     await cartao.getByRole('button', { name: /^Data e horário: / }).click();
     const formulario = cartao.getByRole('group', { name: 'Mudar a data e o horário' });
-    await page.keyboard.press('Escape');
     // Quando
     await formulario.getByLabel('Hora').fill('');
     await formulario.getByRole('button', { name: 'Salvar' }).click();
@@ -423,7 +433,6 @@ test.describe('Tempo, datas e prazos lado a lado no cartão (#361)', () => {
     await cartao.getByRole('button', { name: /^Prazo: / }).click();
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
     await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('20/12/2030');
-    await page.keyboard.press('Escape');
     await expect(calendario(page)).toHaveCount(0);
     // Quando
     await cartao.getByRole('button', { name: 'Fechar' }).click();

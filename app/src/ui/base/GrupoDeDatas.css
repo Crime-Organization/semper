@@ -28,9 +28,9 @@
 .grupo-datas-dados { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--vao-do-grupo) }
 .grupo-datas-dado { flex: 0 0 auto; min-width: var(--dado-do-grupo); display: flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-dado) }
 .grupo-datas-rotulo { white-space: nowrap }
-/* O dado largo (o cronômetro), o que vem embaixo dos dados (o resumo do tempo) e o dado aberto para mudar, que precisa de espaço
-   para o formulário: na largura toda. */
-.grupo-datas-dado.largo, .grupo-datas-linha, .grupo-datas-dado:has(.editando) { flex: 1 1 100%; min-width: 0 }
+/* O dado largo (o cronômetro) e o que vem embaixo dos dados (o resumo do tempo): na largura toda. O dado aberto para mudar fica
+   no lugar dele, do mesmo tamanho (#395): o formulário abre no painel, embaixo dos dados. */
+.grupo-datas-dado.largo, .grupo-datas-linha { flex: 1 1 100%; min-width: 0 }
 .grupo-datas-dado.largo > .grupo-datas-valor { width: 100% }
 .grupo-datas-linha:empty { display: none }
 .grupo-datas-valor { min-width: 0; max-width: 100%; font-size: var(--texto-corrido); color: var(--text) }
@@ -39,13 +39,19 @@
    (a criação), com os valores todos alinhados. */
 .grupo-datas-valor .data-editavel-botao { padding-block: var(--folga-do-valor-que-se-muda); margin-block: calc(-1 * var(--folga-do-valor-que-se-muda)) }
 /* Na faixa estreita (o celular), uma linha por data: o nome à esquerda, na largura do maior, e o valor à direita, na linha de base
-   do nome, com os valores todos começando na mesma coluna (subgrid; o vão "normal" é o da faixa, entre o nome e o valor). O dado largo e o aberto para mudar continuam com o nome em
-   cima, na largura toda. As condições do @container não aceitam variável (420px é a mesma medida dos indicadores). */
+   do nome, com os valores todos começando na mesma coluna (subgrid; o vão "normal" é o da faixa, entre o nome e o valor). O dado largo continua com o nome em
+   cima, na largura toda; o aberto para mudar fica como os outros. As condições do @container não aceitam variável (420px é a mesma medida dos indicadores). */
 @container (max-width: 420px) {
   .grupo-datas-dados { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--vao-do-grupo-estreito) }
   .grupo-datas-dado, .grupo-datas-linha { grid-column: 1 / -1; min-width: 0 }
-  .grupo-datas-dado:not(.largo, :has(.editando)) { display: grid; grid-template-columns: subgrid; column-gap: normal; align-items: baseline }
+  .grupo-datas-dado:not(.largo) { display: grid; grid-template-columns: subgrid; column-gap: normal; align-items: baseline }
 }
+
+/* O painel da faixa (#395), embaixo dos dados: o formulário do dado aberto para mudar, na largura toda da faixa. Vazio, some. */
+.grupo-datas-painel { margin-top: var(--folga-do-grupo) }
+.grupo-datas-painel:empty { display: none }
+/* O valor aberto no painel fica marcado no lugar dele, como no hover: a pessoa vê qual data está mudando. */
+.grupo-datas-valor .data-editavel-botao[aria-expanded="true"] { background: var(--soft); color: var(--ink) }
 
 /* O valor que se muda com um clique: o prazo em cima e o sino do lembrete embaixo, alinhados à esquerda. */
 .dado-editavel-botao { display: inline-flex; flex-direction: column; align-items: flex-start; gap: var(--vao-do-dado); max-width: 100%; text-align: left; overflow-wrap: anywhere }
@@ -54,7 +60,8 @@
 .dado-lembrete { display: inline-flex; align-items: center; gap: var(--vao-do-dado); white-space: nowrap; font-size: var(--texto-apoio); font-weight: 700; color: var(--text2) }
 .dado-lembrete.sem { font-weight: 400; color: var(--muted) }
 
-/* O formulário pequeno: os campos numa linha (descem quando não cabem), os erros e Cancelar e Salvar. */
+/* O formulário pequeno: os campos numa linha (descem quando não cabem), o calendário quando a pessoa o abre (no fluxo, #395:
+   empurra o que vem embaixo em vez de cobrir), os erros e Cancelar e Salvar. */
 .dado-editavel.editando { display: flex; flex-direction: column; align-items: stretch; gap: var(--vao-dos-campos); width: 100% }
 .dado-editavel-campos { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-dos-campos) }
 .dado-editavel-campos .dado-editavel-hora { width: var(--largura-da-hora) }
@@ -62,7 +69,8 @@
 .dado-editavel-sino { display: inline-flex; align-items: center; gap: var(--vao-do-dado); color: var(--text2) }
 .dado-editavel-sino .data-editavel-campo { width: auto; padding-right: var(--vao-dos-campos) }
 .dado-editavel-campos .data-editavel-campo[aria-invalid="true"] { border-color: var(--erro) }
-/* À direita: o calendário aberto fica embaixo do campo da data, à esquerda, e não cobre o Salvar. */
+.dado-editavel-calendario:empty { display: none }
+/* À direita, embaixo dos campos e do calendário. */
 .dado-editavel-acoes { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--vao-dos-campos) }
 @container (max-width: 420px) {
   .dado-editavel-campos > * { flex: 1 1 100% }

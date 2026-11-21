@@ -22,7 +22,7 @@ import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
@@ -163,7 +163,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com a tarefa arquivada nem para quem só lê (#376), em seção nenhuma.
-  return <CriarNoCartao pode={podeLigar}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao editando={editando}
@@ -182,7 +182,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, t.etapa_id)} soParaVer={!!t.arquivado_em || !podeAlterar}
           aoAgir={concluirOuReabrir} />}>
           <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
@@ -199,8 +199,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
          tempo, o cronômetro de quem altera, com o resumo de quem registrou tempo. */
       dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} datas={<>
         <DadoDoGrupo rotulo="Início">
-          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
-            aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
+          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio} aoMudarRascunho={noLugar.rascunhoDe('inicio')}
+            aoSalvar={mudaNoLugar && !editando ? data_inicio => data_inicio && salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Prazo">
           <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" atalho="datas" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}
@@ -267,5 +267,5 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(t.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }
