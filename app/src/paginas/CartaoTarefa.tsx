@@ -2,8 +2,8 @@
 // anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
 // ⋯ à direita; logo abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os selos das etiquetas; o
 // título; depois, os dados (CabecaDoCartao, #397): a faixa das datas (#361, #383: a criação, o início e o prazo com a hora e o
-// lembrete, que quem altera muda ali mesmo, e o tempo total da tarefa à direita) e a faixa do tempo (DadosDaTarefa), com a linha dos
-// botões rápidos (#351: Datas, Checklist, Anotação); depois, a descrição; e cada tópico numa seção que recolhe (demanda, pessoas,
+// lembrete, que quem altera muda ali mesmo, e o tempo total da tarefa à direita) e a faixa do tempo (DadosDaTarefa) (os botões rápidos
+// da #351 viraram o "+" do topo, #399); depois, a descrição; e cada tópico numa seção que recolhe (demanda, pessoas,
 // contrato), com o "Expandir tudo" sozinho acima da primeira (#394); comentários, anotações e histórico na coluna da direita.
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
@@ -166,7 +166,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
-    <CabecaDoCartao editando={editando}
+    <CabecaDoCartao
       topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
           tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */
       <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}

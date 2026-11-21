@@ -19,7 +19,7 @@
 // o X e o clique fora não fecham, e o motivo aparece num aviso.
 // As seções que recolhem do corpo (a coluna da esquerda) ficam num grupo (GrupoDeSecoes), com o botão "Expandir tudo" sozinho acima da
 // primeira (#394), que só abre e fecha as delas. Em volta de tudo, a coluna
-// também, o registro dos botões rápidos do cartão (ComAtalhosDoCartao, #351): as seções da coluna oferecem os delas à linha do corpo.
+// também, o registro das coisas do cartão (ComAtalhosDoCartao, #351, #399): as seções da coluna oferecem as delas ao menu do "+" do topo.
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { avisar } from './avisos';

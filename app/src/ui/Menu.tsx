@@ -1,10 +1,29 @@
 // Menu que abre por cima da página, preso a um botão (menu "⋯" da barra do módulo, menu da coluna do quadro).
 // Fecha ao clicar fora ou com Esc (o foco volta ao botão); o primeiro item (botão ou link) já vem com o foco.
 // Com "painel" (ex.: os filtros), clicar dentro não fecha: dá para mexer em vários campos seguidos.
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+// Com "setas" (#399, o menu "Acrescentar ao cartão"), as setas andam pelos itens (para baixo e para a direita, o seguinte; para
+// cima e para a esquerda, o anterior, dando a volta nas pontas), e Home e End vão ao primeiro e ao último.
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as TeclaNoReact, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { proximaOpcao } from '../regras/buscaGeral';
 
-interface Props { botao: HTMLElement; aoFechar: () => void; painel?: boolean; rotulo?: string; children: ReactNode }
+interface Props { botao: HTMLElement; aoFechar: () => void; painel?: boolean; rotulo?: string; setas?: boolean; children: ReactNode }
+
+/** Para onde cada seta leva, no menu com "setas": o item seguinte (1) ou o anterior (-1). */
+const PASSO_DA_SETA: Partial<Record<string, 1 | -1>> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 };
+/** Home e End: o primeiro e o último item (a posição de partida antes do passo que dá a volta). */
+const PONTA: Partial<Record<string, { de: 'fim' | 'comeco'; passo: 1 | -1 }>> = { Home: { de: 'fim', passo: 1 }, End: { de: 'comeco', passo: -1 } };
+
+/** Anda pelos itens do menu com as setas, Home e End (veja o comentário do arquivo). */
+function andarComAsSetas(e: TeclaNoReact<HTMLDivElement>) {
+  const itens = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  const atual = itens.indexOf(document.activeElement as HTMLElement);
+  const ponta = PONTA[e.key], passo = PASSO_DA_SETA[e.key] ?? ponta?.passo;
+  if (!passo || !itens.length) return;
+  e.preventDefault();
+  const de = ponta ? (ponta.de === 'fim' ? itens.length - 1 : 0) : atual;
+  itens[proximaOpcao(de, itens.length, passo)]?.focus();
+}
 
 /** Quanto o menu fica longe das bordas da tela e do botão que o abriu, em pixels. */
 export const MARGEM_DA_TELA = 12, DISTANCIA_DO_BOTAO = 6;
@@ -17,7 +36,7 @@ const abertos = new Set<() => void>();
  */
 export const fecharMenusAbertos = () => [...abertos].forEach(fechar => fechar());
 
-export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, children }: Props) {
+export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, setas = false, children }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: -9999, left: 0 });
   const fechar = useRef(aoFechar);
@@ -56,7 +75,8 @@ export function MenuFlutuante({ botao, aoFechar, painel = false, rotulo, childre
     document.addEventListener('keydown', tecla, true);
     return () => { abertos.delete(fecharDeFora); clearTimeout(t); document.removeEventListener('click', fora); document.removeEventListener('keydown', tecla, true); };
   }, [botao, painel]);
-  return createPortal(<div className={painel ? 'kmenu painel' : 'kmenu'} role={painel ? 'dialog' : 'menu'} aria-label={rotulo} ref={ref} style={pos}>
+  return createPortal(<div className={painel ? 'kmenu painel' : 'kmenu'} role={painel ? 'dialog' : 'menu'} aria-label={rotulo} ref={ref} style={pos}
+    onKeyDown={setas ? andarComAsSetas : undefined}>
     {children}
   </div>, document.body);
 }

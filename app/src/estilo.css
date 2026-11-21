@@ -1048,7 +1048,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-situacao + .etiquetas { margin-top: var(--vao-ate-o-titulo) }
 /* Ao lado e na janela estreita (e no celular), os botões do cartão vão para a linha dos botões da janela (NoTopoDoCartao), por
    cima do topo: um espaço vazio que flutua no canto (o ::before do topo) guarda o lugar de todos eles, contados (os da janela, o
-   formato e o X, e os do cartão, de 0 a 3), com as medidas dos botões redondos; em edição, o lugar do texto "Modo de edição". Ele
+   formato e o X, e os do cartão, de 0 a 4: a etiqueta, o "+" de acrescentar ao cartão, #399, o lápis e o ⋯), com as medidas dos botões redondos; em edição, o lugar do texto "Modo de edição". Ele
    tem a altura da primeira linha: a equipe, logo depois do tipo, fica na mesma linha dele, à esquerda dos botões, quando cabe;
    senão, desce, encostada à direita, com os selos que não couberam correndo ao lado dela. Ao lado, ela pode usar a largura toda. */
 :root { --botoes-da-janela: 2; --largura-do-modo-de-edicao: 8.5rem }
@@ -1056,6 +1056,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(1)) { --reserva-do-cartao: calc(var(--botao-redondo) + var(--botao-redondo-vao)) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(2)) { --reserva-do-cartao: calc(2 * (var(--botao-redondo) + var(--botao-redondo-vao))) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(3)) { --reserva-do-cartao: calc(3 * (var(--botao-redondo) + var(--botao-redondo-vao))) }
+.cartao-painel:has(.cartao-botoes .cartao-topo-acoes > :nth-child(4)) { --reserva-do-cartao: calc(4 * (var(--botao-redondo) + var(--botao-redondo-vao))) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes > .cartao-modo-edicao) { --reserva-do-cartao: calc(var(--largura-do-modo-de-edicao) + var(--botao-redondo-vao)) }
 .cartao-painel:has(.cartao-botoes .cartao-topo-acoes) .cartao-topo::before { content: ''; float: right; height: var(--topo-primeira-linha);
   width: calc(var(--botoes-da-janela) * (var(--botao-redondo) + var(--botao-redondo-vao)) + var(--reserva-do-cartao)) }
@@ -1227,15 +1228,19 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .situacao-menu:has(select:disabled) .situacao-seta { display: none }
 .cartao-situacao-controles > .cartao-concluir { flex-shrink: 0 }
 @media (pointer: coarse) { .situacao-menu select { height: var(--alvo-de-toque) } }
-/* A linha dos botões rápidos (#351, AtalhosDoCartao), no fim dos dados da cabeça do cartão (#397; sem dados, depois da descrição):
-   os botões pequenos (.mini), que descem para a linha de baixo quando não cabem. O "Expandir tudo" não fica mais nela: fica sozinho
-   acima da primeira seção (#394). Na tela de toque, cada botão aceita o toque na altura do alvo do dedo (o ::before); o vão entre as
-   linhas é o que falta do botão até o alvo, e um toque não cai no botão de baixo. */
-:root { --vao-acima-dos-atalhos: 16px }
-.cartao-atalhos { display: flex; flex-wrap: wrap; gap: calc(var(--alvo-de-toque) - var(--botao-mini)) var(--botao-redondo-vao); margin-top: var(--vao-acima-dos-atalhos) }
+/* O menu do "+" redondo do topo, "Acrescentar ao cartão" (#399, AcrescentarAoCartao, no lugar da linha de botões rápidos da #351):
+   uma linha por coisa do cartão, com o ver largo (o ícone, o nome e a contagem, como no título da seção) e, à direita, o "+" redondo
+   do tamanho dos botões pequenos, como o "+" do título das seções, com o vão de {spacing.xxs} entre os dois. Na tela de toque, o "+"
+   aceita o toque na medida do alvo do dedo (o ::before, como no "Expandir tudo"; o contorno é uma sombra por dentro, e não
+   a borda, para o ::before medir a partir do desenho todo), sem crescer no desenho; cada linha tem a altura
+   do alvo, e o toque de uma não cai no "+" da vizinha. */
+.acrescentar-linha { --vao-da-linha-do-menu: 4px; display: flex; align-items: center; gap: var(--vao-da-linha-do-menu) }
+.kmenu .acrescentar-ver { flex: 1 1 auto }
+.kmenu :is(button, a).acrescentar-novo { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: var(--botao-mini); height: var(--botao-mini);
+  position: relative; padding: 0; border: 0; box-shadow: inset 0 0 0 1px var(--line2); border-radius: 999px; color: var(--ink) }
 @media (pointer: coarse) {
-  .cartao-atalhos > .mini { position: relative }
-  .cartao-atalhos > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
+  .acrescentar-linha { min-height: var(--alvo-de-toque) }
+  .kmenu :is(button, a).acrescentar-novo::before { content: ''; position: absolute; inset: calc((var(--botao-mini) - var(--alvo-de-toque)) / 2); border-radius: 999px }
 }
 /* O tempo total da tarefa (#397), o último dado da faixa das datas, em destaque: do tamanho do relógio de "Seu tempo nesta tarefa"
    (--texto-do-relogio, em paginas/Demandas.css, onde fica a regra do tamanho), para o total não pesar menos que a parte de quem

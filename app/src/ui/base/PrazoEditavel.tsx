@@ -21,7 +21,7 @@ interface Props {
   aoSalvar?: (c: CamposDoPrazo) => unknown;
   /** Avisa o cartão do prazo mudado e ainda não salvo (para perguntar antes de fechar). */
   aoMudarRascunho?: (rascunho: string | null) => void;
-  /** O botão rápido que o prazo oferece ao cartão (#351; veja DadoEditavel). */
+  /** A linha que o prazo oferece ao menu "Acrescentar ao cartão" (#399; veja DadoEditavel). */
   atalho?: TipoDeAtalho;
 }
 

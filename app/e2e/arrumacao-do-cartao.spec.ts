@@ -374,13 +374,14 @@ test.describe('Os espaços da cabeça (#396, #398)', () => {
       const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
       await esperarParar(cartao);
       // Então
-      const [topo, situacao, titulo, datas, atalhos, descricao] = await Promise.all([menuDoCartao(cartao), menuDaSituacao(cartao),
+      // (desde a #399, sem a linha dos botões rápidos: o fim dos dados é a faixa do tempo)
+      const [topo, situacao, titulo, datas, tempo, descricao] = await Promise.all([menuDoCartao(cartao), menuDaSituacao(cartao),
         cartao.getByRole('heading', { level: 2 }), cartao.getByRole('group', { name: 'Datas', exact: true }),
-        cartao.getByRole('group', { name: 'Acrescentar ao cartão' }), descricaoDoCartao(cartao)].map(caixa));
+        cartao.getByRole('group', { name: 'Tempo', exact: true }), descricaoDoCartao(cartao)].map(caixa));
       expect(situacao.y - embaixo(topo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-do-topo-a-situacao') - TOLERANCIA);
       expect(titulo.y - embaixo(situacao)).toBeGreaterThanOrEqual(await variavel(page, '--vao-ate-o-titulo') - TOLERANCIA);
       expect(datas.y - embaixo(titulo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-do-titulo-aos-dados') - TOLERANCIA);
-      expect(descricao.y - embaixo(atalhos)).toBeGreaterThanOrEqual(await variavel(page, '--vao-dos-dados-a-descricao') - TOLERANCIA);
+      expect(descricao.y - embaixo(tempo)).toBeGreaterThanOrEqual(await variavel(page, '--vao-dos-dados-a-descricao') - TOLERANCIA);
     });
   }
 });

@@ -19,3 +19,15 @@ export function travarRolagem() {
     if (!travas) document.body.classList.remove(CLASSE);
   };
 }
+
+/**
+ * Leva a pessoa até uma coisa da tela (#399: o "ver" do menu "Acrescentar ao cartão"): rola quem a contém até ela ficar no alto
+ * (`onde`: 'start') ou no meio ('center') e põe o foco em `foco`, sem outro pulo. Desliza, a não ser para quem pediu ao sistema
+ * menos movimento.
+ */
+export function irAte(alvo: HTMLElement | null | undefined, foco?: HTMLElement | null, onde: ScrollLogicalPosition = 'start') {
+  if (!alvo) return;
+  const semMovimento = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  alvo.scrollIntoView?.({ block: onde, behavior: semMovimento ? 'auto' : 'smooth' });
+  foco?.focus({ preventScroll: true });
+}

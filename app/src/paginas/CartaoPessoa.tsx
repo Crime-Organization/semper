@@ -189,7 +189,7 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
   // Na pessoa arquivada, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
-    <CabecaDoCartao editando={editando}
+    <CabecaDoCartao
       topo={/* O topo da anotação (#382): o tipo e o código; os responsáveis em bolinhas (#387, vários e todos iguais, sem um
           principal), a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Na pessoa arquivada, as bolinhas são só para ver. */
       <TopoDoCartao modulo="pessoas" id={p.id} arquivado={!!p.arquivado_em} editando={editando}

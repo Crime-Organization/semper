@@ -2,7 +2,7 @@
 // Módulo Demandas. Na semente do banco fictício: o contrato de JOSÉ DA SILVA TESTE (assinado) já gerou as demandas
 // "Registro de marca" (Fazendo, com o Bruno de colaborador) e "Busca de anterioridade" (Para fazer); "Notificar o
 // devedor" é avulsa, do Bruno, com o prazo vencido. Quem está logado é o Mauro (administrador).
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao, alturaParada, barraDeFormatacao, barraEquilibradaNoCelular, entrarComo } from './ajudantes';
 
 /** Abre o cartão de uma demanda pela tabela e, se pedidas, as seções dele (toda seção começa recolhida). */
@@ -447,13 +447,16 @@ for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, heig
   });
 }
 
+/** O último botão dos dados (as faixas das datas e do tempo), o que vem logo antes da descrição na ordem do Tab. */
+const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
+  .getByRole('button').last();
+
 test.describe('A descrição no topo do cartão da demanda (#385)', () => {
   test('dado quem usa só o teclado, quando chega à descrição da demanda com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
-    // Dado: o foco no último botão rápido, o fim dos dados, logo acima da descrição (#397)
+    // Dado: o foco no último botão dos dados (as datas e o tempo), logo acima da descrição (#397; desde a #399, sem os botões rápidos)
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
-    const atalhos = cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
-    await atalhos.getByRole('button').or(atalhos.getByRole('link')).last().focus();
+    await ultimoDosDados(cartao).focus();
     // Quando
     await page.keyboard.press('Tab');
     // Então
@@ -475,12 +478,12 @@ test.describe('A descrição no topo do cartão da demanda (#385)', () => {
   test('dado o cartão de uma demanda, quando ele abre, então a descrição vem depois dos dados, a pelo menos o vão da variável de estilo', async ({ page }) => {
     // Quando
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
-    // Então: desde a #397, a descrição vem depois dos dados (as datas, o tempo e os botões rápidos)
+    // Então: desde a #397, a descrição vem depois dos dados (as datas e o tempo; desde a #399, sem os botões rápidos)
     const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
-    // Mede depois de o cartão terminar de entrar: a animação de abertura ainda desloca os botões rápidos uns pixels.
+    // Mede depois de o cartão terminar de entrar: a animação de abertura ainda desloca os dados uns pixels.
     await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
-    const dados = (await cartao.getByRole('group', { name: 'Acrescentar ao cartão' }).boundingBox())!;
+    const dados = (await cartao.getByRole('group', { name: 'Tempo', exact: true }).boundingBox())!;
     const descricao = (await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').boundingBox())!;
     expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
   });
