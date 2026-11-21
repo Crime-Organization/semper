@@ -39,6 +39,17 @@ const caixaDoTexto = (alvo: Locator) => alvo.evaluate(e => { const r = document.
  */
 const voltarAoComeco = (cartao: Locator) => cartao.evaluate(d => { [d, ...d.querySelectorAll('*')].forEach(e => { if (e.scrollTop) e.scrollTop = 0; }); });
 
+/**
+ * Espera as animações do cartão acabarem (as que começam enquanto se espera também), para medir tudo parado. As que se repetem
+ * sem fim (o "carregando") ficam de fora: não acabam nunca.
+ */
+const esperarAsAnimacoes = (cartao: Locator) => cartao.evaluate(async () => {
+  const quePassam = () => document.getAnimations().filter(a => a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity);
+  for (let animacoes = quePassam(); animacoes.length; animacoes = quePassam()) {
+    await Promise.all(animacoes.map(a => a.finished.catch(() => undefined)));
+  }
+});
+
 /** Os botões redondos visíveis no alto: os da janela (o formato e o X) e os do cartão (a etiqueta, o lápis e o ⋯). */
 async function botoesDoAlto(cartao: Locator) {
   const nomes = ['Abrir no centro da tela', 'Abrir ao lado', 'Fechar', 'Escolher etiquetas', 'Editar'];
@@ -158,6 +169,9 @@ test.describe('O topo não fica por baixo dos botões da janela', () => {
         // Quando: em edição, o "Modo de edição" fica no lugar dos botões do cartão
         await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
         await expect(cartao.getByRole('status').filter({ hasText: 'Modo de edição' })).toBeVisible();
+        // O formulário do lápis aparece um instante depois, com a animação de entrada: mede-se com ele já parado.
+        await expect(cartao.getByRole('button', { name: 'Cancelar' })).toBeVisible();
+        await esperarAsAnimacoes(cartao);
         // Então
         await nadaPorBaixoDosBotoes(cartao, tipo);
         const modo = (await cartao.getByRole('status').filter({ hasText: 'Modo de edição' }).boundingBox())!;
