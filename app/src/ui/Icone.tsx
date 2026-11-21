@@ -85,6 +85,11 @@ export const ICONE_DO_TOPO = 18;
  */
 export const ICONE_NO_QUADRO = 12;
 /**
+ * Tamanho do ícone dos títulos das seções do cartão (Recolhivel) e do rótulo "Situação", logo abaixo da linha de cima
+ * (SituacaoDoCartao, #397), que tem a cara dos títulos das seções.
+ */
+export const ICONE_DO_TITULO_DE_SECAO = 14;
+/**
  * O ícone de cada módulo, o mesmo do menu: num lugar só, para o "+ Novo…" da anotação, a busca geral e as ligações no quadro não
  * mostrarem desenhos diferentes para o mesmo módulo. Módulo novo = uma entrada nova.
  */

@@ -4,14 +4,14 @@
 // Desde a #383, ele fica numa faixa própria, logo abaixo da faixa das datas (a mesma peça, GrupoDeDatas, em ui/base): o relógio, a
 // situação (pausado ou contando), Iniciar/Pausar e "Ajustar meu tempo" lado a lado, num dado largo, e o resumo de quem registrou
 // tempo embaixo deles, na mesma faixa (LinhaDoGrupo). No cartão da demanda, a mesma faixa mostra a soma do tempo nas tarefas dela.
-// Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda, para todos que veem a tarefa) entra na faixa das
-// datas, como o último dado, à direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Uma peça só (DadosDaTarefa)
+// Desde a #397 (pedido do dono de 20/11), o tempo total da tarefa (o da equipe toda) entra na faixa das datas, como o último dado, à
+// direita ("Tempo total"), e o resumo de quem registrou tempo não o repete. Quem só lê o vê quando o banco o devolve (totalAparece). Uma peça só (DadosDaTarefa)
 // lê o tempo e desenha as duas faixas: o cronômetro liga uma vez só (duas vezes, gravaria o tempo em dobro), e o total acompanha o
 // relógio de quem está contando.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Tarefa, type TempoDaTarefa } from '../dados';
 import { TAMANHO_MOTIVO } from '../dados/limites';
-import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa, totalAoVivo } from '../regras/cronometro';
+import { errosDoAjuste, fmtDecorrido, fmtDuracao, fmtRelogio, lerAjuste, somaDoTempo, tempoPorPessoa, totalAoVivo, totalAparece } from '../regras/cronometro';
 import { Avatar } from '../ui/Avatar';
 import { falha, feito } from '../ui/avisos';
 import { Aviso, Campo, Carregando, DadoDoGrupo, estiloBotao, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo, Nota } from '../ui/base';
@@ -43,7 +43,7 @@ const TOTAL_SEM_LEITURA = 'Não foi possível ler o tempo agora';
 
 interface PropsDosDados {
   t: Tarefa;
-  /** Quem altera a tarefa tem o cronômetro ("Seu tempo nesta tarefa"); os outros veem só o total. */
+  /** Quem altera a tarefa tem o cronômetro ("Seu tempo nesta tarefa"); os outros veem só o total, quando o banco o devolve. */
   podeAlterar: boolean;
   /** As outras datas da faixa (o início e o prazo), entre a criação e o tempo total. */
   datas: ReactNode;
@@ -64,17 +64,20 @@ export function DadosDaTarefa({ t, podeAlterar, datas }: PropsDosDados) {
 /** O relógio aberto de quem está com o cartão: o que ele conta e ainda não está no total gravado. */
 interface RelogioAberto { eu: string; periodoId: number | null; segundos: number }
 
-/** A faixa das datas da tarefa, com o tempo total à direita; com o relógio aberto, o total o acompanha. */
+/**
+ * A faixa das datas da tarefa, com o tempo total à direita; com o relógio aberto (quem altera a tarefa), o total o acompanha. Sem
+ * ele (quem só lê), o total só entra quando o banco o devolve: enquanto lê, ou se a leitura falha, o dado não aparece.
+ */
 function FaixaComTotal({ t, datas, tempo, relogio }: { t: Tarefa; datas: ReactNode; tempo: TempoLido; relogio?: RelogioAberto }) {
   const estado = estadoDoTempo(tempo);
   const lido = typeof tempo === 'string' ? null : tempo;
   const total = !lido ? 0 : relogio ? totalAoVivo(lido, relogio.eu, relogio.periodoId, relogio.segundos) : lido.total;
   return <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: t.criado_em }}>
     {datas}
-    <DadoDoGrupo rotulo={ROTULO_DO_TEMPO_TOTAL}>
+    {totalAparece(!!relogio, total) && <DadoDoGrupo rotulo={ROTULO_DO_TEMPO_TOTAL}>
       <b className="num tempo-total" aria-busy={estado === 'lendo' || undefined}
         title={estado === 'erro' ? TOTAL_SEM_LEITURA : undefined}>{TEXTO_DO_TOTAL[estado](total)}</b>
-    </DadoDoGrupo>
+    </DadoDoGrupo>}
   </FaixaDasDatas>;
 }
 

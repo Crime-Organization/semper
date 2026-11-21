@@ -4,6 +4,8 @@
 // dados (as datas e o tempo), a descrição (no processo, o número), o "Expandir tudo" da esquerda e as seções. Na coluna da direita,
 // no centro largo, uma linha só com três botões redondos no alto: o "Expandir tudo" dela, o abrir ao lado e o X. Ao lado e no
 // celular, o X e o abrir ao lado continuam no alto do cartão, e o "Expandir tudo" das seções de baixo fica acima de Comentários.
+// Cada "Expandir tudo" diz no nome de onde são as seções que abre: "da coluna da esquerda" e "da coluna da direita" no centro largo,
+// "do alto do cartão" e "do pé do cartão" sem a coluna.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { acaoNoMenuDoCartao, menuDoCartao } from './ajudantes';
@@ -46,9 +48,12 @@ async function abrirCartao(page: Page, endereco: string, linha: string) {
   await expect(cartao.getByRole('heading', { level: 2 })).toBeVisible();
   return cartao;
 }
-/** Espera as transições da janela terminarem (ela entra deslizando). */
+/**
+ * Espera as transições da janela terminarem (ela entra deslizando). Uma transição cancelada também parou (como em
+ * eixo-dos-botoes-do-cartao.spec.ts): o fundo de um botão que passa sob o ponteiro enquanto a janela desliza começa e é cancelado.
+ */
 async function esperarParar(cartao: Locator) {
-  await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished)));
+  await cartao.evaluate(e => Promise.all(e.getAnimations({ subtree: true }).map(a => a.finished.catch(() => undefined))));
 }
 /** Muda o formato do cartão, se ele ainda não está nesse formato, e espera a janela parar de se mexer. */
 async function formato(cartao: Locator, qual: 'Abrir no centro da tela' | 'Abrir ao lado') {
@@ -59,14 +64,14 @@ async function formato(cartao: Locator, qual: 'Abrir no centro da tela' | 'Abrir
 /** O menu da Situação (na pessoa, o da "Etapa do atendimento"). */
 const menuDaSituacao = (cartao: Locator) => cartao.getByRole('combobox', { name: /^(Situação d[aeo] |Etapa do atendimento$)/ });
 const botoesDaJanela = (cartao: Locator) => cartao.getByRole('group', { name: NOME_DOS_BOTOES_DA_JANELA });
-const EXPANDIR = /^(Expandir|Recolher) tudo$/;
-/** Os "Expandir tudo" fora da linha dos botões da janela, de cima para baixo: o da esquerda e, sem a coluna, o da parte de baixo. */
-async function expandirForaDaJanela(cartao: Locator) {
-  const todos = cartao.getByRole('button', { name: EXPANDIR });
-  const fora = await todos.evaluateAll((botoes, nome) => botoes.map((b, i) => [i, b.closest(`[role="group"][aria-label="${nome}"]`)] as const)
-    .filter(([, grupo]) => !grupo).map(([i]) => i), NOME_DOS_BOTOES_DA_JANELA);
-  return fora.map(i => todos.nth(i));
-}
+const EXPANDIR = /^(Expandir|Recolher) tudo (da|do) /;
+/** O "Expandir tudo" da esquerda (as seções do corpo do cartão; sem a coluna, as do alto), pelo nome. */
+const expandirDaEsquerda = (cartao: Locator) => cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (da coluna da esquerda|do alto do cartão)$/ });
+/** O "Expandir tudo" da coluna da direita (sem a coluna, o das seções do pé do cartão), pelo nome. */
+const expandirDaColuna = (cartao: Locator) => cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (da coluna da direita|do pé do cartão)$/ });
+/** Se `a` vem antes de `b` na página (e na ordem do Tab). */
+const antesNaPagina = async (a: Locator, b: Locator) =>
+  a.evaluate((x, y) => !!(x.compareDocumentPosition(y!) & Node.DOCUMENT_POSITION_FOLLOWING), await b.elementHandle());
 /** O botão que abre e fecha a seção (o título dela). */
 const secao = (cartao: Locator, nome: RegExp) => cartao.getByRole('button', { name: nome }).and(cartao.locator('[aria-controls]'));
 
@@ -83,7 +88,7 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
       if (c.datas) blocos.push(cartao.getByRole('group', { name: 'Datas', exact: true }));
       if (c.tempo) blocos.push(cartao.getByRole('group', { name: 'Tempo', exact: true }));
       if (c.descricao) blocos.push(c.descricao(cartao));
-      const [esquerda] = await expandirForaDaJanela(cartao);
+      const esquerda = expandirDaEsquerda(cartao);
       blocos.push(esquerda, secao(cartao, c.primeiraSecao));
       let anterior = await caixa(blocos[0]);
       for (const bloco of blocos.slice(1)) {
@@ -109,6 +114,10 @@ test.describe('A ordem da cabeça do cartão (#397), no centro largo', () => {
     expect(Math.abs(dadoTotal.y - prazo.y)).toBeLessThanOrEqual(TOLERANCIA);
     // E o resumo da equipe não repete o total
     await expect(cartao.getByText(/^Total (até agora|da equipe)/)).toHaveCount(0);
+    // E o total, em destaque, não fica menor que o relógio de quem olha ("Seu tempo nesta tarefa")
+    const tamanho = (alvo: Locator) => alvo.evaluate(e => parseFloat(getComputedStyle(e).fontSize));
+    const relogio = cartao.getByRole('timer');
+    expect(await tamanho(total.getByText('2 h'))).toBeGreaterThanOrEqual(await tamanho(relogio));
   });
 });
 
@@ -157,19 +166,18 @@ test.describe('Cada "Expandir tudo" só abre as seções da sua coluna (#394, #3
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     await formato(cartao, 'Abrir no centro da tela');
     // Quando
-    await botoesDaJanela(cartao).getByRole('button', { name: 'Expandir tudo' }).click();
+    await expandirDaColuna(cartao).click();
     // Então
     await expect(secao(cartao, /^Histórico de alterações/)).toHaveAttribute('aria-expanded', 'true');
     await expect(secao(cartao, /^Checklists/)).toHaveAttribute('aria-expanded', 'false');
     // Quando
-    const [esquerda] = await expandirForaDaJanela(cartao);
-    await esquerda.click();
+    await expandirDaEsquerda(cartao).click();
     // Então
     await expect(secao(cartao, /^Checklists/)).toHaveAttribute('aria-expanded', 'true');
     await expect(secao(cartao, /^Demanda/)).toHaveAttribute('aria-expanded', 'true');
-    await expect(botoesDaJanela(cartao).getByRole('button', { name: 'Recolher tudo' })).toBeVisible();
+    await expect(expandirDaColuna(cartao)).toHaveAccessibleName('Recolher tudo da coluna da direita');
     // Quando: recolhe só a direita
-    await botoesDaJanela(cartao).getByRole('button', { name: 'Recolher tudo' }).click();
+    await expandirDaColuna(cartao).click();
     // Então
     await expect(secao(cartao, /^Histórico de alterações/)).toHaveAttribute('aria-expanded', 'false');
     await expect(secao(cartao, /^Checklists/)).toHaveAttribute('aria-expanded', 'true');
@@ -179,7 +187,7 @@ test.describe('Cada "Expandir tudo" só abre as seções da sua coluna (#394, #3
     // Dado
     const cartao = await abrirCartao(page, '/demandas/', 'Registro de marca');
     await formato(cartao, 'Abrir ao lado');
-    const [esquerda, debaixo] = await expandirForaDaJanela(cartao);
+    const [esquerda, debaixo] = [expandirDaEsquerda(cartao), expandirDaColuna(cartao)];
     expect(embaixo(await caixa(debaixo))).toBeLessThanOrEqual((await caixa(secao(cartao, /^Comentários/))).y + TOLERANCIA);
     expect((await caixa(debaixo)).y).toBeGreaterThan(embaixo(await caixa(esquerda)));
     // Quando
@@ -191,7 +199,7 @@ test.describe('Cada "Expandir tudo" só abre as seções da sua coluna (#394, #3
 });
 
 test.describe('Os botões da janela (#397)', () => {
-  test('dado o cartão no centro largo, quando abre, então o alto da coluna da direita tem, nesta ordem, o "Expandir tudo" dela, o abrir ao lado e o X, redondos e na altura da linha de cima', async ({ page }) => {
+  test('dado o cartão no centro largo, quando abre, então o alto da coluna da direita tem, nesta ordem, o "Expandir tudo" dela, o abrir ao lado e o X, redondos e na altura da linha de cima, e o Tab passa pelo cartão antes da coluna', async ({ page }) => {
     // Dado
     await page.setViewportSize({ width: 1440, height: 900 });
     for (const c of CARTOES) {
@@ -199,20 +207,29 @@ test.describe('Os botões da janela (#397)', () => {
       const cartao = await abrirCartao(page, c.endereco, c.linha);
       await formato(cartao, 'Abrir no centro da tela');
       // Então
-      const botoes = botoesDaJanela(cartao).getByRole('button');
-      await expect(botoes).toHaveCount(3);
-      await expect(botoes.nth(0)).toHaveAccessibleName('Expandir tudo');
-      await expect(botoes.nth(1)).toHaveAccessibleName('Abrir ao lado');
-      await expect(botoes.nth(2)).toHaveAccessibleName('Fechar');
+      const janela = botoesDaJanela(cartao).getByRole('button');
+      await expect(janela).toHaveCount(2);
+      await expect(janela.nth(0)).toHaveAccessibleName('Abrir ao lado');
+      await expect(janela.nth(1)).toHaveAccessibleName('Fechar');
+      const botoes = [expandirDaColuna(cartao), janela.nth(0), janela.nth(1)];
       const linhaDeCima = meioY(await caixa(menuDoCartao(cartao)));
       const tamanho = await caixa(menuDoCartao(cartao));
-      for (const b of await botoes.all()) {
+      const caixas = [];
+      for (const b of botoes) {
         const k = await caixa(b);
+        caixas.push(k);
         expect(Math.abs(meioY(k) - linhaDeCima)).toBeLessThanOrEqual(TOLERANCIA);
         expect(Math.abs(k.width - tamanho.width)).toBeLessThanOrEqual(TOLERANCIA);
       }
+      // Nesta ordem, da esquerda para a direita, com o vão de sempre entre eles
+      expect(caixas[1].x - (caixas[0].x + caixas[0].width)).toBeCloseTo(caixas[2].x - (caixas[1].x + caixas[1].width), 0);
+      expect(caixas[0].x).toBeLessThan(caixas[1].x);
       // E o que vem na coluna começa abaixo da linha
-      expect((await caixa(secao(cartao, /^Comentários/))).y).toBeGreaterThan(embaixo(await caixa(botoes.nth(0))));
+      expect((await caixa(secao(cartao, /^Comentários/))).y).toBeGreaterThan(embaixo(caixas[0]));
+      // E o Tab: os botões da janela, o cartão (com o "Expandir tudo" da esquerda), e só então o da coluna, logo antes das seções dela
+      expect(await antesNaPagina(janela.nth(1), expandirDaEsquerda(cartao))).toBe(true);
+      expect(await antesNaPagina(expandirDaEsquerda(cartao), expandirDaColuna(cartao))).toBe(true);
+      expect(await antesNaPagina(expandirDaColuna(cartao), secao(cartao, /^Comentários/))).toBe(true);
       await cartao.getByRole('button', { name: 'Fechar' }).click();
     }
   });
@@ -229,7 +246,7 @@ test.describe('Os botões da janela (#397)', () => {
     await expect(janela.getByRole('button', { name: 'Abrir no centro da tela' })).toBeVisible();
     await expect(janela.getByRole('button', { name: EXPANDIR })).toHaveCount(0);
     expect(embaixo(await caixa(janela.getByRole('button', { name: 'Fechar' })))).toBeLessThan((await caixa(menuDaSituacao(cartao))).y);
-    await expect.poll(async () => (await expandirForaDaJanela(cartao)).length).toBe(2);
+    await expect(cartao.getByRole('button', { name: EXPANDIR })).toHaveCount(2);
   });
 });
 
@@ -247,7 +264,7 @@ test.describe('No celular (#397)', () => {
       expect(embaixo(await caixa(fechar))).toBeLessThan(menu.y);
       if (c.concluir) expect(cruzam(menu, await caixa(cartao.getByRole('button', { name: 'Concluir', exact: true })))).toBe(false);
       expect(menu.x + menu.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-      const [esquerda, debaixo] = await expandirForaDaJanela(cartao);
+      const [esquerda, debaixo] = [expandirDaEsquerda(cartao), expandirDaColuna(cartao)];
       expect(embaixo(await caixa(esquerda))).toBeLessThanOrEqual((await caixa(secao(cartao, c.primeiraSecao))).y + TOLERANCIA);
       expect(embaixo(await caixa(debaixo))).toBeLessThanOrEqual((await caixa(secao(cartao, /^Comentários/))).y + TOLERANCIA);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(page.viewportSize()!.width);
@@ -255,7 +272,51 @@ test.describe('No celular (#397)', () => {
   }
 });
 
+test.describe('A Situação de nome longo no celular (#397)', () => {
+  test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
+
+  for (const c of CARTOES.filter(k => k.concluir)) {
+    test(`dado o cartão de ${c.cartao} no celular, quando a pessoa escolhe "Aguardando retorno", então o nome inteiro cabe no menu, sem reticências, com o ✓ ao lado`, async ({ page }) => {
+      // Dado
+      const cartao = await abrirCartao(page, c.endereco, c.linha);
+      await esperarParar(cartao);
+      const menu = menuDaSituacao(cartao);
+      // Quando
+      await menu.selectOption({ label: 'AGUARDANDO RETORNO' });
+      // Então: o texto escolhido, com a letra do menu, cabe no espaço do texto (a largura menos as folgas)
+      const sobra = await menu.evaluate((s: HTMLSelectElement) => {
+        const estilo = getComputedStyle(s);
+        const regua = document.createElement('canvas').getContext('2d')!;
+        regua.font = `${estilo.fontWeight} ${estilo.fontSize} ${estilo.fontFamily}`;
+        regua.letterSpacing = estilo.letterSpacing;
+        const espaco = s.clientWidth - parseFloat(estilo.paddingLeft) - parseFloat(estilo.paddingRight);
+        return espaco - regua.measureText(s.selectedOptions[0].text).width;
+      });
+      expect(sobra).toBeGreaterThanOrEqual(0);
+      const [m, concluir] = [await caixa(menu), await caixa(cartao.getByRole('button', { name: 'Concluir', exact: true }))];
+      expect(Math.abs(meioY(m) - meioY(concluir))).toBeLessThanOrEqual(TOLERANCIA);
+      expect(concluir.x + concluir.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+    });
+  }
+});
+
 test.describe('O cartão arquivado (#397)', () => {
+  test(`dado o cartão de tarefa arquivado e sem descrição, quando abre, então dos dados à faixa do arquivado fica só o vão entre os blocos, sem o vão da descrição`, async ({ page }) => {
+    // Dado
+    await page.setViewportSize({ width: 1300, height: 900 });
+    const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
+    await formato(cartao, 'Abrir no centro da tela');
+    // Quando
+    await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
+    const desarquivar = cartao.getByRole('button', { name: 'Desarquivar' });
+    await expect(desarquivar).toBeVisible();
+    // Então: a faixa do arquivado (onde está o Desarquivar) vem logo depois do tempo, com o vão de sempre entre os blocos
+    const [tempo, faixa] = [await caixa(cartao.getByRole('group', { name: 'Tempo', exact: true })), await caixa(desarquivar.locator('..'))];
+    const vaoEntreOsBlocos = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cartao-vao-secoes')));
+    expect(faixa.y - embaixo(tempo)).toBeLessThanOrEqual(vaoEntreOsBlocos + TOLERANCIA);
+    await expect(descricaoDoCartao(cartao)).toHaveCount(0);
+  });
+
   for (const c of CARTOES.filter(k => k.concluir)) {
     test(`dado o cartão de ${c.cartao} arquivado, quando a pessoa aciona o ✓ pelo teclado, então a Situação e o ✓ aparecem só para ver e nada muda`, async ({ page }) => {
       // Dado

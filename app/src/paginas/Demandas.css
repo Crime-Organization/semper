@@ -113,7 +113,8 @@
 .cronometro { display: flex; flex-wrap: wrap; align-items: center; gap: var(--vao-entre-relogio-e-botoes) }
 .cronometro-leitura, .cronometro-acoes { display: inline-flex; align-items: center; gap: var(--vao-do-cronometro); white-space: nowrap }
 .cronometro-leitura { align-items: baseline }
-.cronometro-relogio, .tempo-da-demanda { font-size: var(--texto-do-relogio); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
+/* O relógio, o tempo da demanda e o tempo total da tarefa, na faixa das datas (#397): os números do tempo, do mesmo tamanho. */
+.cronometro-relogio, .tempo-da-demanda, .grupo-datas-valor .tempo-total { font-size: var(--texto-do-relogio); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; color: var(--ink) }
 .cronometro-situacao { display: inline-flex; align-items: center; gap: var(--vao-do-dado); min-width: var(--largura-da-situacao); font-size: var(--texto-apoio); color: var(--muted) }
 .cronometro-situacao.contando { color: var(--accent-ink); font-weight: 700 }
 .cronometro-situacao.contando::before { content: ''; width: var(--bolinha-contando); height: var(--bolinha-contando); border-radius: 999px; background: var(--accent) }

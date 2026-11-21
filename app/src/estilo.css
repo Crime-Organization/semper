@@ -196,18 +196,8 @@
      pouco para ficar junto dele */
   --vao-da-secao-da-equipe: 14px;
   --subida-da-nota-da-secao: -6px;
-  /* O vão acima da descrição formatada fora da cabeça do cartão (#385). Na cabeça, valem os vãos logo abaixo */
+  /* O vão acima da descrição formatada fora da cabeça do cartão (#385). Na cabeça, valem os vãos da cabeça, no bloco logo depois deste */
   --vao-do-titulo-a-descricao: 14px;
-  /* A cabeça do cartão (#396, #397), de cima para baixo, na escala do DESIGN.md: da linha de cima à linha da Situação
-     ({spacing.sm}); da Situação às etiquetas, ou ao título, sem etiquetas ({spacing.md}); das etiquetas ao título, que são dele
-     ({spacing.xs}); do título aos dados, a faixa das datas com a linha fina ({spacing.md}); e dos dados (as datas, o tempo e os
-     botões rápidos) à descrição ({spacing.lg}). No celular, um degrau menor cada um (veja logo abaixo), para o topo respirar sem
-     empurrar as seções para longe */
-  --vao-do-topo-a-situacao: 12px;
-  --vao-ate-o-titulo: 16px;
-  --vao-das-etiquetas-ao-titulo: 8px;
-  --vao-do-titulo-aos-dados: 16px;
-  --vao-dos-dados-a-descricao: 24px;
   /* O degradê na borda do quadro quando há colunas fora da tela (#87): a largura dele e quanto leva para acender e apagar */
   --largura-do-degrade-do-quadro: 56px;
   --tempo-do-degrade-do-quadro: .2s;
@@ -215,6 +205,24 @@
      do topo da coluna, a do botão "⋯" (.coluna-menu), em que a quantidade e o "⋯" ficam centrados */
   --linhas-do-nome-da-coluna: 3;
   --altura-do-topo-da-coluna: 28px;
+}
+/* Os vãos da cabeça do cartão (#396, #397), de cima para baixo, na escala do DESIGN.md, todos aqui, com os do celular logo abaixo:
+   da linha de cima à linha da Situação ({spacing.sm}); da Situação às etiquetas, ou ao título, sem etiquetas ({spacing.md}); das
+   etiquetas ao título, que são dele ({spacing.xs}); do título ao que vai logo abaixo dele, na pessoa o nome fantasia
+   ({spacing.xs}); do título aos dados, a faixa das datas com a linha fina ({spacing.md}); e dos dados (as datas, o tempo e os
+   botões rápidos) à descrição ({spacing.lg}). */
+:root {
+  --vao-do-topo-a-situacao: 12px;
+  --vao-ate-o-titulo: 16px;
+  --vao-das-etiquetas-ao-titulo: 8px;
+  --vao-do-titulo-ao-subtitulo: 8px;
+  --vao-do-titulo-aos-dados: 16px;
+  --vao-dos-dados-a-descricao: 24px;
+}
+/* No celular, os quatro vãos maiores descem um degrau, para o topo respirar sem empurrar as seções para longe; os dois de
+   {spacing.xs} (das etiquetas ao título e do título ao subtítulo) ficam como estão, que já são os menores da escala. */
+@media (max-width: 640px) {
+  :root { --vao-do-topo-a-situacao: 8px; --vao-ate-o-titulo: 12px; --vao-do-titulo-aos-dados: 12px; --vao-dos-dados-a-descricao: 16px }
 }
 
 /* ---------- modo escuro: cinzas quentes escuros, texto claro, verde mais vivo nos textos ---------- */
@@ -426,10 +434,6 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .texto-editavel-area:focus-visible { outline-offset: 0 }
 .texto-editavel-vazio { width: 100%; padding: 14px 16px; border: 1px dashed var(--line2); border-radius: 12px; background: none; color: var(--muted); font: inherit; font-size: var(--texto-corrido); text-align: left; cursor: text }
 .texto-editavel-vazio:hover { border-color: var(--faint); color: var(--text) }
-@media (max-width: 640px) {
-  :root { --vao-do-topo-a-situacao: 8px; --vao-ate-o-titulo: 12px; --vao-do-titulo-aos-dados: 12px; --vao-dos-dados-a-descricao: 16px }
-}
-
 .texto-editavel-edicao { display: flex; flex-direction: column; gap: 10px }
 .texto-editavel-caixa { width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line2); background: var(--superficie); font: inherit; font-size: var(--texto-nota); line-height: 1.65; color: var(--ink); resize: vertical }
 .texto-editavel-caixa:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
@@ -885,8 +889,19 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-painel.centro:has(> .cartao-conteudo > .cartao-coluna):has(.cartao-topo) {
   --botoes-da-janela-acima: calc(var(--cartao-topo) + (var(--topo-primeira-linha) - var(--botao-redondo)) / 2) }
 .cartao-botoes { position: sticky; top: var(--botoes-da-janela-acima); margin: var(--botoes-da-janela-acima) var(--botoes-margem-direita) calc(-1 * (var(--botoes-da-janela-acima) + var(--botao-redondo))) auto; z-index: 2; width: max-content; display: flex; gap: var(--botao-redondo-vao) }
-/* O lugar do "Expandir tudo" da coluna na linha (e a caixa dele): não desenham nada, o botão fica ao lado dos outros. */
-.cartao-botoes-da-coluna, .cartao-botoes .secoes-todas { display: contents }
+/* O abrir ao lado / no centro e o X, juntos (o grupo "Botões da janela"), à direita dos botões do cartão que vêm para a linha. */
+.cartao-botoes-da-janela { display: flex; gap: var(--botao-redondo-vao) }
+/* O "Expandir tudo" da coluna da direita (#397): no código, ele fica dentro da coluna, logo antes das seções que abre (a ordem do
+   Tab); na tela, sobe para a linha dos botões da janela, à esquerda do abrir ao lado e do X, na mesma altura deles (a margem de
+   cima, negativa, desfaz o botão e o vão que a coluna deixa acima das seções), e fica preso lá quando a coluna rola, como eles (o
+   navegador prende o que é sticky abaixo do recuo de cima de quem rola: o top, negativo, devolve esse mesmo pedaço). A margem da
+   direita o leva para fora da coluna até a ponta dos dois botões da janela: a ponta das seções está a --sobra-do-botao-redondo à
+   esquerda da do X, e os dois botões ocupam a largura deles e os vãos. */
+:root { --botoes-da-janela-na-coluna: 2; --acima-das-secoes-da-coluna: calc(var(--botao-redondo) + var(--vao-do-topo-a-situacao)) }
+.cartao-coluna .secoes-todas { position: sticky; z-index: 2; top: calc(-1 * var(--acima-das-secoes-da-coluna));
+  margin-top: calc(-1 * var(--acima-das-secoes-da-coluna));
+  margin-right: calc(var(--botoes-da-janela-na-coluna) * (var(--botao-redondo) + var(--botao-redondo-vao)) - var(--sobra-do-botao-redondo));
+  margin-bottom: calc(var(--vao-do-topo-a-situacao) - var(--cartao-vao-secoes)) }
 .cartao-botao { width: var(--botao-redondo); height: var(--botao-redondo); border-radius: 999px; border: 1px solid var(--line2); background: var(--superficie); color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center }
 .cartao-botao:hover { background: var(--soft) }
 /* O desligado e o foco do teclado: em todos os cartões. */
@@ -967,11 +982,13 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-cabeca-titulo { margin-top: var(--vao-ate-o-titulo) }
 .cartao-cabeca > .etiquetas + .cartao-cabeca-titulo { margin-top: var(--vao-das-etiquetas-ao-titulo) }
 .cartao-cabeca-titulo > h2, .cartao-cabeca-titulo > .titulo-editavel { margin-top: 0 }
-.cartao-cabeca-titulo > .cartao-subtitulo { margin: var(--vao-das-etiquetas-ao-titulo) 0 0 }
+.cartao-cabeca-titulo > .cartao-subtitulo { margin: var(--vao-do-titulo-ao-subtitulo) 0 0 }
 .cartao-cabeca-dados { margin-top: var(--vao-do-titulo-aos-dados) }
 .cartao-cabeca-dados > .grupo-datas:first-child { margin-top: 0 }
 .cartao-cabeca-dados:empty { display: none }
 .cartao-cabeca-descricao { margin-top: var(--vao-dos-dados-a-descricao) }
+/* A descrição que não desenha nada (o cartão arquivado, ou de quem só lê, sem descrição) não deixa o vão dela. */
+.cartao-cabeca-descricao:empty { display: none }
 .cartao-cabeca-titulo + .cartao-cabeca-descricao { margin-top: var(--vao-do-titulo-aos-dados) }
 .cartao-cabeca .linha { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-right: 92px }
 .cartao-cabeca:has(> .cartao-topo) h2 { padding-right: 0 }
@@ -1008,6 +1025,9 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .cartao-topo-direita { float: right; max-width: calc(100% - var(--topo-esquerda-minima)); min-height: var(--topo-primeira-linha); margin-left: calc(2 * var(--botao-redondo-vao));
   display: flex; flex-wrap: wrap-reverse; align-items: center; justify-content: flex-end; gap: var(--botao-redondo-vao) }
 .cartao-topo-direita:empty { display: none }
+/* Com os botões do cartão nela (o centro largo), a ponta direita fica no eixo dos botões redondos de baixo (o Concluir, o "Expandir
+   tudo" e as setas das seções, #381): passa --sobra-do-botao-redondo da ponta do texto, como eles. */
+.cartao-topo-direita:has(> .cartao-topo-acoes) { margin-right: calc(-1 * var(--sobra-do-botao-redondo)) }
 /* Entre a equipe e os botões do cartão, quando estão juntos (no centro largo), um vão a mais. */
 .cartao-topo-direita > .equipe-cartao:has(+ .cartao-topo-acoes) { margin-right: var(--botao-redondo-vao) }
 /* A esquerda, em linha (ela não desenha caixa: o que tem dentro corre no topo, ao lado do que flutua): a primeira linha tem a altura
@@ -1175,16 +1195,20 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
    como os títulos das seções; o menu largo, ocupando o espaço, numa pílula da altura dos botões redondos, com a seta à direita e as
    letras dos selos (o nome da coluna, em maiúsculas); e, à direita, o Concluir redondo da tarefa e da demanda. A seta fica por cima
    do menu, sem pegar o clique: a pílula toda é o menu. Desligado (o cartão arquivado, quem só lê), fica sem a seta e sem o hover,
-   como um selo com borda. Sem lugar para o menu ficar com --situacao-menu-minimo ao lado do rótulo (o celular, com a "Etapa do
-   atendimento"), o menu e o Concluir descem juntos para a linha de baixo. Na tela de toque, a pílula tem a altura do alvo do dedo. */
-:root { --situacao-menu-minimo: 10rem }
-.cartao-situacao { display: flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao) calc(2 * var(--botao-redondo-vao)); margin-top: var(--vao-do-topo-a-situacao) }
+   como um selo com borda. O menu e o Concluir andam juntos (.cartao-situacao-controles), e o lugar que pedem ao lado do rótulo é o
+   do maior nome de coluna do menu, inteiro, mais o Concluir: quando não cabe (o celular, com "AGUARDANDO RETORNO" ou a "Etapa do
+   atendimento"), os dois descem juntos para a linha de baixo, onde o nome cabe, em vez de ficar cortado com reticências. Na tela de
+   toque, a pílula tem a altura do alvo do dedo. A ponta direita da linha fica no eixo dos botões redondos de cima e de baixo (o X, o
+   "Expandir tudo" e as setas das seções, #381): ela passa --sobra-do-botao-redondo da ponta do texto, como o "Expandir tudo". */
+.cartao-situacao { display: flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao) calc(2 * var(--botao-redondo-vao));
+  margin: var(--vao-do-topo-a-situacao) calc(-1 * var(--sobra-do-botao-redondo)) 0 0 }
 .cartao-situacao-rotulo { flex: 0 0 auto }
+.cartao-situacao-controles { flex: 1 1 auto; display: flex; align-items: center; gap: calc(2 * var(--botao-redondo-vao)); min-width: 0 }
 .cartao-situacao-rotulo > svg { color: var(--muted) }
 /* A folga das pontas e o vão entre a seta e o texto. O tamanho da seta (--situacao-icone) vem de ICONE_DA_SITUACAO, em
    SituacaoDoCartao.tsx, no style da linha: um lugar só. */
 .situacao-menu { --situacao-folga: 14px; --situacao-vao: 6px;
-  position: relative; flex: 1 1 var(--situacao-menu-minimo); display: flex; min-width: 0; color: var(--text2) }
+  position: relative; flex: 1 1 auto; display: flex; min-width: 0; color: var(--text2) }
 .situacao-seta { position: absolute; top: 50%; right: var(--situacao-folga); transform: translateY(-50%); display: inline-flex; pointer-events: none }
 .situacao-menu select { appearance: none; width: 100%; min-width: 0; height: var(--botao-redondo); border: 1px solid var(--line2); border-radius: 999px;
   padding: 0 calc(var(--situacao-folga) + var(--situacao-icone) + var(--situacao-vao)) 0 var(--situacao-folga); background: var(--superficie); color: var(--ink);
@@ -1194,7 +1218,7 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .situacao-menu select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
 .situacao-menu select:disabled { padding-right: var(--situacao-folga); color: var(--text2); cursor: default; opacity: 1 }
 .situacao-menu:has(select:disabled) .situacao-seta { display: none }
-.cartao-situacao > .cartao-concluir { flex-shrink: 0 }
+.cartao-situacao-controles > .cartao-concluir { flex-shrink: 0 }
 @media (pointer: coarse) { .situacao-menu select { height: var(--alvo-de-toque) } }
 /* A linha dos botões rápidos (#351, AtalhosDoCartao), no fim dos dados da cabeça do cartão (#397; sem dados, depois da descrição):
    os botões pequenos (.mini), que descem para a linha de baixo quando não cabem. O "Expandir tudo" não fica mais nela: fica sozinho
@@ -1206,11 +1230,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
   .cartao-atalhos > .mini { position: relative }
   .cartao-atalhos > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
 }
-/* O tempo total da tarefa (#397), o último dado da faixa das datas, em destaque. Encostado à direita só quando os quatro dados cabem
+/* O tempo total da tarefa (#397), o último dado da faixa das datas, em destaque: do tamanho do relógio de "Seu tempo nesta tarefa"
+   (--texto-do-relogio, em paginas/Demandas.css, onde fica a regra do tamanho), para o total não pesar menos que a parte de quem
+   olha. Encostado à direita só quando os quatro dados cabem
    numa linha (a faixa da janela no centro, a partir de 560px; o @container não aceita variável): no painel ao lado, ele desce para
    o começo da linha de baixo, como qualquer dado que não cabe, em vez de ficar sozinho na ponta direita; na faixa estreita (o
    celular), uma linha como as outras. */
-.grupo-datas-valor .tempo-total { font-size: var(--texto-titulo-2); font-weight: 900; color: var(--ink) }
 @container (min-width: 560px) { .grupo-datas-dado:has(> .grupo-datas-valor > .tempo-total) { margin-inline-start: auto } }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }

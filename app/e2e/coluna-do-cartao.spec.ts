@@ -80,12 +80,11 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     // E o histórico saiu do corpo do cartão: o rodapé, o último do corpo, fica na metade esquerda
     await expect.poll(() => naMetadeDireita(cartao, cartao.getByText(RODAPE_DA_PESSOA))).toBe(false);
     // Quando: o "Expandir tudo" da coluna, na linha dos botões da janela (#397)
-    const daJanela = cartao.getByRole('group', { name: 'Botões da janela' });
-    await daJanela.getByRole('button', { name: 'Expandir tudo' }).click();
+    await cartao.getByRole('button', { name: 'Expandir tudo da coluna da direita' }).click();
     // Então: as três abrem, e as do corpo continuam fechadas
     for (const s of await secoes.all()) await expect(s).toHaveAttribute('aria-expanded', 'true');
     await expect(cartao.getByText('Nenhuma anotação ligada a esta pessoa.')).toBeVisible();
-    await expect(daJanela.getByRole('button', { name: 'Recolher tudo' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Recolher tudo da coluna da direita' })).toBeVisible();
     await expect(cartao.getByRole('button', { name: /^Dados do cadastro/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
@@ -155,8 +154,9 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     const secoes = cartao.getByRole('button', { name: SECOES });
     await expect(secoes).toHaveText(ORDEM);
     // Então: dois botões (#397): o do alto do cartão, antes da primeira seção dele, e o do pé, logo acima de Comentários
-    const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (do alto|do pé) do cartão$/ });
     await expect(expandir).toHaveCount(2);
+    await expect(expandir.nth(1)).toHaveAccessibleName('Expandir tudo do pé do cartão');
     const altura = async (alvo: Locator) => (await alvo.boundingBox())!.y;
     expect(await altura(expandir.nth(0))).toBeLessThan(await altura(cartao.getByRole('button', { name: /^Qualificação/ })));
     expect(await altura(expandir.nth(1))).toBeGreaterThan(await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ })));
@@ -183,7 +183,7 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     expect(await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ }))).toBeLessThan(await altura(secoes.nth(0)));
     expect(await altura(secoes.nth(2))).toBeLessThan(await altura(cartao.getByText(RODAPE_DA_PESSOA)));
     // E dois "Expandir tudo" (#397): o das seções do cartão e o das três do pé, acima de Comentários
-    const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (do alto|do pé) do cartão$/ });
     await expect(expandir).toHaveCount(2);
     // (medidos no mesmo instante, dentro da página: a janela pode ainda estar indo para o centro)
     const [botao, comentarios] = await expandir.nth(1).evaluate((b, s) => [b.getBoundingClientRect().bottom, s!.getBoundingClientRect().top],

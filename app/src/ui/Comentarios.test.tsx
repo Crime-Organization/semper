@@ -160,10 +160,10 @@ describe('Comentários no cartão ao lado (#360)', () => {
     const secao = await screen.findByRole('button', { name: /^Comentários\s*1$/ });
     expect(secao).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('main')).toHaveTextContent('Primeiro contato');
-    const [doCartao, dosComentarios] = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    const [doCartao, dosComentarios] = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo/ });
     expect(within(screen.getByRole('main')).getAllByRole('button')[0]).toBe(doCartao);
     expect(doCartao).toHaveAccessibleName('Expandir tudo');
-    expect(dosComentarios).toHaveAccessibleName('Recolher tudo');
+    expect(dosComentarios).toHaveAccessibleName('Recolher tudo do pé do cartão');
     expect(dosComentarios.compareDocumentPosition(secao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Quando: o botão de baixo, acima dos comentários
     await userEvent.click(dosComentarios);
@@ -198,7 +198,7 @@ describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11
     // Então
     const secao = await naColuna().findByRole('button', { name: /^Comentários\s*1$/ });
     expect(secao).toHaveAttribute('aria-expanded', 'true');
-    expect(naColuna().getAllByRole('button')[0]).toHaveAccessibleName('Recolher tudo');
+    expect(naColuna().getAllByRole('button')[0]).toHaveAccessibleName(/^Recolher tudo/);
     expect(naColuna().getByRole('textbox', { name: 'Escrever um comentário' })).toBeInTheDocument();
     expect(screen.getByRole('main')).not.toHaveTextContent('Comentários');
   });
@@ -208,11 +208,11 @@ describe('Comentários na coluna da direita (a janela no centro, pedido de 18/11
     render(<ColunaDoCartao.Provider value={coluna}><SecaoComentarios modulo="tarefas" cartaoId="t1" /></ColunaDoCartao.Provider>);
     await naColuna().findByRole('button', { name: /^Comentários\s*1$/ });
     // Quando
-    await userEvent.click(naColuna().getByRole('button', { name: 'Recolher tudo' }));
+    await userEvent.click(naColuna().getByRole('button', { name: /^Recolher tudo/ }));
     // Então
     expect(naColuna().getByRole('button', { name: /^Comentários\s*1$/ })).toHaveAttribute('aria-expanded', 'false');
     expect(naColuna().queryByRole('textbox', { name: 'Escrever um comentário' })).not.toBeInTheDocument();
-    expect(naColuna().getByRole('button', { name: 'Expandir tudo' })).toBeInTheDocument();
+    expect(naColuna().getByRole('button', { name: /^Expandir tudo/ })).toBeInTheDocument();
   });
 
   it('dado um comentário começado no painel ao lado, quando a janela passa para o centro, então ele continua na caixa, agora na coluna', async () => {

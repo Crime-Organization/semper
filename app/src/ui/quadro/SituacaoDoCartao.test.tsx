@@ -18,14 +18,16 @@ describe('A linha da Situação do cartão (#397)', () => {
     expect(rotulo.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('dado o que vai com a Situação (o Concluir), quando abre, então fica na mesma linha, depois do menu', () => {
+  it('dado o que vai com a Situação (o Concluir), quando abre, então fica na mesma linha, depois do menu e junto dele (os dois descem juntos quando não cabem)', () => {
     // Quando
     render(<SituacaoDoCartao acao={<button type="button" aria-label="Concluir" />}><select aria-label="Situação da tarefa" /></SituacaoDoCartao>);
     // Então
     const menu = screen.getByRole('combobox', { name: 'Situação da tarefa' });
     const concluir = screen.getByRole('button', { name: 'Concluir' });
     expect(menu.compareDocumentPosition(concluir) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(concluir.parentElement).toBe(screen.getByText('Situação').parentElement);
+    expect(screen.getByText('Situação').parentElement).toContainElement(concluir);
+    expect(concluir.parentElement).toContainElement(menu);
+    expect(concluir.parentElement).not.toContainElement(screen.getByText('Situação'));
   });
 
   it('dado um título próprio (a Etapa do atendimento, na pessoa), quando abre, então ele é o rótulo da linha', () => {

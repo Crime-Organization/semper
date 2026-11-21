@@ -48,11 +48,9 @@ async function formato(cartao: Locator, qual: 'Abrir no centro da tela' | 'Abrir
 const caixa = async (alvo: Locator) => (await alvo.boundingBox())!;
 /** O menu da Situação (na pessoa, o da "Etapa do atendimento"). */
 const menuDaSituacao = (cartao: Locator) => cartao.getByRole('combobox', { name: /^(Situação d[aeo] |Etapa do atendimento$)/ });
-/** O "Expandir tudo" da esquerda: o primeiro fora da linha dos botões da janela (o da coluna, no centro, fica nela). */
+/** O "Expandir tudo" da esquerda (sem a coluna, o do alto do cartão), pelo nome, que diz o alcance dele. */
 async function expandirDaEsquerda(cartao: Locator) {
-  const todos = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
-  const i = await todos.evaluateAll(botoes => botoes.findIndex(b => !b.closest('[role="group"][aria-label="Botões da janela"]')));
-  return todos.nth(i);
+  return cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (da coluna da esquerda|do alto do cartão)$/ });
 }
 /** A linha dos botões rápidos (#351). */
 const linhaDeAtalhos = (cartao: Locator) => cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
@@ -90,7 +88,7 @@ test.describe('O "Expandir tudo" da esquerda sozinho, acima da primeira seção,
       await formato(cartao, 'Abrir ao lado');
       // Então
       const botao = await sozinhoAcimaDaPrimeira(cartao, primeira);
-      await expect(linhaDeAtalhos(cartao).getByRole('button', { name: /tudo$/ })).toHaveCount(0);
+      await expect(linhaDeAtalhos(cartao).getByRole('button', { name: /^(Expandir|Recolher) tudo/ })).toHaveCount(0);
       const x = meioX(await caixa(cartao.getByRole('button', { name: 'Fechar' })));
       expect(Math.abs(meioX(botao) - x)).toBeLessThanOrEqual(TOLERANCIA);
       for (const seta of await meiosDasSetas(cartao)) expect(Math.abs(seta - x)).toBeLessThanOrEqual(TOLERANCIA);
@@ -103,8 +101,9 @@ test.describe('O "Expandir tudo" da esquerda sozinho, acima da primeira seção,
     await formato(cartao, 'Abrir no centro da tela');
     // Então
     const botao = await sozinhoAcimaDaPrimeira(cartao, /^Prazos/);
-    await expect(cartao.getByRole('button', { name: 'Expandir tudo' })).toHaveCount(2);
-    await expect(cartao.getByRole('group', { name: 'Botões da janela' }).getByRole('button', { name: 'Expandir tudo' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Expandir tudo (da|do) / })).toHaveCount(2);
+    const [daColuna, fechar] = [await caixa(cartao.getByRole('button', { name: 'Expandir tudo da coluna da direita' })), await caixa(cartao.getByRole('button', { name: 'Fechar' }))];
+    expect(Math.abs((daColuna.y + daColuna.height / 2) - (fechar.y + fechar.height / 2))).toBeLessThanOrEqual(TOLERANCIA);
     const prazos = meioX(await caixa(cartao.getByRole('heading', { level: 3, name: /^Prazos/ }).locator('svg').last()));
     expect(Math.abs(meioX(botao) - prazos)).toBeLessThanOrEqual(TOLERANCIA);
   });
@@ -118,7 +117,7 @@ test.describe('O "Expandir tudo" da esquerda sozinho, acima da primeira seção,
     await (await expandirDaEsquerda(cartao)).click();
     // Então
     const recolher = await expandirDaEsquerda(cartao);
-    await expect(recolher).toHaveAccessibleName('Recolher tudo');
+    await expect(recolher).toHaveAccessibleName('Recolher tudo do alto do cartão');
     await expect(recolher).toHaveAttribute('aria-expanded', 'true');
     await expect(secao(cartao, /^Checklists/)).toHaveAttribute('aria-expanded', 'true');
     const depois = await caixa(recolher);

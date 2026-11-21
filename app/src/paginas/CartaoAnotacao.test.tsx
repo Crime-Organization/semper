@@ -482,16 +482,16 @@ describe('Os comentários da anotação (#364)', () => {
     await naColuna.findByText('Primeiro comentário');
     const titulos = () => naColuna.getAllByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
     // Então: o botão é o primeiro da coluna, acima de "Comentários"
-    expect(naColuna.getAllByRole('button')[0]).toHaveAccessibleName('Expandir tudo');
+    expect(naColuna.getAllByRole('button')[0]).toHaveAccessibleName(/^Expandir tudo/);
     // Quando
-    await userEvent.click(naColuna.getByRole('button', { name: 'Expandir tudo' }));
+    await userEvent.click(naColuna.getByRole('button', { name: /^Expandir tudo/ }));
     // Então
     expect(titulos().map(b => b.getAttribute('aria-expanded'))).toEqual(['true', 'true', 'true']);
     // Quando
-    await userEvent.click(naColuna.getByRole('button', { name: 'Recolher tudo' }));
+    await userEvent.click(naColuna.getByRole('button', { name: /^Recolher tudo/ }));
     // Então
     expect(titulos().map(b => b.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false']);
-    expect(naColuna.getByRole('button', { name: 'Expandir tudo' })).toBeInTheDocument();
+    expect(naColuna.getByRole('button', { name: /^Expandir tudo/ })).toBeInTheDocument();
     coluna.remove();
   });
 

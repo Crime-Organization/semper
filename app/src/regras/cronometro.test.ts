@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, segundosDoPeriodo, somaDoTempo, totalAoVivo, type Evento } from './cronometro';
+import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, segundosDoPeriodo, somaDoTempo, totalAoVivo, totalAparece, type Evento } from './cronometro';
 
 const MIN = 60_000;
 const INATIVIDADE = 10 * MIN;
@@ -142,5 +142,22 @@ describe('O tempo total da tarefa na faixa das datas (#397)', () => {
     const daRita = { registros: [{ id: 3, perfil_id: 'rita', segundos: 300 }], total: 900 };
     // Quando / Então
     expect(totalAoVivo(daRita, 'rita', 3, 360)).toBe(960);
+  });
+});
+
+describe('Quem vê o tempo total da tarefa (#397)', () => {
+  it('dado quem altera a tarefa, quando ninguém registrou tempo, então o total aparece (0 min é o tempo dela)', () => {
+    // Quando / Então
+    expect(totalAparece(true, 0)).toBe(true);
+  });
+
+  it('dado quem só lê, quando o banco devolve o total, então ele aparece', () => {
+    // Quando / Então
+    expect(totalAparece(false, 7200)).toBe(true);
+  });
+
+  it('dado quem só lê, quando o banco não devolve o total (só vê pela equipe vendo tudo, ou não há tempo), então ele não aparece', () => {
+    // Quando / Então
+    expect(totalAparece(false, 0)).toBe(false);
   });
 });

@@ -108,10 +108,9 @@ test.describe('Comentários com @', () => {
       return lado!.x > fora!.x + fora!.width / 2;
     }).toBe(true);
     // Quando: o botão do topo da coluna, na linha dos botões da janela (#397), abre todas e, depois, recolhe todas
-    const daColuna = janela.getByRole('group', { name: 'Botões da janela' });
-    await daColuna.getByRole('button', { name: 'Expandir tudo' }).click();
+    await janela.getByRole('button', { name: 'Expandir tudo da coluna da direita' }).click();
     await expect(janela.getByRole('button', { name: /^Histórico de alterações/ })).toHaveAttribute('aria-expanded', 'true');
-    await daColuna.getByRole('button', { name: 'Recolher tudo' }).click();
+    await janela.getByRole('button', { name: 'Recolher tudo da coluna da direita' }).click();
     // Então
     await expect(secao).toHaveAttribute('aria-expanded', 'false');
     await expect(caixa).toBeHidden();

@@ -215,7 +215,7 @@ describe('Expandir e recolher todas as seções', () => {
     // Quando
     abrir();
     // Então
-    expect(screen.queryByRole('button', { name: 'Expandir tudo' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Expandir tudo/ })).toBeNull();
   });
 
   it('dado um cartão com seções fechadas, quando clica em "Expandir tudo", então todas abrem (menos as sigilosas) e o botão vira "Recolher tudo"', async () => {
@@ -226,7 +226,7 @@ describe('Expandir e recolher todas as seções', () => {
       <Recolhivel titulo="Informações sigilosas" icone="cadeado" foraDoExpandirTudo><p>O sigilo</p></Recolhivel>
     </PainelCartao>);
     // O botão aparece uma vez só, logo acima da primeira seção (junto das setas)
-    const expandir = screen.getByRole('button', { name: 'Expandir tudo' });
+    const expandir = screen.getByRole('button', { name: /^Expandir tudo/ });
     expect(expandir.compareDocumentPosition(screen.getByRole('button', { name: 'Partes' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // Quando
     await userEvent.click(expandir);
@@ -235,7 +235,7 @@ describe('Expandir e recolher todas as seções', () => {
     expect(screen.getByText('O histórico')).toBeInTheDocument();
     expect(screen.queryByText('O sigilo')).toBeNull();
     // E quando recolhe tudo, então todas fecham, sem gravar a escolha de cada seção
-    await userEvent.click(screen.getByRole('button', { name: 'Recolher tudo' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Recolher tudo/ }));
     expect(screen.queryByText('As partes')).toBeNull();
     expect(screen.queryByText('O histórico')).toBeNull();
     expect(salvarPreferencia).not.toHaveBeenCalled();
@@ -249,7 +249,7 @@ describe('Expandir e recolher todas as seções', () => {
       <Recolhivel titulo="Histórico" icone="relogio"><p>O histórico</p></Recolhivel>
     </PainelCartao>);
     // Quando
-    const botao = screen.getByRole('button', { name: 'Expandir tudo' });
+    const botao = screen.getByRole('button', { name: /^Expandir tudo/ });
     // Então: nenhum texto à vista (só o ícone), a dica diz o mesmo que o nome e o leitor de tela sabe que está fechado
     expect(botao.textContent).toBe('');
     expect(screen.queryByText(/Expandir tudo|Recolher tudo/)).toBeNull();
@@ -258,7 +258,7 @@ describe('Expandir e recolher todas as seções', () => {
     // Quando: abre todas
     await userEvent.click(botao);
     // Então: o nome e a dica passam a "Recolher tudo", e o leitor de tela sabe que está aberto
-    const recolher = screen.getByRole('button', { name: 'Recolher tudo' });
+    const recolher = screen.getByRole('button', { name: /^Recolher tudo/ });
     expect(recolher.textContent).toBe('');
     expect(recolher).toHaveAttribute('data-dica', 'Recolher tudo');
     expect(recolher).toHaveAttribute('aria-expanded', 'true');
@@ -269,7 +269,7 @@ describe('Expandir e recolher todas as seções', () => {
     render(<PainelCartao aoFechar={() => {}}>
       <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
     </PainelCartao>);
-    const botao = screen.getByRole('button', { name: 'Expandir tudo' });
+    const botao = screen.getByRole('button', { name: /^Expandir tudo/ });
     // Quando: o Tab sai dos botões da janela e chega nele
     screen.getByRole('button', { name: 'Fechar' }).focus();
     await userEvent.tab();
@@ -291,12 +291,12 @@ describe('Expandir tudo com uma seção dentro de outra', () => {
       <Recolhivel titulo="Partes" icone="pessoas"><p>As partes</p></Recolhivel>
     </PainelCartao>);
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Expandir tudo/ }));
     // Então
     expect(screen.getByText('Os honorários')).toBeInTheDocument();
     expect(screen.getByText('As partes')).toBeInTheDocument();
     expect(screen.queryByText('O histórico')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Recolher tudo' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Recolher tudo/ })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Expandir tudo|Recolher tudo/ })).toHaveLength(1);
   });
 });
@@ -397,14 +397,14 @@ describe('O que vai para a coluna da direita', () => {
       </NaColunaDoCartao>
     </main></ColunaDoCartao.Provider>);
     const naColuna = within(screen.getByRole('complementary', { name: 'Coluna da direita' }));
-    expect(naColuna.getAllByRole('button')[0]).toHaveAccessibleName('Expandir tudo');
+    expect(naColuna.getAllByRole('button')[0]).toHaveAccessibleName(/^Expandir tudo/);
     // Quando
-    await userEvent.click(naColuna.getByRole('button', { name: 'Expandir tudo' }));
+    await userEvent.click(naColuna.getByRole('button', { name: /^Expandir tudo/ }));
     // Então: as da coluna abrem; a do cartão, não
     expect(naColuna.getByText('Itens ligados')).toBeInTheDocument();
     expect(naColuna.getByText('Mudanças')).toBeInTheDocument();
     expect(screen.queryByText('Etapas do cartão')).not.toBeInTheDocument();
-    expect(naColuna.getByRole('button', { name: 'Recolher tudo' })).toBeInTheDocument();
+    expect(naColuna.getByRole('button', { name: /^Recolher tudo/ })).toBeInTheDocument();
     coluna.remove();
   });
 
@@ -449,7 +449,7 @@ function cartaoComColuna() {
 }
 /** Para as seções na ordem em que estão na página. */
 const naFrente = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-const botoesDoGrupo = () => screen.queryAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+const botoesDoGrupo = () => screen.queryAllByRole('button', { name: /^(Expandir|Recolher) tudo/ });
 
 describe('As seções da coluna sem a coluna (#360, #397)', () => {
   beforeEach(() => { iniciarPreferencias({}); salvarPreferencia.mockReset(); salvarPreferencia.mockResolvedValue(); });
@@ -483,28 +483,31 @@ describe('As seções da coluna sem a coluna (#360, #397)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Histórico de alterações' }));
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Abrir no centro da tela' }));
-    // Então: o do corpo e o da coluna, este na linha dos botões da janela
-    await vi.waitFor(() => expect(within(screen.getByRole('group', { name: 'Botões da janela' })).getByRole('button', { name: 'Expandir tudo' })).toBeInTheDocument());
-    expect(botoesDoGrupo()).toHaveLength(2);
+    // Então: o do corpo e o da coluna, cada um com o alcance no nome
+    await vi.waitFor(() => expect(botoesDoGrupo().map(b => b.getAttribute('aria-label')))
+      .toEqual(['Expandir tudo da coluna da esquerda', 'Expandir tudo da coluna da direita']));
     expect(screen.getByText('As mudanças')).toBeInTheDocument();
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Abrir ao lado' }));
     // Então
-    await vi.waitFor(() => expect(within(screen.getByRole('group', { name: 'Botões da janela' })).queryByRole('button', { name: /tudo$/ })).toBeNull());
+    await vi.waitFor(() => expect(screen.getByRole('button', { name: 'Abrir no centro da tela' })).toBeInTheDocument());
     expect(botoesDoGrupo()).toHaveLength(2);
     expect(screen.getByText('As mudanças')).toBeInTheDocument();
   });
 
-  it('dado o cartão no centro largo, quando abre, então a linha dos botões da janela tem, nesta ordem, o "Expandir tudo" da coluna, o abrir ao lado e o X', async () => {
+  it('dado o cartão no centro largo, quando abre, então os botões da janela são o abrir ao lado e o X, e o "Expandir tudo" da coluna vem na ordem do Tab depois do corpo, logo antes das seções que abre', async () => {
     // Dado
     iniciarPreferencias({ [PREFERENCIA_FORMATO]: 'centro' });
     // Quando
     cartaoComColuna();
     // Então
     const linha = screen.getByRole('group', { name: 'Botões da janela' });
-    await vi.waitFor(() => expect(within(linha).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Expandir tudo', 'Abrir ao lado', 'Fechar']));
-    // Quando: o da linha abre só as da coluna
-    await userEvent.click(within(linha).getByRole('button', { name: 'Expandir tudo' }));
+    expect(within(linha).getAllByRole('button').map(b => b.getAttribute('aria-label'))).toEqual(['Abrir ao lado', 'Fechar']);
+    const daColuna = await screen.findByRole('button', { name: 'Expandir tudo da coluna da direita' });
+    expect(naFrente(screen.getByRole('button', { name: 'Dados do cadastro' }), daColuna)).toBe(true);
+    expect(naFrente(daColuna, screen.getByRole('button', { name: 'Anotações' }))).toBe(true);
+    // Quando: o da coluna abre só as da coluna
+    await userEvent.click(daColuna);
     // Então
     expect(screen.getByText('As anotações')).toBeInTheDocument();
     expect(screen.queryByText('Os dados')).toBeNull();
@@ -526,8 +529,9 @@ describe('As seções da coluna sem a coluna (#360, #397)', () => {
       const historico = screen.getByRole('button', { name: 'Histórico de alterações' });
       expect(naFrente(screen.getByRole('button', { name: 'Dados do cadastro' }), screen.getByRole('button', { name: 'Anotações' }))).toBe(true);
       expect(naFrente(historico, screen.getByText('Cadastrada em 10/11/2026'))).toBe(true);
-      expect(botoesDoGrupo()).toHaveLength(2);
-      expect(within(screen.getByRole('group', { name: 'Botões da janela' })).queryByRole('button', { name: /tudo$/ })).toBeNull();
+      expect(botoesDoGrupo().map(b => b.getAttribute('aria-label')))
+        .toEqual(['Expandir tudo do alto do cartão', 'Expandir tudo do pé do cartão']);
+      expect(within(screen.getByRole('group', { name: 'Botões da janela' })).queryByRole('button', { name: /tudo/ })).toBeNull();
     });
   });
 });

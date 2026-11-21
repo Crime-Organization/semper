@@ -84,30 +84,45 @@ describe('O número ao lado do título', () => {
   });
 });
 
-describe('Um grupo dentro de outro (#360)', () => {
-  it('dado um grupo que não é próprio, dentro do grupo do cartão, quando abre, então as seções dele entram no de fora: um botão só, que abre todas', async () => {
-    // Dado
-    render(<GrupoDeSecoes>
-      <Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel>
-      <GrupoDeSecoes proprio={false}><Recolhivel titulo="Histórico" icone="relogio"><p>As mudanças</p></Recolhivel></GrupoDeSecoes>
-    </GrupoDeSecoes>);
-    // Então
-    expect(screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ })).toHaveLength(1);
+describe('O nome do "Expandir tudo" diz o alcance do grupo (#397)', () => {
+  it('dado um grupo com o alcance, quando abre, então o nome do botão o diz, e a dica continua curta', () => {
     // Quando
-    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
-    // Então
-    expect(screen.getByText('Os dados')).toBeInTheDocument();
-    expect(screen.getByText('As mudanças')).toBeInTheDocument();
+    render(<GrupoDeSecoes alcance="da coluna da direita">
+      <Recolhivel titulo="Comentários" icone="comentario"><p>Os comentários</p></Recolhivel>
+      <Recolhivel titulo="Histórico de alterações" icone="relogio"><p>As mudanças</p></Recolhivel>
+    </GrupoDeSecoes>);
+    // Então: e quem procura a seção pelo título acha só a seção
+    const botao = screen.getByRole('button', { name: 'Expandir tudo da coluna da direita' });
+    expect(botao).toHaveAttribute('data-dica', 'Expandir tudo');
+    expect(screen.getAllByRole('button', { name: /Histórico de alterações/ })).toHaveLength(1);
   });
 
+  it('dado as seções todas abertas, quando a pessoa olha o botão, então ele se chama "Recolher tudo", com o mesmo alcance', async () => {
+    // Dado
+    render(<GrupoDeSecoes alcance="do pé do cartão"><Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel></GrupoDeSecoes>);
+    // Quando
+    await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo do pé do cartão' }));
+    // Então
+    expect(screen.getByRole('button', { name: 'Recolher tudo do pé do cartão' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('dado um grupo sem alcance, quando abre, então o botão se chama só "Expandir tudo"', () => {
+    // Quando
+    render(<GrupoDeSecoes><Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel></GrupoDeSecoes>);
+    // Então
+    expect(screen.getByRole('button', { name: 'Expandir tudo' })).toBeInTheDocument();
+  });
+});
+
+describe('Um grupo dentro de outro (#360, #397)', () => {
   it('dado um grupo próprio dentro do do cartão, quando abre, então cada um tem o seu botão, que abre só as dele', async () => {
     // Dado
-    render(<GrupoDeSecoes>
+    render(<GrupoDeSecoes alcance="do alto do cartão">
       <Recolhivel titulo="Dados" icone="lista"><p>Os dados</p></Recolhivel>
-      <GrupoDeSecoes><Recolhivel titulo="Histórico" icone="relogio"><p>As mudanças</p></Recolhivel></GrupoDeSecoes>
+      <GrupoDeSecoes alcance="do pé do cartão"><Recolhivel titulo="Histórico" icone="relogio"><p>As mudanças</p></Recolhivel></GrupoDeSecoes>
     </GrupoDeSecoes>);
-    const botoes = screen.getAllByRole('button', { name: 'Expandir tudo' });
-    expect(botoes).toHaveLength(2);
+    const botoes = screen.getAllByRole('button', { name: /^Expandir tudo/ });
+    expect(botoes.map(b => b.getAttribute('aria-label'))).toEqual(['Expandir tudo do alto do cartão', 'Expandir tudo do pé do cartão']);
     // Quando
     await userEvent.click(botoes[1]);
     // Então

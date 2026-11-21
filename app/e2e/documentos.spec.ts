@@ -533,8 +533,7 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     expect((await secoes.nth(0).boundingBox())!.x).toBeGreaterThan(texto.x + texto.width);
     // E, desde a #397, o "Expandir tudo" da coluna fica na linha dos botões da janela, à esquerda do abrir ao lado e do X, na mesma
     // altura deles, e "Comentários" começa logo abaixo da linha. Desde a #366, só o ícone, sem texto
-    const linha = janela.getByRole('group', { name: 'Botões da janela' });
-    const expandir = linha.getByRole('button', { name: 'Expandir tudo' });
+    const expandir = janela.getByRole('button', { name: 'Expandir tudo da coluna da direita' });
     expect(await expandir.innerText()).toBe('');
     const [botao, fechar, formato, comentarios] = await Promise.all([expandir.boundingBox(),
       janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox(),
@@ -543,9 +542,10 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     expect(Math.abs(meioY(botao!) - meioY(fechar!))).toBeLessThan(2);
     expect(botao!.x + botao!.width).toBeLessThanOrEqual(formato!.x);
     expect(comentarios!.y).toBeGreaterThan(botao!.y + botao!.height);
-    // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai do abrir ao lado e volta para ele)
+    // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai do título de Comentários, logo depois dele na ordem
+    // do Tab, e volta para ele)
     const dicaVisivel = (b: typeof expandir) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
-    await janela.getByRole('button', { name: 'Abrir ao lado' }).focus();
+    await secoes.nth(0).focus();
     await page.keyboard.press('Shift+Tab');
     await expect(expandir).toBeFocused();
     await expect.poll(() => dicaVisivel(expandir)).toBe('1');

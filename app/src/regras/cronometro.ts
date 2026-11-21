@@ -121,3 +121,10 @@ export function totalAoVivo(tempo: { registros: (Registro & { id: number })[]; t
   const meuAgora = Math.max(0, somaDoTempo(tempo.registros.filter(r => r.id !== periodoId), eu) + segundos);
   return Math.max(0, tempo.total - meuGravado + meuAgora);
 }
+/**
+ * Se o tempo total da tarefa aparece na faixa das datas (#397). Quem altera a tarefa sempre o vê: o banco sempre lhe devolve o total
+ * (resumo_do_tempo), e o relógio dele o acompanha. Quem só lê nem sempre o recebe: o banco não o devolve a quem vê a tarefa só pela
+ * chave "A equipe vê tudo", e devolve o mesmo vazio para a tarefa sem tempo registrado. Para não mostrar um "0 min" que não é o
+ * tempo da tarefa, quem só lê vê o total só quando ele chega, maior que zero.
+ */
+export const totalAparece = (podeAlterar: boolean, total: number) => podeAlterar || total > 0;
