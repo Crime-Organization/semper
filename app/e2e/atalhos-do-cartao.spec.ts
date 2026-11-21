@@ -1,7 +1,8 @@
-// Os botões rápidos do cartão e a Situação no topo (#351, a imagem do cartão do Trello): a Situação fica num menu compacto no topo do
-// cartão, sem linha própria, e logo abaixo das datas há uma linha de botões para o que se acrescenta (Datas, Checklist, Anotação,
-// Ligação: só os que o cartão tem), que abre cada coisa ali mesmo, como o "+" do título das seções (#390). O cartão arquivado não
-// mostra os botões. O "Expandir tudo" das seções fica na ponta direita da linha (conferido em situacao-e-expandir-tudo.spec.ts).
+// Os botões rápidos do cartão e a Situação (#351, a imagem do cartão do Trello; desde a #397, a Situação numa linha própria, logo
+// abaixo da linha de cima, com o rótulo "Situação", o menu largo e, na tarefa e na demanda, o ✓ redondo): logo abaixo dos dados (as
+// datas e o tempo) há uma linha de botões para o que se acrescenta (Datas, Checklist, Anotação, Ligação: só os que o cartão tem),
+// que abre cada coisa ali mesmo, como o "+" do título das seções (#390). O cartão arquivado não mostra os botões. O "Expandir tudo"
+// das seções fica sozinho acima da primeira seção (#394, conferido em situacao-e-expandir-tudo.spec.ts).
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { acaoNoMenuDoCartao } from './ajudantes';
@@ -20,24 +21,28 @@ const linhaDeAtalhos = (cartao: Locator) => cartao.getByRole('group', { name: 'A
 /** O título da seção, com o número ao lado (ex.: "Checklists 0"). */
 const tituloDaSecao = (cartao: Locator, titulo: string) => cartao.getByRole('button', { name: new RegExp(`^${titulo}( \\d+)?$`) });
 
-test.describe('A Situação no topo do cartão', () => {
-  test('dada uma tarefa, quando o cartão abre, então a Situação é um menu compacto acima do título, sem o título "Situação" numa linha própria, com o Concluir ao lado', async ({ page }) => {
+test.describe('A Situação numa linha própria (#397)', () => {
+  test('dada uma tarefa, quando o cartão abre, então a Situação fica numa linha própria, entre a linha de cima e o título, com o rótulo à esquerda e o ✓ Concluir à direita', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     // Então
     const menu = cartao.getByRole('combobox', { name: 'Situação da tarefa' });
     await expect(menu).toBeVisible();
     await expect(cartao.getByRole('heading', { name: 'Situação', level: 3 })).toHaveCount(0);
-    const [caixaDoMenu, titulo, concluir] = [await menu.boundingBox(), await cartao.getByRole('heading', { level: 2 }).boundingBox(),
-      await cartao.getByRole('button', { name: 'Concluir', exact: true }).boundingBox()];
+    const [caixaDoMenu, titulo, concluir, rotulo, linhaDeCima] = [await menu.boundingBox(), await cartao.getByRole('heading', { level: 2 }).boundingBox(),
+      await cartao.getByRole('button', { name: 'Concluir', exact: true }).boundingBox(), await cartao.getByText('Situação', { exact: true }).boundingBox(),
+      await cartao.getByRole('button', { name: 'Mais ações da tarefa' }).boundingBox()];
+    expect(caixaDoMenu!.y).toBeGreaterThanOrEqual(linhaDeCima!.y + linhaDeCima!.height);
     expect(caixaDoMenu!.y + caixaDoMenu!.height).toBeLessThanOrEqual(titulo!.y);
+    expect(rotulo!.x + rotulo!.width).toBeLessThanOrEqual(caixaDoMenu!.x);
+    expect(concluir!.x).toBeGreaterThanOrEqual(caixaDoMenu!.x + caixaDoMenu!.width);
     expect(Math.abs(concluir!.y + concluir!.height / 2 - (caixaDoMenu!.y + caixaDoMenu!.height / 2))).toBeLessThanOrEqual(1);
     // E o menu continua mudando a situação
     await menu.selectOption({ label: 'PARA FAZER' });
     await expect(page.getByRole('status').filter({ hasText: 'Movida para "Para fazer".' })).toBeVisible();
   });
 
-  test('dada uma pessoa, quando o cartão abre, então a Etapa do atendimento é o menu compacto do topo', async ({ page }) => {
+  test('dada uma pessoa, quando o cartão abre, então a Etapa do atendimento fica na linha própria, acima do nome, sem ✓', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, '/pessoas/', 'MARIA APARECIDA EXEMPLO');
     // Então
@@ -45,6 +50,8 @@ test.describe('A Situação no topo do cartão', () => {
     await expect(menu).toBeVisible();
     await expect(cartao.getByRole('heading', { name: 'Etapa do atendimento', level: 3 })).toHaveCount(0);
     expect((await menu.boundingBox())!.y).toBeLessThan((await cartao.getByRole('heading', { level: 2 }).boundingBox())!.y);
+    await expect(cartao.getByText('Etapa do atendimento', { exact: true })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);
   });
 });
 
@@ -171,7 +178,7 @@ test.describe('No celular', () => {
       const caixa = (await botao.boundingBox())!;
       expect(caixa.x + caixa.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     }
-    // E o Concluir, mais baixo que o alvo do dedo no desenho, aceita o toque um pouco acima e um pouco abaixo dele, até a altura da pílula
+    // E o ✓ Concluir, redondo e mais baixo que o alvo do dedo no desenho, aceita o toque um pouco acima e um pouco abaixo dele, até a altura da pílula
     // (medido e tocado no mesmo instante, dentro da página: a janela pode ainda estar deslizando)
     const concluir = cartao.getByRole('button', { name: 'Concluir', exact: true });
     const pilula = cartao.getByRole('combobox', { name: 'Situação da tarefa' });

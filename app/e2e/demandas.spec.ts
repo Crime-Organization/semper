@@ -449,10 +449,11 @@ for (const { width, height } of [{ width: 390, height: 844 }, { width: 320, heig
 
 test.describe('A descrição no topo do cartão da demanda (#385)', () => {
   test('dado quem usa só o teclado, quando chega à descrição da demanda com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
-    // Dado: o foco no título, logo acima da descrição
+    // Dado: o foco no último botão rápido, o fim dos dados, logo acima da descrição (#397)
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
-    await cartao.getByRole('button', { name: 'Notificar o devedor', exact: true }).focus();
+    const atalhos = cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
+    await atalhos.getByRole('button').or(atalhos.getByRole('link')).last().focus();
     // Quando
     await page.keyboard.press('Tab');
     // Então
@@ -471,14 +472,14 @@ test.describe('A descrição no topo do cartão da demanda (#385)', () => {
     await expect(texto).toBeFocused();
   });
 
-  test('dado o cartão de uma demanda, quando ele abre, então o vão entre o título e a descrição é, no mínimo, a medida da variável de estilo', async ({ page }) => {
+  test('dado o cartão de uma demanda, quando ele abre, então a descrição vem depois dos dados, a pelo menos o vão da variável de estilo', async ({ page }) => {
     // Quando
     const cartao = await abrirDemanda(page, 'Notificar o devedor');
-    // Então
-    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-do-titulo-a-descricao')));
+    // Então: desde a #397, a descrição vem depois dos dados (as datas, o tempo e os botões rápidos)
+    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
-    const titulo = (await cartao.getByRole('heading', { name: 'Notificar o devedor', level: 2 }).boundingBox())!;
+    const dados = (await cartao.getByRole('group', { name: 'Acrescentar ao cartão' }).boundingBox())!;
     const descricao = (await cartao.getByText('Mandar a notificação extrajudicial antes da ação.').boundingBox())!;
-    expect(descricao.y - (titulo.y + titulo.height)).toBeGreaterThanOrEqual(vao);
+    expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
   });
 });

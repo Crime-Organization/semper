@@ -1206,10 +1206,12 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
   .cartao-atalhos > .mini { position: relative }
   .cartao-atalhos > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
 }
-/* O tempo total da tarefa (#397), o último dado da faixa das datas: encostado à direita e em destaque, enquanto os dados ficam lado
-   a lado; na faixa estreita, uma linha como as outras (a mesma medida do @container de GrupoDeDatas.css, que não aceita variável). */
+/* O tempo total da tarefa (#397), o último dado da faixa das datas, em destaque. Encostado à direita só quando os quatro dados cabem
+   numa linha (a faixa da janela no centro, a partir de 560px; o @container não aceita variável): no painel ao lado, ele desce para
+   o começo da linha de baixo, como qualquer dado que não cabe, em vez de ficar sozinho na ponta direita; na faixa estreita (o
+   celular), uma linha como as outras. */
 .grupo-datas-valor .tempo-total { font-size: var(--texto-titulo-2); font-weight: 900; color: var(--ink) }
-@container (min-width: 421px) { .grupo-datas-dado:has(> .grupo-datas-valor > .tempo-total) { margin-inline-start: auto } }
+@container (min-width: 560px) { .grupo-datas-dado:has(> .grupo-datas-valor > .tempo-total) { margin-inline-start: auto } }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,

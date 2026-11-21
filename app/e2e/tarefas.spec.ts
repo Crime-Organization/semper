@@ -444,24 +444,26 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
 });
 
 test.describe('A descrição no topo do cartão (#385)', () => {
-  test('dada uma tarefa com descrição, quando o cartão abre, então não há botão "Mudar a descrição" e há um espaço maior entre o título e a descrição', async ({ page }) => {
+  test('dada uma tarefa com descrição, quando o cartão abre, então não há botão "Mudar a descrição" e há um espaço maior entre os dados e a descrição', async ({ page }) => {
     // Quando
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Então
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
-    // E o vão entre o título e o texto da descrição é, no mínimo, a medida da variável de estilo
-    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-do-titulo-a-descricao')));
+    // E a descrição vem depois dos dados (#397): o vão entre os botões rápidos, o fim dos dados, e o texto da descrição é, no mínimo,
+    // a medida da variável de estilo
+    const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
-    const titulo = (await cartao.getByRole('heading', { name: 'Renovar a procuração', level: 2 }).boundingBox())!;
+    const dados = (await cartao.getByRole('group', { name: 'Acrescentar ao cartão' }).boundingBox())!;
     const descricao = (await cartao.getByText('A procuração vence este mês.').boundingBox())!;
-    expect(descricao.y - (titulo.y + titulo.height)).toBeGreaterThanOrEqual(vao);
+    expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
   });
 
   test('dado quem usa só o teclado, quando chega à descrição com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
-    // Dado: o foco no título, logo acima da descrição
+    // Dado: o foco no último botão rápido, o fim dos dados, logo acima da descrição (#397)
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).focus();
+    const atalhos = cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
+    await atalhos.getByRole('button').or(atalhos.getByRole('link')).last().focus();
     // Quando
     await page.keyboard.press('Tab');
     // Então
@@ -571,7 +573,9 @@ test.describe('Cronômetro da tarefa', () => {
     await expect(cartao.getByText('Tarefa concluída: a contagem encerrou.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: /Iniciar/ })).toHaveCount(0);
     await expect(page.getByRole('status').filter({ hasText: 'contando' })).toHaveCount(0);
-    await expect(cartao).toContainText('Total da equipe: 40 min');
+    // O total da equipe fica na faixa das datas, como o último dado (#397); o resumo traz a parte de cada um
+    await expect(cartao.getByRole('group', { name: 'Datas', exact: true }).getByRole('group', { name: 'Tempo total' })).toHaveText(/40 min$/);
+    await expect(cartao.getByText(/^Da criação à conclusão:/)).toBeVisible();
     await expect(cartao.getByRole('list', { name: 'Parte de cada um' })).toContainText('Bruno Exemplo Souza100%');
   });
 });
@@ -796,7 +800,7 @@ test.describe('Concluir a tarefa', () => {
     await expect(cartao.getByRole('button', { name: 'Reabrir' })).toBeVisible();
   });
 
-  test('dada a equipe vendo tudo, quando quem não está na tarefa a abre, então não aparece "Concluir"', async ({ page }) => {
+  test('dada a equipe vendo tudo, quando quem não está na tarefa a abre, então o ✓ "Concluir" aparece só para ver (#397)', async ({ page }) => {
     // Dado: o Bruno não está em "Renovar a procuração"
     await page.goto('/inicio/');
     await page.evaluate(() => (window as unknown as { SEMPER_FALSO: { equipeVeTudo(l: boolean): void } }).SEMPER_FALSO.equipeVeTudo(true));
@@ -805,7 +809,7 @@ test.describe('Concluir a tarefa', () => {
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Então
     await expect(cartao.getByLabel('Situação da tarefa')).toBeDisabled();
-    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveAttribute('aria-disabled', 'true');
   });
 
   test('dada uma tarefa concluída pelo botão, quando a pessoa clica em "Desfazer", então ela volta para onde estava', async ({ page }) => {
@@ -832,14 +836,14 @@ test.describe('Concluir a tarefa', () => {
     await expect(page.getByRole('dialog', { name: 'Concluir a demanda?' })).toContainText('Registro de marca');
   });
 
-  test('dada uma tarefa arquivada, quando a pessoa abre o cartão, então não aparecem "Concluir" nem "Reabrir"', async ({ page }) => {
+  test('dada uma tarefa arquivada, quando a pessoa abre o cartão, então o ✓ "Concluir" aparece só para ver, sem "Reabrir" (#397)', async ({ page }) => {
     // Dado
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
     // Quando
     await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     // Então
     await expect(cartao.getByText('Arquivada', { exact: true })).toBeVisible();
-    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveCount(0);
+    await expect(cartao.getByRole('button', { name: 'Concluir', exact: true })).toHaveAttribute('aria-disabled', 'true');
     await expect(cartao.getByRole('button', { name: 'Reabrir' })).toHaveCount(0);
   });
 });

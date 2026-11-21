@@ -1,6 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // Um eixo só nos cartões (#381): o meio do botão "Expandir tudo" fica no meio das setas das seções logo abaixo dele, e, onde ele fica
-// logo abaixo dos botões da janela (a coluna da direita, no centro; ao lado; na janela estreita), também no meio do X. Vale com a barra
+// logo abaixo dos botões da janela (ao lado; na janela estreita), também no meio do X. Desde a #397, o "Expandir tudo" da coluna da
+// direita, no centro, fica na linha dos botões da janela, à esquerda do abrir ao lado e do X, e as setas da coluna continuam no eixo
+// do X; ao lado e na janela estreita, o das seções de baixo fica acima de Comentários, também no eixo do X. Vale com a barra
 // de rolagem que ocupa espaço (Windows; o Chrome dos testes guarda o lugar dela), com a barra por cima do conteúdo (celular, Mac) e
 // com o zoom do navegador, que muda a largura da barra em px da página (aqui, uma barra mais larga e o "resize" que o zoom dispara).
 // Na semente do banco fictício, JOSÉ DA SILVA TESTE é uma pessoa e "Emitir a GRU" é uma tarefa.
@@ -65,10 +67,17 @@ async function meiosDasSetas(cartao: Locator) {
 }
 /** O meio da seta de uma seção, pelo título. */
 const meioDaSeta = (cartao: Locator, secao: RegExp) => meio(cartao.getByRole('heading', { level: 3, name: secao }).locator('svg').last());
-/** Os meios dos botões "Expandir tudo" do cartão (no centro, o do corpo vem antes do da coluna). */
+/** A linha dos botões da janela (no centro largo, o "Expandir tudo" da coluna, o abrir ao lado e o X). */
+const botoesDaJanela = (cartao: Locator) => cartao.getByRole('group', { name: 'Botões da janela' });
+/** Os "Expandir tudo" fora da linha dos botões da janela (o do corpo e, sem a coluna, o das seções de baixo), de cima para baixo. */
+async function expandirForaDaJanela(cartao: Locator) {
+  const todos = cartao.getByRole('button', { name: 'Expandir tudo' });
+  const fora = await todos.evaluateAll(botoes => botoes.map((b, i) => b.closest('[role="group"][aria-label="Botões da janela"]') ? -1 : i).filter(i => i >= 0));
+  return fora.map(i => todos.nth(i));
+}
+/** Os meios dos botões "Expandir tudo" fora da linha dos botões da janela. */
 async function meiosDosExpandir(cartao: Locator) {
-  const botoes = await cartao.getByRole('button', { name: 'Expandir tudo' }).all();
-  return Promise.all(botoes.map(meio));
+  return Promise.all((await expandirForaDaJanela(cartao)).map(meio));
 }
 /** Toda seta fica no eixo de um dos "Expandir tudo" (o do grupo dela). */
 function setasNosEixos(setas: number[], eixos: number[]) {
@@ -80,7 +89,8 @@ function setasNosEixos(setas: number[], eixos: number[]) {
  * não passa da borda). O Chrome dos testes esconde a barra, mas guarda o lugar dela: a borda visível é a do que cabe (clientWidth).
  */
 async function cabeEmQuemRola(cartao: Locator) {
-  for (const botao of await cartao.getByRole('button', { name: 'Expandir tudo' }).all()) {
+  // O da linha dos botões da janela não está dentro de quem rola: fica fora da conta.
+  for (const botao of await expandirForaDaJanela(cartao)) {
     const { sobra, deLado } = await botao.evaluate(b => {
       let quem = b.parentElement;
       while (quem && !/auto|scroll/.test(getComputedStyle(quem).overflowY)) quem = quem.parentElement;
@@ -99,26 +109,35 @@ async function barraMaisLarga(page: Page) {
   await page.setViewportSize(tamanho);
 }
 
-/** Confere o cartão no centro: o "Expandir tudo" da coluna no eixo do X e das setas dela; o do corpo, no das setas do corpo. */
+/**
+ * Confere o cartão no centro: o "Expandir tudo" da coluna na linha dos botões da janela, à esquerda do abrir ao lado, na altura do
+ * X; as setas da coluna no eixo do X; o do corpo, no eixo das setas do corpo.
+ */
 async function conferirNoCentro(cartao: Locator) {
-  const x = await meio(cartao.getByRole('button', { name: 'Fechar' }));
+  const fechar = cartao.getByRole('button', { name: 'Fechar' });
+  const x = await meio(fechar);
+  const daColuna = botoesDaJanela(cartao).getByRole('button', { name: 'Expandir tudo' });
+  const [k, f, formato] = [(await daColuna.boundingBox())!, (await fechar.boundingBox())!, (await botoesDaJanela(cartao).getByRole('button', { name: 'Abrir ao lado' }).boundingBox())!];
+  expect(Math.abs((k.y + k.height / 2) - (f.y + f.height / 2))).toBeLessThanOrEqual(TOLERANCIA);
+  expect(k.x + k.width).toBeLessThanOrEqual(formato.x);
   const eixos = await meiosDosExpandir(cartao);
-  expect(eixos).toHaveLength(2);
-  // O da coluna, logo abaixo do X, no mesmo eixo
-  expect(Math.abs(eixos[1] - x)).toBeLessThanOrEqual(TOLERANCIA);
-  // As setas da coluna, logo abaixo, também
+  expect(eixos).toHaveLength(1);
+  // As setas da coluna, no eixo do X
   expect(Math.abs(await meioDaSeta(cartao, /^Comentários/) - x)).toBeLessThanOrEqual(TOLERANCIA);
   expect(Math.abs(await meioDaSeta(cartao, /^Histórico de alterações/) - x)).toBeLessThanOrEqual(TOLERANCIA);
-  // E toda seta, no corpo e na coluna, no eixo do "Expandir tudo" do grupo dela
-  setasNosEixos(await meiosDasSetas(cartao), eixos);
+  // E toda seta, no corpo (no eixo do "Expandir tudo" dele) ou na coluna (no do X)
+  setasNosEixos(await meiosDasSetas(cartao), [...eixos, x]);
   await cabeEmQuemRola(cartao);
 }
-/** Confere o cartão sem a coluna (ao lado, na janela estreita): o X, o "Expandir tudo" e todas as setas num eixo só. */
+/**
+ * Confere o cartão sem a coluna (ao lado, na janela estreita): o X, os dois "Expandir tudo" (o do corpo e o das seções de baixo,
+ * #397) e todas as setas num eixo só.
+ */
 async function conferirNumEixoSo(cartao: Locator) {
   const x = await meio(cartao.getByRole('button', { name: 'Fechar' }));
   const eixos = await meiosDosExpandir(cartao);
-  expect(eixos).toHaveLength(1);
-  expect(Math.abs(eixos[0] - x)).toBeLessThanOrEqual(TOLERANCIA);
+  expect(eixos).toHaveLength(2);
+  for (const eixo of eixos) expect(Math.abs(eixo - x)).toBeLessThanOrEqual(TOLERANCIA);
   setasNosEixos(await meiosDasSetas(cartao), [x]);
   await cabeEmQuemRola(cartao);
 }
@@ -183,15 +202,15 @@ test.describe('O eixo do "Expandir tudo" com a barra de rolagem que ocupa espaç
     await page.setViewportSize({ width: 1440, height: 600 });
     const cartao = await abrirPessoa(page);
     await formato(cartao, 'Abrir no centro da tela');
-    const expandir = cartao.getByRole('button', { name: 'Expandir tudo' }).last();
+    const expandir = botoesDaJanela(cartao).getByRole('button', { name: 'Expandir tudo' });
     const antes = await meio(expandir);
     const comentarios = await meioDaSeta(cartao, /^Comentários/);
     // Quando
     await expandir.click();
     // Então: a coluna rola
-    const recolher = cartao.getByRole('button', { name: 'Recolher tudo' }).last();
-    expect(await recolher.evaluate(botao => {
-      let quem = botao.parentElement;
+    const recolher = botoesDaJanela(cartao).getByRole('button', { name: 'Recolher tudo' });
+    expect(await cartao.getByRole('button', { name: /^Comentários/ }).evaluate(secao => {
+      let quem = secao.parentElement;
       while (quem && getComputedStyle(quem).overflowY !== 'auto') quem = quem.parentElement;
       return !!quem && quem.scrollHeight > quem.clientHeight;
     })).toBe(true);

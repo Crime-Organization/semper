@@ -1,9 +1,9 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // A coluna da direita do cartão (#360): com o cartão no centro da tela, ela tem, nesta ordem, "Comentários" (aberta), "Anotações" e
 // "Histórico de alterações" (recolhidas; no processo, os andamentos vêm depois dos comentários, #362), cada uma com o seu número, e
-// o "Expandir tudo" / "Recolher tudo" no alto dela abrange as seções da coluna (três; no processo, quatro). Cada anotação ligada aparece como um comentário (o título e o
+// o "Expandir tudo" / "Recolher tudo" no alto dela (desde a #397, na linha dos botões da janela, antes do abrir ao lado e do X) abrange as seções da coluna (três; no processo, quatro). Cada anotação ligada aparece como um comentário (o título e o
 // começo do texto, num fundo diferente) e abre com um clique. Com o cartão ao lado e na janela estreita, não há a coluna: as seções dela ficam no pé do cartão, na mesma ordem, antes do rodapé, e o
-// "Expandir tudo" do alto do cartão (o único) abre também elas. Na semente do banco fictício, JOSÉ DA SILVA TESTE tem um
+// as seções dela têm um "Expandir tudo" só delas, acima de Comentários (#397); o da esquerda não as abre. Na semente do banco fictício, JOSÉ DA SILVA TESTE tem um
 // comentário da Ana e é o cliente do processo judicial; não há anotações. Quem está logado é o Mauro (administrador).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { abrirSecao } from './ajudantes';
@@ -79,12 +79,14 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     await expect(secoes.nth(2)).toHaveAttribute('aria-expanded', 'false');
     // E o histórico saiu do corpo do cartão: o rodapé, o último do corpo, fica na metade esquerda
     await expect.poll(() => naMetadeDireita(cartao, cartao.getByText(RODAPE_DA_PESSOA))).toBe(false);
-    // Quando: o "Expandir tudo" da coluna (o do corpo do cartão vem antes, na ordem da página)
-    await cartao.getByRole('button', { name: 'Expandir tudo' }).last().click();
-    // Então: as três abrem
+    // Quando: o "Expandir tudo" da coluna, na linha dos botões da janela (#397)
+    const daJanela = cartao.getByRole('group', { name: 'Botões da janela' });
+    await daJanela.getByRole('button', { name: 'Expandir tudo' }).click();
+    // Então: as três abrem, e as do corpo continuam fechadas
     for (const s of await secoes.all()) await expect(s).toHaveAttribute('aria-expanded', 'true');
     await expect(cartao.getByText('Nenhuma anotação ligada a esta pessoa.')).toBeVisible();
-    await expect(cartao.getByRole('button', { name: 'Recolher tudo' }).last()).toBeVisible();
+    await expect(daJanela.getByRole('button', { name: 'Recolher tudo' })).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Dados do cadastro/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('dada uma anotação ligada à pessoa, quando a seção abre, então ela aparece como um comentário, com o título e o começo do texto num fundo diferente, e o clique a abre', async ({ page }) => {
@@ -147,20 +149,24 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     expect(dados).toBeLessThan(comentarios);
     expect(historico).toBeLessThan(rodape);
   });
-  test('dado o cartão de uma pessoa ao lado, quando a pessoa usa o "Expandir tudo" do alto do cartão, então ele é o único e abre também as três seções do pé', async ({ page }) => {
+  test('dado o cartão de uma pessoa ao lado, quando a pessoa usa o "Expandir tudo" acima de Comentários, então só as três seções do pé abrem, e o do alto do cartão continua só com as dele', async ({ page }) => {
     // Dado
     const cartao = await abrirPessoa(page);
     const secoes = cartao.getByRole('button', { name: SECOES });
     await expect(secoes).toHaveText(ORDEM);
-    // Então: um botão só, no alto do cartão, antes da primeira seção dele
+    // Então: dois botões (#397): o do alto do cartão, antes da primeira seção dele, e o do pé, logo acima de Comentários
     const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
-    await expect(expandir).toHaveCount(1);
-    expect((await expandir.boundingBox())!.y).toBeLessThan((await cartao.getByRole('button', { name: /^Dados do cadastro/ }).boundingBox())!.y);
+    await expect(expandir).toHaveCount(2);
+    const altura = async (alvo: Locator) => (await alvo.boundingBox())!.y;
+    expect(await altura(expandir.nth(0))).toBeLessThan(await altura(cartao.getByRole('button', { name: /^Qualificação/ })));
+    expect(await altura(expandir.nth(1))).toBeGreaterThan(await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ })));
+    expect(await altura(expandir.nth(1))).toBeLessThan(await altura(secoes.nth(0)));
     // Quando
-    await expandir.click();
+    await expandir.nth(1).click();
     // Então
     for (const s of await secoes.all()) await expect(s).toHaveAttribute('aria-expanded', 'true');
     await expect(cartao.getByText('Nenhuma anotação ligada a esta pessoa.')).toBeVisible();
+    await expect(cartao.getByRole('button', { name: /^Dados do cadastro/ })).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('dada a janela estreita, quando o cartão abre no centro, então não há a coluna: as três seções ficam no pé do cartão, na mesma ordem, e o histórico vem antes do rodapé', async ({ page }) => {
@@ -176,8 +182,13 @@ test.describe('A coluna da direita do cartão (#360)', () => {
     const altura = async (alvo: Locator) => (await alvo.boundingBox())!.y;
     expect(await altura(cartao.getByRole('button', { name: /^Dados do cadastro/ }))).toBeLessThan(await altura(secoes.nth(0)));
     expect(await altura(secoes.nth(2))).toBeLessThan(await altura(cartao.getByText(RODAPE_DA_PESSOA)));
-    // E um "Expandir tudo" só, o do cartão
-    await expect(cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ })).toHaveCount(1);
+    // E dois "Expandir tudo" (#397): o das seções do cartão e o das três do pé, acima de Comentários
+    const expandir = cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    await expect(expandir).toHaveCount(2);
+    // (medidos no mesmo instante, dentro da página: a janela pode ainda estar indo para o centro)
+    const [botao, comentarios] = await expandir.nth(1).evaluate((b, s) => [b.getBoundingClientRect().bottom, s!.getBoundingClientRect().top],
+      await secoes.nth(0).elementHandle());
+    expect(botao).toBeLessThanOrEqual(comentarios);
   });
 
   test('dada a escolha de antes da #360, com as anotações e o histórico abertos no corpo do cartão, quando o cartão abre, então os dois começam recolhidos na coluna', async ({ page }) => {

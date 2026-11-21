@@ -521,38 +521,31 @@ test.describe('A página Documentos como o Obsidian (pedido de 18/11)', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     const janela = await criarAnotacao(page, 'Anotação no centro', { texto: 'Um texto.' });
     const secoes = janela.getByRole('button', { name: /^(Comentários|Ligada a|Histórico de alterações)/ });
-    const expandir = janela.getByRole('button', { name: 'Expandir tudo' });
-    // A folga entre o "Expandir tudo" e o título de "Comentários", logo abaixo dele, depois que a janela termina de entrar
-    const folga = async () => {
-      await esperarParar(page);
-      const [b, s] = [(await expandir.boundingBox())!, (await secoes.nth(0).boundingBox())!];
-      return s.y - (b.y + b.height);
-    };
-    // Ao lado, as seções ficam embaixo do texto, onde o vão entre as partes é o da anotação, e não o do cartão
-    const folgaAoLado = await folga();
+    // Ao lado, o "Expandir tudo" das seções fica acima de "Comentários", embaixo do texto
+    const expandirAoLado = janela.getByRole('button', { name: 'Expandir tudo' });
+    await esperarParar(page);
+    expect((await expandirAoLado.boundingBox())!.y).toBeLessThan((await secoes.nth(0).boundingBox())!.y);
     // Quando
     await janela.getByRole('button', { name: 'Abrir no centro da tela' }).click();
+    await esperarParar(page);
     // Então: as seções ficam à direita do texto
     const texto = (await janela.getByRole('textbox', { name: 'Texto', exact: true }).boundingBox())!;
     expect((await secoes.nth(0).boundingBox())!.x).toBeGreaterThan(texto.x + texto.width);
-    // E o "Expandir tudo" fica tão perto de "Comentários" quanto ficava ao lado (#366)
-    expect(Math.abs((await folga()) - folgaAoLado)).toBeLessThan(1);
-    // Quando: "Expandir tudo", acima de "Comentários"
-    expect((await expandir.boundingBox())!.y).toBeLessThan((await secoes.nth(0).boundingBox())!.y);
-    // Desde a #366: só o ícone, sem texto, no alto da coluna, logo abaixo dos botões da janela (o formato e o X), sem passar por
-    // baixo deles. Desde a #381, com o meio dele no eixo do X e no da seta de "Comentários" (o último ícone do título), e não mais
-    // com a borda encostada na ponta da linha
+    // E, desde a #397, o "Expandir tudo" da coluna fica na linha dos botões da janela, à esquerda do abrir ao lado e do X, na mesma
+    // altura deles, e "Comentários" começa logo abaixo da linha. Desde a #366, só o ícone, sem texto
+    const linha = janela.getByRole('group', { name: 'Botões da janela' });
+    const expandir = linha.getByRole('button', { name: 'Expandir tudo' });
     expect(await expandir.innerText()).toBe('');
-    const [botao, seta, fechar, formato] = await Promise.all([expandir.boundingBox(),
-      janela.getByRole('heading', { level: 3, name: /^Comentários/ }).locator('svg').last().boundingBox(),
-      janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox()]);
-    const meio = (caixa: { x: number; width: number }) => caixa.x + caixa.width / 2;
-    expect(Math.abs(meio(botao!) - meio(seta!))).toBeLessThan(2);
-    expect(Math.abs(meio(botao!) - meio(fechar!))).toBeLessThan(2);
-    expect(botao!.y).toBeGreaterThanOrEqual(Math.max(fechar!.y + fechar!.height, formato!.y + formato!.height));
-    // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai de "Comentários" e volta para ele)
+    const [botao, fechar, formato, comentarios] = await Promise.all([expandir.boundingBox(),
+      janela.getByRole('button', { name: 'Fechar' }).boundingBox(), janela.getByRole('button', { name: 'Abrir ao lado' }).boundingBox(),
+      secoes.nth(0).boundingBox()]);
+    const meioY = (caixa: { y: number; height: number }) => caixa.y + caixa.height / 2;
+    expect(Math.abs(meioY(botao!) - meioY(fechar!))).toBeLessThan(2);
+    expect(botao!.x + botao!.width).toBeLessThanOrEqual(formato!.x);
+    expect(comentarios!.y).toBeGreaterThan(botao!.y + botao!.height);
+    // E a dica aparece quando a pessoa chega nele pelo teclado (o Shift+Tab sai do abrir ao lado e volta para ele)
     const dicaVisivel = (b: typeof expandir) => b.evaluate(e => getComputedStyle(e, '::after').opacity);
-    await secoes.nth(0).focus();
+    await janela.getByRole('button', { name: 'Abrir ao lado' }).focus();
     await page.keyboard.press('Shift+Tab');
     await expect(expandir).toBeFocused();
     await expect.poll(() => dicaVisivel(expandir)).toBe('1');

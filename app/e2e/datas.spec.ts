@@ -508,8 +508,9 @@ test.describe('Dado um computador, a faixa das datas e a do tempo (#361, #383)',
         expect(partes[0].y).toBeLessThan(partes[i].y + partes[i].height);
         expect(partes[i].x).toBeGreaterThanOrEqual(partes[i - 1].x + partes[i - 1].width);
       }
-      // E o resumo de quem registrou tempo fica na mesma faixa, logo embaixo
-      await expect(tempo).toContainText('Total até agora: 2 h');
+      // E o tempo total da tarefa é o último dado da faixa das datas (#397); o resumo de quem registrou tempo fica na faixa do tempo
+      await expect(datas.getByRole('group', { name: 'Tempo total' })).toHaveText(/2 h$/);
+      await expect(tempo.getByRole('list', { name: 'Parte de cada um' })).toBeVisible();
     });
   }
 });
