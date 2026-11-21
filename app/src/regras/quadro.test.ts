@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { antesDeAoAndar, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacaoDoItem, situacoesDoQuadro } from './quadro';
+import { antesDeAoAndar, FOLGA_DA_ROLAGEM, maisNosLados, blocosDoQuadro, cartoesEmPalavras, colunaComMarco, colunaDoCartaoNovo, filaDoTopo, grupoEstaAberto, guardarOrdem, MARCOS, ordemAoPosicionar, ordemDaColuna, ordemGuardada, ordemEntre, ordemNoFimDoQuadro, podeExcluirColuna, situacaoDoItem, situacoesDoQuadro } from './quadro';
 
 describe('Colunas-marco', () => {
   it.each([
@@ -356,5 +356,21 @@ describe('Onde a ordem da coluna fica guardada (#291)', () => {
     // Então
     expect(g).toEqual(vazio);
     expect(ordemGuardada(g, 'c1')).toBeUndefined();
+  });
+});
+
+describe('Mais colunas fora da tela (#87)', () => {
+  it.each([
+    ['tudo cabe na tela', { esquerda: false, direita: false }, { rolado: 0, total: 900, visivel: 1200 }],
+    ['há colunas à direita e o quadro está no começo', { esquerda: false, direita: true }, { rolado: 0, total: 2000, visivel: 1200 }],
+    ['o quadro está rolado até o meio', { esquerda: true, direita: true }, { rolado: 400, total: 2000, visivel: 1200 }],
+    ['o quadro está rolado até o fim', { esquerda: true, direita: false }, { rolado: 800, total: 2000, visivel: 1200 }],
+    ['o fim ficou a menos de um pixel, pelo arredondamento', { esquerda: true, direita: false }, { rolado: 799.5, total: 2000, visivel: 1200 }],
+    ['a rolagem saiu do começo só pelo arredondamento', { esquerda: false, direita: true }, { rolado: FOLGA_DA_ROLAGEM, total: 2000, visivel: 1200 }]
+  ])('quando %s, então os lados com mais são %j', (_caso, esperado, rolagem) => {
+    // Quando
+    const lados = maisNosLados(rolagem);
+    // Então
+    expect(lados).toEqual(esperado);
   });
 });
