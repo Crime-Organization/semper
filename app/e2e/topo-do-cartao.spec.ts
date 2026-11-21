@@ -11,8 +11,9 @@ type Caixa = { x: number; y: number; width: number; height: number };
 const cruzam = (a: Caixa, b: Caixa) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 /** Os seis cartões com o topo comum: onde abrir, a linha da semente, o tipo no topo e se tem equipe em bolinhas. */
-const CARTOES = [
-  { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', tipo: 'Tarefa', equipe: true },
+/** `menu`: as ações a mais do ⋯ antes de Arquivar (a tarefa copia para outra demanda, #312). */
+const CARTOES: { cartao: string; endereco: string; linha: string; tipo: string; equipe: boolean; menu?: string[] }[] = [
+  { cartao: 'tarefa', endereco: '/tarefas/', linha: 'Emitir a GRU', tipo: 'Tarefa', equipe: true, menu: ['Copiar para outra demanda'] },
   { cartao: 'demanda', endereco: '/demandas/', linha: 'Registro de marca', tipo: 'Demanda', equipe: true },
   { cartao: 'processo', endereco: '/processos/judicial/', linha: 'JOSÉ DA SILVA TESTE', tipo: 'Judicial', equipe: true },
   { cartao: 'compromisso', endereco: '/agenda/', linha: 'Reunião de equipe', tipo: 'Reunião', equipe: true },
@@ -97,7 +98,7 @@ async function criarEtiqueta(page: Page, cartao: Locator, texto: string) {
 }
 
 test.describe('O topo dos cartões, como o da anotação', () => {
-  for (const { cartao: nome, endereco, linha, tipo, equipe } of CARTOES) {
+  for (const { cartao: nome, endereco, linha, tipo, equipe, menu = [] } of CARTOES) {
     test(`dado o cartão de ${nome}, quando abre, então a equipe, a etiqueta e o ⋯ ficam no alto, e a etiqueta escolhida aparece entre o topo e o título`, async ({ page }) => {
       // Dado
       const cartao = await abrirCartao(page, endereco, linha);
@@ -113,7 +114,7 @@ test.describe('O topo dos cartões, como o da anotação', () => {
       } else await expect(cartao.getByRole('group', { name: 'Equipe', exact: true })).toHaveCount(0);
       await expect(cartao.getByRole('heading', { name: 'Etiquetas', level: 3 })).toHaveCount(0);
       await expect(cartao.getByRole('group', { name: 'Etiquetas' })).toHaveCount(0);
-      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual(['Arquivar']);
+      expect(await acoesNoMenuDoCartao(page, cartao)).toEqual([...menu, 'Arquivar']);
       // Quando
       await criarEtiqueta(page, cartao, 'Prioridade');
       // Então: os selos entre o topo e o título

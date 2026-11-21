@@ -1664,6 +1664,9 @@ export interface DadosAcompanhamento {
   processoPrazoAtualizar(id: string, dados: MudancaNoPrazo): Promise<PrazoDeProcesso>;
   processoPrazoExcluir(id: string): Promise<void>;
   processoPrazoRestaurar(id: string): Promise<void>;
+  /** Os prazos que a tarefa cumpre (nasceu deles ou foi ligada a eles), nos processos ativos que quem está logado vê, sem os excluídos
+   *  (#355: concluir ou reabrir a tarefa pergunta se eles foram cumpridos ou voltam a ficar abertos). */
+  prazosDaTarefa(tarefaId: string): Promise<PrazoDeProcesso[]>;
   /** Tarefas ligadas ao processo que quem está logado pode ver. */
   tarefasDoProcesso(processoId: string): Promise<TarefaLigada[]>;
   /** Liga o processo à demanda: "originou" quando ele nasceu dela; "atua" quando foi ligado depois, à mão. Ligar de novo não muda

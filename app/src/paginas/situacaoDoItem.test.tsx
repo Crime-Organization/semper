@@ -10,10 +10,12 @@ import { SD, type Coluna } from '../dados';
 import { falha, feito, sinalizarMudanca } from '../ui/avisos';
 import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
 import { oferecerConcluirDemanda, oferecerProcesso } from './concluirDemanda';
-import { ConcluirItem, concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
+import { oferecerPrazoDoProcesso } from './prazoDaTarefa';
+import { ConcluirItem, concluirOuReabrirItem, mudarSituacaoDoItem, oferecerDepoisDeMudar, type ItemQueMuda } from './situacaoDoItem';
 
 vi.mock('../ui/avisos', async original => ({ ...await original<typeof import('../ui/avisos')>(), feito: vi.fn(), falha: vi.fn(), sinalizarMudanca: vi.fn() }));
 vi.mock('./concluirDemanda', () => ({ oferecerConcluirDemanda: vi.fn(() => Promise.resolve(false)), oferecerProcesso: vi.fn(() => Promise.resolve()) }));
+vi.mock('./prazoDaTarefa', () => ({ oferecerPrazoDoProcesso: vi.fn(() => Promise.resolve(false)) }));
 
 const coluna = (id: string, nome: string, marco: Coluna['marco'] = null): Coluna => ({ id, nome, ordem: 1, criado_por: null, oculta: false, marco });
 const COLUNAS = [coluna('c-fazer', 'Para fazer', 'inicio'), coluna('c-fazendo', 'Fazendo'), coluna('c-feita', 'Concluída', 'concluido')];
@@ -27,6 +29,7 @@ describe('Mudar a Situação de um item (gravação comum)', () => {
     vi.mocked(sinalizarMudanca).mockClear();
     vi.mocked(oferecerConcluirDemanda).mockClear();
     vi.mocked(oferecerProcesso).mockClear();
+    vi.mocked(oferecerPrazoDoProcesso).mockClear();
   });
 
   it('dada uma tarefa em "Fazendo", quando ela é concluída, então vai para a coluna das concluídas, com o aviso, e o Desfazer a devolve ao lugar', async () => {
@@ -138,5 +141,43 @@ describe('O círculo ligado à gravação comum (#350)', () => {
     // Então
     expect(moverNaTela).toHaveBeenCalledWith('t1', 'c-feita', expect.any(Number), focar);
     expect(sinalizarMudanca).not.toHaveBeenCalled();
+  });
+});
+
+describe('As ofertas depois de mudar de coluna, por qualquer caminho (#355)', () => {
+  beforeEach(() => {
+    vi.mocked(oferecerConcluirDemanda).mockClear();
+    vi.mocked(oferecerPrazoDoProcesso).mockClear();
+  });
+
+  it('dada uma tarefa ligada a uma demanda, quando ela é concluída, então a pergunta do prazo do processo vem antes da pergunta da demanda, com a coluna de onde ela saiu', async () => {
+    // Dado
+    vi.spyOn(SD, 'tarefaMover').mockResolvedValue();
+    const ordem: string[] = [];
+    vi.mocked(oferecerPrazoDoProcesso).mockImplementationOnce(async () => { ordem.push('prazo'); return true; });
+    vi.mocked(oferecerConcluirDemanda).mockImplementationOnce(async () => { ordem.push('demanda'); return false; });
+    // Quando
+    await concluirOuReabrirItem('tarefas', COLUNAS, { ...TAREFA, ligadoADemanda: true }, 'concluir', navegar);
+    // Então
+    expect(oferecerPrazoDoProcesso).toHaveBeenCalledWith('t1', 'c-fazendo', 'c-feita');
+    expect(ordem).toEqual(['prazo', 'demanda']);
+  });
+
+  it('dada uma tarefa arrastada no quadro (que grava do jeito dele), quando as ofertas vêm, então perguntam do prazo e devolvem se a demanda foi concluída', async () => {
+    // Dado
+    vi.mocked(oferecerConcluirDemanda).mockResolvedValueOnce(true);
+    // Quando
+    const concluiuADemanda = await oferecerDepoisDeMudar('tarefas', { ...TAREFA, etapa_id: 'c-feita', ligadoADemanda: true }, 'c-fazer', navegar);
+    // Então
+    expect(oferecerPrazoDoProcesso).toHaveBeenCalledWith('t1', 'c-feita', 'c-fazer');
+    expect(concluiuADemanda).toBe(true);
+  });
+
+  it('dada uma demanda, quando as ofertas vêm, então não pergunta de prazo de tarefa', async () => {
+    // Quando
+    await oferecerDepoisDeMudar('demandas', { ...TAREFA, id: 'd1' }, 'c-feita', navegar);
+    // Então
+    expect(oferecerPrazoDoProcesso).not.toHaveBeenCalled();
+    expect(oferecerProcesso).toHaveBeenCalled();
   });
 });

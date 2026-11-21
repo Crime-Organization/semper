@@ -51,6 +51,8 @@ import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
+import { copiarParaOutraDemanda } from './copiarTarefa';
+import { COPIAR_PARA_OUTRA_DEMANDA } from '../regras/copiaDaTarefa';
 
 interface Props {
   id: string;
@@ -100,6 +102,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const novoProcesso = '/processos/novo/?tarefa=' + t.id;
   // A demanda, ligada (a que existe) ou criada já ligada (#376): uma só, e só enquanto a tarefa não tem.
   const ligaDemanda = podeLigar && !t.demanda_id && !!modulos?.demandas, novaDemanda = '/demandas/nova/?tarefa=' + t.id;
+  // Copiar para outra demanda (#312), no ⋯: quem altera a tarefa, com ela ativa; a busca traz só as demandas que a pessoa altera.
+  const copiar = podeLigar && !!modulos?.demandas
+    ? [{ rotulo: COPIAR_PARA_OUTRA_DEMANDA, icone: 'copiar' as const, aoClicar: () => copiarParaOutraDemanda(t, id => navegar('/tarefas/?id=' + id), aoMudar) }]
+    : [];
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
@@ -167,7 +173,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
     <CabecaDoCartao
-      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
+      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Copiar para outra demanda, #312; Arquivar, Excluir) à direita. Quem
           tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */
       <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">Tarefa</Selo>}
@@ -181,7 +187,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
           depois: depoisDeLigar, aoSair: veTudo ? depoisDeLigar : () => { aoMudar(); aoFechar(); }
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
-        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
+        aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined} extras={copiar}
         lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined}
         situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, t.etapa_id)} soParaVer={!!t.arquivado_em || !podeAlterar}
           aoAgir={concluirOuReabrir} />}>

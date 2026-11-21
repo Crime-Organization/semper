@@ -4,7 +4,7 @@
 // mesmo lugar, e o foco do teclado volta para ele (desligado enquanto grava, ele perderia o foco). No cartão arquivado ou de quem
 // só lê, ele aparece só para ver: apagado, com aria-disabled, sem ação, mas ainda no Tab, para a dica dizer o que ele é.
 // Qual ação cabe e para onde ela leva vêm de regras/conclusaoNoCartao.ts.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NOME_DA_ACAO, type AcaoDeConclusao } from '../../regras/conclusaoNoCartao';
 import { propsDaDica } from '../base';
 import { Icone, ICONE_DO_TOPO, type NomeIcone } from '../Icone';
@@ -24,6 +24,15 @@ interface Props {
 export function ConcluirNaSituacao({ acao, soParaVer, aoAgir }: Props) {
   const [ocupado, setOcupado] = useState(false);
   const botao = useRef<HTMLButtonElement>(null);
+  // Ligado de novo, o botão recebe o foco que perdeu ao ser desligado (já com o nome novo). Espera ele estar na tela: enquanto a ação
+  // termina (as perguntas depois de concluir, #355), o quadro pode se reler e o botão sumir por um instante. Não tira o foco de quem
+  // já o pôs em outro lugar.
+  const devolverFoco = useRef(false);
+  useEffect(() => {
+    if (ocupado || !devolverFoco.current || !botao.current) return;
+    devolverFoco.current = false;
+    if (!document.activeElement || document.activeElement === document.body) botao.current.focus();
+  });
   if (!acao) return null;
   const nome = NOME_DA_ACAO[acao];
 
@@ -33,9 +42,8 @@ export function ConcluirNaSituacao({ acao, soParaVer, aoAgir }: Props) {
     try {
       await aoAgir(acao);
     } finally {
+      devolverFoco.current = true;
       setOcupado(false);
-      // Ligado de novo, o botão recebe o foco que perdeu ao ser desligado (já com o nome novo).
-      setTimeout(() => botao.current?.focus(), 0);
     }
   }
 

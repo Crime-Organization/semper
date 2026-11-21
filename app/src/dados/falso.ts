@@ -3747,6 +3747,8 @@ export const SD: Dados = {
   },
   processoPrazos: processoId => espera(bd.prazos!.filter(p => p.processo_id === processoId && !p.excluido_em).toSorted((a, b) => b.final.localeCompare(a.final))
     .slice(0, PRAZOS_DO_PROCESSO).map(comTarefa)),
+  prazosDaTarefa: tarefaId => espera(bd.prazos!.filter(p => p.tarefa_id === tarefaId && !p.excluido_em && processoAtivo(p.processo_id) && vejoNoModulo('processos', p.processo_id))
+    .map(comTarefa)),
   async processoPrazoCriar(processoId, dados) {
     if (!processoAtivo(processoId)) return erro(SEM_PERMISSAO);
     const p: PrazoGuardado = { concluido_em: null, tarefa_id: null, excluido_em: null, ...dados, id: novoId(), processo_id: processoId, criado_por: eu, criado_em: agora(), atualizado_em: agora() };

@@ -24,7 +24,7 @@ import { useContext, useEffect, useRef, type ReactNode } from 'react';
 import { AcrescentarAoCartao } from './AcrescentarAoCartao';
 import type { Etiqueta } from '../dados';
 import { faixaDoArquivado, TOPO_DO_CARTAO, type ModuloDoTopo } from '../regras/topoDoCartao';
-import { LapisDoCartao, MenuDoCartao, ModoDeEdicao, NoTopoDoCartao } from './AcoesDoCartao';
+import { LapisDoCartao, MenuDoCartao, ModoDeEdicao, NoTopoDoCartao, type AcaoDoTopo } from './AcoesDoCartao';
 import { Botao } from './Botoes';
 import { BotaoDasEtiquetas, SelosDasEtiquetas, useEtiquetasDoCartao } from './Etiquetas';
 import { Icone, ICONE_DO_TOPO } from './Icone';
@@ -108,20 +108,22 @@ interface Props {
   aoArquivar?: () => unknown;
   /** Excluir, no ⋯ do arquivado, para quem pode (pergunta antes). */
   aoExcluir?: () => unknown;
+  /** As ações a mais do ⋯, antes de Arquivar (ex.: "Copiar para outra demanda", na tarefa, #312). */
+  extras?: AcaoDoTopo[];
   /** O lápis (só com o item ativo): o nome ("Editar", "Editar sem os valores") e o que faz. */
   lapis?: { rotulo: string; aoEditar: () => void };
   /** A Situação do cartão, numa linha própria logo abaixo da linha de cima (#397). Some em edição. */
   situacao?: ReactNode;
 }
 
-export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, lapis, situacao }: Props) {
+export function TopoDoCartao({ modulo, id, inicio, esquerda, equipe, arquivado, editando = false, mudaEtiquetas, aoMudarEtiquetas, aoArquivar, aoExcluir, extras, lapis, situacao }: Props) {
   const etiquetas = useEtiquetasDoCartao(modulo, id);
   const textos = TOPO_DO_CARTAO[modulo];
   const menu = useFocoAoDesarquivar(arquivado);
   return <MoldeDoTopo inicio={inicio} esquerda={esquerda} equipe={equipe} etiquetas={etiquetas} mudaEtiquetas={mudaEtiquetas} aoMudarEtiquetas={aoMudarEtiquetas}
     editando={editando} situacao={situacao} botoes={<>
       {lapis && !arquivado && <LapisDoCartao rotulo={lapis.rotulo} aoEditar={lapis.aoEditar} />}
-      <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar} refDoBotao={menu}
+      <MenuDoCartao rotulo={textos.menu} arquivado={arquivado} aoArquivar={aoArquivar} refDoBotao={menu} extras={extras}
         excluir={aoExcluir ? { oQue: textos.oQue, aoConfirmar: aoExcluir } : undefined} />
     </>} />;
 }

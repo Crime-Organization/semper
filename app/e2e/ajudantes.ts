@@ -125,7 +125,7 @@ export const menuDoCartao = (cartao: Locator) => cartao.getByRole('button', { na
  * Escolhe uma ação no menu ⋯ do topo do cartão (desde a #382, Arquivar, Desarquivar e Excluir moram lá). O menu abre por cima da
  * página, fora do cartão: a ação é achada no menu que tem o nome do ⋯ deste cartão, e não em qualquer menu da página.
  */
-export async function acaoNoMenuDoCartao(page: Page, cartao: Locator, acao: 'Arquivar' | 'Desarquivar' | 'Excluir') {
+export async function acaoNoMenuDoCartao(page: Page, cartao: Locator, acao: 'Arquivar' | 'Desarquivar' | 'Excluir' | 'Copiar para outra demanda') {
   const mais = menuDoCartao(cartao);
   const nome = await mais.getAttribute('aria-label');
   await mais.click();

@@ -120,3 +120,30 @@ describe('Ligar um item que já existe: a busca', () => {
     expect(buscar).not.toHaveBeenCalled();
   });
 });
+
+describe('Ligar um item que já existe: a busca dentro de uma janela (#312)', () => {
+  beforeEach(() => buscar.mockClear());
+
+  it('dada a busca numa janela, quando aparece, então já vem aberta, sem o botão, com o campo em foco e os mais recentes', async () => {
+    // Quando
+    montar({ naJanela: true });
+    // Então
+    expect(screen.queryByRole('button', { name: 'Ligar anotação existente' })).toBeNull();
+    expect(campo()).toHaveFocus();
+    expect(await screen.findByRole('button', { name: /Estratégia da defesa/ })).toBeInTheDocument();
+  });
+
+  it('dada a busca numa janela, quando a pessoa escolhe e quando clica fora, então escolher só responde e a busca não fecha sozinha', async () => {
+    // Dado
+    const aoEscolher = montar({ naJanela: true });
+    // Quando
+    await userEvent.click(document.body);
+    // Então: clicar fora é da janela (a busca continua)
+    expect(campo()).toBeInTheDocument();
+    // Quando
+    await userEvent.click(await screen.findByRole('button', { name: /Ata da reunião/ }));
+    // Então
+    expect(aoEscolher).toHaveBeenCalledWith(ata);
+    expect(screen.queryByRole('button', { name: 'Ligar anotação existente' })).toBeNull();
+  });
+});

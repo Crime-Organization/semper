@@ -40,7 +40,7 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { hojeISO, numero, useTitulo } from '../ui/util';
 import { CartaoDemanda } from './CartaoDemanda';
-import { ConcluirItem } from './situacaoDoItem';
+import { ConcluirItem, oferecerDepoisDeMudar } from './situacaoDoItem';
 import './Contratos.css';
 import './Demandas.css';
 
@@ -201,7 +201,7 @@ export default function Demandas() {
             const voltar = async () => { await SD.demandaMover(d.id, de, ordemAnterior); };
             if (de !== para) {
               feito(`${d.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_DEMANDA}".`, 'movimentação do cartão', voltar);
-              void oferecerProcesso(d, para, navegar);
+              void oferecerDepoisDeMudar('demandas', { id: d.id, titulo: d.titulo, etapa_id: de, etapa_ordem: ordemAnterior }, para, navegar);
             } else registrarDesfazer('mudança de posição do cartão', voltar);
           }}
           aoAdicionar={colunaId => navegar('/demandas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />

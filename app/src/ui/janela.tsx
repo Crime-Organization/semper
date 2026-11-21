@@ -13,7 +13,10 @@ export interface AcaoJanela<T> {
   valor: T | null | ((campos: FormData) => T | null);
   tipo?: 'pri' | 'perigo';
 }
-interface Pedido { id: number; titulo: string; corpo: ReactNode; acoes: AcaoJanela<unknown>[]; larga: boolean; resolver: (v: unknown) => void }
+/** O corpo da janela: o conteúdo, ou uma função que o monta e recebe como responder sem os botões (ex.: a busca de escolher uma
+ *  demanda, em que escolher um achado já fecha a janela com ele). */
+type CorpoDaJanela<T> = ReactNode | ((responder: (valor: T) => void) => ReactNode);
+interface Pedido { id: number; titulo: string; corpo: CorpoDaJanela<unknown>; acoes: AcaoJanela<unknown>[]; larga: boolean; resolver: (v: unknown) => void }
 
 const pedidos = criarLoja<Pedido[]>([]);
 let seq = 0;
@@ -27,12 +30,12 @@ function fechar(id: number, valor: unknown) {
 
 /**
  * Abre uma janela e espera a escolha. Com "larga" (um texto para ler, como as Novidades), ela fica mais larga e só o corpo
- * rola: o título e os botões continuam à vista.
+ * rola: o título e os botões continuam à vista. O corpo pode ser uma função, que recebe como responder sem os botões.
  */
-export function janela<T>({ titulo, corpo = null, acoes, larga = false }: { titulo: string; corpo?: ReactNode; acoes?: AcaoJanela<T>[]; larga?: boolean }): Promise<T | null> {
+export function janela<T>({ titulo, corpo = null, acoes, larga = false }: { titulo: string; corpo?: CorpoDaJanela<T>; acoes?: AcaoJanela<T>[]; larga?: boolean }): Promise<T | null> {
   return new Promise(resolve => {
     pedidos.mudar(lista => [...lista, {
-      id: ++seq, titulo, corpo, larga, acoes: (acoes || [{ rotulo: 'Fechar', valor: null }]) as AcaoJanela<unknown>[],
+      id: ++seq, titulo, corpo: corpo as CorpoDaJanela<unknown>, larga, acoes: (acoes || [{ rotulo: 'Fechar', valor: null }]) as AcaoJanela<unknown>[],
       resolver: v => resolve(v as T | null)
     }]);
   });
@@ -113,7 +116,7 @@ function JanelaAberta({ p }: { p: Pedido }) {
     }}>
     <form className={p.larga ? 'janela larga' : 'janela'} ref={formulario} role="dialog" aria-modal="true" aria-labelledby={idTitulo} noValidate onSubmit={e => e.preventDefault()}>
       <h2 id={idTitulo}>{p.titulo}</h2>
-      <div className="janela-corpo">{p.corpo}</div>
+      <div className="janela-corpo">{typeof p.corpo === 'function' ? p.corpo(v => fechar(p.id, v)) : p.corpo}</div>
       <div className="janela-acoes">
         {p.acoes.map((a, i) => <button key={i} type="button" className={estiloBotao({ variante: a.tipo === 'pri' ? 'principal' : a.tipo })} onClick={() => escolher(a)}>{a.rotulo}</button>)}
       </div>

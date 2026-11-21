@@ -16,6 +16,13 @@ function Cartao({ soParaVer = false }: { soParaVer?: boolean }) {
     aoAgir={async a => { await Promise.resolve(); setAcao(a === 'concluir' ? 'reabrir' : 'concluir'); }} />;
 }
 
+/** O cartão que, enquanto a ação termina (as perguntas depois de concluir, #355), relê o quadro: o botão some e volta. */
+function CartaoQueReleOQuadro({ voltar }: { voltar: { fn?: () => void } }) {
+  const [acao, setAcao] = useState<AcaoDeConclusao | null>('concluir');
+  return <ConcluirNaSituacao acao={acao} soParaVer={false}
+    aoAgir={() => { setAcao(null); return new Promise<void>(fim => { voltar.fn = () => { setAcao('reabrir'); fim(); }; }); }} />;
+}
+
 describe('O Concluir ao lado da Situação (#397)', () => {
   it.each([
     ['concluir', 'Concluir'],
@@ -61,5 +68,18 @@ describe('O Concluir ao lado da Situação (#397)', () => {
     // Então
     expect(screen.getByRole('button', { name: 'Reabrir' })).toHaveFocus();
     vi.useRealTimers();
+  });
+
+  it('dado o quadro que se relê enquanto a ação termina (o botão some por um instante), quando a ação termina, então o foco volta ao botão', async () => {
+    // Dado
+    const voltar: { fn?: () => void } = {};
+    render(<CartaoQueReleOQuadro voltar={voltar} />);
+    screen.getByRole('button', { name: 'Concluir' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.queryByRole('button')).toBeNull();
+    // Quando
+    await act(async () => { voltar.fn!(); await Promise.resolve(); });
+    // Então
+    expect(screen.getByRole('button', { name: 'Reabrir' })).toHaveFocus();
   });
 });
