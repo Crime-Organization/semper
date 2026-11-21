@@ -1,8 +1,8 @@
 // O "Expandir tudo" da esquerda e a Situação (#394, #397; antes, #389 e #351). Nos cartões com a Situação (processo, demanda,
 // tarefa, compromisso, contrato e pessoa, nesta a "Etapa do atendimento"), a Situação tem uma linha própria logo abaixo da linha de
-// cima, e o botão que abre e fecha as seções da esquerda fica sozinho, à direita, logo abaixo da descrição (e dos botões rápidos) e
-// acima da primeira seção, com o meio no eixo das setas das seções e do X (#381). Ele não fica mais na linha dos botões rápidos nem
-// ao lado da Situação. Na tarefa, o menu e o ✓ Concluir cabem sem se cruzar, também numa janela estreita e no celular.
+// cima, e o botão que abre e fecha as seções da esquerda fica sozinho, à direita, logo abaixo da descrição e acima da primeira
+// seção, com o meio no eixo das setas das seções e do X (#381). Ele não fica mais ao lado da Situação, nem na linha dos botões
+// rápidos, que virou a bolinha "Acrescentar ao cartão" da linha de cima (#399). Na tarefa, o menu e o ✓ Concluir cabem sem se cruzar, também numa janela estreita e no celular.
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Na semente do banco fictício, quem está logado é o Mauro (master).
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
@@ -52,7 +52,9 @@ const menuDaSituacao = (cartao: Locator) => cartao.getByRole('combobox', { name:
 async function expandirDaEsquerda(cartao: Locator) {
   return cartao.getByRole('button', { name: /^(Expandir|Recolher) tudo (da coluna da esquerda|do alto do cartão)$/ });
 }
-/** A linha dos botões rápidos (#351). */
+/** A bolinha "Acrescentar ao cartão" da linha de cima (#399), que substituiu a linha dos botões rápidos (#351). */
+const bolinhaDeAcrescentar = (cartao: Locator) => cartao.getByRole('button', { name: 'Acrescentar ao cartão' });
+/** A antiga linha dos botões rápidos (#351), que não existe mais (#399). */
 const linhaDeAtalhos = (cartao: Locator) => cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
 /** O botão que abre e fecha a seção (o título dela). */
 const secao = (cartao: Locator, nome: RegExp) => cartao.getByRole('button', { name: nome }).and(cartao.locator('[aria-controls]'));
@@ -64,16 +66,17 @@ async function meiosDasSetas(cartao: Locator) {
 }
 
 /**
- * Confere que o "Expandir tudo" da esquerda fica sozinho: abaixo da Situação, do título e dos botões rápidos, e acima da primeira
- * seção. Devolve a caixa do botão.
+ * Confere que o "Expandir tudo" da esquerda fica sozinho: abaixo da Situação, do título e da bolinha "Acrescentar ao cartão", e acima
+ * da primeira seção. Devolve a caixa do botão.
  */
 async function sozinhoAcimaDaPrimeira(cartao: Locator, primeira: RegExp) {
   const botao = await caixa(await expandirDaEsquerda(cartao));
-  const [menu, titulo, atalhos, secaoPrimeira] = [await caixa(menuDaSituacao(cartao)), await caixa(cartao.getByRole('heading', { level: 2 })),
-    await caixa(linhaDeAtalhos(cartao)), await caixa(secao(cartao, primeira))];
+  const [menu, titulo, bolinha, secaoPrimeira] = [await caixa(menuDaSituacao(cartao)), await caixa(cartao.getByRole('heading', { level: 2 })),
+    await caixa(bolinhaDeAcrescentar(cartao)), await caixa(secao(cartao, primeira))];
   expect(botao.y).toBeGreaterThanOrEqual(embaixo(menu));
   expect(botao.y).toBeGreaterThanOrEqual(embaixo(titulo));
-  expect(botao.y).toBeGreaterThanOrEqual(embaixo(atalhos));
+  expect(botao.y).toBeGreaterThanOrEqual(embaixo(bolinha));
+  await expect(linhaDeAtalhos(cartao)).toHaveCount(0);
   expect(embaixo(botao)).toBeLessThanOrEqual(secaoPrimeira.y + TOLERANCIA);
   return botao;
 }
@@ -82,13 +85,12 @@ test.describe('O "Expandir tudo" da esquerda sozinho, acima da primeira seção,
   test.use({ viewport: { width: 1440, height: 900 } });
 
   for (const { cartao: nome, endereco, linha, primeira } of CARTOES) {
-    test(`dado o cartão de ${nome} ao lado, quando abre, então o "Expandir tudo" fica sozinho acima da primeira seção, no eixo do X e das setas das seções, fora da linha da Situação e dos botões rápidos`, async ({ page }) => {
+    test(`dado o cartão de ${nome} ao lado, quando abre, então o "Expandir tudo" fica sozinho acima da primeira seção, no eixo do X e das setas das seções, fora da linha da Situação e longe da bolinha de acrescentar`, async ({ page }) => {
       // Dado / Quando
       const cartao = await abrirCartao(page, endereco, linha);
       await formato(cartao, 'Abrir ao lado');
       // Então
       const botao = await sozinhoAcimaDaPrimeira(cartao, primeira);
-      await expect(linhaDeAtalhos(cartao).getByRole('button', { name: /^(Expandir|Recolher) tudo/ })).toHaveCount(0);
       const x = meioX(await caixa(cartao.getByRole('button', { name: 'Fechar' })));
       expect(Math.abs(meioX(botao) - x)).toBeLessThanOrEqual(TOLERANCIA);
       for (const seta of await meiosDasSetas(cartao)) expect(Math.abs(seta - x)).toBeLessThanOrEqual(TOLERANCIA);
@@ -126,17 +128,18 @@ test.describe('O "Expandir tudo" da esquerda sozinho, acima da primeira seção,
   });
 });
 
-/** Na tarefa, o menu e o ✓ Concluir não se cruzam, nem o "Expandir tudo" e os botões rápidos. */
+/** Na tarefa, o menu e o ✓ Concluir não se cruzam, nem o "Expandir tudo" e a bolinha de acrescentar (#399). */
 async function tarefaSemCruzar(cartao: Locator) {
   const concluir = cartao.getByRole('button', { name: 'Concluir', exact: true });
   await expect(concluir).toBeVisible();
   const [menu, acao, botao] = [await caixa(menuDaSituacao(cartao)), await caixa(concluir), await sozinhoAcimaDaPrimeira(cartao, /^Checklists/)];
   expect(cruzam(menu, acao)).toBe(false);
-  for (const atalho of await linhaDeAtalhos(cartao).getByRole('button').all()) expect(cruzam(await caixa(atalho), botao)).toBe(false);
+  expect(cruzam(await caixa(bolinhaDeAcrescentar(cartao)), botao)).toBe(false);
+  expect(cruzam(await caixa(bolinhaDeAcrescentar(cartao)), menu)).toBe(false);
 }
 
 test.describe('A tarefa com o ✓ Concluir na linha da Situação', () => {
-  test('dada a tarefa ao lado, quando abre, então o menu e o ✓, e os botões rápidos e o "Expandir tudo", cabem sem se cruzar', async ({ page }) => {
+  test('dada a tarefa ao lado, quando abre, então o menu e o ✓, e a bolinha de acrescentar e o "Expandir tudo", cabem sem se cruzar', async ({ page }) => {
     // Dado
     await page.setViewportSize({ width: 1440, height: 900 });
     // Quando
@@ -160,7 +163,7 @@ test.describe('A tarefa com o ✓ Concluir na linha da Situação', () => {
 test.describe('A tarefa no celular', () => {
   test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
 
-  test('dada a tarefa no celular, quando abre, então o menu, o ✓, os botões rápidos e o "Expandir tudo" não se cruzam, e a página não rola de lado', async ({ page }) => {
+  test('dada a tarefa no celular, quando abre, então o menu, o ✓, a bolinha de acrescentar e o "Expandir tudo" não se cruzam, e a página não rola de lado', async ({ page }) => {
     // Dado / Quando
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     await esperarParar(cartao);

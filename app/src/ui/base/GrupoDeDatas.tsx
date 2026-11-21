@@ -12,7 +12,8 @@
 // estavam, à vista (o valor que se muda fica marcado), e nada é empurrado para baixo do calendário. O calendário abre dentro do
 // formulário (LugarDoCalendario), só quando a pessoa pede, e empurra o Cancelar e o Salvar em vez de cobri-los. Uma data aberta de
 // cada vez: pedir outra com a aberta por salvar mantém a aberta e lembra de salvar ou cancelar (regras/edicaoUnica.ts).
-// Com `atalho` (#351), ele oferece ao cartão o botão rápido ("Datas") que abre o mesmo formulário.
+// Com `atalho` (#351; desde a #399, uma linha do menu "Acrescentar ao cartão"), ele oferece ao cartão o "ver", que leva até o valor,
+// e, para quem pode mudá-lo, o acrescentar, que abre o mesmo formulário.
 // FaixaDasDatas é a faixa das datas de um cartão (#385): a criação e as outras datas. Quando a criação seria a única, a faixa
 // some, porque o rodapé de todo cartão já diz "Criada em … por …".
 import { Children, createContext, useContext, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
@@ -24,6 +25,7 @@ import { falha } from '../avisos';
 import { useEdicaoUnica, type EdicaoUnica } from '../useEdicaoUnica';
 import type { TipoDeAtalho } from '../../regras/atalhosDoCartao';
 import { useAtalhoDoCartao } from '../registroDeAtalhos';
+import { irAte } from '../rolagem';
 import { estiloBotao } from './botao';
 import { LugarDoCalendario } from './CampoData';
 import { Aviso } from '.';
@@ -129,7 +131,7 @@ interface PropsDadoEditavel<V extends object> {
   aoMudarRascunho?: (rascunho: string | null) => void;
   /** Os campos do formulário. */
   campos: (c: CamposDoDado<V>) => ReactNode;
-  /** O botão rápido que o dado oferece ao cartão (#351), para quem pode mudá-lo: abre o formulário, como o clique no valor. */
+  /** A linha que o dado oferece ao menu do cartão (#399): o "ver" leva até ele; para quem pode mudá-lo, o "+" abre o formulário. */
   atalho?: TipoDeAtalho;
 }
 
@@ -143,7 +145,7 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
   // A pessoa pediu outra data com esta por salvar: o formulário lembra de salvar ou cancelar antes.
   const [lembrar, setLembrar] = useState(false);
   const [lugarDoCalendario, setLugarDoCalendario] = useState<HTMLDivElement | null>(null);
-  const botao = useRef<HTMLButtonElement>(null), formulario = useRef<HTMLDivElement>(null);
+  const botao = useRef<HTMLButtonElement>(null), formulario = useRef<HTMLDivElement>(null), soLido = useRef<HTMLSpanElement>(null);
   const id = useId(), idDosErros = useId(), idDoFormulario = useId();
   const faixa = useContext(PainelDaFaixa);
   const daFaixa = useRef(faixa);
@@ -196,10 +198,14 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
     if (faixa && !faixa.edicao.pedir(id)) return;
     setRascunho(inicial());
   }
-  // O botão rápido (#351) abre o formulário do mesmo jeito.
-  useAtalhoDoCartao(atalho, podeMudar ? { nome: titulo, abrir } : null);
+  // A linha do menu do cartão (#399): o "ver" leva até o valor (ou ao formulário aberto), no meio da tela, com o foco nele; o "+"
+  // abre o formulário do mesmo jeito que o clique no valor.
+  useAtalhoDoCartao(atalho, {
+    ver: () => irAte(botao.current ?? formulario.current ?? soLido.current, botao.current ?? primeiroCampo(formulario.current), 'center'),
+    acrescentar: podeMudar ? { nome: titulo, abrir } : null
+  });
 
-  if (!aoSalvar) return <span className="dado-editavel">{lido}</span>;
+  if (!aoSalvar) return <span className="dado-editavel" ref={soLido}>{lido}</span>;
 
   /** Fecha o formulário; pelo teclado e ao salvar, o foco volta ao valor, e quem usa o teclado não se perde no cartão. */
   function fechar() {

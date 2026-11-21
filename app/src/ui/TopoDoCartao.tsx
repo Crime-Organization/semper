@@ -1,8 +1,11 @@
 // O topo dos cartões de item (#382, pedido do dono de 19/11: "simples igual o das anotações"), igual em demanda, tarefa,
 // processo, compromisso, contrato, pessoa e na própria anotação (a aberta e a nova): no alto, à esquerda o tipo, o código e os
 // selos do item (na anotação, o caminho da pasta); à direita a equipe em bolinhas (com os grupos e o "+"), e, junto dos botões da
-// janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o lápis (verde) e o menu ⋯ (as ações a mais, Arquivar ou
-// Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último. Logo abaixo da linha de cima, a linha da
+// janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o "+" redondo "Acrescentar ao cartão" (#399: o menu com o que o
+// cartão tem e o que se acrescenta), o lápis (verde) e o menu ⋯ (as ações a mais, Arquivar ou Desarquivar e, no arquivado e para
+// quem pode, Excluir). O ⋯ fica sempre por último. O "+" fica logo depois da etiqueta: os dois
+// acrescentam ao cartão, o lápis muda o que já está nele e o ⋯ tem o resto; e a etiqueta fica entre ele e o "+" tracejado da equipe,
+// e os dois "+" nunca se encostam. Logo abaixo da linha de cima, a linha da
 // Situação (SituacaoDoCartao, #397: o rótulo, o menu largo e, na tarefa e na demanda, o ✓ Concluir; em edição, ela some); depois,
 // os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe (a ordem da cabeça toda está em
 // CabecaDoCartao). Em edição (o lápis aberto), no lugar dos botões fica "Modo de edição", a equipe some (o formulário tem os
@@ -18,6 +21,7 @@
 // se faz ao abrir um arquivado (também está no ⋯). Desarquivado por ela, o foco vai para o ⋯ (a faixa some com o botão).
 // O que cada módulo diz (o nome do ⋯, "a tarefa", a faixa) vem de regras/topoDoCartao.ts.
 import { useContext, useEffect, useRef, type ReactNode } from 'react';
+import { AcrescentarAoCartao } from './AcrescentarAoCartao';
 import type { Etiqueta } from '../dados';
 import { faixaDoArquivado, TOPO_DO_CARTAO, type ModuloDoTopo } from '../regras/topoDoCartao';
 import { LapisDoCartao, MenuDoCartao, ModoDeEdicao, NoTopoDoCartao } from './AcoesDoCartao';
@@ -67,6 +71,7 @@ export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas
         {muda && <BotaoDasEtiquetas ids={etiquetas.ids} aoMarcar={etiquetas.marcar} aoMudar={aoMudarEtiquetas} rotulo={ESCOLHER_ETIQUETAS} className="cartao-botao" comDica>
           <Icone nome="etiqueta" tam={ICONE_DO_TOPO} />
         </BotaoDasEtiquetas>}
+        <AcrescentarAoCartao />
         {botoes}
       </>}
     </NoTopoDoCartao>

@@ -289,8 +289,11 @@ test.describe('A equipe no topo, como na anotação', () => {
     });
   }
 
-  for (const { formato, tela, centro } of FORMATOS.filter(f => f.formato !== 'no celular')) {
-    test(`dada a tarefa ${formato}, quando abre, então o tipo, a equipe e os botões ficam numa linha só, na altura do X`, async ({ page }) => {
+  // Ao lado (o painel de 560px), desde a #399 a linha de cima tem seis botões redondos (a etiqueta, o "+" de acrescentar ao cartão,
+  // o lápis, o ⋯, o formato e o X): a equipe da tarefa não cabe mais ao lado do tipo e desce, encostada à direita, logo abaixo dos
+  // botões, na linha do selo do prazo (o teste de cima confere que ela nunca fica sozinha numa linha). Na janela estreita, ela cabe.
+  for (const { formato, tela, centro, equipeNaLinhaDoX } of [{ ...FORMATOS[0], equipeNaLinhaDoX: false }, { ...FORMATOS[1], equipeNaLinhaDoX: true }]) {
+    test(`dada a tarefa ${formato}, quando abre, então o tipo e os botões ficam numa linha só, na altura do X, e a equipe ${equipeNaLinhaDoX ? 'também' : 'logo abaixo, à direita'}`, async ({ page }) => {
       // Dado
       await page.setViewportSize(tela);
       // Quando
@@ -299,10 +302,18 @@ test.describe('A equipe no topo, como na anotação', () => {
       await voltarAoComeco(cartao);
       // Então: os centros de todos na mesma altura (com folga de alguns pixels)
       const meio = async (alvo: Locator) => { const c = (await alvo.boundingBox())!; return c.y + c.height / 2; };
-      const doX = await meio(cartao.getByRole('button', { name: 'Fechar' }));
-      for (const alvo of [cartao.getByText('Tarefa', { exact: true }).first(), cartao.getByRole('group', { name: 'Equipe', exact: true }), menuDoCartao(cartao), cartao.getByRole('button', { name: 'Escolher etiquetas' })]) {
+      const fechar = cartao.getByRole('button', { name: 'Fechar' });
+      const doX = await meio(fechar);
+      const equipe = cartao.getByRole('group', { name: 'Equipe', exact: true });
+      for (const alvo of [cartao.getByText('Tarefa', { exact: true }).first(), menuDoCartao(cartao), cartao.getByRole('button', { name: 'Escolher etiquetas' }),
+        cartao.getByRole('button', { name: 'Acrescentar ao cartão' }), ...(equipeNaLinhaDoX ? [equipe] : [])]) {
         expect(Math.abs(await meio(alvo) - doX)).toBeLessThanOrEqual(3);
       }
+      if (equipeNaLinhaDoX) return;
+      // E a equipe, logo abaixo da linha dos botões, sem passar da ponta direita do X
+      const [caixaDaEquipe, caixaDoX] = [(await equipe.boundingBox())!, (await fechar.boundingBox())!];
+      expect(caixaDaEquipe.y).toBeGreaterThanOrEqual(caixaDoX.y + caixaDoX.height);
+      expect(caixaDaEquipe.x + caixaDaEquipe.width).toBeLessThanOrEqual(caixaDoX.x + caixaDoX.width);
     });
   }
 });

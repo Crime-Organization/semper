@@ -52,3 +52,48 @@ describe('Menu flutuante', () => {
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });
+
+describe('Menu flutuante com as setas (#399)', () => {
+  function ComSetas() {
+    const [botao, setBotao] = useState<HTMLElement | null>(null);
+    return <>
+      <button type="button" aria-label="Acrescentar" onClick={e => setBotao(botao ? null : e.currentTarget)}>+</button>
+      {botao && <MenuFlutuante botao={botao} rotulo="Acrescentar" setas aoFechar={() => setBotao(null)}>
+        <div role="none"><button type="button" role="menuitem">Ver checklists</button><button type="button" role="menuitem">Adicionar checklist</button></div>
+        <div role="none"><button type="button" role="menuitem">Ver anotações</button></div>
+      </MenuFlutuante>}
+    </>;
+  }
+
+  it('dado o menu aberto, quando a pessoa usa as setas, então o foco anda pelos itens e dá a volta nas pontas', async () => {
+    // Dado
+    render(<ComSetas />);
+    await userEvent.click(screen.getByRole('button', { name: 'Acrescentar' }));
+    expect(screen.getByRole('menuitem', { name: 'Ver checklists' })).toHaveFocus();
+    // Quando / Então
+    await userEvent.keyboard('{ArrowRight}');
+    expect(screen.getByRole('menuitem', { name: 'Adicionar checklist' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Ver anotações' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Ver checklists' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Ver anotações' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(screen.getByRole('menuitem', { name: 'Adicionar checklist' })).toHaveFocus();
+    await userEvent.keyboard('{Home}');
+    expect(screen.getByRole('menuitem', { name: 'Ver checklists' })).toHaveFocus();
+    await userEvent.keyboard('{End}');
+    expect(screen.getByRole('menuitem', { name: 'Ver anotações' })).toHaveFocus();
+  });
+
+  it('dado um menu sem as setas (o de sempre), quando a pessoa aperta a seta, então o foco fica onde está', async () => {
+    // Dado
+    render(<ComMenu />);
+    await userEvent.click(screen.getByRole('button', { name: 'Mais ações' }));
+    // Quando
+    await userEvent.keyboard('{ArrowDown}');
+    // Então
+    expect(screen.getByRole('menuitem', { name: 'Exportar' })).toHaveFocus();
+  });
+});

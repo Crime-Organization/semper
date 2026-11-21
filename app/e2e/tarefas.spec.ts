@@ -443,6 +443,10 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
   });
 });
 
+/** O último botão dos dados (as faixas das datas e do tempo), o que vem logo antes da descrição na ordem do Tab. */
+const ultimoDosDados = (cartao: Locator) => cartao.getByRole('group', { name: 'Datas', exact: true }).or(cartao.getByRole('group', { name: 'Tempo', exact: true }))
+  .getByRole('button').last();
+
 test.describe('A descrição no topo do cartão (#385)', () => {
   test('dada uma tarefa com descrição, quando o cartão abre, então não há botão "Mudar a descrição" e há um espaço maior entre os dados e a descrição', async ({ page }) => {
     // Quando
@@ -450,20 +454,19 @@ test.describe('A descrição no topo do cartão (#385)', () => {
     // Então
     await expect(cartao.getByText('A procuração vence este mês.')).toBeVisible();
     await expect(cartao.getByRole('button', { name: 'Mudar a descrição' })).toHaveCount(0);
-    // E a descrição vem depois dos dados (#397): o vão entre os botões rápidos, o fim dos dados, e o texto da descrição é, no mínimo,
-    // a medida da variável de estilo
+    // E a descrição vem depois dos dados (#397): o vão entre a faixa do tempo, o fim dos dados (desde a #399, sem os botões rápidos),
+    // e o texto da descrição é, no mínimo, a medida da variável de estilo
     const vao = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-dos-dados-a-descricao')));
     expect(vao).toBeGreaterThan(0);
-    const dados = (await cartao.getByRole('group', { name: 'Acrescentar ao cartão' }).boundingBox())!;
+    const dados = (await cartao.getByRole('group', { name: 'Tempo', exact: true }).boundingBox())!;
     const descricao = (await cartao.getByText('A procuração vence este mês.').boundingBox())!;
     expect(descricao.y - (dados.y + dados.height)).toBeGreaterThanOrEqual(vao);
   });
 
   test('dado quem usa só o teclado, quando chega à descrição com Tab e tecla Enter, então a edição abre; ao cancelar, o foco volta ao texto', async ({ page }) => {
-    // Dado: o foco no último botão rápido, o fim dos dados, logo acima da descrição (#397)
+    // Dado: o foco no último botão dos dados (as datas e o tempo), logo acima da descrição (#397; desde a #399, sem os botões rápidos)
     const cartao = await abrirTarefa(page, 'Renovar a procuração');
-    const atalhos = cartao.getByRole('group', { name: 'Acrescentar ao cartão' });
-    await atalhos.getByRole('button').or(atalhos.getByRole('link')).last().focus();
+    await ultimoDosDados(cartao).focus();
     // Quando
     await page.keyboard.press('Tab');
     // Então

@@ -162,7 +162,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
-    <CabecaDoCartao editando={editando}
+    <CabecaDoCartao
       topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
           tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */
       <TopoDoCartao modulo="demandas" id={d.id} arquivado={!!d.arquivado_em} editando={editando}

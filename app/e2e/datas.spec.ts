@@ -573,12 +573,13 @@ test.describe('Dada uma demanda, a faixa do tempo (#383)', () => {
     // Dado: as tarefas de "Registro de marca" têm 2 h 40 min (as do Mauro, do Bruno e o ajuste)
     await page.goto('/demandas/');
     await page.getByRole('button', { name: 'Tabela' }).click();
-    // Onde a linha dos botões rápidos (#351: o que vem logo abaixo das faixas) aparece a cada mudança da tela, enquanto o cartão abre
+    // Onde a descrição (o que vem logo abaixo das faixas, desde a #399, que tirou a linha dos botões rápidos) aparece a cada mudança
+    // da tela, enquanto o cartão abre
     await page.evaluate(() => {
       const alturas: number[] = [];
       (window as unknown as { alturasDaSituacao: number[] }).alturasDaSituacao = alturas;
       new MutationObserver(() => {
-        const situacao = document.querySelector('[role=dialog] [role=group][aria-label="Acrescentar ao cartão"]');
+        const situacao = [...document.querySelectorAll('[role=dialog] button')].find(b => b.textContent?.startsWith('Sem descrição'));
         if (situacao) alturas.push(Math.round(situacao.getBoundingClientRect().y));
       }).observe(document.body, { subtree: true, childList: true, characterData: true });
     });
@@ -590,7 +591,7 @@ test.describe('Dada uma demanda, a faixa do tempo (#383)', () => {
     await expect(tempo.getByRole('group', { name: 'Tempo da equipe nas tarefas', exact: true })).toHaveText(/^Tempo da equipe nas tarefas\s*2 h 40 min$/);
     const datas = (await cartao.getByRole('group', { name: 'Datas', exact: true }).boundingBox())!;
     expect((await tempo.boundingBox())!.y).toBeGreaterThanOrEqual(datas.y + datas.height);
-    // E a linha dos botões rápidos nasceu onde ficou: a faixa do tempo já estava lá enquanto a soma chegava
+    // E a descrição nasceu onde ficou: a faixa do tempo já estava lá enquanto a soma chegava
     const alturas = await page.evaluate(() => (window as unknown as { alturasDaSituacao: number[] }).alturasDaSituacao);
     expect(alturas.length).toBeGreaterThan(0);
     expect(new Set(alturas).size).toBe(1);

@@ -12,8 +12,10 @@
 // acha a seção, e não também o botão.
 // O "+" do título leva ao cadastro de outro módulo (um endereço) ou, desde a #390, pede à própria seção o formulário ou o menu do
 // item novo (Novo prazo, Adicionar checklist…): abre a seção, se estiver fechada, sem mudar a escolha guardada, e quem está dentro
-// atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre. Com `atalho` (#351), o mesmo "+" vira também um botão
-// rápido do cartão (AtalhosDoCartao), que faz o que ele faz: abre a seção e o formulário ou o menu do item novo, preso ao botão.
+// atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre. Com `atalho` (#351; desde a #399, o menu
+// "Acrescentar ao cartão", em AcrescentarAoCartao.tsx), a seção vira uma linha desse menu, com a contagem dela: o "ver" a abre (sem
+// mudar a escolha guardada) e leva o foco ao título dela; o "+" da linha, enquanto o do título aparece, faz o que ele faz: abre a
+// seção e o formulário ou o menu do item novo, preso à bolinha do menu.
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TipoDeAtalho } from '../regras/atalhosDoCartao';
 import { BotaoLink, Contador, estiloBotao, propsDaDica } from './base';
@@ -21,6 +23,7 @@ import { Icone, ICONE_DO_MINI, ICONE_DO_TITULO_DE_SECAO, ICONE_DO_TOPO, type Nom
 import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { useAtalhoDoCartao } from './registroDeAtalhos';
+import { irAte } from './rolagem';
 
 /** O tamanho da seta na ponta direita do título da seção: o mesmo de --seta-da-secao (estilo.css), em cujo meio fica o do "Expandir tudo" (#381). */
 const TAMANHO_DA_SETA = 16;
@@ -147,8 +150,8 @@ interface Props {
    */
   novo?: NovoLigado | NovoNaSecao;
   /**
-   * O botão rápido que o "+" oferece ao cartão (#351): o tipo dele na linha (Checklist, Anotação…). Só enquanto o "+" aparece: no
-   * cartão arquivado ou só para ler, nenhum.
+   * A linha que a seção oferece ao menu "Acrescentar ao cartão" (#399): o tipo dela (checklist, anotação…). O "ver" vale sempre; o
+   * acrescentar, só enquanto o "+" aparece (no cartão arquivado ou só para ler, nenhum).
    */
   atalho?: TipoDeAtalho;
   children: ReactNode;
@@ -173,6 +176,7 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
   const [aAtender, setAAtender] = useState<PedidoDeNovo | null>(null);
   const pedidoNaSecao = useMemo<PedidoNaSecao>(() => ({ pedido: aAtender, atendido: () => setAAtender(null) }), [aAtender]);
   const corpo = useRef<HTMLDivElement>(null);
+  const secao = useRef<HTMLElement>(null), botaoDoTitulo = useRef<HTMLButtonElement>(null);
   /** Os formulários que a seção já mostrava no clique do "+" (que abre um formulário, e não um menu): o do item novo é o que vem depois. */
   const formulariosAntes = useRef<Set<Element> | null>(null);
   // Abre a seção como o abertaAoIniciar: só agora, sem gravar a escolha (#390).
@@ -181,8 +185,13 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
     setAAtender({ botao });
     if (novo && !('para' in novo) && !novo.menu) formulariosAntes.current = new Set(corpo.current?.querySelectorAll('form') ?? []);
   };
-  // O botão rápido do cartão faz o mesmo que o "+": leva ao mesmo endereço ou pede o item novo à seção.
-  useAtalhoDoCartao(atalho, novo && ('para' in novo ? { nome: novo.rotulo, para: novo.para } : { nome: novo.rotulo, menu: novo.menu, abrir: pedirNovo }));
+  // A linha do menu do cartão (#399): o "ver" abre a seção, como o abertaAoIniciar, e leva até ela; o "+" faz o mesmo que o do
+  // título: leva ao mesmo endereço ou pede o item novo à seção.
+  useAtalhoDoCartao(atalho, {
+    quantidade: contador,
+    ver: () => { setAberto(true); irAte(secao.current, botaoDoTitulo.current); },
+    acrescentar: novo && ('para' in novo ? { nome: novo.rotulo, para: novo.para } : { nome: novo.rotulo, menu: novo.menu, abrir: pedirNovo })
+  });
   // Fechada antes de quem atende aparecer (ex.: a leitura falhou), o pedido acaba: não abre o formulário quando ela reabrir.
   useEffect(() => { if (!aberto) setAAtender(null); }, [aberto]);
   // Atendido o pedido, o foco vai ao primeiro campo do formulário novo, que fica à vista: com uma lista longa, ele aparece
@@ -196,11 +205,11 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
   }, [aAtender]);
   return <>
     {noGrupo && estado?.primeira === id && <ExpandirTudo estado={estado} />}
-    <section className="bloco recolhivel">
+    <section className="bloco recolhivel" ref={secao}>
       {/* Com o "+", ele fica entre o número e a seta (um link não pode ir dentro do botão): o resto da linha, até a
           seta, também abre e fecha a seção. */}
       <h3 className={novo ? 'com-novo' : undefined}>
-        <button type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
+        <button ref={botaoDoTitulo} type="button" className="recolher" aria-expanded={aberto} aria-controls={id} onClick={alternar}>
           <Icone nome={icone} tam={ICONE_DO_TITULO_DE_SECAO} />{titulo}
           {contador !== undefined && <Contador apagado={!contador}>{contador}</Contador>}
           {!novo && <span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span>}

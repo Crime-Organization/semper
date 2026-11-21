@@ -175,7 +175,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: null }} />
     {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
-    <CabecaDoCartao editando={editando}
+    <CabecaDoCartao
       topo={/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
           altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. Quem
           edita sem os valores tem o mesmo lápis, com esse nome (antes, um botão de texto à parte). As etiquetas: quem vê os valores
