@@ -216,7 +216,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
       <ProcessosDaDemanda demandaId={d.id} somenteLer={!!d.arquivado_em || !podeAlterar} versao={versaoHist} aoMudar={() => setVersaoHist(v => v + 1)} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length} novo={novaPessoaNoItem('demandas', d.id, d.clientes, podeLigar).titulo}>
+    <Recolhivel titulo="Clientes" icone="pessoas" preferencia="demandas.cartao.clientes" contador={d.clientes.length} novo={novaPessoaNoItem('demandas', d.id, d.clientes, podeLigar).titulo} atalho="ligacao">
       {d.clientes.length ? <ItensLigados itens={d.clientes.map(cliente)} /> : <Nota>Nenhum cliente ligado a esta demanda.</Nota>}
       {podeLigar && <LigarPessoaNoItem modulo="demandas" itemId={d.id} ligadas={d.clientes} depois={depoisDeLigar} novo={novaPessoaNoItem('demandas', d.id, d.clientes, podeLigar).embaixo}
         aviso={d.contrato_id ? 'Esta demanda é de um contrato: confira se a pessoa também é parte dele.' : undefined} />}

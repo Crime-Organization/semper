@@ -8,7 +8,7 @@
 // seções, no eixo das setas e do X (#381, #389).
 import { atalhosNaOrdem, NOME_DA_LINHA_DE_ATALHOS, ROTULO_DO_ATALHO, type TipoDeAtalho } from '../regras/atalhosDoCartao';
 import { BotaoLink, estiloBotao } from './base';
-import { Icone, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_MINI, type NomeIcone } from './Icone';
 import { LugarDoExpandirTudo } from './Recolhivel';
 import { useAtalhosOferecidos } from './registroDeAtalhos';
 
@@ -19,8 +19,6 @@ const ICONE_DO_ATALHO: Record<TipoDeAtalho, NomeIcone> = {
   anotacao: 'documentos',
   ligacao: 'vinculo'
 };
-/** O tamanho do ícone dentro do botão (o do "+" das seções). */
-const TAMANHO_DO_ICONE = 15;
 
 interface Props {
   /** Guarda à direita o "Expandir tudo" das seções do cartão (padrão: sim). Na anotação, ele continua no alto da coluna. */
@@ -36,7 +34,7 @@ export function AtalhosDoCartao({ comExpandirTudo = true }: Props) {
   const oferecidos = useAtalhosOferecidos().map(o => ({ tipo: o.tipo, atalho: o.ler() })).filter(o => o.atalho);
   const botoes = atalhosNaOrdem(oferecidos.map(o => o.tipo)).map(tipo => {
     const atalho = oferecidos.find(o => o.tipo === tipo)!.atalho!;
-    const conteudo = <><Icone nome={ICONE_DO_ATALHO[tipo]} tam={TAMANHO_DO_ICONE} />{ROTULO_DO_ATALHO[tipo]}</>;
+    const conteudo = <><Icone nome={ICONE_DO_ATALHO[tipo]} tam={ICONE_DO_MINI} />{ROTULO_DO_ATALHO[tipo]}</>;
     return atalho.para
       ? <BotaoLink key={tipo} forma="mini" to={atalho.para} title={atalho.nome}>{conteudo}</BotaoLink>
       : <button key={tipo} type="button" className={estiloBotao({ forma: 'mini' })} title={atalho.nome} aria-haspopup={atalho.menu ? 'menu' : undefined}

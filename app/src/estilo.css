@@ -412,7 +412,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
+/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). */
 :root { --altura-do-campo: var(--alvo-de-toque) }
 .campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
 .campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
@@ -1071,10 +1071,11 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
    direita, no tamanho dos botões pequenos (.mini) e com as letras dos selos (o nome da coluna, em maiúsculas). Os ícones ficam por
    cima do menu, sem pegar o clique: a pílula toda é o menu. Desligado (o cartão arquivado, quem só lê), fica sem a seta e sem o
    hover, como um selo com borda. Ao lado, o que vai com ela (o Concluir da tarefa). Na tela de toque, a pílula tem a altura do alvo
-   do dedo, como o menu de antes. */
+   do dedo, como o menu de antes, e o Concluir e o Reabrir aceitam o toque nessa altura (o ::before, como os botões rápidos). */
 .cartao-situacao { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao); max-width: 100% }
-/* O ícone (o mesmo tamanho de ICONE_DA_PILULA, em SituacaoDoCartao.tsx), a folga das pontas e o vão entre o ícone e o texto. */
-.situacao-compacta { --situacao-icone: 13px; --situacao-folga: 10px; --situacao-vao: 6px;
+/* A folga das pontas e o vão entre o ícone e o texto. O tamanho do ícone (--situacao-icone) vem de ICONE_DA_PILULA, em
+   SituacaoDoCartao.tsx, no style da pílula: um lugar só. */
+.situacao-compacta { --situacao-folga: 10px; --situacao-vao: 6px;
   position: relative; display: inline-flex; min-width: 0; max-width: 100%; color: var(--text2) }
 .situacao-compacta > svg, .situacao-seta { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none }
 .situacao-compacta > svg { left: calc(var(--situacao-folga) + 1px) }
@@ -1093,15 +1094,16 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
    para a linha de baixo quando não cabem, e o "Expandir tudo" das seções à direita, com o meio no eixo das setas das seções e do X
    (#381: a margem da direita de .secoes-todas, que o leva além da ponta da linha), no meio da altura da primeira linha de botões.
    Na tela de toque, cada botão aceita o toque na altura do alvo do dedo (o ::before); o vão entre as linhas é o que falta do botão
-   até o alvo, e um toque não cai no botão de baixo. Sem botões nem "Expandir tudo", a linha não ocupa nada. */
+   até o alvo, e um toque não cai no botão de baixo. O Concluir e o Reabrir da tarefa, ao lado da Situação, ganham o mesmo alvo. Sem
+   botões nem "Expandir tudo", a linha não ocupa nada. */
 :root { --vao-acima-dos-atalhos: 16px }
 .cartao-atalhos { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao); margin-top: var(--vao-acima-dos-atalhos) }
 .cartao-atalhos:empty { display: none }
 .cartao-atalhos-botoes { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: calc(var(--alvo-de-toque) - var(--botao-mini)) var(--botao-redondo-vao) }
 .cartao-atalhos > .secoes-todas { flex-shrink: 0; margin-left: auto; margin-top: calc((var(--botao-mini) - var(--botao-redondo)) / 2); margin-bottom: 0 }
 @media (pointer: coarse) {
-  .cartao-atalhos-botoes > .mini { position: relative }
-  .cartao-atalhos-botoes > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
+  .cartao-atalhos-botoes > .mini, .situacao-acao > .mini { position: relative }
+  .cartao-atalhos-botoes > .mini::before, .situacao-acao > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
 }
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }

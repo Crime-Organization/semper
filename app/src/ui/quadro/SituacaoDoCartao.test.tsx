@@ -32,4 +32,13 @@ describe('Situação do cartão, num menu compacto (#351)', () => {
     // Então
     expect(screen.getByRole('combobox', { name: 'Etapa do atendimento' }).closest('[title]')).toHaveAttribute('title', 'Etapa do atendimento');
   });
+
+  it('dado o ícone da pílula, quando ela abre, então o estilo recebe o mesmo tamanho do ícone (a folga do texto vem de um lugar só)', () => {
+    // Quando
+    render(<SituacaoDoCartao><select aria-label="Situação da tarefa" /></SituacaoDoCartao>);
+    // Então
+    const pilula = screen.getByRole('combobox', { name: 'Situação da tarefa' }).closest<HTMLElement>('[title]')!;
+    const icone = pilula.querySelector('svg')!;
+    expect(pilula.style.getPropertyValue('--situacao-icone')).toBe(`${icone.getAttribute('width')}px`);
+  });
 });

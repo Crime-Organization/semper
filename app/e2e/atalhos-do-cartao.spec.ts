@@ -52,7 +52,7 @@ test.describe('Os botões rápidos', () => {
   test('dada uma tarefa, quando clica em "Checklist", então a seção Checklists abre com o menu de "Adicionar checklist"', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
-    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Checklist\s*Anotação$/);
+    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Checklist\s*Anotação\s*Ligação$/);
     // Quando
     await linhaDeAtalhos(cartao).getByRole('button', { name: 'Checklist' }).click();
     // Então
@@ -74,12 +74,36 @@ test.describe('Os botões rápidos', () => {
   test('dado um processo, quando clica em "Datas", então a seção Prazos abre com o formulário do novo prazo, com o foco no primeiro campo', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, '/processos/judicial/', 'JOSÉ DA SILVA TESTE');
-    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Anotação$/);
+    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Anotação\s*Ligação$/);
     // Quando
     await linhaDeAtalhos(cartao).getByRole('button', { name: 'Datas' }).click();
     // Então
     await expect(tituloDaSecao(cartao, 'Prazos')).toHaveAttribute('aria-expanded', 'true');
     await expect(cartao.getByRole('form', { name: 'Novo prazo' }).getByLabel('Que prazo é este')).toBeFocused();
+  });
+
+  test('dada uma tarefa, quando clica em "Ligação", então vai ao cadastro da pessoa nova já ligada à tarefa, como o "+" de Pessoas', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
+    const ligacao = linhaDeAtalhos(cartao).getByRole('link', { name: 'Ligação' });
+    await expect(ligacao).toHaveAttribute('title', 'Nova pessoa ligada a esta tarefa');
+    // Quando
+    await ligacao.click();
+    // Então
+    await expect(page).toHaveURL(/\/pessoas\/nova\/\?tarefa=/);
+  });
+
+  test('dado um compromisso, quando clica em "Datas", então a data e o horário abrem para mudar ali mesmo', async ({ page }) => {
+    // Dado
+    await page.goto('/agenda/');
+    await page.getByRole('group', { name: 'Visualização' }).getByRole('button', { name: 'Tabela' }).click();
+    await page.getByRole('row').filter({ hasText: 'Reunião de equipe' }).click();
+    const cartao = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Reunião de equipe', level: 2 }) });
+    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Anotação\s*Ligação$/);
+    // Quando
+    await linhaDeAtalhos(cartao).getByRole('button', { name: 'Datas' }).click();
+    // Então
+    await expect(cartao.getByRole('group', { name: 'Mudar a data e o horário' })).toBeVisible();
   });
 
   test('dada uma pessoa, quando clica em "Ligação", então os Vínculos abrem com o formulário da nova pessoa vinculada', async ({ page }) => {
@@ -123,7 +147,7 @@ test.describe('Os botões rápidos', () => {
   test('dada uma demanda arquivada, quando o cartão mostra o arquivo, então não há botões rápidos', async ({ page }) => {
     // Dado
     const cartao = await abrirCartao(page, '/demandas/', 'Registro de marca');
-    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Checklist\s*Anotação$/);
+    await expect(linhaDeAtalhos(cartao)).toHaveText(/^Datas\s*Checklist\s*Anotação\s*Ligação$/);
     // Quando
     await acaoNoMenuDoCartao(page, cartao, 'Arquivar');
     await expect(cartao.getByRole('button', { name: 'Desarquivar' })).toBeVisible();
@@ -136,7 +160,7 @@ test.describe('Os botões rápidos', () => {
 test.describe('No celular', () => {
   test.use({ viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true });
 
-  test('dada uma tarefa no celular, quando o cartão abre, então a Situação, o Concluir e os botões rápidos cabem, sem a página rolar de lado', async ({ page }) => {
+  test('dada uma tarefa no celular, quando o cartão abre, então a Situação, o Concluir e os botões rápidos cabem, sem a página rolar de lado, e o Concluir aceita o toque na altura do alvo do dedo', async ({ page }) => {
     // Quando
     const cartao = await abrirCartao(page, '/tarefas/', 'Emitir a GRU');
     // Então
@@ -147,5 +171,16 @@ test.describe('No celular', () => {
       const caixa = (await botao.boundingBox())!;
       expect(caixa.x + caixa.width).toBeLessThanOrEqual(page.viewportSize()!.width);
     }
+    // E o Concluir, mais baixo que o alvo do dedo no desenho, aceita o toque um pouco acima e um pouco abaixo dele, até a altura da pílula
+    // (medido e tocado no mesmo instante, dentro da página: a janela pode ainda estar deslizando)
+    const concluir = cartao.getByRole('button', { name: 'Concluir', exact: true });
+    const pilula = cartao.getByRole('combobox', { name: 'Situação da tarefa' });
+    const tocados = await concluir.evaluate((botao, menu) => {
+      const caixa = botao.getBoundingClientRect(), folga = (menu.getBoundingClientRect().height - caixa.height) / 2 - 1;
+      const tocado = (y: number) => document.elementFromPoint(caixa.x + caixa.width / 2, y)?.closest('button') === botao;
+      return { folga, acima: tocado(caixa.top - folga), abaixo: tocado(caixa.bottom + folga) };
+    }, await pilula.elementHandle());
+    expect(tocados).toEqual({ folga: expect.any(Number), acima: true, abaixo: true });
+    expect(tocados.folga).toBeGreaterThan(0);
   });
 });

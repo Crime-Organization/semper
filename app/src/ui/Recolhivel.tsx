@@ -5,8 +5,8 @@
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
 // primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
 // só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma. Quando o cartão
-// marca um lugar para ele (<LugarDoExpandirTudo>, na linha da Situação: veja ui/quadro/SituacaoDoCartao.tsx), o botão fica ali, e
-// não acima da primeira seção (#389).
+// marca um lugar para ele (<LugarDoExpandirTudo>, na ponta direita da linha dos botões rápidos: veja ui/AtalhosDoCartao.tsx, #351),
+// o botão fica ali, e não acima da primeira seção (#389).
 // O "+" do título leva ao cadastro de outro módulo (um endereço) ou, desde a #390, pede à própria seção o formulário ou o menu do
 // item novo (Novo prazo, Adicionar checklist…): abre a seção, se estiver fechada, sem mudar a escolha guardada, e quem está dentro
 // atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre. Com `atalho` (#351), o mesmo "+" vira também um botão
@@ -14,7 +14,7 @@
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { TipoDeAtalho } from '../regras/atalhosDoCartao';
 import { BotaoLink, Contador, estiloBotao, propsDaDica } from './base';
-import { Icone, ICONE_DO_TOPO, type NomeIcone } from './Icone';
+import { Icone, ICONE_DO_MINI, ICONE_DO_TOPO, type NomeIcone } from './Icone';
 import { useNovoNoCartao, type NovoLigado } from './ItensLigados';
 import { lerPreferencia, salvarPreferencia } from './preferencias';
 import { useAtalhoDoCartao } from './registroDeAtalhos';
@@ -136,7 +136,8 @@ function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
 }
 
 /**
- * O lugar do botão "Expandir tudo" fora das seções (#389): na linha da Situação do cartão, à direita. Enquanto ele está na tela, o
+ * O lugar do botão "Expandir tudo" fora das seções (#389): desde a #351, na ponta direita da linha dos botões rápidos do cartão
+ * (AtalhosDoCartao), no eixo das setas das seções e do X. Enquanto ele está na tela, o
  * botão do grupo fica aqui, e não acima da primeira seção; sem seções no grupo (ou fora de um grupo), não desenha nada. Um por grupo.
  */
 export function LugarDoExpandirTudo() {
@@ -226,9 +227,9 @@ export function Recolhivel({ titulo, icone, preferencia, contador, foraDoExpandi
         </button>
         {novo && <>
           {'para' in novo
-            ? <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={15} /></BotaoLink>
+            ? <BotaoLink forma="mini" className="secao-novo" to={novo.para} aria-label={novo.rotulo} title={novo.rotulo}><Icone nome="mais" tam={ICONE_DO_MINI} /></BotaoLink>
             : <button type="button" className={estiloBotao({ forma: 'mini' }, 'secao-novo')} aria-label={novo.rotulo} title={novo.rotulo}
-              aria-haspopup={novo.menu ? 'menu' : undefined} onClick={e => pedirNovo(e.currentTarget)}><Icone nome="mais" tam={15} /></button>}
+              aria-haspopup={novo.menu ? 'menu' : undefined} onClick={e => pedirNovo(e.currentTarget)}><Icone nome="mais" tam={ICONE_DO_MINI} /></button>}
           <span className="recolher-resto" aria-hidden="true" onClick={alternar}><span className="recolher-seta"><Icone nome="abaixo" tam={TAMANHO_DA_SETA} /></span></span>
         </>}
       </h3>

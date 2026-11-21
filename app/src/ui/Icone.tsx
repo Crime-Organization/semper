@@ -77,6 +77,11 @@ export type NomeIcone = keyof typeof ICONES;
  * tudo" das seções também (#366).
  */
 export const ICONE_DO_TOPO = 18;
+/**
+ * Tamanho dos ícones dos botões pequenos do cartão (.mini): o "+" do título das seções, os botões rápidos (#351) e o Concluir e o
+ * Reabrir da tarefa, ao lado da Situação.
+ */
+export const ICONE_DO_MINI = 15;
 
 export function Icone({ nome, tam = 17 }: { nome: NomeIcone; tam?: number }) {
   return <svg width={tam} height={tam} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"

@@ -5,11 +5,13 @@
 // fica o que vai com ela (`acao`, como o Concluir e o Reabrir da tarefa).
 // O "Expandir tudo" das seções, que ficava na linha da Situação (#389), foi para a linha dos botões rápidos (AtalhosDoCartao), no
 // mesmo eixo das setas e do X (#381).
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Icone } from '../Icone';
 
-/** O tamanho dos ícones dentro da pílula (o do quadro, à esquerda, e a seta, à direita). */
+/** O tamanho dos ícones dentro da pílula (o do quadro, à esquerda, e a seta, à direita). O estilo o recebe daqui (--situacao-icone), para
+ * a folga do texto acompanhar o ícone. */
 const ICONE_DA_PILULA = 13;
+const TAMANHO_DO_ICONE_NO_ESTILO = { '--situacao-icone': ICONE_DA_PILULA + 'px' } as CSSProperties;
 
 interface Props {
   /** O nome da Situação, na dica da pílula (padrão: "Situação"; na pessoa, "Etapa do atendimento"). */
@@ -22,7 +24,7 @@ interface Props {
 
 export function SituacaoDoCartao({ titulo = 'Situação', children, acao }: Props) {
   return <span className="cartao-situacao">
-    <span className="situacao-compacta" title={titulo}>
+    <span className="situacao-compacta" title={titulo} style={TAMANHO_DO_ICONE_NO_ESTILO}>
       <Icone nome="kanban" tam={ICONE_DA_PILULA} />
       {children}
       <span className="situacao-seta" aria-hidden="true"><Icone nome="abaixo" tam={ICONE_DA_PILULA} /></span>

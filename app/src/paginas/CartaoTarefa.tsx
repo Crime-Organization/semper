@@ -24,7 +24,7 @@ import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/d
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
-import { Icone } from '../ui/Icone';
+import { Icone, ICONE_DO_MINI } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
@@ -51,9 +51,6 @@ import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarEAvisar, ligarNoItem, ligarTarefaNaDemanda } from './ligarNoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
-
-/** O tamanho do ícone do Concluir e do Reabrir, ao lado da Situação (o dos botões pequenos). */
-const ICONE_DA_ACAO = 15;
 
 interface Props {
   id: string;
@@ -185,8 +182,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         situacao={<SituacaoDoCartao acao={podeAlterar && !t.arquivado_em && <span className="situacao-acao" ref={acaoDaSituacao}>
           {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
           {concluida
-            ? inicio && <Botao key="reabrir" forma="mini" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={ICONE_DA_ACAO} />Reabrir</Botao>
-            : fim && <Botao key="concluir" forma="mini" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={ICONE_DA_ACAO} />Concluir</Botao>}
+            ? inicio && <Botao key="reabrir" forma="mini" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={ICONE_DO_MINI} />Reabrir</Botao>
+            : fim && <Botao key="concluir" forma="mini" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={ICONE_DO_MINI} />Concluir</Botao>}
         </span>}>
           <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
         </SituacaoDoCartao>} />
@@ -243,7 +240,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         aoMudar={() => { void carregar(); setVersaoHist(v => v + 1); aoMudar(); }} novo={{ para: novoProcesso, rotulo: 'Novo processo' }} />
     </Recolhivel>}
 
-    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).titulo}>
+    <Recolhivel titulo="Pessoas" icone="pessoas" preferencia="tarefas.cartao.pessoas" contador={t.pessoas.length} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).titulo} atalho="ligacao">
       {t.pessoas.length ? <ItensLigados itens={t.pessoas.map(pessoa)} /> : <Nota>Nenhuma pessoa do cadastro ligada a esta tarefa.</Nota>}
       {podeLigar && <LigarPessoaNoItem modulo="tarefas" itemId={t.id} ligadas={t.pessoas} depois={depoisDeLigar} novo={novaPessoaNoItem('tarefas', t.id, t.pessoas, podeLigar).embaixo} />}
     </Recolhivel>
