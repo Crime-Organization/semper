@@ -128,6 +128,9 @@ interface PropsDadoEditavel<V extends object> {
   campos: (c: CamposDoDado<V>) => ReactNode;
 }
 
+/** O primeiro campo do formulário aberto: o foco vai para ele ao abrir, e o Shift+Tab nele volta ao valor. */
+const primeiroCampo = (formulario: HTMLElement | null) => formulario?.querySelector<HTMLElement>('input, select, textarea, button') ?? null;
+
 export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, inicial, conferir, aoSalvar, aoMudarRascunho, campos }: PropsDadoEditavel<V>) {
   const [rascunho, setRascunho] = useState<V | null>(null);
   const [conferido, setConferido] = useState(false);
@@ -169,7 +172,7 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
   }, [podeMudar, outraAberta, editando, id]);
   // Ao abrir, o foco vai ao primeiro campo, sem abrir o calendário: ele abre quando a pessoa pede (clique, botão ou seta para baixo).
   useEffect(() => {
-    if (editando) formulario.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+    if (editando) primeiroCampo(formulario.current)?.focus();
   }, [editando]);
   // A pessoa pediu outra data com esta por salvar: esta continua aberta e lembra dela, com o foco de volta no formulário.
   const barrados = faixa?.edicao.barrados ?? 0, vistos = useRef(barrados);
@@ -178,13 +181,13 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
     vistos.current = barrados;
     if (!editando || outraAberta) return;
     setLembrar(true);
-    formulario.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+    primeiroCampo(formulario.current)?.focus();
   }, [barrados, editando, outraAberta]);
 
   if (!aoSalvar) return <span className="dado-editavel">{lido}</span>;
 
   function abrir() {
-    if (editando) { formulario.current?.querySelector<HTMLElement>('input, select, textarea, button')?.focus(); return; }
+    if (editando) { primeiroCampo(formulario.current)?.focus(); return; }
     if (faixa && !faixa.edicao.pedir(id)) return;
     setRascunho(inicial());
   }
@@ -212,16 +215,38 @@ export function DadoEditavel<V extends object>({ nome, titulo, resumo, lido, ini
       setOcupado(false);
     }
   }
+  /** Esc desfaz só o dado, sem fechar o cartão em volta. Durante a gravação, não desfaz (como o Cancelar, desligado). */
+  function desfazerPeloEsc(e: KeyboardEvent<HTMLElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!ocupado) fechar();
+  }
   function teclar(e: KeyboardEvent<HTMLDivElement>) {
-    // Esc desfaz só o dado, sem fechar o cartão em volta (o calendário aberto fecha antes, sozinho). Durante a gravação, não
-    // desfaz (como o Cancelar, desligado): se ela falhar, o formulário continua aberto com o que a pessoa escreveu.
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); if (!ocupado) fechar(); return; }
+    // O calendário aberto fecha antes, sozinho, com o Esc. Se a gravação falhar, o formulário continua aberto com o que a pessoa escreveu.
+    if (e.key === 'Escape') { desfazerPeloEsc(e); return; }
+    // No painel da faixa, o formulário fica longe do valor que o abriu: o Shift+Tab no primeiro campo volta a esse valor (e não ao
+    // da data anterior), e o teclado segue a ordem "valor, formulário" daquela data. O Tab que o calendário já levou não conta.
+    if (e.key === 'Tab' && e.shiftKey && !e.defaultPrevented && faixa?.painel && e.target === primeiroCampo(formulario.current)) {
+      e.preventDefault();
+      botao.current?.focus();
+      return;
+    }
     // Enter num campo salva; nos botões, vale o próprio botão.
     if (e.key === 'Enter' && (e.target as HTMLElement).matches('input, select')) { e.preventDefault(); void salvar(); }
   }
+  /**
+   * O valor, com o formulário aberto: o Esc também desfaz o dado (como no formulário), e o Tab vai ao formulário, que no painel da
+   * faixa fica embaixo dos dados, e não logo depois do valor.
+   */
+  function teclarNoValor(e: KeyboardEvent<HTMLButtonElement>) {
+    if (!editando) return;
+    if (e.key === 'Escape') { desfazerPeloEsc(e); return; }
+    if (e.key === 'Tab' && !e.shiftKey && faixa?.painel) { e.preventDefault(); primeiroCampo(formulario.current)?.focus(); }
+  }
 
   const valor = <button ref={botao} type="button" className="data-editavel-botao dado-editavel-botao" aria-label={`${nome}: ${resumo}. Clique para mudar`}
-    title="Clique para mudar" aria-expanded={editando} aria-controls={editando ? idDoFormulario : undefined} onClick={abrir}>
+    title="Clique para mudar" aria-expanded={editando} aria-controls={editando ? idDoFormulario : undefined} onClick={abrir}
+    onKeyDown={teclarNoValor}>
     {lido}
   </button>;
   if (rascunho === null) return valor;

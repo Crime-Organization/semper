@@ -13,7 +13,7 @@ import {
   TIPOS_COMPROMISSO, validarCompromisso, valorLegivelCompromisso
 } from '../regras/compromisso';
 import { erroNoLugar, tituloOpcionalAoGravar } from '../regras/edicaoNoLugar';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
@@ -126,7 +126,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com o compromisso arquivado nem para quem só lê (#376), em seção nenhuma.
-  return <CriarNoCartao pode={!somenteLer}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={!somenteLer}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
     <header className="cartao-cabeca">
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
@@ -145,7 +145,7 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         }} />}
         mudaEtiquetas={!somenteLer} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeMudar ? arquivar : undefined} aoExcluir={podeMudar && podeExcluir ? excluir : undefined}
-        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined} />
       {/* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */}
       <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
@@ -206,5 +206,5 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(c.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

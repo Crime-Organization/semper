@@ -1,7 +1,12 @@
 // Uma edição aberta de cada vez (#395), na tela: a faixa das datas do cartão (ui/base/GrupoDeDatas.tsx) e os prazos do processo
 // guardam aqui qual formulário está aberto e se ele tem algo por salvar. A regra de quando trocar fica em regras/edicaoUnica.ts.
-import { useCallback, useState } from 'react';
+// O cartão também pode pedir outra edição por cima de todas (o lápis): ele conta esses pedidos barrados em LembreteDoCartao, e o
+// formulário aberto por salvar lembra deles do mesmo jeito.
+import { createContext, useCallback, useContext, useState } from 'react';
 import { pedirEdicao, type EdicaoAberta } from '../regras/edicaoUnica';
+
+/** Quantas vezes o cartão pediu o lápis com uma data por salvar (EdicaoNoLugar.tsx): o formulário aberto lembra de salvar ou cancelar. */
+export const LembreteDoCartao = createContext(0);
 
 export interface EdicaoUnica {
   /** O formulário aberto, ou null. */
@@ -19,6 +24,7 @@ export interface EdicaoUnica {
 export function useEdicaoUnica(): EdicaoUnica {
   const [aberta, setAberta] = useState<EdicaoAberta | null>(null);
   const [barrados, setBarrados] = useState(0);
+  const doCartao = useContext(LembreteDoCartao);
   const pedir = (id: string) => {
     if (pedirEdicao(aberta, id) === 'manter') { setBarrados(n => n + 1); return false; }
     if (aberta?.id !== id) setAberta({ id, sujo: false });
@@ -26,5 +32,5 @@ export function useEdicaoUnica(): EdicaoUnica {
   };
   const fechar = useCallback((id: string) => setAberta(a => a?.id === id ? null : a), []);
   const marcarSujo = useCallback((id: string, sujo: boolean) => setAberta(a => a?.id === id && a.sujo !== sujo ? { id, sujo } : a), []);
-  return { aberta: aberta?.id ?? null, barrados, pedir, fechar, marcarSujo };
+  return { aberta: aberta?.id ?? null, barrados: barrados + doCartao, pedir, fechar, marcarSujo };
 }

@@ -18,7 +18,7 @@ import {
   alteraOProcesso, CAMPOS_PROCESSO, linhasDoProcesso, motivoSemMencaoNoProcesso, nomeDoProcesso, processoVazio, SEM_SITUACAO_PROCESSO, TIPOS_PROCESSO, validarProcesso, valorLegivelProcesso
 } from '../regras/processo';
 import { SecaoComentarios } from '../ui/Comentarios';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
@@ -164,7 +164,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
-  return <CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
     <header className="cartao-cabeca">
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
@@ -182,7 +182,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined} />
       <TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
         maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
         aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />
@@ -276,5 +276,5 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(p.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

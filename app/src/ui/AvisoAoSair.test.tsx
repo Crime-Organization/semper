@@ -318,6 +318,110 @@ describe('Aviso ao sair de uma edição no próprio lugar (#339)', () => {
   });
 });
 
+/**
+ * Dois avisos no mesmo cartão (#395): o lápis aberto e a descrição mudada no lugar. Cada um entra e sai da tela por conta própria,
+ * e cada um diz se tem algo a perder.
+ */
+function DoisAvisos({ descartes }: { descartes: string[] }) {
+  const [lapis, setLapis] = useState(false), [lapisMudado, setLapisMudado] = useState(false);
+  const [descricao, setDescricao] = useState(false);
+  const liberada = useRef(false);
+  return <>
+    {descricao && <AvisoAoSair preenchido liberada={liberada} ocupado={false} aoDescartar={() => descartes.push('descrição')} />}
+    {lapis && <AvisoAoSair preenchido={lapisMudado} liberada={liberada} ocupado={false} aoDescartar={() => descartes.push('lápis')} />}
+    <button type="button" onClick={() => setDescricao(true)}>Mudar a descrição</button>
+    <button type="button" onClick={() => setLapis(true)}>Abrir o lápis</button>
+    <button type="button" onClick={() => setLapisMudado(true)}>Mudar no lápis</button>
+    <button type="button" onClick={() => { setLapis(false); setLapisMudado(false); }}>Cancelar o lápis</button>
+    <button type="button" onClick={() => setDescricao(false)}>Salvar a descrição</button>
+    <Link to="/lista">Lista</Link>
+  </>;
+}
+
+describe('Mais de um aviso na mesma tela (#395)', () => {
+  afterEach(() => {
+    if (pergunta()) fireEvent.keyDown(document, { key: 'Escape' });
+    cleanup();
+  });
+  function abrir() {
+    const descartes: string[] = [];
+    const roteador = createMemoryRouter([
+      { path: '/cartao', element: <DoisAvisos descartes={descartes} /> },
+      { path: '/lista', element: <p>Página da lista</p> }
+    ], { initialEntries: ['/cartao'] });
+    render(<><RouterProvider router={roteador} /><Janelas /></>);
+    return descartes;
+  }
+  const clicar = (nome: string) => userEvent.click(screen.getByRole('button', { name: nome }));
+
+  it('dada a descrição por salvar, quando o lápis abre e é cancelado e a pessoa sai, então a pergunta ainda aparece', async () => {
+    // Dado
+    abrir();
+    await clicar('Mudar a descrição');
+    await clicar('Abrir o lápis');
+    await clicar('Cancelar o lápis');
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+    expect(screen.queryByText('Página da lista')).not.toBeInTheDocument();
+  });
+
+  it('dado o lápis mudado, quando a descrição é mudada e salva no lugar e a pessoa sai, então a pergunta ainda aparece', async () => {
+    // Dado
+    abrir();
+    await clicar('Abrir o lápis');
+    await clicar('Mudar no lápis');
+    await clicar('Mudar a descrição');
+    await clicar('Salvar a descrição');
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+  });
+
+  it('dados os dois por salvar, quando a pessoa sai e escolhe "Sair sem salvar", então uma pergunta só descarta os dois', async () => {
+    // Dado
+    const descartes = abrir();
+    await clicar('Mudar a descrição');
+    await clicar('Abrir o lápis');
+    await clicar('Mudar no lápis');
+    // Quando
+    await irParaLista();
+    await userEvent.click(await screen.findByRole('button', { name: 'Sair sem salvar' }));
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(screen.queryAllByRole('dialog', { name: 'Sair sem salvar?' })).toHaveLength(0);
+    expect(descartes.sort()).toEqual(['descrição', 'lápis']);
+  });
+
+  it('dados os dois avisos e nada mudado, quando a pessoa sai, então sai sem pergunta', async () => {
+    // Dado
+    abrir();
+    await clicar('Abrir o lápis');
+    // Quando
+    await irParaLista();
+    // Então
+    expect(await screen.findByText('Página da lista')).toBeInTheDocument();
+    expect(pergunta()).not.toBeInTheDocument();
+  });
+
+  it('dada a descrição por salvar e o lápis aberto e cancelado, quando o botão Sair do sistema confere, então a pergunta vem antes', async () => {
+    // Dado
+    abrir();
+    await clicar('Mudar a descrição');
+    await clicar('Abrir o lápis');
+    await clicar('Cancelar o lápis');
+    // Quando
+    let resposta: Promise<boolean> | undefined;
+    act(() => { resposta = podeSairDoCadastro(); });
+    // Então
+    expect(await screen.findByRole('dialog', { name: 'Sair sem salvar?' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Continuar no cadastro' }));
+    expect(await resposta).toBe(false);
+  });
+});
+
 /** O texto que salva sozinho (a anotação): sair grava antes o que falta, e só pergunta se a gravação falhar. */
 function TextoQueSalvaSozinho({ salvarAntes, aoFicar }: { salvarAntes: () => Promise<boolean>; aoFicar?: () => void }) {
   const [porSalvar, setPorSalvar] = useState(false);

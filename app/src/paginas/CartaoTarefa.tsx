@@ -20,7 +20,7 @@ import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
-import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { Icone } from '../ui/Icone';
@@ -158,7 +158,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   }
 
   // Nenhum "+ Novo …" com a tarefa arquivada nem para quem só lê (#376), em seção nenhuma.
-  return <CriarNoCartao pode={podeLigar}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
     <header className="cartao-cabeca">
       {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
@@ -176,7 +176,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         } : null} />}
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined} />
       <TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'titulo', titulo)}
         aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />
@@ -268,5 +268,5 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizada {relativo(t.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }

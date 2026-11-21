@@ -1,6 +1,7 @@
 // O título e a descrição dos cartões mudados no próprio lugar (#346), no jeito da anotação (#339): quem altera o cartão clica
 // no título ou na descrição e muda ali mesmo. Aqui, o que o cartão confere antes de gravar (as mesmas regras do cadastro), o que
 // ele grava, se há o que perder ao sair, e o que o lápis de um item já existente deixa de mostrar e de gravar. Tudo puro.
+import type { RespostaAoPedido } from './edicaoUnica';
 
 /** Os campos que se mudam no próprio lugar do cartão: o lápis do item já existente não os mostra nem os grava. */
 export const CAMPOS_NO_LUGAR = ['titulo', 'descricao'] as const;
@@ -27,8 +28,18 @@ export interface GravadoNoLugar { titulo: string | null; descricao?: string | nu
 export function edicaoNoLugarPorSalvar(gravado: GravadoNoLugar, r: RascunhosNoLugar): boolean {
   return (r.titulo != null && r.titulo.trim() !== (gravado.titulo ?? '').trim())
     || (r.descricao != null && r.descricao !== (gravado.descricao ?? ''))
-    || DADOS_NO_LUGAR.some(dado => r[dado] != null);
+    || dataNoLugarPorSalvar(r);
 }
+
+/** Uma data do cartão (o início, o prazo, a data do compromisso, a assinatura, o prazo do processo) mudada e não salva. */
+export const dataNoLugarPorSalvar = (r: RascunhosNoLugar) => DADOS_NO_LUGAR.some(dado => r[dado] != null);
+
+/**
+ * O lápis do cartão pode abrir (#395)? Ele fecha as datas mudadas no lugar (elas também estão nele): com uma delas por salvar, ela
+ * continua aberta e lembra de salvar ou cancelar antes, como ao pedir outra data (regras/edicaoUnica.ts). O título e a descrição
+ * continuam no lugar com o lápis aberto e não contam.
+ */
+export const pedirOLapis = (r: RascunhosNoLugar): RespostaAoPedido => dataNoLugarPorSalvar(r) ? 'manter' : 'abrir';
 
 /**
  * O erro de um campo mudado no próprio lugar ('' = está certo), pelas mesmas regras do cadastro: valida o cadastro vazio (do

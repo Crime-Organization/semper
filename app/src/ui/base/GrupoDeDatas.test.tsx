@@ -11,6 +11,7 @@ import { TAREFA_VAZIA, validarTarefa } from '../../regras/tarefa';
 import { DataEditavel } from './DataEditavel';
 import { DadoDoGrupo, DadoEditavel, FaixaDasDatas, GrupoDeDatas, LinhaDoGrupo } from './GrupoDeDatas';
 import { PrazoEditavel } from './PrazoEditavel';
+import { LembreteDoCartao } from '../useEdicaoUnica';
 
 /** Um dado de texto simples, para ver o formulário pequeno sem o calendário. */
 function Apelido({ aoSalvar, aoMudarRascunho }: { aoSalvar?: (v: { apelido: string }) => unknown; aoMudarRascunho?: (r: string | null) => void }) {
@@ -307,5 +308,58 @@ describe('As datas que se mudam na faixa do cartão (#395)', () => {
     // Então
     expect(aoSalvar).not.toHaveBeenCalled();
     expect(within(formulario).getByRole('textbox', { name: 'Data de início' })).toHaveValue('25/11/2026');
+  });
+
+  it('dado o início aberto, quando a pessoa usa o Shift+Tab no campo e o Tab no valor, então o foco vai e volta entre o início e o formulário dele', async () => {
+    // Dado
+    render(<Faixa />);
+    await userEvent.click(inicio());
+    const campo = within(screen.getByRole('group', { name: 'Mudar a data de início' })).getByRole('textbox', { name: 'Data de início' });
+    expect(campo).toHaveFocus();
+    // Quando
+    await userEvent.tab({ shift: true });
+    // Então: volta ao início, e não ao prazo (o último dado antes do painel)
+    expect(inicio()).toHaveFocus();
+    // Quando
+    await userEvent.tab();
+    // Então
+    expect(campo).toHaveFocus();
+  });
+
+  it('dado o prazo aberto e mudado, quando a pessoa aperta Esc com o foco no valor, então desfaz só o prazo, e o Esc não chega ao cartão', async () => {
+    // Dado
+    const cartaoFecha = vi.fn();
+    const ouvir = (e: KeyboardEvent) => { if (e.key === 'Escape') cartaoFecha(); };
+    document.addEventListener('keydown', ouvir);
+    render(<Faixa />);
+    await userEvent.click(prazo());
+    const campo = within(screen.getByRole('group', { name: 'Mudar o prazo' })).getByRole('textbox', { name: 'Prazo' });
+    await userEvent.clear(campo);
+    await userEvent.tab({ shift: true });
+    // Quando
+    await userEvent.keyboard('{Escape}');
+    // Então
+    expect(screen.queryByRole('group', { name: 'Mudar o prazo' })).not.toBeInTheDocument();
+    expect(prazo()).toHaveAttribute('aria-expanded', 'false');
+    expect(prazo()).toHaveAccessibleName(/^Prazo: 20\/11\/2026/);
+    expect(cartaoFecha).not.toHaveBeenCalled();
+    document.removeEventListener('keydown', ouvir);
+  });
+
+  it('dado o prazo mudado e não salvo, quando o cartão barra o lápis (LembreteDoCartao), então o prazo continua aberto e lembra de salvar ou cancelar', async () => {
+    // Dado
+    const { rerender } = render(<LembreteDoCartao value={0}><Faixa /></LembreteDoCartao>);
+    await userEvent.click(prazo());
+    const campo = within(screen.getByRole('group', { name: 'Mudar o prazo' })).getByRole('textbox', { name: 'Prazo' });
+    await userEvent.clear(campo);
+    await userEvent.type(campo, '04042031');
+    await userEvent.tab({ shift: true });
+    // Quando
+    rerender(<LembreteDoCartao value={1}><Faixa /></LembreteDoCartao>);
+    // Então
+    const formulario = screen.getByRole('group', { name: 'Mudar o prazo' });
+    expect(within(formulario).getByRole('status')).toHaveTextContent(SALVE_OU_CANCELE);
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveValue('04/04/2031');
+    expect(within(formulario).getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
   });
 });

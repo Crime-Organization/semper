@@ -10,7 +10,7 @@ import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '.
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
-import { AvisoDaEdicaoNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
+import { AvisoDaEdicaoNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -143,7 +143,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       setK({ ...k!, etapa_id: etapa, etapa_ordem: ordem });
       feito(etapa ? `Movido para "${quadro.nomeDe(etapa)}".` : `Contrato ${SEM_SITUACAO.toLowerCase()}.`, 'mudança de situação',
         async () => { await SD.contratoMover(k!.id, de, ordemDe); });
-      if (etapa !== de && podeAlterar) avisarSeAssinadoSemObjeto(k!.objetos, etapa, quadro.colunas, { rotulo: 'Editar o contrato', fn: () => setEditando(true) });
+      if (etapa !== de && podeAlterar) avisarSeAssinadoSemObjeto(k!.objetos, etapa, quadro.colunas, { rotulo: 'Editar o contrato', fn: () => noLugar.abrirOLapis(() => setEditando(true)) });
       aoMudar(); setVersaoHist(v => v + 1);
     } catch (e) { falha(e); }
   }
@@ -170,7 +170,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const mudaAssinatura = podeAlterar && !k.arquivado_em && !editando;
 
   // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
-  return <CriarNoCartao pode={podeLigar}>
+  return <LembreteDoLapis edicao={noLugar}><CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: null }} />
     <header className="cartao-cabeca">
       {/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
@@ -187,7 +187,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         equipe={<EquipeDoContratoNoTopo contrato={k} depois={podeAlterar && !k.arquivado_em ? depoisDaEquipe : null} />}
         mudaEtiquetas={!k.arquivado_em && !(oculto && !semValores)} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
-        lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => setEditando(true) } : undefined} />
+        lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => noLugar.abrirOLapis(() => setEditando(true)) } : undefined} />
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
           valores do contrato também não vê a assinatura, como antes, e aí a faixa some (#385): sobraria só a criação, que o
@@ -302,7 +302,7 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <span>Atualizado {relativo(k.atualizado_em)}</span>
     </footer>
     </>}
-  </CriarNoCartao>;
+  </CriarNoCartao></LembreteDoLapis>;
 }
 
 const Par = ({ rotulo, valor }: { rotulo: string; valor: ReactNode }) => <><dt>{rotulo}</dt><dd>{valor}</dd></>;

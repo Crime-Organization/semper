@@ -1,8 +1,11 @@
 // Pergunta antes de sair de um cadastro novo com algo preenchido (#82): pelo X, pelo Esc, pelo menu, por um link ou pelo Voltar do
 // navegador. Ao fechar ou recarregar a aba, quem pergunta é o próprio navegador.
 // Entra na tela do cadastro novo e, desde a #339, na edição no próprio lugar (o título e o texto da anotação), que diz direto
-// se há o que perder ("preenchido"). Um só por vez: o roteador só segura uma saída de cada vez.
-import { useEffect, useRef, type RefObject } from 'react';
+// se há o que perder ("preenchido"). Desde a #395, também no lápis dos cartões.
+// Pode haver mais de um na tela ao mesmo tempo (no mesmo cartão, o lápis aberto e a descrição mudada no lugar): o que eles têm a
+// perder se soma, numa pergunta só, e cada um, ao sair da tela, tira só o que é dele. O roteador só segura uma saída de cada
+// vez: quem a segura é o primeiro aviso da tela, em nome de todos.
+import { useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { NavigationType, useBlocker } from 'react-router';
 import { avisar } from './avisos';
 import { janela } from './janela';
@@ -27,28 +30,95 @@ export const SEM_SAIR_DA_TELA = 'semSairDaTela';
 const ficaNaTela = (estado: unknown, acao: NavigationType) =>
   acao === NavigationType.Replace && !!estado && typeof estado === 'object' && SEM_SAIR_DA_TELA in estado;
 
-/** Diz se o cadastro aberto agora tem algo a perder. */
-let temAlgoAPerder = () => false;
-/** Diz se o cadastro aberto está sendo salvo. */
-let salvandoAgora = () => false;
-/** Grava o que falta, no texto que salva sozinho (null: o que está aberto não grava sozinho). */
-let salvarAgora: (() => Promise<boolean>) | null = null;
-/** Avisa o cadastro aberto de que a saída que ele segurou não aconteceu: a pessoa continua nele. */
-let ficarAgora = () => {};
+/** Um aviso na tela: o que ele sabe do formulário dele. */
+interface Vigia {
+  /** Tem algo a perder agora. */
+  perde: () => boolean;
+  /** Está sendo salvo. */
+  salvando: () => boolean;
+  /** Grava o que falta, no texto que salva sozinho (undefined: este não grava sozinho). */
+  gravar: () => (() => Promise<boolean>) | undefined;
+  /** A pessoa escolheu "Sair sem salvar". */
+  descartar: () => void;
+  /** A saída segurada não aconteceu: a pessoa continua na tela. */
+  ficar: () => void;
+}
+/** Os avisos na tela, na ordem em que entraram. */
+const vigias: Vigia[] = [];
+const ouvintes = new Set<() => void>();
+const assinar = (ouvinte: () => void) => { ouvintes.add(ouvinte); return () => { ouvintes.delete(ouvinte); }; };
+const avisarOuvintes = () => ouvintes.forEach(ouvinte => ouvinte());
+
+const temAlgoAPerder = () => vigias.some(v => v.perde());
+const salvandoAgora = () => vigias.some(v => v.salvando());
+const ficarTodos = () => vigias.forEach(v => v.ficar());
 const ESPERE_SALVAR = 'Espere terminar de salvar.';
+
+/**
+ * Antes de sair, grava o que salva sozinho. Diz se, com isso, nada mais se perde (true), se algo continua a perder (false), ou
+ * null quando nada do que se perde grava sozinho.
+ */
+async function gravarAntes(aPerder: Vigia[]): Promise<boolean | null> {
+  const gravacoes = aPerder.map(v => v.gravar()).filter(g => !!g);
+  if (!gravacoes.length) return null;
+  const gravou = await Promise.all(gravacoes.map(g => g()));
+  return gravou.every(Boolean) && gravacoes.length === aPerder.length;
+}
 
 /** Para quem precisa perguntar antes de agir, como o botão Sair do sistema: sem isto, a sessão acabaria antes da pergunta. */
 export async function podeSairDoCadastro() {
-  // O texto que salva sozinho grava antes de sair; só se a gravação falhar, a pergunta aparece.
-  if (temAlgoAPerder() && salvarAgora && await salvarAgora()) return true;
+  // O texto que salva sozinho grava antes de sair; só se a gravação falhar (ou houver mais o que perder), a pergunta aparece.
+  const aPerder = vigias.filter(v => v.perde());
+  if (aPerder.length && await gravarAntes(aPerder)) return true;
   if (salvandoAgora()) {
     avisar(ESPERE_SALVAR);
-    ficarAgora();
+    ficarTodos();
     return false;
   }
   const sai = !temAlgoAPerder() || !!await perguntarSeSai();
-  if (!sai) ficarAgora();
+  if (!sai) ficarTodos();
   return sai;
+}
+
+/**
+ * A saída que o roteador segurou: grava antes o que salva sozinho, espera o que está sendo salvo e, se ainda houver o que perder,
+ * pergunta. Diz se a pessoa sai. Saindo, o que ela mandou descartar é descartado (a tela pode continuar ao fundo: a anotação nova
+ * abre por cima do cartão); ficando, todos os avisos sabem que ela ficou.
+ */
+async function decidirASaida(): Promise<boolean> {
+  const aPerder = vigias.filter(v => v.perde());
+  const gravou = await gravarAntes(aPerder);
+  if (gravou) return true;
+  if (gravou === null && salvandoAgora()) {
+    avisar(ESPERE_SALVAR);
+    ficarTodos();
+    return false;
+  }
+  const sai = !!await perguntarSeSai();
+  if (sai) aPerder.forEach(v => v.descartar());
+  else ficarTodos();
+  return sai;
+}
+
+/** Segura a saída no roteador, em nome de todos os avisos da tela (o roteador só aceita um). */
+function SeguraASaida() {
+  // Qualquer navegação perde o preenchido, mesmo para o mesmo endereço: cada abertura do cadastro começa um formulário novo (App.tsx).
+  const bloqueio = useBlocker(({ nextLocation, historyAction }) =>
+    temAlgoAPerder() && !ENTRADA.test(nextLocation.pathname) && !ficaNaTela(nextLocation.state, historyAction));
+  const montado = useRef(false);
+  useEffect(() => { montado.current = true; return () => { montado.current = false; }; }, []);
+  const perguntando = useRef(false);
+  useEffect(() => {
+    if (bloqueio.state !== 'blocked' || perguntando.current) return;
+    perguntando.current = true;
+    void decidirASaida().then(sair => {
+      perguntando.current = false;
+      if (!montado.current) return;   // a sessão acabou com a pergunta aberta: o bloqueio já não existe
+      if (sair) bloqueio.proceed();
+      else bloqueio.reset();
+    });
+  }, [bloqueio]);
+  return null;
 }
 
 interface PropsDoAviso {
@@ -109,48 +179,24 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
     };
   }, []);
 
-  const montado = useRef(false);
+  // Este aviso entra na lista dos da tela e, ao sair, tira só a própria entrada: os outros continuam valendo.
+  const [vigia] = useState<Vigia>(() => ({
+    perde: () => agora.current.preenchido && !liberada.current,
+    salvando: () => agora.current.ocupado,
+    gravar: () => salvar.current,
+    descartar: () => descartar.current?.(),
+    ficar: () => ficar.current?.()
+  }));
   useEffect(() => {
-    montado.current = true;
-    temAlgoAPerder = () => agora.current.preenchido && !liberada.current;
-    salvandoAgora = () => agora.current.ocupado;
-    salvarAgora = () => salvar.current?.() ?? Promise.resolve(false);
-    ficarAgora = () => ficar.current?.();
-    return () => { montado.current = false; temAlgoAPerder = () => false; salvandoAgora = () => false; salvarAgora = null; ficarAgora = () => {}; };
-  }, [liberada]);
-
-  // Qualquer navegação perde o preenchido, mesmo para o mesmo endereço: cada abertura do cadastro começa um formulário novo (App.tsx).
-  const bloqueio = useBlocker(({ nextLocation, historyAction }) =>
-    temAlgoAPerder() && !ENTRADA.test(nextLocation.pathname) && !ficaNaTela(nextLocation.state, historyAction));
-  const perguntando = useRef(false);
-  useEffect(() => {
-    if (bloqueio.state !== 'blocked' || perguntando.current) return;
-    const gravarAntes = salvar.current;
-    if (gravarAntes) {
-      perguntando.current = true;
-      void gravarAntes().then(async gravou => {
-        const sair = gravou || !!await perguntarSeSai();
-        perguntando.current = false;
-        if (!montado.current) return;
-        if (sair) { if (!gravou) descartar.current?.(); bloqueio.proceed(); }
-        else { bloqueio.reset(); ficar.current?.(); }
-      });
-      return;
-    }
-    if (agora.current.ocupado) {
-      avisar(ESPERE_SALVAR);
-      bloqueio.reset();
-      ficar.current?.();
-      return;
-    }
-    perguntando.current = true;
-    void perguntarSeSai().then(sair => {
-      perguntando.current = false;
-      if (!montado.current) return;   // a sessão acabou com a pergunta aberta: o bloqueio já não existe
-      if (sair) { descartar.current?.(); bloqueio.proceed(); }
-      else { bloqueio.reset(); ficar.current?.(); }
-    });
-  }, [bloqueio]);
+    vigias.push(vigia);
+    avisarOuvintes();
+    return () => {
+      const onde = vigias.indexOf(vigia);
+      if (onde >= 0) vigias.splice(onde, 1);
+      avisarOuvintes();
+    };
+  }, [vigia]);
+  const seguraASaida = useSyncExternalStore(assinar, () => vigias[0] === vigia);
 
   useEffect(() => {
     if (!preenchido) return;
@@ -159,5 +205,5 @@ export function AvisoAoSair({ estado, preenchido: jaSabe, liberada, ocupado, aoD
     return () => window.removeEventListener('beforeunload', segurar);
   }, [preenchido, liberada]);
 
-  return null;
+  return seguraASaida ? <SeguraASaida /> : null;
 }

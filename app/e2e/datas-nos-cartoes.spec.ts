@@ -225,8 +225,94 @@ for (const c of CARTOES) {
       await expect(campo).toHaveAttribute('aria-invalid', 'true');
       await expect(inicio(cartao)).toHaveText(antes!);
     });
+
+    test('dado o prazo mudado e não salvo, quando a pessoa clica no lápis Editar, então o prazo continua aberto com o que ela escreveu, lembra de salvar ou cancelar, e o lápis não abre', async ({ page }) => {
+      // Dado
+      const cartao = await abrirCartao(page, c.modulo, c.titulo);
+      await prazo(cartao).click();
+      await doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true }).fill('04/04/2031');
+      // Quando
+      await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+      // Então
+      await expect(cartao.getByRole('form', { name: /^Editar / })).toHaveCount(0);
+      await expect(doPrazo(cartao).getByRole('status')).toHaveText('Salve ou cancele esta mudança antes de abrir outra.');
+      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toHaveValue('04/04/2031');
+      await expect(doPrazo(cartao).getByRole('textbox', { name: c.prazo, exact: true })).toBeFocused();
+      // Quando: cancela o prazo, e aí o lápis abre
+      await doPrazo(cartao).getByRole('button', { name: 'Cancelar' }).click();
+      await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+      // Então
+      await expect(cartao.getByRole('form', { name: /^Editar / })).toBeVisible();
+    });
+
+    test('dado o início aberto, quando a pessoa usa Shift+Tab, Tab e Esc, então o foco vai do formulário ao início e volta, e o Esc no valor desfaz só o início, sem fechar o cartão', async ({ page }) => {
+      // Dado
+      const cartao = await abrirCartao(page, c.modulo, c.titulo);
+      const antes = await inicio(cartao).textContent();
+      await inicio(cartao).click();
+      const campo = doInicio(cartao).getByRole('textbox', { name: 'Data de início' });
+      await expect(campo).toBeFocused();
+      await campo.fill('');
+      // Quando
+      await page.keyboard.press('Shift+Tab');
+      // Então: volta ao início, e não ao prazo
+      await expect(inicio(cartao)).toBeFocused();
+      // Quando
+      await page.keyboard.press('Tab');
+      // Então
+      await expect(campo).toBeFocused();
+      // Quando: volta ao valor e aperta Esc
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Escape');
+      // Então
+      await expect(doInicio(cartao)).toHaveCount(0);
+      await expect(page.getByRole('dialog', { name: 'Sair sem salvar?' })).toHaveCount(0);
+      await expect(inicio(cartao)).toHaveText(antes!);
+      await expect(cartao).toBeVisible();
+    });
   });
 }
+
+test.describe('Dados o lápis e a descrição mudada no lugar, no mesmo cartão (#395)', () => {
+  test.use({ viewport: { width: 1300, height: 900 } });
+  const pergunta = (page: Page) => page.getByRole('dialog', { name: 'Sair sem salvar?' });
+  const lapis = (cartao: Locator) => cartao.getByRole('form', { name: 'Editar tarefa' });
+
+  test('dada a descrição por salvar, quando a pessoa abre e cancela o lápis e fecha o cartão pelo X, então o SEMPER pergunta antes', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, 'tarefas', 'Renovar a procuração');
+    await cartao.getByText('A procuração vence este mês.').click();
+    await cartao.getByRole('textbox', { name: 'Descrição' }).fill('Uma ideia que não pode se perder.');
+    await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+    await lapis(cartao).getByRole('button', { name: 'Cancelar' }).click();
+    await expect(lapis(cartao)).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    await expect(pergunta(page)).toBeVisible();
+    await pergunta(page).getByRole('button', { name: 'Continuar no cadastro' }).click();
+    await expect(cartao.getByRole('textbox', { name: 'Descrição' })).toContainText('Uma ideia que não pode se perder.');
+  });
+
+  test('dado o lápis com o responsável trocado, quando a pessoa muda e salva a descrição no lugar e fecha o cartão pelo X, então o SEMPER pergunta antes', async ({ page }) => {
+    // Dado
+    const cartao = await abrirCartao(page, 'tarefas', 'Renovar a procuração');
+    await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+    const responsavel = lapis(cartao).getByLabel(/Responsável/);
+    const outro = await responsavel.locator('option').evaluateAll((opcoes, atual) => opcoes.map(o => (o as HTMLOptionElement).value).find(v => v && v !== atual), await responsavel.inputValue());
+    await responsavel.selectOption(outro!);
+    await cartao.getByText('A procuração vence este mês.').click();
+    await cartao.getByRole('textbox', { name: 'Descrição' }).fill('Texto novo salvo no lugar.');
+    await cartao.getByRole('textbox', { name: 'Descrição' }).press('Control+Enter');
+    await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();
+    // Quando
+    await cartao.getByRole('button', { name: 'Fechar' }).click();
+    // Então
+    await expect(pergunta(page)).toBeVisible();
+    await pergunta(page).getByRole('button', { name: 'Continuar no cadastro' }).click();
+    await expect(responsavel).toHaveValue(outro!);
+  });
+});
 
 test.describe('Dado o compromisso (#395)', () => {
   const quando = (cartao: Locator) => cartao.getByRole('button', { name: /^Data e horário: / });
@@ -424,6 +510,20 @@ test.describe('Dado o contrato (#395)', () => {
     await cartao.getByRole('button', { name: 'Fechar' }).click();
     // Então
     await expect(pergunta).toBeVisible();
+  });
+
+  test('dada a assinatura mudada e não salva, quando a pessoa clica no lápis Editar, então a data continua aberta com o que ela escreveu e lembra de salvar ou cancelar', async ({ page }) => {
+    // Dado
+    const cartao = await abrirContrato(page);
+    await assinatura(cartao).click();
+    const formulario = cartao.getByRole('group', { name: 'Mudar a data da assinatura' });
+    await formulario.getByRole('textbox', { name: 'Data da assinatura' }).fill('02/02/2026');
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar', exact: true }).click();
+    // Então
+    await expect(cartao.getByRole('form', { name: 'Editar contrato' })).toHaveCount(0);
+    await expect(formulario.getByRole('status')).toHaveText('Salve ou cancele esta mudança antes de abrir outra.');
+    await expect(formulario.getByRole('textbox', { name: 'Data da assinatura' })).toHaveValue('02/02/2026');
   });
 
   test('no celular, quando a pessoa abre o calendário da assinatura no lápis, então ele não cobre o nome do campo', async ({ page }) => {

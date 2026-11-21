@@ -2,9 +2,25 @@
 import { describe, expect, it } from 'vitest';
 import { TAMANHO_COMPROMISSO, TAMANHO_TAREFA } from '../dados/limites';
 import { compromissoVazio, validarCompromisso } from './compromisso';
-import { descricaoAoGravar, edicaoNoLugarPorSalvar, erroNoLugar, semOsCamposDoLugar, tituloOpcionalAoGravar } from './edicaoNoLugar';
+import { descricaoAoGravar, edicaoNoLugarPorSalvar, erroNoLugar, pedirOLapis, semOsCamposDoLugar, tituloOpcionalAoGravar } from './edicaoNoLugar';
 import { processoVazio, validarProcesso } from './processo';
 import { TAREFA_VAZIA, validarTarefa } from './tarefa';
+
+describe('O lápis com uma data do cartão por salvar (#395)', () => {
+  it.each([
+    ['nada aberto', {}, 'abrir'],
+    ['as datas fechadas ou sem mudança (null)', { inicio: null, prazo: null, quando: null, assinatura: null, prazoDoProcesso: null }, 'abrir'],
+    ['só o título e a descrição mudados (continuam no lugar com o lápis)', { titulo: 'Outro', descricao: 'Outra' }, 'abrir'],
+    ['o prazo mudado e não salvo', { prazo: '{"prazo":"04/04/2031"}' }, 'manter'],
+    ['o início mudado e não salvo', { inicio: '{"data":"20/12/2030"}' }, 'manter'],
+    ['a data do compromisso mudada e não salva', { quando: '{"data":"25/11/2030"}' }, 'manter'],
+    ['a assinatura do contrato mudada e não salva', { assinatura: '{"data":"02/02/2026"}' }, 'manter'],
+    ['o prazo do processo escrito e não lançado', { prazoDoProcesso: '{"descricao":"Réplica"}' }, 'manter']
+  ] as const)('dado %s, quando a pessoa clica no lápis, então a resposta é "%s"', (_caso, rascunhos, esperado) => {
+    // Quando / Então
+    expect(pedirOLapis(rascunhos)).toBe(esperado);
+  });
+});
 
 describe('Edição por salvar no próprio lugar do cartão (#346)', () => {
   const gravado = { titulo: 'Emitir a GRU', descricao: 'Pagar até sexta.' };
