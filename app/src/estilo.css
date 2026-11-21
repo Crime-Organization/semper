@@ -75,6 +75,8 @@
   --recuo-da-pasta: 14px;
   /* O recuo da janela (ui/janela.tsx) por dentro; a janela larga usa o mesmo para o corpo rolar até a borda */
   --recuo-da-janela: 24px;
+  /* O recuo que o Safari do iPhone põe por conta própria de cada lado do texto de um campo de várias linhas (o padding não o tira) */
+  --recuo-do-texto-no-ios: 3px;
   /* A folga em volta da janela, até a borda da tela */
   --folga-da-janela: 16px;
   /* A tecla (<Tecla>, em ui/base): a altura (também a largura mínima, para a letra sozinha ficar quadrada), a folga dos lados,
@@ -435,7 +437,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 /* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
 :root { --altura-do-campo: var(--alvo-de-toque) }
 .campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
-.campos textarea, textarea.campo { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
+.campos textarea, textarea.campo, .campo.caixa-comentario-espelho { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
 .campo:focus, .campos input:focus, .campos select:focus, .campos textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent }
 .campos label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: var(--text) }
 .campos label small { font-weight: 400; color: var(--muted) }
@@ -883,6 +885,14 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .comentarios { display: flex; flex-direction: column; gap: 16px }
 .caixa-comentario { display: flex; flex-direction: column; gap: 8px }
 .caixa-comentario-campo { position: relative }
+/* O destaque das menções enquanto se digita (#297): o texto fica no campo, de fundo transparente, e um espelho dele por trás, com as
+   mesmas medidas e as letras invisíveis, pinta o fundo de cada menção. A borda e a barra de rolagem ocupam o mesmo lugar nos dois. */
+.caixa-comentario-texto { position: relative; display: block; background: transparent; scrollbar-gutter: stable }
+.campo.caixa-comentario-espelho { position: absolute; inset: 0; overflow: hidden; pointer-events: none; color: transparent; border-color: transparent; white-space: pre-wrap; overflow-wrap: break-word; scrollbar-gutter: stable; resize: none }
+/* No iPhone, o campo recua o texto (--recuo-do-texto-no-ios): o espelho encolhe o mesmo de cada lado, para a quebra de linha e o
+   destaque continuarem em cima da menção (o ajuste do highlight-within-textarea). Só o Safari do iOS reconhece -webkit-touch-callout. */
+@supports (-webkit-touch-callout: none) { .campo.caixa-comentario-espelho { inset-inline: var(--recuo-do-texto-no-ios); width: auto } }
+.mencao-no-campo { color: transparent; background: var(--accent-tint); border-radius: 4px }
 .caixa-comentario-acoes { display: flex; align-items: center; gap: 8px; flex-wrap: wrap }
 /* Lista de sugestões (CampoComSugestoes e o @ dos comentários): logo abaixo do campo, da largura dele, por cima do
    que vem depois, com o texto inteiro. */
@@ -913,6 +923,12 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .anotacao-na-coluna-inicio { white-space: pre-line; color: var(--text2) }
 .anotacao-na-coluna .selo { align-self: center }
 .mencao { color: var(--accent-ink); font-weight: 700; background: var(--accent-tint); border-radius: 4px; padding: 0 2px }
+/* A menção de um item (#297): o código e o título, como link do cartão; o aviso (arquivado, sem acesso) vem miúdo, sem negrito. */
+.mencao-item { text-decoration: none; cursor: pointer }
+@media (hover: hover) { .mencao-item:hover { text-decoration: underline } }
+.mencao-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
+.mencao-nome { font-weight: 400; color: var(--ink) }
+.mencao-aviso { font-weight: 400; color: var(--muted) }
 /* O comentário que a mensagem abriu. */
 .comentario-citado .comentario-texto { background: var(--accent-tint); outline: 1px solid var(--accent); outline-offset: -1px }
 .comentario-acoes { display: flex; gap: 14px; font-size: 13px }
