@@ -14,7 +14,7 @@ import { falha, feito } from '../ui/avisos';
 import { Aviso, Carregando, Nota } from '../ui/base';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { hojeISO } from '../ui/util';
-import { oferecerConcluirDemanda } from './concluirDemanda';
+import { oferecerDepoisDeMudar } from './situacaoDoItem';
 
 interface Props {
   somenteLer?: boolean;
@@ -52,7 +52,8 @@ export function TarefasDaDemanda({ demandaId, versao, aoMudar, somenteLer = fals
       await SD.tarefaMover(t.id, para, ordemNoFim());
       feito(marcada ? `${t.titulo} foi para "${situacao(para)}".` : `${t.titulo} voltou para "${situacao(para)}".`, 'mudança de situação da tarefa',
         async () => { await SD.tarefaMover(t.id, de, ordemNoFim()); });
-      if (marcada && await oferecerConcluirDemanda(t.id, para, navegar)) aoMudar();
+      // As ofertas de quem muda a Situação por qualquer caminho: o prazo do processo da tarefa (#355) e, com a última, a demanda.
+      if (await oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: null, ligadoADemanda: true }, para, navegar)) aoMudar();
     } catch (e) { falha(e); }
     setRecarga(x => x + 1);
   }

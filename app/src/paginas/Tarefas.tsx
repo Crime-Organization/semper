@@ -40,8 +40,7 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { numero, useTitulo } from '../ui/util';
 import { CartaoTarefa } from './CartaoTarefa';
-import { oferecerConcluirDemanda } from './concluirDemanda';
-import { ConcluirItem } from './situacaoDoItem';
+import { ConcluirItem, oferecerDepoisDeMudar } from './situacaoDoItem';
 import { SeloDoPrazo, type SeloConcluido } from './Demandas';
 import './Contratos.css';
 import './Demandas.css';
@@ -196,7 +195,8 @@ export default function Tarefas() {
             const voltar = async () => { await SD.tarefaMover(t.id, de, ordemAnterior); };
             if (de !== para) feito(`${t.codigo} foi para "${quadro.nomeDe(para) || SEM_SITUACAO_TAREFA}".`, 'movimentação do cartão', voltar);
             else registrarDesfazer('mudança de posição do cartão', voltar);
-            if (de !== para && t.demanda_codigo) void oferecerConcluirDemanda(t.id, para, navegar);
+            // As ofertas de quem muda a Situação por qualquer caminho (#355): o prazo do processo e a demanda da tarefa.
+            if (de !== para) void oferecerDepoisDeMudar('tarefas', { id: t.id, titulo: t.titulo, etapa_id: de, etapa_ordem: ordemAnterior, ligadoADemanda: !!t.demanda_codigo }, para, navegar);
           }}
           aoAdicionar={colunaId => navegar('/tarefas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>

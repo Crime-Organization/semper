@@ -1238,6 +1238,12 @@ export const SD: Dados = {
     const { data } = await rodar(sb.from('processo_prazos').update({ excluido_em: null }).eq('id', id).select('id').maybeSingle());
     primeira(data);
   },
+  async prazosDaTarefa(tarefaId) {
+    // Só os dos processos ativos (o prazo do processo arquivado não muda): a ligação !inner, com outro nome, filtra pelo processo.
+    const { data } = await rodar(sb.from('processo_prazos').select(`${CAMPOS_PRAZO}, filtro:processos!inner(arquivado_em)`)
+      .eq('tarefa_id', tarefaId).is('excluido_em', null).is('filtro.arquivado_em', null));
+    return (data as (PrazoDeProcesso & { filtro?: unknown })[]).map(({ filtro: _filtro, ...z }) => z);
+  },
   async tarefasDoProcesso(processoId) {
     const { data } = await rodar(naOrdemDoQuadro(sb.from('tarefas').select(CAMPOS_TAREFA_LIGADA).eq('processo_id', processoId)));
     return (data as TarefaParaLigar[]).map(tarefaLigada('', null));

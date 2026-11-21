@@ -1,0 +1,5 @@
+{
+  "titulo": "Concluir a tarefa de um prazo marca o prazo como cumprido",
+  "texto": "Ao concluir uma tarefa que cumpre um prazo de processo, o SEMPER pergunta se o prazo foi cumprido. Com o sim, o prazo deixa de aparecer como vencido no processo e no painel de Processos, e para de mandar avisos. Ao reabrir a tarefa, ele pergunta se o prazo volta a ficar aberto.",
+  "ondeAchar": "Tarefas: o ✓ Concluir do cartão, o círculo do quadro e da tabela, o menu Situação ou o arrastar para a coluna das concluídas."
+}

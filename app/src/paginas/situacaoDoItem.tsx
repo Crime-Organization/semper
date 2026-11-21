@@ -1,8 +1,10 @@
 // Mudar a tarefa ou a demanda de coluna (a Situação), num lugar só: o menu e o ✓ do cartão (#397) e o círculo antes do título, na
 // miniatura do quadro e na linha da tabela (#350), gravam igual. Leva o item para a coluna (no fim da ordem manual), mostra o aviso
-// com o Desfazer e, depois, faz o que o módulo oferece: a tarefa ligada a uma demanda pergunta se conclui a demanda; a demanda
-// concluída pergunta se cria o processo. Concluir e Reabrir levam às colunas-marco (regras/conclusaoNoCartao.ts), com os nomes
-// que o escritório deu a elas.
+// com o Desfazer e, depois, faz o que o módulo oferece: a tarefa que cumpre um prazo de processo pergunta se ele foi cumprido (ou,
+// reaberta, se volta a ficar aberto, #355), e a ligada a uma demanda pergunta se conclui a demanda; a demanda concluída pergunta se
+// cria o processo. Concluir e Reabrir levam às colunas-marco (regras/conclusaoNoCartao.ts), com os nomes que o escritório deu a
+// elas. O arrastar no quadro e a caixa da tarefa no cartão da demanda gravam do jeito deles, mas fazem as mesmas ofertas
+// (oferecerDepoisDeMudar).
 import { useContext } from 'react';
 import { useNavigate } from 'react-router';
 import { SD } from '../dados';
@@ -15,6 +17,7 @@ import { ConcluirNaMiniatura } from '../ui/quadro/ConcluirNaMiniatura';
 import { MoverNoQuadro } from '../ui/quadro/moverNoQuadro';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import { oferecerConcluirDemanda, oferecerProcesso } from './concluirDemanda';
+import { oferecerPrazoDoProcesso } from './prazoDaTarefa';
 
 /** O item que muda de coluna: o que a gravação, o Desfazer e as ofertas precisam. `etapa_id` e `etapa_ordem` são onde ele está
  *  agora (o Desfazer o devolve para lá). */
@@ -35,12 +38,24 @@ const MOVER: Record<ModuloQueConclui, (id: string, etapa: string | null, ordem: 
   demandas: (id, etapa, ordem) => SD.demandaMover(id, etapa, ordem)
 };
 
-/** O que cada módulo oferece depois de mudar de coluna: a tarefa, concluir a demanda dela; a demanda, criar o processo. As duas só
- *  perguntam se o item chegou à coluna das concluídas (e o resto das condições delas vale). */
-const OFERTA: Record<ModuloQueConclui, (item: ItemQueMuda, etapa: string | null, navegar: Navegar) => Promise<unknown>> = {
-  tarefas: (item, etapa, navegar) => item.ligadoADemanda ? oferecerConcluirDemanda(item.id, etapa, navegar) : Promise.resolve(),
-  demandas: (item, etapa, navegar) => oferecerProcesso(item, etapa, navegar)
+/** O que cada módulo oferece depois de mudar de coluna: a tarefa, cumprir (ou reabrir) o prazo do processo que ela cumpre e, depois,
+ *  concluir a demanda dela; a demanda, criar o processo. Cada oferta confere as condições dela (a coluna de chegada, entre outras).
+ *  Devolve se a tarefa levou a demanda à coluna das concluídas. */
+const OFERTA: Record<ModuloQueConclui, (item: ItemQueMuda, etapa: string | null, navegar: Navegar) => Promise<boolean>> = {
+  tarefas: async (item, etapa, navegar) => {
+    await oferecerPrazoDoProcesso(item.id, item.etapa_id, etapa);
+    return item.ligadoADemanda ? oferecerConcluirDemanda(item.id, etapa, navegar) : false;
+  },
+  demandas: (item, etapa, navegar) => oferecerProcesso(item, etapa, navegar).then(() => false)
 };
+
+/**
+ * As ofertas do módulo depois que o item mudou de coluna por um caminho que grava do seu jeito (o arrastar no quadro, a caixa da
+ * tarefa no cartão da demanda). `item.etapa_id` é a coluna de onde ele saiu; `etapa`, a de agora. Devolve se a tarefa levou a demanda
+ * à coluna das concluídas.
+ */
+export const oferecerDepoisDeMudar = (modulo: ModuloQueConclui, item: ItemQueMuda, etapa: string | null, navegar: Navegar) =>
+  OFERTA[modulo](item, etapa, navegar);
 
 /**
  * Leva o item para a coluna `etapa` (no fim da ordem manual), com o aviso e o Desfazer (que o devolve para onde estava). Depois,
