@@ -1,44 +1,47 @@
 // @vitest-environment jsdom
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
-// A Situação do cartão (#351): um menu compacto, no topo, sem título nem linha própria; o nome vai na dica e no rótulo do menu.
-// O "Expandir tudo" das seções, que ficava na linha dela (#389), foi para a linha dos botões rápidos (veja AtalhosDoCartao.test.tsx).
+// A linha da Situação do cartão (#397): o rótulo com o ícone, o menu largo e, à direita, o que vai com ele (o ✓ Concluir da tarefa e
+// da demanda). O rótulo é só para ver: o menu tem o nome dele para o leitor de tela.
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { SituacaoDoCartao } from './SituacaoDoCartao';
 
-describe('Situação do cartão, num menu compacto (#351)', () => {
-  it('dado o cartão com a Situação, quando abre, então há o menu, sem o título "Situação" numa linha própria, e o nome fica na dica', () => {
+describe('A linha da Situação do cartão (#397)', () => {
+  it('dado o cartão com a Situação, quando abre, então a linha mostra o rótulo "Situação" antes do menu, só para ver', () => {
     // Quando
     render(<SituacaoDoCartao><select aria-label="Situação da tarefa"><option>PARA FAZER</option></select></SituacaoDoCartao>);
     // Então
     const menu = screen.getByRole('combobox', { name: 'Situação da tarefa' });
-    expect(screen.queryByRole('heading')).toBeNull();
-    expect(menu.closest('[title]')).toHaveAttribute('title', 'Situação');
+    const rotulo = screen.getByText('Situação');
+    expect(rotulo).toHaveAttribute('aria-hidden', 'true');
+    expect(rotulo.querySelector('svg')).not.toBeNull();
+    expect(rotulo.compareDocumentPosition(menu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('dado o que vai ao lado (o Concluir da tarefa), quando abre, então fica logo depois do menu', () => {
+  it('dado o que vai com a Situação (o Concluir), quando abre, então fica na mesma linha, depois do menu', () => {
     // Quando
-    render(<SituacaoDoCartao acao={<button type="button">Concluir</button>}><select aria-label="Situação da tarefa" /></SituacaoDoCartao>);
+    render(<SituacaoDoCartao acao={<button type="button" aria-label="Concluir" />}><select aria-label="Situação da tarefa" /></SituacaoDoCartao>);
     // Então
     const menu = screen.getByRole('combobox', { name: 'Situação da tarefa' });
     const concluir = screen.getByRole('button', { name: 'Concluir' });
     expect(menu.compareDocumentPosition(concluir) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(menu.closest('[title]')).not.toContainElement(concluir);
+    expect(concluir.parentElement).toBe(screen.getByText('Situação').parentElement);
   });
 
-  it('dado um título próprio (a Etapa do atendimento, na pessoa), quando abre, então ele vai na dica no lugar de "Situação"', () => {
+  it('dado um título próprio (a Etapa do atendimento, na pessoa), quando abre, então ele é o rótulo da linha', () => {
     // Quando
     render(<SituacaoDoCartao titulo="Etapa do atendimento"><select aria-label="Etapa do atendimento" /></SituacaoDoCartao>);
     // Então
-    expect(screen.getByRole('combobox', { name: 'Etapa do atendimento' }).closest('[title]')).toHaveAttribute('title', 'Etapa do atendimento');
+    expect(screen.getByText('Etapa do atendimento')).toBeInTheDocument();
+    expect(screen.queryByText('Situação')).toBeNull();
   });
 
-  it('dado o ícone da pílula, quando ela abre, então o estilo recebe o mesmo tamanho do ícone (a folga do texto vem de um lugar só)', () => {
+  it('dada a seta do menu, quando a linha abre, então o estilo recebe o mesmo tamanho dela (a folga do texto vem de um lugar só)', () => {
     // Quando
     render(<SituacaoDoCartao><select aria-label="Situação da tarefa" /></SituacaoDoCartao>);
     // Então
-    const pilula = screen.getByRole('combobox', { name: 'Situação da tarefa' }).closest<HTMLElement>('[title]')!;
-    const icone = pilula.querySelector('svg')!;
-    expect(pilula.style.getPropertyValue('--situacao-icone')).toBe(`${icone.getAttribute('width')}px`);
+    const linha = screen.getByText('Situação').parentElement!;
+    const seta = screen.getByRole('combobox', { name: 'Situação da tarefa' }).parentElement!.querySelector('svg')!;
+    expect(linha.style.getPropertyValue('--situacao-icone')).toBe(`${seta.getAttribute('width')}px`);
   });
 });

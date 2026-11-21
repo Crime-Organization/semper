@@ -25,17 +25,16 @@ interface PropsDoCartao {
   pode?: boolean;
   /** Quem atende o pedido do checklist (o menu). */
   aoPedirChecklist?: (botao: HTMLElement) => void;
-  comExpandirTudo?: boolean;
 }
 
 /** Um cartão de mentira: a linha na cabeça; os checklists (menu), a anotação (endereço) e o prazo (dado que se muda no lugar). */
-function Cartao({ pode = true, aoPedirChecklist, comExpandirTudo }: PropsDoCartao) {
+function Cartao({ pode = true, aoPedirChecklist }: PropsDoCartao) {
   return <MemoryRouter><ComAtalhosDoCartao><GrupoDeSecoes><CriarNoCartao pode={pode}>
     <header>
       <DadoEditavel nome="Prazo" titulo="Mudar o prazo" resumo="Sem prazo" lido="Sem prazo" inicial={() => ({ prazo: '' })} conferir={() => ({})}
         aoSalvar={pode ? () => undefined : undefined} atalho="datas" campos={({ rascunho, mudar }) =>
           <input aria-label="Prazo" value={rascunho.prazo} onChange={e => mudar({ prazo: e.target.value })} />} />
-      <AtalhosDoCartao comExpandirTudo={comExpandirTudo} />
+      <AtalhosDoCartao />
     </header>
     {/* Fora de ordem de propósito: a anotação antes dos checklists. */}
     <Recolhivel titulo="Anotações" icone="documentos" novo={{ para: '/documentos/nova/?tarefa=t1', rotulo: 'Nova anotação ligada a este item' }} atalho="anotacao">
@@ -112,33 +111,26 @@ describe('Os botões rápidos do cartão (#351)', () => {
     expect(screen.getByRole('heading', { name: /^Checklists/ })).toBeInTheDocument();
   });
 
-  it('dado um cartão com seções, quando abre, então o "Expandir tudo" fica na linha, depois dos botões e antes da primeira seção, uma vez só', () => {
+  it('dado um cartão com seções, quando abre, então o "Expandir tudo" não fica na linha dos botões rápidos, e sim sozinho, acima da primeira seção (#394)', () => {
     // Quando
     render(<Cartao />);
     // Então
     const botoes = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
     expect(botoes).toHaveLength(1);
+    expect(linha()).not.toContainElement(botoes[0]);
     expect(antes(linha(), botoes[0])).toBe(true);
     expect(antes(botoes[0], screen.getByRole('button', { name: /^Anotações/ }))).toBe(true);
   });
 
-  it('dado um cartão só para ler, quando abre, então o "Expandir tudo" continua na linha, mesmo sem os botões', async () => {
+  it('dado um cartão só para ler, quando abre, então a linha não aparece, e o "Expandir tudo" continua acima da primeira seção', async () => {
     // Dado
     render(<Cartao pode={false} />);
     // Quando
     await userEvent.click(screen.getByRole('button', { name: 'Expandir tudo' }));
     // Então
+    expect(screen.queryByRole('group', { name: 'Acrescentar ao cartão' })).toBeNull();
     expect(screen.getByText('As mudanças')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ })).toHaveLength(1);
-  });
-
-  it('dada a linha sem o "Expandir tudo" (a anotação), quando abre, então o botão continua acima da primeira seção', () => {
-    // Quando
-    render(<Cartao comExpandirTudo={false} />);
-    // Então
-    const expandir = screen.getByRole('button', { name: 'Expandir tudo' });
-    expect(antes(linha(), expandir)).toBe(true);
-    expect(linha().parentElement).not.toContainElement(expandir);
   });
 
   it('dada uma seção fora do registro (fora de um cartão), quando aparece, então nada quebra e o "+" continua no título', () => {

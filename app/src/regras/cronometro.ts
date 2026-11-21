@@ -110,3 +110,14 @@ export const somaDoTempo = (registros: Registro[], perfilId?: string) => {
   const porPessoa = tempoPorPessoa(registros);
   return perfilId === undefined ? [...porPessoa.values()].reduce((s, x) => s + x, 0) : porPessoa.get(perfilId) ?? 0;
 };
+
+/**
+ * O tempo total da tarefa enquanto o cronômetro de quem está com o cartão conta (#397): o total gravado (o da equipe, do banco),
+ * com o meu tempo trocado pelo de agora (o que está gravado, menos o período aberto, que o relógio já conta, mais o relógio). Cada
+ * um conta como no banco: a soma dele, nunca negativa. Sem relógio aberto (segundos 0, período nenhum), é o total gravado.
+ */
+export function totalAoVivo(tempo: { registros: (Registro & { id: number })[]; total: number }, eu: string, periodoId: number | null, segundos: number) {
+  const meuGravado = somaDoTempo(tempo.registros, eu);
+  const meuAgora = Math.max(0, somaDoTempo(tempo.registros.filter(r => r.id !== periodoId), eu) + segundos);
+  return Math.max(0, tempo.total - meuGravado + meuAgora);
+}

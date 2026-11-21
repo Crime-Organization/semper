@@ -5,8 +5,9 @@
 // Dentro de um grupo (<GrupoDeSecoes>, que o painel do cartão põe em volta do conteúdo), cada seção se inscreve, e a
 // primeira mostra, logo acima dela e à direita, o botão "Expandir tudo" (ou "Recolher tudo", se já estão todas abertas),
 // só com o ícone das duas setas, que abre ou fecha todas de uma vez, sem mudar a escolha guardada de cada uma. Quando o cartão
-// marca um lugar para ele (<LugarDoExpandirTudo>, na ponta direita da linha dos botões rápidos: veja ui/AtalhosDoCartao.tsx, #351),
-// o botão fica ali, e não acima da primeira seção (#389).
+// marca um lugar para ele (<LugarDoExpandirTudo>: desde a #397, só a coluna da direita, na linha dos botões da janela, antes do
+// abrir ao lado e do X; veja ui/PainelCartao.tsx), o botão fica ali, e não acima da primeira seção. No corpo do cartão, ele fica
+// sempre sozinho acima da primeira seção, à direita, no eixo das setas (#394).
 // O "+" do título leva ao cadastro de outro módulo (um endereço) ou, desde a #390, pede à própria seção o formulário ou o menu do
 // item novo (Novo prazo, Adicionar checklist…): abre a seção, se estiver fechada, sem mudar a escolha guardada, e quem está dentro
 // atende o pedido com usePedidoDeNovo, com o estado no mesmo lugar de sempre. Com `atalho` (#351), o mesmo "+" vira também um botão
@@ -88,7 +89,7 @@ export function AoPedirNovo({ atender }: { atender: (botao: HTMLElement) => void
 export function GrupoDeSecoes({ proprio = true, children }: { proprio?: boolean; children: ReactNode }) {
   const inscricaoDeFora = useContext(InscricaoNoGrupo), estadoDeFora = useContext(EstadoDoGrupo);
   const secoes = useRef(new Map<string, { aberta: boolean; definir: (aberta: boolean) => void }>());
-  /** Quantos lugares para o botão estão marcados (um, no cartão com Situação; nenhum, nos outros). */
+  /** Quantos lugares para o botão estão marcados (um, na coluna da direita do centro largo; nenhum, nos outros). */
   const lugares = useRef(0);
   // Cada inscrição ou mudança redesenha o grupo (o estado das seções fica na referência).
   const [, setVersao] = useState(0);
@@ -136,9 +137,9 @@ function ExpandirTudo({ estado }: { estado: EstadoDoGrupo }) {
 }
 
 /**
- * O lugar do botão "Expandir tudo" fora das seções (#389): desde a #351, na ponta direita da linha dos botões rápidos do cartão
- * (AtalhosDoCartao), no eixo das setas das seções e do X. Enquanto ele está na tela, o
- * botão do grupo fica aqui, e não acima da primeira seção; sem seções no grupo (ou fora de um grupo), não desenha nada. Um por grupo.
+ * O lugar do botão "Expandir tudo" fora das seções: desde a #397, o da coluna da direita, na linha dos botões da janela, antes do
+ * abrir ao lado e do X (NaColunaDoCartao, em PainelCartao.tsx). Enquanto ele está na tela, o botão do grupo fica aqui, e não acima
+ * da primeira seção; sem seções no grupo (ou fora de um grupo), não desenha nada. Um por grupo.
  */
 export function LugarDoExpandirTudo() {
   const inscricao = useContext(InscricaoNoGrupo), estado = useContext(EstadoDoGrupo);

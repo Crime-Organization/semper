@@ -2,10 +2,12 @@
 // processo, compromisso, contrato, pessoa e na própria anotação (a aberta e a nova): no alto, à esquerda o tipo, o código e os
 // selos do item (na anotação, o caminho da pasta); à direita a equipe em bolinhas (com os grupos e o "+"), e, junto dos botões da
 // janela (NoTopoDoCartao), o ícone de etiqueta (abre a escolha), o lápis (verde) e o menu ⋯ (as ações a mais, Arquivar ou
-// Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último, encostado no formato e no X. Logo abaixo,
-// os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe. Desde a #351, a Situação do cartão (um
-// menu compacto, SituacaoDoCartao) fica no topo, depois do código e dos selos, e não numa linha própria; em edição, ela some. Em edição (o lápis aberto), no lugar
-// dos botões fica "Modo de edição", a equipe some (o formulário tem os campos dela) e os selos ficam sem o x.
+// Desarquivar e, no arquivado e para quem pode, Excluir). O ⋯ fica sempre por último. Logo abaixo da linha de cima, a linha da
+// Situação (SituacaoDoCartao, #397: o rótulo, o menu largo e, na tarefa e na demanda, o ✓ Concluir; em edição, ela some); depois,
+// os selos das etiquetas (sem etiquetas, a linha some); depois, o título, que o cartão põe (a ordem da cabeça toda está em
+// CabecaDoCartao). Em edição (o lápis aberto), no lugar dos botões fica "Modo de edição", a equipe some (o formulário tem os
+// campos dela) e os selos ficam sem o x. Os botões da janela (abrir ao lado / no centro e o X) não são do topo: no centro largo,
+// ficam no alto da coluna da direita (PainelCartao, #397); ao lado, na janela estreita e no celular, por cima da linha de cima.
 // Como fica no lugar (veja .cartao-topo em estilo.css): o começo da esquerda (o tipo; na anotação, o caminho) fica sempre no canto
 // de cima, à esquerda; a direita, no canto de cima, à direita; o resto da esquerda (o código e os selos) corre entre os dois e
 // embaixo, como um texto. No centro largo, com os botões do cartão nela, a direita vem antes no código e nunca sai do canto; ao
@@ -48,7 +50,7 @@ interface PropsDoMolde {
   editando?: boolean;
   /** Depois do ícone de etiqueta, junto dos botões da janela: o lápis e o ⋯. */
   botoes?: ReactNode;
-  /** Depois do código e dos selos: a Situação do cartão, num menu compacto (SituacaoDoCartao, #351). Some em edição. */
+  /** Logo abaixo da linha de cima, numa linha própria: a Situação do cartão (SituacaoDoCartao, #397). Some em edição. */
   situacao?: ReactNode;
 }
 
@@ -74,8 +76,9 @@ export function MoldeDoTopo({ inicio, esquerda, equipe, etiquetas, mudaEtiquetas
     <div className="cartao-topo">
       {/* Com as chaves, trocar a ordem (a janela foi para o centro ou para o lado) só move as caixas: a equipe não recomeça. */}
       {botoesNaJanela ? [noComeco, direita] : [direita, noComeco]}
-      <div className="cartao-topo-esquerda">{esquerda}{!editando && situacao}</div>
+      <div className="cartao-topo-esquerda">{esquerda}</div>
     </div>
+    {!editando && situacao}
     <SelosDasEtiquetas ids={etiquetas.ids} rotulo={SELOS_DAS_ETIQUETAS} aoTirar={muda ? e => etiquetas.marcar(e, false) : undefined} />
   </>;
 }
@@ -102,7 +105,7 @@ interface Props {
   aoExcluir?: () => unknown;
   /** O lápis (só com o item ativo): o nome ("Editar", "Editar sem os valores") e o que faz. */
   lapis?: { rotulo: string; aoEditar: () => void };
-  /** A Situação do cartão, num menu compacto, depois do código e dos selos (#351). Some em edição. */
+  /** A Situação do cartão, numa linha própria logo abaixo da linha de cima (#397). Some em edição. */
   situacao?: ReactNode;
 }
 

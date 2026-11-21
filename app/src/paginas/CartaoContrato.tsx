@@ -1,6 +1,7 @@
 // Cartão do contrato (painel lateral), no modelo do cartão de pessoa: no topo (TopoDoCartao, #382, como o da anotação), a
 // categoria e o código, com a equipe em bolinhas (com o % de cada um na dica), a etiqueta, o lápis e o ⋯ à direita; os selos das
-// etiquetas; os clientes e a situação. Quem edita sem os valores tem o mesmo lápis, com esse nome. Depois, cada tópico numa seção que recolhe, com o número de itens ao lado do
+// etiquetas, com a linha da Situação logo abaixo do topo (#397); os clientes e as datas (CabecaDoCartao, #397). Quem edita sem os
+// valores tem o mesmo lápis, com esse nome. Depois, cada tópico numa seção que recolhe, com o número de itens ao lado do
 // título (objetos, que abrem as demandas deles, partes, honorários com divisão e parcelas, documento, demandas, tarefas,
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
@@ -10,6 +11,7 @@ import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '.
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -33,7 +35,6 @@ import { avisarSeAssinadoSemObjeto, SEM_OBJETO_DEFINIDO } from './clienteAoContr
 import { dataCurta, dataHora, relativo } from '../ui/util';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -153,11 +154,12 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
   // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
           altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. Quem
           edita sem os valores tem o mesmo lápis, com esse nome (antes, um botão de texto à parte). As etiquetas: quem vê os valores
-          ou edita sem eles. */}
+          ou edita sem eles. */
       <TopoDoCartao modulo="contratos" id={k.id} arquivado={!!k.arquivado_em} editando={editando}
         inicio={!oculto && <Selo tipo="escuro">{CATEGORIAS[k.categoria]}</Selo>}
         esquerda={<>
@@ -171,16 +173,14 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
         lapis={podeAlterar || semValores ? { rotulo: podeAlterar ? 'Editar' : 'Editar sem os valores', aoEditar: () => setEditando(true) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />
-        </SituacaoDoCartao>} />
-      <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
-      {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
-          valores do contrato também não vê a assinatura, como antes, e aí a faixa some (#385): sobraria só a criação, que o
-          rodapé já mostra. */}
-      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
-        {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
-      </FaixaDasDatas>
-      {!editando && <AtalhosDoCartao />}
-    </header>
+        </SituacaoDoCartao>} />}
+      titulo={<h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>}
+      /* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
+         valores do contrato também não vê a assinatura, como antes, e aí não há dados (#385): sobraria só a criação, que o
+         rodapé já mostra. */
+      dados={!oculto && <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
+        <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>
+      </FaixaDasDatas>} />
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>
 

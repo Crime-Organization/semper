@@ -1,6 +1,9 @@
 // Cartão da demanda (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de contrato: no topo (TopoDoCartao,
 // #382, como o da anotação), o tipo, o código e o prazo, com a equipe da demanda em bolinhas (responsável e colaboradores), a
-// etiqueta, o lápis e o ⋯ à direita; os selos das etiquetas; o título e a situação; depois, cada tópico numa seção que recolhe (listas, tarefas, clientes, contrato, comentários, histórico).
+// etiqueta, o lápis e o ⋯ à direita; logo abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os
+// selos das etiquetas; o título; os dados (as datas e o tempo da equipe nas tarefas) e a descrição (CabecaDoCartao, #397); depois,
+// cada tópico numa seção que recolhe (listas, tarefas, processos, clientes, contrato), com o "Expandir tudo" sozinho acima da
+// primeira (#394); comentários, anotações e histórico na coluna da direita.
 // O contrato ligado aparece sempre, mas só abre para quem pode ver o contrato (contrato é controle financeiro).
 // Desde a #346, quem altera a demanda muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
 import { useCallback, useEffect, useState } from 'react';
@@ -14,6 +17,9 @@ import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
+import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
+import { acaoDeConclusao, avisoDaConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -41,7 +47,6 @@ import { TempoDaDemanda } from './TempoNaTarefa';
 import { ListasDoCartao } from './ListasDoCartao';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -119,16 +124,24 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     if (r.excluidas) { avisar('Demanda excluída definitivamente.'); aoFechar(); aoMudar(); }
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
-  async function mudarSituacao(valor: string) {
+  /** Leva a demanda para outra coluna; `aviso` troca o texto do aviso no pé da tela (ex.: "Demanda concluída."). */
+  async function mudarSituacao(valor: string, aviso?: string) {
     const etapa = valor || null, de = d!.etapa_id || null, ordemDe = d!.etapa_ordem ?? null, ordem = ordemNoFim();
     try {
       await SD.demandaMover(d!.id, etapa, ordem);
       setD({ ...d!, etapa_id: etapa, etapa_ordem: ordem });
-      feito(etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Demanda ${SEM_SITUACAO_DEMANDA.toLowerCase()}.`, 'mudança de situação',
+      feito(aviso ?? (etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Demanda ${SEM_SITUACAO_DEMANDA.toLowerCase()}.`), 'mudança de situação',
         async () => { await SD.demandaMover(d!.id, de, ordemDe); });
       aoMudar(); setVersaoHist(v => v + 1);
       void oferecerProcesso(d!, etapa, navegar);
     } catch (e) { falha(e); }
+  }
+
+  /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome), e oferece criar o processo; Reabrir, de volta à do
+   * início (#397). */
+  function concluirOuReabrir(acao: AcaoDeConclusao) {
+    const coluna = colunaDaAcao(quadro.colunas, acao)!;
+    return mudarSituacao(coluna.id, avisoDaConclusao('demandas', acao, coluna.nome));
   }
 
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a demanda ativa (como o lápis). */
@@ -148,9 +161,10 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
   // Para quem só lê a demanda, ou com ela arquivada, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={d} />
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
-          lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */}
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
+          tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da demanda do lápis (#276). */
       <TopoDoCartao modulo="demandas" id={d.id} arquivado={!!d.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">Demanda</Selo>}
         esquerda={<>
@@ -164,19 +178,21 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
         lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
-        situacao={<SituacaoDoCartao>
+        situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, d.etapa_id)} soParaVer={!!d.arquivado_em || !podeAlterar}
+          aoAgir={concluirOuReabrir} />}>
           <MenuDeSituacao rotulo="Situação da demanda" quadro={quadro} valor={d.etapa_id} semSituacao={SEM_SITUACAO_DEMANDA} desabilitado={!!d.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-        </SituacaoDoCartao>} />
-      <TituloEditavel key={'titulo-' + noLugar.chave} valor={d.titulo} maximo={TAMANHO_DEMANDA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
+        </SituacaoDoCartao>} />}
+      titulo={<TituloEditavel key={'titulo-' + noLugar.chave} valor={d.titulo} maximo={TAMANHO_DEMANDA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'titulo', titulo)}
-        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: d.titulo }) : undefined} />
-      <TextoEditavel key={'descricao-' + noLugar.chave} texto={d.descricao || ''} className="descricao-formatada" rotulo="Descrição"
+        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: d.titulo }) : undefined} />}
+      descricao={<TextoEditavel key={'descricao-' + noLugar.chave} texto={d.descricao || ''} className="descricao-formatada" rotulo="Descrição"
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_DEMANDA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarDemanda, DEMANDA_VAZIA, 'descricao', texto)}
-        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: d.descricao }) : undefined} />
-      {/* As datas lado a lado (#361): a criação (fixa), o início (#357) e o prazo de entrega com a hora e o lembrete, que quem altera
-          muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). */}
-      <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: d.criado_em }}>
+        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: d.descricao }) : undefined} />}
+      /* As datas lado a lado (#361): a criação (fixa), o início (#357) e o prazo de entrega com a hora e o lembrete, que quem altera
+         muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). Logo abaixo, na faixa própria do tempo (#383), a
+         soma do tempo de toda a equipe nas tarefas desta demanda. */
+      dados={<><FaixaDasDatas criacao={{ rotulo: 'Criada em', em: d.criado_em }}>
         <DadoDoGrupo rotulo="Início">
           <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio}
             aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
@@ -187,10 +203,7 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(d)) : undefined} />
         </DadoDoGrupo>
       </FaixaDasDatas>
-      {/* Logo abaixo das datas, na faixa própria do tempo (#383): a soma do tempo de toda a equipe nas tarefas desta demanda. */}
-      {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}
-      {!editando && <AtalhosDoCartao />}
-    </header>
+      {ctx.escritorio?.modulos?.tarefas && <TempoDaDemanda demandaId={d.id} versao={versaoHist} />}</>} />
 
     {editando ? <NovaDemanda edicao={{ id: d.id, aoTerminar: terminarEdicao }} /> : <>
 

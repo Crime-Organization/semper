@@ -1,34 +1,35 @@
-// A "Situação" do cartão (processo, demanda, tarefa, contrato, compromisso; na pessoa, a "Etapa do atendimento"), desde a #351 num
-// menu compacto no topo do cartão, como a lista do cartão do Trello: uma pílula com o ícone do quadro, o nome da coluna e a seta, sem
-// título nem linha própria (o nome, "Situação", vai na dica e no rótulo do menu, para o leitor de tela). O cartão a põe no topo
-// (MoldeDoTopo, `situacao`), depois do código e dos selos; em edição (o lápis aberto), ela some, como antes. Ao lado da pílula
-// fica o que vai com ela (`acao`, como o Concluir e o Reabrir da tarefa).
-// O "Expandir tudo" das seções, que ficava na linha da Situação (#389), foi para a linha dos botões rápidos (AtalhosDoCartao), no
-// mesmo eixo das setas e do X (#381).
+// A "Situação" do cartão (processo, demanda, tarefa, contrato, compromisso; na pessoa, a "Etapa do atendimento"). Desde a #397
+// (pedido do dono de 20/11), numa linha própria, logo abaixo da linha de cima do cartão (MoldeDoTopo, `situacao`): à esquerda o
+// rótulo pequeno com o ícone do quadro ("SITUAÇÃO", como os títulos das seções), depois o menu, largo, ocupando o espaço, e, à
+// direita, o que vai com ela (`acao`: só onde existe concluir, a tarefa e a demanda, o botão redondo ✓, ConcluirNaSituacao).
+// O rótulo é só para ver: o menu tem o nome dele ("Situação da tarefa"…) para o leitor de tela. Em edição (o lápis aberto), a
+// linha some, como antes. Substitui o menu compacto na linha de cima (#351) e a Situação ao lado do "Expandir tudo" (#389): o
+// "Expandir tudo" fica sozinho, acima da primeira seção (#394).
 import type { CSSProperties, ReactNode } from 'react';
 import { Icone } from '../Icone';
 
-/** O tamanho dos ícones dentro da pílula (o do quadro, à esquerda, e a seta, à direita). O estilo o recebe daqui (--situacao-icone), para
- * a folga do texto acompanhar o ícone. */
-const ICONE_DA_PILULA = 13;
-const TAMANHO_DO_ICONE_NO_ESTILO = { '--situacao-icone': ICONE_DA_PILULA + 'px' } as CSSProperties;
+/** O tamanho da seta do menu. O estilo o recebe daqui (--situacao-icone), para a folga do texto do menu acompanhar a seta. */
+const ICONE_DA_SITUACAO = 13;
+const TAMANHO_DO_ICONE_NO_ESTILO = { '--situacao-icone': ICONE_DA_SITUACAO + 'px' } as CSSProperties;
+/** O ícone do quadro no rótulo: o mesmo tamanho do ícone dos títulos das seções (Recolhivel). */
+const ICONE_DO_ROTULO = 14;
 
 interface Props {
-  /** O nome da Situação, na dica da pílula (padrão: "Situação"; na pessoa, "Etapa do atendimento"). */
+  /** O nome da linha, no rótulo à esquerda (padrão: "Situação"; na pessoa, "Etapa do atendimento"). */
   titulo?: string;
   /** O menu da situação (ex.: MenuDeSituacao), com o nome dele para o leitor de tela. */
   children: ReactNode;
-  /** O que fica ao lado da pílula (ex.: o Concluir da tarefa). */
+  /** O que fica à direita do menu (o Concluir da tarefa e da demanda, ConcluirNaSituacao). */
   acao?: ReactNode;
 }
 
 export function SituacaoDoCartao({ titulo = 'Situação', children, acao }: Props) {
-  return <span className="cartao-situacao">
-    <span className="situacao-compacta" title={titulo} style={TAMANHO_DO_ICONE_NO_ESTILO}>
-      <Icone nome="kanban" tam={ICONE_DA_PILULA} />
+  return <div className="cartao-situacao" style={TAMANHO_DO_ICONE_NO_ESTILO}>
+    <span className="cartao-situacao-rotulo" aria-hidden="true"><Icone nome="kanban" tam={ICONE_DO_ROTULO} />{titulo}</span>
+    <span className="situacao-menu">
       {children}
-      <span className="situacao-seta" aria-hidden="true"><Icone nome="abaixo" tam={ICONE_DA_PILULA} /></span>
+      <span className="situacao-seta" aria-hidden="true"><Icone nome="abaixo" tam={ICONE_DA_SITUACAO} /></span>
     </span>
     {acao}
-  </span>;
+  </div>;
 }

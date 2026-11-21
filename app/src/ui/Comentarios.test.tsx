@@ -150,7 +150,7 @@ describe('Comentários no cartão ao lado (#360)', () => {
     SD.comentariosListar.mockResolvedValue([comentario('c1', 'u-ana', 'Primeiro contato', '2026-10-28T15:00:00Z')]);
   });
 
-  it('dado o cartão ao lado (sem a coluna), quando abre, então os comentários vêm abertos, embaixo do cartão, no grupo do cartão: um "Expandir tudo" só, no alto dele', async () => {
+  it('dado o cartão ao lado (sem a coluna), quando abre, então os comentários vêm abertos, embaixo do cartão, com o "Expandir tudo" deles, que não mexe nas seções de cima (#397)', async () => {
     // Quando: o cartão, com o grupo das seções dele (o do painel), uma seção fechada e, embaixo, os comentários
     render(<ColunaDoCartao.Provider value={null}><GrupoDeSecoes><main>
       <Recolhivel titulo="Dados do cartão" icone="lista"><p>Dados</p></Recolhivel>
@@ -160,14 +160,20 @@ describe('Comentários no cartão ao lado (#360)', () => {
     const secao = await screen.findByRole('button', { name: /^Comentários\s*1$/ });
     expect(secao).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('main')).toHaveTextContent('Primeiro contato');
-    const doGrupo = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
-    expect(doGrupo).toHaveLength(1);
-    expect(within(screen.getByRole('main')).getAllByRole('button')[0]).toBe(doGrupo[0]);
+    const [doCartao, dosComentarios] = screen.getAllByRole('button', { name: /^(Expandir|Recolher) tudo$/ });
+    expect(within(screen.getByRole('main')).getAllByRole('button')[0]).toBe(doCartao);
+    expect(doCartao).toHaveAccessibleName('Expandir tudo');
+    expect(dosComentarios).toHaveAccessibleName('Recolher tudo');
+    expect(dosComentarios.compareDocumentPosition(secao) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Quando: o botão de baixo, acima dos comentários
+    await userEvent.click(dosComentarios);
+    // Então: fecha os comentários, e a seção de cima continua como estava
+    expect(secao).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText('Dados')).toBeNull();
     // Quando: o botão do alto do cartão
-    await userEvent.click(doGrupo[0]);
-    // Então: abre também a seção de cima, e o mesmo botão passa a recolher todas, os comentários também
+    await userEvent.click(doCartao);
+    // Então: abre a seção de cima, e os comentários continuam fechados
     expect(screen.getByText('Dados')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Recolher tudo' }));
     expect(secao).toHaveAttribute('aria-expanded', 'false');
   });
 });

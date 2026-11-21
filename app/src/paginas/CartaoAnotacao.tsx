@@ -579,9 +579,9 @@ export function CartaoAnotacao({ id: idRecebido, nova, aoMudar, aoFechar, aoCria
         datas, nem a que acabou de ir ao banco e ainda não foi lida de volta (se a leitura falhar, ela continua a em branco). */}
     {!emBranco && a.criado_em && <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: a.criado_em }} />}
     {!podeAlterar && <Nota>{POR_QUE_SO_LE[equipeVeTudo(ctx.escritorio) ? 'equipe' : 'item']}</Nota>}
-    {/* O botão rápido "Ligação" (#351), como nos outros cartões: abre "Ligada a" e o menu do item novo, preso a ele. Sem a Situação, o
-        "Expandir tudo" continua no alto da coluna. */}
-    {!emBranco && <AtalhosDoCartao comExpandirTudo={false} />}
+    {/* O botão rápido "Ligação" (#351), como nos outros cartões: abre "Ligada a" e o menu do item novo, preso a ele. O "Expandir
+        tudo" das seções da coluna fica na linha dos botões da janela (no centro largo) ou acima de Comentários (#397). */}
+    {!emBranco && <AtalhosDoCartao />}
     {a.arquivado_em && <FaixaDoArquivado modulo="anotacoes" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
     {conflito && <Aviso tipo="erro" className="anotacao-conflito">

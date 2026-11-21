@@ -4,12 +4,11 @@
 // `atalho`, #390), que o botão usa do mesmo jeito (abre a seção, se estiver fechada, e o formulário ou o menu do item novo, preso ao
 // botão), e o dado que se muda no lugar (DadoEditavel com `atalho`: o prazo, a data do compromisso), que abre o formulário dele.
 // Assim, a linha mostra só o que o cartão tem, e nada no cartão arquivado ou só para ler (sem o "+" nem o dado que se muda, ninguém
-// oferece o botão). Nos cartões com a Situação, que foi para o topo (#351), a linha também guarda, à direita, o "Expandir tudo" das
-// seções, no eixo das setas e do X (#381, #389).
+// oferece o botão). Desde a #397, a linha fica logo depois dos dados (as datas e o tempo), antes da descrição (CabecaDoCartao), e não
+// guarda mais o "Expandir tudo", que voltou a ficar sozinho acima da primeira seção (#394).
 import { atalhosNaOrdem, NOME_DA_LINHA_DE_ATALHOS, ROTULO_DO_ATALHO, type TipoDeAtalho } from '../regras/atalhosDoCartao';
 import { BotaoLink, estiloBotao } from './base';
 import { Icone, ICONE_DO_MINI, type NomeIcone } from './Icone';
-import { LugarDoExpandirTudo } from './Recolhivel';
 import { useAtalhosOferecidos } from './registroDeAtalhos';
 
 /** O ícone de cada botão, o mesmo da coisa que ele abre no cartão. */
@@ -20,16 +19,11 @@ const ICONE_DO_ATALHO: Record<TipoDeAtalho, NomeIcone> = {
   ligacao: 'vinculo'
 };
 
-interface Props {
-  /** Guarda à direita o "Expandir tudo" das seções do cartão (padrão: sim). Na anotação, ele continua no alto da coluna. */
-  comExpandirTudo?: boolean;
-}
-
 /**
  * A linha dos botões rápidos: um botão por tipo oferecido, na ordem de sempre, com o ícone e o nome curto ("Checklist"); o que ele
- * faz por inteiro vai na dica. Sem botões nem "Expandir tudo", a linha não aparece.
+ * faz por inteiro vai na dica. Sem botões, a linha não aparece.
  */
-export function AtalhosDoCartao({ comExpandirTudo = true }: Props) {
+export function AtalhosDoCartao() {
   // Só os que ainda oferecem: quem deixou de oferecer agora (o item foi arquivado) sai do registro só depois deste desenho.
   const oferecidos = useAtalhosOferecidos().map(o => ({ tipo: o.tipo, atalho: o.ler() })).filter(o => o.atalho);
   const botoes = atalhosNaOrdem(oferecidos.map(o => o.tipo)).map(tipo => {
@@ -40,9 +34,6 @@ export function AtalhosDoCartao({ comExpandirTudo = true }: Props) {
       : <button key={tipo} type="button" className={estiloBotao({ forma: 'mini' })} title={atalho.nome} aria-haspopup={atalho.menu ? 'menu' : undefined}
         onClick={e => atalho.abrir?.(e.currentTarget)}>{conteudo}</button>;
   });
-  if (!botoes.length && !comExpandirTudo) return null;
-  return <div className="cartao-atalhos">
-    {botoes.length > 0 && <div className="cartao-atalhos-botoes" role="group" aria-label={NOME_DA_LINHA_DE_ATALHOS}>{botoes}</div>}
-    {comExpandirTudo && <LugarDoExpandirTudo />}
-  </div>;
+  if (!botoes.length) return null;
+  return <div className="cartao-atalhos" role="group" aria-label={NOME_DA_LINHA_DE_ATALHOS}>{botoes}</div>;
 }

@@ -1,6 +1,7 @@
 // Cartão do processo (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de demanda: no topo (TopoDoCartao,
 // #382, como o da anotação), o tipo e o código, com a equipe em bolinhas (responsável e colaboradores), a etiqueta, o lápis e o ⋯
-// à direita; os selos das etiquetas; o nome, o número e a situação. "Entrar como colaborador" e "Assumir como responsável" ficam
+// à direita; a linha da Situação (#397); os selos das etiquetas; o nome e, no lugar da descrição, o número (CabecaDoCartao, #397;
+// as datas ficam nas seções). "Entrar como colaborador" e "Assumir como responsável" ficam
 // logo abaixo, junto da nota de quem só lê (no ⋯, ninguém os acharia), e o aviso diz que a equipe está no topo. Depois, cada tópico
 // numa seção que recolhe (prazos, dados, clientes, demandas, contratos, tarefas, compromissos). Na coluna da direita (no centro) ou
 // no pé do cartão (ao lado), desde a #362: comentários, andamentos (a linha do tempo), anotações e histórico de alterações.
@@ -20,7 +21,8 @@ import {
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
-import { Aviso, Carregando, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
 import { EquipeNoTopo } from './EquipeNoTopo';
 import { gravaForaDoCartao } from '../regras/sairDoCartao';
@@ -44,7 +46,6 @@ import NovoProcesso from './NovoProcesso';
 import { AndamentosDoProcesso, PrazosDoProcesso, useAcompanhamento } from './processo/AndamentosEPrazos';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
 import { ligarContratoNoProcesso, ligarDemandaNoProcesso, ligarEAvisar, ligarNoItem } from './ligarNoCartao';
@@ -167,9 +168,10 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Nenhum "+ Novo …" com o processo arquivado nem para quem só lê (o advogado na adaptação só cria compromissos).
   return <CriarNoCartao pode={podeLigar || podeCriarCompromisso}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={p} />
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
-          lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */}
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+          lápis muda a equipe também nas bolinhas (#356), com as regras de sair do processo do lápis (#276). */
       <TopoDoCartao modulo="processos" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">{TIPOS_PROCESSO[p.tipo].nome}</Selo>}
         esquerda={<>
@@ -186,16 +188,13 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
         lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do processo" quadro={quadro} valor={p.etapa_id} semSituacao={SEM_SITUACAO_PROCESSO} desabilitado={!!p.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-        </SituacaoDoCartao>} />
-      <TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
+        </SituacaoDoCartao>} />}
+      titulo={<TituloEditavel key={noLugar.chave} valor={p.titulo ?? ''} exibido={nomeDoProcesso(p)} rotulo="Nome do cartão" placeholder={nomeDoProcesso({ ...p, titulo: null })}
         maximo={TAMANHO_PROCESSO.titulo} conferir={nome => erroNoLugar(validarProcesso, processoVazio(p.tipo), 'titulo', nome)}
-        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />
-      <p className="demanda-descricao">{p.numero}</p>
-      {/* A faixa das datas (#383, #385), a mesma dos outros cartões: só com a criação, ela some (o rodapé já a mostra; a
-          distribuição fica nos dados do processo). */}
-      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: p.criado_em }} />
-      {!editando && <AtalhosDoCartao />}
-    </header>
+        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={mudaNoLugar ? salvarNome : undefined} />}
+      /* Sem a faixa das datas: só com a criação, ela some (o rodapé já a mostra; a distribuição fica nos dados do processo). No
+         lugar da descrição, o número (#397). */
+      descricao={<p className="demanda-descricao">{p.numero}</p>} />
 
     {editando ? <NovoProcesso edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 

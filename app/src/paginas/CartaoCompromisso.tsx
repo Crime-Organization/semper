@@ -1,6 +1,7 @@
 // Cartão do compromisso (painel ao lado ou janela no centro), no modelo dos cartões de pessoa e de processo: no topo
 // (TopoDoCartao, #382, como o da anotação), o tipo e o código, com a equipe em bolinhas, a etiqueta, o lápis e o ⋯ à direita; os
-// selos das etiquetas; o nome, a data e a situação; depois, cada tópico numa seção que recolhe. Quem só vê o
+// selos das etiquetas, com a linha da Situação logo abaixo do topo (#397); o nome e a data (CabecaDoCartao, #397); depois, cada
+// tópico numa seção que recolhe, com o "Expandir tudo" sozinho acima da primeira (#394). Quem só vê o
 // compromisso pela Agenda geral lê tudo e comenta, mas não muda nada.
 // Desde a #346, quem muda o compromisso muda o título no próprio lugar, como na anotação (o lápis não o repete). A audiência e a
 // perícia podem ficar sem título: aí o título mostra o tipo e as pessoas, o campo abre em branco, e apagar o título volta a
@@ -18,6 +19,7 @@ import { equipeEditaTudo } from '../regras/equipeVeTudo';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, TituloEditavel, Vazio } from '../ui/base';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { quandoComoEsta, type QuandoGravado } from '../regras/datasNoCartao';
 import { QuandoDoCompromisso } from './QuandoDoCompromisso';
 import { SecaoComentarios } from '../ui/Comentarios';
@@ -39,7 +41,6 @@ import { HistoricoDoCartao } from './HistoricoDoCartao';
 import NovoCompromisso from './NovoCompromisso';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 import { LigarPessoaNoItem, novaPessoaNoItem } from './PessoasNosItens';
 
 interface Props {
@@ -129,10 +130,11 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
   // Nenhum "+ Novo …" com o compromisso arquivado nem para quem só lê (#376), em seção nenhuma.
   return <CriarNoCartao pode={!somenteLer}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={c} />
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
           lápis muda a equipe também nas bolinhas (#356), com as regras de sair do compromisso do lápis (#276). Fora dele, o cartão
-          diria "não encontrado": fecha. */}
+          diria "não encontrado": fecha. */
       <TopoDoCartao modulo="compromissos" id={c.id} arquivado={!!c.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">{TIPOS_COMPROMISSO[c.tipo].nome}</Selo>}
         esquerda={<>
@@ -149,20 +151,18 @@ export function CartaoCompromisso({ id, quadro, aoMudar, aoFechar }: Props) {
         lapis={podeMudar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
         situacao={<SituacaoDoCartao>
           <MenuDeSituacao rotulo="Situação do compromisso" quadro={quadro} valor={c.etapa_id} semSituacao={SEM_SITUACAO_COMPROMISSO} desabilitado={somenteLer} aoMudar={mudarSituacao} />
-        </SituacaoDoCartao>} />
-      {/* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */}
-      <TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
+        </SituacaoDoCartao>} />}
+      /* O título muda no próprio lugar só para quem muda o compromisso, com ele ativo (como o lápis). */
+      titulo={<TituloEditavel key={noLugar.chave} valor={c.titulo ?? ''} exibido={nomeDoCompromisso(c)} placeholder={nomeDoCompromisso({ ...c, titulo: null })}
         maximo={TAMANHO_COMPROMISSO.titulo} conferir={titulo => erroNoLugar(validarCompromisso, compromissoVazio(c.tipo), 'titulo', titulo)}
-        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />
-      {/* A data e o horário (#361), que quem muda o compromisso muda no próprio lugar, como o lápis grava; e a criação, fixa. */}
-      <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: c.criado_em }} criacaoNoFim>
+        aoMudarRascunho={noLugar.rascunhoDe('titulo')} aoSalvar={somenteLer ? undefined : salvarTitulo} />}
+      /* A data e o horário (#361), que quem muda o compromisso muda no próprio lugar, como o lápis grava; e a criação, fixa. */
+      dados={<FaixaDasDatas criacao={{ rotulo: 'Criado em', em: c.criado_em }} criacaoNoFim>
         <DadoDoGrupo rotulo="Data e horário">
           <QuandoDoCompromisso key={'quando-' + noLugar.chave} c={c} aoMudarRascunho={noLugar.rascunhoDe('quando')}
             aoSalvar={somenteLer || editando ? undefined : salvarQuando} />
         </DadoDoGrupo>
-      </FaixaDasDatas>
-      {!editando && <AtalhosDoCartao />}
-    </header>
+      </FaixaDasDatas>} />
 
     {editando ? <NovoCompromisso edicao={{ id: c.id, titulo: c.titulo, aoTerminar: terminarEdicao }} /> : <>
 

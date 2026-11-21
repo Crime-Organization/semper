@@ -1,12 +1,13 @@
 // Cartão da tarefa (painel ao lado ou janela no centro), no modelo do cartão da demanda: no topo (TopoDoCartao, #382, como o da
 // anotação), o tipo, o código e o prazo, com a equipe da tarefa em bolinhas (responsável e participantes), a etiqueta, o lápis e o
-// ⋯ à direita, e a situação num menu compacto (#351); os selos das etiquetas; o título; depois, cada tópico numa seção que recolhe (demanda, pessoas,
-// contrato, comentários, histórico). Logo depois da descrição, a faixa das datas (#361, #383): a criação, o início e o prazo com a
-// hora e o lembrete, que quem altera muda ali mesmo (o lápis não os repete); e, abaixo dela, a faixa do tempo (TempoNaTarefa) e a
-// linha dos botões rápidos (#351: Datas, Checklist, Anotação), com o "Expandir tudo" das seções à direita.
+// ⋯ à direita; logo abaixo, a linha da Situação, com o ✓ Concluir (ou Reabrir) redondo à direita (#397); os selos das etiquetas; o
+// título; depois, os dados (CabecaDoCartao, #397): a faixa das datas (#361, #383: a criação, o início e o prazo com a hora e o
+// lembrete, que quem altera muda ali mesmo, e o tempo total da tarefa à direita) e a faixa do tempo (DadosDaTarefa), com a linha dos
+// botões rápidos (#351: Datas, Checklist, Anotação); depois, a descrição; e cada tópico numa seção que recolhe (demanda, pessoas,
+// contrato), com o "Expandir tudo" sozinho acima da primeira (#394); comentários, anotações e histórico na coluna da direita.
 // A demanda e o contrato ligados aparecem sempre, mas só abrem para quem pode vê-los (os outros veem o código).
 // Desde a #346, quem altera a tarefa muda o título e a descrição no próprio lugar, como na anotação; o lápis não os repete.
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SD, type PessoaResumida, type Tarefa } from '../dados';
 import { TAMANHO_TAREFA } from '../dados/limites';
 import { useNavigate } from 'react-router';
@@ -18,20 +19,18 @@ import { contratosEmQueEsta } from '../regras/contrato';
 import { equipeVeTudo, motivoDeSoLerOCartao } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { EquipeNoTopo } from './EquipeNoTopo';
-import { Icone, ICONE_DO_MINI } from '../ui/Icone';
 import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
-import { Botao } from '../ui/Botoes';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
@@ -42,10 +41,12 @@ import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { ListasDoCartao } from './ListasDoCartao';
 import { ProcessosDoCartao, type ProcessosLidos } from './ProcessosDoCartao';
-import { TempoNaTarefa } from './TempoNaTarefa';
+import { DadosDaTarefa } from './TempoNaTarefa';
 import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
+import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
+import { acaoDeConclusao, avisoDaConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -69,8 +70,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const [versaoHist, setVersaoHist] = useState(0);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
-  // Concluir e Reabrir trocam de lugar: o foco do teclado passa para o botão novo, em vez de cair no começo da página.
-  const acaoDaSituacao = useRef<HTMLSpanElement>(null);
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
   // O título e a descrição em edição no próprio lugar (#346).
   const noLugar = useEdicaoNoLugar();
@@ -104,7 +103,6 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   const ligaDemanda = podeLigar && !t.demanda_id && !!modulos?.demandas, novaDemanda = '/demandas/nova/?tarefa=' + t.id;
   // A coluna das concluídas e a do início são as colunas-marco: valem mesmo que o escritório as renomeie.
   const concluida = colunaComMarco(quadro.colunas, t.etapa_id, 'concluido');
-  const fim = quadro.colunas.find(c => c.marco === 'concluido'), inicio = quadro.colunas.find(c => c.marco === 'inicio');
   const pessoa = (p: PessoaResumida): ItemLigado => ({ id: 'pessoa-' + p.id, para: '/pessoas/?id=' + p.id, codigo: p.codigo, titulo: p.nome,
     selo: p.arquivado_em ? 'Arquivada' : undefined });
   // A demanda e o contrato abrem só para quem pode vê-los; os outros veem o código, sem o link.
@@ -130,12 +128,11 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
   /** Leva a tarefa para outra coluna; `aviso` troca o texto do aviso no pé da tela (ex.: "Tarefa concluída."). */
-  async function mudarSituacao(valor: string, aviso?: string, focarAcao = false) {
+  async function mudarSituacao(valor: string, aviso?: string) {
     const etapa = valor || null, de = t!.etapa_id || null, ordemDe = t!.etapa_ordem ?? null, ordem = ordemNoFim();
     try {
       await SD.tarefaMover(t!.id, etapa, ordem);
       setT({ ...t!, etapa_id: etapa, etapa_ordem: ordem });
-      if (focarAcao) setTimeout(() => acaoDaSituacao.current?.querySelector('button')?.focus(), 0);
       feito(aviso ?? (etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`), 'mudança de situação',
         async () => { await SD.tarefaMover(t!.id, de, ordemDe); });
       aoMudar(); setVersaoHist(v => v + 1);
@@ -143,6 +140,12 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
       await carregar();
       if (t!.demanda) await oferecerConcluirDemanda(t!.id, etapa, navegar);
     } catch (e) { falha(e); }
+  }
+
+  /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */
+  function concluirOuReabrir(acao: AcaoDeConclusao) {
+    const coluna = colunaDaAcao(quadro.colunas, acao)!;
+    return mudarSituacao(coluna.id, avisoDaConclusao('tarefas', acao, coluna.nome));
   }
 
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */
@@ -162,9 +165,10 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
   // Nenhum "+ Novo …" com a tarefa arquivada nem para quem só lê (#376), em seção nenhuma.
   return <CriarNoCartao pode={podeLigar}>
     <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={t} />
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem tem o
-          lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */}
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): o tipo e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
+          tem o lápis muda a equipe também nas bolinhas (#356), com as regras de sair da tarefa do lápis (#276). */
       <TopoDoCartao modulo="tarefas" id={t.id} arquivado={!!t.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">Tarefa</Selo>}
         esquerda={<>
@@ -179,25 +183,21 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
         mudaEtiquetas={mudaNoLugar} aoMudarEtiquetas={aoMudar}
         aoArquivar={podeAlterar ? arquivar : undefined} aoExcluir={podeAlterar && podeExcluir ? excluir : undefined}
         lapis={podeAlterar ? { rotulo: 'Editar', aoEditar: () => setEditando(true) } : undefined}
-        situacao={<SituacaoDoCartao acao={podeAlterar && !t.arquivado_em && <span className="situacao-acao" ref={acaoDaSituacao}>
-          {/* Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */}
-          {concluida
-            ? inicio && <Botao key="reabrir" forma="mini" ocupadoTexto="Reabrindo…" onClick={() => mudarSituacao(inicio.id, `Tarefa reaberta em "${inicio.nome}".`, true)}><Icone nome="voltar" tam={ICONE_DO_MINI} />Reabrir</Botao>
-            : fim && <Botao key="concluir" forma="mini" ocupadoTexto="Concluindo…" onClick={() => mudarSituacao(fim.id, 'Tarefa concluída.', true)}><Icone nome="check" tam={ICONE_DO_MINI} />Concluir</Botao>}
-        </span>}>
+        situacao={<SituacaoDoCartao acao={<ConcluirNaSituacao acao={acaoDeConclusao(quadro.colunas, t.etapa_id)} soParaVer={!!t.arquivado_em || !podeAlterar}
+          aoAgir={concluirOuReabrir} />}>
           <MenuDeSituacao rotulo="Situação da tarefa" quadro={quadro} valor={t.etapa_id} semSituacao={SEM_SITUACAO_TAREFA} desabilitado={!!t.arquivado_em || !podeAlterar} aoMudar={mudarSituacao} />
-        </SituacaoDoCartao>} />
-      <TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
+        </SituacaoDoCartao>} />}
+      titulo={<TituloEditavel key={'titulo-' + noLugar.chave} valor={t.titulo} maximo={TAMANHO_TAREFA.titulo} aoMudarRascunho={noLugar.rascunhoDe('titulo')}
         conferir={titulo => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'titulo', titulo)}
-        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />
-      <TextoEditavel key={'descricao-' + noLugar.chave} texto={t.descricao || ''} className="descricao-formatada" rotulo="Descrição"
+        aoSalvar={mudaNoLugar ? titulo => salvarNoLugar({ titulo }, { titulo: t.titulo }) : undefined} />}
+      descricao={<TextoEditavel key={'descricao-' + noLugar.chave} texto={t.descricao || ''} className="descricao-formatada" rotulo="Descrição"
         convite="Sem descrição. Clique para escrever." maximo={TAMANHO_TAREFA.descricao} aoMudarRascunho={noLugar.rascunhoDe('descricao')}
         conferir={texto => erroNoLugar(validarTarefa, TAREFA_VAZIA, 'descricao', texto)}
-        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />
-      {/* As datas lado a lado (#361, #383): a criação (fixa), o início (#357) e o prazo com a hora e o lembrete, que quem altera
-          muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). Logo abaixo, na faixa própria do tempo, o
-          cronômetro de quem altera, com o resumo de quem registrou tempo. */}
-      <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: t.criado_em }}>
+        aoSalvar={mudaNoLugar ? texto => salvarNoLugar({ descricao: descricaoAoGravar(texto) }, { descricao: t.descricao }) : undefined} />}
+      /* As datas lado a lado (#361, #383): a criação (fixa), o início (#357), o prazo com a hora e o lembrete, que quem altera muda
+         no próprio lugar, como o lápis grava (com o histórico e o Desfazer), e o tempo total (#397). Logo abaixo, na faixa própria do
+         tempo, o cronômetro de quem altera, com o resumo de quem registrou tempo. */
+      dados={<DadosDaTarefa t={t} podeAlterar={podeAlterar} datas={<>
         <DadoDoGrupo rotulo="Início">
           <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
             aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
@@ -207,10 +207,7 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
             aoMudarRascunho={noLugar.rascunhoDe('prazo')}
             aoSalvar={mudaNoLugar && !editando ? c => salvarNoLugar(prazoAoGravar(c), prazoComoEsta(t)) : undefined} />
         </DadoDoGrupo>
-      </FaixaDasDatas>
-      {podeAlterar && <TempoNaTarefa t={t} />}
-      {!editando && <AtalhosDoCartao />}
-    </header>
+      </>} />} />
 
     {editando ? <NovaTarefa edicao={{ id: t.id, aoTerminar: terminarEdicao }} /> : <>
 

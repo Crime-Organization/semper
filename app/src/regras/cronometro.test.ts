@@ -1,6 +1,6 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
-import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, segundosDoPeriodo, somaDoTempo, type Evento } from './cronometro';
+import { cronometro, errosDoAjuste, fmtDuracao, fmtRelogio, lerAjuste, PARADO, segundosDoPeriodo, somaDoTempo, totalAoVivo, type Evento } from './cronometro';
 
 const MIN = 60_000;
 const INATIVIDADE = 10 * MIN;
@@ -110,5 +110,37 @@ describe('Tempo por extenso e ajuste à mão', () => {
     expect(somaDoTempo(r, 'ana')).toBe(480);
     expect(somaDoTempo(r, 'rita')).toBe(0);
     expect(somaDoTempo(r)).toBe(480);
+  });
+});
+
+describe('O tempo total da tarefa na faixa das datas (#397)', () => {
+  // A Ana tem 10 min gravados, 4 deles no período que o cartão aberto está contando (id 2); a Rita, 5 min. O total do banco: 15 min.
+  const tempo = {
+    registros: [{ id: 1, perfil_id: 'ana', segundos: 360 }, { id: 2, perfil_id: 'ana', segundos: 240 }, { id: 3, perfil_id: 'rita', segundos: 300 }],
+    total: 900
+  };
+
+  it('dado o cronômetro parado, quando a faixa mostra o total, então é o total gravado', () => {
+    // Quando / Então
+    expect(totalAoVivo(tempo, 'ana', null, 0)).toBe(900);
+  });
+
+  it('dado o cronômetro da Ana contando há 5 min no período já gravado com 4, quando a faixa mostra o total, então soma só o que falta gravar', () => {
+    // Quando
+    const total = totalAoVivo(tempo, 'ana', 2, 300);
+    // Então: 6 min de antes + 5 min do relógio + 5 min da Rita
+    expect(total).toBe(960);
+  });
+
+  it('dado um período novo, ainda sem registro, quando a faixa mostra o total, então soma o relógio inteiro', () => {
+    // Quando / Então
+    expect(totalAoVivo(tempo, 'rita', null, 120)).toBe(1020);
+  });
+
+  it('dado quem só vê os próprios registros (não é administrador), quando a faixa mostra o total, então o dos outros vem do total do banco', () => {
+    // Dado: o banco devolve só os registros da Rita, mas o total da equipe
+    const daRita = { registros: [{ id: 3, perfil_id: 'rita', segundos: 300 }], total: 900 };
+    // Quando / Então
+    expect(totalAoVivo(daRita, 'rita', 3, 360)).toBe(960);
   });
 });

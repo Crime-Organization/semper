@@ -1,5 +1,6 @@
 // Cartão da pessoa (painel lateral): o topo (TopoDoCartao, #382, como o da anotação: o tipo e o código; os responsáveis em
-// bolinhas (#387), a etiqueta, o lápis e o ⋯ à direita; os selos das etiquetas), o nome, a etapa, qualificação, observações e
+// bolinhas (#387), a etiqueta, o lápis e o ⋯ à direita; a linha da Etapa do atendimento, #397; os selos das etiquetas), o nome
+// (CabecaDoCartao, #397), qualificação, observações e
 // pendências (da importação),
 // o que está ligado a ela nos outros módulos (contratos e, depois, demandas, tarefas...), vínculos, dados, informações
 // sigilosas e histórico de alterações.
@@ -19,7 +20,8 @@ import { Avatar } from '../ui/Avatar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { avisar, falha, feito, sinalizarMudanca, useMudancas } from '../ui/avisos';
 import { Botao, BotaoDuplo } from '../ui/Botoes';
-import { Aviso, Carregando, Codigo, estiloBotao, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, Codigo, estiloBotao, Nota, Selo, Vazio } from '../ui/base';
+import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { Icone } from '../ui/Icone';
 import { AcoesDosLigados, CriarNoCartao, ItensLigados } from '../ui/ItensLigados';
 import { pedirTexto } from '../ui/janela';
@@ -43,7 +45,6 @@ import { VinculosPessoa } from './VinculosPessoa';
 import { LigarAPessoa } from './PessoasNosItens';
 import { EquipeDaPessoaNoTopo } from './EquipeDaPessoaNoTopo';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
-import { AtalhosDoCartao } from '../ui/AtalhosDoCartao';
 
 interface Props {
   id: string;
@@ -187,9 +188,10 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
 
   // Na pessoa arquivada, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
-    <header className="cartao-cabeca">
-      {/* O topo da anotação (#382): o tipo e o código; os responsáveis em bolinhas (#387, vários e todos iguais, sem um
-          principal), a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Na pessoa arquivada, as bolinhas são só para ver. */}
+    {/* A ordem da cabeça (#397): o topo (com a Situação e as etiquetas), o título, os dados e a descrição. */}
+    <CabecaDoCartao editando={editando}
+      topo={/* O topo da anotação (#382): o tipo e o código; os responsáveis em bolinhas (#387, vários e todos iguais, sem um
+          principal), a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Na pessoa arquivada, as bolinhas são só para ver. */
       <TopoDoCartao modulo="pessoas" id={p.id} arquivado={!!p.arquivado_em} editando={editando}
         inicio={<Selo tipo="escuro">{TIPOS[p.tipo]}</Selo>}
         equipe={<EquipeDaPessoaNoTopo pessoa={p} depois={p.arquivado_em ? null : depoisDosResponsaveis} />}
@@ -206,13 +208,9 @@ export function CartaoPessoa({ id, quadro, aoMudar, aoFechar, aoAbrirPessoa }: P
             <option value="">{emCaixaAlta('Sem etapa')}</option>
             {quadro.colunas.map(c => <option key={c.id} value={c.id}>{emCaixaAlta(c.nome)}{c.oculta ? ' (oculta para você)' : ''}</option>)}
           </select>
-        </SituacaoDoCartao>} />
-      <h2>{p.nome}</h2>
-      {p.nome_fantasia && <Nota style={{ marginTop: 4 }}>{p.nome_fantasia}</Nota>}
-      {/* A faixa das datas (#383, #385), a mesma dos outros cartões: com só a do cadastro, ela some (o rodapé já a mostra). */}
-      <FaixaDasDatas criacao={{ rotulo: 'Cadastrada em', em: p.criado_em }} />
-      {!editando && <AtalhosDoCartao />}
-    </header>
+        </SituacaoDoCartao>} />}
+      /* Sem a faixa das datas: com só a do cadastro, ela some (o rodapé já a mostra). */
+      titulo={<><h2>{p.nome}</h2>{p.nome_fantasia && <Nota className="cartao-subtitulo">{p.nome_fantasia}</Nota>}</>} />
 
     {editando ? <NovaPessoa edicao={{ id: p.id, aoTerminar: terminarEdicao }} /> : <>
 
