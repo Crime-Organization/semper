@@ -33,8 +33,9 @@ interface Props<T extends { id: string }, O extends OrdemComPrazo = Ordem> {
   recarga: string | number;
   ordemDe: (item: T) => number | null;
   /** Conteúdo do cartão; "ordem" é a da coluna dele (para mostrar a data quando a ordem é por data) e "coluna" é a coluna em que
-   *  ele está desenhado agora (logo depois de arrastar, o item ainda traz a coluna antiga; null: sem etapa ou arquivados). */
-  cartao: (item: T, ordem: O, coluna: string | null) => ReactNode;
+   *  ele está desenhado agora (logo depois de arrastar, o item ainda traz a coluna antiga; null: sem etapa ou arquivados).
+   *  "posicao" é a ordem manual dele agora (também já com os arrastos), para o Desfazer devolvê-lo ao lugar certo. */
+  cartao: (item: T, ordem: O, coluna: string | null, posicao: number | null) => ReactNode;
   /** Endereço que abre o cartão do item: Ctrl+clique e a rodinha do mouse o abrem numa aba nova. */
   endereco: (item: T) => string;
   aoAbrir: (item: T) => void;
@@ -332,7 +333,9 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
           {marcador && alvo.antes === it.id && <div className="kmarcador" />}
           <article className={'kcartao' + (arrastando === it.id ? ' arrastando' : '')} role="listitem" tabIndex={0} draggable={props.podeArrastar?.(it) ?? true} data-item={it.id}
             {...cliquesQueAbrem(props.endereco(it), () => p.current.aoAbrir(it))}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); p.current.aoAbrir(it); } }}
+            // Só a tecla no próprio cartão o abre: o Enter e o Espaço num botão de dentro (o círculo de concluir, o x da etiqueta)
+            // são do botão.
+            onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); p.current.aoAbrir(it); } }}
             onDragStart={e => {
               arrasto.current = { item: it, de: id };
               setArrastando(it.id);
@@ -340,7 +343,7 @@ export function Kanban<T extends { id: string }, O extends OrdemComPrazo = Ordem
               e.dataTransfer.setData('text/plain', it.id);
             }}
             onDragEnd={() => { arrasto.current = null; setArrastando(null); setAlvo(null); }}>
-            {props.cartao(it, ordem, arquivo ? null : id)}
+            {props.cartao(it, ordem, arquivo ? null : id, ordemDe(it))}
           </article>
         </Fragment>)}
         {marcador && alvo.antes === null && <div className="kmarcador" />}

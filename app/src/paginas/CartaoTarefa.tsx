@@ -29,13 +29,12 @@ import { ItensLigados, type ItemLigado } from '../ui/ItensLigados';
 import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
-import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaTarefa from './NovaTarefa';
 import { relativo } from '../ui/util';
-import { oferecerConcluirDemanda } from './concluirDemanda';
+import { concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
 import { SeloDoPrazo } from './Demandas';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
@@ -46,7 +45,7 @@ import { MenuDeSituacao } from '../ui/quadro/MenuDeSituacao';
 import { SituacaoDoCartao } from '../ui/quadro/SituacaoDoCartao';
 import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
-import { acaoDeConclusao, avisoDaConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
+import { acaoDeConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { DEMANDA_DE_OUTRO_CONTRATO, motivoDeContratoDiferente } from '../regras/ligarExistente';
 import { AcoesDosLigados, CriarNoCartao } from '../ui/ItensLigados';
 import { LigarDoModulo } from '../ui/LigarDoModulo';
@@ -127,25 +126,26 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
     if (r.excluidas) { avisar('Tarefa excluída definitivamente.'); aoFechar(); aoMudar(); }
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
-  /** Leva a tarefa para outra coluna; `aviso` troca o texto do aviso no pé da tela (ex.: "Tarefa concluída."). */
-  async function mudarSituacao(valor: string, aviso?: string) {
-    const etapa = valor || null, de = t!.etapa_id || null, ordemDe = t!.etapa_ordem ?? null, ordem = ordemNoFim();
-    try {
-      await SD.tarefaMover(t!.id, etapa, ordem);
-      setT({ ...t!, etapa_id: etapa, etapa_ordem: ordem });
-      feito(aviso ?? (etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`), 'mudança de situação',
-        async () => { await SD.tarefaMover(t!.id, de, ordemDe); });
-      aoMudar(); setVersaoHist(v => v + 1);
-      // Relê a tarefa: chegar ou sair da coluna das concluídas muda a data de conclusão (e o resumo do tempo).
-      await carregar();
-      if (t!.demanda) await oferecerConcluirDemanda(t!.id, etapa, navegar);
-    } catch (e) { falha(e); }
+  // Mudar a Situação (o menu e o ✓): a gravação comum do cartão, da miniatura do quadro e da tabela (situacaoDoItem, #350).
+  /** A tarefa como a gravação comum (situacaoDoItem) precisa: onde ela está agora e se tem demanda (para oferecer concluí-la). */
+  const comoItem = (): ItemQueMuda => ({ id: t!.id, titulo: t!.titulo, etapa_id: t!.etapa_id || null, etapa_ordem: t!.etapa_ordem ?? null, ligadoADemanda: !!t!.demanda });
+  /** Depois de gravar: mostra a coluna nova e relê a tarefa (chegar ou sair da coluna das concluídas muda a data de conclusão e o
+   *  resumo do tempo). */
+  const depoisDeMudar = (etapa: string | null) => async (ordem: number) => {
+    setT({ ...t!, etapa_id: etapa, etapa_ordem: ordem });
+    aoMudar(); setVersaoHist(v => v + 1);
+    await carregar();
+  };
+  /** Leva o item para a coluna escolhida no menu, com o aviso "Movida para …". */
+  async function mudarSituacao(valor: string) {
+    const etapa = valor || null;
+    await mudarSituacaoDoItem('tarefas', comoItem(), etapa, etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Tarefa ${SEM_SITUACAO_TAREFA.toLowerCase()}.`,
+      navegar, depoisDeMudar(etapa));
   }
 
   /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome); Reabrir, de volta à do início. */
   function concluirOuReabrir(acao: AcaoDeConclusao) {
-    const coluna = colunaDaAcao(quadro.colunas, acao)!;
-    return mudarSituacao(coluna.id, avisoDaConclusao('tarefas', acao, coluna.nome));
+    return concluirOuReabrirItem('tarefas', quadro.colunas, comoItem(), acao, navegar, depoisDeMudar(colunaDaAcao(quadro.colunas, acao)?.id ?? null));
   }
 
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a tarefa ativa (como o lápis). */

@@ -1,0 +1,5 @@
+{
+  "titulo": "Concluir tarefas e demandas sem abrir o cartão",
+  "texto": "No quadro e na tabela de Tarefas e de Demandas, cada item tem um círculo antes do título. Clique nele para concluir: o item vai para a coluna das concluídas e o círculo fica verde, com um visto. Clique de novo para reabrir; o aviso no pé da tela tem o Desfazer. Ao concluir uma demanda, o SEMPER pergunta se você quer criar o processo dela.",
+  "ondeAchar": "Tarefas e Demandas. No quadro, passe o mouse no cartão (no celular, o círculo já aparece). Na tabela, o círculo fica antes do título de cada linha."
+}

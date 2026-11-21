@@ -2,7 +2,7 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 // O banco fictício sempre entra como administrador; aqui o quadro é aberto também como quem não é.
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Coluna, GrupoDeColunas } from '../../dados';
 import { blocosDoQuadro, filaDoTopo } from '../../regras/quadro';
 import { ORDENS_COM_PRAZO, ORDENS_DO_QUADRO } from '../ordem';
@@ -243,5 +243,72 @@ describe('Nome da coluna inteiro (#352)', () => {
     // Então
     const menu = screen.getByRole('menu', { name: `Opções da coluna ${NOME}` });
     expect(within(menu).getByText(NOME)).toBeTruthy();
+  });
+});
+
+describe('Botão dentro da miniatura, como o círculo de concluir (#350)', () => {
+  /** Um quadro com o cartão "meu" em "Lead"; dentro dele, um botão como o círculo (que cancela o próprio arrasto). */
+  function montarComBotao() {
+    const aoAbrir = vi.fn(), aoMover = vi.fn(() => Promise.resolve()), cliqueNoBotao = vi.fn(), posicoes: (number | null)[] = [];
+    const quadro = {
+      colunas: COLUNAS, sugestoes: [], pronto: true, rotuloSemEtapa: 'Sem etapa', grupos: [INICIO], blocos: blocosDoQuadro(COLUNAS, [INICIO]), podeGerirGrupos: false,
+      grupoAberto: () => true, podeReordenar: false, podeRenomear: () => false, podeExcluir: () => false, ordemDe: () => 'manual', nomeDe: () => ''
+    } as unknown as Quadro;
+    const carregar = (coluna: string | null) => Promise.resolve<{ linhas: { id: string; ordem: number }[]; total: number }>(coluna === 'c-lead' ? { linhas: [{ id: 'meu', ordem: 7 }], total: 1 } : { linhas: [], total: 0 });
+    render(<Kanban quadro={quadro} recarga={0} carregar={carregar} ordemDe={it => it.ordem} endereco={() => '/'} aoAbrir={aoAbrir} aoMover={aoMover}
+      cartao={(it, _o, _c, posicao) => { posicoes.push(posicao); return <><button type="button" draggable onDragStart={e => { e.preventDefault(); e.stopPropagation(); }}
+        onClick={cliqueNoBotao}>Concluir {it.id}</button><span>{it.id}</span></>; }} />);
+    return { aoAbrir, aoMover, cliqueNoBotao, posicoes };
+  }
+
+  it('quando a pessoa clica no botão, então ele age e o cartão não abre', async () => {
+    // Dado
+    const { aoAbrir, cliqueNoBotao } = montarComBotao();
+    // Quando
+    fireEvent.click(await screen.findByRole('button', { name: 'Concluir meu' }));
+    // Então
+    expect(cliqueNoBotao).toHaveBeenCalled();
+    expect(aoAbrir).not.toHaveBeenCalled();
+  });
+
+  it.each(['Enter', ' '])('quando a pessoa aperta "%s" no botão, então o cartão não abre', async tecla => {
+    // Dado
+    const { aoAbrir } = montarComBotao();
+    // Quando
+    const naoCancelada = fireEvent.keyDown(await screen.findByRole('button', { name: 'Concluir meu' }), { key: tecla });
+    // Então
+    expect(aoAbrir).not.toHaveBeenCalled();
+    expect(naoCancelada).toBe(true);
+  });
+
+  it('quando a pessoa aperta Enter no próprio cartão, então ele continua abrindo', async () => {
+    // Dado
+    const { aoAbrir } = montarComBotao();
+    // Quando
+    fireEvent.keyDown((await screen.findByText('meu')).closest('article')!, { key: 'Enter' });
+    // Então
+    expect(aoAbrir).toHaveBeenCalled();
+  });
+
+  it('quando a pessoa arrasta a partir do botão e solta noutra coluna, então o cartão não muda de coluna', async () => {
+    // Dado
+    const { aoMover } = montarComBotao();
+    const botao = await screen.findByRole('button', { name: 'Concluir meu' });
+    // Quando
+    fireEvent.dragStart(botao);
+    const outra = screen.getByRole('list', { name: 'Distribuído' });
+    fireEvent.dragOver(outra);
+    fireEvent.drop(outra);
+    // Então
+    expect(aoMover).not.toHaveBeenCalled();
+  });
+
+  it('quando o quadro desenha o cartão, então passa a posição dele na coluna (para o Desfazer devolvê-lo ao lugar)', async () => {
+    // Dado
+    const { posicoes } = montarComBotao();
+    // Quando
+    await screen.findByText('meu');
+    // Então
+    expect(posicoes).toContain(7);
   });
 });

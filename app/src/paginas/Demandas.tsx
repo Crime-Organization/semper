@@ -1,12 +1,12 @@
 // Demandas: as etapas do trabalho (na maioria das vezes, os objetos dos contratos assinados), com responsável,
 // colaboradores, clientes e prazo. Tabela com ações em lote, quadro (Para fazer, Fazendo, Aguardando retorno,
 // Concluído) e o cartão de cada uma. A estrutura da página vem de <PaginaModulo>; o modelo é o módulo Pessoas.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { PARAMETRO_DA_PESSOA, pessoaDoEndereco } from '../regras/painelInicial';
 import { useParametroLido } from '../ui/useParametroLido';
 import { oferecerProcesso } from './concluirDemanda';
-import { SD, type DemandaLista, type FiltroDemandas, type OrdemComPrazo, type Pagina } from '../dados';
+import { SD, type Coluna, type ContextoAtivo, type DemandaLista, type FiltroDemandas, type OrdemComPrazo, type Pagina } from '../dados';
 import { POR_COLUNA, POR_PAGINA } from '../dados/limites';
 import { clientesPorExtenso } from '../regras/contrato';
 import { seloDoPrazo, SEM_SITUACAO_DEMANDA, estaNaDemanda, type ModuloComPrazo } from '../regras/demanda';
@@ -40,11 +40,18 @@ import { useCartaoNaUrl } from '../ui/useCartaoNaUrl';
 import { useSelecao, type Selecao } from '../ui/useSelecao';
 import { hojeISO, numero, useTitulo } from '../ui/util';
 import { CartaoDemanda } from './CartaoDemanda';
+import { ConcluirItem } from './situacaoDoItem';
 import './Contratos.css';
 import './Demandas.css';
 
 /** A ligação da demanda: no quadro, ícone e código (<LigacoesNoQuadro>); na tabela, "contrato MA96-0001-2026" (#300). */
 const ligacoes = (d: DemandaLista): LigacaoDoItem[] => [{ modulo: 'contratos', codigo: d.contrato_codigo }];
+/** Se quem está logado só lê a demanda na lista: não a arrasta, não mexe nas etiquetas, não a seleciona nem a conclui pelo círculo. */
+const soLe = (ctx: ContextoAtivo, d: DemandaLista) => soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)));
+/** O círculo de concluir antes do título (#350), na coluna `etapa` e na posição `posicao` em que a demanda está agora. */
+const circulo = (ctx: ContextoAtivo, colunas: Coluna[], d: DemandaLista, etapa: string | null, posicao: number | null) =>
+  <ConcluirItem modulo="demandas" colunas={colunas} podeAgir={!soLe(ctx, d) && !d.arquivado_em}
+    item={{ id: d.id, titulo: d.titulo, etapa_id: etapa, etapa_ordem: posicao }} />;
 
 const plural = (n: number, um: string, varios: string) => `${numero(n)} ${n === 1 ? um : varios}`;
 /** Se o cartão está concluído: o módulo dele (está na coluna das concluídas), false (não está) ou null (as colunas ainda
@@ -177,12 +184,13 @@ export default function Demandas() {
       ordem={visao === 'tabela' ? ordenacao : undefined}
       visao={visao} aoTrocarVisao={trocarVisao} lote={lote}>
       {visao === 'kanban'
-        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))}
+        ? <Kanban<DemandaLista, OrdemComPrazo> quadro={quadro} podeArrastar={d => !soLe(ctx, d)}
           recarga={chaveDaLista}
           carregar={(colunaId, deslocamento, ordemDaColuna) => SD.demandasDaEtapa(colunaId, { ...filtro, ordem: ordemDaColuna, situacao: 'ativas' }, deslocamento, 30)}
           ordemDe={d => d.etapa_ordem}
           arquivados={deslocamento => arquivadas(Math.floor(deslocamento / POR_COLUNA), POR_COLUNA)}
-          cartao={(d, ordemDaColuna, coluna) => <CartaoKanban d={d} ordem={ordemDaColuna} concluido={concluido(coluna)} />}
+          cartao={(d, ordemDaColuna, coluna, posicao) => <CartaoKanban d={d} ordem={ordemDaColuna} concluido={concluido(coluna)}
+            circulo={circulo(ctx, quadro.colunas, d, coluna, posicao)} />}
           endereco={d => endereco(d.id)}
           aoAbrir={d => abrir(d.id)}
           aoMover={async (d, m) => {
@@ -198,13 +206,13 @@ export default function Demandas() {
           }}
           aoAdicionar={colunaId => navegar('/demandas/nova/' + (colunaId ? '?etapa=' + colunaId : ''))} />
         : <>
-          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe} concluido={concluido}
+          <Tabela pagina={tabela} erro={erroTabela} f={f} ordem={ordem.valor} filtrado={filtrado} selecao={selecao} situacao={quadro.nomeDe} concluido={concluido} colunas={quadro.colunas}
           endereco={endereco} aoAbrir={abrir} aoPaginar={pagina => { setF(atual => ({ ...atual, pagina })); window.scrollTo({ top: 0 }); }} />
           <SecaoArquivados<DemandaLista> modulo="demandas" nome={{ um: 'demanda', varios: 'demandas', feminino: true }} total={totalArquivadas}
             versao={chaveDaLista} aoMudar={recarregar} listar={pagina => arquivadas(pagina, POR_PAGINA)}
             arquivar={(ids, a) => SD.demandasArquivar(ids, a)} excluir={ids => SD.demandasExcluir(ids)}
             tabela={(pg, numeroDaPagina, sel, aoPaginar) => <Tabela pagina={pg} erro="" f={{ ...f, situacao: 'arquivadas', pagina: numeroDaPagina }} ordem="recentes"
-              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} concluido={concluido} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
+              filtrado={filtrado} selecao={sel} situacao={quadro.nomeDe} concluido={concluido} colunas={quadro.colunas} endereco={endereco} aoAbrir={abrir} aoPaginar={aoPaginar} />} />
         </>}
     </PaginaModulo>
     {aberto && <PainelCartao aoFechar={fechar}>
@@ -213,12 +221,13 @@ export default function Demandas() {
   </>;
 }
 
-function CartaoKanban({ d, ordem, concluido }: { d: DemandaLista; ordem: OrdemComPrazo; concluido: SeloConcluido }) {
+function CartaoKanban({ d, ordem, concluido, circulo }: { d: DemandaLista; ordem: OrdemComPrazo; concluido: SeloConcluido; circulo: ReactNode }) {
   const ctx = useCtx();
   const data = dataDaOrdem(ordem, d);
   return <>
-    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} />
-    <div className="kt">{d.titulo}</div>
+    <EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLe(ctx, d)} />
+    {/* O círculo de concluir antes do título (#350), como no Trello. */}
+    <div className="kt">{circulo}<span>{d.titulo}</span></div>
     <div className="km">
       <LigacoesNoQuadro codigo={d.codigo} ligacoes={ligacoes(d)} />
       {d.cliente_nome && <span>{clientesPorExtenso(d.cliente_nome)}</span>}
@@ -240,12 +249,14 @@ interface PropsTabela {
   situacao: (id: string | null) => string;
   /** Se o cartão está na coluna das concluídas (o prazo dele não vence mais). */
   concluido: (id: string | null) => SeloConcluido;
+  /** As colunas do quadro (o círculo de concluir de cada linha usa as colunas-marco). */
+  colunas: Coluna[];
   endereco: (id: string) => string;
   aoAbrir: (id: string) => void;
   aoPaginar: (pagina: number) => void;
 }
 
-function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido, endereco, aoAbrir, aoPaginar }: PropsTabela) {
+function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido, colunas, endereco, aoAbrir, aoPaginar }: PropsTabela) {
   const ctx = useCtx();
   if (erro) return <Aviso tipo="erro">{erro}</Aviso>;
   if (!pagina) return <Carregando />;
@@ -255,7 +266,7 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
     : <>Nenhuma demanda ainda. Elas nascem dos contratos assinados, ou <BotaoLink forma="link" to="/demandas/nova/">cadastre a primeira</BotaoLink>.</>}</Vazio>;
 
   const { selecionadas, marcar } = selecao;
-  const alteraveis = linhas.filter(d => !soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id))));
+  const alteraveis = linhas.filter(d => !soLe(ctx, d));
   const todas = alteraveis.length > 0 && alteraveis.every(d => selecionadas.has(d.id));
   // Ordenando pela data de cadastro ou pela de início, a última coluna mostra essa data; nas outras ordens, a última atualização.
   const ultima = colunaDaOrdem(ordem);
@@ -268,7 +279,8 @@ function Tabela({ pagina, erro, f, ordem, filtrado, selecao, situacao, concluido
       </tr></thead>
       <tbody>{linhas.map(d => <LinhaQueAbre key={d.id} para={endereco(d.id)} aoAbrir={() => aoAbrir(d.id)} marcada={selecionadas.has(d.id)}>
         <td className="td-check"><input type="checkbox" aria-label={`Selecionar ${d.codigo}`} checked={selecionadas.has(d.id)} disabled={!alteraveis.includes(d)} onChange={e => marcar([d.id], e.target.checked)} /></td>
-        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLeSemEstarNele(ctx, m => estaNaDemanda(d, m, meusGrupos(ctx.grupos, m.id)))} /><NomeDaLinha>{d.titulo}</NomeDaLinha>
+        <td><EtiquetasDoItem etq={d.etq} modulo="demandas" id={d.id} somenteLer={!!d.arquivado_em || soLe(ctx, d)} />
+          <div className="titulo-com-circulo">{circulo(ctx, colunas, d, d.etapa_id, d.etapa_ordem)}<NomeDaLinha>{d.titulo}</NomeDaLinha></div>
           <div className="sub"><span className="codigo">{d.codigo}</span>{d.cliente_nome ? ' · ' + clientesPorExtenso(d.cliente_nome) : ''}{d.contrato_codigo ? ' · ' + ligacoesPorExtenso(ligacoes(d)) : ''}</div></td>
         <td style={{ whiteSpace: 'nowrap' }}>{d.prazo ? <SeloDoPrazo prazo={d.prazo} hora={d.prazo_hora} concluido={concluido(d.etapa_id)} /> : <span className="nota">—</span>}</td>
         <td><span className="etapa-txt">{situacao(d.etapa_id)}</span></td>

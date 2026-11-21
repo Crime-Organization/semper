@@ -20,6 +20,11 @@ export const JUNTAR_TEXTO_NO_HISTORICO = 10 * MINUTO;
  * em qualquer página no celular.
  */
 export const SEGURAR_PARA_ARRASTAR = 0.4 * SEGUNDO;
+/**
+ * O círculo de concluir na miniatura do quadro (#350): acionado pelo teclado, o item muda de coluna, e o foco o segue até a coluna
+ * nova. Se o item demora mais que isto para aparecer lá (ou não aparece: a coluna está oculta), o foco não é mais tomado.
+ */
+export const FOCO_DEPOIS_DE_MOVER = 3 * SEGUNDO;
 /** Excluir em dois cliques: quanto tempo o pedido de confirmação fica valendo. */
 export const PRAZO_PARA_CONFIRMAR = 4 * SEGUNDO;
 

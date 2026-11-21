@@ -1,6 +1,7 @@
 // Concluir e Reabrir no cartão (#397): o botão redondo ✓ ao lado da Situação, só nos módulos que concluem (a tarefa e a demanda).
 // Concluir leva à coluna-marco das concluídas; Reabrir, de volta à do início. Valem as colunas-marco, quaisquer que sejam os nomes
 // que o escritório deu a elas. Sem tela nem banco: o cartão pergunta qual ação cabe e onde ela leva, e mostra o aviso daqui.
+// O círculo antes do título, na miniatura do quadro e na linha da tabela (#350), usa as mesmas regras (circuloDoItem).
 import type { MarcoColuna } from '../dados/tipos';
 import { colunaComMarco } from './quadro';
 
@@ -39,3 +40,22 @@ export const colunaDaAcao = <C extends ColunaComMarco>(colunas: C[], acao: AcaoD
 /** O aviso depois da ação, no módulo, com o nome da coluna a que o item voltou (no Reabrir). */
 export const avisoDaConclusao = (modulo: ModuloQueConclui, acao: AcaoDeConclusao, coluna: string) =>
   acao === 'concluir' ? CONCLUSAO[modulo].concluida : CONCLUSAO[modulo].reaberta(coluna);
+
+/** O que o círculo da miniatura do quadro e da linha da tabela mostra (#350): o botão de concluir ou de reabrir; só o visto,
+ *  sem clique ('concluida': quem só lê, ou o item arquivado, já concluído; ou o quadro sem a coluna do início); ou nada. */
+export type CirculoDoItem = AcaoDeConclusao | 'concluida' | null;
+
+/**
+ * O círculo do item que está na coluna `etapaId`: quem pode alterá-lo (com o item ativo) tem a ação do cartão (acaoDeConclusao);
+ * quem não pode, ou o item sem ação, vê só o visto, se ele está na coluna das concluídas; senão, nada.
+ */
+export function circuloDoItem(colunas: ColunaComMarco[], etapaId: string | null, podeAgir: boolean): CirculoDoItem {
+  const acao = podeAgir ? acaoDeConclusao(colunas, etapaId) : null;
+  return acao ?? (colunaComMarco(colunas, etapaId, 'concluido') ? 'concluida' : null);
+}
+
+/** O nome do círculo no leitor de tela: "Concluir Emitir a GRU", "Reabrir Emitir a GRU". */
+export const rotuloDaAcaoNoItem = (acao: AcaoDeConclusao, titulo: string) => `${NOME_DA_ACAO[acao]} ${titulo}`;
+
+/** O nome do visto só para ver (sem clique), em cada módulo. */
+export const CONCLUIDA_NO_ITEM: Record<ModuloQueConclui, string> = { tarefas: 'Tarefa concluída', demandas: 'Demanda concluída' };

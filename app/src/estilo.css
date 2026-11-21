@@ -137,6 +137,16 @@
      crescer: o "alvo mínimo de 44px em controles" do DESIGN.md */
   --caixa-de-marcar: 18px;
   --alvo-de-toque: 44px;
+  /* O círculo de concluir antes do título, na miniatura do quadro e na linha da tabela (#350): do tamanho da caixa de marcar (o
+     parente mais próximo dele), com o fio um pouco mais grosso que o de 1px (que some num círculo pequeno), o vão até o título e
+     quanto leva para aparecer e trocar de cor (a mesma do contorno da miniatura no hover) */
+  --circulo-de-concluir: var(--caixa-de-marcar);
+  --traco-do-circulo: 1.5px;
+  --vao-do-circulo: 8px;
+  --transicao-do-circulo: .15s;
+  /* No toque, com etiquetas acima do título, o título desce isto: o alvo do círculo (--alvo-de-toque, centrado nele) não cobre o x
+     de tirar a etiqueta de cima */
+  --folga-do-alvo-do-circulo: 8px;
   /* O vão entre o rótulo, o campo e a mensagem de erro de uma pergunta (.pergunta); a página pública (#380) usa o mesmo vão para pôr o botão na linha do campo */
   --vao-da-pergunta: 8px;
   /* A altura do botão pequeno (.mini) e o desenho de cada botão da barra de formatação (B, I, listas, link), a bolinha do .mini */
@@ -723,7 +733,45 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .kcartao:hover { border-color: var(--faint) }
 .kcartao:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px }
 .kcartao.arrastando { opacity: .45; transform: rotate(1.5deg); box-shadow: 0 12px 36px rgba(0,0,0,.18) }
-.kcartao .kt { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere }
+.kcartao .kt { font-size: 15px; font-weight: 700; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; display: flex; align-items: flex-start }
+.kcartao .kt > span { min-width: 0 }
+/* O círculo de concluir antes do título (#350, ConcluirNaMiniatura), na miniatura e na linha da tabela. Fica na altura da primeira
+   linha do título (1lh: ele herda a linha do título). Vazio: só o fio --faint; no hover dele e no foco, o fio e o visto em --ok,
+   a prévia do resultado. Concluído (também só para ver): cheio de --ok, com o visto em --superficie, como o Trello e como o selo da
+   coluna-marco (.coluna-marco-selo); pequeno demais para se confundir com o botão principal (a exceção está no DESIGN.md). */
+.titulo-com-circulo { display: flex; align-items: flex-start }
+.circulo-de-concluir { flex-shrink: 0; box-sizing: border-box; width: var(--circulo-de-concluir); height: var(--circulo-de-concluir); padding: 0;
+  margin: calc((1lh - var(--circulo-de-concluir)) / 2) var(--vao-do-circulo) 0 0; font: inherit; line-height: inherit;
+  border: var(--traco-do-circulo) solid var(--faint); border-radius: 999px; background: transparent; color: transparent;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: width var(--transicao-do-circulo), margin var(--transicao-do-circulo), border-width var(--transicao-do-circulo), opacity var(--transicao-do-circulo),
+    background-color var(--transicao-do-circulo), border-color var(--transicao-do-circulo), color var(--transicao-do-circulo) }
+.circulo-de-concluir svg { flex-shrink: 0 }
+button.circulo-de-concluir[data-estado="concluir"]:is(:hover, :focus-visible) { border-color: var(--ok); color: var(--ok) }
+.circulo-de-concluir:is([data-estado="reabrir"], [data-estado="concluida"]) { background: var(--ok); border-color: var(--ok); color: var(--superficie) }
+button.circulo-de-concluir[data-estado="reabrir"]:hover { background: var(--ok-ink); border-color: var(--ok-ink) }
+.circulo-de-concluir:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.circulo-de-concluir[aria-busy="true"] { cursor: progress }
+span.circulo-de-concluir { cursor: default }
+/* A dica ("Concluir", "Reabrir") encosta à esquerda: o círculo fica no lado esquerdo, e a dica encostada à direita passaria da
+   borda da coluna (na tabela, ela abre para cima, como a do código, mais abaixo). Na tela de toque, o navegador deixa o :hover preso depois do toque: ali ela só aparece no foco do teclado. */
+.circulo-de-concluir[data-dica]::after { right: auto; left: 0 }
+@media (hover: none) { .circulo-de-concluir[data-dica]:hover:not(:focus-visible)::after { opacity: 0 } }
+/* No computador (com mouse), o círculo vazio da miniatura aparece ao passar o mouse e com o foco do teclado no cartão (ou nele),
+   e o título anda para a direita, como no Trello; o concluído fica sempre à vista. Na tabela, o círculo fica sempre à vista. */
+@media (hover: hover) and (pointer: fine) {
+  .kcartao .circulo-de-concluir[data-estado="concluir"] { width: 0; margin-right: 0; border-width: 0; opacity: 0 }
+  .kcartao:is(:hover, :focus-within) .circulo-de-concluir[data-estado="concluir"] { width: var(--circulo-de-concluir); margin-right: var(--vao-do-circulo);
+    border-width: var(--traco-do-circulo); opacity: 1 }
+}
+/* No toque, sempre à vista, e o toque vale num círculo de --alvo-de-toque, um pouco além do desenho (o ::before; o ::after é a
+   dica). Com etiquetas logo acima, o título desce um pouco, para o alvo não cobrir o x da etiqueta. */
+@media (pointer: coarse) {
+  button.circulo-de-concluir { position: relative }
+  button.circulo-de-concluir::before { content: ''; position: absolute; top: 50%; left: 50%; width: var(--alvo-de-toque); height: var(--alvo-de-toque);
+    transform: translate(-50%, -50%); border-radius: 999px }
+  :is(.kcartao > .etiquetas + .kt, .tabela td > .etiquetas + .titulo-com-circulo):has(> button.circulo-de-concluir) { margin-top: var(--folga-do-alvo-do-circulo) }
+}
 /* Detalhes do cartão, um por linha (telefone, cidade, data). */
 .kcartao .km { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px }
 /* O código do cartão e as ligações dele (#300), na mesma linha: o ícone de cada tipo e só o código; quebra entre uma e outra. */
@@ -1123,11 +1171,11 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 @media (prefers-reduced-motion: reduce) { [data-dica]::after { transition: none; transform: none } }
 /* A dica do código (peça Codigo, #84): o código fica à esquerda do cartão e da linha, então a dica encosta à esquerda dele. Na
    tabela, ela abre para cima: escondida, a caixa dela continua no desenho, e embaixo da última linha faria a tabela (que rola de
-   lado, .tabela) rolar também na vertical; o que passa para cima não cria área de rolagem. */
+   lado, .tabela) rolar também na vertical; o que passa para cima não cria área de rolagem. A do círculo de concluir (#350), também. */
 .codigo[data-dica] { cursor: help }
 .codigo[data-dica]::after { right: auto; left: 0; letter-spacing: 0 }
-.tabela .codigo[data-dica]::after { top: auto; bottom: calc(100% + 8px); transform: translateY(2px) }
-.tabela .codigo[data-dica]:is(:hover, :focus-visible)::after { transform: none }
+.tabela :is(.codigo, .circulo-de-concluir)[data-dica]::after { top: auto; bottom: calc(100% + 8px); transform: translateY(2px) }
+.tabela :is(.codigo, .circulo-de-concluir)[data-dica]:is(:hover, :focus-visible)::after { transform: none }
 /* A bolinha com "+" depois dos participantes (#356), só para quem altera o cartão: do tamanho das outras (o tamanho vem da peça),
    tracejada e discreta como um lugar vago; no foco e aberta, o contorno verde das bolinhas. */
 .equipe-mais { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; border: 1px dashed var(--line2); border-radius: 999px; background: var(--superficie); color: var(--muted); cursor: pointer }

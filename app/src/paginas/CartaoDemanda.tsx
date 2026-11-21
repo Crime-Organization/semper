@@ -19,7 +19,7 @@ import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
 import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, PrazoEditavel, Selo, TextoEditavel, TituloEditavel, Vazio } from '../ui/base';
 import { CabecaDoCartao } from '../ui/CabecaDoCartao';
 import { ConcluirNaSituacao } from '../ui/quadro/ConcluirNaSituacao';
-import { acaoDeConclusao, avisoDaConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
+import { acaoDeConclusao, colunaDaAcao, type AcaoDeConclusao } from '../regras/conclusaoNoCartao';
 import { CAMPOS_DO_PRAZO, errosDosCampos, prazoAoGravar, prazoComoEsta } from '../regras/datasNoCartao';
 import { dataDaCriacao, erroDaDataDeInicio, ROTULO_DO_INICIO } from '../regras/dataDeInicio';
 import { AvisoDaEdicaoNoLugar, gravarNoLugar, LembreteDoLapis, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
@@ -31,14 +31,13 @@ import { NaColunaDoCartao } from '../ui/PainelCartao';
 import { Recolhivel } from '../ui/Recolhivel';
 import { useQuantos } from '../ui/useQuantos';
 import { colunaComMarco } from '../regras/quadro';
-import { ordemNoFim } from '../ui/quadro/posicao';
 import type { Quadro } from '../ui/quadro/useColunas';
 import { meusGrupos } from '../regras/gruposDaEquipe';
 import { useCtx } from '../ui/sessao';
 import NovaDemanda from './NovaDemanda';
 import { relativo } from '../ui/util';
 import { SeloDoPrazo } from './Demandas';
-import { oferecerProcesso } from './concluirDemanda';
+import { concluirOuReabrirItem, mudarSituacaoDoItem, type ItemQueMuda } from './situacaoDoItem';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { HistoricoDoCartao } from './HistoricoDoCartao';
 import { novoProcessoDaDemanda, ProcessosDaDemanda } from './ProcessosDaDemanda';
@@ -124,24 +123,25 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
     if (r.excluidas) { avisar('Demanda excluída definitivamente.'); aoFechar(); aoMudar(); }
     else falha(new Error(r.motivo || 'Não foi possível excluir.'));
   }
-  /** Leva a demanda para outra coluna; `aviso` troca o texto do aviso no pé da tela (ex.: "Demanda concluída."). */
-  async function mudarSituacao(valor: string, aviso?: string) {
-    const etapa = valor || null, de = d!.etapa_id || null, ordemDe = d!.etapa_ordem ?? null, ordem = ordemNoFim();
-    try {
-      await SD.demandaMover(d!.id, etapa, ordem);
-      setD({ ...d!, etapa_id: etapa, etapa_ordem: ordem });
-      feito(aviso ?? (etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Demanda ${SEM_SITUACAO_DEMANDA.toLowerCase()}.`), 'mudança de situação',
-        async () => { await SD.demandaMover(d!.id, de, ordemDe); });
-      aoMudar(); setVersaoHist(v => v + 1);
-      void oferecerProcesso(d!, etapa, navegar);
-    } catch (e) { falha(e); }
+  // Mudar a Situação (o menu e o ✓): a gravação comum do cartão, da miniatura do quadro e da tabela (situacaoDoItem, #350).
+  /** A demanda como a gravação comum (situacaoDoItem) precisa: onde ela está agora. */
+  const comoItem = (): ItemQueMuda => ({ id: d!.id, titulo: d!.titulo, etapa_id: d!.etapa_id || null, etapa_ordem: d!.etapa_ordem ?? null });
+  /** Depois de gravar: mostra a coluna nova (a pergunta de criar o processo vem depois, da gravação comum). */
+  const depoisDeMudar = (etapa: string | null) => (ordem: number) => {
+    setD({ ...d!, etapa_id: etapa, etapa_ordem: ordem });
+    aoMudar(); setVersaoHist(v => v + 1);
+  };
+  /** Leva o item para a coluna escolhida no menu, com o aviso "Movida para …". */
+  async function mudarSituacao(valor: string) {
+    const etapa = valor || null;
+    await mudarSituacaoDoItem('demandas', comoItem(), etapa, etapa ? `Movida para "${quadro.nomeDe(etapa)}".` : `Demanda ${SEM_SITUACAO_DEMANDA.toLowerCase()}.`,
+      navegar, depoisDeMudar(etapa));
   }
 
   /** Concluir leva à coluna das concluídas (a do marco, qualquer que seja o nome), e oferece criar o processo; Reabrir, de volta à do
    * início (#397). */
   function concluirOuReabrir(acao: AcaoDeConclusao) {
-    const coluna = colunaDaAcao(quadro.colunas, acao)!;
-    return mudarSituacao(coluna.id, avisoDaConclusao('demandas', acao, coluna.nome));
+    return concluirOuReabrirItem('demandas', quadro.colunas, comoItem(), acao, navegar, depoisDeMudar(colunaDaAcao(quadro.colunas, acao)?.id ?? null));
   }
 
   /** O título e a descrição mudam no próprio lugar só por quem altera, e só com a demanda ativa (como o lápis). */
