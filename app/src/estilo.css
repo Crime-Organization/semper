@@ -434,7 +434,7 @@ h2.secao { margin: 0; font-size: 22px; font-weight: 900; letter-spacing: -.01em 
 .icone-btn:hover { background: var(--soft) }
 
 /* ---------- campos ---------- */
-/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). A linha da Situação a usa para pôr o "Expandir tudo" no meio dela. */
+/* A altura dos campos de uma linha (e dos menus): a do alvo mínimo de toque (--alvo-de-toque). */
 :root { --altura-do-campo: var(--alvo-de-toque) }
 .campo, .campos input, .campos select, .campos textarea { width: 100%; height: var(--altura-do-campo); padding: 0 12px; border-radius: 8px; border: 1px solid var(--line2); background: var(--superficie); font-size: 15px; color: var(--ink) }
 .campos textarea, textarea.campo, .campo.caixa-comentario-espelho { height: auto; min-height: 96px; padding: 10px 12px; line-height: 1.5; resize: vertical }
@@ -1136,17 +1136,44 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 /* Seção que recolhe e expande (<Recolhivel>): título clicável com a seta na ponta direita. */
 /* Toda seção do cartão abaixo do cabeçalho tem a linha fina acima (as que recolhem e as etiquetas). */
 .recolhivel, .bloco.separada { border-top: 1px solid var(--line); padding-top: 14px; gap: 14px }
-/* A situação fica no cabeçalho, logo abaixo do nome do cartão. */
-.cartao-situacao { margin-top: 16px }
-/* A situação com o botão Concluir ou Reabrir ao lado; em tela estreita, o botão desce para a linha de baixo. */
-.situacao-com-acao { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
-.situacao-com-acao select { flex: 1 1 12rem; min-width: 0 }
-/* A situação e o "Expandir tudo" das seções numa linha (#389): o menu (com o Concluir, na tarefa) ocupa o que sobra, e o botão fica
-   à direita, com o meio no eixo das setas das seções e do X (#381: a margem da direita de .secoes-todas, que o leva além da ponta
-   da linha). Pelo alto, com o botão no meio da altura do menu: quando o Concluir desce para a linha de baixo, o botão fica na do menu. */
-.situacao-linha { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao) }
-.situacao-linha > :not(.secoes-todas) { flex: 1 1 auto; min-width: 0 }
-.situacao-linha > .secoes-todas { flex-shrink: 0; margin-top: calc((var(--altura-do-campo) - var(--botao-redondo)) / 2); margin-bottom: 0 }
+/* A Situação do cartão no topo (#351, SituacaoDoCartao): um menu compacto, numa pílula com o ícone do quadro à esquerda e a seta à
+   direita, no tamanho dos botões pequenos (.mini) e com as letras dos selos (o nome da coluna, em maiúsculas). Os ícones ficam por
+   cima do menu, sem pegar o clique: a pílula toda é o menu. Desligado (o cartão arquivado, quem só lê), fica sem a seta e sem o
+   hover, como um selo com borda. Ao lado, o que vai com ela (o Concluir da tarefa). Na tela de toque, a pílula tem a altura do alvo
+   do dedo, como o menu de antes, e o Concluir e o Reabrir aceitam o toque nessa altura (o ::before, como os botões rápidos). */
+.cartao-situacao { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--botao-redondo-vao); max-width: 100% }
+/* A folga das pontas e o vão entre o ícone e o texto. O tamanho do ícone (--situacao-icone) vem de ICONE_DA_PILULA, em
+   SituacaoDoCartao.tsx, no style da pílula: um lugar só. */
+.situacao-compacta { --situacao-folga: 10px; --situacao-vao: 6px;
+  position: relative; display: inline-flex; min-width: 0; max-width: 100%; color: var(--text2) }
+.situacao-compacta > svg, .situacao-seta { position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none }
+.situacao-compacta > svg { left: calc(var(--situacao-folga) + 1px) }
+.situacao-seta { right: var(--situacao-folga); display: inline-flex }
+.situacao-compacta select { appearance: none; min-width: 0; max-width: 100%; height: var(--botao-mini); border: 1px solid var(--line2); border-radius: 999px;
+  padding: 0 calc(var(--situacao-folga) + var(--situacao-icone) + var(--situacao-vao)); background: var(--superficie); color: var(--ink);
+  font-size: var(--texto-miudo); font-weight: 900; letter-spacing: .06em; text-overflow: ellipsis; cursor: pointer; field-sizing: content }
+.situacao-compacta select option { background: var(--superficie); color: var(--ink) }
+.situacao-compacta select:hover:not(:disabled) { background: var(--soft) }
+.situacao-compacta select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.situacao-compacta select:disabled { padding-right: var(--situacao-folga); color: var(--text2); cursor: default; opacity: 1 }
+.situacao-compacta:has(select:disabled) .situacao-seta { display: none }
+.situacao-acao { display: inline-flex }
+@media (pointer: coarse) { .situacao-compacta select { height: var(--alvo-de-toque) } }
+/* A linha dos botões rápidos (#351, AtalhosDoCartao), no pé da cabeça do cartão: os botões pequenos (.mini) à esquerda, que descem
+   para a linha de baixo quando não cabem, e o "Expandir tudo" das seções à direita, com o meio no eixo das setas das seções e do X
+   (#381: a margem da direita de .secoes-todas, que o leva além da ponta da linha), no meio da altura da primeira linha de botões.
+   Na tela de toque, cada botão aceita o toque na altura do alvo do dedo (o ::before); o vão entre as linhas é o que falta do botão
+   até o alvo, e um toque não cai no botão de baixo. O Concluir e o Reabrir da tarefa, ao lado da Situação, ganham o mesmo alvo. Sem
+   botões nem "Expandir tudo", a linha não ocupa nada. */
+:root { --vao-acima-dos-atalhos: 16px }
+.cartao-atalhos { display: flex; align-items: flex-start; gap: var(--botao-redondo-vao); margin-top: var(--vao-acima-dos-atalhos) }
+.cartao-atalhos:empty { display: none }
+.cartao-atalhos-botoes { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; gap: calc(var(--alvo-de-toque) - var(--botao-mini)) var(--botao-redondo-vao) }
+.cartao-atalhos > .secoes-todas { flex-shrink: 0; margin-left: auto; margin-top: calc((var(--botao-mini) - var(--botao-redondo)) / 2); margin-bottom: 0 }
+@media (pointer: coarse) {
+  .cartao-atalhos-botoes > .mini, .situacao-acao > .mini { position: relative }
+  .cartao-atalhos-botoes > .mini::before, .situacao-acao > .mini::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--alvo-de-toque); transform: translateY(-50%) }
+}
 .recolher { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer }
 .recolher:hover { color: var(--ink) }
 /* Seção com "+": o botão do título fica do tamanho do texto, o "+" logo depois do número e o resto da linha, até a seta,

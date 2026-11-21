@@ -1,7 +1,8 @@
 // No cartão do processo: o alerta dos prazos vencidos e dos que vencem hoje, a seção de prazos (no corpo do cartão) e a de
 // andamentos (desde a #362, na coluna da direita, entre os comentários e as anotações; ao lado, no pé do cartão).
 // As duas seções leem juntas, uma vez, ao abrir o cartão (useAcompanhamento): o alerta e os contadores aparecem mesmo com as
-// seções fechadas, e a intimação dos andamentos sabe dos prazos que nasceram dela.
+// seções fechadas, e a intimação dos andamentos sabe dos prazos que nasceram dela. O "+" dos prazos também é o botão rápido "Datas"
+// do cartão do processo (#351): abre a seção e o formulário do prazo novo.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { SD, type AndamentoDeProcesso, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { alertaDosPrazos, aTratar } from '../../regras/andamentos';
@@ -66,7 +67,7 @@ export function PrazosDoProcesso({ processo: p, acompanhamento: { lido, mudou },
   return <>
     {alerta && <Aviso tipo="erro">{alerta}</Aviso>}
     <Recolhivel titulo="Prazos" icone="calendario" preferencia="processos.cartao.prazos" contador={prazos?.filter(z => !z.concluido_em).length}
-      novo={somenteLer ? undefined : { rotulo: ROTULO_DO_NOVO_PRAZO }}>
+      novo={somenteLer ? undefined : { rotulo: ROTULO_DO_NOVO_PRAZO }} atalho="datas">
       <ConformeLido lido={lido}>
         {l => <Prazos processo={p} prazos={l.prazos} orgao={orgaoDe(p, l.orgaos)} somenteLer={somenteLer} aoMudar={mudou} />}
       </ConformeLido>

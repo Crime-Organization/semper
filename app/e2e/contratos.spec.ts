@@ -127,9 +127,10 @@ test.describe('Cadastro de contratos', () => {
     await expect(cartao.getByRole('definition').filter({ hasText: '45%' })).toBeVisible();
     // Os participantes são da equipe: ficam em bolinhas com o responsável, ao lado das ações; o indicador, de fora, fica nas partes.
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    // A situação fica logo abaixo do nome; as etiquetas ficam no topo (#382: o ícone e os selos acima do nome, conferidos em
-    // topo-do-cartao.spec.ts), e não numa seção.
-    expect(blocos[0]).toBe('Situação');
+    // A situação e as etiquetas ficam no topo (a situação num menu compacto, #351; as etiquetas, #382: o ícone e os selos acima do
+    // nome, conferidos em topo-do-cartao.spec.ts), e não numa seção.
+    expect(blocos).not.toContain('Situação');
+    await expect(cartao.getByRole('combobox', { name: 'Situação do contrato' })).toBeVisible();
     expect(blocos).not.toContain('Etiquetas');
     await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Participante · 10%', exact: true })).toBeVisible();
@@ -510,9 +511,10 @@ test.describe('Ligações em quadrinhos', () => {
     // O responsável é da equipe: fica em bolinha ao lado das ações, fora das partes (as pessoas de fora do escritório).
     await expect(cartao.getByRole('group', { name: 'Equipe' }).getByRole('button', { name: 'Bruno Exemplo Souza, Advogado responsável', exact: true })).toBeVisible();
     const blocos = (await cartao.getByRole('heading', { level: 3 }).allTextContents()).map(t => t.trim());
-    // A situação fica logo abaixo do nome; as etiquetas ficam no topo (#382: o ícone e os selos acima do nome, conferidos em
-    // topo-do-cartao.spec.ts), e não numa seção.
-    expect(blocos[0]).toBe('Situação');
+    // A situação e as etiquetas ficam no topo (a situação num menu compacto, #351; as etiquetas, #382: o ícone e os selos acima do
+    // nome, conferidos em topo-do-cartao.spec.ts), e não numa seção.
+    expect(blocos).not.toContain('Situação');
+    await expect(cartao.getByRole('combobox', { name: 'Situação do contrato' })).toBeVisible();
     expect(blocos).not.toContain('Etiquetas');
     await expect(cartao.getByRole('button', { name: 'Escolher etiquetas' })).toBeVisible();
     // Quando

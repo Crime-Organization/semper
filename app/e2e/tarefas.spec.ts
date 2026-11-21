@@ -341,7 +341,7 @@ test.describe('Título e descrição no próprio lugar (#346)', () => {
     // Quando: clica fora
     await cartao.getByRole('button', { name: 'Renovar a procuração', exact: true }).click();
     await campo.fill('Renovar a procuração já');
-    await cartao.getByRole('heading', { name: 'Situação', level: 3 }).click();
+    await cartao.getByText('Criada em', { exact: true }).click();
     // Então
     await expect(cartao.getByRole('heading', { name: 'Renovar a procuração já', level: 2 })).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: 'Tarefa atualizada.' })).toBeVisible();

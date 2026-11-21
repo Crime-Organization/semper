@@ -97,6 +97,11 @@ export const ICONE_DO_MODULO: Record<ModuloComentado, NomeIcone> = {
   compromissos: 'calendario',
   anotacoes: 'documentos'
 };
+/**
+ * Tamanho dos ícones dos botões pequenos do cartão (.mini): o "+" do título das seções, os botões rápidos (#351) e o Concluir e o
+ * Reabrir da tarefa, ao lado da Situação.
+ */
+export const ICONE_DO_MINI = 15;
 
 /** Tamanho dos ícones dos botões pequenos (mini) das listas: Arquivar, Desarquivar e Excluir (#347). */
 export const ICONE_DO_BOTAO_PEQUENO = 15;

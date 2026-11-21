@@ -7,7 +7,8 @@
 // estreita, no pé do cartão, na mesma ordem), e cada anotação aparece como um comentário (ComoComentario): quem a escreveu e quando
 // ela mudou, e, num balão de fundo próprio (--fundo-da-anotacao, para não se misturar aos comentários), o título e o começo do texto
 // (inicioDaAnotacao), nunca o texto inteiro. O item todo é o link que abre a anotação em Documentos. O texto só é lido com a seção
-// aberta (o Recolhivel só monta o que tem dentro quando aberto): pode ser longo, e a leitura do número fica leve.
+// aberta (o Recolhivel só monta o que tem dentro quando aberto): pode ser longo, e a leitura do número fica leve. O "+" do título também
+// é o botão rápido "Anotação" do cartão (#351), que abre a anotação nova do mesmo jeito.
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router';
 import { SD, type AnotacaoLigada, type AnotacaoLigadaComTexto, type AnotacaoParaLigar, type ModuloDaAnotacao } from '../dados';
@@ -78,7 +79,7 @@ export function AnotacoesDoCartao({ modulo, id, somenteLer = false }: Props) {
     } catch (e) { falha(e); }
   }
 
-  return <Recolhivel titulo="Anotações" icone="documentos" preferencia={preferenciaDasAnotacoes(modulo)} contador={Array.isArray(lista) ? lista.length : undefined} novo={novo}>
+  return <Recolhivel titulo="Anotações" icone="documentos" preferencia={preferenciaDasAnotacoes(modulo)} contador={Array.isArray(lista) ? lista.length : undefined} novo={novo} atalho="anotacao">
     {lista === null ? <Carregando />
       : typeof lista === 'string' ? <Aviso tipo="erro">{lista}</Aviso>
       : !lista.length ? <Nota>{VAZIO[modulo]}</Nota>
