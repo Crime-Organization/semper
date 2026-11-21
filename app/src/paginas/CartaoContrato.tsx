@@ -6,7 +6,12 @@
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { contratoComAssinatura, erroDaAssinatura, objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { AINDA_SEM_DEMANDA, avisoDosObjetosNovos, CRIAR_ESTA_DEMANDA, diasDeNegociacao, objetosNovosSemDemanda, objetosSemDemanda, textoDaNegociacao } from '../regras/contrato';
+import { fmtData } from '../regras/pessoa';
+import { Botao } from '../ui/Botoes';
+import { Icone } from '../ui/Icone';
+import { useNavigate } from 'react-router';
+import { contratoComAssinatura, erroDaAssinatura, objetosDefinidos, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
@@ -80,10 +85,10 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // Os processos ligados (os que a pessoa não pode abrir também contam).
   const processosLidos = useLista(() => SD.processosDoContrato(id).then(x => [x]), chave, !!modulos?.processos)?.[0];
   const processosDoContrato = useCallback(() => SD.processosDoContrato(id), [id]);
-  // Os objetos que ainda não viraram demanda (ficam na lista das demandas, sem link).
-  // Só antes de o contrato ser assinado: depois, a demanda de cada objeto já nasceu (e, se não existe mais, foi excluída).
-  const objetosSemDemanda = k && !chegouAoAssinado(quadro.colunas, k.etapa_id, k.assinado_em)
-    ? objetosEDemandas(objetosDefinidos(k.objetos), demandas ?? []).filter(x => !x.demanda).map(x => x.objeto) : [];
+  const navegar = useNavigate();
+  // Os objetos que ainda não viraram demanda (#349): ficam na lista das demandas, sem link, em qualquer coluna (assinado ou não,
+  // com data de assinatura ou não), cada um com o botão de criar a demanda dele na hora.
+  const pendentes = k && demandas ? objetosSemDemanda(k.objetos, demandas) : [];
   // O contrato criado sozinho do cliente fechado ainda com o objeto "A definir" (#269).
   const semObjeto = !!k && !objetosDefinidos(k.objetos).length;
 
@@ -100,6 +105,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const meus = meusGrupos(ctx.grupos, ctx.perfil.id), peloGrupo = podeAlterar ? undefined : gruposDoItem(ctx.grupos, k.grupos).find(g => meus.includes(g.id));
   const oculto = k.ve_financeiro === false, semValores = !podeAlterar && (equipeEditaTudo(ctx.escritorio) || !!peloGrupo);
   const parcela = valorParcela(k.valor, k.entrada, k.parcelas, k.descontos);
+  // Quantos dias a negociação levou (#311): do início das negociações à assinatura.
+  const negociacao = diasDeNegociacao(k.negociacao_inicio, k.assinado_em);
   const doResponsavel = percentualResponsavel(k.percentual_escritorio, k.participantes.map(p => p.percentual), k.indicador_percentual);
   // O responsável e os participantes são da equipe (informação interna): ficam em bolinhas ao lado das ações, cada uma com
   // o papel e o link para o cartão da pessoa. As partes são as pessoas de fora do escritório: os clientes, o indicador e
@@ -118,6 +125,9 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   // valores), com ele ativo. Depois, as seções e os contadores leem de novo.
   const podeLigar = !k.arquivado_em && (podeAlterar || semValores);
   const depoisDeLigar = () => { aoMudar(); setVersaoHist(v => v + 1); };
+  // Criar na hora a demanda de um objeto (#349): quem altera o contrato (como privado.altero_o_contrato, também na fase de adaptação),
+  // com ele ativo. O grupo da equipe não conta, como no banco.
+  const criaDemanda = !k.arquivado_em && (podeAlterar || equipeEditaTudo(ctx.escritorio));
   // O cadastro do processo que nasce ligado a este contrato (#376).
   const novoProcesso = '/processos/novo/?contrato=' + k.id;
   // Depois de mudar a equipe nas bolinhas: a lista (a coluna do responsável), o cartão e o histórico leem de novo.
@@ -152,7 +162,34 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
   function terminarEdicao(salvou: boolean) {
     setEditando(false);
-    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
+    if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); void oferecerDemandasNovas(k!.objetos); }
+  }
+  /** As demandas dos objetos, na hora (#349): cada uma ligada ao contrato e ao objeto; depois, a seção e os contadores leem de novo. */
+  async function criarDemandas(objetos: string[]) {
+    try {
+      const criadas = [];
+      for (const objeto of objetos) criadas.push(await SD.contratoCriarDemanda(k!.id, objeto));
+      const [uma] = criadas;
+      avisar(criadas.length > 1 ? `${criadas.length} demandas criadas.` : `Demanda criada: ${objetos[0]}.`, 'ok',
+        criadas.length === 1 ? { rotulo: 'Abrir a demanda', fn: () => navegar('/demandas/?id=' + uma.id) } : undefined);
+    } catch (e) { falha(e); }
+    depoisDeLigar();
+  }
+  /**
+   * Depois de salvar no lápis (#349): se o contrato já assinado ganhou objetos que ainda não têm demanda (só os que entraram no lugar
+   * do "A definir" nascem sozinhos), o aviso oferece criar as demandas deles.
+   */
+  async function oferecerDemandasNovas(antes: string[]) {
+    // Só para quem pode criar a demanda: quem está no contrato só por um grupo edita os objetos, mas o banco recusaria o botão.
+    if (!modulos?.demandas || !criaDemanda) return;
+    try {
+      const [novo, ligadas] = await Promise.all([SD.contratoVer(id), SD.demandasDoContrato(id)]);
+      if (!novo || !chegouAoAssinado(quadro.colunas, novo.etapa_id, novo.assinado_em)) return;
+      const novos = objetosNovosSemDemanda(antes, novo.objetos, ligadas);
+      if (!novos.length) return;
+      const { texto, rotulo } = avisoDosObjetosNovos(novos);
+      avisar(texto, 'info', { rotulo, fn: () => void criarDemandas(novos) });
+    } catch (e) { falha(e); }
   }
   /**
    * A assinatura mudada no próprio lugar (#395), como o início da tarefa: grava pela mesma função do lápis (com o histórico), a
@@ -199,10 +236,13 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
          valores do contrato também não vê a assinatura, como antes, e aí não há dados (#385): sobraria só a criação, que o
          rodapé já mostra. Quem altera o contrato muda a assinatura ali mesmo (#395), como o início da tarefa. */
       dados={!oculto && <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
+        {/* O início das negociações (#311), antes da assinatura, e, com as duas datas, quantos dias a negociação levou. */}
+        {k.negociacao_inicio && <DadoDoGrupo rotulo="Início das negociações"><b className="num">{fmtData(k.negociacao_inicio)}</b></DadoDoGrupo>}
         <DadoDoGrupo rotulo="Assinado em">
           <DataEditavel key={'assinatura-' + noLugar.chave} nome="Data da assinatura" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
             aoMudarRascunho={noLugar.rascunhoDe('assinatura')} aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
         </DadoDoGrupo>
+        {negociacao !== null && <DadoDoGrupo rotulo="Negociação"><b className="num">{textoDaNegociacao(negociacao)}</b></DadoDoGrupo>}
       </FaixaDasDatas>} />
 
     {editando ? <NovoContrato edicao={{ id: k.id, aoTerminar: terminarEdicao, semValores }} /> : <>
@@ -217,10 +257,12 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
 
     {/* As demandas são os objetos do contrato: cada objeto é a demanda que nasceu dele. O objeto que ainda não virou
         demanda (o contrato não chegou ao assinado) aparece na mesma lista, sem link. */}
-    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + objetosSemDemanda.length : undefined} novo={oculto && !semValores ? undefined : { para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
+    {modulos?.demandas ? <Recolhivel titulo="Demandas" icone="demandas" preferencia="contratos.cartao.demandas" contador={demandas ? demandas.length + pendentes.length : undefined} novo={oculto && !semValores ? undefined : { para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda deste contrato' }}>
       {semObjeto && <Aviso tipo="info">{SEM_OBJETO_DEFINIDO}</Aviso>}
       <CartoesLigados modulo="demandas" rotulo="Demandas do contrato" carregar={() => SD.demandasDoContrato(k.id)} vazio="Nenhum objeto cadastrado neste contrato." versao={versaoHist}
-        antes={objetosSemDemanda.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: 'Objeto do contrato · vira demanda quando o contrato for assinado' }))} />
+        antes={pendentes.map((objeto, i) => ({ id: 'objeto-' + i, titulo: objeto, detalhe: AINDA_SEM_DEMANDA,
+          acao: criaDemanda ? <Botao forma="mini" ocupadoTexto="Criando…" aria-label={`${CRIAR_ESTA_DEMANDA}: ${objeto}`} onClick={() => criarDemandas([objeto])}>
+            <Icone nome="mais" tam={13} /> {CRIAR_ESTA_DEMANDA}</Botao> : undefined }))} />
       {podeLigar && <AcoesDosLigados novo={{ para: '/demandas/nova/?contrato=' + k.id, rotulo: 'Nova demanda' }}>
         <LigarDoModulo modulo="demandas" filtro={{ sem: 'contratos' }} aviso="Quem está neste contrato passa a ver, só para ler, a demanda que você ligar e as tarefas dela."
           aoEscolher={d => ligarEAvisar(() => ligarNoItem('contrato da demanda', d.id, k.id),

@@ -393,7 +393,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
     inputMode: 'decimal', placeholder: '0,00',
     onBlur: e => { try { mudar({ [nome]: dinheiroNoCampo(lerDinheiro(e.target.value)) }); } catch { /* o erro aparece ao seguir */ } }
   }, dica);
-  const data = (nome: 'assinadoEm' | 'primeiroPagamento') =>
+  const data = (nome: 'negociacaoInicio' | 'assinadoEm' | 'primeiroPagamento') =>
     <CampoData {...propsDoCampo(nome, { erro: erros[nome] })} valor={c[nome]} aoMudar={v => mudar({ [nome]: v })} />;
   const radios = (nome: 'categoria' | 'percentualEscritorio', opcoes: [string, string][]) => opcoes.map(([v, t]) =>
     <label key={v || 'nenhum'}><input type="radio" name={nome} value={v} checked={c[nome] === v} onChange={() => mudar({ [nome]: v })} />{t}</label>);
@@ -473,6 +473,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         <Campo rotulo="Descontos" para="descontos" erro={erros.descontos}>{dinheiro('descontos')}</Campo>
       </div>
       <div className="grade-campos">
+        <Campo rotulo="Início das negociações" para="negociacaoInicio" erro={erros.negociacaoInicio}>{data('negociacaoInicio')}</Campo>
         <Campo rotulo="Assinado em" para="assinadoEm" erro={erros.assinadoEm}>{data('assinadoEm')}</Campo>
         <Campo rotulo="Primeiro pagamento" para="primeiroPagamento" erro={erros.primeiroPagamento}>{data('primeiroPagamento')}</Campo>
       </div>

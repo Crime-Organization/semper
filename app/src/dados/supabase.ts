@@ -285,16 +285,16 @@ const conferirQueAPastaExiste = (linha: unknown) => { if (!linha) throw new Erro
 
 // ---------- contratos ----------
 const PESSOA_RESUMIDA = 'id, codigo, nome, tipo, arquivado_em';
-const CAMPOS_CONTRATO_LISTA = 've_financeiro, id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, etapa_id, etapa_ordem, arquivado_em, '
+const CAMPOS_CONTRATO_LISTA = 've_financeiro, id, codigo, codigo_antigo, servico, categoria, valor, responsavel_id, negociacao_inicio, etapa_id, etapa_ordem, arquivado_em, '
   + 'criado_por, criado_em, atualizado_em, cliente_nome, grupos';
 const CAMPOS_CONTRATO = 'id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
-  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
+  + 'descontos, negociacao_inicio, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, '
   + 'documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, grupos, '
   + `indicador:pessoas!contratos_indicador_id_fkey(${PESSOA_RESUMIDA}), clientela:contrato_clientes(ordem, pessoa:pessoas(${PESSOA_RESUMIDA})), `
   + `participacoes:contrato_participantes(percentual, ordem, pessoa:pessoas(${PESSOA_RESUMIDA}))`;
 /** Os mesmos campos, lidos da view: ela já traz os clientes e os participantes prontos. O indicador não vem: quem não é parte não o vê. */
 const CAMPOS_CONTRATO_DA_EQUIPE = 've_financeiro, id, codigo, numero, sigla, ano, codigo_antigo, cliente_id, cliente_nome, responsavel_id, objetos, servico, categoria, valor, entrada, parcelas, '
-  + 'descontos, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, '
+  + 'descontos, negociacao_inicio, assinado_em, primeiro_pagamento, percentual_escritorio, indicador_id, indicador_percentual, documento_url, conta_destino_id, observacoes, etapa_id, etapa_ordem, '
   + 'arquivado_em, arquivado_por, criado_por, criado_em, atualizado_por, atualizado_em, clientela, participacoes, grupos';
 /** Clientes e participantes do contrato na ordem do cadastro (o banco os copia das listas gravadas no contrato). */
 type ContratoLido = Omit<Contrato, 'clientes' | 'participantes'> & {
@@ -381,6 +381,7 @@ function filtrarDemandas(q: Livre, f: FiltroDemandas = {}) {
   if (f.paraLigar && ctx && !ctx.ehAdmin) q = q.or(`responsavel_id.eq.${uid()},criado_por.eq.${uid()},colaboradores.cs.{${uid()}}`);
   q = f.situacao === 'arquivadas' ? q.not('arquivado_em', 'is', null) : q.is('arquivado_em', null);
   if (f.pessoa) q = q.or(`responsavel_id.eq.${f.pessoa},colaboradores.cs.{${f.pessoa}}`);
+  if (f.contrato === 'sem') q = q.is('contrato_id', null);
   const t = termoBusca(f.termo);
   if (t) q = q.ilike('busca', `%${t}%`);
   return q;
@@ -1108,6 +1109,8 @@ export const SD: Dados = {
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
   },
+  // A função do banco confere quem pode e não repete a demanda do objeto (supabase/migrations/20261121223632_objetos_sem_demanda.sql).
+  contratoCriarDemanda: (contratoId, objeto) => rpc('contrato_criar_demanda', { p_contrato: contratoId, p_objeto: objeto }) as Promise<{ id: string; codigo: string }>,
 
   // ---------- compromissos ----------
   async compromissosListar(f = {}) {

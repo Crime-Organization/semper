@@ -6,6 +6,7 @@ import { CLIENTES_MAXIMOS, OBJETOS_MAXIMOS, PARCELAS_MAXIMAS, PARTICIPANTES_MAXI
 import { dig, fmtData, lerData } from './pessoa';
 import { normal } from './texto';
 import { CAMPOS_DO_PEDIDO_NO_HISTORICO } from './pedidoDeParticipacao';
+import { DIA } from '../ui/tempos';
 
 export const CATEGORIAS: Record<CategoriaHonorario, string> = {
   pro_labore: 'Pró-labore',
@@ -115,6 +116,8 @@ export interface CamposContrato {
   entrada: string;
   parcelas: string;
   descontos: string;
+  /** Quando a negociação começou (#311). */
+  negociacaoInicio: string;
   assinadoEm: string;
   primeiroPagamento: string;
   percentualEscritorio: string;
@@ -129,7 +132,7 @@ export interface CamposContrato {
   codigoAntigo: string;
 }
 export const CONTRATO_VAZIO: CamposContrato = {
-  clientes: [''], responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', assinadoEm: '',
+  clientes: [''], responsavelId: '', objetos: [''], categoria: '', valor: '', entrada: '', parcelas: '', descontos: '', negociacaoInicio: '', assinadoEm: '',
   primeiroPagamento: '', percentualEscritorio: '', participantes: [], indicadorId: '', indicadorPercentual: '',
   documentoUrl: '', contaDestinoId: '', observacoes: '', codigoAntigo: ''
 };
@@ -194,6 +197,10 @@ const CONFERENCIAS: Partial<Record<CampoComErro, Conferencia[]>> = {
     const n = Number(t);
     return Number.isInteger(n) && n >= 1 && n <= PARCELAS_MAXIMAS ? null : `Informe de 1 a ${PARCELAS_MAXIMAS} parcelas.`;
   }],
+  negociacaoInicio: [data('negociacaoInicio'), c => {
+    const inicio = quieto(lerData, c.negociacaoInicio), assinatura = quieto(lerData, c.assinadoEm);
+    return inicio && assinatura && inicio > assinatura ? 'O início das negociações não pode ser depois da assinatura.' : null;
+  }],
   assinadoEm: [data('assinadoEm')],
   primeiroPagamento: [data('primeiroPagamento')],
   participantes: [
@@ -226,7 +233,7 @@ export function dadosDoContrato(c: CamposContrato): DadosContrato {
   return {
     clientes: [...new Set(c.clientes.filter(Boolean))], responsavel_id: c.responsavelId, objetos: limparObjetos(c.objetos), servico: juntarObjetos(c.objetos), categoria: c.categoria as CategoriaHonorario,
     valor: lerDinheiro(c.valor), entrada: lerDinheiro(c.entrada), parcelas: parcelas ? Number(parcelas) : null, descontos: lerDinheiro(c.descontos),
-    assinado_em: lerData(c.assinadoEm), primeiro_pagamento: lerData(c.primeiroPagamento),
+    negociacao_inicio: lerData(c.negociacaoInicio), assinado_em: lerData(c.assinadoEm), primeiro_pagamento: lerData(c.primeiroPagamento),
     percentual_escritorio: c.percentualEscritorio ? Number(c.percentualEscritorio) : null,
     participantes: preenchidos(c).map(p => ({ pessoa_id: p.pessoaId, percentual: lerPercentual(p.percentual) })),
     indicador_id: c.indicadorId || null, indicador_percentual: c.indicadorId ? lerPercentual(c.indicadorPercentual) : null,
@@ -256,7 +263,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
   return {
     clientes: k.clientes.length ? k.clientes.map(p => p.id) : [''], responsavelId: k.responsavel_id, objetos: k.objetos.length ? [...k.objetos] : [''], categoria: k.categoria,
     valor: dinheiroNoCampo(k.valor), entrada: dinheiroNoCampo(k.entrada), parcelas: k.parcelas ? String(k.parcelas) : '',
-    descontos: dinheiroNoCampo(k.descontos), assinadoEm: fmtData(k.assinado_em), primeiroPagamento: fmtData(k.primeiro_pagamento),
+    descontos: dinheiroNoCampo(k.descontos), negociacaoInicio: fmtData(k.negociacao_inicio), assinadoEm: fmtData(k.assinado_em), primeiroPagamento: fmtData(k.primeiro_pagamento),
     percentualEscritorio: k.percentual_escritorio === null ? '' : String(k.percentual_escritorio),
     participantes: k.participantes.map(p => ({ pessoaId: p.pessoa.id, percentual: pct(p.percentual) })),
     indicadorId: k.indicador_id || '', indicadorPercentual: pct(k.indicador_percentual),
@@ -267,7 +274,7 @@ export function camposDoContrato(k: Contrato): CamposContrato {
 /** Nome de cada campo no histórico de alterações do contrato. */
 export const CAMPOS_CONTRATO: Record<string, string> = {
   cliente_id: 'Cliente', clientes: 'Clientes', responsavel_id: 'Responsável', servico: 'Objetos do contrato', categoria: 'Categoria', valor: 'Valor do contrato',
-  entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
+  entrada: 'Entrada', parcelas: 'Parcelas', descontos: 'Descontos', negociacao_inicio: 'Início das negociações', assinado_em: 'Assinado em', primeiro_pagamento: 'Primeiro pagamento',
   percentual_escritorio: 'Enviado à conta da empresa', participantes: 'Participantes', participante_id: 'Participante', participante_percentual: '% do participante',
   indicador_id: 'Indicador', indicador_percentual: '% do indicador', documento_url: 'Documento no Drive', conta_destino_id: 'Conta de destino', observacoes: 'Observações',
   codigo_antigo: 'Código antigo', etapa: 'Situação', arquivado_em: 'Arquivamento', ...CAMPOS_DO_PEDIDO_NO_HISTORICO
@@ -279,7 +286,7 @@ const FORMATOS: Record<string, (v: unknown) => string> = {
   percentual_escritorio: v => fmtPercentual(Number(v)), participante_percentual: v => fmtPercentual(Number(v)),
   indicador_percentual: v => fmtPercentual(Number(v)),
   categoria: v => CATEGORIAS[v as CategoriaHonorario] ?? String(v),
-  assinado_em: v => fmtData(String(v)), primeiro_pagamento: v => fmtData(String(v))
+  negociacao_inicio: v => fmtData(String(v)), assinado_em: v => fmtData(String(v)), primeiro_pagamento: v => fmtData(String(v))
 };
 export function valorLegivelContrato(campo: string, v: unknown): string {
   return v === null || v === undefined || v === '' ? '—' : (FORMATOS[campo] ?? String)(v);
@@ -305,7 +312,7 @@ export const ETAPAS_CONTRATO: DefinicaoEtapa[] = [
   { id: 'objetos', titulo: 'O que foi contratado', texto: 'Cada objeto vira uma demanda quando o contrato for assinado.',
     campos: ['objetos', 'categoria'] },
   { id: 'honorarios', titulo: 'Honorários', texto: 'Valores e datas. Nada aqui é obrigatório.',
-    campos: ['valor', 'entrada', 'parcelas', 'descontos', 'assinadoEm', 'primeiroPagamento'] },
+    campos: ['valor', 'entrada', 'parcelas', 'descontos', 'negociacaoInicio', 'assinadoEm', 'primeiroPagamento'] },
   { id: 'divisao', titulo: 'Divisão', texto: 'Os percentuais são sobre o líquido: o que o cliente pagou, menos o DAS e a taxa da máquina. Com tudo na conta, o escritório fica com 30%, ou 20% se houver indicador ou outro advogado.',
     campos: ['percentualEscritorio', 'participantes', 'indicadorId', 'indicadorPercentual', 'divisao'] },
   { id: 'documento', titulo: 'Documento e observações', texto: 'O contrato assinado fica na pasta do Drive: cole o link aqui.',
@@ -379,3 +386,39 @@ export const objetosDefinidos = (objetos: string[]) => limparObjetos(objetos).fi
 export function objetosEDemandas<D extends { objeto: string | null }>(objetos: string[], demandas: D[]): { objeto: string; demanda: D | null }[] {
   return objetos.map(objeto => ({ objeto, demanda: demandas.find(d => d.objeto === objeto) ?? null }));
 }
+
+/** O mesmo objeto, sem diferença de maiúsculas, acentos e espaços nas pontas (como o banco compara, em privado.mesmo_objeto). */
+export const mesmoObjeto = (a: string | null, b: string | null) => normal(a) === normal(b);
+/**
+ * Os objetos de verdade do contrato que ainda não viraram demanda (#349), na ordem do contrato: nenhuma demanda dele guarda o mesmo
+ * objeto. Valem em qualquer coluna, assinado ou não.
+ */
+export const objetosSemDemanda = (objetos: string[], demandas: { objeto: string | null }[]) =>
+  objetosDefinidos(objetos).filter(o => !demandas.some(d => mesmoObjeto(d.objeto, o)));
+/** Os objetos que entraram no contrato (não estavam em `antes`) e ainda não têm demanda: o que o SEMPER oferece criar ao salvar. */
+export const objetosNovosSemDemanda = (antes: string[], depois: string[], demandas: { objeto: string | null }[]) =>
+  objetosSemDemanda(depois, demandas).filter(o => !antes.some(a => mesmoObjeto(a, o)));
+/** O texto embaixo do objeto que ainda não virou demanda, no cartão do contrato. */
+export const AINDA_SEM_DEMANDA = 'Objeto do contrato · ainda sem demanda';
+/** O nome do botão que cria a demanda de um objeto, na hora. */
+export const CRIAR_ESTA_DEMANDA = 'Criar esta demanda agora';
+/** O aviso de quando o contrato assinado ganha objetos sem demanda, ao salvar: "O objeto X ainda não tem demanda." */
+export function avisoDosObjetosNovos(objetos: string[]): { texto: string; rotulo: string } {
+  const nomes = nomesPorExtenso(objetos.map(o => `"${o}"`));
+  return objetos.length > 1
+    ? { texto: `Os objetos ${nomes} ainda não têm demanda.`, rotulo: 'Criar as demandas' }
+    : { texto: `O objeto ${nomes} ainda não tem demanda.`, rotulo: 'Criar a demanda' };
+}
+
+// ---------- negociação (#311) ----------
+/**
+ * Quantos dias a negociação levou: do início das negociações à assinatura (datas aaaa-mm-dd, como o banco guarda). null sem uma das
+ * duas, ou com o início depois da assinatura (o cadastro não deixa, mas a assinatura muda também no próprio cartão).
+ */
+export function diasDeNegociacao(inicio: string | null, assinatura: string | null): number | null {
+  if (!inicio || !assinatura) return null;
+  const dias = Math.round((Date.parse(assinatura) - Date.parse(inicio)) / DIA);
+  return Number.isNaN(dias) || dias < 0 ? null : dias;
+}
+/** Os dias da negociação como o cartão mostra: "No mesmo dia", "1 dia", "1.200 dias". */
+export const textoDaNegociacao = (dias: number) => dias === 0 ? 'No mesmo dia' : `${dias.toLocaleString('pt-BR')} ${dias === 1 ? 'dia' : 'dias'}`;
