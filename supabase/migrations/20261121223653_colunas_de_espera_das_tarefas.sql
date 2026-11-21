@@ -85,7 +85,7 @@ begin
   if p_grupo_novo is not null then
     select g.id into v_grupo from public.quadro_grupos g
     where g.escritorio_id = p_escritorio and g.modulo = p_modulo and privado.chave_da_coluna(g.nome) = privado.chave_da_coluna(p_grupo_novo)
-    limit 1;
+    order by g.ordem limit 1;   -- o de menor ordem, como no site (planoDasColunasNovas)
     if v_grupo is not null then
       -- O grupo já existe (criado à mão): as colunas entram no fim dele.
       select max(c.ordem) into v_anterior from public.quadro_colunas c where c.grupo_id = v_grupo;

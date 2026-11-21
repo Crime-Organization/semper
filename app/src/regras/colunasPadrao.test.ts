@@ -107,6 +107,15 @@ describe('Colunas padrão novas num grupo novo', () => {
     // Então
     expect(plano).toEqual({ grupoNovo: null, grupoId: 'g3', colunas: [{ nome: 'Aguardando MP', ordem: 8 }, { nome: 'Em acompanhamento', ordem: 9 }] });
   });
+
+  it('dado dois grupos de nome parecido criados à mão, quando planeja, então as colunas entram no de menor ordem, como no banco', () => {
+    // Dado
+    const grupos = [...GRUPOS, { id: 'g4', nome: 'Acompanhamento.', ordem: 60 }, { id: 'g3', nome: 'ACOMPANHAMENTO', ordem: 50 }];
+    // Quando
+    const plano = planoDasColunasNovas(COLUNAS, grupos, NOVAS);
+    // Então
+    expect(plano?.grupoId).toBe('g3');
+  });
 });
 
 describe('Colunas de acompanhamento dos processos judiciais (#315)', () => {

@@ -2,7 +2,7 @@
 -- Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo fica numa transação desfeita no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(21);
 
 create function pg_temp.nomes(p_escritorio uuid) returns text language sql as $$
   select string_agg(nome, ' | ' order by ordem) from public.quadro_colunas where escritorio_id = p_escritorio and modulo = 'tarefas'
@@ -32,6 +32,20 @@ select is((select string_agg(nome, ' | ' order by ordem) from public.quadro_suge
 -- Dado um escritório que já existe, com o quadro de antes da mudança,
 insert into public.escritorios (id, nome, slug) values ('e1000000-0000-0000-0000-000000000002', 'Escritório Antigo', 'antigo-314');
 select pg_temp.como_antes('e1000000-0000-0000-0000-000000000002');
+-- e com tarefas de Ana em duas colunas ("Fazendo" e "Aguardando retorno"),
+insert into public.convites (escritorio_id, email, nome, papel, codigo_hash, link_criado_em) values
+  ('e1000000-0000-0000-0000-000000000002', 'ana-314@exemplo.test', 'Ana', 'master', privado.resumo_codigo('c314'), now());
+insert into auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
+  ('a1000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana-314@exemplo.test', '{"convite":"c314"}', now(), now());
+set local session_replication_role = replica;   -- as tarefas entram sem passar pelos gatilhos, na coluna e na ordem exatas
+insert into public.tarefas (id, escritorio_id, codigo, titulo, responsavel_id, etapa_id, etapa_ordem) values
+  ('71000000-0000-0000-0000-000000000001', 'e1000000-0000-0000-0000-000000000002', 'T1', 'Fazendo agora', 'a1000000-0000-0000-0000-000000000001',
+    (select id from public.quadro_colunas where escritorio_id = 'e1000000-0000-0000-0000-000000000002' and modulo = 'tarefas' and nome = 'Fazendo'), 1),
+  ('71000000-0000-0000-0000-000000000002', 'e1000000-0000-0000-0000-000000000002', 'T2', 'Esperando', 'a1000000-0000-0000-0000-000000000001',
+    (select id from public.quadro_colunas where escritorio_id = 'e1000000-0000-0000-0000-000000000002' and modulo = 'tarefas' and nome = 'Aguardando retorno'), 2);
+set local session_replication_role = origin;
+create temporary table tarefas_antes as
+  select id, etapa_id, etapa_ordem, atualizado_em from public.tarefas where escritorio_id = 'e1000000-0000-0000-0000-000000000002';
 create temporary table antes as
   select id, nome, ordem, marco, grupo_id from public.quadro_colunas where escritorio_id = 'e1000000-0000-0000-0000-000000000002' and modulo = 'tarefas';
 create temporary table do_novo as
@@ -48,6 +62,11 @@ select is((select count(*) from antes a join public.quadro_colunas c using (id)
 select is((select count(*) from do_novo d join public.quadro_colunas c using (id) where c.nome = d.nome and c.ordem = d.ordem),
   (select count(*) from public.quadro_colunas where escritorio_id = 'e1000000-0000-0000-0000-000000000001'),
   'Então o outro escritório não muda');
+select is((select count(*) from public.tarefas where escritorio_id = 'e1000000-0000-0000-0000-000000000002'), 2::bigint,
+  'Então as tarefas dele continuam as mesmas duas');
+select is((select count(*) from tarefas_antes a join public.tarefas t using (id)
+           where t.etapa_id = a.etapa_id and t.etapa_ordem = a.etapa_ordem and t.atualizado_em = a.atualizado_em), 2::bigint,
+  'Então cada tarefa continua na mesma coluna e na mesma ordem, sem ser alterada');
 -- Quando a mudança entra de novo, então nada se repete.
 select is(pg_temp.acrescentar('e1000000-0000-0000-0000-000000000002'), 0, 'Quando roda de novo, então nenhuma coluna entra');
 select is((select count(*) from public.quadro_colunas where escritorio_id = 'e1000000-0000-0000-0000-000000000002' and modulo = 'tarefas'), 6::bigint,

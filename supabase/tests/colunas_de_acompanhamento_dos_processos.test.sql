@@ -2,7 +2,7 @@
 -- supabase db start && supabase test db. Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md. Tudo é desfeito no fim.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(16);
+select plan(20);
 
 -- O topo do quadro judicial na ordem da tela: "Grupo X" para cada grupo, o nome de cada coluna sem grupo.
 create function pg_temp.topo(p_escritorio uuid) returns text language sql as $$
@@ -47,6 +47,20 @@ select is((select count(*) from public.quadro_colunas where escritorio_id = 'e20
 -- Dado um escritório que já existe, com o quadro de antes da mudança,
 insert into public.escritorios (id, nome, slug) values ('e2000000-0000-0000-0000-000000000002', 'Escritório Antigo', 'antigo-315');
 select pg_temp.como_antes('e2000000-0000-0000-0000-000000000002');
+-- e com processos de Ana em duas colunas (a do início e a das concluídas),
+insert into public.convites (escritorio_id, email, nome, papel, codigo_hash, link_criado_em) values
+  ('e2000000-0000-0000-0000-000000000002', 'ana-315@exemplo.test', 'Ana', 'master', privado.resumo_codigo('c315'), now());
+insert into auth.users (id, aud, role, email, raw_user_meta_data, created_at, updated_at) values
+  ('a2000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated', 'ana-315@exemplo.test', '{"convite":"c315"}', now(), now());
+set local session_replication_role = replica;   -- os processos entram sem passar pelos gatilhos, na coluna e na ordem exatas
+insert into public.processos (id, escritorio_id, codigo, tipo, numero, responsavel_id, clientes, etapa_id, etapa_ordem) values
+  ('73100000-0000-0000-0000-000000000001', 'e2000000-0000-0000-0000-000000000002', 'P1', 'judicial', '1', 'a2000000-0000-0000-0000-000000000001', '{10000000-0000-0000-0000-000000000001}',
+    (select id from public.quadro_colunas where escritorio_id = 'e2000000-0000-0000-0000-000000000002' and modulo = 'processos_judiciais' and marco = 'inicio'), 1),
+  ('73100000-0000-0000-0000-000000000002', 'e2000000-0000-0000-0000-000000000002', 'P2', 'judicial', '2', 'a2000000-0000-0000-0000-000000000001', '{10000000-0000-0000-0000-000000000001}',
+    (select id from public.quadro_colunas where escritorio_id = 'e2000000-0000-0000-0000-000000000002' and modulo = 'processos_judiciais' and marco = 'concluido'), 2);
+set local session_replication_role = origin;
+create temporary table processos_antes as
+  select id, etapa_id, etapa_ordem, atualizado_em from public.processos where escritorio_id = 'e2000000-0000-0000-0000-000000000002';
 create temporary table antes as
   select id, nome, ordem, marco, grupo_id from public.quadro_colunas where escritorio_id = 'e2000000-0000-0000-0000-000000000002';
 create temporary table grupos_antes as
@@ -67,6 +81,11 @@ select is((select count(*) from grupos_antes a join public.quadro_grupos g using
 select is((select count(*) from do_novo d join public.quadro_colunas c using (id) where c.nome = d.nome and c.ordem = d.ordem
            and c.grupo_id is not distinct from d.grupo_id),
   (select count(*) from public.quadro_colunas where escritorio_id = 'e2000000-0000-0000-0000-000000000001'), 'Então o outro escritório não muda');
+select is((select count(*) from public.processos where escritorio_id = 'e2000000-0000-0000-0000-000000000002'), 2::bigint,
+  'Então os processos dele continuam os mesmos dois');
+select is((select count(*) from processos_antes a join public.processos p using (id)
+           where p.etapa_id = a.etapa_id and p.etapa_ordem = a.etapa_ordem and p.atualizado_em = a.atualizado_em), 2::bigint,
+  'Então cada processo continua na mesma coluna e na mesma ordem, sem ser alterado');
 -- Quando roda de novo, então nada se repete.
 select is(pg_temp.acrescentar('e2000000-0000-0000-0000-000000000002'), 0, 'Quando roda de novo, então nenhuma coluna entra');
 
@@ -90,6 +109,16 @@ insert into public.quadro_colunas (escritorio_id, modulo, nome, ordem, criado_po
 select is(pg_temp.acrescentar('e2000000-0000-0000-0000-000000000004'), 2, 'Dado o grupo já criado à mão, então as duas entram');
 select is(pg_temp.do_grupo('e2000000-0000-0000-0000-000000000004', 'ACOMPANHAMENTO'), 'Vigiar | Aguardando MP | Em acompanhamento',
   'Então elas ficam no fim do grupo que ele já tinha');
+
+-- Dado um escritório com dois grupos de nome parecido ("Acompanhamento." criado antes e "ACOMPANHAMENTO" mais à esquerda),
+insert into public.escritorios (id, nome, slug) values ('e2000000-0000-0000-0000-000000000005', 'Escritório Dois Grupos', 'dois-grupos-315');
+select pg_temp.como_antes('e2000000-0000-0000-0000-000000000005');
+insert into public.quadro_grupos (id, escritorio_id, modulo, nome, ordem) values
+  ('92000000-0000-0000-0000-000000000005', 'e2000000-0000-0000-0000-000000000005', 'processos_judiciais', 'Acompanhamento.', 3000040),
+  ('92000000-0000-0000-0000-000000000006', 'e2000000-0000-0000-0000-000000000005', 'processos_judiciais', 'ACOMPANHAMENTO', 3000030);
+-- quando a mudança entra, então as duas entram no de menor ordem, como no site (planoDasColunasNovas).
+select is(pg_temp.acrescentar('e2000000-0000-0000-0000-000000000005'), 2, 'Dado dois grupos de nome parecido, então as duas entram');
+select is(pg_temp.do_grupo('e2000000-0000-0000-0000-000000000005', 'ACOMPANHAMENTO'), 'Aguardando MP | Em acompanhamento', 'Então elas ficam no grupo de menor ordem');
 
 select * from finish();
 rollback;
