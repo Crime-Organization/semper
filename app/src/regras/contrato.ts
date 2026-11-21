@@ -379,3 +379,26 @@ export const objetosDefinidos = (objetos: string[]) => limparObjetos(objetos).fi
 export function objetosEDemandas<D extends { objeto: string | null }>(objetos: string[], demandas: D[]): { objeto: string; demanda: D | null }[] {
   return objetos.map(objeto => ({ objeto, demanda: demandas.find(d => d.objeto === objeto) ?? null }));
 }
+
+/** O mesmo objeto, sem diferença de maiúsculas, acentos e espaços nas pontas (como o banco compara, em privado.mesmo_objeto). */
+export const mesmoObjeto = (a: string | null, b: string | null) => normal(a) === normal(b);
+/**
+ * Os objetos de verdade do contrato que ainda não viraram demanda (#349), na ordem do contrato: nenhuma demanda dele guarda o mesmo
+ * objeto. Valem em qualquer coluna, assinado ou não.
+ */
+export const objetosSemDemanda = (objetos: string[], demandas: { objeto: string | null }[]) =>
+  objetosDefinidos(objetos).filter(o => !demandas.some(d => mesmoObjeto(d.objeto, o)));
+/** Os objetos que entraram no contrato (não estavam em `antes`) e ainda não têm demanda: o que o SEMPER oferece criar ao salvar. */
+export const objetosNovosSemDemanda = (antes: string[], depois: string[], demandas: { objeto: string | null }[]) =>
+  objetosSemDemanda(depois, demandas).filter(o => !antes.some(a => mesmoObjeto(a, o)));
+/** O texto embaixo do objeto que ainda não virou demanda, no cartão do contrato. */
+export const AINDA_SEM_DEMANDA = 'Objeto do contrato · ainda sem demanda';
+/** O nome do botão que cria a demanda de um objeto, na hora. */
+export const CRIAR_ESTA_DEMANDA = 'Criar esta demanda agora';
+/** O aviso de quando o contrato assinado ganha objetos sem demanda, ao salvar: "O objeto X ainda não tem demanda." */
+export function avisoDosObjetosNovos(objetos: string[]): { texto: string; rotulo: string } {
+  const nomes = nomesPorExtenso(objetos.map(o => `"${o}"`));
+  return objetos.length > 1
+    ? { texto: `Os objetos ${nomes} ainda não têm demanda.`, rotulo: 'Criar as demandas' }
+    : { texto: `O objeto ${nomes} ainda não tem demanda.`, rotulo: 'Criar a demanda' };
+}

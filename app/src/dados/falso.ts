@@ -26,7 +26,7 @@ import { chegouAoAssinado, cruzaOutroPeriodo, parcelaAntiga, parcelasDoContrato,
 import { datasDoPainel, ITENS_POR_LISTA, SEM_FASE, ULTIMOS_ANDAMENTOS } from '../regras/painelProcessos';
 import { cnpjComLetrasNaBusca, limparDocumento, telefoneNormal, TIPO_REPRESENTANTE } from '../regras/pessoa';
 import { completarVazios, juntarObservacoes } from '../regras/importacao';
-import { limparObjetos, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
+import { limparObjetos, mesmoObjeto, numeroContrato, OBJETO_A_DEFINIR, objetosDefinidos, papeisNoContrato, siglaAdvogado, textoDosParticipantes, alteraOContrato, contratosEmQueEsta, veOContrato } from '../regras/contrato';
 import { mencaoNegada, mencoesNoTexto, MODULOS_MENCIONAVEIS, MOTIVO_SEM_MENCAO } from '../regras/comentarios';
 import { estaNaDemanda, mencaoNegadaNaDemanda, papeisNaDemanda, veADemanda } from '../regras/demanda';
 import { estaNaTarefa, mencaoNegadaNaTarefa, papeisNaTarefa, veATarefa } from '../regras/tarefa';
@@ -1266,14 +1266,20 @@ function demandasDoContratoAssinado(k: ContratoGuardado, antes?: Pick<ContratoGu
   } else {
     if (bd.contratosComDemandas!.includes(k.id)) return;
     bd.contratosComDemandas!.push(k.id);
+    // O objeto que já tem demanda neste contrato (a criada na hora, #349) não ganha outra.
+    objetos = objetos.filter(o => !bd.demandas!.some(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, o)));
   }
-  const inicio = bd.colunas.find(c => c.modulo === 'demandas' && c.marco === 'inicio')?.id ?? null, base = Date.now() / 1000;
-  objetos.forEach((objeto, i) => {
-    const d: DemandaGuardada = { ...demandaNova(), id: novoId(), codigo: codigo(), titulo: objeto, objeto,
-      responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: base + i / 1000 };
-    bd.demandas!.push(d);
-    tarefasDoModelo(d);
-  });
+  const base = Date.now() / 1000;
+  objetos.forEach((objeto, i) => demandaDoObjeto(k, objeto, base + i / 1000));
+}
+/** A demanda de um objeto do contrato, como as automáticas: em "Para fazer", com os clientes e o responsável dele e as tarefas do modelo. */
+function demandaDoObjeto(k: ContratoGuardado, objeto: string, ordem: number) {
+  const inicio = bd.colunas.find(c => c.modulo === 'demandas' && c.marco === 'inicio')?.id ?? null;
+  const d: DemandaGuardada = { ...demandaNova(), id: novoId(), codigo: codigo(), titulo: objeto, objeto,
+    responsavel_id: k.responsavel_id, clientes: [...k.clientes], contrato_id: k.id, contrato_codigo: k.codigo, etapa_id: inicio, etapa_ordem: ordem };
+  bd.demandas!.push(d);
+  tarefasDoModelo(d);
+  return d;
 }
 /** Como privado.tarefas_do_modelo: a demanda ganha uma tarefa por item do modelo de lista com o mesmo nome do objeto. */
 function tarefasDoModelo(d: DemandaGuardada) {
@@ -3158,6 +3164,18 @@ export const SD: Dados = {
   demandasDoContrato: contratoId => espera(bd.demandas!.filter(d => d.contrato_id === contratoId)
     .sort((a, b) => (a.etapa_ordem ?? Infinity) - (b.etapa_ordem ?? Infinity) || a.criado_em.localeCompare(b.criado_em))
     .slice(0, DEMANDAS_LIGADAS).map(d => ({ ...demandaLigada('', null)(d), papeis: [] }))),
+  // Como public.contrato_criar_demanda (#349).
+  async contratoCriarDemanda(contratoId, objeto) {
+    if (!alteroContratoDoId(contratoId)) return erro(SEM_PERMISSAO);
+    const k = acharContrato(contratoId);
+    if (k.arquivado_em) return erro('Este contrato está arquivado. Desarquive para criar a demanda.');
+    const doContrato = objetosDefinidos(k.objetos).find(o => mesmoObjeto(o, objeto));
+    if (!doContrato) return erro('Este objeto não está no contrato.');
+    if (bd.demandas!.some(d => d.contrato_id === k.id && mesmoObjeto(d.objeto, doContrato))) return erro('Este objeto já tem uma demanda.');
+    const d = demandaDoObjeto(k, doContrato, Date.now() / 1000);
+    auditar('demandas', 'inclusao', d); gravar();
+    return espera({ id: d.id, codigo: d.codigo });
+  },
 
   // ---------- tarefas (como supabase/migrations/20261027000020_tarefas.sql) ----------
   tarefasListar(f = {}) {

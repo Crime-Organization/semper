@@ -1108,6 +1108,8 @@ export const SD: Dados = {
       .order('etapa_ordem', { ascending: true, nullsFirst: false }).order('criado_em').limit(DEMANDAS_LIGADAS));
     return (data as DemandaParaLigar[]).map(({ clientes: _c, responsavel_id: _r, colaboradores: _o, ...d }) => ({ ...d, papeis: [] }));
   },
+  // A função do banco confere quem pode e não repete a demanda do objeto (supabase/migrations/20261121223632_objetos_sem_demanda.sql).
+  contratoCriarDemanda: (contratoId, objeto) => rpc('contrato_criar_demanda', { p_contrato: contratoId, p_objeto: objeto }) as Promise<{ id: string; codigo: string }>,
 
   // ---------- compromissos ----------
   async compromissosListar(f = {}) {

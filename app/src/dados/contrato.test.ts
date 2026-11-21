@@ -543,6 +543,36 @@ function contrato(nome: string, abrir: () => Promise<Dados>) {
         expect(await SD.demandasDoContrato(contratoId)).toHaveLength(2);
       });
 
+      it('dado um contrato ainda não assinado, quando a demanda de um objeto é criada na hora (#349), então ela nasce ligada ao objeto e não se repete na assinatura', async () => {
+        // Dado
+        const { id } = await criar('NA HORA ' + marca());
+        const contratoId = (await SD.pessoaFecharContrato(id))!.id;
+        await SD.contratoAtualizar(contratoId, { objetos: ['Registro ' + id, 'Oposição ' + id, 'A definir'] });
+        await SD.modeloCriar('Registro ' + id, arvoreDosItens(['Busca prévia']));
+        // Quando: o objeto escrito em minúsculas e com espaços
+        const criada = await SD.contratoCriarDemanda(contratoId, '  ' + ('Registro ' + id).toLowerCase() + ' ');
+        // Então
+        const ligadas = await SD.demandasDoContrato(contratoId);
+        expect(ligadas.map(d => [d.id, d.objeto, d.titulo])).toEqual([[criada.id, 'Registro ' + id, 'Registro ' + id]]);
+        expect(ligadas[0].etapa_id).toBe((await SD.colunasListar('demandas')).find(c => c.marco === 'inicio')!.id);
+        expect((await SD.tarefasDoContrato(contratoId)).map(t => t.titulo)).toEqual(['Busca prévia']);
+        await expect(SD.contratoCriarDemanda(contratoId, 'Registro ' + id)).rejects.toThrow('Este objeto já tem uma demanda.');
+        await expect(SD.contratoCriarDemanda(contratoId, 'A definir')).rejects.toThrow('Este objeto não está no contrato.');
+        await expect(SD.contratoCriarDemanda(contratoId, 'Outro ' + id)).rejects.toThrow('Este objeto não está no contrato.');
+        // Quando: o contrato chega à coluna de assinados
+        await SD.contratoMover(contratoId, await etapaDe('contratos', 'assinado'), 1);
+        // Então: só o objeto que faltava ganha a demanda dele
+        expect((await SD.demandasDoContrato(contratoId)).map(d => d.objeto ?? '').toSorted((a, b) => a.localeCompare(b))).toEqual(['Oposição ' + id, 'Registro ' + id]);
+      });
+
+      it('dado um contrato arquivado, quando se pede a demanda de um objeto, então é recusado', async () => {
+        // Dado
+        const k = await SD.contratoCriar({ clientes: [(await criar('ARQUIVADO ' + marca())).id], responsavel_id: 'u-master', objetos: ['Recurso'], categoria: 'pro_labore' });
+        await SD.contratosArquivar([k.id]);
+        // Então
+        await expect(SD.contratoCriarDemanda(k.id, 'Recurso')).rejects.toThrow('Este contrato está arquivado. Desarquive para criar a demanda.');
+      });
+
       it('dado a conta de destino escolhida no contrato, quando o contrato é lido, então ela vem junto, e as contas aparecem para escolher', async () => {
         // Dado
         const { id } = await criar('CONTA ' + marca());

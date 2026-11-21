@@ -1,0 +1,5 @@
+{
+  "titulo": "Objetos do contrato sem demanda sempre à vista",
+  "texto": "No cartão do contrato, a seção Demandas mostra cada objeto que ainda não virou demanda, em qualquer situação do contrato, com o botão \"Criar esta demanda agora\". A demanda criada assim não se repete quando o contrato for assinado. E, ao acrescentar um objeto a um contrato já assinado, o SEMPER oferece criar a demanda dele.",
+  "ondeAchar": "Contratos > abra um contrato > seção Demandas."
+}

@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Contrato } from '../dados/tipos';
 import {
-  objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR,
+  objetosEDemandas, objetosDefinidos, OBJETO_A_DEFINIR, objetosSemDemanda, objetosNovosSemDemanda, avisoDosObjetosNovos, mesmoObjeto,
   camposDoContrato, contratoComAssinatura, CONTRATO_VAZIO, dadosDoContrato, erroDaAssinatura, fmtDinheiro, fmtPercentual, lerDinheiro, lerPercentual, numeroContrato,
   calculadosDoContrato, clientesPorExtenso, errosDaEtapa, ETAPAS_CONTRATO, limparObjetos, papeisNoContrato, percentualResponsavel, primeiraEtapaComErro, textoDosParticipantes, siglaAdvogado, validarContrato, valorLegivelContrato, valorParcela, alteraOContrato, veOContrato, type CamposContrato
 } from './contrato';
@@ -447,5 +447,39 @@ describe('Objeto a definir', () => {
   it('dado só "A definir", quando lê os objetos de verdade, então não há nenhum', () => {
     // Então
     expect(objetosDefinidos([OBJETO_A_DEFINIR])).toEqual([]);
+  });
+});
+
+describe('Objetos sem demanda (#349)', () => {
+  const demandas = [{ objeto: 'Registro de Marca' }, { objeto: null }];
+
+  it('dado um objeto escrito com outras maiúsculas e acentos, quando se compara, então é o mesmo', () => {
+    // Então
+    expect(mesmoObjeto(' oposiçao ', 'Oposição')).toBe(true);
+    expect(mesmoObjeto('Oposição', 'Recurso')).toBe(false);
+    expect(mesmoObjeto(null, 'Recurso')).toBe(false);
+  });
+
+  it('dado um contrato com objetos e uma demanda, quando se pergunta o que falta, então vêm os objetos sem demanda, sem o "A definir", na ordem', () => {
+    // Quando
+    const faltam = objetosSemDemanda(['Oposição', 'registro de marca', OBJETO_A_DEFINIR, 'Recurso'], demandas);
+    // Então
+    expect(faltam).toEqual(['Oposição', 'Recurso']);
+  });
+
+  it('dado um contrato que ganhou objetos ao salvar, quando se pergunta o que oferecer, então vêm só os novos ainda sem demanda', () => {
+    // Quando
+    const novos = objetosNovosSemDemanda(['Oposição'], ['Oposição', 'Recurso', 'Registro de marca'], demandas);
+    // Então
+    expect(novos).toEqual(['Recurso']);
+    expect(objetosNovosSemDemanda(['Oposição'], ['Oposição'], [])).toEqual([]);
+  });
+
+  it.each([
+    [['Recurso'], 'O objeto "Recurso" ainda não tem demanda.', 'Criar a demanda'],
+    [['Recurso', 'Apelação'], 'Os objetos "Recurso" e "Apelação" ainda não têm demanda.', 'Criar as demandas']
+  ])('dado %j, quando o aviso é montado, então diz "%s" com o botão "%s"', (objetos, texto, rotulo) => {
+    // Então
+    expect(avisoDosObjetosNovos(objetos)).toEqual({ texto, rotulo });
   });
 });

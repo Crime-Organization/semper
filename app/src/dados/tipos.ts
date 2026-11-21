@@ -640,6 +640,12 @@ export interface DadosDemandas {
   demandasDaPessoa(pessoaId: string, perfilId?: string | null): Promise<DemandaLigada[]>;
   /** Demandas ligadas ao contrato (as automáticas e as ligadas à mão), que quem está logado pode ver. */
   demandasDoContrato(contratoId: string): Promise<DemandaLigada[]>;
+  /**
+   * A demanda de um objeto do contrato, na hora (#349), como as que nascem na assinatura: em "Para fazer", com os clientes e o
+   * responsável do contrato e as tarefas do modelo. Quem altera o contrato, com ele ativo. O objeto que já tem demanda não ganha outra,
+   * e a demanda criada assim não se repete quando o contrato for assinado.
+   */
+  contratoCriarDemanda(contratoId: string, objeto: string): Promise<{ id: string; codigo: string }>;
 }
 
 /** Tarefas. Na ordem "nome", a lista vai pelo título. */
