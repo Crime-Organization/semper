@@ -180,7 +180,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
    * do "A definir" nascem sozinhos), o aviso oferece criar as demandas deles.
    */
   async function oferecerDemandasNovas(antes: string[]) {
-    if (!modulos?.demandas) return;
+    // Só para quem pode criar a demanda: quem está no contrato só por um grupo edita os objetos, mas o banco recusaria o botão.
+    if (!modulos?.demandas || !criaDemanda) return;
     try {
       const [novo, ligadas] = await Promise.all([SD.contratoVer(id), SD.demandasDoContrato(id)]);
       if (!novo || !chegouAoAssinado(quadro.colunas, novo.etapa_id, novo.assinado_em)) return;

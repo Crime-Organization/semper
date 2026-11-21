@@ -2,7 +2,9 @@
 // Na semente do banco fictício, o contrato de MARIA APARECIDA EXEMPLO ("Ação de cobrança") está em negociação, e o da PADARIA PÃO
 // QUENTE EXEMPLO LTDA ("Consultoria e assessoria jurídica") está assinado, sem nenhuma demanda.
 import { expect, test, type Page } from '@playwright/test';
-import { abrir, abrirSecao } from './ajudantes';
+import { abrir, abrirSecao, entrarComo } from './ajudantes';
+
+const GRUPO = 'Núcleo Teste';
 
 async function abrirContrato(page: Page, cliente: string) {
   await page.goto('/inicio/');
@@ -65,5 +67,37 @@ test.describe('Objetos sem demanda no cartão do contrato (#349)', () => {
     await page.getByRole('button', { name: 'Criar a demanda' }).click();
     await expect(demandasDo(cartao).getByRole('link', { name: /Parecer trabalhista/ })).toBeVisible();
     await expect(demandasDo(cartao).filter({ hasText: 'Consultoria e assessoria jurídica' })).toContainText('ainda sem demanda');
+  });
+
+  test('dado alguém no contrato assinado só por um grupo, quando acrescenta um objeto e salva, então o aviso não oferece criar a demanda', async ({ page }) => {
+    // Dado: o Mauro cria um grupo com o Bruno e o põe no contrato da PADARIA (sem a chave "equipe_edita_tudo")
+    await page.goto('/equipe/');
+    const secao = page.getByRole('region', { name: 'Grupos da equipe' });
+    await secao.getByRole('button', { name: 'Novo grupo' }).click();
+    await page.getByRole('dialog', { name: 'Nome do grupo novo' }).getByRole('textbox').fill(GRUPO);
+    await page.getByRole('dialog', { name: 'Nome do grupo novo' }).getByRole('button', { name: 'Salvar' }).click();
+    const painel = page.getByRole('dialog', { name: `Grupo ${GRUPO}` });
+    await painel.getByRole('button', { name: 'Adicionar integrante' }).click();
+    await painel.getByRole('button', { name: 'Bruno Exemplo Souza' }).click();
+    await expect(painel.getByRole('button', { name: 'Tirar Bruno Exemplo Souza' })).toBeVisible();
+    await painel.getByRole('button', { name: 'Fechar' }).click();
+    let cartao = await abrirContrato(page, 'PADARIA PÃO QUENTE EXEMPLO LTDA');
+    await cartao.getByRole('button', { name: 'Pôr participante ou grupo' }).click();
+    await page.getByRole('dialog', { name: 'Pôr participante ou grupo' }).getByRole('button', { name: `Grupo ${GRUPO}, 1 pessoa` }).click();
+    await expect(cartao.getByRole('button', { name: `Grupo ${GRUPO}, 1 pessoa. Ver quem está` })).toBeVisible();
+    await entrarComo(page, 'u-bruno');
+    cartao = await abrirContrato(page, 'PADARIA PÃO QUENTE EXEMPLO LTDA');
+    await expect(demandasDo(cartao).filter({ hasText: 'Consultoria e assessoria jurídica' })).toContainText('ainda sem demanda');
+    await expect(cartao.getByRole('button', { name: /^Criar esta demanda agora/ })).toHaveCount(0);
+    // Quando
+    await cartao.getByRole('button', { name: 'Editar sem os valores' }).click();
+    await page.getByRole('button', { name: 'Adicionar objeto' }).click();
+    await page.getByRole('combobox', { name: 'Objeto 2' }).fill('Parecer trabalhista');
+    await cartao.getByRole('button', { name: 'Salvar', exact: true }).click();
+    // Então: o objeto aparece pendente, sem o aviso que oferece criar a demanda (o banco recusaria)
+    await expect(page.getByText('Contrato atualizado.')).toBeVisible();
+    await expect(demandasDo(cartao).filter({ hasText: 'Parecer trabalhista' })).toContainText('ainda sem demanda');
+    await expect(page.getByText('O objeto "Parecer trabalhista" ainda não tem demanda.')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Criar a demanda' })).toHaveCount(0);
   });
 });

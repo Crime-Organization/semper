@@ -4,7 +4,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 select no_plan();
 
--- Dado um escritório com Ana (master, responsável pelo contrato) e Bia (usuária comum, fora do contrato), e o Davi em outro escritório.
+-- Dado um escritório com Ana (master, responsável pelo contrato) e Bia (usuária comum, fora do contrato K1), e o Davi em outro escritório.
 insert into public.escritorios (id, nome, slug, modulos) values
   ('e0000000-0000-0000-0000-000000000001', 'Escritório de teste', 'teste-objetos-sem-demanda', '{"pessoas": true}'),
   ('e0000000-0000-0000-0000-000000000002', 'Outro escritório', 'teste-objetos-sem-demanda-2', '{"pessoas": true}');
@@ -34,6 +34,15 @@ insert into public.contratos (id, escritorio_id, numero, sigla, ano, codigo, cli
    'pro_labore', 'a0000000-0000-0000-0000-000000000001', now());
 insert into public.lista_modelos (escritorio_id, nome, itens, criado_por) values
   ('e0000000-0000-0000-0000-000000000001', 'Registro de marca', '{Busca prévia,Depósito}', 'a0000000-0000-0000-0000-000000000001');
+-- K3: contrato da Ana em que a Bia está só pelo grupo "Marcas" (sem ser criadora, responsável nem participante).
+insert into public.grupos_da_equipe (id, escritorio_id, nome) values
+  ('90000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000001', 'Marcas');
+insert into public.grupo_integrantes (grupo_id, perfil_id, escritorio_id) values
+  ('90000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000002', 'e0000000-0000-0000-0000-000000000001');
+insert into public.contratos (id, escritorio_id, numero, sigla, ano, codigo, cliente_id, cliente_nome, clientes, responsavel_id, servico, objetos, categoria, criado_por, grupos) values
+  ('c0000000-0000-0000-0000-000000000003', 'e0000000-0000-0000-0000-000000000001', 3, 'AN26', 2026, 'AN26-0003-2026', '10000000-0000-0000-0000-000000000005', 'CLIENTE',
+   '{10000000-0000-0000-0000-000000000005}', 'a0000000-0000-0000-0000-000000000001', 'Parecer', '{Parecer}',
+   'pro_labore', 'a0000000-0000-0000-0000-000000000001', '{90000000-0000-0000-0000-000000000001}');
 set local session_replication_role = origin;
 
 create function pg_temp.entrar(p_quem int) returns void language sql as $$
@@ -98,6 +107,21 @@ select pg_temp.entrar(1); set local role authenticated;
 select lives_ok($$ select public.contrato_criar_demanda('c0000000-0000-0000-0000-000000000001', 'Apelação') $$, 'No contrato assinado, cria a demanda do objeto novo');
 reset role;
 select is(pg_temp.demandas_de('Apelação'), 1::bigint, 'A demanda do objeto novo nasceu');
+
+-- Dado a Bia no contrato K3 só pelo grupo "Marcas", quando ela cria a demanda de um objeto, então é recusado (o grupo não conta)
+select pg_temp.entrar(2); set local role authenticated;
+select throws_ok($$ select public.contrato_criar_demanda('c0000000-0000-0000-0000-000000000003', 'Parecer') $$, 'P0001', 'Você não tem permissão para fazer isso.',
+  'Quem está no contrato só por um grupo não cria a demanda');
+reset role;
+select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000003'), 0::bigint, 'A recusa pelo grupo não criou demanda');
+
+-- Dado o escritório na fase de adaptação (chave equipe_edita_tudo), quando a Bia cria a demanda, então ela nasce
+update public.escritorios set modulos = modulos || '{"equipe_edita_tudo": true}' where id = 'e0000000-0000-0000-0000-000000000001';
+select pg_temp.entrar(2); set local role authenticated;
+select lives_ok($$ select public.contrato_criar_demanda('c0000000-0000-0000-0000-000000000003', 'Parecer') $$, 'Na fase de adaptação, a equipe cria a demanda do objeto');
+reset role;
+select is((select count(*) from public.demandas where contrato_id = 'c0000000-0000-0000-0000-000000000003' and objeto = 'Parecer'), 1::bigint,
+  'Na fase de adaptação, a demanda nasceu');
 
 select * from finish();
 rollback;
