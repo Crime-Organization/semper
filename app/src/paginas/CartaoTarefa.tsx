@@ -189,8 +189,8 @@ export function CartaoTarefa({ id, quadro, aoMudar, aoFechar }: Props) {
           cronômetro de quem altera, com o resumo de quem registrou tempo. */}
       <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: t.criado_em }}>
         <DadoDoGrupo rotulo="Início">
-          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio}
-            aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
+          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={t.data_inicio} conferir={erroDaDataDeInicio} aoMudarRascunho={noLugar.rascunhoDe('inicio')}
+            aoSalvar={mudaNoLugar && !editando ? data_inicio => data_inicio && salvarNoLugar({ data_inicio }, { data_inicio: t.data_inicio }) : undefined} />
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Prazo">
           <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo" valor={t} conferir={c => errosDosCampos(validarTarefa, TAREFA_VAZIA, c, CAMPOS_DO_PRAZO)}

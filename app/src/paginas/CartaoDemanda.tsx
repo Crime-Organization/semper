@@ -174,8 +174,8 @@ export function CartaoDemanda({ id, quadro, aoMudar, aoFechar }: Props) {
           muda no próprio lugar, como o lápis grava (com o histórico e o Desfazer). */}
       <FaixaDasDatas criacao={{ rotulo: 'Criada em', em: d.criado_em }}>
         <DadoDoGrupo rotulo="Início">
-          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio}
-            aoSalvar={mudaNoLugar && !editando ? data_inicio => salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
+          <DataEditavel key={'inicio-' + noLugar.chave} nome={ROTULO_DO_INICIO} valor={d.data_inicio} conferir={erroDaDataDeInicio} aoMudarRascunho={noLugar.rascunhoDe('inicio')}
+            aoSalvar={mudaNoLugar && !editando ? data_inicio => data_inicio && salvarNoLugar({ data_inicio }, { data_inicio: d.data_inicio }) : undefined} />
         </DadoDoGrupo>
         <DadoDoGrupo rotulo="Prazo de entrega">
           <PrazoEditavel key={'prazo-' + noLugar.chave} nome="Prazo de entrega" valor={d} conferir={c => errosDosCampos(validarDemanda, DEMANDA_VAZIA, c, CAMPOS_DO_PRAZO)}

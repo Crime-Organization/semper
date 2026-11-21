@@ -1,7 +1,8 @@
 // Padrão dos testes (Dado / Quando / Então): veja app/TESTES.md.
 import { describe, expect, it } from 'vitest';
 import {
-  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, errosJuntos, FORMATOS_DA_DATA, isoDoTexto, limitarDia, mesAoAbrir, mesForaDosLimites,
+  andarComTecla, DIAS_DO_CABECALHO, diaEmFoco, dentroDosLimites, doMes, erroDaDataEscrita, errosJuntos, FORMATOS_DA_DATA, isoDoTexto, ladoDoCalendario, limitarDia, mesAoAbrir,
+  mesForaDosLimites,
   nomeDoDia, numeroDoDia, SEMANAS_NO_CALENDARIO, semanasDoMes, somarMeses, textoDaDataDigitada, tituloDoMes
 } from './campoData';
 
@@ -181,5 +182,29 @@ describe('O erro do campo de data e hora (#299)', () => {
     expect(errosJuntos('Informe o prazo para pôr a hora', 'Informe o prazo para marcar o lembrete'))
       .toBe('Informe o prazo para pôr a hora. Informe o prazo para marcar o lembrete.');
     expect(errosJuntos('Informe a data.', 'Informe a data.')).toBe('Informe a data.');
+  });
+});
+
+describe('O lado do calendário que flutua (#395)', () => {
+  it.each([
+    ['cabe embaixo', 372, 400, 100, { lado: 'abaixo' }],
+    ['só cabe em cima', 372, 200, 500, { lado: 'acima' }],
+    ['não cabe inteiro, com mais espaço embaixo (a janela baixa do notebook)', 372, 309, 250, { lado: 'abaixo', alturaMaxima: 309 }],
+    ['não cabe inteiro, com mais espaço em cima', 372, 120, 300, { lado: 'acima', alturaMaxima: 300 }]
+  ])('dado que o calendário %s, quando ele abre, então fica no lado certo e, se precisar, rola por dentro', (_caso, altura, abaixo, acima, esperado) => {
+    // Quando / Então
+    expect(ladoDoCalendario(altura, abaixo, acima)).toEqual(esperado);
+  });
+});
+
+describe('A data escrita no campo que guarda aaaa-mm-dd (#395)', () => {
+  it.each([
+    ['31/02/2026', 'Data inexistente.'],
+    ['27/11/2026', ''],
+    ['', ''],
+    ['12/2', '']
+  ])('quando a pessoa escreve "%s", então o erro é "%s"', (texto, erro) => {
+    // Quando / Então
+    expect(erroDaDataEscrita(texto)).toBe(erro);
   });
 });

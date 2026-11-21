@@ -3,7 +3,7 @@
 // O banco fictício sempre entra como administrador; aqui a demanda é editada também por quem não é.
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Demanda } from '../dados';
 import { feito } from '../ui/avisos';
@@ -27,7 +27,8 @@ const demanda = (extra: Partial<Demanda>) => ({
 async function passarParaAna(d: Demanda) {
   vi.spyOn(SD, 'demandaObter').mockResolvedValue(d);
   const gravar = vi.spyOn(SD, 'demandaAtualizar').mockResolvedValue({ id: d.id, codigo: d.codigo });
-  render(<MemoryRouter><NovaDemanda edicao={{ id: d.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+  // O lápis pergunta antes de sair com algo mudado (#395): precisa do roteador com dados, como o do app.
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovaDemanda edicao={{ id: d.id, aoTerminar: () => undefined }} /> }])} />);
   await userEvent.selectOptions(await screen.findByLabelText(/Responsável/), 'Ana Teste Lima');
   await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
   await waitFor(() => expect(gravar).toHaveBeenCalled());
@@ -81,7 +82,8 @@ describe('Sair da demanda', () => {
     const gravar = vi.spyOn(SD, 'demandaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
     const sair = vi.spyOn(SD, 'cartaoSair').mockResolvedValue();
     sair.mockClear();
-    render(<MemoryRouter><NovaDemanda edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    // O lápis pergunta antes de sair com algo mudado (#395): precisa do roteador com dados, como o do app.
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovaDemanda edicao={{ id: alvo.id, aoTerminar: () => undefined }} /> }])} />);
     await screen.findByRole('group', { name: 'Colaboradores' });
     await antesDeSalvar?.();
     await userEvent.click(screen.getByRole('button', { name: 'Salvar' }));
@@ -222,7 +224,8 @@ describe('O lápis sem as datas que o cartão muda no lugar (#361)', () => {
     const gravar = vi.spyOn(SD, 'demandaAtualizar').mockResolvedValue({ id: alvo.id, codigo: alvo.codigo });
     gravar.mockClear();
     // Quando
-    render(<MemoryRouter><NovaDemanda edicao={{ id: alvo.id, aoTerminar: () => undefined }} /></MemoryRouter>);
+    // O lápis pergunta antes de sair com algo mudado (#395): precisa do roteador com dados, como o do app.
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovaDemanda edicao={{ id: alvo.id, aoTerminar: () => undefined }} /> }])} />);
     await screen.findByLabelText(/Responsável/);
     // Então
     for (const rotulo of ['Prazo de entrega', 'Hora', 'Lembrete', 'Data de início']) expect(screen.queryByLabelText(rotulo)).not.toBeInTheDocument();

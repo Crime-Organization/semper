@@ -4,7 +4,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CampoData, type PropsCampoData } from './CampoData';
+import { CampoData, LugarDoCalendario, type PropsCampoData } from './CampoData';
 import { janela, Janelas } from '../janela';
 
 /** O campo num formulário, com o rótulo e a data guardada pela tela (como os cadastros fazem). */
@@ -215,6 +215,52 @@ describe('Campo de data com o calendário pequeno (#357)', () => {
       // Então
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
       expect(aoSair).toHaveBeenCalledTimes(1);
+    });
+
+    it('dado o calendário que flutua, quando a pessoa aperta Tab no último botão dele, então o foco vai para o campo seguinte da página, e não para o fim dela (#395)', async () => {
+      // Dado
+      render(<Formulario />);
+      await userEvent.click(campo());
+      await userEvent.keyboard('{ArrowDown}');
+      await userEvent.tab();
+      expect(within(calendario()).getByRole('button', { name: 'Hoje' })).toHaveFocus();
+      // Quando
+      await userEvent.tab();
+      // Então
+      expect(screen.getByRole('button', { name: 'Outro campo' })).toHaveFocus();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('dado o calendário que flutua, quando a pessoa aperta Shift+Tab no primeiro botão dele, então o foco volta ao campo da data (#395)', async () => {
+      // Dado
+      render(<Formulario />);
+      await userEvent.click(campo());
+      await userEvent.keyboard('{ArrowDown}');
+      await userEvent.tab({ shift: true });
+      await userEvent.tab({ shift: true });
+      expect(within(calendario()).getByRole('button', { name: 'Mês anterior' })).toHaveFocus();
+      // Quando
+      await userEvent.tab({ shift: true });
+      // Então
+      expect(campo()).toHaveFocus();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('dado um formulário que reserva o lugar do calendário, quando a pessoa o abre, então ele fica nesse lugar, no fluxo do formulário, sem flutuar (#395)', async () => {
+      // Dado
+      function ComLugar() {
+        const [lugar, setLugar] = useState<HTMLElement | null>(null);
+        return <LugarDoCalendario value={lugar}>
+          <Formulario />
+          <section aria-label="Lugar do calendário" ref={setLugar} />
+        </LugarDoCalendario>;
+      }
+      render(<ComLugar />);
+      // Quando
+      await userEvent.click(campo());
+      // Então
+      expect(within(screen.getByRole('region', { name: 'Lugar do calendário' })).getByRole('dialog', { name: 'Calendário' })).toBeInTheDocument();
+      expect(calendario().style.position).toBe('');
     });
   });
 

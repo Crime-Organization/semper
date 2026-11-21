@@ -120,7 +120,6 @@ test.describe('Lembrete marcado pelo sino no cartão (#361)', () => {
     await cartao.getByRole('button', { name: /^Prazo: / }).click();
     const formulario = cartao.getByRole('group', { name: 'Mudar o prazo' });
     await formulario.getByRole('textbox', { name: 'Prazo', exact: true }).fill('06/11/2026');
-    await page.keyboard.press('Escape');
     await formulario.getByLabel('Hora do prazo').fill('10:00');
     await formulario.getByRole('button', { name: /^Lembrete:/ }).click();
     await page.getByRole('menuitemradio', { name: '30 minutos antes' }).click();

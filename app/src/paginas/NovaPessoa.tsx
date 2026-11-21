@@ -506,7 +506,7 @@ export default function NovaPessoa({ edicao }: { edicao?: EdicaoNoCartao } = {})
     : !alvo ? <Aviso tipo="erro">Não foi possível abrir para editar. Feche e tente de novo.</Aviso>
     : <form className="edicao-cartao" noValidate autoComplete="off" aria-label="Editar cadastro" onKeyDown={teclar} onSubmit={e => e.preventDefault()}>
       <FormularioCtx.Provider value={formulario}>{etapas.map(e => { const Componente = ETAPAS[e].Componente; return <Componente key={e} />; })}</FormularioCtx.Provider>
-      <RodapeDaEdicao ocupado={!!ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvarTudo()} />
+      <RodapeDaEdicao estado={{ c }} ocupado={!!ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvarTudo()} />
     </form>;
 
   return <div className="passos">

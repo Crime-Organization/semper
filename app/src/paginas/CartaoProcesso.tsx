@@ -205,7 +205,7 @@ export function CartaoProcesso({ id, quadro, aoMudar, aoFechar }: Props) {
     {/* A faixa explica e traz o Desarquivar à vista; o Excluir fica no ⋯ do topo. */}
     {p.arquivado_em && <FaixaDoArquivado modulo="processos" podeExcluir={podeExcluir} aoDesarquivar={podeAlterar ? arquivar : undefined} />}
 
-    <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} />
+    <PrazosDoProcesso processo={p} acompanhamento={acompanhamento} soLeitura={!podeAlterar} aoMudarRascunho={noLugar.rascunhoDe('prazoDoProcesso')} />
 
     <Recolhivel titulo="Dados do processo" icone="processos" preferencia="processos.cartao.dados" contador={quantosPreenchidos([...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([, v]) => v))}>
       <dl className="dados">{[...linhasDoProcesso(p), ...linhasDosCampos(campos, p.tipo, p.campos)].map(([rotulo, valor]) => <Fragment key={rotulo}><dt>{rotulo}</dt><dd>{valor}</dd></Fragment>)}</dl>

@@ -5,11 +5,12 @@
 // histórico), com a escolha de cada usuário guardada. Os campos aparecem, mesmo vazios.
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { SD, type Contrato, type Historico, type Participacao, type PessoaResumida } from '../dados';
-import { objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
+import { contratoComAssinatura, erroDaAssinatura, objetosDefinidos, objetosEDemandas, CAMPOS_CONTRATO, CATEGORIAS, fmtDinheiro, fmtPercentual, nomesPorExtenso, percentualResponsavel, SEM_SITUACAO, textoDosParticipantes, valorLegivelContrato, valorParcela, alteraOContrato } from '../regras/contrato';
 import { EDITA_SEM_OS_VALORES, equipeEditaTudo, SO_LEITURA_DO_CONTRATO } from '../regras/equipeVeTudo';
 import { avisar, falha, feito, useMudancas } from '../ui/avisos';
 import { FaixaDoArquivado, TopoDoCartao } from '../ui/TopoDoCartao';
-import { Aviso, Carregando, DadoDoGrupo, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { Aviso, Carregando, DadoDoGrupo, DataEditavel, FaixaDasDatas, Nota, Selo, Vazio } from '../ui/base';
+import { AvisoDaEdicaoNoLugar, useEdicaoNoLugar } from '../ui/EdicaoNoLugar';
 import { SecaoComentarios } from '../ui/Comentarios';
 import { AnotacoesDoCartao } from './AnotacoesDoCartao';
 import { CartoesLigados } from './CartoesLigados';
@@ -57,6 +58,8 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
   const [versaoHist, setVersaoHist] = useState(0);
   // Lápis: o cartão vira o formulário, com todos os campos de uma vez (o cadastro em etapas fica para criar).
   const [editando, setEditando] = useState(false);
+  // A assinatura mudada no próprio lugar (#395): com ela por salvar, fechar o cartão pergunta antes.
+  const noLugar = useEdicaoNoLugar();
   const nomeDe = (pid: string | null) => ctx.equipe.find(m => m.id === pid)?.nome || 'Usuário removido';
 
   const carregar = useCallback(() => SD.contratoVer(id).then(x => { setK(x); setErro(''); }).catch(e => setErro((e as Error).message)), [id]);
@@ -149,9 +152,26 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
     setEditando(false);
     if (salvou) { aoMudar(); void carregar(); setVersaoHist(x => x + 1); }
   }
+  /**
+   * A assinatura mudada no próprio lugar (#395), como o início da tarefa: grava pela mesma função do lápis (com o histórico), a
+   * partir do contrato inteiro como está agora no banco, e o Desfazer volta a data de antes.
+   */
+  async function salvarAssinatura(assinadoEm: string | null) {
+    const atual = await SD.contratoObter(k!.id);
+    if (!atual) throw new Error('Este contrato não foi encontrado. Feche e tente de novo.');
+    const antes = contratoComAssinatura(atual, atual.assinado_em);
+    await SD.contratoAtualizar(atual.id, contratoComAssinatura(atual, assinadoEm));
+    feito('Contrato atualizado.', 'atualização do contrato', async () => {
+      await SD.contratoAtualizar(atual.id, antes);
+      return { tipo: 'contratoAtualizado', id: atual.id };
+    });
+    aoMudar(); await carregar(); setVersaoHist(x => x + 1);
+  }
+  const mudaAssinatura = podeAlterar && !k.arquivado_em && !editando;
 
   // Com o contrato arquivado, ou para quem só o lê, nenhuma seção mostra o "+ Novo …" (#376).
   return <CriarNoCartao pode={podeLigar}>
+    <AvisoDaEdicaoNoLugar edicao={noLugar} gravado={{ titulo: null }} />
     <header className="cartao-cabeca">
       {/* O topo da anotação (#382): a categoria e o código; a equipe, a etiqueta, o lápis e o ⋯ (Arquivar, Excluir) à direita. Quem
           altera o contrato muda a equipe também nas bolinhas (#356), com as regras do lápis; o % de cada um continua no lápis. Quem
@@ -171,9 +191,12 @@ export function CartaoContrato({ id, quadro, aoMudar, aoFechar }: Props) {
       <h2>{nomesPorExtenso(k.clientes.map(c => c.nome))}</h2>
       {/* A faixa das datas (#383), a mesma dos outros cartões: a criação e a assinatura (que saiu de Honorários). Quem não vê os
           valores do contrato também não vê a assinatura, como antes, e aí a faixa some (#385): sobraria só a criação, que o
-          rodapé já mostra. */}
+          rodapé já mostra. Quem altera o contrato muda a assinatura ali mesmo (#395), como o início da tarefa. */}
       <FaixaDasDatas criacao={{ rotulo: 'Criado em', em: k.criado_em }}>
-        {!oculto && <DadoDoGrupo rotulo="Assinado em"><b className="num">{k.assinado_em ? V('assinado_em') : NAO_ASSINADO}</b></DadoDoGrupo>}
+        {!oculto && <DadoDoGrupo rotulo="Assinado em">
+          <DataEditavel key={'assinatura-' + noLugar.chave} nome="Data da assinatura" valor={k.assinado_em} semData={NAO_ASSINADO} conferir={erroDaAssinatura}
+            aoMudarRascunho={noLugar.rascunhoDe('assinatura')} aoSalvar={mudaAssinatura ? salvarAssinatura : undefined} />
+        </DadoDoGrupo>}
       </FaixaDasDatas>
       {!editando && <SituacaoDoCartao>
         <MenuDeSituacao rotulo="Situação do contrato" quadro={quadro} valor={k.etapa_id} semSituacao={SEM_SITUACAO} desabilitado={!!k.arquivado_em || (!podeAlterar && !semValores)} aoMudar={mudarSituacao} />

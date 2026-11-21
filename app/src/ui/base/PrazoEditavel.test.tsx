@@ -37,27 +37,35 @@ describe('Prazo que se muda no próprio lugar do cartão (#361)', () => {
     expect(prazo()).toHaveAccessibleName('Prazo: 20/11/2026 às 14:00, lembrete: 1 hora antes. Clique para mudar');
   });
 
-  it('dado quem pode alterar, quando clica no prazo, então abre o calendário, com a hora ao lado do prazo, no mesmo campo, e o sino do lembrete (#299)', async () => {
+  it('dado quem pode alterar, quando clica no prazo, então abre o formulário com o foco no prazo, a hora ao lado, no mesmo campo, e o sino do lembrete, sem o calendário (#299, #395)', async () => {
     // Dado
     render(<Cartao />);
     // Quando
     await userEvent.click(prazo());
-    // Então
-    const calendario = screen.getByRole('dialog', { name: 'Calendário' });
-    // A hora não fica mais embaixo do calendário, nem o "Pronto": ela fica ao lado do prazo, como no cadastro.
-    expect(within(calendario).queryByLabelText(/Hora/)).not.toBeInTheDocument();
-    expect(within(calendario).queryByRole('button', { name: 'Pronto' })).not.toBeInTheDocument();
+    // Então: o calendário só abre quando a pessoa pede (#395)
+    expect(screen.queryByRole('dialog', { name: 'Calendário' })).not.toBeInTheDocument();
+    expect(within(formulario()).getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
     expect(within(formulario()).getByRole('textbox', { name: 'Prazo' })).toHaveValue('20/11/2026');
     expect(within(formulario()).getByLabelText('Hora do prazo')).toHaveValue('');
     expect(within(formulario()).getAllByLabelText(/^Hora/)).toHaveLength(1);
     expect(within(formulario()).getByRole('button', { name: 'Lembrete: Sem lembrete' })).toBeInTheDocument();
     expect(within(formulario()).queryByRole('combobox')).not.toBeInTheDocument();
+    // Quando: a pessoa clica no campo
+    await userEvent.click(within(formulario()).getByRole('textbox', { name: 'Prazo' }));
+    // Então: o calendário abre dentro do formulário, antes de Cancelar e Salvar (empurra os dois, não os cobre); a hora não fica
+    // embaixo dele, nem o "Pronto": ela fica ao lado do prazo, como no cadastro.
+    const calendario = within(formulario()).getByRole('dialog', { name: 'Calendário' });
+    expect(within(calendario).queryByLabelText(/Hora/)).not.toBeInTheDocument();
+    expect(within(calendario).queryByRole('button', { name: 'Pronto' })).not.toBeInTheDocument();
+    const salvar = within(formulario()).getByRole('button', { name: 'Salvar' });
+    expect(calendario.compareDocumentPosition(salvar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('quando a pessoa escolhe o dia no calendário, então ele fecha e o foco vai para a hora, ao lado', async () => {
     // Dado
     render(<Cartao />);
     await userEvent.click(prazo());
+    await userEvent.click(within(formulario()).getByRole('textbox', { name: 'Prazo' }));
     // Quando
     await userEvent.click(screen.getByRole('button', { name: /^quarta-feira, 25 de novembro de 2026/ }));
     // Então
@@ -65,11 +73,36 @@ describe('Prazo que se muda no próprio lugar do cartão (#361)', () => {
     await vi.waitFor(() => expect(within(formulario()).getByLabelText('Hora do prazo')).toHaveFocus());
   });
 
+  it('dado o calendário aberto, quando a pessoa aperta Tab no último botão dele, então o foco vai para a hora, e Shift+Tab no primeiro volta ao prazo (#395)', async () => {
+    // Dado
+    render(<Cartao />);
+    await userEvent.click(prazo());
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('button', { name: /^sexta-feira, 20 de novembro de 2026/ })).toHaveFocus();
+    // Quando
+    await userEvent.tab();
+    expect(screen.getByRole('button', { name: 'Hoje' })).toHaveFocus();
+    await userEvent.tab();
+    // Então
+    expect(within(formulario()).getByLabelText('Hora do prazo')).toHaveFocus();
+    expect(screen.queryByRole('dialog', { name: 'Calendário' })).not.toBeInTheDocument();
+    // Quando: de novo, para trás
+    await userEvent.click(within(formulario()).getByRole('textbox', { name: 'Prazo' }));
+    await userEvent.keyboard('{ArrowDown}');
+    await userEvent.tab({ shift: true });
+    await userEvent.tab({ shift: true });
+    expect(screen.getByRole('button', { name: 'Mês anterior' })).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    // Então
+    expect(within(formulario()).getByRole('textbox', { name: 'Prazo' })).toHaveFocus();
+  });
+
   it('quando a pessoa escolhe o dia, a hora e o lembrete e salva, então grava tudo junto e o cartão mostra o prazo novo', async () => {
     // Dado
     const aoSalvar = vi.fn();
     render(<Cartao aoSalvar={aoSalvar} />);
     await userEvent.click(prazo());
+    await userEvent.click(within(formulario()).getByRole('textbox', { name: 'Prazo' }));
     // Quando
     await userEvent.click(screen.getByRole('button', { name: /^quarta-feira, 25 de novembro de 2026/ }));
     fireEvent.change(within(formulario()).getByLabelText('Hora do prazo'), { target: { value: '09:30' } });
@@ -97,21 +130,22 @@ describe('Prazo que se muda no próprio lugar do cartão (#361)', () => {
     await vi.waitFor(() => expect(aoSalvar).toHaveBeenCalledWith({ prazo: '01/12/2026', hora: '', lembrete: null }));
   });
 
-  it('quando a pessoa apaga o prazo e deixa o lembrete, então a mensagem do cadastro aparece e nada é gravado', async () => {
+  it.each([
+    ['o lembrete', { prazo: '2026-11-20', prazo_hora: null, lembrete: 1440 as const }],
+    ['a hora', { prazo: '2026-11-20', prazo_hora: '14:00:00', lembrete: null }]
+  ])('dado um prazo com %s, quando a pessoa apaga a data e salva, então o prazo sai inteiro (com a hora e o lembrete) e o cartão diz "Sem prazo" (#395)', async (_caso, inicial) => {
     // Dado
     const aoSalvar = vi.fn();
-    render(<Cartao inicial={{ prazo: '2026-11-20', prazo_hora: null, lembrete: 30 }} aoSalvar={aoSalvar} />);
+    render(<Cartao inicial={inicial} aoSalvar={aoSalvar} />);
     await userEvent.click(prazo());
     // Quando
     await userEvent.clear(within(formulario()).getByRole('textbox', { name: 'Prazo' }));
     await userEvent.click(within(formulario()).getByRole('button', { name: 'Salvar' }));
-    // Então
-    expect(screen.getByRole('alert')).toHaveTextContent('Informe o prazo para marcar o lembrete');
-    // O sino continua ligado (há um lembrete marcado, para dar para tirá-lo) e lê a mensagem.
-    const sino = within(formulario()).getByRole('button', { name: 'Lembrete: 30 minutos antes' });
-    expect(sino).not.toHaveAttribute('aria-disabled');
-    expect(sino).toHaveAccessibleDescription(/Informe o prazo para marcar o lembrete/);
-    expect(aoSalvar).not.toHaveBeenCalled();
+    // Então: nenhuma mensagem pedindo o prazo de volta; o que se grava é sem prazo, sem hora e sem lembrete
+    await vi.waitFor(() => expect(aoSalvar).toHaveBeenCalled());
+    expect(prazoAoGravar(aoSalvar.mock.calls[0][0])).toEqual({ prazo: null, prazo_hora: null, lembrete: null });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(prazo()).toHaveTextContent('Sem prazo');
   });
 
   it('dado as opções do sino abertas, quando a pessoa aperta Esc, então só o menu fecha: o prazo continua aberto para mudar', async () => {

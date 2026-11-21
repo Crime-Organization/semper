@@ -8,9 +8,10 @@ export type CampoNoLugar = typeof CAMPOS_NO_LUGAR[number];
 
 /**
  * Os dados do grupo das datas que também se mudam no próprio lugar (#361): o prazo de tarefas e demandas e a data e o horário do
- * compromisso. O formulário pequeno deles (DadoEditavel) só avisa o rascunho quando ele ficou diferente do gravado, e null ao fechar.
+ * compromisso; desde a #395, também o início de tarefas e demandas, a assinatura do contrato e o prazo do processo que está sendo
+ * lançado ou mudado. O formulário pequeno deles só avisa o rascunho quando ele ficou diferente do gravado, e null ao fechar.
  */
-export const DADOS_NO_LUGAR = ['prazo', 'quando'] as const;
+export const DADOS_NO_LUGAR = ['prazo', 'quando', 'inicio', 'assinatura', 'prazoDoProcesso'] as const;
 export type DadoNoLugar = typeof DADOS_NO_LUGAR[number];
 
 /** O que está aberto para editar no cartão (null ou ausente: fora da edição). */

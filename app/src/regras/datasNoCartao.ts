@@ -47,6 +47,11 @@ export function prazoAoGravar(c: CamposDoPrazo): Required<PrazoGravado> {
   const prazo = lerData(c.prazo);
   return { prazo, ...horaELembreteAoGravar(prazo, c) };
 }
+/**
+ * O prazo como o cartão o confere (#395): apagar a data tira o prazo inteiro, e a hora e o lembrete vão junto (como prazoAoGravar
+ * grava). Sem isto, a hora ou o lembrete que ficaram pediriam o prazo de volta, e a pessoa teria de tirá-los à mão antes.
+ */
+export const prazoParaConferir = (c: CamposDoPrazo): CamposDoPrazo => c.prazo.trim() ? c : { ...c, hora: '', lembrete: null };
 /** O prazo como está gravado, para o Desfazer. */
 export const prazoComoEsta = (g: PrazoGravado): Required<PrazoGravado> => ({ prazo: g.prazo, prazo_hora: g.prazo_hora ?? null, lembrete: g.lembrete ?? null });
 /** Os campos do prazo no formulário pequeno, na ordem em que aparecem. */

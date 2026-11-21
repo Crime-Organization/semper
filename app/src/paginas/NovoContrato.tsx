@@ -517,7 +517,7 @@ export default function NovoContrato({ edicao }: { edicao?: EdicaoNoCartao } = {
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
       {comProcessos && <SecaoDoFormulario titulo="Processos" nivel={3}>{processosDoContrato()}</SecaoDoFormulario>}
-      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+      <RodapeDaEdicao estado={{ c, pessoas, clientes, participantes }} ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
   const voltar = idAtualizar ? '/contratos/?id=' + idAtualizar : '/contratos/';

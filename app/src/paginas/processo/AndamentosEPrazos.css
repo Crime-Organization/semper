@@ -10,6 +10,8 @@
 .acomp-texto { white-space: pre-wrap }
 .acomp-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
 .acomp-form { display: flex; flex-direction: column; gap: 16px }
+/* O lugar do calendário no formulário do prazo (#395): logo embaixo da data, no fluxo; vazio (fechado), some. */
+.acomp-form-calendario:empty { display: none }
 .acomp-form-linha { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px }
 /* Com a data e a hora num campo só (a audiência e a perícia, #299), cada coluna tem a largura mínima dele: no cartão estreito, o tipo e a
    data ficam um embaixo do outro, e a data não é cortada; na tela mais estreita que essa largura, a coluna fica com a largura toda. */

@@ -1254,6 +1254,8 @@ button.grupo-pilula:focus-visible, button.grupo-pilula[aria-expanded="true"] { o
 .campo-data-calendario { position: fixed; z-index: 85; width: var(--largura-do-calendario); max-width: calc(100vw - 2 * var(--folga-do-calendario)); padding: 12px; background: var(--superficie); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--sombra-flutuante); outline: 0; animation: calendario-entra .16s cubic-bezier(.16, 1, .3, 1) }
 @keyframes calendario-entra { from { opacity: 0; transform: translateY(-4px) } }
 @media (prefers-reduced-motion: reduce) { .campo-data-calendario { animation: none } }
+/* No lugar que o formulário pequeno reserva (#395): no fluxo dele, sem flutuar nem sombra; empurra o que vem embaixo. */
+.campo-data-calendario.no-lugar { position: static; z-index: auto; max-width: 100%; box-shadow: none; scroll-margin-block: var(--folga-do-calendario) }
 .campo-data-topo { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px }
 .campo-data-titulo { flex: 1; text-align: center; font-size: var(--texto-corrido); font-weight: 900; letter-spacing: -.01em; color: var(--ink) }
 .campo-data-titulo::first-letter { text-transform: uppercase }

@@ -513,7 +513,7 @@ export default function NovoProcesso({ edicao }: { edicao?: EdicaoNoCartao } = {
       {ETAPAS_PROCESSO.map(e => <SecaoDoFormulario key={e.id} titulo={e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
-      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+      <RodapeDaEdicao estado={{ c, clientes }} ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
   const voltar = TIPOS_PROCESSO[c.tipo].caminho + (idAtualizar ? '?id=' + idAtualizar : '');

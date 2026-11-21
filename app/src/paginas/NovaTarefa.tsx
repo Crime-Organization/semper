@@ -375,7 +375,7 @@ export default function NovaTarefa({ edicao }: { edicao?: EdicaoNoCartao } = {})
       {naOrdemDoLapisTarefa(etapasDoLapis(ETAPAS_TAREFA, camposForaDoLapis(DATAS_NO_LUGAR.tarefas))).map(e => <SecaoDoFormulario key={e.id} titulo={e.tituloNoLapis ?? e.titulo} nivel={3}>
         {CONTEUDO[e.id]()}
       </SecaoDoFormulario>)}
-      <RodapeDaEdicao ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
+      <RodapeDaEdicao estado={{ c, pessoas }} ocupado={ocupado} aoCancelar={() => edicao.aoTerminar(false)} aoSalvar={() => void salvar()} />
     </form>;
 
   const voltar = idAtualizar ? '/tarefas/?id=' + idAtualizar : '/tarefas/';

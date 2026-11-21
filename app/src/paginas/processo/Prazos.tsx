@@ -1,6 +1,8 @@
 // Os prazos no cartão do processo: lançar, mudar, marcar como cumprido, excluir e criar a tarefa de cumprir ou ligar uma que já
-// existe (#341), deste processo ou sem processo.
-import { useState } from 'react';
+// existe (#341), deste processo ou sem processo. Um formulário aberto de cada vez (#395): pedir outro (o "Mudar" de outro prazo, o
+// "+" ou o "Novo prazo") com o aberto por salvar mantém o aberto e lembra de salvar ou cancelar; o que foi escrito e não lançado é
+// avisado ao cartão, que pergunta antes de fechar.
+import { useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { SD, type DadosPrazo, type Orgao, type PrazoDeProcesso, type Processo } from '../../dados';
 import { PRAZOS_DO_PROCESSO } from '../../dados/limites';
@@ -12,6 +14,7 @@ import { estiloBotao, Nota, Selo } from '../../ui/base';
 import { Botao, BotaoDuplo } from '../../ui/Botoes';
 import { Icone } from '../../ui/Icone';
 import { usePedidoDeNovo } from '../../ui/Recolhivel';
+import { useEdicaoUnica } from '../../ui/useEdicaoUnica';
 import { useCtx } from '../../ui/sessao';
 import { hojeISO } from '../../ui/util';
 import { FormDoPrazo } from './FormDoPrazo';
@@ -35,22 +38,38 @@ interface Props {
   somenteLer: boolean;
   /** Relê a lista e o histórico. */
   aoMudar: () => Promise<void>;
+  /** Avisa o cartão do prazo escrito e ainda não lançado (para perguntar antes de fechar). */
+  aoMudarRascunho?: (rascunho: string | null) => void;
 }
 
-export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Props) {
+/** O formulário do prazo novo; os outros são o id do prazo sendo mudado. */
+const NOVO = 'novo';
+
+export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar, aoMudarRascunho }: Props) {
   const ctx = useCtx();
   const hoje = hojeISO();
-  /** 'novo', o id do prazo sendo mudado, ou null. */
-  const [editando, setEditando] = useState<string | null>(null);
+  /** O formulário aberto: NOVO, o id do prazo sendo mudado, ou null. Um de cada vez. */
+  const edicao = useEdicaoUnica(), editando = edicao.aberta;
   // Na hora: a caixa muda já, até a lista voltar do banco como ficou.
   const [marcando, setMarcando] = useState<{ id: string; cumprido: boolean } | null>(null);
+  const secao = useRef<HTMLDivElement>(null);
   // O "+" do título da seção abre o mesmo formulário do botão de baixo.
-  usePedidoDeNovo(() => { if (!somenteLer) setEditando('novo'); });
+  usePedidoDeNovo(() => { if (!somenteLer) edicao.pedir(NOVO); });
+  /** Fecha o formulário; o foco volta ao botão que o abriu ("Mudar" do prazo ou "Novo prazo"), e quem usa o teclado não se perde. */
+  function fechar(id: string) {
+    edicao.fechar(id);
+    setTimeout(() => secao.current?.querySelector<HTMLElement>(`[data-abre="${id}"]`)?.focus({ preventScroll: true }), 0);
+  }
+  /** O formulário de um prazo (ou do novo), ligado ao cartão: o que foi escrito vai para ele e para a faixa de um formulário por vez. */
+  const doFormulario = (id: string) => ({
+    aoCancelar: () => fechar(id), barrados: edicao.barrados,
+    aoMudarRascunho: (r: string | null) => { edicao.marcarSujo(id, r !== null); aoMudarRascunho?.(r); }
+  });
 
   async function lancar(dados: DadosPrazo) {
     const novo = await SD.processoPrazoCriar(p.id, dados);
     feito('Prazo lançado.', 'lançamento do prazo', async () => { await SD.processoPrazoExcluir(novo.id); });
-    setEditando(null); await aoMudar();
+    fechar(NOVO); await aoMudar();
   }
   /** O último dia mudou: a tarefa de cumprir acompanha. Devolve se ela ficou para trás. */
   async function levarATarefa(z: PrazoDeProcesso, final: string) {
@@ -66,7 +85,7 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
       if (z.tarefa && dados.final !== z.final) await SD.tarefaAtualizar(z.tarefa.id, { prazo: z.final });
     });
     if (ficouParaTras) avisar('A tarefa ligada a este prazo continua com o último dia antigo: não foi possível mudá-la.', 'erro');
-    setEditando(null); await aoMudar();
+    fechar(z.id); await aoMudar();
   }
   async function cumprir(z: PrazoDeProcesso, cumprido: boolean) {
     setMarcando({ id: z.id, cumprido });
@@ -97,11 +116,11 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
     await aoMudar();
   }
 
-  return <div className="acomp">
-    {!prazos.length && editando !== 'novo' && <Nota>Nenhum prazo lançado.</Nota>}
+  return <div className="acomp" ref={secao}>
+    {!prazos.length && editando !== NOVO && <Nota>Nenhum prazo lançado.</Nota>}
     <ul className="acomp-lista" aria-label="Prazos do processo">
       {naOrdemDosPrazos(prazos).map(z => editando === z.id
-        ? <li key={z.id}><FormDoPrazo mudando inicial={formDoPrazo(z, hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={d => mudar(z, d)} aoCancelar={() => setEditando(null)} /></li>
+        ? <li key={z.id}><FormDoPrazo mudando inicial={formDoPrazo(z, hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={d => mudar(z, d)} {...doFormulario(z.id)} /></li>
         : <li key={z.id} className={z.concluido_em ? 'acomp-feito' : undefined}>
           <div className="acomp-topo">
             <label className="acomp-marcar"><input type="checkbox" checked={marcando?.id === z.id ? marcando.cumprido : !!z.concluido_em} disabled={somenteLer || marcando?.id === z.id} aria-label={`Prazo cumprido: ${z.descricao}`} onChange={e => void cumprir(z, e.target.checked)} /><b>{z.descricao}</b></label>
@@ -117,14 +136,14 @@ export function Prazos({ processo: p, prazos, orgao, somenteLer, aoMudar }: Prop
                   aoEscolher={t => ligarEAvisar(() => ligarTarefaNoPrazo(p.id, z.id, t.id),
                     { feito: `Tarefa ${t.codigo} ligada ao prazo.`, oQue: 'ligação da tarefa', ja: 'Esta tarefa já estava ligada a este prazo.' }, aoMudar)} />
               </>}
-            {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o prazo ${z.descricao}`} onClick={() => setEditando(z.id)}><Icone nome="editar" tam={13} /> Mudar</button>}
+            {!somenteLer && <button type="button" className={estiloBotao({ forma: 'mini' })} aria-label={`Mudar o prazo ${z.descricao}`} data-abre={z.id} onClick={() => edicao.pedir(z.id)}><Icone nome="editar" tam={13} /> Mudar</button>}
             {!somenteLer && <BotaoDuplo pequeno variante="perigo" confirmar={`Confirmar: excluir ${z.descricao}`} aoConfirmar={() => excluir(z)}><Icone nome="lixeira" tam={13} /> Excluir</BotaoDuplo>}
           </div>
         </li>)}
     </ul>
     {prazos.length >= PRAZOS_DO_PROCESSO && <Nota>Mostrando os {PRAZOS_DO_PROCESSO} prazos de último dia mais novo.</Nota>}
-    {editando === 'novo'
-      ? <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={lancar} aoCancelar={() => setEditando(null)} />
-      : !somenteLer && <div><button type="button" className={estiloBotao()} onClick={() => setEditando('novo')}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
+    {editando === NOVO
+      ? <FormDoPrazo inicial={prazoNovo(hoje, orgao?.contagem_padrao)} orgao={orgao} siglaDoProcesso={p.orgao} aoSalvar={lancar} {...doFormulario(NOVO)} />
+      : !somenteLer && <div><button type="button" className={estiloBotao()} data-abre={NOVO} onClick={() => edicao.pedir(NOVO)}><Icone nome="mais" tam={15} /> {ROTULO_DO_NOVO_PRAZO}</button></div>}
   </div>;
 }

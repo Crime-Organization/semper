@@ -3,7 +3,7 @@
 // O banco fictício sempre entra como administrador; aqui o processo é aberto também como quem não é.
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { createMemoryRouter, MemoryRouter, RouterProvider, useLocation } from 'react-router';
+import { createMemoryRouter, RouterProvider, useLocation } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SD, type Contrato, type Processo, type Tarefa, type TipoProcesso } from '../dados';
 import { avisar } from '../ui/avisos';
@@ -26,7 +26,8 @@ const processo = (tipo: TipoProcesso, numero: string) => ({
 /** Abre o processo para editar: todas as etapas na tela. */
 async function abrir(tipo: TipoProcesso, numero: string, extra: Partial<Processo> = {}) {
   vi.spyOn(SD, 'processoObter').mockResolvedValue({ ...processo(tipo, numero), ...extra });
-  render(<MemoryRouter><NovoProcesso edicao={{ id: 'p1', aoTerminar: () => undefined }} /></MemoryRouter>);
+  // O lápis pergunta antes de sair com algo mudado (#395): precisa do roteador com dados, como o do app.
+  render(<RouterProvider router={createMemoryRouter([{ path: '/', element: <NovoProcesso edicao={{ id: 'p1', aoTerminar: () => undefined }} /> }])} />);
   await screen.findByLabelText(/Número do processo/);
 }
 const ACRESCENTAR = { name: 'Acrescentar opção' };
